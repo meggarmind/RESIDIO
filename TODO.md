@@ -1,6 +1,6 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-06 21:48 UTC
+**Last Updated:** 2025-12-07 00:00 UTC
 
 ## Current Phase: Phase 1 - COMPLETE | Next: Phase 2
 
@@ -27,7 +27,10 @@
 - [x] Create auth context/provider for client-side auth state (`src/lib/auth/auth-provider.tsx`)
 - [x] Add role-based route protection (extend middleware)
 - [x] Create basic dashboard page with role-based navigation
-- [x] Build successful, pushed to GitHub
+- [x] Fix RLS recursion issue with `get_my_role()` SECURITY DEFINER function
+- [x] Add auth.identities seed records for test users
+- [x] Fix sign out redirect and navigation loading
+- [x] All tests passed, pushed to GitHub
 
 ---
 
