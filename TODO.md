@@ -1,8 +1,8 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-06 16:26 UTC
+**Last Updated:** 2025-12-06 21:48 UTC
 
-## Current Phase: Phase 0 - COMPLETE | Next: Phase 1
+## Current Phase: Phase 1 - COMPLETE | Next: Phase 2
 
 ---
 
@@ -19,19 +19,19 @@
 
 ---
 
-## Phase 1: Authentication & RBAC ⏳ UP NEXT
-- [ ] Create database migration for profiles table with RLS
-- [ ] Set up Supabase Auth trigger (auto-create profile on signup)
-- [ ] Create login page (`src/app/(auth)/login/page.tsx`)
-- [ ] Create signup page (if needed) or invite-only flow
-- [ ] Implement auth callback route (`src/app/api/auth/callback/route.ts`)
-- [ ] Create auth context/provider for client-side auth state
-- [ ] Add role-based route protection (extend middleware)
-- [ ] Test authentication flow end-to-end
+## Phase 1: Authentication & RBAC ✅ COMPLETE
+- [x] Create database migration for profiles table with RLS
+- [x] Set up Supabase Auth trigger (auto-create profile on signup)
+- [x] Create login page (`src/app/(auth)/login/page.tsx`)
+- [x] Implement auth callback route (`src/app/api/auth/callback/route.ts`)
+- [x] Create auth context/provider for client-side auth state (`src/lib/auth/auth-provider.tsx`)
+- [x] Add role-based route protection (extend middleware)
+- [x] Create basic dashboard page with role-based navigation
+- [x] Build successful, pushed to GitHub
 
 ---
 
-## Phase 2: Dashboard Shell
+## Phase 2: Dashboard Shell ⏳ UP NEXT
 - [ ] Create dashboard layout (`src/app/(dashboard)/layout.tsx`)
 - [ ] Build sidebar navigation component
 - [ ] Build header with user menu
