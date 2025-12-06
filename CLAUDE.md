@@ -98,3 +98,4 @@ import { z } from 'zod';
 - TODO.md should be updated at least once every 30 minutes with current state including any troubleshooting under way.
 - HANDOFF_SUMMARY.md should be updated when I need to close the chat session or when context remaining before compression hits about 10%. 
 - git user.name is meggarmind and git user.email "feyijimiohioma@gmail.com" git repo url is https://github.com/meggarmind/RESIDIO
+- do not reference claude code in github commits (🤖 Generated with [Claude Code](https://claude.ai/code), Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>")
