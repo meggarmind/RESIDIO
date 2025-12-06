@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { UserRole } from '@/types/database';
@@ -27,12 +27,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const isInitialized = useRef(false);
 
-  const supabase = createClient();
+  // Memoize the Supabase client to prevent recreation on re-renders
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
+      // Skip re-initialization if we already have valid session data
+      if (isInitialized.current && session) {
+        setIsLoading(false);
+        return;
+      }
+
       const { data: { session: initialSession } } = await supabase.auth.getSession();
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
@@ -41,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await fetchProfile(initialSession.user.id);
       }
 
+      isInitialized.current = true;
       setIsLoading(false);
     };
 
@@ -65,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [supabase, session]);
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -87,6 +96,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setProfile(null);
     setSession(null);
+    // Force full page reload to clear all client state and redirect to login
+    window.location.href = '/login';
   };
 
   return (
