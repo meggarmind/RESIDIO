@@ -1,8 +1,8 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-07 00:00 UTC
+**Last Updated:** 2025-12-07 02:40 UTC
 
-## Current Phase: Phase 1 - COMPLETE | Next: Phase 2
+## Current Phase: Phase 3 - COMPLETE | Next: Phase 4
 
 ---
 
@@ -24,36 +24,47 @@
 - [x] Set up Supabase Auth trigger (auto-create profile on signup)
 - [x] Create login page (`src/app/(auth)/login/page.tsx`)
 - [x] Implement auth callback route (`src/app/api/auth/callback/route.ts`)
-- [x] Create auth context/provider for client-side auth state (`src/lib/auth/auth-provider.tsx`)
+- [x] Create auth context/provider for client-side auth state
 - [x] Add role-based route protection (extend middleware)
 - [x] Create basic dashboard page with role-based navigation
 - [x] Fix RLS recursion issue with `get_my_role()` SECURITY DEFINER function
 - [x] Add auth.identities seed records for test users
-- [x] Fix sign out redirect and navigation loading
-- [x] All tests passed, pushed to GitHub
 
 ---
 
-## Phase 2: Dashboard Shell ⏳ UP NEXT
-- [ ] Create dashboard layout (`src/app/(dashboard)/layout.tsx`)
-- [ ] Build sidebar navigation component
-- [ ] Build header with user menu
-- [ ] Create dashboard home page with stats overview
-- [ ] Implement responsive design (mobile sidebar)
+## Phase 2: Dashboard Shell ✅ COMPLETE
+- [x] Create dashboard layout (`src/app/(dashboard)/layout.tsx`)
+- [x] Build sidebar navigation component with role filtering
+- [x] Build header with user menu and sign out
+- [x] Create dashboard home page with stats overview
+- [x] Implement responsive design (mobile sidebar with sheet)
 
 ---
 
-## Phase 3: Resident Management (CRUD)
-- [ ] Create residents table migration with RLS policies
-- [ ] Build residents list page with data table
-- [ ] Create add/edit resident form with validation
-- [ ] Implement resident search and filtering
-- [ ] Add resident detail view
-- [ ] Create delete resident functionality with confirmation
+## Phase 3: Resident & House Management ✅ COMPLETE
+- [x] Create 8 database migrations (enums, streets, house_types, houses, residents, resident_houses)
+- [x] Add auto-generated 6-digit resident codes via trigger
+- [x] Add house occupancy tracking trigger
+- [x] Seed data: 4 streets, 5 house types, 18 sample houses
+- [x] Create Zod validators for residents and houses
+- [x] Add 16 server actions for CRUD operations
+- [x] Create React Query hooks for data fetching
+- [x] Build house UI: table, form, list/new/detail pages
+- [x] Build resident UI: table, form, status badges, list/new/detail pages
+- [x] Update sidebar with Houses link
+- [x] Add form, select, textarea shadcn components
+
+### Key Implementation Notes:
+- Use `ALL_VALUE = '_all'` constant for Select "all" options (shadcn doesn't allow empty strings)
+- Resident roles: owner, tenant, occupier, domestic_staff
+- Resident codes: 6-digit numeric auto-generated
+
+### Future Enhancements (backlog):
+- [ ] Allow existing residents as emergency contacts (add `emergency_contact_resident_id` FK)
 
 ---
 
-## Phase 4: Payment Status Management
+## Phase 4: Payment Status Management ⏳ UP NEXT
 - [ ] Create payment_records table migration
 - [ ] Build payment status dashboard
 - [ ] Create payment recording form
@@ -105,14 +116,29 @@
 residio/
 ├── src/
 │   ├── app/              # Next.js App Router
-│   ├── components/ui/    # 15 shadcn/ui components
-│   ├── lib/supabase/     # Supabase clients
-│   ├── types/            # TypeScript types
-│   └── middleware.ts     # Auth protection
+│   │   ├── (auth)/       # Auth pages (login)
+│   │   ├── (dashboard)/  # Dashboard pages
+│   │   │   ├── houses/   # House management
+│   │   │   └── residents/# Resident management
+│   │   └── api/          # API routes
+│   ├── actions/          # Server actions
+│   │   ├── houses/       # House CRUD
+│   │   ├── residents/    # Resident CRUD
+│   │   └── reference/    # Streets, house types
+│   ├── components/
+│   │   ├── ui/           # 18 shadcn/ui components
+│   │   ├── dashboard/    # Sidebar, header
+│   │   ├── houses/       # House table, form
+│   │   └── residents/    # Resident table, form, badges
+│   ├── hooks/            # React Query hooks
+│   ├── lib/
+│   │   ├── supabase/     # Supabase clients
+│   │   └── validators/   # Zod schemas
+│   └── types/            # TypeScript types
 ├── supabase/
 │   ├── config.toml       # Supabase CLI config
-│   ├── migrations/       # DB migrations
-│   └── seed.sql          # Seed data
+│   ├── migrations/       # 10 DB migrations
+│   └── seed.sql          # Test user seed data
 └── package.json
 ```
 
