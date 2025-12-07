@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { Home, Users, CreditCard, Shield, Settings } from 'lucide-react';
+import { Home, Users, CreditCard, Shield, Settings, Building2 } from 'lucide-react';
 
 interface NavItem {
   title: string;
@@ -23,6 +23,12 @@ const navItems: NavItem[] = [
     title: 'Residents',
     href: '/residents',
     icon: Users,
+    roles: ['admin', 'chairman', 'financial_secretary'],
+  },
+  {
+    title: 'Houses',
+    href: '/houses',
+    icon: Building2,
     roles: ['admin', 'chairman', 'financial_secretary'],
   },
   {

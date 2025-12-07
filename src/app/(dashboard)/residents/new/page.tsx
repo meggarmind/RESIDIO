@@ -1,29 +1,29 @@
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ResidentsTable } from '@/components/residents/residents-table';
+import { ResidentForm } from '@/components/residents/resident-form';
 import { Users } from 'lucide-react';
 
-export default function ResidentsPage() {
+export default function NewResidentPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Residents</h1>
-        <p className="text-muted-foreground">Manage community members and their access.</p>
+        <h1 className="text-3xl font-bold">Add New Resident</h1>
+        <p className="text-muted-foreground">Register a new community member.</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Resident Registry
+            Resident Details
           </CardTitle>
           <CardDescription>
-            View and manage all residents in the community.
+            Enter the details for the new resident.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResidentsTable />
+          <ResidentForm />
         </CardContent>
       </Card>
     </div>
