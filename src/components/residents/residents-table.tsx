@@ -27,17 +27,19 @@ import { Users, Plus, Search, Eye, Pencil } from 'lucide-react';
 import type { ResidentSearchParams } from '@/lib/validators/resident';
 import type { AccountStatus } from '@/types/database';
 
+const ALL_VALUE = '_all';
+
 export function ResidentsTable() {
   const router = useRouter();
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<AccountStatus | ''>('');
-  const [streetId, setStreetId] = useState<string>('');
+  const [status, setStatus] = useState<AccountStatus | typeof ALL_VALUE>(ALL_VALUE);
+  const [streetId, setStreetId] = useState<string>(ALL_VALUE);
   const [page, setPage] = useState(1);
 
   const params: Partial<ResidentSearchParams> = {
     search: search || undefined,
-    status: status as AccountStatus || undefined,
-    street_id: streetId || undefined,
+    status: status === ALL_VALUE ? undefined : status as AccountStatus,
+    street_id: streetId === ALL_VALUE ? undefined : streetId,
     page,
     limit: 20,
   };
@@ -75,12 +77,12 @@ export function ResidentsTable() {
           <Button type="submit" variant="secondary">Search</Button>
         </form>
 
-        <Select value={status} onValueChange={(v) => setStatus(v as AccountStatus | '')}>
+        <Select value={status} onValueChange={(v) => setStatus(v as AccountStatus | typeof ALL_VALUE)}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="All Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Status</SelectItem>
+            <SelectItem value={ALL_VALUE}>All Status</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="inactive">Inactive</SelectItem>
             <SelectItem value="suspended">Suspended</SelectItem>
@@ -93,7 +95,7 @@ export function ResidentsTable() {
             <SelectValue placeholder="All Streets" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Streets</SelectItem>
+            <SelectItem value={ALL_VALUE}>All Streets</SelectItem>
             {streets?.map((street) => (
               <SelectItem key={street.id} value={street.id}>
                 {street.name}

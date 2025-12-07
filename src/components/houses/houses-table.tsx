@@ -26,17 +26,19 @@ import { useStreets, useHouseTypes } from '@/hooks/use-reference';
 import { Home, Plus, Search, Eye, Pencil } from 'lucide-react';
 import type { HouseSearchParams } from '@/lib/validators/house';
 
+const ALL_VALUE = '_all';
+
 export function HousesTable() {
   const router = useRouter();
   const [search, setSearch] = useState('');
-  const [streetId, setStreetId] = useState<string>('');
-  const [houseTypeId, setHouseTypeId] = useState<string>('');
+  const [streetId, setStreetId] = useState<string>(ALL_VALUE);
+  const [houseTypeId, setHouseTypeId] = useState<string>(ALL_VALUE);
   const [page, setPage] = useState(1);
 
   const params: Partial<HouseSearchParams> = {
     search: search || undefined,
-    street_id: streetId || undefined,
-    house_type_id: houseTypeId || undefined,
+    street_id: streetId === ALL_VALUE ? undefined : streetId,
+    house_type_id: houseTypeId === ALL_VALUE ? undefined : houseTypeId,
     page,
     limit: 20,
   };
@@ -80,7 +82,7 @@ export function HousesTable() {
             <SelectValue placeholder="All Streets" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Streets</SelectItem>
+            <SelectItem value={ALL_VALUE}>All Streets</SelectItem>
             {streets?.map((street) => (
               <SelectItem key={street.id} value={street.id}>
                 {street.name}
@@ -94,7 +96,7 @@ export function HousesTable() {
             <SelectValue placeholder="All Types" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Types</SelectItem>
+            <SelectItem value={ALL_VALUE}>All Types</SelectItem>
             {houseTypes?.map((type) => (
               <SelectItem key={type.id} value={type.id}>
                 {type.name}
