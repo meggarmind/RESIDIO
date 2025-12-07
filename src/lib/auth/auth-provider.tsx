@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { UserRole } from '@/types/database';
@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Get initial session
     const getInitialSession = async () => {
       // Skip re-initialization if we already have valid session data
-      if (isInitialized.current && session) {
+      if (isInitialized.current) {
         setIsLoading(false);
         return;
       }
@@ -46,6 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(initialSession?.user ?? null);
 
       if (initialSession?.user) {
+        // eslint-disable-next-line react-hooks/immutability
         await fetchProfile(initialSession.user.id);
       }
 
@@ -74,22 +75,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase, session]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
 
-  const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, email, full_name, role')
-      .eq('id', userId)
-      .single();
+const fetchProfile = useCallback(async (userId: string) => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, role')
+    .eq('id', userId)
+    .single();
 
-    if (error) {
-      console.error('Error fetching profile:', error);
-      return;
-    }
-
-    setProfile(data);
-  };
+  if (error) {
+    console.error('Error fetching profile:', error);
+    return;
+  }
+  setProfile(data);
+}, [supabase]);
 
   const signOut = async () => {
     await supabase.auth.signOut();

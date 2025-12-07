@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,10 @@ function ErrorHandler() {
 
 export default function DashboardPage() {
   const { user, profile, isLoading, signOut } = useAuth();
+
+  const canManageResidents = profile?.role && ['admin', 'chairman', 'financial_secretary'].includes(profile.role);
+  const canViewPayments = profile?.role && ['admin', 'chairman', 'financial_secretary'].includes(profile.role);
+  const canAccessSecurity = profile?.role && ['admin', 'chairman', 'security_officer'].includes(profile.role);
 
   if (isLoading) {
     return (
@@ -72,7 +77,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {profile?.role && ['admin', 'chairman', 'financial_secretary'].includes(profile.role) && (
+          {canManageResidents && (
             <Card>
               <CardHeader>
                 <CardTitle>Residents</CardTitle>
@@ -80,13 +85,13 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <Button variant="outline" className="w-full" asChild>
-                  <a href="/residents">View Residents</a>
+                  <Link href="/residents">View Residents</Link>
                 </Button>
               </CardContent>
             </Card>
           )}
 
-          {profile?.role && ['admin', 'chairman', 'financial_secretary'].includes(profile.role) && (
+          {canViewPayments && (
             <Card>
               <CardHeader>
                 <CardTitle>Payments</CardTitle>
@@ -94,13 +99,13 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <Button variant="outline" className="w-full" asChild>
-                  <a href="/payments">View Payments</a>
+                  <Link href="/payments">View Payments</Link>
                 </Button>
               </CardContent>
             </Card>
           )}
 
-          {profile?.role && ['admin', 'chairman', 'security_officer'].includes(profile.role) && (
+          {canAccessSecurity && (
             <Card>
               <CardHeader>
                 <CardTitle>Security</CardTitle>
@@ -108,7 +113,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <Button variant="outline" className="w-full" asChild>
-                  <a href="/security">Security Dashboard</a>
+                  <Link href="/security">Security Dashboard</Link>
                 </Button>
               </CardContent>
             </Card>
