@@ -22,6 +22,12 @@ export async function getResident(id: string): Promise<GetResidentResponse> {
           street:streets(*),
           house_type:house_types(*)
         )
+      ),
+      emergency_contact_resident:residents!emergency_contact_resident_id (
+          first_name,
+          last_name,
+          phone_primary,
+          resident_code
       )
     `)
     .eq('id', id)

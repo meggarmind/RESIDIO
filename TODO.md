@@ -64,7 +64,21 @@
 
 ---
 
-## Phase 4: Payment Status Management ⏳ UP NEXT
+## Phase 4: Resident & House Enhancements ✅ COMPLETE
+- [x] Create reference management (Streets/House Types)
+- [x] Implement flexible emergency contacts (Link existing resident)
+- [x] Update resident roles (Household Member)
+- [x] Implement multiple house linking for residents
+- [x] Update DB schema (enums, FKs)
+
+### Key Implementation Notes:
+- Reference Admin Page restricted to Admin/Chairman/FinSec
+- Emergency contacts can be manual or linked to existing resident ID
+
+---
+
+## Phase 5: Payment Status Management
+
 - [ ] Create payment_records table migration
 - [ ] Build payment status dashboard
 - [ ] Create payment recording form
@@ -74,7 +88,7 @@
 
 ---
 
-## Phase 5: Security Contact List
+## Phase 6: Security Contact List
 - [ ] Create security_contacts table migration
 - [ ] Build security contacts management UI
 - [ ] Implement access code generation
@@ -83,7 +97,7 @@
 
 ---
 
-## Phase 6: External API (Security Barrier Integration)
+## Phase 7: External API (Security Barrier Integration)
 - [ ] Create API route for access verification (`/api/v1/access/verify`)
 - [ ] Implement API key authentication
 - [ ] Add rate limiting
@@ -92,7 +106,7 @@
 
 ---
 
-## Phase 7: Audit Logging
+## Phase 8: Audit Logging
 - [ ] Create audit_logs table migration (immutable)
 - [ ] Implement audit log triggers/functions
 - [ ] Build audit log viewer UI
@@ -100,7 +114,7 @@
 
 ---
 
-## Phase 8: Polish & Deployment
+## Phase 9: Polish & Deployment
 - [ ] Add loading states and skeletons
 - [ ] Implement error boundaries
 - [ ] Add toast notifications for actions

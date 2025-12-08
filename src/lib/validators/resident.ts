@@ -11,6 +11,7 @@ export const residentFormSchema = z.object({
   emergency_contact_name: z.string().optional().or(z.literal('')),
   emergency_contact_phone: z.string().optional().or(z.literal('')),
   emergency_contact_relationship: z.string().optional().or(z.literal('')),
+  emergency_contact_resident_id: z.string().uuid().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
 });
 
@@ -19,7 +20,7 @@ export type ResidentFormData = z.infer<typeof residentFormSchema>;
 // House assignment schema
 export const houseAssignmentSchema = z.object({
   house_id: z.string().uuid('Please select a house'),
-  resident_role: z.enum(['owner', 'tenant', 'occupier', 'domestic_staff']),
+  resident_role: z.enum(['owner', 'tenant', 'occupier', 'domestic_staff', 'family_member']),
   is_primary: z.boolean().default(true),
   move_in_date: z.string().optional(),
 });
@@ -29,7 +30,7 @@ export type HouseAssignmentData = z.infer<typeof houseAssignmentSchema>;
 // Combined schema for creating resident with house assignment
 export const createResidentSchema = residentFormSchema.extend({
   house_id: z.string().uuid('Please select a house').optional(),
-  resident_role: z.enum(['owner', 'tenant', 'occupier', 'domestic_staff']).optional(),
+  resident_role: z.enum(['owner', 'tenant', 'occupier', 'domestic_staff', 'family_member']).optional(),
   move_in_date: z.string().optional(),
 });
 

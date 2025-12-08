@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -23,10 +24,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useHouses } from '@/hooks/use-houses';
-import { useCreateResident, useUpdateResident } from '@/hooks/use-residents';
+import { useCreateResident, useUpdateResident, useResidents } from '@/hooks/use-residents';
 import { createResidentSchema, residentFormSchema, type CreateResidentData, type ResidentFormData } from '@/lib/validators/resident';
 import { toast } from 'sonner';
 import type { Resident } from '@/types/database';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 interface ResidentFormProps {
   resident?: Resident;
@@ -36,11 +38,14 @@ interface ResidentFormProps {
 export function ResidentForm({ resident, onSuccess }: ResidentFormProps) {
   const router = useRouter();
   const { data: housesData, isLoading: housesLoading } = useHouses({ limit: 100 });
+  const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 1000 }); // Fetch all for picker
   const createMutation = useCreateResident();
   const updateMutation = useUpdateResident();
 
   const isEditing = !!resident;
   const schema = isEditing ? residentFormSchema : createResidentSchema;
+  const defaultContactMode = resident?.emergency_contact_resident_id ? 'linked' : 'manual';
+  const [contactMode, setContactMode] = React.useState<'manual' | 'linked'>(defaultContactMode);
 
   const form = useForm<CreateResidentData>({
     resolver: zodResolver(schema),
@@ -54,6 +59,7 @@ export function ResidentForm({ resident, onSuccess }: ResidentFormProps) {
       emergency_contact_name: resident?.emergency_contact_name ?? '',
       emergency_contact_phone: resident?.emergency_contact_phone ?? '',
       emergency_contact_relationship: resident?.emergency_contact_relationship ?? '',
+      emergency_contact_resident_id: resident?.emergency_contact_resident_id ?? undefined,
       notes: resident?.notes ?? '',
       house_id: undefined,
       resident_role: undefined,
@@ -76,6 +82,7 @@ export function ResidentForm({ resident, onSuccess }: ResidentFormProps) {
           emergency_contact_name: data.emergency_contact_name,
           emergency_contact_phone: data.emergency_contact_phone,
           emergency_contact_relationship: data.emergency_contact_relationship,
+          emergency_contact_resident_id: data.emergency_contact_resident_id,
           notes: data.notes,
         };
         await updateMutation.mutateAsync({ id: resident.id, data: updateData });
@@ -92,6 +99,7 @@ export function ResidentForm({ resident, onSuccess }: ResidentFormProps) {
   }
 
   const availableHouses = housesData?.data.filter((h) => !h.is_occupied) ?? [];
+  const otherResidents = residentsData?.data.filter(r => r.id !== resident?.id) ?? [];
 
   return (
     <Form {...form}>
@@ -249,6 +257,7 @@ export function ResidentForm({ resident, onSuccess }: ResidentFormProps) {
                         <SelectItem value="owner">Owner</SelectItem>
                         <SelectItem value="tenant">Tenant</SelectItem>
                         <SelectItem value="occupier">Occupier</SelectItem>
+                        <SelectItem value="family_member">Household Member</SelectItem>
                         <SelectItem value="domestic_staff">Domestic Staff</SelectItem>
                       </SelectContent>
                     </Select>
@@ -276,50 +285,101 @@ export function ResidentForm({ resident, onSuccess }: ResidentFormProps) {
 
         {/* Emergency Contact */}
         <div className="space-y-4">
-          <h3 className="text-lg font-medium">Emergency Contact</h3>
-          <div className="grid gap-4 md:grid-cols-3">
-            <FormField
-              control={form.control}
-              name="emergency_contact_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Contact name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="emergency_contact_phone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Phone</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Contact phone" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="emergency_contact_relationship"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Relationship</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Spouse, Parent" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium">Emergency Contact</h3>
+            <Tabs value={contactMode} onValueChange={(v) => setContactMode(v as 'manual' | 'linked')}>
+              <TabsList>
+                <TabsTrigger value="manual">Manual Entry</TabsTrigger>
+                <TabsTrigger value="linked">Link Resident</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
+
+          {contactMode === 'manual' ? (
+            <div className="grid gap-4 md:grid-cols-3">
+              <FormField
+                control={form.control}
+                name="emergency_contact_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Contact name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="emergency_contact_phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Contact phone" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="emergency_contact_relationship"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Relationship</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Spouse, Parent" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="emergency_contact_resident_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Select Resident</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={residentsLoading}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a resident" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {otherResidents.map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.first_name} {r.last_name} ({r.resident_code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="emergency_contact_relationship"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Relationship</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Spouse" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          )}
         </div>
 
         {/* Notes */}

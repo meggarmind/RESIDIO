@@ -105,6 +105,7 @@ export interface Database {
           emergency_contact_name: string | null;
           emergency_contact_phone: string | null;
           emergency_contact_relationship: string | null;
+          emergency_contact_resident_id: string | null;
           notes: string | null;
           created_at: string;
           updated_at: string;
@@ -117,6 +118,7 @@ export interface Database {
         > & {
           id?: string;
           resident_code?: string;
+          emergency_contact_resident_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['residents']['Insert']>;
       };
@@ -234,4 +236,10 @@ export interface ResidentWithHouses extends Resident {
   resident_houses: (ResidentHouse & {
     house: HouseWithStreet;
   })[];
+  emergency_contact_resident?: {
+    first_name: string;
+    last_name: string;
+    phone_primary: string;
+    resident_code: string;
+  } | null;
 }

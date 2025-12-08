@@ -9,7 +9,8 @@ import { Separator } from '@/components/ui/separator';
 import { ResidentForm } from '@/components/residents/resident-form';
 import { AccountStatusBadge, VerificationStatusBadge } from '@/components/residents/status-badge';
 import { useResident, useDeleteResident } from '@/hooks/use-residents';
-import { Users, Pencil, Trash2, Home, Phone, Mail, ArrowLeft, UserCircle } from 'lucide-react';
+import { LinkedHouses } from '@/components/residents/linked-houses';
+import { Users, Pencil, Trash2, Home, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ResidentDetailPageProps {
@@ -179,72 +180,64 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         </Card>
 
         {/* House Assignments */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Home className="h-5 w-5" />
-              House Assignments ({activeHouses.length})
-            </CardTitle>
-            <CardDescription>Properties linked to this resident</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {activeHouses.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No house assignments</p>
-            ) : (
-              <div className="space-y-4">
-                {activeHouses.map((rh) => (
-                  <div key={rh.id} className="flex items-center justify-between">
-                    <div>
-                      <Link
-                        href={`/houses/${rh.house.id}`}
-                        className="font-medium hover:underline"
-                      >
-                        {rh.house?.house_number} {rh.house?.street?.name}
-                      </Link>
-                      <p className="text-sm text-muted-foreground capitalize">
-                        {rh.resident_role.replace('_', ' ')}
-                        {rh.is_primary && ' (Primary)'}
-                      </p>
-                    </div>
-                    <span className="text-sm text-muted-foreground">
-                      Since {new Date(rh.move_in_date).toLocaleDateString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <LinkedHouses resident={resident} />
 
         {/* Emergency Contact */}
-        {(resident.emergency_contact_name || resident.emergency_contact_phone) && (
+        {(resident.emergency_contact_name || resident.emergency_contact_phone || resident.emergency_contact_resident) && (
           <Card>
             <CardHeader>
               <CardTitle>Emergency Contact</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {resident.emergency_contact_name && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Name</span>
-                  <span className="font-medium">{resident.emergency_contact_name}</span>
-                </div>
-              )}
-              {resident.emergency_contact_phone && (
-                <>
-                  <Separator />
+              {resident.emergency_contact_resident ? (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Linked Resident</span>
+                    <Link href={`/residents/${resident.emergency_contact_resident_id}`} className="font-medium hover:underline flex items-center gap-1">
+                      <LinkIcon className="h-3 w-3" />
+                      {resident.emergency_contact_resident.first_name} {resident.emergency_contact_resident.last_name}
+                    </Link>
+                  </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Phone</span>
-                    <span className="font-medium">{resident.emergency_contact_phone}</span>
+                    <span className="font-medium">{resident.emergency_contact_resident.phone_primary}</span>
                   </div>
-                </>
-              )}
-              {resident.emergency_contact_relationship && (
+                  {resident.emergency_contact_relationship && (
+                    <>
+                      <Separator />
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Relationship</span>
+                        <span className="font-medium">{resident.emergency_contact_relationship}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
                 <>
-                  <Separator />
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Relationship</span>
-                    <span className="font-medium">{resident.emergency_contact_relationship}</span>
-                  </div>
+                  {resident.emergency_contact_name && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Name</span>
+                      <span className="font-medium">{resident.emergency_contact_name}</span>
+                    </div>
+                  )}
+                  {resident.emergency_contact_phone && (
+                    <>
+                      <Separator />
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Phone</span>
+                        <span className="font-medium">{resident.emergency_contact_phone}</span>
+                      </div>
+                    </>
+                  )}
+                  {resident.emergency_contact_relationship && (
+                    <>
+                      <Separator />
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Relationship</span>
+                        <span className="font-medium">{resident.emergency_contact_relationship}</span>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </CardContent>
