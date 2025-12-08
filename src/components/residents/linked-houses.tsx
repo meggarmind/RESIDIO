@@ -21,6 +21,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useAssignHouse, useUnassignHouse } from '@/hooks/use-residents';
 import { useHouses } from '@/hooks/use-houses';
@@ -45,6 +46,9 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
 
     const activeHouses = resident.resident_houses?.filter((rh) => rh.is_active) ?? [];
     const linkedHouseIds = new Set(activeHouses.map(rh => rh.house_id));
+
+    // Check if resident already has a primary home
+    const hasPrimary = activeHouses.some(rh => rh.is_primary);
 
     // Filter out houses already linked
     const availableHouses = housesData?.data.filter(h => !linkedHouseIds.has(h.id) && !h.is_occupied) ?? [];
@@ -141,6 +145,17 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                 <div className="grid gap-2">
                                     <Label>Move In Date</Label>
                                     <Input type="date" value={moveInDate} onChange={e => setMoveInDate(e.target.value)} />
+                                </div>
+                                <div className="flex items-center space-x-2 py-2">
+                                    <Switch
+                                        id="is-primary"
+                                        checked={isPrimary}
+                                        onCheckedChange={setIsPrimary}
+                                        disabled={hasPrimary}
+                                    />
+                                    <Label htmlFor="is-primary" className={hasPrimary ? "text-muted-foreground" : ""}>
+                                        Primary Residence {hasPrimary && "(Already Assigned)"}
+                                    </Label>
                                 </div>
                             </div>
                             <DialogFooter>

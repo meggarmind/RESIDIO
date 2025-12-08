@@ -47,7 +47,7 @@ const navItems: NavItem[] = [
     title: 'Settings',
     href: '/settings',
     icon: Settings,
-    roles: ['admin'],
+    roles: ['admin', 'chairman', 'financial_secretary'],
   },
 ];
 

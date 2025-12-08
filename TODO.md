@@ -1,8 +1,8 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-07 02:40 UTC
+**Last Updated:** 2025-12-08 06:14 UTC
 
-## Current Phase: Phase 3 - COMPLETE | Next: Phase 4
+## Current Phase: Phase 4 - COMPLETE | Next: Phase 5
 
 ---
 
@@ -122,6 +122,19 @@
 - [ ] Set up cloud Supabase project
 - [ ] Configure production environment variables
 - [ ] Final testing and bug fixes
+
+---
+
+## Phase 10: Application Settings & Configuration
+Centralized management for all system parameters.
+- [ ] Create Settings Layout (`/settings/layout.tsx`) with tabbed navigation
+- [ ] Move Reference Management (Streets/House Types) to `/settings/references`
+- [ ] Implement redirects from old `/admin/references` routes
+- [ ] Add General Settings (Estate Name, Branding)
+- [ ] Add Security Settings (Code validity, Contact limits) - *aligned with Phase 6*
+- [ ] Add Payment Configuration (Categories, Late fees) - *aligned with Phase 5*
+- [ ] Add API/Developer Settings (API Keys, Webhooks) - *aligned with Phase 7*
+- [ ] Add System/Audit Settings (Log retention) - *aligned with Phase 8*
 
 ---
 

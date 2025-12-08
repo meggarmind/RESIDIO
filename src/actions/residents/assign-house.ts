@@ -30,6 +30,21 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
     return { data: null, error: 'Resident is already assigned to this house' };
   }
 
+  // Check if primary residence already exists (if trying to set as primary)
+  if (formData.is_primary) {
+    const { data: existingPrimary } = await supabase
+      .from('resident_houses')
+      .select('id')
+      .eq('resident_id', residentId)
+      .eq('is_primary', true)
+      .eq('is_active', true)
+      .single();
+
+    if (existingPrimary) {
+      return { data: null, error: 'Resident already has a primary residence. Please unlink existing primary residence first.' };
+    }
+  }
+
   const { data, error } = await supabase
     .from('resident_houses')
     .insert({
