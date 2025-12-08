@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useHouseTypes } from '@/hooks/use-reference';
+import { useBillingProfiles } from '@/hooks/use-billing';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -22,17 +23,29 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { createHouseType } from '@/actions/reference/create-house-type';
 import { toast } from 'sonner';
 import { Plus, Loader2 } from 'lucide-react';
 
 export function HouseTypesList() {
     const { data: typesData, isLoading, refetch } = useHouseTypes();
+    const { data: billingProfiles } = useBillingProfiles();
+
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Form state
     const [newName, setNewName] = useState('');
     const [newDesc, setNewDesc] = useState('');
     const [maxResidents, setMaxResidents] = useState('5');
+    const [selectedProfileId, setSelectedProfileId] = useState<string>('');
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -44,6 +57,7 @@ export function HouseTypesList() {
                 name: newName,
                 description: newDesc || undefined,
                 max_residents: parseInt(maxResidents) || 5,
+                billing_profile_id: selectedProfileId === 'none' ? undefined : selectedProfileId,
             });
 
             if (!result.error) {
@@ -51,6 +65,7 @@ export function HouseTypesList() {
                 setNewName('');
                 setNewDesc('');
                 setMaxResidents('5');
+                setSelectedProfileId('');
                 setIsDialogOpen(false);
                 refetch();
             } else {
@@ -78,15 +93,13 @@ export function HouseTypesList() {
                         <DialogHeader>
                             <DialogTitle>Add New House Type</DialogTitle>
                             <DialogDescription>
-                                Define a new type of house (e.g., Duplex, Bungalow).
+                                Define a new type of house and assign a default billing profile.
                             </DialogDescription>
                         </DialogHeader>
                         <form onSubmit={handleCreate}>
                             <div className="grid gap-4 py-4">
                                 <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="name" className="text-right">
-                                        Name
-                                    </Label>
+                                    <Label htmlFor="name" className="text-right">Name</Label>
                                     <Input
                                         id="name"
                                         value={newName}
@@ -96,9 +109,7 @@ export function HouseTypesList() {
                                     />
                                 </div>
                                 <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="description" className="text-right">
-                                        Description
-                                    </Label>
+                                    <Label htmlFor="description" className="text-right">Description</Label>
                                     <Input
                                         id="description"
                                         value={newDesc}
@@ -108,9 +119,7 @@ export function HouseTypesList() {
                                     />
                                 </div>
                                 <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="maxResidents" className="text-right">
-                                        Max Residents
-                                    </Label>
+                                    <Label htmlFor="maxResidents" className="text-right">Max Res.</Label>
                                     <Input
                                         id="maxResidents"
                                         type="number"
@@ -119,6 +128,27 @@ export function HouseTypesList() {
                                         className="col-span-3"
                                         min="1"
                                     />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="billingProfile" className="text-right">Billing Profile</Label>
+                                    <div className="col-span-3">
+                                        <Select
+                                            value={selectedProfileId}
+                                            onValueChange={setSelectedProfileId}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a profile (optional)" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">None</SelectItem>
+                                                {billingProfiles?.map((profile: any) => (
+                                                    <SelectItem key={profile.id} value={profile.id}>
+                                                        {profile.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
                             </div>
                             <DialogFooter>
@@ -138,27 +168,30 @@ export function HouseTypesList() {
                         <TableRow>
                             <TableHead>Name</TableHead>
                             <TableHead>Description</TableHead>
+                            <TableHead>Billing Rate</TableHead>
                             <TableHead className="text-right">Max Res.</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={3} className="h-24 text-center">
-                                    Loading house types...
-                                </TableCell>
+                                <TableCell colSpan={4} className="h-24 text-center">Loading...</TableCell>
                             </TableRow>
                         ) : typesData?.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={3} className="h-24 text-center">
-                                    No house types found.
-                                </TableCell>
+                                <TableCell colSpan={4} className="h-24 text-center">No house types found.</TableCell>
                             </TableRow>
                         ) : (
                             typesData?.map((type) => (
                                 <TableRow key={type.id}>
                                     <TableCell className="font-medium">{type.name}</TableCell>
                                     <TableCell>{type.description || '-'}</TableCell>
+                                    <TableCell>
+                                        {/* Accessing joined billing_profile would require update to fetch query. 
+                                            For now, just showing a placeholder if we don't have the joined data yet. 
+                                            We need to update getHouseTypes to include billing_profile */}
+                                        {type.billing_profile?.name || <span className="text-muted-foreground text-xs">Not Set</span>}
+                                    </TableCell>
                                     <TableCell className="text-right">{type.max_residents}</TableCell>
                                 </TableRow>
                             ))

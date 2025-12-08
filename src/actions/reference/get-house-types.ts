@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { HouseType } from '@/types/database';
 
 export interface GetHouseTypesResponse {
-  data: HouseType[];
+  data: (HouseType & { billing_profile: { name: string } | null })[];
   error: string | null;
 }
 
@@ -13,7 +13,10 @@ export async function getHouseTypes(): Promise<GetHouseTypesResponse> {
 
   const { data, error } = await supabase
     .from('house_types')
-    .select('*')
+    .select(`
+      *,
+      billing_profile:billing_profiles(name)
+    `)
     .eq('is_active', true)
     .order('name');
 

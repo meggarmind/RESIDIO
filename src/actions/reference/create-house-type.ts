@@ -24,6 +24,7 @@ export async function createHouseType(formData: HouseTypeFormData): Promise<Crea
       name: formData.name,
       description: formData.description || null,
       max_residents: formData.max_residents,
+      billing_profile_id: formData.billing_profile_id || null, // Updated mapping
       created_by: user.id,
     })
     .select()

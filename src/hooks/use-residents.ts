@@ -8,6 +8,7 @@ import { updateResident } from '@/actions/residents/update-resident';
 import { deleteResident } from '@/actions/residents/delete-resident';
 import { assignHouse } from '@/actions/residents/assign-house';
 import { unassignHouse } from '@/actions/residents/unassign-house';
+import { verifyResident } from '@/actions/residents/verify-resident';
 import type { ResidentSearchParams, CreateResidentData, ResidentFormData, HouseAssignmentData } from '@/lib/validators/resident';
 
 export function useResidents(params: Partial<ResidentSearchParams> = {}) {
@@ -113,6 +114,22 @@ export function useUnassignHouse() {
       queryClient.invalidateQueries({ queryKey: ['resident', variables.residentId] });
       queryClient.invalidateQueries({ queryKey: ['houses'] });
       queryClient.invalidateQueries({ queryKey: ['house', variables.houseId] });
+    },
+  });
+}
+
+export function useVerifyResident() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const result = await verifyResident(id);
+      if (result.error) throw new Error(result.error);
+      return result.success;
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['residents'] });
+      queryClient.invalidateQueries({ queryKey: ['resident', id] });
     },
   });
 }

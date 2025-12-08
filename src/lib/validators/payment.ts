@@ -1,0 +1,30 @@
+import { z } from 'zod';
+
+export const paymentStatusEnum = z.enum(['pending', 'paid', 'overdue', 'failed']);
+export const paymentMethodEnum = z.enum(['cash', 'bank_transfer', 'pos', 'cheque']);
+
+export const paymentFormSchema = z.object({
+    resident_id: z.string().uuid('Resident is required'),
+    amount: z.coerce.number().positive('Amount must be positive'),
+    payment_date: z.date(),
+    status: paymentStatusEnum.default('pending'),
+    method: paymentMethodEnum.optional().nullable(),
+    reference_number: z.string().optional().or(z.literal('')),
+    notes: z.string().optional().or(z.literal('')),
+    period_start: z.date().optional().nullable(),
+    period_end: z.date().optional().nullable(),
+});
+
+export type PaymentFormData = z.infer<typeof paymentFormSchema>;
+
+export const paymentSearchSchema = z.object({
+    status: paymentStatusEnum.optional(),
+    resident_id: z.string().uuid().optional(),
+    query: z.string().optional(),
+    start_date: z.string().optional(),
+    end_date: z.string().optional(), // ISO strings for range query
+    page: z.coerce.number().min(1).default(1),
+    limit: z.coerce.number().min(1).max(100).default(20),
+});
+
+export type PaymentSearchParams = z.infer<typeof paymentSearchSchema>;

@@ -51,6 +51,7 @@ export interface Database {
           name: string;
           description: string | null;
           max_residents: number;
+          billing_profile_id: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;

@@ -1,0 +1,30 @@
+'use server'
+
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { paymentFormSchema } from '@/lib/validators/payment';
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+
+const updatePaymentSchema = paymentFormSchema.partial();
+
+export async function updatePayment(id: string, data: z.infer<typeof updatePaymentSchema>) {
+    const supabase = await createServerSupabaseClient();
+
+    // Format dates if present
+    const updates: any = { ...data };
+    if (data.payment_date) updates.payment_date = data.payment_date.toISOString();
+    if (data.period_start) updates.period_start = data.period_start.toISOString();
+    if (data.period_end) updates.period_end = data.period_end.toISOString();
+
+    const { error } = await supabase
+        .from('payment_records')
+        .update(updates)
+        .eq('id', id);
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath('/payments');
+    return { success: true };
+}

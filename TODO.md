@@ -129,6 +129,7 @@
 Centralized management for all system parameters.
 - [ ] Create Settings Layout (`/settings/layout.tsx`) with tabbed navigation
 - [ ] Move Reference Management (Streets/House Types) to `/settings/references`
+- [ ] Improve References UI: Allow toggling items active/inactive
 - [ ] Implement redirects from old `/admin/references` routes
 - [ ] Add General Settings (Estate Name, Branding)
 - [ ] Add Security Settings (Code validity, Contact limits) - *aligned with Phase 6*

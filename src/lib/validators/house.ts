@@ -24,6 +24,7 @@ export const houseTypeFormSchema = z.object({
   name: z.string().min(1, 'House type name is required'),
   description: z.string().optional().or(z.literal('')),
   max_residents: z.number().min(1).max(50).default(10),
+  billing_profile_id: z.string().uuid().optional().or(z.literal('')),
 });
 
 export type HouseTypeFormData = z.infer<typeof houseTypeFormSchema>;

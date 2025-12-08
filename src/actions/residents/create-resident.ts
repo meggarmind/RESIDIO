@@ -28,6 +28,7 @@ export async function createResident(formData: CreateResidentData): Promise<Crea
       phone_primary: formData.phone_primary,
       phone_secondary: formData.phone_secondary || null,
       resident_type: formData.resident_type,
+      verification_status: 'verified', // Auto-verify residents added by admins
       emergency_contact_name: formData.emergency_contact_name || null,
       emergency_contact_phone: formData.emergency_contact_phone || null,
       emergency_contact_relationship: formData.emergency_contact_relationship || null,
