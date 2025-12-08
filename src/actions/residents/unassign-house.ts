@@ -17,10 +17,12 @@ export async function unassignHouse(residentId: string, houseId: string): Promis
   }
 
   // Deactivate the assignment (soft delete)
+  // Also reset is_primary to prevent unique constraint issues if reactivated later
   const { error } = await supabase
     .from('resident_houses')
     .update({
       is_active: false,
+      is_primary: false,
       move_out_date: new Date().toISOString().split('T')[0]
     })
     .eq('resident_id', residentId)
