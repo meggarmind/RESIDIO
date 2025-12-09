@@ -3,7 +3,7 @@ export type UserRole = 'chairman' | 'financial_secretary' | 'security_officer' |
 
 // Phase 3: Resident Management Types
 export type ResidentType = 'primary' | 'secondary';
-export type ResidentRole = 'owner' | 'tenant' | 'occupier' | 'domestic_staff';
+export type ResidentRole = 'owner' | 'tenant' | 'occupier' | 'family_member' | 'domestic_staff';
 export type VerificationStatus = 'pending' | 'submitted' | 'verified' | 'rejected';
 export type AccountStatus = 'active' | 'inactive' | 'suspended' | 'archived';
 

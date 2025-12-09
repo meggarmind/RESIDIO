@@ -18,6 +18,60 @@ interface GenerateInvoicesResult {
 }
 
 /**
+ * Type for resident-house relationship with role information
+ */
+interface ResidentHouseLink {
+    id: string;
+    resident_id: string;
+    resident_role: 'owner' | 'tenant' | 'occupier' | 'domestic_staff';
+    is_primary: boolean;
+    is_active: boolean;
+    move_in_date: string;
+    resident: {
+        id: string;
+        first_name: string;
+        last_name: string;
+        resident_code: string;
+    };
+}
+
+/**
+ * Determines which resident should be billed for a house based on role priority.
+ *
+ * Business Rules:
+ * 1. Tenants - ALWAYS billed if active (regardless of is_primary)
+ * 2. Owners - ONLY billed if they live in the property (is_primary=true AND is_active=true)
+ * 3. Occupiers - NEVER billed (family members, guests, etc.)
+ * 4. Domestic Staff - NEVER billed
+ *
+ * Priority when multiple residents exist:
+ * - If house has tenant(s): Primary tenant gets billed
+ * - If house has only owner living there: Owner gets billed
+ * - Otherwise: No one gets billed
+ */
+function findBillableResident(residentHouses: ResidentHouseLink[]): ResidentHouseLink | null {
+    const activeResidents = residentHouses.filter(rh => rh.is_active);
+
+    // Priority 1: Active tenant (primary tenant if multiple)
+    const tenants = activeResidents.filter(rh => rh.resident_role === 'tenant');
+    if (tenants.length > 0) {
+        return tenants.find(t => t.is_primary) || tenants[0];
+    }
+
+    // Priority 2: Owner living in property (must be primary residence)
+    const ownerOccupier = activeResidents.find(
+        rh => rh.resident_role === 'owner' && rh.is_primary
+    );
+    if (ownerOccupier) {
+        return ownerOccupier;
+    }
+
+    // No billable resident found
+    // (e.g., owner not living in property, or only occupiers/domestic staff)
+    return null;
+}
+
+/**
  * Generates invoices for all occupied houses with billing profiles.
  * For each house, generates invoices from the resident's move-in date to the current month.
  * Pro-rata applies only to the first (move-in) month; all subsequent months are full rate.
@@ -115,23 +169,33 @@ export async function generateMonthlyInvoices(
                     continue;
                 }
 
-                // 2. Find the primary active resident for this house
-                const { data: residentLink, error: residentError } = await supabase
+                // 2. Find the billable resident for this house based on role priority
+                const { data: allResidentLinks, error: residentError } = await supabase
                     .from('resident_houses')
                     .select(`
                         id,
                         resident_id,
+                        resident_role,
+                        is_primary,
+                        is_active,
                         move_in_date,
                         resident:residents(id, first_name, last_name, resident_code)
                     `)
                     .eq('house_id', house.id)
-                    .eq('is_primary', true)
-                    .eq('is_active', true)
-                    .single();
+                    .eq('is_active', true);
 
-                if (residentError || !residentLink) {
+                if (residentError || !allResidentLinks || allResidentLinks.length === 0) {
                     result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: 'No primary active resident found' });
+                    result.skipReasons.push({ house: houseLabel, reason: 'No active residents found' });
+                    continue;
+                }
+
+                // Find billable resident using priority logic
+                const residentLink = findBillableResident(allResidentLinks);
+
+                if (!residentLink) {
+                    result.skipped++;
+                    result.skipReasons.push({ house: houseLabel, reason: 'No billable resident (owner not living in property)' });
                     continue;
                 }
 

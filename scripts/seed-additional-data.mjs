@@ -183,7 +183,7 @@ async function seedAdditionalData() {
         account_status: 'active',
         verification_status: 'verified',
         houses: [
-          { house_number: '1', street_name: 'Crescent Close', move_in_date: '2025-03-15', is_primary: true },
+          { house_number: '1', street_name: 'Crescent Close', move_in_date: '2025-03-15', is_primary: true, resident_role: 'owner' },
         ],
       },
       {
@@ -194,8 +194,8 @@ async function seedAdditionalData() {
         account_status: 'active',
         verification_status: 'verified',
         houses: [
-          { house_number: '10', street_name: 'Palm Avenue', move_in_date: '2024-06-01', is_primary: true },
-          { house_number: 'A1', street_name: 'Garden View', move_in_date: '2024-01-10', is_primary: false },
+          { house_number: '10', street_name: 'Palm Avenue', move_in_date: '2024-06-01', is_primary: true, resident_role: 'owner' },
+          { house_number: 'A1', street_name: 'Garden View', move_in_date: '2024-01-10', is_primary: false, resident_role: 'owner' },
         ],
       },
       {
@@ -206,7 +206,7 @@ async function seedAdditionalData() {
         account_status: 'active',
         verification_status: 'verified',
         houses: [
-          { house_number: '14', street_name: 'Palm Avenue', move_in_date: '2024-09-01', is_primary: true },
+          { house_number: '14', street_name: 'Palm Avenue', move_in_date: '2024-09-01', is_primary: true, resident_role: 'owner' },
         ],
       },
       {
@@ -217,7 +217,7 @@ async function seedAdditionalData() {
         account_status: 'active',
         verification_status: 'pending',
         houses: [
-          { house_number: '101', street_name: 'Sunrise Lane', move_in_date: '2025-05-20', is_primary: true },
+          { house_number: '101', street_name: 'Sunrise Lane', move_in_date: '2025-05-20', is_primary: true, resident_role: 'owner' },
         ],
       },
       {
@@ -228,7 +228,19 @@ async function seedAdditionalData() {
         account_status: 'active',
         verification_status: 'verified',
         houses: [
-          { house_number: 'B1', street_name: 'Garden View', move_in_date: '2024-02-01', is_primary: true },
+          { house_number: 'B1', street_name: 'Garden View', move_in_date: '2024-02-01', is_primary: true, resident_role: 'owner' },
+        ],
+      },
+      // NEW TENANT: Test tenant billing scenario
+      {
+        first_name: 'Funmi',
+        last_name: 'Adeyemi',
+        email: 'funmi.adeyemi@example.com',
+        phone_primary: '+234 806 789 0123',
+        account_status: 'active',
+        verification_status: 'verified',
+        houses: [
+          { house_number: 'A1', street_name: 'Garden View', move_in_date: '2025-06-01', is_primary: true, resident_role: 'tenant' },
         ],
       },
     ];
@@ -281,6 +293,7 @@ async function seedAdditionalData() {
             house_id: house.id,
             move_in_date: houseLink.move_in_date,
             is_primary: houseLink.is_primary,
+            resident_role: houseLink.resident_role, // NEW FIELD
             created_by: adminUser.id,
           });
 
@@ -302,7 +315,8 @@ async function seedAdditionalData() {
     console.log(`  • Billing Items: ${totalItems}`);
     console.log(`  • Residents: ${totalResidents}`);
     console.log(`  • House Assignments: ${totalHouseLinks}`);
-    console.log(`  • Multi-house Resident: Chidi Nwankwo (2 houses)\n`);
+    console.log(`  • Multi-house Resident: Chidi Nwankwo (2 houses)`);
+    console.log(`  • Owner-Tenant Test: A1 Garden View has Chidi (owner, non-primary) + Funmi (tenant, primary)\n`);
 
   } catch (error) {
     console.error('\n❌ Error during seeding:', error.message);
