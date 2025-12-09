@@ -23,7 +23,7 @@ interface GenerateInvoicesResult {
 interface ResidentHouseLink {
     id: string;
     resident_id: string;
-    resident_role: 'owner' | 'tenant' | 'occupier' | 'domestic_staff';
+    resident_role: 'owner' | 'tenant' | 'occupier' | 'family_member' | 'domestic_staff';
     is_primary: boolean;
     is_active: boolean;
     move_in_date: string;
@@ -41,8 +41,9 @@ interface ResidentHouseLink {
  * Business Rules:
  * 1. Tenants - ALWAYS billed if active (regardless of is_primary)
  * 2. Owners - ONLY billed if they live in the property (is_primary=true AND is_active=true)
- * 3. Occupiers - NEVER billed (family members, guests, etc.)
- * 4. Domestic Staff - NEVER billed
+ * 3. Occupiers - NEVER billed (guests, etc.)
+ * 4. Family Members - NEVER billed (household members)
+ * 5. Domestic Staff - NEVER billed
  *
  * Priority when multiple residents exist:
  * - If house has tenant(s): Primary tenant gets billed
@@ -179,7 +180,7 @@ export async function generateMonthlyInvoices(
                         is_primary,
                         is_active,
                         move_in_date,
-                        resident:residents(id, first_name, last_name, resident_code)
+                        resident:residents!resident_id(id, first_name, last_name, resident_code)
                     `)
                     .eq('house_id', house.id)
                     .eq('is_active', true);
@@ -191,7 +192,7 @@ export async function generateMonthlyInvoices(
                 }
 
                 // Find billable resident using priority logic
-                const residentLink = findBillableResident(allResidentLinks);
+                const residentLink = findBillableResident(allResidentLinks as unknown as ResidentHouseLink[]);
 
                 if (!residentLink) {
                     result.skipped++;

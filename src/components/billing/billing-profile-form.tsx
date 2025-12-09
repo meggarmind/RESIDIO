@@ -14,6 +14,7 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { Trash2, Plus } from 'lucide-react';
@@ -134,10 +135,10 @@ export function BillingProfileForm({ onSuccess }: { onSuccess?: () => void }) {
                                     <FormItem className="w-32">
                                         <FormLabel className={index !== 0 ? "sr-only" : ""}>Amount (₦)</FormLabel>
                                         <FormControl>
-                                            <Input
-                                                type="number"
-                                                {...field}
-                                                onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                                            <CurrencyInput
+                                                value={field.value}
+                                                onValueChange={field.onChange}
+                                                placeholder="0.00"
                                             />
                                         </FormControl>
                                         <FormMessage />

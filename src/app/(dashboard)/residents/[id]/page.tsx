@@ -11,6 +11,8 @@ import { AccountStatusBadge, VerificationStatusBadge } from '@/components/reside
 import { useResident, useDeleteResident, useVerifyResident } from '@/hooks/use-residents';
 import { LinkedHouses } from '@/components/residents/linked-houses';
 import { ResidentPayments } from '@/components/residents/resident-payments';
+import { WalletBalance } from '@/components/residents/wallet-balance';
+import { WalletTransactions } from '@/components/residents/wallet-transactions';
 import { useResidentIndebtedness } from '@/hooks/use-billing';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, CreditCard, AlertTriangle, Receipt } from 'lucide-react';
@@ -211,6 +213,9 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
               </CardContent>
             </Card>
 
+            {/* Wallet Balance */}
+            <WalletBalance residentId={id} />
+
             {/* House Assignments */}
             <LinkedHouses resident={resident} />
 
@@ -320,6 +325,9 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
               </Card>
             )}
           </div>
+
+          {/* Wallet Transactions */}
+          <WalletTransactions residentId={id} />
         </TabsContent>
 
         <TabsContent value="payments" className="mt-6">

@@ -38,6 +38,7 @@ export interface GetInvoicesParams {
     status?: 'unpaid' | 'paid' | 'void' | 'partially_paid';
     residentId?: string;
     houseId?: string;
+    search?: string;
     page?: number;
     limit?: number;
 }
@@ -50,7 +51,7 @@ export interface GetInvoicesResponse {
 
 export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetInvoicesResponse> {
     const supabase = await createServerSupabaseClient();
-    const { status, residentId, houseId, page = 1, limit = 20 } = params;
+    const { status, residentId, houseId, search, page = 1, limit = 20 } = params;
 
     let query = supabase
         .from('invoices')
@@ -71,6 +72,9 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
     }
     if (houseId) {
         query = query.eq('house_id', houseId);
+    }
+    if (search) {
+        query = query.or(`invoice_number.ilike.%${search}%`);
     }
 
     // Pagination

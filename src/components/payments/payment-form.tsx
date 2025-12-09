@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Textarea } from '@/components/ui/textarea';
 import {
     Form,
@@ -119,11 +120,10 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                             <FormItem>
                                 <FormLabel>Amount (₦) *</FormLabel>
                                 <FormControl>
-                                    <Input
-                                        type="number"
-                                        step="0.01"
-                                        {...field}
-                                        onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                                    <CurrencyInput
+                                        value={field.value}
+                                        onValueChange={field.onChange}
+                                        placeholder="0.00"
                                     />
                                 </FormControl>
                                 <FormMessage />

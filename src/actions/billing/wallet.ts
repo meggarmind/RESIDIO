@@ -105,6 +105,62 @@ export async function creditWallet(
 }
 
 /**
+ * Debit a resident's wallet (remove funds) - for manual adjustments
+ */
+export async function debitWallet(
+    residentId: string,
+    amount: number,
+    referenceType?: string,
+    referenceId?: string,
+    description?: string
+): Promise<{ success: boolean; newBalance: number; error: string | null }> {
+    const supabase = await createServerSupabaseClient();
+
+    // Get or create wallet
+    const { data: wallet, error: walletError } = await getOrCreateWallet(residentId);
+    if (walletError || !wallet) {
+        return { success: false, newBalance: 0, error: walletError || 'Failed to get wallet' };
+    }
+
+    // Check sufficient balance
+    if (wallet.balance < amount) {
+        return { success: false, newBalance: wallet.balance, error: 'Insufficient wallet balance' };
+    }
+
+    const newBalance = wallet.balance - amount;
+
+    // Update wallet balance
+    const { error: updateError } = await supabase
+        .from('resident_wallets')
+        .update({ balance: newBalance })
+        .eq('id', wallet.id);
+
+    if (updateError) {
+        return { success: false, newBalance: 0, error: updateError.message };
+    }
+
+    // Log transaction
+    const { error: txError } = await supabase
+        .from('wallet_transactions')
+        .insert({
+            wallet_id: wallet.id,
+            type: 'debit',
+            amount,
+            balance_after: newBalance,
+            reference_type: referenceType,
+            reference_id: referenceId,
+            description: description || `Debit of ₦${amount.toLocaleString()}`,
+        });
+
+    if (txError) {
+        console.error('[Wallet] Failed to log transaction:', txError);
+    }
+
+    revalidatePath('/residents');
+    return { success: true, newBalance, error: null };
+}
+
+/**
  * Debit from wallet to pay an invoice (full or partial)
  */
 export async function debitWalletForInvoice(
