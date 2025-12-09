@@ -5,9 +5,9 @@ export const paymentMethodEnum = z.enum(['cash', 'bank_transfer', 'pos', 'cheque
 
 export const paymentFormSchema = z.object({
     resident_id: z.string().uuid('Resident is required'),
-    amount: z.coerce.number().positive('Amount must be positive'),
+    amount: z.number().positive('Amount must be positive'),
     payment_date: z.date(),
-    status: paymentStatusEnum.default('pending'),
+    status: paymentStatusEnum,
     method: paymentMethodEnum.optional().nullable(),
     reference_number: z.string().optional().or(z.literal('')),
     notes: z.string().optional().or(z.literal('')),

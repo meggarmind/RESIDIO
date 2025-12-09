@@ -23,13 +23,12 @@ import { useRouter } from 'next/navigation';
 const createProfileSchema = z.object({
     name: z.string().min(1, 'Profile name is required'),
     description: z.string().optional(),
-    is_active: z.boolean().default(true),
+    is_active: z.boolean(),
     items: z.array(z.object({
         name: z.string().min(1, 'Item name is required'),
-        amount: z.coerce.number().min(0, 'Amount must be positive'),
-        // Defaulting frequency to monthly for simplicity in UI for now
-        frequency: z.enum(['monthly', 'yearly', 'one_off']).default('monthly'),
-        is_mandatory: z.boolean().default(true),
+        amount: z.number().min(0, 'Amount must be positive'),
+        frequency: z.enum(['monthly', 'yearly', 'one_off']),
+        is_mandatory: z.boolean(),
     })).min(1, "At least one billing item is required"),
 });
 
@@ -135,7 +134,11 @@ export function BillingProfileForm({ onSuccess }: { onSuccess?: () => void }) {
                                     <FormItem className="w-32">
                                         <FormLabel className={index !== 0 ? "sr-only" : ""}>Amount (₦)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" {...field} />
+                                            <Input
+                                                type="number"
+                                                {...field}
+                                                onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                                            />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

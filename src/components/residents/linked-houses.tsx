@@ -53,6 +53,17 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
     // Filter out houses already linked
     const availableHouses = housesData?.data.filter(h => !linkedHouseIds.has(h.id) && !h.is_occupied) ?? [];
 
+    // Reset form when dialog opens
+    const handleDialogOpen = (open: boolean) => {
+        setIsDialogOpen(open);
+        if (open) {
+            setSelectedHouseId('');
+            setSelectedRole('occupier');
+            setIsPrimary(false); // Always reset to false, user can toggle if no primary exists
+            setMoveInDate(new Date().toISOString().split('T')[0]);
+        }
+    };
+
     const handleAssign = async () => {
         if (!selectedHouseId) return;
 
@@ -99,7 +110,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                         </CardTitle>
                         <CardDescription>Properties linked to this resident</CardDescription>
                     </div>
-                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <Dialog open={isDialogOpen} onOpenChange={handleDialogOpen}>
                         <DialogTrigger asChild>
                             <Button size="sm" variant="outline">
                                 <Plus className="h-4 w-4 mr-2" />

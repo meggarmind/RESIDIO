@@ -23,7 +23,7 @@ import {
 import { AccountStatusBadge } from '@/components/residents/status-badge';
 import { useResidents } from '@/hooks/use-residents';
 import { useStreets } from '@/hooks/use-reference';
-import { Users, Plus, Search, Eye, Pencil } from 'lucide-react';
+import { Users, Plus, Search, Eye, Pencil, UserPlus } from 'lucide-react';
 import type { ResidentSearchParams } from '@/lib/validators/resident';
 import type { AccountStatus } from '@/types/database';
 
@@ -132,8 +132,20 @@ export function ResidentsTable() {
               </TableRow>
             ) : data?.data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  No residents found
+                <TableCell colSpan={6} className="py-12">
+                  <div className="flex flex-col items-center justify-center gap-4 text-center">
+                    <UserPlus className="size-12 text-muted-foreground" />
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-semibold">No residents yet</h3>
+                      <p className="text-sm text-muted-foreground max-w-md">
+                        Get started by adding your first resident to the system
+                      </p>
+                    </div>
+                    <Button onClick={() => router.push('/residents/new')}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Resident
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (

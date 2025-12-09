@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Residio is a residential estate access management web application. It automates resident access control by managing payment status, security contact lists, and providing APIs for external systems (e.g., security barriers).
 
+**Current Status**: Phase 5 (Payment Status Management) in progress
+
 ## Commands
 
 ```bash
@@ -29,46 +31,209 @@ npm run db:migrate       # Push migrations to local DB
 npm run db:types         # Generate TypeScript types from schema
 ```
 
-## Architecture
+## Tech Stack
 
-### Tech Stack
 - **Framework**: Next.js 16 (App Router) with TypeScript
 - **Database/Auth**: Supabase (PostgreSQL + Auth)
 - **UI**: Tailwind CSS v4 + shadcn/ui components
 - **State**: TanStack React Query for server state
 - **Forms**: React Hook Form + Zod validation
+- **Toast**: Sonner for notifications
+- **Icons**: Lucide React
 
-### Key Directories
-- `src/app/` - Next.js App Router pages and layouts
-- `src/components/ui/` - shadcn/ui components (pre-installed)
-- `src/components/[feature]/` - Feature-specific components
-- `src/lib/supabase/` - Supabase client configuration (supports local/cloud switching)
-- `src/types/database.ts` - Database type definitions
-- `supabase/migrations/` - SQL migration files
+## Architecture
 
-### Authentication Flow
-Middleware (`src/middleware.ts`) protects routes:
-- Protected: `/dashboard`, `/residents`, `/payments`, `/security`
-- Unauthenticated → redirected to `/login`
-- Authenticated on `/login` → redirected to `/dashboard`
+### Directory Structure
 
-### User Roles
-Defined in `src/types/database.ts`:
-- `chairman`, `financial_secretary`, `security_officer`, `admin`
+```
+src/
+├── app/                    # Next.js App Router pages
+│   ├── (auth)/            # Auth pages (login)
+│   ├── (dashboard)/       # Dashboard protected routes
+│   │   ├── dashboard/     # Dashboard home
+│   │   ├── houses/        # House management
+│   │   ├── residents/     # Resident management
+│   │   ├── payments/      # Payment records
+│   │   ├── billing/       # Billing & invoices
+│   │   ├── security/      # Security contacts
+│   │   └── settings/      # Application settings
+│   └── api/               # API routes
+├── actions/               # Server actions (data layer)
+│   ├── billing/          # Invoice generation, wallet
+│   ├── dashboard/        # Dashboard stats
+│   ├── houses/           # House CRUD
+│   ├── payments/         # Payment CRUD
+│   ├── reference/        # Streets, house types
+│   └── residents/        # Resident CRUD
+├── components/
+│   ├── ui/               # shadcn/ui base components
+│   ├── admin/            # Reference management
+│   ├── billing/          # Billing forms
+│   ├── dashboard/        # Sidebar, header, navigation
+│   ├── houses/           # House table, form
+│   ├── payments/         # Payment table, form, filters
+│   └── residents/        # Resident table, form
+├── hooks/                # React Query hooks
+│   ├── use-billing.ts
+│   ├── use-dashboard.ts
+│   ├── use-houses.ts
+│   ├── use-payments.ts
+│   ├── use-reference.ts
+│   └── use-residents.ts
+├── lib/
+│   ├── auth/             # Auth provider
+│   ├── supabase/         # Supabase clients
+│   ├── validators/       # Zod schemas
+│   └── utils.ts          # Utility functions
+└── types/
+    ├── database.ts       # Database type definitions
+    └── database.generated.ts  # Auto-generated from schema
 
-### Database Entities
-- **profiles** - User accounts with roles
-- **residents** - Community members (payment_status, security_access_enabled)
-- **payment_records** - Payment history
-- **security_contacts** - Access codes with validity periods
-- **audit_logs** - Immutable activity logs
+supabase/
+├── config.toml           # Supabase CLI config
+├── migrations/           # SQL migration files
+└── seed.sql             # Test user seed data
+```
 
-### Environment Switching
+### Authentication & Authorization
+
+**Middleware** (`src/middleware.ts`) protects routes based on user roles:
+- Protected routes: `/dashboard`, `/residents`, `/payments`, `/security`, `/admin`
+- Unauthenticated users → redirected to `/login`
+- Authenticated users on `/login` → redirected to `/dashboard`
+
+**User Roles** (defined in `src/types/database.ts`):
+- `admin` - Full system access
+- `chairman` - Resident, house, payment management
+- `financial_secretary` - Resident, house, payment management
+- `security_officer` - Read-only access to security contacts
+
+**Route Access Control**:
+```typescript
+const routeRoleConfig = {
+  '/admin': ['admin'],
+  '/residents': ['admin', 'chairman', 'financial_secretary'],
+  '/payments': ['admin', 'chairman', 'financial_secretary'],
+  '/security': ['admin', 'chairman', 'security_officer'],
+  '/dashboard': [], // All authenticated users
+};
+```
+
+### Database Schema
+
+**Core Entities**:
+- `profiles` - User accounts with roles (linked to Supabase Auth)
+- `streets` - Street reference data
+- `house_types` - House type reference data (with billing profiles)
+- `houses` - Properties in the estate
+- `residents` - Community members
+- `resident_houses` - Junction table (many-to-many)
+- `payment_records` - Payment history
+- `security_contacts` - Access codes with validity periods
+- `audit_logs` - Immutable activity logs
+
+**Key Features**:
+- Resident codes: 6-digit numeric, auto-generated via trigger
+- House occupancy: Auto-updated via trigger when residents assigned/removed
+- Primary residence: One primary residence per resident enforced by trigger
+- Emergency contacts: Can link to existing resident or manual entry
+- Billing profiles: Attached to house types for invoice generation
+
+### Data Layer Architecture
+
+**Three-tier pattern** for all data operations:
+
+1. **Server Actions** (`src/actions/`) - Server-side data mutations
+   - Uses `createServerSupabaseClient()` from `src/lib/supabase/server.ts`
+   - Performs authorization checks
+   - Returns typed responses with error handling
+
+2. **React Query Hooks** (`src/hooks/`) - Client-side data fetching
+   - Uses `createClient()` from `src/lib/supabase/client.ts`
+   - Provides caching, optimistic updates, and refetching
+   - Example: `useResidents()`, `useCreateResident()`, `useUpdateResident()`
+
+3. **UI Components** (`src/components/`) - Presentation layer
+   - Consumes hooks for data
+   - Uses shadcn/ui components
+   - Form validation with Zod schemas
+
+### Supabase Client Configuration
+
 The app supports local and cloud Supabase via `NEXT_PUBLIC_ENV_MODE`:
 - `local` - Uses `*_LOCAL` env vars (Supabase CLI on ports 54321-54327)
 - `cloud` - Uses `*_CLOUD` env vars
 
-Supabase CLI configuration: `supabase/config.toml`
+**Three client types**:
+- `createClient()` - Browser client for React Query hooks
+- `createServerSupabaseClient()` - Server components/actions
+- `createAdminClient()` - Elevated privileges, bypasses RLS (use sparingly)
+
+Configuration: `src/lib/supabase/config.ts`
+
+### Form Handling Pattern
+
+All forms use React Hook Form + Zod validation:
+
+```typescript
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+// Define schema
+const schema = z.object({
+  first_name: z.string().min(2),
+  // ...
+});
+
+// Use in component
+const form = useForm({
+  resolver: zodResolver(schema),
+  defaultValues: { ... },
+});
+```
+
+Validators are located in `src/lib/validators/`.
+
+### Important UI Patterns
+
+**Select "All" Option**:
+shadcn/ui Select doesn't allow empty string values. Use this pattern:
+```typescript
+const ALL_VALUE = '_all';
+const [filter, setFilter] = useState<string>(ALL_VALUE);
+
+// Convert to undefined for API
+const params = {
+  filter: filter === ALL_VALUE ? undefined : filter,
+};
+
+// In JSX
+<SelectItem value={ALL_VALUE}>All Items</SelectItem>
+```
+
+**Status Badges**:
+Use consistent badge components for status display:
+- `status-badge.tsx` - Resident account/verification status
+- `payment-status-badge.tsx` - Payment status
+
+### Environment Variables
+
+Required env vars (see `.env.example`):
+```
+# Mode selector
+NEXT_PUBLIC_ENV_MODE=local  # or 'cloud'
+
+# Local Supabase (from npx supabase status)
+NEXT_PUBLIC_SUPABASE_URL_LOCAL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY_LOCAL=...
+SUPABASE_SERVICE_ROLE_KEY_LOCAL=...
+
+# Cloud Supabase (from Supabase dashboard)
+NEXT_PUBLIC_SUPABASE_URL_CLOUD=https://...
+NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD=...
+SUPABASE_SERVICE_ROLE_KEY_CLOUD=...
+```
 
 ## Conventions
 
@@ -76,26 +241,71 @@ Supabase CLI configuration: `supabase/config.toml`
 `@/*` maps to `src/*` - use for all imports.
 
 ### Styling
-Use Tailwind classes and shadcn/ui components. The theme uses CSS variables with oklch color space. Dark mode is handled automatically via `next-themes`.
+- Use Tailwind classes and shadcn/ui components
+- Theme uses CSS variables with oklch color space
+- Dark mode handled automatically via `next-themes`
+- Mobile-first responsive design
 
-### Forms
-All user input should use React Hook Form with Zod schemas:
-```typescript
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-```
+### Type Safety
+- Database types defined in `src/types/database.ts`
+- Auto-generated types via `npm run db:types` → `src/types/database.generated.ts`
+- Always use typed responses from server actions
+- Use convenience type aliases (e.g., `Resident`, `House`, `ResidentWithHouses`)
 
-### Supabase Clients
-- `createClient()` - Browser client (`src/lib/supabase/client.ts`)
-- `createServerSupabaseClient()` - Server components/actions (`src/lib/supabase/server.ts`)
-- `createAdminClient()` - Elevated privileges, bypasses RLS
+### Row-Level Security (RLS)
+- All tables have RLS enabled
+- Policies use `get_my_role()` SECURITY DEFINER function to avoid recursion
+- Test users seeded with proper `auth.identities` records
 
-### Other general info/guidance
-- Always run the `date` command at the start of every session to confirm the current date and time
-- Do not immediately start changing code when I explain a problem - instead analyze the problem and present me with options first
-- Ensure the folder is synced to github. if already connected, check that push is been done once new files have been written in the last 10 mins. if not connected, prompt to connect every 30 mins until I agree or deny. Readme should be updated at the end of every session and/or hourly
-- TODO.md should be updated at least once every 30 minutes with current state including any troubleshooting under way.
-- HANDOFF_SUMMARY.md should be updated when I need to close the chat session or when context remaining before compression hits about 10%. 
-- git user.name is meggarmind and git user.email "feyijimiohioma@gmail.com" git repo url is https://github.com/meggarmind/RESIDIO
-- do not reference claude code in github commits (🤖 Generated with [Claude Code](https://claude.ai/code), Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>")
+## Development Workflow
+
+1. **Session Start**:
+   ```bash
+   npm run supabase:start
+   npm run dev
+   ```
+
+2. **Database Changes**:
+   - Create migration: `npx supabase migration new <name>`
+   - Apply migrations: `npm run db:migrate` or `npm run supabase:reset`
+   - Update types: `npm run db:types`
+
+3. **Adding Features**:
+   - Create server action in `src/actions/`
+   - Add React Query hook in `src/hooks/`
+   - Create/update UI component
+   - Update types if needed
+
+4. **Testing**:
+   - Login with test users (see seed.sql)
+   - Verify role-based access
+   - Test forms with validation
+
+## Project Management
+
+**Git Configuration**:
+- Repository: https://github.com/meggarmind/RESIDIO
+- User: meggarmind (feyijimiohioma@gmail.com)
+- Do not include Claude Code references in commits
+
+**Documentation**:
+- `TODO.md` - Project status, phase tracking (update every 30 mins)
+- `HANDOFF_SUMMARY.md` - Session handoff notes (update before session end)
+- `README.md` - User-facing documentation (update hourly or at session end)
+
+**Workflow Guidelines**:
+- Run `date` command at session start to confirm current date/time
+- Analyze problems and present options before making changes
+- Ensure GitHub sync: check pushes every 10 mins if new files written
+- Prompt to connect to GitHub every 30 mins if not connected (until user agrees/denies)
+
+## Test Users
+
+Test users seeded in `supabase/seed.sql`:
+
+| Email | Password | Role |
+|-------|----------|------|
+| admin@residio.test | password123 | admin |
+| chairman@residio.test | password123 | chairman |
+| finance@residio.test | password123 | financial_secretary |
+| security@residio.test | password123 | security_officer |

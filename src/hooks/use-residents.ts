@@ -97,6 +97,9 @@ export function useAssignHouse() {
       queryClient.invalidateQueries({ queryKey: ['resident', variables.residentId] });
       queryClient.invalidateQueries({ queryKey: ['houses'] });
     },
+    onError: (error) => {
+      console.error('[Assign House] Error:', error.message);
+    },
   });
 }
 

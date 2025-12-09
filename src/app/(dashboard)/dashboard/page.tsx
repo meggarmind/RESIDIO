@@ -3,9 +3,10 @@
 import { Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useDashboardStats } from '@/hooks/use-dashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Users, CreditCard, Shield, TrendingUp } from 'lucide-react';
+import { Users, CreditCard, Shield, TrendingUp, Receipt, UserPlus } from 'lucide-react';
 
 function ErrorHandler() {
   const searchParams = useSearchParams();
@@ -20,8 +21,37 @@ function ErrorHandler() {
   return null;
 }
 
+function formatCurrency(amount: number): string {
+  return `₦${amount.toLocaleString()}`;
+}
+
+function formatRelativeTime(timestamp: string): string {
+  const now = new Date();
+  const date = new Date(timestamp);
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+function getActivityIcon(type: string) {
+  switch (type) {
+    case 'payment': return <Receipt className="h-4 w-4 text-green-500" />;
+    case 'resident': return <UserPlus className="h-4 w-4 text-blue-500" />;
+    case 'invoice': return <CreditCard className="h-4 w-4 text-orange-500" />;
+    default: return <Users className="h-4 w-4 text-muted-foreground" />;
+  }
+}
+
 export default function DashboardPage() {
   const { user, profile, isLoading } = useAuth();
+  const { data: stats, isLoading: statsLoading } = useDashboardStats();
 
   if (isLoading) {
     return (
@@ -51,8 +81,12 @@ export default function DashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">--</div>
-            <p className="text-xs text-muted-foreground">Active community members</p>
+            <div className="text-2xl font-bold">
+              {statsLoading ? '...' : stats?.totalResidents ?? 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {statsLoading ? 'Loading...' : `${stats?.activeResidents ?? 0} active members`}
+            </p>
           </CardContent>
         </Card>
 
@@ -62,8 +96,12 @@ export default function DashboardPage() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">--</div>
-            <p className="text-xs text-muted-foreground">Dues collected</p>
+            <div className="text-2xl font-bold">
+              {statsLoading ? '...' : formatCurrency(stats?.paymentsThisMonthAmount ?? 0)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {statsLoading ? 'Loading...' : `${stats?.paymentsThisMonth ?? 0} transactions`}
+            </p>
           </CardContent>
         </Card>
 
@@ -84,8 +122,12 @@ export default function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">--%</div>
-            <p className="text-xs text-muted-foreground">Compliance rate</p>
+            <div className="text-2xl font-bold">
+              {statsLoading ? '...' : `${stats?.paymentRate ?? 0}%`}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {statsLoading ? 'Loading...' : `${stats?.paidInvoices ?? 0} of ${stats?.totalInvoices ?? 0} invoices paid`}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -97,7 +139,28 @@ export default function DashboardPage() {
             <CardDescription>Latest actions in your community</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">No recent activity to display.</p>
+            {statsLoading ? (
+              <p className="text-sm text-muted-foreground">Loading activity...</p>
+            ) : stats?.recentActivity && stats.recentActivity.length > 0 ? (
+              <div className="space-y-4">
+                {stats.recentActivity.map((activity) => (
+                  <div key={activity.id} className="flex items-start gap-3">
+                    <div className="mt-0.5">{getActivityIcon(activity.type)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {activity.actorName && <span>{activity.actorName}</span>}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{activity.description}</p>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {formatRelativeTime(activity.timestamp)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No recent activity to display.</p>
+            )}
           </CardContent>
         </Card>
 
