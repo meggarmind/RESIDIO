@@ -1,8 +1,8 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-08 06:14 UTC
+**Last Updated:** 2025-12-10 UTC
 
-## Current Phase: Phase 4 - COMPLETE | Next: Phase 5
+## Current Phase: Phase 5 - IN PROGRESS
 
 ---
 
@@ -16,6 +16,7 @@
 - [x] Implement auth middleware
 - [x] Migrate from Docker Compose to Supabase CLI
 - [x] Connect to GitHub (https://github.com/meggarmind/RESIDIO)
+- [x] Connect to staging Supabase cloud instance
 
 ---
 
@@ -59,9 +60,6 @@
 - Resident roles: owner, tenant, occupier, domestic_staff
 - Resident codes: 6-digit numeric auto-generated
 
-### Future Enhancements (backlog):
-- [ ] Allow existing residents as emergency contacts (add `emergency_contact_resident_id` FK)
-
 ---
 
 ## Phase 4: Resident & House Enhancements ✅ COMPLETE
@@ -77,14 +75,47 @@
 
 ---
 
-## Phase 5: Payment Status Management
+## Phase 5: Payment & Billing System ✅ MOSTLY COMPLETE
 
-- [ ] Create payment_records table migration
-- [ ] Build payment status dashboard
-- [ ] Create payment recording form
+### 5.1 Payment Records ✅ COMPLETE
+- [x] Create payment_records table migration
+- [x] Build payments list page with table (`/payments`)
+- [x] Create payment recording form (`/payments/new`)
+- [x] Add payment detail page (`/payments/[id]`)
+- [x] Add payment history view per resident (ResidentPayments component)
+- [x] Pre-fill resident when navigating from resident detail page
+
+### 5.2 Wallet System ✅ COMPLETE
+- [x] Create wallets table migration
+- [x] Create wallet_transactions table migration
+- [x] Auto-create wallet on resident creation
+- [x] Credit wallet on payment recording
+- [x] Auto-allocate wallet balance to unpaid invoices (FIFO)
+- [x] Wallet balance display on resident detail page
+- [x] Wallet transactions history component
+- [x] Manual wallet adjustment dialog
+
+### 5.3 Billing & Invoices ✅ COMPLETE
+- [x] Create billing_profiles table migration
+- [x] Create invoices table migration
+- [x] Create invoice_items table migration
+- [x] Build billing profiles management UI
+- [x] Implement invoice generation logic
+- [x] Owner vs tenant billing distinction (only bill primary resident)
+- [x] Pro-rata calculation for move-in month
+- [x] Billing page with pagination, filters, search
+- [x] Invoice detail page
+
+### 5.4 Pending Items
 - [ ] Implement bulk payment status update
-- [ ] Add payment history view per resident
 - [ ] Create overdue notifications logic
+- [ ] Payment receipts/export
+
+### Key Implementation Notes:
+- Billing logic: Only bill tenants OR owner-occupiers (not non-resident owners)
+- `findBillableResident()` function determines who to bill per property
+- CurrencyInput component for all monetary fields (comma-separated formatting)
+- Wallet auto-allocation uses FIFO (oldest invoices first)
 
 ---
 
