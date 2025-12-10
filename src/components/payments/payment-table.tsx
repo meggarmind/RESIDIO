@@ -31,9 +31,10 @@ import { toast } from 'sonner';
 interface PaymentTableProps {
     data: any[];
     showResident?: boolean;
+    residentId?: string;
 }
 
-export function PaymentTable({ data, showResident = true }: PaymentTableProps) {
+export function PaymentTable({ data, showResident = true, residentId }: PaymentTableProps) {
     const router = useRouter();
     const deleteMutation = useDeletePayment();
 
@@ -144,7 +145,7 @@ export function PaymentTable({ data, showResident = true }: PaymentTableProps) {
                         </p>
                     </div>
                     <div className="flex gap-3">
-                        <Button onClick={() => router.push('/payments/new')}>
+                        <Button onClick={() => router.push(residentId ? `/payments/new?residentId=${residentId}` : '/payments/new')}>
                             <Plus className="h-4 w-4 mr-2" />
                             Add Payment
                         </Button>

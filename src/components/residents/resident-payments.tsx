@@ -35,7 +35,7 @@ export function ResidentPayments({ residentId }: ResidentPaymentsProps) {
                 </Button>
             </div>
 
-            <PaymentTable data={payments} showResident={false} />
+            <PaymentTable data={payments} showResident={false} residentId={residentId} />
         </div>
     );
 }
