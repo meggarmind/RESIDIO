@@ -18,7 +18,7 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
     .from('residents')
     .select(`
       *,
-      resident_houses(
+      resident_houses!resident_id(
         *,
         house:houses(
           *,

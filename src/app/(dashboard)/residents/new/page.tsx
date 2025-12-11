@@ -1,10 +1,14 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ResidentForm } from '@/components/residents/resident-form';
 import { Users } from 'lucide-react';
 
 export default function NewResidentPage() {
+  const searchParams = useSearchParams();
+  const preselectedHouseId = searchParams.get('house_id') ?? undefined;
+
   return (
     <div className="space-y-6">
       <div>
@@ -23,7 +27,7 @@ export default function NewResidentPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResidentForm />
+          <ResidentForm preselectedHouseId={preselectedHouseId} />
         </CardContent>
       </Card>
     </div>

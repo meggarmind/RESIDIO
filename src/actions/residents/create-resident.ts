@@ -2,8 +2,10 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
-import type { Resident } from '@/types/database';
+import type { Resident, ResidentRole } from '@/types/database';
 import type { CreateResidentData } from '@/lib/validators/resident';
+import { requiresSponsor, isValidCorporateRole } from '@/lib/validators/resident';
+import { RESIDENT_ROLE_LABELS } from '@/types/database';
 
 export interface CreateResidentResponse {
   data: Resident | null;
@@ -29,6 +31,13 @@ export async function createResident(formData: CreateResidentData): Promise<Crea
       phone_secondary: formData.phone_secondary || null,
       resident_type: formData.resident_type,
       verification_status: 'verified', // Auto-verify residents added by admins
+      // Entity type fields
+      entity_type: formData.entity_type || 'individual',
+      company_name: formData.company_name || null,
+      rc_number: formData.rc_number || null,
+      liaison_contact_name: formData.liaison_contact_name || null,
+      liaison_contact_phone: formData.liaison_contact_phone || null,
+      // Emergency contact
       emergency_contact_name: formData.emergency_contact_name || null,
       emergency_contact_phone: formData.emergency_contact_phone || null,
       emergency_contact_relationship: formData.emergency_contact_relationship || null,
@@ -45,14 +54,69 @@ export async function createResident(formData: CreateResidentData): Promise<Crea
 
   // Create house assignment if provided
   if (formData.house_id && formData.resident_role) {
+    const role = formData.resident_role as ResidentRole;
+    const entityType = formData.entity_type || 'individual';
+
+    // Validate corporate role restriction
+    if (entityType === 'corporate' && !isValidCorporateRole(role)) {
+      await supabase.from('residents').delete().eq('id', resident.id);
+      return {
+        data: null,
+        error: 'Corporate entities can only be Non-Resident Landlord or Developer',
+      };
+    }
+
+    // Validate sponsor requirement for domestic_staff and caretaker
+    if (requiresSponsor(role) && !formData.sponsor_resident_id) {
+      await supabase.from('residents').delete().eq('id', resident.id);
+      return {
+        data: null,
+        error: `${RESIDENT_ROLE_LABELS[role]} must have a sponsor. Please select a sponsor.`,
+      };
+    }
+
+    // Check for unit occupancy conflicts (handled by database triggers, but provide better error messages)
+    // resident_landlord and tenant are mutually exclusive per house
+    if (role === 'resident_landlord' || role === 'tenant') {
+      const { data: existingRole } = await supabase
+        .from('resident_houses')
+        .select('id, resident_role, resident:residents(first_name, last_name)')
+        .eq('house_id', formData.house_id)
+        .in('resident_role', ['resident_landlord', 'tenant'])
+        .eq('is_active', true)
+        .single();
+
+      if (existingRole) {
+        await supabase.from('residents').delete().eq('id', resident.id);
+        const residentData = existingRole.resident as unknown as { first_name: string; last_name: string } | null;
+        const existingName = residentData
+          ? `${residentData.first_name} ${residentData.last_name}`
+          : 'another resident';
+        const existingRoleLabel = RESIDENT_ROLE_LABELS[existingRole.resident_role as ResidentRole];
+
+        if (existingRole.resident_role === role) {
+          return {
+            data: null,
+            error: `This house already has an active ${existingRoleLabel} (${existingName}). Please unassign them first.`,
+          };
+        } else {
+          return {
+            data: null,
+            error: `This house already has an ${existingRoleLabel} (${existingName}). Cannot have both Resident Landlord and Tenant in the same unit.`,
+          };
+        }
+      }
+    }
+
     const { error: assignmentError } = await supabase
       .from('resident_houses')
       .insert({
         resident_id: resident.id,
         house_id: formData.house_id,
         resident_role: formData.resident_role,
-        is_primary: true,
         move_in_date: formData.move_in_date || new Date().toISOString().split('T')[0],
+        sponsor_resident_id: formData.sponsor_resident_id || null,
+        is_billing_responsible: formData.is_billing_responsible || false,
         created_by: user.id,
       });
 

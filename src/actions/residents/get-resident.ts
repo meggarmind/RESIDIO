@@ -15,7 +15,7 @@ export async function getResident(id: string): Promise<GetResidentResponse> {
     .from('residents')
     .select(`
       *,
-      resident_houses(
+      resident_houses!resident_id(
         *,
         house:houses(
           *,

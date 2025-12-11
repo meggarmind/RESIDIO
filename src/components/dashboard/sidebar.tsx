@@ -63,10 +63,12 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
-  const { profile } = useAuth();
+  const { profile, isLoading } = useAuth();
 
   const filteredNavItems = navItems.filter((item) => {
     if (!item.roles) return true;
+    // While loading, show items that the user might have access to (will be filtered properly once loaded)
+    if (isLoading) return true;
     return profile?.role && item.roles.includes(profile.role);
   });
 

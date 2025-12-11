@@ -1,8 +1,8 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-10 UTC
+**Last Updated:** 2025-12-10 (Phase 5.4 Complete)
 
-## Current Phase: Phase 5 - IN PROGRESS
+## Current Phase: Phase 5 ✅ COMPLETE
 
 ---
 
@@ -17,6 +17,7 @@
 - [x] Migrate from Docker Compose to Supabase CLI
 - [x] Connect to GitHub (https://github.com/meggarmind/RESIDIO)
 - [x] Connect to staging Supabase cloud instance
+- [x] Configure MCP servers (Supabase, GitHub, Memory, TestSprite)
 
 ---
 
@@ -75,7 +76,7 @@
 
 ---
 
-## Phase 5: Payment & Billing System ✅ MOSTLY COMPLETE
+## Phase 5: Payment & Billing System ✅ COMPLETE
 
 ### 5.1 Payment Records ✅ COMPLETE
 - [x] Create payment_records table migration
@@ -106,10 +107,11 @@
 - [x] Billing page with pagination, filters, search
 - [x] Invoice detail page
 
-### 5.4 Pending Items
-- [ ] Implement bulk payment status update
-- [ ] Create overdue notifications logic
-- [ ] Payment receipts/export
+### 5.4 Payment Enhancements ✅ COMPLETE
+- [x] Implement bulk payment status update (dropdown in floating action bar)
+- [x] Create overdue invoice detection logic (`check-overdue-invoices.ts`)
+- [x] Add Check Overdue button to billing page with alert banner
+- [x] Payment receipts with print functionality (popup window)
 
 ### Key Implementation Notes:
 - Billing logic: Only bill tenants OR owner-occupiers (not non-resident owners)

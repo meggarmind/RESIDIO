@@ -1,47 +1,143 @@
+'use client';
+
+import { use, useRef } from 'react';
 import { PaymentForm } from '@/components/payments/payment-form';
+import { PaymentReceipt } from '@/components/payments/payment-receipt';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { notFound } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePayment } from '@/hooks/use-payments';
+import { Printer, ArrowLeft, FileText, Pencil } from 'lucide-react';
+import Link from 'next/link';
 
-export default async function PaymentDetailPage({ params }: { params: { id: string } }) {
-    const supabase = await createServerSupabaseClient();
-    const { id } = await params; // Nextjs 15
+interface PaymentDetailPageProps {
+    params: Promise<{ id: string }>;
+}
 
-    const { data: payment } = await supabase
-        .from('payment_records')
-        .select(`
-        *,
-        resident:residents(
-            id,
-            first_name,
-            last_name,
-            resident_code
-        )
-    `)
-        .eq('id', id)
-        .single();
+export default function PaymentDetailPage({ params }: PaymentDetailPageProps) {
+    const { id } = use(params);
+    const receiptRef = useRef<HTMLDivElement>(null);
+    const { data: payment, isLoading, error } = usePayment(id);
 
-    if (!payment) {
-        notFound();
+    const handlePrint = () => {
+        const printContent = receiptRef.current;
+        if (!printContent) return;
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Please allow pop-ups to print the receipt');
+            return;
+        }
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Payment Receipt</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: system-ui, -apple-system, sans-serif; }
+                    @media print {
+                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    }
+                </style>
+            </head>
+            <body>
+                ${printContent.innerHTML}
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+        }, 250);
+    };
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <p className="text-muted-foreground">Loading payment details...</p>
+            </div>
+        );
+    }
+
+    if (error || !payment) {
+        return (
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                <p className="text-destructive">Payment not found</p>
+                <Button variant="outline" asChild>
+                    <Link href="/payments">Back to Payments</Link>
+                </Button>
+            </div>
+        );
     }
 
     return (
-        <div className="space-y-6 max-w-2xl mx-auto">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Edit Payment</h1>
-                <p className="text-muted-foreground">
-                    Update payment details for {payment.resident?.first_name} {payment.resident?.last_name}.
-                </p>
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" asChild>
+                        <Link href="/payments">
+                            <ArrowLeft className="h-4 w-4" />
+                        </Link>
+                    </Button>
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">Payment Details</h1>
+                        <p className="text-muted-foreground">
+                            Payment for {payment.resident?.first_name} {payment.resident?.last_name}
+                        </p>
+                    </div>
+                </div>
+                <Button onClick={handlePrint} variant="outline">
+                    <Printer className="h-4 w-4 mr-2" />
+                    Print Receipt
+                </Button>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Payment Details</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <PaymentForm initialData={payment} />
-                </CardContent>
-            </Card>
+            <Tabs defaultValue="details" className="w-full">
+                <TabsList>
+                    <TabsTrigger value="details">
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit Details
+                    </TabsTrigger>
+                    <TabsTrigger value="receipt">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Receipt Preview
+                    </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="details" className="mt-6">
+                    <Card className="max-w-2xl">
+                        <CardHeader>
+                            <CardTitle>Payment Details</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <PaymentForm initialData={payment} />
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="receipt" className="mt-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center justify-between">
+                                <span>Receipt Preview</span>
+                                <Button onClick={handlePrint} size="sm">
+                                    <Printer className="h-4 w-4 mr-2" />
+                                    Print
+                                </Button>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="border rounded-lg overflow-hidden">
+                                <PaymentReceipt ref={receiptRef} payment={payment} />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

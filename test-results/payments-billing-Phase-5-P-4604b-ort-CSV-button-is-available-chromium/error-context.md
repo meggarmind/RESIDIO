@@ -1,0 +1,229 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - link "R Residio" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - generic [ref=e6]: R
+        - generic [ref=e7]: Residio
+      - navigation [ref=e8]:
+        - list [ref=e9]:
+          - listitem [ref=e10]:
+            - link "Dashboard" [ref=e11] [cursor=pointer]:
+              - /url: /dashboard
+              - img [ref=e12]
+              - text: Dashboard
+          - listitem [ref=e15]:
+            - link "Residents" [ref=e16] [cursor=pointer]:
+              - /url: /residents
+              - img [ref=e17]
+              - text: Residents
+          - listitem [ref=e22]:
+            - link "Houses" [ref=e23] [cursor=pointer]:
+              - /url: /houses
+              - img [ref=e24]
+              - text: Houses
+          - listitem [ref=e28]:
+            - link "Payments" [ref=e29] [cursor=pointer]:
+              - /url: /payments
+              - img [ref=e30]
+              - text: Payments
+          - listitem [ref=e32]:
+            - link "Billing" [ref=e33] [cursor=pointer]:
+              - /url: /billing
+              - img [ref=e34]
+              - text: Billing
+          - listitem [ref=e37]:
+            - link "Security" [ref=e38] [cursor=pointer]:
+              - /url: /security
+              - img [ref=e39]
+              - text: Security
+          - listitem [ref=e41]:
+            - link "Settings" [ref=e42] [cursor=pointer]:
+              - /url: /settings
+              - img [ref=e43]
+              - text: Settings
+      - generic [ref=e47]:
+        - generic [ref=e48]: a
+        - generic [ref=e49]:
+          - paragraph [ref=e50]: admin@residio.test
+          - paragraph [ref=e51]: admin
+    - generic [ref=e52]:
+      - banner [ref=e53]:
+        - button "a" [ref=e54]:
+          - generic [ref=e56]: a
+      - main [ref=e57]:
+        - generic [ref=e58]:
+          - generic [ref=e59]:
+            - heading "Payments" [level=1] [ref=e60]
+            - link "Record Payment" [ref=e61] [cursor=pointer]:
+              - /url: /payments/new
+              - img
+              - text: Record Payment
+          - generic [ref=e62]:
+            - generic [ref=e63]:
+              - generic [ref=e64]:
+                - generic [ref=e65]: Total Collected
+                - img [ref=e66]
+              - generic [ref=e68]:
+                - generic [ref=e69]: ₦3,783,000.00
+                - paragraph [ref=e70]: Lifetime revenue
+            - generic [ref=e71]:
+              - generic [ref=e72]:
+                - generic [ref=e73]: Pending
+                - img [ref=e74]
+              - generic [ref=e77]:
+                - generic [ref=e78]: "0"
+                - paragraph [ref=e79]: Awaiting payment
+            - generic [ref=e80]:
+              - generic [ref=e81]:
+                - generic [ref=e82]: Overdue
+                - img [ref=e83]
+              - generic [ref=e85]:
+                - generic [ref=e86]: "0"
+                - paragraph [ref=e87]: Requires attention
+            - generic [ref=e88]:
+              - generic [ref=e89]:
+                - generic [ref=e90]: Failed
+                - img [ref=e91]
+              - generic [ref=e93]:
+                - generic [ref=e94]: "0"
+                - paragraph [ref=e95]: Transaction errors
+          - generic [ref=e96]:
+            - generic [ref=e98]: Recent Transactions
+            - generic [ref=e99]:
+              - generic [ref=e101]:
+                - generic [ref=e102]:
+                  - generic [ref=e103]: Search Reference
+                  - generic [ref=e104]:
+                    - img [ref=e105]
+                    - textbox "Search Reference" [ref=e108]:
+                      - /placeholder: Search reference...
+                - generic [ref=e109]:
+                  - generic [ref=e110]: Status
+                  - combobox "Status" [ref=e111]:
+                    - generic: All Statuses
+                    - img
+                - generic [ref=e112]:
+                  - generic [ref=e113]: Payment Method
+                  - combobox "Payment Method" [ref=e114]:
+                    - generic: All Methods
+                    - img
+                - generic [ref=e115]:
+                  - generic [ref=e116]: Date From
+                  - textbox "Date From" [ref=e117]:
+                    - /placeholder: Select start date
+                - generic [ref=e118]:
+                  - generic [ref=e119]: Date To
+                  - textbox "Date To" [ref=e120]:
+                    - /placeholder: Select end date
+                - generic [ref=e121]:
+                  - generic [ref=e122]: Resident
+                  - combobox "Resident" [ref=e123]:
+                    - generic: All Residents
+                    - img
+              - table [ref=e126]:
+                - rowgroup [ref=e127]:
+                  - row "Select all Date Resident Amount Method Status Ref Actions" [ref=e128]:
+                    - columnheader "Select all" [ref=e129]:
+                      - checkbox "Select all" [ref=e130]
+                    - columnheader "Date" [ref=e131]
+                    - columnheader "Resident" [ref=e132]
+                    - columnheader "Amount" [ref=e133]
+                    - columnheader "Method" [ref=e134]
+                    - columnheader "Status" [ref=e135]
+                    - columnheader "Ref" [ref=e136]
+                    - columnheader "Actions" [ref=e137]
+                - rowgroup [ref=e138]:
+                  - row "Select payment Dec 9, 2025 Ngozi Eze 839621 ₦3,000,000.00 cash Paid -" [ref=e139]:
+                    - cell "Select payment" [ref=e140]:
+                      - checkbox "Select payment" [active] [ref=e141]
+                    - cell "Dec 9, 2025" [ref=e142]
+                    - cell "Ngozi Eze 839621" [ref=e143]:
+                      - generic [ref=e144]:
+                        - generic [ref=e145]: Ngozi Eze
+                        - generic [ref=e146]: "839621"
+                    - cell "₦3,000,000.00" [ref=e147]
+                    - cell "cash" [ref=e148]
+                    - cell "Paid" [ref=e149]:
+                      - generic [ref=e150]: Paid
+                    - cell "-" [ref=e151]
+                    - cell [ref=e152]:
+                      - generic [ref=e153]:
+                        - link [ref=e154] [cursor=pointer]:
+                          - /url: /payments/ace1b52d-b308-4b57-8599-415498198ebe
+                          - img
+                        - button [ref=e155]:
+                          - img
+                  - row "Select payment Oct 15, 2025 Chidi Nwankwo 430575 ₦500,000.00 bank transfer Paid -" [ref=e156]:
+                    - cell "Select payment" [ref=e157]:
+                      - checkbox "Select payment" [ref=e158]
+                    - cell "Oct 15, 2025" [ref=e159]
+                    - cell "Chidi Nwankwo 430575" [ref=e160]:
+                      - generic [ref=e161]:
+                        - generic [ref=e162]: Chidi Nwankwo
+                        - generic [ref=e163]: "430575"
+                    - cell "₦500,000.00" [ref=e164]
+                    - cell "bank transfer" [ref=e165]
+                    - cell "Paid" [ref=e166]:
+                      - generic [ref=e167]: Paid
+                    - cell "-" [ref=e168]
+                    - cell [ref=e169]:
+                      - generic [ref=e170]:
+                        - link [ref=e171] [cursor=pointer]:
+                          - /url: /payments/847941b0-5dd5-4609-8a3e-33dae614ef0e
+                          - img
+                        - button [ref=e172]:
+                          - img
+                  - row "Select payment Oct 7, 2025 Funmi Adeyemi 353229 ₦33,000.00 bank transfer Paid -" [ref=e173]:
+                    - cell "Select payment" [ref=e174]:
+                      - checkbox "Select payment" [ref=e175]
+                    - cell "Oct 7, 2025" [ref=e176]
+                    - cell "Funmi Adeyemi 353229" [ref=e177]:
+                      - generic [ref=e178]:
+                        - generic [ref=e179]: Funmi Adeyemi
+                        - generic [ref=e180]: "353229"
+                    - cell "₦33,000.00" [ref=e181]
+                    - cell "bank transfer" [ref=e182]
+                    - cell "Paid" [ref=e183]:
+                      - generic [ref=e184]: Paid
+                    - cell "-" [ref=e185]
+                    - cell [ref=e186]:
+                      - generic [ref=e187]:
+                        - link [ref=e188] [cursor=pointer]:
+                          - /url: /payments/aaadc2e9-ba47-4082-8ddf-b38fd41d588c
+                          - img
+                        - button [ref=e189]:
+                          - img
+                  - row "Select payment Sep 7, 2025 Ngozi Eze 839621 ₦250,000.00 bank transfer Paid -" [ref=e190]:
+                    - cell "Select payment" [ref=e191]:
+                      - checkbox "Select payment" [ref=e192]
+                    - cell "Sep 7, 2025" [ref=e193]
+                    - cell "Ngozi Eze 839621" [ref=e194]:
+                      - generic [ref=e195]:
+                        - generic [ref=e196]: Ngozi Eze
+                        - generic [ref=e197]: "839621"
+                    - cell "₦250,000.00" [ref=e198]
+                    - cell "bank transfer" [ref=e199]
+                    - cell "Paid" [ref=e200]:
+                      - generic [ref=e201]: Paid
+                    - cell "-" [ref=e202]
+                    - cell [ref=e203]:
+                      - generic [ref=e204]:
+                        - link [ref=e205] [cursor=pointer]:
+                          - /url: /payments/bb769647-0160-466d-8cf1-4a55542defcd
+                          - img
+                        - button [ref=e206]:
+                          - img
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e212] [cursor=pointer]:
+    - generic [ref=e215]:
+      - text: Compiling
+      - generic [ref=e216]:
+        - generic [ref=e217]: .
+        - generic [ref=e218]: .
+        - generic [ref=e219]: .
+  - alert [ref=e220]
+```

@@ -18,6 +18,11 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
     return { data: null, error: 'Unauthorized' };
   }
 
+  // Validate corporate entity fields
+  if (formData.entity_type === 'corporate' && !formData.company_name?.trim()) {
+    return { data: null, error: 'Company name is required for corporate entities' };
+  }
+
   const { data, error } = await supabase
     .from('residents')
     .update({
@@ -27,6 +32,13 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
       phone_primary: formData.phone_primary,
       phone_secondary: formData.phone_secondary || null,
       resident_type: formData.resident_type,
+      // Entity type fields
+      entity_type: formData.entity_type || 'individual',
+      company_name: formData.company_name || null,
+      rc_number: formData.rc_number || null,
+      liaison_contact_name: formData.liaison_contact_name || null,
+      liaison_contact_phone: formData.liaison_contact_phone || null,
+      // Emergency contact
       emergency_contact_name: formData.emergency_contact_name || null,
       emergency_contact_phone: formData.emergency_contact_phone || null,
       emergency_contact_relationship: formData.emergency_contact_relationship || null,

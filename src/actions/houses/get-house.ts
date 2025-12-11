@@ -19,7 +19,7 @@ export async function getHouse(id: string): Promise<GetHouseResponse> {
       house_type:house_types(*),
       resident_houses(
         *,
-        resident:residents(*)
+        resident:residents!resident_id(*)
       )
     `)
     .eq('id', id)

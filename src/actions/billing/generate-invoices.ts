@@ -23,8 +23,7 @@ interface GenerateInvoicesResult {
 interface ResidentHouseLink {
     id: string;
     resident_id: string;
-    resident_role: 'owner' | 'tenant' | 'occupier' | 'family_member' | 'domestic_staff';
-    is_primary: boolean;
+    resident_role: 'resident_landlord' | 'non_resident_landlord' | 'tenant' | 'developer' | 'co_resident' | 'household_member' | 'domestic_staff' | 'caretaker';
     is_active: boolean;
     move_in_date: string;
     resident: {
@@ -38,37 +37,41 @@ interface ResidentHouseLink {
 /**
  * Determines which resident should be billed for a house based on role priority.
  *
- * Business Rules:
- * 1. Tenants - ALWAYS billed if active (regardless of is_primary)
- * 2. Owners - ONLY billed if they live in the property (is_primary=true AND is_active=true)
- * 3. Occupiers - NEVER billed (guests, etc.)
- * 4. Family Members - NEVER billed (household members)
- * 5. Domestic Staff - NEVER billed
+ * Business Rules (in order of priority):
+ * 1. Tenant - ALWAYS billed if active (leaseholder who resides in the unit)
+ * 2. Resident Landlord - Billed if no tenant (owner who lives in the property)
+ * 3. Non-Resident Landlord - Billed if house is vacant (owner who doesn't live there)
  *
- * Priority when multiple residents exist:
- * - If house has tenant(s): Primary tenant gets billed
- * - If house has only owner living there: Owner gets billed
- * - Otherwise: No one gets billed
+ * Roles that are NEVER billed:
+ * - Developer - Holding unsold inventory
+ * - Co-Resident - Adult residing but not on title/lease
+ * - Household Member - Family dependents
+ * - Domestic Staff - Employees
+ * - Caretaker - Maintains vacant units
  */
 function findBillableResident(residentHouses: ResidentHouseLink[]): ResidentHouseLink | null {
     const activeResidents = residentHouses.filter(rh => rh.is_active);
 
-    // Priority 1: Active tenant (primary tenant if multiple)
-    const tenants = activeResidents.filter(rh => rh.resident_role === 'tenant');
-    if (tenants.length > 0) {
-        return tenants.find(t => t.is_primary) || tenants[0];
+    // Priority 1: Tenant (leaseholder)
+    const tenant = activeResidents.find(rh => rh.resident_role === 'tenant');
+    if (tenant) {
+        return tenant;
     }
 
-    // Priority 2: Owner living in property (must be primary residence)
-    const ownerOccupier = activeResidents.find(
-        rh => rh.resident_role === 'owner' && rh.is_primary
-    );
-    if (ownerOccupier) {
-        return ownerOccupier;
+    // Priority 2: Resident Landlord (owner who lives there)
+    const residentLandlord = activeResidents.find(rh => rh.resident_role === 'resident_landlord');
+    if (residentLandlord) {
+        return residentLandlord;
+    }
+
+    // Priority 3: Non-Resident Landlord (owner who doesn't live there - vacant house)
+    const nonResidentLandlord = activeResidents.find(rh => rh.resident_role === 'non_resident_landlord');
+    if (nonResidentLandlord) {
+        return nonResidentLandlord;
     }
 
     // No billable resident found
-    // (e.g., owner not living in property, or only occupiers/domestic staff)
+    // (e.g., only developer, co_resident, household_member, domestic_staff, or caretaker)
     return null;
 }
 
@@ -177,7 +180,6 @@ export async function generateMonthlyInvoices(
                         id,
                         resident_id,
                         resident_role,
-                        is_primary,
                         is_active,
                         move_in_date,
                         resident:residents!resident_id(id, first_name, last_name, resident_code)

@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getHouses } from '@/actions/houses/get-houses';
+import { getHouses, getHousesWithRoles } from '@/actions/houses/get-houses';
 import { getHouse } from '@/actions/houses/get-house';
 import { createHouse } from '@/actions/houses/create-house';
 import { updateHouse } from '@/actions/houses/update-house';
@@ -13,6 +13,21 @@ export function useHouses(params: Partial<HouseSearchParams> = {}) {
     queryKey: ['houses', params],
     queryFn: async () => {
       const result = await getHouses(params);
+      if (result.error) throw new Error(result.error);
+      return { data: result.data, count: result.count };
+    },
+  });
+}
+
+/**
+ * Fetch houses with their active roles for filtering in resident forms.
+ * Use this when you need to filter houses based on whether they have an owner/tenant.
+ */
+export function useHousesWithRoles(params: Partial<HouseSearchParams> = {}) {
+  return useQuery({
+    queryKey: ['houses-with-roles', params],
+    queryFn: async () => {
+      const result = await getHousesWithRoles(params);
       if (result.error) throw new Error(result.error);
       return { data: result.data, count: result.count };
     },

@@ -161,3 +161,42 @@ export function useAllocateWallet() {
     });
 }
 
+// Overdue Invoices Hooks
+import { checkOverdueInvoices, getOverdueStats } from '@/actions/billing/check-overdue-invoices';
+
+export function useOverdueStats() {
+    return useQuery({
+        queryKey: ['overdue-stats'],
+        queryFn: async () => {
+            const result = await getOverdueStats();
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+    });
+}
+
+export function useCheckOverdueInvoices() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async () => {
+            const result = await checkOverdueInvoices();
+            if (result.error) throw new Error(result.error);
+            if (!result.data) throw new Error('No data returned');
+            return result.data;
+        },
+        onSuccess: (data) => {
+            if (data.totalOverdue === 0) {
+                toast.success('No overdue invoices found');
+            } else {
+                toast.warning(`Found ${data.totalOverdue} overdue invoice(s) totaling ₦${data.totalAmount.toLocaleString()}`);
+            }
+            queryClient.invalidateQueries({ queryKey: ['overdue-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to check overdue invoices');
+        }
+    });
+}
+

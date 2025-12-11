@@ -22,11 +22,19 @@ import {
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Trash2, Eye, CheckCircle, Download, X, Receipt, Plus } from 'lucide-react';
+import { Trash2, Eye, CheckCircle, Download, X, Receipt, Plus, ChevronDown, Clock, AlertCircle } from 'lucide-react';
 import { PaymentStatusBadge } from './payment-status-badge';
-import { useDeletePayment } from '@/hooks/use-payments';
+import { useDeletePayment, useBulkUpdatePayments } from '@/hooks/use-payments';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface PaymentTableProps {
     data: any[];
@@ -37,6 +45,7 @@ interface PaymentTableProps {
 export function PaymentTable({ data, showResident = true, residentId }: PaymentTableProps) {
     const router = useRouter();
     const deleteMutation = useDeletePayment();
+    const bulkUpdateMutation = useBulkUpdatePayments();
 
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -121,10 +130,17 @@ export function PaymentTable({ data, showResident = true, residentId }: PaymentT
         toast.success(`Exported ${selectedIds.size} payment(s) to CSV`);
     };
 
-    // Mark as verified handler (placeholder - would need backend support)
-    const handleMarkVerified = () => {
-        toast.info('Mark as verified feature - backend implementation needed');
-        // This would typically call an API to update payment status
+    // Bulk status update handler
+    const handleBulkStatusUpdate = async (status: 'pending' | 'paid' | 'overdue' | 'failed') => {
+        try {
+            await bulkUpdateMutation.mutateAsync({
+                ids: Array.from(selectedIds),
+                status,
+            });
+            setSelectedIds(new Set());
+        } catch (error) {
+            // Error handled by mutation
+        }
     };
 
     // Clear selection
@@ -249,15 +265,40 @@ export function PaymentTable({ data, showResident = true, residentId }: PaymentT
                                 {selectedIds.size} payment{selectedIds.size !== 1 ? 's' : ''} selected
                             </span>
                             <div className="hidden md:flex gap-2">
-                                <Button
-                                    variant="default"
-                                    size="sm"
-                                    onClick={handleMarkVerified}
-                                    className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
-                                >
-                                    <CheckCircle className="h-4 w-4 mr-2" />
-                                    Mark as Verified
-                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="default"
+                                            size="sm"
+                                            className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+                                            disabled={bulkUpdateMutation.isPending}
+                                        >
+                                            <CheckCircle className="h-4 w-4 mr-2" />
+                                            Update Status
+                                            <ChevronDown className="h-4 w-4 ml-2" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start">
+                                        <DropdownMenuLabel>Set Status To</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => handleBulkStatusUpdate('paid')}>
+                                            <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                                            Paid
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleBulkStatusUpdate('pending')}>
+                                            <Clock className="h-4 w-4 mr-2 text-yellow-600" />
+                                            Pending
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleBulkStatusUpdate('overdue')}>
+                                            <AlertCircle className="h-4 w-4 mr-2 text-orange-600" />
+                                            Overdue
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleBulkStatusUpdate('failed')}>
+                                            <X className="h-4 w-4 mr-2 text-red-600" />
+                                            Failed
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -278,14 +319,38 @@ export function PaymentTable({ data, showResident = true, residentId }: PaymentT
                             </div>
                             {/* Mobile: Icon only buttons */}
                             <div className="flex md:hidden gap-2">
-                                <Button
-                                    variant="default"
-                                    size="icon"
-                                    onClick={handleMarkVerified}
-                                    className="bg-primary-foreground text-primary"
-                                >
-                                    <CheckCircle className="h-4 w-4" />
-                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="default"
+                                            size="icon"
+                                            className="bg-primary-foreground text-primary"
+                                            disabled={bulkUpdateMutation.isPending}
+                                        >
+                                            <CheckCircle className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start">
+                                        <DropdownMenuLabel>Set Status To</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => handleBulkStatusUpdate('paid')}>
+                                            <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
+                                            Paid
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleBulkStatusUpdate('pending')}>
+                                            <Clock className="h-4 w-4 mr-2 text-yellow-600" />
+                                            Pending
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleBulkStatusUpdate('overdue')}>
+                                            <AlertCircle className="h-4 w-4 mr-2 text-orange-600" />
+                                            Overdue
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleBulkStatusUpdate('failed')}>
+                                            <X className="h-4 w-4 mr-2 text-red-600" />
+                                            Failed
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                                 <Button
                                     variant="outline"
                                     size="icon"

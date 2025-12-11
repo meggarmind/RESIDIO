@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPayments } from '@/actions/payments/get-payments';
+import { getPayment } from '@/actions/payments/get-payment';
 import { createPayment } from '@/actions/payments/create-payment';
 import { updatePayment } from '@/actions/payments/update-payment';
 import { deletePayment } from '@/actions/payments/delete-payment';
 import { getPaymentStats } from '@/actions/payments/get-payment-stats';
+import { bulkUpdatePayments, type BulkUpdatePaymentsInput } from '@/actions/payments/bulk-update-payments';
 import type { PaymentSearchParams, PaymentFormData } from '@/lib/validators/payment';
 import { toast } from 'sonner';
 
@@ -11,6 +13,18 @@ export function usePayments(params: PaymentSearchParams) {
     return useQuery({
         queryKey: ['payments', params],
         queryFn: () => getPayments(params),
+    });
+}
+
+export function usePayment(id: string) {
+    return useQuery({
+        queryKey: ['payment', id],
+        queryFn: async () => {
+            const result = await getPayment(id);
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        enabled: !!id,
     });
 }
 
@@ -70,6 +84,26 @@ export function useDeletePayment() {
             queryClient.invalidateQueries({ queryKey: ['payments'] });
             queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
             toast.success('Payment deleted successfully');
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+}
+
+export function useBulkUpdatePayments() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (input: BulkUpdatePaymentsInput) => {
+            const result = await bulkUpdatePayments(input);
+            if (result.error) throw new Error(result.error);
+            return result;
+        },
+        onSuccess: (result) => {
+            queryClient.invalidateQueries({ queryKey: ['payments'] });
+            queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
+            toast.success(result.message);
         },
         onError: (error) => {
             toast.error(error.message);

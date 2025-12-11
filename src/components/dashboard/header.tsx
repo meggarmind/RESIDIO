@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,6 +20,11 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { profile, signOut } = useAuth();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
@@ -34,6 +40,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
       <div className="flex-1" />
 
+      {mounted && (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-10 w-10 rounded-full">
@@ -65,6 +72,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      )}
     </header>
   );
 }

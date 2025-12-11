@@ -1,14 +1,86 @@
 // User roles for app access (profiles table)
 export type UserRole = 'chairman' | 'financial_secretary' | 'security_officer' | 'admin';
 
+// Entity types (Individual or Corporate only)
+export type EntityType = 'individual' | 'corporate';
+
 // Phase 3: Resident Management Types
 export type ResidentType = 'primary' | 'secondary';
-export type ResidentRole = 'owner' | 'tenant' | 'occupier' | 'family_member' | 'domestic_staff';
+
+// Resident roles (renamed in Phase 2 Enhancements)
+export type ResidentRole =
+  | 'resident_landlord' // Owner who resides in the unit (was owner_occupier)
+  | 'non_resident_landlord' // Non-resident owner (was landlord)
+  | 'tenant' // Leaseholder who resides in the unit
+  | 'developer' // Developer holding unsold inventory
+  | 'co_resident' // Adult residing in unit not on title/lease
+  | 'household_member' // Family dependents (spouse, children)
+  | 'domestic_staff' // Employees working/living at the unit
+  | 'caretaker'; // Assigned to maintain a vacant unit
+
+// Primary roles (can exist independently - relationship holders)
+export type PrimaryResidentRole = 'resident_landlord' | 'non_resident_landlord' | 'tenant' | 'developer';
+
+// Secondary roles (must be attached to a primary resident, individuals only)
+export type SecondaryResidentRole = 'co_resident' | 'household_member' | 'domestic_staff' | 'caretaker';
+
+// Corporate-allowed roles (companies can only have these roles)
+export type CorporateRole = 'non_resident_landlord' | 'developer';
+
+// Roles that indicate physical residency (for "One Home" policy)
+export type ResidencyRole = 'resident_landlord' | 'tenant' | 'co_resident';
+
 export type VerificationStatus = 'pending' | 'submitted' | 'verified' | 'rejected';
 export type AccountStatus = 'active' | 'inactive' | 'suspended' | 'archived';
 
 // Legacy types (for future phases)
 export type PaymentStatus = 'current' | 'overdue' | 'suspended' | 'exempt';
+
+// Role display labels for UI
+export const RESIDENT_ROLE_LABELS: Record<ResidentRole, string> = {
+  resident_landlord: 'Resident Landlord',
+  non_resident_landlord: 'Non-Resident Landlord',
+  tenant: 'Tenant',
+  developer: 'Developer',
+  co_resident: 'Co-Resident',
+  household_member: 'Household Member',
+  domestic_staff: 'Domestic Staff',
+  caretaker: 'Caretaker',
+};
+
+// Resident type labels for UI
+export const RESIDENT_TYPE_LABELS: Record<ResidentType, string> = {
+  primary: 'Primary Resident',
+  secondary: 'Secondary Resident',
+};
+
+// Primary role options for forms (individual residents)
+export const PRIMARY_ROLE_OPTIONS = [
+  { value: 'resident_landlord' as const, label: 'Resident Landlord' },
+  { value: 'non_resident_landlord' as const, label: 'Non-Resident Landlord' },
+  { value: 'tenant' as const, label: 'Tenant' },
+  { value: 'developer' as const, label: 'Developer' },
+];
+
+// Corporate-only role options (corporate entities can only have these roles)
+export const CORPORATE_ROLE_OPTIONS = [
+  { value: 'non_resident_landlord' as const, label: 'Non-Resident Landlord' },
+  { value: 'developer' as const, label: 'Developer' },
+];
+
+// Secondary role options for forms (individuals only)
+export const SECONDARY_ROLE_OPTIONS = [
+  { value: 'co_resident' as const, label: 'Co-Resident' },
+  { value: 'household_member' as const, label: 'Household Member' },
+  { value: 'domestic_staff' as const, label: 'Domestic Staff' },
+  { value: 'caretaker' as const, label: 'Caretaker' },
+];
+
+// Entity type labels for UI
+export const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
+  individual: 'Individual',
+  corporate: 'Corporate Entity',
+};
 
 export interface Database {
   public: {
@@ -98,6 +170,13 @@ export interface Database {
           resident_type: ResidentType;
           verification_status: VerificationStatus;
           account_status: AccountStatus;
+          // Entity type fields (Individual/Corporate/Developer)
+          entity_type: EntityType;
+          company_name: string | null;
+          rc_number: string | null;
+          liaison_contact_name: string | null;
+          liaison_contact_phone: string | null;
+          // ID verification fields
           id_type: string | null;
           id_number: string | null;
           id_verified_at: string | null;
@@ -119,6 +198,7 @@ export interface Database {
         > & {
           id?: string;
           resident_code?: string;
+          entity_type?: EntityType; // Defaults to 'individual'
           emergency_contact_resident_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['residents']['Insert']>;
@@ -131,16 +211,19 @@ export interface Database {
           resident_id: string;
           house_id: string;
           resident_role: ResidentRole;
-          is_primary: boolean;
           move_in_date: string;
           move_out_date: string | null;
           is_active: boolean;
+          // Sponsor fields for secondary roles (domestic_staff, caretaker)
+          sponsor_resident_id: string | null;
+          is_billing_responsible: boolean;
           created_at: string;
           updated_at: string;
           created_by: string | null;
         };
         Insert: Omit<Database['public']['Tables']['resident_houses']['Row'], 'id' | 'created_at' | 'updated_at'> & {
           id?: string;
+          is_billing_responsible?: boolean; // Defaults to false
         };
         Update: Partial<Database['public']['Tables']['resident_houses']['Insert']>;
       };

@@ -26,6 +26,8 @@ import { createStreet } from '@/actions/reference/create-street';
 import { toast } from 'sonner';
 import { Plus, Loader2 } from 'lucide-react';
 
+// TODO: Provide ability to edit Streets (name, description, is_active status)
+// TODO: Add a short name field for streets
 export function StreetsList() {
     const { data: streetsData, isLoading, refetch } = useStreets();
     const [isDialogOpen, setIsDialogOpen] = useState(false);

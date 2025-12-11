@@ -16,7 +16,7 @@ export async function getPayments(params: PaymentSearchParams) {
         first_name,
         last_name,
         resident_code,
-        resident_houses(
+        resident_houses!resident_id(
             house:houses(
                 house_number,
                 street:streets(name)

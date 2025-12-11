@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -20,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { AccountStatusBadge } from '@/components/residents/status-badge';
+import { AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { useResidents } from '@/hooks/use-residents';
 import { useStreets } from '@/hooks/use-reference';
 import { Users, Plus, Search, Eye, Pencil, UserPlus } from 'lucide-react';
@@ -119,6 +120,7 @@ export function ResidentsTable() {
               <TableHead>Name</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Address</TableHead>
+              <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -126,13 +128,13 @@ export function ResidentsTable() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : data?.data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-12">
+                <TableCell colSpan={7} className="py-12">
                   <div className="flex flex-col items-center justify-center gap-4 text-center">
                     <UserPlus className="size-12 text-muted-foreground" />
                     <div className="space-y-2">
@@ -150,11 +152,12 @@ export function ResidentsTable() {
               </TableRow>
             ) : (
               data?.data.map((resident) => {
-                const primaryHouse = resident.resident_houses?.find(
-                  (rh) => rh.is_primary && rh.is_active
+                // Show first active house assignment (role-based billing determines responsibility, not primary flag)
+                const activeHouse = resident.resident_houses?.find(
+                  (rh) => rh.is_active
                 );
-                const address = primaryHouse
-                  ? `${primaryHouse.house?.house_number} ${primaryHouse.house?.street?.name}`
+                const address = activeHouse
+                  ? `${activeHouse.house?.house_number} ${activeHouse.house?.street?.name}`
                   : '-';
 
                 return (
@@ -174,6 +177,21 @@ export function ResidentsTable() {
                     </TableCell>
                     <TableCell>{resident.phone_primary}</TableCell>
                     <TableCell>{address}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {resident.resident_houses?.filter(rh => rh.is_active).length ? (
+                          resident.resident_houses
+                            .filter(rh => rh.is_active)
+                            .map((rh) => (
+                              <ResidentRoleBadge key={rh.id} role={rh.resident_role} />
+                            ))
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            Unassigned
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <AccountStatusBadge status={resident.account_status} />
                     </TableCell>

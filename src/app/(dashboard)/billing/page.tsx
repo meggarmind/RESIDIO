@@ -1,6 +1,6 @@
 'use client';
 
-import { useInvoices, useGenerateInvoices } from '@/hooks/use-billing';
+import { useInvoices, useGenerateInvoices, useCheckOverdueInvoices, useOverdueStats } from '@/hooks/use-billing';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -20,7 +20,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/utils';
-import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { getResidents } from '@/actions/residents/get-residents';
@@ -48,6 +48,8 @@ export default function BillingPage() {
         search: search || undefined,
     });
     const generateMutation = useGenerateInvoices();
+    const checkOverdueMutation = useCheckOverdueInvoices();
+    const { data: overdueStats } = useOverdueStats();
 
     const invoices = data?.data ?? [];
     const totalCount = data?.total ?? 0;
@@ -90,6 +92,18 @@ export default function BillingPage() {
                         Refresh
                     </Button>
                     <Button
+                        variant="outline"
+                        onClick={() => checkOverdueMutation.mutateAsync()}
+                        disabled={checkOverdueMutation.isPending}
+                    >
+                        {checkOverdueMutation.isPending ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                            <AlertCircle className="mr-2 h-4 w-4" />
+                        )}
+                        Check Overdue
+                    </Button>
+                    <Button
                         onClick={handleGenerateInvoices}
                         disabled={generateMutation.isPending}
                     >
@@ -102,6 +116,31 @@ export default function BillingPage() {
                     </Button>
                 </div>
             </div>
+
+            {/* Overdue Alert Banner */}
+            {overdueStats && overdueStats.count > 0 && (
+                <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 dark:border-orange-900 dark:bg-orange-950">
+                    <div className="flex items-center gap-3">
+                        <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                        <div className="flex-1">
+                            <p className="font-medium text-orange-800 dark:text-orange-200">
+                                {overdueStats.count} overdue invoice{overdueStats.count !== 1 ? 's' : ''} totaling {formatCurrency(overdueStats.totalAmount)}
+                            </p>
+                            <p className="text-sm text-orange-600 dark:text-orange-400">
+                                Click &quot;Check Overdue&quot; to view details and send reminders.
+                            </p>
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-orange-300 text-orange-700 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-300 dark:hover:bg-orange-900"
+                            onClick={() => setStatus('unpaid')}
+                        >
+                            View Unpaid
+                        </Button>
+                    </div>
+                </div>
+            )}
 
             {/* Filters */}
             <div className="flex flex-wrap gap-4 items-end">

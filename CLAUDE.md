@@ -217,6 +217,42 @@ Use consistent badge components for status display:
 - `status-badge.tsx` - Resident account/verification status
 - `payment-status-badge.tsx` - Payment status
 
+**Currency Input Fields**:
+All monetary input fields MUST use `CurrencyInput` (`src/components/ui/currency-input.tsx`):
+- Formats with commas as user types (1000 → 1,000)
+- Supports decimals up to 2 places (1234.56 → 1,234.56)
+- Handles paste intelligently (strips ₦ symbols)
+- Returns clean numeric value to form state
+- Compatible with Zod `.number()` validation
+
+Usage with React Hook Form:
+```typescript
+<FormField
+    control={form.control}
+    name="amount"
+    render={({ field }) => (
+        <FormItem>
+            <FormLabel>Amount (₦)</FormLabel>
+            <FormControl>
+                <CurrencyInput
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder="0.00"
+                />
+            </FormControl>
+            <FormMessage />
+        </FormItem>
+    )}
+/>
+```
+
+DO NOT use `<Input type="number" />` for currency fields - browsers don't allow comma formatting.
+
+Currently implemented in:
+- Payment Form (`/src/components/payments/payment-form.tsx`)
+- Wallet Adjustment Dialog (`/src/components/residents/wallet-adjustment-dialog.tsx`)
+- Billing Profile Form (`/src/components/billing/billing-profile-form.tsx`)
+
 ### Environment Variables
 
 Required env vars (see `.env.example`):
@@ -285,19 +321,47 @@ SUPABASE_SERVICE_ROLE_KEY_CLOUD=...
 
 **Git Configuration**:
 - Repository: https://github.com/meggarmind/RESIDIO
-- User: meggarmind (feyijimiohioma@gmail.com)
+- User: `meggarmind`
+- Email: `feyijimiohioma@gmail.com`
 - Do not include Claude Code references in commits
 
-**Documentation**:
-- `TODO.md` - Project status, phase tracking (update every 30 mins)
-- `HANDOFF_SUMMARY.md` - Session handoff notes (update before session end)
-- `README.md` - User-facing documentation (update hourly or at session end)
+**Documentation Updates**:
+- `TODO.md` - Update at least every 30 minutes with current state, including any troubleshooting
+- `HANDOFF_SUMMARY.md` - Update when:
+  - User requests to close the session
+  - Context remaining before compression hits ~10%
+- `README.md` - Update hourly or at session end
 
-**Workflow Guidelines**:
-- Run `date` command at session start to confirm current date/time
-- Analyze problems and present options before making changes
-- Ensure GitHub sync: check pushes every 10 mins if new files written
-- Prompt to connect to GitHub every 30 mins if not connected (until user agrees/denies)
+**Session Workflow**:
+1. **Session Start**: Always run `date` command first to confirm current date/time
+2. **Problem Analysis**: Do NOT immediately change code when user explains a problem - analyze first and present options
+3. **GitHub Sync**:
+   - If connected: Check that pushes are done within 10 mins of writing new files
+   - If not connected: Prompt user to connect every 30 mins until they agree or deny
+
+**Session Commands**:
+When the user types any of these keyphrases, execute the associated action:
+
+| Keyphrase | Action |
+|-----------|--------|
+| `pause_session` | Execute session handoff procedure below |
+| `end_session` | Execute session handoff procedure below |
+| `resume_session` | Read `NEXT_SESSION_HANDOFF_PROMPT.md` and follow its instructions as your prompt |
+
+**Session Handoff Procedure**:
+When triggered by the above keyphrases, perform the following:
+
+1. Update `TODO.md` with current state and any troubleshooting in progress
+2. Update `CLAUDE.md` if any new patterns or conventions were established
+3. Update `HANDOFF_SUMMARY.md` with:
+   - Overall goal for this session (what were we trying to accomplish?)
+   - Key decisions made or approaches discussed/attempted
+   - Specific code changes or edits made (brief descriptions, no large code blocks)
+   - Current state of any in-progress tasks or unfinished code
+   - Next steps or remaining tasks (primary focus when resuming)
+4. Create/update `NEXT_SESSION_HANDOFF_PROMPT.md` with a complete prompt that provides 100% of the information necessary for the next Claude Code session to pick up exactly where we left off
+
+The handoff must ensure a seamless transition to the next session.
 
 ## Test Users
 

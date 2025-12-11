@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,13 +21,15 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { useAssignHouse, useUnassignHouse } from '@/hooks/use-residents';
-import { useHouses } from '@/hooks/use-houses';
+import { useAssignHouse, useUnassignHouse, useResidents } from '@/hooks/use-residents';
+import { useHousesWithRoles } from '@/hooks/use-houses';
 import { toast } from 'sonner';
-import { Home, Plus, Trash2, Loader2, Link as LinkIcon } from 'lucide-react';
-import type { ResidentWithHouses } from '@/types/database';
+import { Home, Plus, Trash2, Loader2 } from 'lucide-react';
+import type { ResidentWithHouses, ResidentRole } from '@/types/database';
+import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, CORPORATE_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } from '@/types/database';
+import { requiresSponsor } from '@/lib/validators/resident';
+import { ResidentRoleBadge } from './status-badge';
 
 interface LinkedHousesProps {
     resident: ResidentWithHouses;
@@ -36,52 +38,139 @@ interface LinkedHousesProps {
 export function LinkedHouses({ resident }: LinkedHousesProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedHouseId, setSelectedHouseId] = useState('');
-    const [selectedRole, setSelectedRole] = useState('occupier');
-    const [isPrimary, setIsPrimary] = useState(false);
+    const [selectedRole, setSelectedRole] = useState<ResidentRole>('co_resident');
     const [moveInDate, setMoveInDate] = useState(new Date().toISOString().split('T')[0]);
+    const [sponsorResidentId, setSponsorResidentId] = useState<string>('');
 
-    const { data: housesData } = useHouses({ limit: 100 });
+    const { data: housesData } = useHousesWithRoles({ limit: 100 });
+    const { data: residentsData } = useResidents({ limit: 1000 });
     const assignMutation = useAssignHouse();
     const unassignMutation = useUnassignHouse();
 
     const activeHouses = resident.resident_houses?.filter((rh) => rh.is_active) ?? [];
     const linkedHouseIds = new Set(activeHouses.map(rh => rh.house_id));
 
-    // Check if resident already has a primary home
-    const hasPrimary = activeHouses.some(rh => rh.is_primary);
+    // Determine if resident is primary or secondary type
+    const isPrimaryResident = resident.resident_type === 'primary';
+    const isCorporate = resident.entity_type === 'corporate';
 
-    // Filter out houses already linked
-    const availableHouses = housesData?.data.filter(h => !linkedHouseIds.has(h.id) && !h.is_occupied) ?? [];
+    // Role options based on resident type and entity type
+    const roleOptions = useMemo(() => {
+        if (!isPrimaryResident) {
+            // Secondary residents must be individuals
+            if (isCorporate) return [];
+            return SECONDARY_ROLE_OPTIONS;
+        }
+        // Primary residents
+        if (isCorporate) {
+            // Corporate can only be Non-Resident Landlord or Developer
+            return CORPORATE_ROLE_OPTIONS;
+        }
+        return PRIMARY_ROLE_OPTIONS;
+    }, [isPrimaryResident, isCorporate]);
+
+    // Filter houses based on selected role
+    const availableHouses = useMemo(() => {
+        const allHouses = housesData?.data ?? [];
+        // Filter out houses already linked
+        const unlinkedHouses = allHouses.filter(h => !linkedHouseIds.has(h.id));
+
+        // For resident_landlord and tenant, filter out houses that already have one
+        if (selectedRole === 'resident_landlord' || selectedRole === 'tenant') {
+            return unlinkedHouses.filter(house =>
+                !house.activeRoles.includes('resident_landlord') &&
+                !house.activeRoles.includes('tenant')
+            );
+        }
+        return unlinkedHouses;
+    }, [housesData?.data, linkedHouseIds, selectedRole]);
+
+    // Get sponsors (primary residents of selected house) for domestic_staff and caretaker
+    const availableSponsors = useMemo(() => {
+        if (!selectedHouseId || !requiresSponsor(selectedRole)) {
+            return [];
+        }
+        const allResidents = residentsData?.data ?? [];
+        // Filter residents who are non_resident_landlord, resident_landlord, or tenant of the selected house
+        return allResidents.filter(r => {
+            if (r.id === resident.id) return false;
+            const residentWithHouses = r as typeof resident;
+            return residentWithHouses.resident_houses?.some(
+                rh => rh.house_id === selectedHouseId &&
+                      rh.is_active &&
+                      ['non_resident_landlord', 'resident_landlord', 'tenant'].includes(rh.resident_role)
+            );
+        });
+    }, [selectedHouseId, selectedRole, residentsData?.data, resident.id]);
+
+    // Check if selected house is occupied (has resident_landlord or tenant)
+    const isSelectedHouseOccupied = useMemo(() => {
+        if (!selectedHouseId) return false;
+        const selectedHouse = housesData?.data?.find(h => h.id === selectedHouseId);
+        if (!selectedHouse) return false;
+
+        // Check activeRoles for occupying roles
+        const hasOccupyingRole = selectedHouse.activeRoles.some(role =>
+            role === 'resident_landlord' || role === 'tenant'
+        );
+
+        // Fallback: check is_occupied field if house has active residents assigned
+        // This handles cases where activeRoles might not be populated correctly
+        return hasOccupyingRole || selectedHouse.is_occupied;
+    }, [selectedHouseId, housesData?.data]);
 
     // Reset form when dialog opens
     const handleDialogOpen = (open: boolean) => {
         setIsDialogOpen(open);
         if (open) {
             setSelectedHouseId('');
-            setSelectedRole('occupier');
-            setIsPrimary(false); // Always reset to false, user can toggle if no primary exists
+            // Set default role based on resident type and entity type
+            const defaultRole = isPrimaryResident
+                ? (isCorporate ? 'non_resident_landlord' : 'resident_landlord')
+                : 'co_resident';
+            setSelectedRole(defaultRole as ResidentRole);
             setMoveInDate(new Date().toISOString().split('T')[0]);
+            setSponsorResidentId('');
         }
     };
 
+    // Show sponsor field if role requires it
+    const showSponsorField = requiresSponsor(selectedRole);
+
     const handleAssign = async () => {
         if (!selectedHouseId) return;
+
+        // Validate resident ID exists
+        if (!resident?.id) {
+            toast.error('Resident data is missing. Please refresh the page.');
+            console.error('[LinkedHouses] handleAssign: resident.id is missing', { resident });
+            return;
+        }
+
+        // Validate sponsor for roles that require it
+        if (showSponsorField && !sponsorResidentId) {
+            toast.error(`${RESIDENT_ROLE_LABELS[selectedRole]} must have a sponsor`);
+            return;
+        }
+
+        console.log('[LinkedHouses] handleAssign: calling assignMutation', { residentId: resident.id, selectedHouseId });
 
         try {
             await assignMutation.mutateAsync({
                 residentId: resident.id,
                 data: {
                     house_id: selectedHouseId,
-                    resident_role: selectedRole as any,
-                    is_primary: isPrimary,
-                    move_in_date: moveInDate,
+                    resident_role: selectedRole,
+                    move_in_date: isSelectedHouseOccupied ? undefined : moveInDate,
+                    sponsor_resident_id: showSponsorField ? sponsorResidentId : null,
+                    is_billing_responsible: false,
                 },
             });
             toast.success('House linked successfully');
             setIsDialogOpen(false);
             setSelectedHouseId('');
         } catch (error) {
-            toast.error('Failed to link house');
+            toast.error(error instanceof Error ? error.message : 'Failed to link house');
         }
     };
 
@@ -124,50 +213,93 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
                                 <div className="grid gap-2">
-                                    <Label>House</Label>
-                                    <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
+                                    <Label>Role</Label>
+                                    <Select value={selectedRole} onValueChange={(v) => {
+                                        setSelectedRole(v as ResidentRole);
+                                        setSponsorResidentId(''); // Reset sponsor when role changes
+                                    }}>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select a house" />
+                                            <SelectValue placeholder="Select role" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {availableHouses.map((h) => (
-                                                <SelectItem key={h.id} value={h.id}>
-                                                    {h.house_number} {h.street?.name}
+                                            {roleOptions.map((role) => (
+                                                <SelectItem key={role.value} value={role.value}>
+                                                    {role.label}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label>Role</Label>
-                                    <Select value={selectedRole} onValueChange={setSelectedRole}>
+                                    <Label>House</Label>
+                                    <Select value={selectedHouseId} onValueChange={(v) => {
+                                        setSelectedHouseId(v);
+                                        setSponsorResidentId(''); // Reset sponsor when house changes
+                                    }}>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select role" />
+                                            <SelectValue placeholder="Select a house" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="owner">Owner</SelectItem>
-                                            <SelectItem value="tenant">Tenant</SelectItem>
-                                            <SelectItem value="occupier">Occupier</SelectItem>
-                                            <SelectItem value="family_member">Household Member</SelectItem>
-                                            <SelectItem value="domestic_staff">Domestic Staff</SelectItem>
+                                            {availableHouses.map((h) => {
+                                                const hasResidentLandlord = h.activeRoles.includes('resident_landlord');
+                                                const hasTenant = h.activeRoles.includes('tenant');
+                                                const hasNonResidentLandlord = h.activeRoles.includes('non_resident_landlord');
+                                                const hasDeveloper = h.activeRoles.includes('developer');
+                                                let status = '';
+                                                if (hasResidentLandlord) status = ' (Owner-Occupied)';
+                                                else if (hasNonResidentLandlord && hasTenant) status = ' (Tenanted)';
+                                                else if (hasNonResidentLandlord) status = ' (Vacant - Landlord assigned)';
+                                                else if (hasDeveloper) status = ' (Developer Inventory)';
+                                                else if (h.is_occupied) status = ' (Occupied)';
+
+                                                return (
+                                                    <SelectItem key={h.id} value={h.id}>
+                                                        {h.house_number} {h.street?.name}{status}
+                                                    </SelectItem>
+                                                );
+                                            })}
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="grid gap-2">
-                                    <Label>Move In Date</Label>
-                                    <Input type="date" value={moveInDate} onChange={e => setMoveInDate(e.target.value)} />
-                                </div>
-                                <div className="flex items-center space-x-2 py-2">
-                                    <Switch
-                                        id="is-primary"
-                                        checked={isPrimary}
-                                        onCheckedChange={setIsPrimary}
-                                        disabled={hasPrimary}
-                                    />
-                                    <Label htmlFor="is-primary" className={hasPrimary ? "text-muted-foreground" : ""}>
-                                        Primary Residence {hasPrimary && "(Already Assigned)"}
-                                    </Label>
-                                </div>
+
+                                {/* Sponsor selection for domestic_staff and caretaker */}
+                                {showSponsorField && (
+                                    <div className="grid gap-2">
+                                        <Label>Sponsor *</Label>
+                                        <Select
+                                            value={sponsorResidentId}
+                                            onValueChange={setSponsorResidentId}
+                                            disabled={!selectedHouseId || availableSponsors.length === 0}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder={
+                                                    !selectedHouseId
+                                                        ? "Select a house first"
+                                                        : availableSponsors.length === 0
+                                                            ? "No sponsors available"
+                                                            : "Select a sponsor"
+                                                } />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {availableSponsors.map((sponsor) => (
+                                                    <SelectItem key={sponsor.id} value={sponsor.id}>
+                                                        {sponsor.first_name} {sponsor.last_name} ({sponsor.resident_code})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-muted-foreground">
+                                            {RESIDENT_ROLE_LABELS[selectedRole]} must be sponsored by a landlord, owner-occupier, or tenant
+                                        </p>
+                                    </div>
+                                )}
+
+                                {!isSelectedHouseOccupied && (
+                                    <div className="grid gap-2">
+                                        <Label>Move In Date</Label>
+                                        <Input type="date" value={moveInDate} onChange={e => setMoveInDate(e.target.value)} />
+                                    </div>
+                                )}
                             </div>
                             <DialogFooter>
                                 <Button onClick={handleAssign} disabled={!selectedHouseId || assignMutation.isPending}>
@@ -197,12 +329,12 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                         </Link>
                                     </div>
 
-                                    <p className="text-sm text-muted-foreground capitalize mt-1">
-                                        {rh.resident_role.replace('_', ' ')}
-                                        {rh.is_primary && ' (Primary)'}
-                                        <span className="mx-1">•</span>
-                                        Since {new Date(rh.move_in_date).toLocaleDateString()}
-                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <ResidentRoleBadge role={rh.resident_role} />
+                                        <span className="text-sm text-muted-foreground">
+                                            Since {new Date(rh.move_in_date).toLocaleDateString()}
+                                        </span>
+                                    </div>
                                 </div>
                                 <Button
                                     variant="ghost"

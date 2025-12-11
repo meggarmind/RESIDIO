@@ -1,0 +1,76 @@
+{
+    "projectName": "Residio",
+    "projectPath": "/home/feyijimiohioma/projects/Residio/residio",
+    "testingType": "frontend",
+    "testScope": "codebase",
+    "localPort": 3000,
+    "applicationUrl": "http://localhost:3000",
+    "needLogin": true,
+    "testCredentials": {
+        "admin": {
+            "email": "admin@residio.test",
+            "password": "password123",
+            "role": "admin"
+        },
+        "chairman": {
+            "email": "chairman@residio.test",
+            "password": "password123",
+            "role": "chairman"
+        },
+        "finance": {
+            "email": "finance@residio.test",
+            "password": "password123",
+            "role": "financial_secretary"
+        },
+        "security": {
+            "email": "security@residio.test",
+            "password": "password123",
+            "role": "security_officer"
+        }
+    },
+    "prdFile": "testsprite/prd.md",
+    "framework": "nextjs",
+    "uiLibrary": "shadcn-ui",
+    "routes": [
+        { "path": "/login", "auth": false, "description": "Login page" },
+        { "path": "/dashboard", "auth": true, "description": "Main dashboard" },
+        { "path": "/residents", "auth": true, "roles": ["admin", "chairman", "financial_secretary"] },
+        { "path": "/residents/new", "auth": true, "description": "Create resident" },
+        { "path": "/houses", "auth": true, "description": "Houses list" },
+        { "path": "/houses/new", "auth": true, "description": "Create house" },
+        { "path": "/payments", "auth": true, "roles": ["admin", "chairman", "financial_secretary"] },
+        { "path": "/payments/new", "auth": true, "description": "Record payment" },
+        { "path": "/billing", "auth": true, "description": "Billing & invoices" },
+        { "path": "/settings", "auth": true, "description": "Settings" },
+        { "path": "/settings/billing", "auth": true, "description": "Billing profiles" },
+        { "path": "/settings/references", "auth": true, "description": "Reference management" },
+        { "path": "/security", "auth": true, "roles": ["admin", "chairman", "security_officer"] }
+    ],
+    "testPhases": [
+        {
+            "phase": 1,
+            "name": "Authentication & RBAC",
+            "testCases": ["TC1.1", "TC1.2", "TC1.3", "TC1.4", "TC1.5"]
+        },
+        {
+            "phase": 2,
+            "name": "Dashboard Shell",
+            "testCases": ["TC2.1", "TC2.2", "TC2.3", "TC2.4", "TC2.5"]
+        },
+        {
+            "phase": 3,
+            "name": "Resident & House Management",
+            "testCases": ["TC3.1", "TC3.2", "TC3.3", "TC3.4", "TC3.5", "TC3.6", "TC3.7", "TC3.8"]
+        },
+        {
+            "phase": 4,
+            "name": "Enhancements",
+            "testCases": ["TC4.1", "TC4.2", "TC4.3", "TC4.4", "TC4.5"]
+        },
+        {
+            "phase": 5,
+            "name": "Payment & Billing System",
+            "testCases": ["TC5.1", "TC5.2", "TC5.3", "TC5.4", "TC5.5", "TC5.6", "TC5.7", "TC5.8", "TC5.9", "TC5.10", "TC5.11", "TC5.12", "TC5.13"]
+        }
+    ]
+}
