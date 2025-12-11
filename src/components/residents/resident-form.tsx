@@ -31,13 +31,17 @@ import type { Resident, ResidentRole, EntityType } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, CORPORATE_ROLE_OPTIONS, ENTITY_TYPE_LABELS, RESIDENT_ROLE_LABELS, RESIDENT_TYPE_LABELS } from '@/types/database';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+// House state type for context from house detail page
+export type HouseState = 'empty' | 'has_tenant' | 'has_resident_landlord' | 'has_non_resident_landlord';
+
 interface ResidentFormProps {
   resident?: Resident;
   onSuccess?: () => void;
   preselectedHouseId?: string;
+  houseState?: HouseState | null;
 }
 
-export function ResidentForm({ resident, onSuccess, preselectedHouseId }: ResidentFormProps) {
+export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseState }: ResidentFormProps) {
   const router = useRouter();
   const { data: housesData, isLoading: housesLoading } = useHousesWithRoles({ limit: 100 });
   const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 1000 }); // Fetch all for picker
@@ -50,6 +54,30 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId }: Reside
   const defaultContactMode = resident?.emergency_contact_resident_id ? 'linked' : 'manual';
   const [contactMode, setContactMode] = React.useState<'manual' | 'linked'>(defaultContactMode);
 
+  // Determine if house is locked (coming from house detail page with context)
+  const isHouseLocked = !!houseState && !!preselectedHouseId;
+
+  // Determine allowed resident types based on house state
+  const allowedResidentTypes = React.useMemo(() => {
+    if (!houseState) return ['primary', 'secondary'];
+    switch (houseState) {
+      case 'empty':
+      case 'has_non_resident_landlord':
+        return ['primary', 'secondary']; // All types allowed
+      case 'has_tenant':
+      case 'has_resident_landlord':
+        return ['secondary']; // Only secondary allowed
+      default:
+        return ['primary', 'secondary'];
+    }
+  }, [houseState]);
+
+  // Check if only secondary residents are allowed
+  const onlySecondaryAllowed = allowedResidentTypes.length === 1 && allowedResidentTypes[0] === 'secondary';
+
+  // Determine default resident type based on house state
+  const defaultResidentType = onlySecondaryAllowed ? 'secondary' : (resident?.resident_type ?? 'primary');
+
   const form = useForm<CreateResidentData>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -58,7 +86,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId }: Reside
       email: resident?.email ?? '',
       phone_primary: resident?.phone_primary ?? '',
       phone_secondary: resident?.phone_secondary ?? '',
-      resident_type: resident?.resident_type ?? 'primary',
+      resident_type: defaultResidentType,
       entity_type: resident?.entity_type ?? 'individual',
       company_name: resident?.company_name ?? '',
       rc_number: resident?.rc_number ?? '',
@@ -101,6 +129,13 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId }: Reside
     }
     return PRIMARY_ROLE_OPTIONS;
   }, [residentType, entityType]);
+
+  // Enforce secondary resident type when house state restricts it
+  React.useEffect(() => {
+    if (onlySecondaryAllowed && residentType !== 'secondary') {
+      form.setValue('resident_type', 'secondary');
+    }
+  }, [onlySecondaryAllowed, residentType, form]);
 
   // Reset role when resident type changes
   React.useEffect(() => {
@@ -300,20 +335,28 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId }: Reside
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Resident Type *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={onlySecondaryAllowed}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="primary">{RESIDENT_TYPE_LABELS.primary}</SelectItem>
+                      <SelectItem value="primary" disabled={onlySecondaryAllowed}>
+                        {RESIDENT_TYPE_LABELS.primary}
+                        {onlySecondaryAllowed && ' (Not available - house has primary resident)'}
+                      </SelectItem>
                       <SelectItem value="secondary" disabled={entityType === 'corporate'}>
                         {RESIDENT_TYPE_LABELS.secondary}
                         {entityType === 'corporate' && ' (Not available for Corporate)'}
                       </SelectItem>
                     </SelectContent>
                   </Select>
+                  {onlySecondaryAllowed && (
+                    <FormDescription>
+                      This house already has a primary resident. Only secondary residents can be added.
+                    </FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -457,47 +500,62 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId }: Reside
               <FormField
                 control={form.control}
                 name="house_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>House</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={housesLoading}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a house" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {availableHouses.map((house) => {
-                          const hasResidentLandlord = house.activeRoles.includes('resident_landlord' as ResidentRole);
-                          const hasTenant = house.activeRoles.includes('tenant' as ResidentRole);
-                          const hasNonResidentLandlord = house.activeRoles.includes('non_resident_landlord' as ResidentRole);
-                          const hasDeveloper = house.activeRoles.includes('developer' as ResidentRole);
-                          let status = '';
-                          if (hasResidentLandlord) status = ' (Owner-Occupied)';
-                          else if (hasNonResidentLandlord && hasTenant) status = ' (Tenanted)';
-                          else if (hasNonResidentLandlord) status = ' (Vacant - Landlord assigned)';
-                          else if (hasDeveloper) status = ' (Developer Inventory)';
-                          else if (house.is_occupied) status = ' (Occupied)';
+                render={({ field }) => {
+                  // When house is locked, find the preselected house for display
+                  const preselectedHouse = isHouseLocked
+                    ? allHouses.find(h => h.id === preselectedHouseId)
+                    : null;
 
-                          return (
-                            <SelectItem key={house.id} value={house.id}>
-                              {house.house_number} {house.street?.name}
-                              {status}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      Optional - can be assigned later
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                  return (
+                    <FormItem>
+                      <FormLabel>House</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        disabled={housesLoading || isHouseLocked}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a house">
+                              {isHouseLocked && preselectedHouse
+                                ? `${preselectedHouse.house_number} ${preselectedHouse.street?.name}`
+                                : undefined
+                              }
+                            </SelectValue>
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {availableHouses.map((house) => {
+                            const hasResidentLandlord = house.activeRoles.includes('resident_landlord' as ResidentRole);
+                            const hasTenant = house.activeRoles.includes('tenant' as ResidentRole);
+                            const hasNonResidentLandlord = house.activeRoles.includes('non_resident_landlord' as ResidentRole);
+                            const hasDeveloper = house.activeRoles.includes('developer' as ResidentRole);
+                            let status = '';
+                            if (hasResidentLandlord) status = ' (Owner-Occupied)';
+                            else if (hasNonResidentLandlord && hasTenant) status = ' (Tenanted)';
+                            else if (hasNonResidentLandlord) status = ' (Vacant - Landlord assigned)';
+                            else if (hasDeveloper) status = ' (Developer Inventory)';
+                            else if (house.is_occupied) status = ' (Occupied)';
+
+                            return (
+                              <SelectItem key={house.id} value={house.id}>
+                                {house.house_number} {house.street?.name}
+                                {status}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {isHouseLocked
+                          ? 'House is pre-selected from the house detail page'
+                          : 'Optional - can be assigned later'
+                        }
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               {/* Move-in date only shown for primary residents */}

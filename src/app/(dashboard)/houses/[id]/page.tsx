@@ -31,8 +31,11 @@ import { useResidents, useAssignHouse } from '@/hooks/use-residents';
 import { Home, Pencil, Trash2, Users, ArrowLeft, Plus, Link2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ResidentRole } from '@/types/database';
-import { PRIMARY_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } from '@/types/database';
+import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } from '@/types/database';
 import { requiresSponsor } from '@/lib/validators/resident';
+
+// House state for Add New form context
+type HouseState = 'empty' | 'has_tenant' | 'has_resident_landlord' | 'has_non_resident_landlord';
 
 interface HouseDetailPageProps {
   params: Promise<{ id: string }>;
@@ -74,22 +77,46 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     );
   }, [activeResidents]);
 
-  // Validation 3: Check if resident landlord or tenant exists (for hiding move-in date)
-  const hasResidentLandlordOrTenant = useMemo(() => {
-    return activeResidents.some(rh =>
-      rh.resident_role === 'resident_landlord' || rh.resident_role === 'tenant'
-    );
+  // Validation 3: Check if resident landlord exists specifically
+  const hasResidentLandlord = useMemo(() => {
+    return activeResidents.some(rh => rh.resident_role === 'resident_landlord');
   }, [activeResidents]);
 
-  // Filter role options: exclude landlord roles if landlord already exists
+  // Validation 4: Check if tenant exists
+  const hasTenant = useMemo(() => {
+    return activeResidents.some(rh => rh.resident_role === 'tenant');
+  }, [activeResidents]);
+
+  // Check if resident landlord or tenant exists (for hiding move-in date)
+  const hasResidentLandlordOrTenant = hasResidentLandlord || hasTenant;
+
+  // Determine house state for Add New form
+  const houseState: HouseState = useMemo(() => {
+    if (activeResidents.length === 0) return 'empty';
+    if (hasResidentLandlord) return 'has_resident_landlord';
+    if (hasTenant) return 'has_tenant';
+    if (hasLandlord) return 'has_non_resident_landlord';
+    return 'empty';
+  }, [activeResidents.length, hasResidentLandlord, hasTenant, hasLandlord]);
+
+  // Filter role options based on house state
   const filteredRoleOptions = useMemo(() => {
+    // If resident_landlord exists, only secondary roles are allowed
+    if (hasResidentLandlord) {
+      return SECONDARY_ROLE_OPTIONS;
+    }
+    // If tenant exists, only secondary roles are allowed
+    if (hasTenant) {
+      return SECONDARY_ROLE_OPTIONS;
+    }
+    // If any landlord exists (non_resident), exclude landlord roles from primary options
     if (hasLandlord) {
       return PRIMARY_ROLE_OPTIONS.filter(role =>
         role.value !== 'resident_landlord' && role.value !== 'non_resident_landlord'
       );
     }
     return PRIMARY_ROLE_OPTIONS;
-  }, [hasLandlord]);
+  }, [hasLandlord, hasResidentLandlord, hasTenant]);
 
   // Filter available residents (not already linked to this house)
   // If primary resident exists, exclude residents who are already tenants elsewhere
@@ -183,9 +210,11 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     setIsLinkDialogOpen(open);
     if (open) {
       setSelectedResidentId('');
-      // Set default role to first available option from filtered list
-      const defaultRole = filteredRoleOptions[0]?.value ?? 'tenant';
-      setSelectedRole(defaultRole);
+      // Set default role based on house state
+      const defaultRole = (hasResidentLandlord || hasTenant)
+        ? 'co_resident'  // Default to secondary role when primary exists
+        : (filteredRoleOptions[0]?.value ?? 'tenant');
+      setSelectedRole(defaultRole as ResidentRole);
       setMoveInDate(new Date().toISOString().split('T')[0]);
       setSponsorResidentId('');
     }
@@ -419,7 +448,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                   </DialogContent>
                 </Dialog>
                 <Button size="sm" variant="outline" asChild>
-                  <Link href={`/residents/new?house_id=${id}`}>
+                  <Link href={`/residents/new?house_id=${id}&house_state=${houseState}`}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add New
                   </Link>

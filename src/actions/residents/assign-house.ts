@@ -73,6 +73,49 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
     };
   }
 
+  // Check if house has a resident_landlord or tenant - blocks PRIMARY role assignments
+  // Only secondary roles (co_resident, household_member, domestic_staff, caretaker) can be added
+  if (isPrimaryRole(role)) {
+    // Check for resident_landlord
+    const { data: existingResidentLandlord } = await supabase
+      .from('resident_houses')
+      .select('id, resident:residents(first_name, last_name)')
+      .eq('house_id', formData.house_id)
+      .eq('resident_role', 'resident_landlord')
+      .eq('is_active', true)
+      .single();
+
+    if (existingResidentLandlord) {
+      const residentData = existingResidentLandlord.resident as unknown as { first_name: string; last_name: string } | null;
+      const landlordName = residentData ? `${residentData.first_name} ${residentData.last_name}` : 'a Resident Landlord';
+      return {
+        data: null,
+        error: `This house has a Resident Landlord (${landlordName}). Only secondary residents (Co-Resident, Household Member, Domestic Staff, Caretaker) can be linked.`,
+      };
+    }
+
+    // Check for tenant (but still allow non_resident_landlord and developer - they don't live there)
+    // Tenant blocks other residency roles (another tenant, resident_landlord)
+    if (role === 'tenant' || role === 'resident_landlord') {
+      const { data: existingTenant } = await supabase
+        .from('resident_houses')
+        .select('id, resident:residents(first_name, last_name)')
+        .eq('house_id', formData.house_id)
+        .eq('resident_role', 'tenant')
+        .eq('is_active', true)
+        .single();
+
+      if (existingTenant) {
+        const residentData = existingTenant.resident as unknown as { first_name: string; last_name: string } | null;
+        const tenantName = residentData ? `${residentData.first_name} ${residentData.last_name}` : 'a Tenant';
+        return {
+          data: null,
+          error: `This house has a Tenant (${tenantName}). Cannot add another ${roleLabel} - only secondary residents can be linked.`,
+        };
+      }
+    }
+  }
+
   // Validate sponsor requirement for domestic_staff and caretaker
   if (requiresSponsor(role)) {
     if (!formData.sponsor_resident_id) {
