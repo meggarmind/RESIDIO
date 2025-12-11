@@ -75,8 +75,18 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
         // Filter out houses already linked
         const unlinkedHouses = allHouses.filter(h => !linkedHouseIds.has(h.id));
 
-        // For resident_landlord and tenant, filter out houses that already have one
-        if (selectedRole === 'resident_landlord' || selectedRole === 'tenant') {
+        // For landlord roles, filter out houses that already have ANY landlord
+        // Only one landlord (resident or non-resident) is allowed per house
+        if (selectedRole === 'resident_landlord' || selectedRole === 'non_resident_landlord') {
+            return unlinkedHouses.filter(house =>
+                !house.activeRoles.includes('resident_landlord') &&
+                !house.activeRoles.includes('non_resident_landlord') &&
+                // Also exclude houses with tenants if assigning resident_landlord
+                (selectedRole === 'non_resident_landlord' || !house.activeRoles.includes('tenant'))
+            );
+        }
+        // For tenant, filter out houses with resident_landlord or existing tenant
+        if (selectedRole === 'tenant') {
             return unlinkedHouses.filter(house =>
                 !house.activeRoles.includes('resident_landlord') &&
                 !house.activeRoles.includes('tenant')
