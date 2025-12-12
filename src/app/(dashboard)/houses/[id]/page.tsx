@@ -16,6 +16,17 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -26,11 +37,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { HouseForm } from '@/components/houses/house-form';
 import { OccupancyBadge, AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
-import { useHouse, useDeleteHouse } from '@/hooks/use-houses';
-import { useResidents, useAssignHouse } from '@/hooks/use-residents';
-import { Home, Pencil, Trash2, Users, ArrowLeft, Plus, Link2, Loader2 } from 'lucide-react';
+import { useHouse, useDeleteHouse, useOwnershipHistory } from '@/hooks/use-houses';
+import { useResidents, useAssignHouse, useUnassignHouse, useMoveOutLandlord, useUpdateResidentHouse, useSwapResidentRoles, useTransferOwnership } from '@/hooks/use-residents';
+import { Home, Pencil, Trash2, Users, ArrowLeft, Plus, Link2, Loader2, DoorOpen, AlertTriangle, SquarePen, ArrowUp, ArrowRightLeft, History, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
-import type { ResidentRole } from '@/types/database';
+import type { ResidentRole, ResidentHouse, Resident } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } from '@/types/database';
 import { requiresSponsor } from '@/lib/validators/resident';
 
@@ -54,10 +65,56 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
   const [moveInDate, setMoveInDate] = useState(new Date().toISOString().split('T')[0]);
   const [sponsorResidentId, setSponsorResidentId] = useState('');
 
+  // Remove/MoveOut dialog state
+  const [removeDialogResident, setRemoveDialogResident] = useState<{
+    id: string;
+    name: string;
+    role: ResidentRole;
+  } | null>(null);
+  const [moveOutDialogResident, setMoveOutDialogResident] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  // Edit dialog state
+  const [editDialogResident, setEditDialogResident] = useState<{
+    id: string;
+    name: string;
+    role: ResidentRole;
+    sponsorId: string | null;
+    isBillingResponsible: boolean;
+  } | null>(null);
+  const [editRole, setEditRole] = useState<ResidentRole>('co_resident');
+  const [editSponsorId, setEditSponsorId] = useState('');
+  const [editBillingResponsible, setEditBillingResponsible] = useState(false);
+
+  // Promote dialog state
+  const [promoteDialogResident, setPromoteDialogResident] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  // Transfer ownership dialog state
+  const [transferDialogOwner, setTransferDialogOwner] = useState<{
+    id: string;
+    name: string;
+    role: ResidentRole;
+  } | null>(null);
+  const [transferNewOwnerId, setTransferNewOwnerId] = useState('');
+  const [transferNewOwnerRole, setTransferNewOwnerRole] = useState<'non_resident_landlord' | 'developer'>('non_resident_landlord');
+  const [transferDate, setTransferDate] = useState(new Date().toISOString().split('T')[0]);
+  const [transferNotes, setTransferNotes] = useState('');
+
   const { data: house, isLoading, error } = useHouse(id);
   const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 1000 });
   const deleteMutation = useDeleteHouse();
   const assignMutation = useAssignHouse();
+  const unassignMutation = useUnassignHouse();
+  const moveOutMutation = useMoveOutLandlord();
+  const updateResidentHouseMutation = useUpdateResidentHouse();
+  const swapRolesMutation = useSwapResidentRoles();
+  const transferOwnershipMutation = useTransferOwnership();
+  const { data: ownershipHistory, isLoading: historyLoading } = useOwnershipHistory(id);
 
   // Compute derived values - MUST be before any conditional returns (React Rules of Hooks)
   const activeResidents = house?.resident_houses?.filter(rh => rh.is_active) ?? [];
@@ -89,6 +146,13 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
 
   // Check if resident landlord or tenant exists (for hiding move-in date)
   const hasResidentLandlordOrTenant = hasResidentLandlord || hasTenant;
+
+  // Get the primary residing resident (tenant or resident_landlord) for promote functionality
+  const primaryResidingResident = useMemo(() => {
+    return activeResidents.find(rh =>
+      rh.resident_role === 'tenant' || rh.resident_role === 'resident_landlord'
+    );
+  }, [activeResidents]);
 
   // Determine house state for Add New form
   const houseState: HouseState = useMemo(() => {
@@ -143,6 +207,167 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
       .filter(rh => ['non_resident_landlord', 'resident_landlord', 'tenant'].includes(rh.resident_role))
       .map(rh => rh.resident);
   }, [activeResidents, selectedRole]);
+
+  // Count secondary residents (for cascade removal warning)
+  const secondaryResidents = useMemo(() => {
+    return activeResidents.filter(rh =>
+      ['co_resident', 'household_member', 'domestic_staff', 'caretaker'].includes(rh.resident_role)
+    );
+  }, [activeResidents]);
+
+  // Handle removing a resident
+  const handleRemoveResident = async (residentId: string, residentRole: ResidentRole) => {
+    try {
+      const result = await unassignMutation.mutateAsync({
+        residentId,
+        houseId: id,
+      });
+      const cascadeCount = result.cascadeRemovedCount;
+      if (cascadeCount && cascadeCount > 0) {
+        toast.success(`Resident removed along with ${cascadeCount} secondary resident(s)`);
+      } else {
+        toast.success('Resident removed successfully');
+      }
+      setRemoveDialogResident(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to remove resident');
+    }
+  };
+
+  // Handle moving out resident landlord (converts to non-resident landlord)
+  const handleMoveOutLandlord = async (residentId: string) => {
+    try {
+      const result = await moveOutMutation.mutateAsync({
+        residentId,
+        houseId: id,
+      });
+      const movedOut = result.movedOutResidents;
+      if (movedOut && movedOut > 0) {
+        toast.success(`Resident Landlord converted to Non-Resident Landlord. ${movedOut} secondary resident(s) also removed.`);
+      } else {
+        toast.success('Resident Landlord converted to Non-Resident Landlord');
+      }
+      setMoveOutDialogResident(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to move out landlord');
+    }
+  };
+
+  // Handle opening edit dialog
+  const handleOpenEditDialog = (rh: {
+    resident: { id: string; first_name: string; last_name: string };
+    resident_role: string;
+    sponsor_resident_id: string | null;
+    is_billing_responsible: boolean;
+  }) => {
+    const role = rh.resident_role as ResidentRole;
+    setEditDialogResident({
+      id: rh.resident.id,
+      name: `${rh.resident.first_name} ${rh.resident.last_name}`,
+      role,
+      sponsorId: rh.sponsor_resident_id,
+      isBillingResponsible: rh.is_billing_responsible,
+    });
+    setEditRole(role);
+    setEditSponsorId(rh.sponsor_resident_id || '');
+    setEditBillingResponsible(rh.is_billing_responsible);
+  };
+
+  // Handle updating resident assignment
+  const handleUpdateResidentHouse = async () => {
+    if (!editDialogResident) return;
+
+    try {
+      await updateResidentHouseMutation.mutateAsync({
+        residentId: editDialogResident.id,
+        houseId: id,
+        data: {
+          resident_role: editRole !== editDialogResident.role ? editRole : undefined,
+          sponsor_resident_id: requiresSponsor(editRole) ? editSponsorId : null,
+          is_billing_responsible: editBillingResponsible,
+        },
+      });
+      toast.success('Resident assignment updated');
+      setEditDialogResident(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update resident assignment');
+    }
+  };
+
+  // Get available sponsors for edit dialog
+  const editAvailableSponsors = useMemo(() => {
+    if (!requiresSponsor(editRole)) return [];
+    return activeResidents
+      .filter(rh => ['non_resident_landlord', 'resident_landlord', 'tenant'].includes(rh.resident_role))
+      .map(rh => rh.resident);
+  }, [activeResidents, editRole]);
+
+  // Get available new owners for transfer (all residents except current owner)
+  const availableNewOwners = useMemo(() => {
+    if (!transferDialogOwner) return [];
+    return (residentsData?.data ?? []).filter(r => r.id !== transferDialogOwner.id);
+  }, [residentsData?.data, transferDialogOwner]);
+
+  // Handle promoting a co_resident (role swap with primary)
+  const handlePromoteResident = async (promoteResidentId: string) => {
+    if (!primaryResidingResident) {
+      toast.error('No primary residing resident to swap with');
+      return;
+    }
+
+    try {
+      await swapRolesMutation.mutateAsync({
+        houseId: id,
+        promoteResidentId,
+        demoteResidentId: primaryResidingResident.resident.id,
+      });
+      const primaryRole = RESIDENT_ROLE_LABELS[primaryResidingResident.resident_role as ResidentRole];
+      toast.success(`Resident promoted to ${primaryRole}`);
+      setPromoteDialogResident(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to promote resident');
+    }
+  };
+
+  // Handle opening transfer ownership dialog
+  const handleOpenTransferDialog = (rh: {
+    resident: { id: string; first_name: string; last_name: string };
+    resident_role: string;
+  }) => {
+    const role = rh.resident_role as ResidentRole;
+    setTransferDialogOwner({
+      id: rh.resident.id,
+      name: `${rh.resident.first_name} ${rh.resident.last_name}`,
+      role,
+    });
+    setTransferNewOwnerId('');
+    setTransferNewOwnerRole('non_resident_landlord');
+    setTransferDate(new Date().toISOString().split('T')[0]);
+    setTransferNotes('');
+  };
+
+  // Handle transfer ownership
+  const handleTransferOwnership = async () => {
+    if (!transferDialogOwner || !transferNewOwnerId) {
+      toast.error('Please select a new owner');
+      return;
+    }
+
+    try {
+      await transferOwnershipMutation.mutateAsync({
+        houseId: id,
+        currentOwnerId: transferDialogOwner.id,
+        newOwnerId: transferNewOwnerId,
+        newOwnerRole: transferNewOwnerRole,
+        transferDate,
+        transferNotes: transferNotes || undefined,
+      });
+      toast.success('Ownership transferred successfully');
+      setTransferDialogOwner(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to transfer ownership');
+    }
+  };
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this house?')) return;
@@ -461,27 +686,552 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
               <p className="text-muted-foreground text-sm">No residents assigned</p>
             ) : (
               <div className="space-y-4">
-                {activeResidents.map((rh) => (
-                  <div key={rh.id} className="flex items-center justify-between">
-                    <div>
-                      <Link
-                        href={`/residents/${rh.resident.id}`}
-                        className="font-medium hover:underline"
-                      >
-                        {rh.resident.first_name} {rh.resident.last_name}
-                      </Link>
-                      <div className="flex items-center gap-2 mt-1">
-                        <ResidentRoleBadge role={rh.resident_role} />
+                {activeResidents.map((rh) => {
+                  const role = rh.resident_role as ResidentRole;
+                  const residentName = `${rh.resident.first_name} ${rh.resident.last_name}`;
+
+                  // Determine which action buttons to show based on role
+                  const showRemoveButton = role === 'tenant' ||
+                    ['co_resident', 'household_member', 'domestic_staff', 'caretaker'].includes(role);
+                  const showMoveOutButton = role === 'resident_landlord';
+                  // Edit button only for secondary roles
+                  const showEditButton = ['co_resident', 'household_member', 'domestic_staff', 'caretaker'].includes(role);
+                  // Promote button only for co_resident when there's a primary residing resident
+                  const showPromoteButton = role === 'co_resident' && primaryResidingResident;
+                  // Transfer button will be added in Phase 5
+                  const showTransferButton = role === 'non_resident_landlord' || role === 'developer';
+
+                  return (
+                    <div key={rh.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <Link
+                          href={`/residents/${rh.resident.id}`}
+                          className="font-medium hover:underline"
+                        >
+                          {residentName}
+                        </Link>
+                        <div className="flex items-center gap-2 mt-1">
+                          <ResidentRoleBadge role={role} />
+                          <AccountStatusBadge status={rh.resident.account_status} />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {/* Move Out button for Resident Landlord */}
+                        {showMoveOutButton && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setMoveOutDialogResident({
+                              id: rh.resident.id,
+                              name: residentName,
+                            })}
+                            disabled={moveOutMutation.isPending}
+                          >
+                            <DoorOpen className="h-4 w-4 mr-1" />
+                            Move Out
+                          </Button>
+                        )}
+
+                        {/* Promote button for Co-Resident */}
+                        {showPromoteButton && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setPromoteDialogResident({
+                              id: rh.resident.id,
+                              name: residentName,
+                            })}
+                            disabled={swapRolesMutation.isPending}
+                            className="text-muted-foreground hover:text-green-600"
+                            title="Promote to primary role"
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                        )}
+
+                        {/* Edit button for Secondary roles */}
+                        {showEditButton && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleOpenEditDialog(rh)}
+                            disabled={updateResidentHouseMutation.isPending}
+                            className="text-muted-foreground hover:text-primary"
+                          >
+                            <SquarePen className="h-4 w-4" />
+                          </Button>
+                        )}
+
+                        {/* Remove button for Tenant and Secondary roles */}
+                        {showRemoveButton && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setRemoveDialogResident({
+                              id: rh.resident.id,
+                              name: residentName,
+                              role,
+                            })}
+                            disabled={unassignMutation.isPending}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+
+                        {/* Transfer button for Non-Resident Landlord/Developer */}
+                        {showTransferButton && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenTransferDialog(rh)}
+                            disabled={transferOwnershipMutation.isPending}
+                          >
+                            <ArrowRightLeft className="h-4 w-4 mr-1" />
+                            Transfer
+                          </Button>
+                        )}
                       </div>
                     </div>
-                    <AccountStatusBadge status={rh.resident.account_status} />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Ownership & Occupancy History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Ownership & Occupancy History
+          </CardTitle>
+          <CardDescription>
+            Timeline of ownership changes, move-ins, move-outs, and role changes
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {historyLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : !ownershipHistory || ownershipHistory.length === 0 ? (
+            <p className="text-muted-foreground text-sm text-center py-8">
+              No history records yet
+            </p>
+          ) : (
+            <div className="relative">
+              {/* Timeline line */}
+              <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
+
+              <div className="space-y-6">
+                {ownershipHistory.map((record, index) => {
+                  const isFirst = index === 0;
+                  const eventLabels: Record<string, string> = {
+                    'house_added': 'Added to Portal',
+                    'ownership_start': 'Ownership Started',
+                    'ownership_transfer': 'Ownership Transferred',
+                    'ownership_end': 'Ownership Ended',
+                    'move_in': 'Move In',
+                    'move_out': 'Move Out',
+                    'role_change': 'Role Changed',
+                  };
+                  const eventColors: Record<string, string> = {
+                    'house_added': 'bg-indigo-500',
+                    'ownership_start': 'bg-green-500',
+                    'ownership_transfer': 'bg-blue-500',
+                    'ownership_end': 'bg-red-500',
+                    'move_in': 'bg-emerald-500',
+                    'move_out': 'bg-amber-500',
+                    'role_change': 'bg-purple-500',
+                  };
+
+                  // Check if this is a house_added event (no resident)
+                  const isHouseAddedEvent = record.event_type === 'house_added' || !record.resident;
+
+                  return (
+                    <div key={record.id} className="relative pl-10">
+                      {/* Timeline dot */}
+                      <div className={`absolute left-2.5 w-3 h-3 rounded-full ${eventColors[record.event_type] || 'bg-gray-500'} ${isFirst ? 'ring-2 ring-offset-2 ring-offset-background ring-primary' : ''}`} />
+
+                      <div className="bg-muted/50 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-sm">
+                            {eventLabels[record.event_type] || record.event_type}
+                          </span>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(record.event_date).toLocaleDateString()}
+                          </div>
+                        </div>
+
+                        {/* Show resident info only if there's a resident (not for house_added) */}
+                        {!isHouseAddedEvent && record.resident && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <Link
+                              href={`/residents/${record.resident.id}`}
+                              className="font-medium text-primary hover:underline"
+                            >
+                              {record.resident.entity_type === 'corporate' && record.resident.company_name
+                                ? record.resident.company_name
+                                : `${record.resident.first_name} ${record.resident.last_name}`
+                              }
+                            </Link>
+                            {record.resident_role && (
+                              <ResidentRoleBadge role={record.resident_role as ResidentRole} />
+                            )}
+                            {record.is_current && (
+                              <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-0.5 rounded-full">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* For house_added events, show a simple description */}
+                        {isHouseAddedEvent && (
+                          <p className="text-sm text-muted-foreground mb-2">
+                            House added to Residio portal
+                          </p>
+                        )}
+
+                        {record.previous_role && (
+                          <p className="text-sm text-muted-foreground mb-1">
+                            Previous role: {RESIDENT_ROLE_LABELS[record.previous_role as ResidentRole]}
+                          </p>
+                        )}
+
+                        {record.notes && !isHouseAddedEvent && (
+                          <p className="text-sm text-muted-foreground">
+                            {record.notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Remove Resident Confirmation Dialog */}
+      <AlertDialog
+        open={!!removeDialogResident}
+        onOpenChange={(open) => !open && setRemoveDialogResident(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {removeDialogResident?.role === 'tenant' && secondaryResidents.length > 0 && (
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+              )}
+              Remove Resident
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                {removeDialogResident?.role === 'tenant' && secondaryResidents.length > 0 ? (
+                  <>
+                    <span className="block mb-3">
+                      Removing <strong>{removeDialogResident?.name}</strong> (Tenant) will also remove
+                      the following <strong>{secondaryResidents.length}</strong> secondary resident(s):
+                    </span>
+                    <ul className="list-disc list-inside mb-3 text-sm">
+                      {secondaryResidents.map(sr => (
+                        <li key={sr.id}>
+                          {sr.resident.first_name} {sr.resident.last_name} ({RESIDENT_ROLE_LABELS[sr.resident_role as ResidentRole]})
+                        </li>
+                      ))}
+                    </ul>
+                    <span className="block">This action cannot be undone.</span>
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to remove <strong>{removeDialogResident?.name}</strong> from this house?
+                    This action cannot be undone.
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => removeDialogResident && handleRemoveResident(
+                removeDialogResident.id,
+                removeDialogResident.role
+              )}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {unassignMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {removeDialogResident?.role === 'tenant' && secondaryResidents.length > 0
+                ? `Remove All (${secondaryResidents.length + 1})`
+                : 'Remove'
+              }
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Move Out Landlord Confirmation Dialog */}
+      <AlertDialog
+        open={!!moveOutDialogResident}
+        onOpenChange={(open) => !open && setMoveOutDialogResident(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {secondaryResidents.length > 0 && (
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+              )}
+              Move Out - Convert to Non-Resident Landlord
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <span className="block mb-3">
+                  <strong>{moveOutDialogResident?.name}</strong> will no longer reside at this property
+                  but will retain ownership as a Non-Resident Landlord.
+                </span>
+                {secondaryResidents.length > 0 && (
+                  <>
+                    <span className="block mb-2 text-amber-600 dark:text-amber-400">
+                      The following {secondaryResidents.length} secondary resident(s) will also be removed:
+                    </span>
+                    <ul className="list-disc list-inside mb-3 text-sm">
+                      {secondaryResidents.map(sr => (
+                        <li key={sr.id}>
+                          {sr.resident.first_name} {sr.resident.last_name} ({RESIDENT_ROLE_LABELS[sr.resident_role as ResidentRole]})
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                <span className="block text-sm text-muted-foreground">
+                  The house status will change to "Vacant - Landlord assigned".
+                </span>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => moveOutDialogResident && handleMoveOutLandlord(moveOutDialogResident.id)}
+            >
+              {moveOutMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Move Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Resident Assignment Dialog */}
+      <Dialog
+        open={!!editDialogResident}
+        onOpenChange={(open) => !open && setEditDialogResident(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Resident Assignment</DialogTitle>
+            <DialogDescription>
+              Update assignment details for {editDialogResident?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Role</Label>
+              <Select
+                value={editRole}
+                onValueChange={(v) => {
+                  setEditRole(v as ResidentRole);
+                  // Reset sponsor if new role doesn't require one
+                  if (!requiresSponsor(v as ResidentRole)) {
+                    setEditSponsorId('');
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SECONDARY_ROLE_OPTIONS.map((role) => (
+                    <SelectItem key={role.value} value={role.value}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {requiresSponsor(editRole) && (
+              <div className="grid gap-2">
+                <Label>Sponsor *</Label>
+                <Select
+                  value={editSponsorId}
+                  onValueChange={setEditSponsorId}
+                  disabled={editAvailableSponsors.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={
+                      editAvailableSponsors.length === 0
+                        ? "No sponsors available"
+                        : "Select a sponsor"
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {editAvailableSponsors.map((sponsor) => (
+                      <SelectItem key={sponsor.id} value={sponsor.id}>
+                        {sponsor.first_name} {sponsor.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {RESIDENT_ROLE_LABELS[editRole]} must be sponsored by a primary resident
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditDialogResident(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateResidentHouse}
+              disabled={updateResidentHouseMutation.isPending || (requiresSponsor(editRole) && !editSponsorId)}
+            >
+              {updateResidentHouseMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Promote Resident Confirmation Dialog */}
+      <AlertDialog
+        open={!!promoteDialogResident}
+        onOpenChange={(open) => !open && setPromoteDialogResident(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Promote Resident</AlertDialogTitle>
+            <AlertDialogDescription>
+              {primaryResidingResident && (
+                <>
+                  <p className="mb-3">
+                    Promote <strong>{promoteDialogResident?.name}</strong> to{' '}
+                    <strong>{RESIDENT_ROLE_LABELS[primaryResidingResident.resident_role as ResidentRole]}</strong>?
+                  </p>
+                  <p className="mb-3">
+                    <strong>{primaryResidingResident.resident.first_name} {primaryResidingResident.resident.last_name}</strong>{' '}
+                    will be demoted to <strong>Co-Resident</strong>.
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    This is a role swap - both residents will remain at this house with their roles exchanged.
+                  </p>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => promoteDialogResident && handlePromoteResident(promoteDialogResident.id)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {swapRolesMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Promote
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Transfer Ownership Dialog */}
+      <Dialog
+        open={!!transferDialogOwner}
+        onOpenChange={(open) => !open && setTransferDialogOwner(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transfer Ownership</DialogTitle>
+            <DialogDescription>
+              Transfer ownership from {transferDialogOwner?.name} to a new owner.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>New Owner Type</Label>
+              <Select
+                value={transferNewOwnerRole}
+                onValueChange={(v) => setTransferNewOwnerRole(v as 'non_resident_landlord' | 'developer')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select new owner type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="non_resident_landlord">Non-Resident Landlord</SelectItem>
+                  <SelectItem value="developer">Developer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>New Owner</Label>
+              <Select
+                value={transferNewOwnerId}
+                onValueChange={setTransferNewOwnerId}
+                disabled={residentsLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={residentsLoading ? "Loading..." : "Select new owner"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableNewOwners.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.first_name} {r.last_name} ({r.resident_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Transfer Date</Label>
+              <Input
+                type="date"
+                value={transferDate}
+                onChange={(e) => setTransferDate(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Notes (optional)</Label>
+              <Input
+                placeholder="e.g., Sale reference, deed number"
+                value={transferNotes}
+                onChange={(e) => setTransferNotes(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setTransferDialogOwner(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleTransferOwnership}
+              disabled={!transferNewOwnerId || transferOwnershipMutation.isPending}
+            >
+              {transferOwnershipMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Transfer Ownership
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

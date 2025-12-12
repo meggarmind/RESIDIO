@@ -8,6 +8,10 @@ import { updateResident } from '@/actions/residents/update-resident';
 import { deleteResident } from '@/actions/residents/delete-resident';
 import { assignHouse } from '@/actions/residents/assign-house';
 import { unassignHouse } from '@/actions/residents/unassign-house';
+import { moveOutLandlord } from '@/actions/residents/move-out-landlord';
+import { updateResidentHouse, type UpdateResidentHouseData } from '@/actions/residents/update-resident-house';
+import { swapResidentRoles } from '@/actions/residents/swap-resident-roles';
+import { transferOwnership } from '@/actions/residents/transfer-ownership';
 import { verifyResident } from '@/actions/residents/verify-resident';
 import type { ResidentSearchParams, CreateResidentData, ResidentFormData, HouseAssignmentData } from '@/lib/validators/resident';
 
@@ -107,16 +111,111 @@ export function useUnassignHouse() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ residentId, houseId }: { residentId: string; houseId: string }) => {
-      const result = await unassignHouse(residentId, houseId);
+    mutationFn: async ({
+      residentId,
+      houseId,
+      moveOutDate,
+      notes
+    }: {
+      residentId: string;
+      houseId: string;
+      moveOutDate?: string;
+      notes?: string;
+    }) => {
+      const result = await unassignHouse(residentId, houseId, moveOutDate, notes);
       if (result.error) throw new Error(result.error);
-      return result.success;
+      return { success: result.success, cascadeRemovedCount: result.cascadeRemovedCount };
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['residents'] });
       queryClient.invalidateQueries({ queryKey: ['resident', variables.residentId] });
       queryClient.invalidateQueries({ queryKey: ['houses'] });
       queryClient.invalidateQueries({ queryKey: ['house', variables.houseId] });
+      queryClient.invalidateQueries({ queryKey: ['ownershipHistory', variables.houseId] });
+    },
+  });
+}
+
+export function useMoveOutLandlord() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      residentId,
+      houseId,
+      moveOutDate,
+      notes
+    }: {
+      residentId: string;
+      houseId: string;
+      moveOutDate?: string;
+      notes?: string;
+    }) => {
+      const result = await moveOutLandlord(residentId, houseId, moveOutDate, notes);
+      if (result.error) throw new Error(result.error);
+      return { success: result.success, movedOutResidents: result.movedOutResidents };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['residents'] });
+      queryClient.invalidateQueries({ queryKey: ['resident', variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ['houses'] });
+      queryClient.invalidateQueries({ queryKey: ['house', variables.houseId] });
+      queryClient.invalidateQueries({ queryKey: ['ownershipHistory', variables.houseId] });
+    },
+  });
+}
+
+export function useUpdateResidentHouse() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      residentId,
+      houseId,
+      data
+    }: {
+      residentId: string;
+      houseId: string;
+      data: UpdateResidentHouseData;
+    }) => {
+      const result = await updateResidentHouse(residentId, houseId, data);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['residents'] });
+      queryClient.invalidateQueries({ queryKey: ['resident', variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ['houses'] });
+      queryClient.invalidateQueries({ queryKey: ['house', variables.houseId] });
+      queryClient.invalidateQueries({ queryKey: ['ownershipHistory', variables.houseId] });
+    },
+  });
+}
+
+export function useSwapResidentRoles() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      houseId,
+      promoteResidentId,
+      demoteResidentId
+    }: {
+      houseId: string;
+      promoteResidentId: string;
+      demoteResidentId: string;
+    }) => {
+      const result = await swapResidentRoles(houseId, promoteResidentId, demoteResidentId);
+      if (result.error) throw new Error(result.error);
+      return result.success;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['residents'] });
+      queryClient.invalidateQueries({ queryKey: ['resident', variables.promoteResidentId] });
+      queryClient.invalidateQueries({ queryKey: ['resident', variables.demoteResidentId] });
+      queryClient.invalidateQueries({ queryKey: ['houses'] });
+      queryClient.invalidateQueries({ queryKey: ['house', variables.houseId] });
+      queryClient.invalidateQueries({ queryKey: ['ownershipHistory', variables.houseId] });
     },
   });
 }
@@ -133,6 +232,47 @@ export function useVerifyResident() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['residents'] });
       queryClient.invalidateQueries({ queryKey: ['resident', id] });
+    },
+  });
+}
+
+export function useTransferOwnership() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      houseId,
+      currentOwnerId,
+      newOwnerId,
+      newOwnerRole,
+      transferDate,
+      transferNotes
+    }: {
+      houseId: string;
+      currentOwnerId: string;
+      newOwnerId: string;
+      newOwnerRole: 'non_resident_landlord' | 'developer';
+      transferDate?: string;
+      transferNotes?: string;
+    }) => {
+      const result = await transferOwnership(
+        houseId,
+        currentOwnerId,
+        newOwnerId,
+        newOwnerRole,
+        transferDate,
+        transferNotes
+      );
+      if (result.error) throw new Error(result.error);
+      return result.success;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['residents'] });
+      queryClient.invalidateQueries({ queryKey: ['resident', variables.currentOwnerId] });
+      queryClient.invalidateQueries({ queryKey: ['resident', variables.newOwnerId] });
+      queryClient.invalidateQueries({ queryKey: ['houses'] });
+      queryClient.invalidateQueries({ queryKey: ['house', variables.houseId] });
+      queryClient.invalidateQueries({ queryKey: ['ownershipHistory', variables.houseId] });
     },
   });
 }

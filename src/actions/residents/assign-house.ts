@@ -271,6 +271,30 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
         return { data: null, error: reactivateError.message };
       }
 
+      // Record ownership history for primary roles (reactivation)
+      if (['resident_landlord', 'non_resident_landlord', 'developer', 'tenant'].includes(role)) {
+        try {
+          const eventType = role === 'tenant' ? 'move_in' : 'ownership_start';
+          const eventDate = formData.move_in_date || new Date().toISOString().split('T')[0];
+
+          await adminClient
+            .from('house_ownership_history')
+            .insert({
+              house_id: formData.house_id,
+              resident_id: residentId,
+              resident_role: role,
+              event_type: eventType,
+              event_date: eventDate,
+              is_current: true,
+              notes: role === 'tenant' ? 'Tenant moved in' : 'Ownership assignment',
+              created_by: user.id,
+            });
+        } catch (historyError) {
+          console.error('[assignHouse] Error recording history (reactivation):', historyError);
+          // Don't fail for history errors
+        }
+      }
+
       revalidatePath('/residents');
       revalidatePath(`/residents/${residentId}`);
       revalidatePath('/houses');
@@ -358,13 +382,15 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
     }
   }
 
+  const today = new Date().toISOString().split('T')[0];
+
   const { data, error } = await supabase
     .from('resident_houses')
     .insert({
       resident_id: residentId,
       house_id: formData.house_id,
       resident_role: formData.resident_role,
-      move_in_date: formData.move_in_date || new Date().toISOString().split('T')[0],
+      move_in_date: formData.move_in_date || today,
       sponsor_resident_id: formData.sponsor_resident_id || null,
       is_billing_responsible: formData.is_billing_responsible || false,
       created_by: user.id,
@@ -376,8 +402,33 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
     return { data: null, error: error.message };
   }
 
+  // Record ownership history for primary roles (new assignment)
+  if (['resident_landlord', 'non_resident_landlord', 'developer', 'tenant'].includes(role)) {
+    try {
+      const eventType = role === 'tenant' ? 'move_in' : 'ownership_start';
+      const eventDate = formData.move_in_date || today;
+
+      await adminClient
+        .from('house_ownership_history')
+        .insert({
+          house_id: formData.house_id,
+          resident_id: residentId,
+          resident_role: role,
+          event_type: eventType,
+          event_date: eventDate,
+          is_current: true,
+          notes: role === 'tenant' ? 'Tenant moved in' : 'Ownership assignment',
+          created_by: user.id,
+        });
+    } catch (historyError) {
+      console.error('[assignHouse] Error recording history (new assignment):', historyError);
+      // Don't fail for history errors
+    }
+  }
+
   revalidatePath('/residents');
   revalidatePath(`/residents/${residentId}`);
   revalidatePath('/houses');
+  revalidatePath(`/houses/${formData.house_id}`);
   return { data, error: null };
 }

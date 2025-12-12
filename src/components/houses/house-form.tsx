@@ -47,6 +47,7 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
       house_type_id: house?.house_type_id ?? '',
       address_line_2: house?.address_line_2 ?? '',
       notes: house?.notes ?? '',
+      date_added_to_portal: new Date().toISOString().split('T')[0], // Default to today
     },
   });
 
@@ -157,6 +158,23 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
               </FormItem>
             )}
           />
+
+          {/* Only show Date Added to Portal for new houses */}
+          {!house && (
+            <FormField
+              control={form.control}
+              name="date_added_to_portal"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date Added to Portal</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         <FormField

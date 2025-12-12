@@ -33,6 +33,16 @@ export type ResidencyRole = 'resident_landlord' | 'tenant' | 'co_resident';
 export type VerificationStatus = 'pending' | 'submitted' | 'verified' | 'rejected';
 export type AccountStatus = 'active' | 'inactive' | 'suspended' | 'archived';
 
+// Ownership history event types
+export type OwnershipEventType =
+  | 'house_added'         // House added to Residio portal
+  | 'ownership_start'     // Initial ownership assignment
+  | 'ownership_transfer'  // Ownership transferred to this resident
+  | 'ownership_end'       // Ownership transferred away from this resident
+  | 'move_in'             // Resident moved into the property
+  | 'move_out'            // Resident moved out of the property
+  | 'role_change';        // Role changed (e.g., resident_landlord -> non_resident_landlord)
+
 // Legacy types (for future phases)
 export type PaymentStatus = 'current' | 'overdue' | 'suspended' | 'exempt';
 
@@ -277,6 +287,27 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['audit_logs']['Row'], 'id' | 'created_at'>;
         Update: never;
       };
+
+      // House Ownership History (audit trail for ownership and occupancy changes)
+      house_ownership_history: {
+        Row: {
+          id: string;
+          house_id: string;
+          resident_id: string | null;  // Nullable for house_added events
+          resident_role: ResidentRole | null;  // Nullable for house_added events
+          event_type: OwnershipEventType;
+          previous_role: ResidentRole | null;
+          event_date: string;
+          notes: string | null;
+          is_current: boolean;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: Omit<Database['public']['Tables']['house_ownership_history']['Row'], 'id' | 'created_at'> & {
+          id?: string;
+        };
+        Update: Partial<Database['public']['Tables']['house_ownership_history']['Insert']>;
+      };
     };
   };
 }
@@ -304,6 +335,10 @@ export type ResidentHouseUpdate = Database['public']['Tables']['resident_houses'
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 
+export type HouseOwnershipHistory = Database['public']['Tables']['house_ownership_history']['Row'];
+export type HouseOwnershipHistoryInsert = Database['public']['Tables']['house_ownership_history']['Insert'];
+export type HouseOwnershipHistoryUpdate = Database['public']['Tables']['house_ownership_history']['Update'];
+
 // Joined types for queries
 export interface HouseWithStreet extends House {
   street: Street;
@@ -325,5 +360,17 @@ export interface ResidentWithHouses extends Resident {
     last_name: string;
     phone_primary: string;
     resident_code: string;
+  } | null;
+}
+
+// Ownership history with resident details (resident can be null for house_added events)
+export interface HouseOwnershipHistoryWithResident extends HouseOwnershipHistory {
+  resident: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    resident_code: string;
+    entity_type: EntityType;
+    company_name: string | null;
   } | null;
 }

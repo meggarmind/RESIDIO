@@ -7,6 +7,7 @@ export const houseFormSchema = z.object({
   house_type_id: z.string().uuid('Please select a house type').optional().or(z.literal('')),
   address_line_2: z.string().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
+  date_added_to_portal: z.string().optional(), // Date house was added to Residio (defaults to today)
 });
 
 export type HouseFormData = z.infer<typeof houseFormSchema>;

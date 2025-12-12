@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { House } from '@/types/database';
 import type { HouseFormData } from '@/lib/validators/house';
@@ -36,6 +36,26 @@ export async function createHouse(formData: HouseFormData): Promise<CreateHouseR
       return { data: null, error: 'A house with this number already exists on this street' };
     }
     return { data: null, error: error.message };
+  }
+
+  // Record house_added history event
+  try {
+    const adminClient = createAdminClient();
+    const eventDate = formData.date_added_to_portal || new Date().toISOString().split('T')[0];
+
+    await adminClient
+      .from('house_ownership_history')
+      .insert({
+        house_id: data.id,
+        event_type: 'house_added',
+        event_date: eventDate,
+        notes: 'House added to Residio portal',
+        is_current: false,
+        created_by: user.id,
+      });
+  } catch (historyError) {
+    console.error('[createHouse] Error recording house_added history:', historyError);
+    // Don't fail the house creation for history errors
   }
 
   revalidatePath('/houses');

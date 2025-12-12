@@ -6,6 +6,7 @@ import { getHouse } from '@/actions/houses/get-house';
 import { createHouse } from '@/actions/houses/create-house';
 import { updateHouse } from '@/actions/houses/update-house';
 import { deleteHouse } from '@/actions/houses/delete-house';
+import { getOwnershipHistory } from '@/actions/houses/get-ownership-history';
 import type { HouseSearchParams, HouseFormData } from '@/lib/validators/house';
 
 export function useHouses(params: Partial<HouseSearchParams> = {}) {
@@ -90,5 +91,22 @@ export function useDeleteHouse() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['houses'] });
     },
+  });
+}
+
+/**
+ * Fetch ownership and occupancy history for a house.
+ * Returns all history events in chronological order (newest first).
+ */
+export function useOwnershipHistory(houseId: string | undefined) {
+  return useQuery({
+    queryKey: ['ownershipHistory', houseId],
+    queryFn: async () => {
+      if (!houseId) throw new Error('House ID is required');
+      const result = await getOwnershipHistory(houseId);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    enabled: !!houseId,
   });
 }
