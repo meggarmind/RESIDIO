@@ -12,7 +12,7 @@ export interface GetResidentsResponse {
 
 export async function getResidents(params: Partial<ResidentSearchParams> = {}): Promise<GetResidentsResponse> {
   const supabase = await createServerSupabaseClient();
-  const { search, status, verification, type, street_id, house_id, page = 1, limit = 20 } = params;
+  const { search, status, verification, type, street_id, house_id, resident_role, page = 1, limit = 20 } = params;
 
   let query = supabase
     .from('residents')
@@ -61,6 +61,14 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
   if (house_id) {
     filteredData = filteredData.filter(resident =>
       resident.resident_houses?.some(rh => rh.house_id === house_id && rh.is_active)
+    );
+  }
+
+  if (resident_role && resident_role.length > 0) {
+    filteredData = filteredData.filter(resident =>
+      resident.resident_houses?.some(rh =>
+        resident_role.includes(rh.resident_role) && rh.is_active
+      )
     );
   }
 

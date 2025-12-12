@@ -293,6 +293,38 @@ SUPABASE_SERVICE_ROLE_KEY_CLOUD=...
 - Policies use `get_my_role()` SECURITY DEFINER function to avoid recursion
 - Test users seeded with proper `auth.identities` records
 
+## Supabase MCP (Model Context Protocol)
+
+**IMPORTANT**: Always use the Supabase MCP tools as the primary method for database operations before falling back to CLI commands or bash alternatives.
+
+**Available MCP Tools**:
+- `mcp__supabase__execute_sql` - Execute raw SQL queries (for DML operations)
+- `mcp__supabase__apply_migration` - Apply DDL migrations with automatic versioning
+- `mcp__supabase__list_tables` - List all tables in schemas
+- `mcp__supabase__list_migrations` - List applied migrations
+- `mcp__supabase__get_logs` - Get service logs (api, postgres, auth, etc.)
+- `mcp__supabase__get_advisors` - Check security/performance issues
+- `mcp__supabase__search_docs` - Search Supabase documentation via GraphQL
+- `mcp__supabase__generate_typescript_types` - Generate TypeScript types from schema
+
+**When to use MCP vs CLI**:
+| Task | Use MCP | Use CLI |
+|------|---------|---------|
+| Apply migrations | `mcp__supabase__apply_migration` | - |
+| Run SQL queries | `mcp__supabase__execute_sql` | - |
+| Check logs | `mcp__supabase__get_logs` | - |
+| Start/stop local Supabase | - | `npx supabase start/stop` |
+| Reset database | - | `npx supabase db reset` |
+| Generate types (local) | - | `npm run db:types` |
+
+**Example - Applying a migration**:
+```
+mcp__supabase__apply_migration(
+  name: "add_user_preferences",
+  query: "CREATE TABLE user_preferences (...)"
+)
+```
+
 ## Development Workflow
 
 1. **Session Start**:
@@ -302,8 +334,8 @@ SUPABASE_SERVICE_ROLE_KEY_CLOUD=...
    ```
 
 2. **Database Changes**:
-   - Create migration: `npx supabase migration new <name>`
-   - Apply migrations: `npm run db:migrate` or `npm run supabase:reset`
+   - Create migration: Use `mcp__supabase__apply_migration` (preferred) or `npx supabase migration new <name>`
+   - Apply migrations: Use `mcp__supabase__apply_migration` (preferred) or `npm run db:migrate`
    - Update types: `npm run db:types`
 
 3. **Adding Features**:

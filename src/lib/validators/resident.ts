@@ -172,6 +172,7 @@ export const residentSearchSchema = z.object({
   verification: z.enum(['pending', 'submitted', 'verified', 'rejected']).optional(),
   type: z.enum(['primary', 'secondary']).optional(),
   entity_type: entityTypeEnum.optional(),
+  resident_role: z.array(residentRoleEnum).optional(),
   street_id: z.string().uuid().optional(),
   house_id: z.string().uuid().optional(),
   page: z.number().min(1).default(1),

@@ -21,12 +21,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { useResidents } from '@/hooks/use-residents';
 import { useStreets } from '@/hooks/use-reference';
-import { Users, Plus, Search, Eye, Pencil, UserPlus } from 'lucide-react';
+import { Users, Plus, Search, Eye, Pencil, UserPlus, ChevronDown, X } from 'lucide-react';
 import type { ResidentSearchParams } from '@/lib/validators/resident';
-import type { AccountStatus } from '@/types/database';
+import type { AccountStatus, ResidentRole } from '@/types/database';
+import { RESIDENT_ROLE_LABELS } from '@/types/database';
 
 const ALL_VALUE = '_all';
 
@@ -35,12 +43,22 @@ export function ResidentsTable() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<AccountStatus | typeof ALL_VALUE>(ALL_VALUE);
   const [streetId, setStreetId] = useState<string>(ALL_VALUE);
+  const [selectedRoles, setSelectedRoles] = useState<ResidentRole[]>([]);
   const [page, setPage] = useState(1);
+
+  const toggleRole = (role: ResidentRole) => {
+    setSelectedRoles(prev =>
+      prev.includes(role)
+        ? prev.filter(r => r !== role)
+        : [...prev, role]
+    );
+  };
 
   const params: Partial<ResidentSearchParams> = {
     search: search || undefined,
     status: status === ALL_VALUE ? undefined : status as AccountStatus,
     street_id: streetId === ALL_VALUE ? undefined : streetId,
+    resident_role: selectedRoles.length > 0 ? selectedRoles : undefined,
     page,
     limit: 20,
   };
@@ -105,11 +123,75 @@ export function ResidentsTable() {
           </SelectContent>
         </Select>
 
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="w-[200px] justify-between">
+              {selectedRoles.length === 0
+                ? 'All Roles'
+                : selectedRoles.length === 1
+                  ? RESIDENT_ROLE_LABELS[selectedRoles[0]]
+                  : `${selectedRoles.length} roles`}
+              <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-[200px]">
+            {selectedRoles.length > 0 && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start text-muted-foreground"
+                  onClick={() => setSelectedRoles([])}
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Clear selection
+                </Button>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            {Object.entries(RESIDENT_ROLE_LABELS).map(([value, label]) => (
+              <DropdownMenuCheckboxItem
+                key={value}
+                checked={selectedRoles.includes(value as ResidentRole)}
+                onCheckedChange={() => toggleRole(value as ResidentRole)}
+              >
+                {label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <Button onClick={() => router.push('/residents/new')}>
           <Plus className="h-4 w-4 mr-2" />
           Add Resident
         </Button>
       </div>
+
+      {/* Active Role Filters */}
+      {selectedRoles.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">Filtering by:</span>
+          {selectedRoles.map(role => (
+            <Badge
+              key={role}
+              variant="secondary"
+              className="cursor-pointer hover:bg-secondary/80"
+              onClick={() => toggleRole(role)}
+            >
+              {RESIDENT_ROLE_LABELS[role]}
+              <X className="ml-1 h-3 w-3" />
+            </Badge>
+          ))}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-muted-foreground"
+            onClick={() => setSelectedRoles([])}
+          >
+            Clear all
+          </Button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="rounded-md border">

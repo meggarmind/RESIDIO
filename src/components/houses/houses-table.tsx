@@ -33,12 +33,14 @@ export function HousesTable() {
   const [search, setSearch] = useState('');
   const [streetId, setStreetId] = useState<string>(ALL_VALUE);
   const [houseTypeId, setHouseTypeId] = useState<string>(ALL_VALUE);
+  const [isOccupied, setIsOccupied] = useState<string>(ALL_VALUE);
   const [page, setPage] = useState(1);
 
   const params: Partial<HouseSearchParams> = {
     search: search || undefined,
     street_id: streetId === ALL_VALUE ? undefined : streetId,
     house_type_id: houseTypeId === ALL_VALUE ? undefined : houseTypeId,
+    is_occupied: isOccupied === ALL_VALUE ? undefined : isOccupied === 'true',
     page,
     limit: 20,
   };
@@ -102,6 +104,17 @@ export function HousesTable() {
                 {type.name}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={isOccupied} onValueChange={setIsOccupied}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_VALUE}>All Status</SelectItem>
+            <SelectItem value="true">Occupied</SelectItem>
+            <SelectItem value="false">Vacant</SelectItem>
           </SelectContent>
         </Select>
 
