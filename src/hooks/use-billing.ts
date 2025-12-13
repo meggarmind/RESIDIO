@@ -1,5 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { createBillingProfile, getBillingProfiles, deleteBillingProfile, BillingProfileData } from '@/actions/billing/profiles';
+import {
+    createBillingProfile,
+    getBillingProfiles,
+    getBillingProfile,
+    deleteBillingProfile,
+    updateBillingProfile,
+    checkEffectiveDateImpact,
+    getDevelopmentLevyProfiles,
+    duplicateBillingProfile,
+    BillingProfileData,
+} from '@/actions/billing/profiles';
 import { getInvoices, GetInvoicesParams, getResidentIndebtedness } from '@/actions/billing/get-invoices';
 import { generateMonthlyInvoices } from '@/actions/billing/generate-invoices';
 import { toast } from 'sonner';
@@ -50,6 +60,78 @@ export function useDeleteBillingProfile() {
         onError: (error) => {
             toast.error(error.message || 'Failed to delete profile');
         }
+    });
+}
+
+export function useDuplicateBillingProfile() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (id: string) => {
+            const result = await duplicateBillingProfile(id);
+            if (result.error) throw new Error(result.error);
+            return result;
+        },
+        onSuccess: () => {
+            toast.success('Billing profile duplicated successfully');
+            queryClient.invalidateQueries({ queryKey: ['billing-profiles'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to duplicate profile');
+        }
+    });
+}
+
+export function useBillingProfile(id: string | undefined) {
+    return useQuery({
+        queryKey: ['billing-profile', id],
+        queryFn: async () => {
+            if (!id) throw new Error('Profile ID is required');
+            const result = await getBillingProfile(id);
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        enabled: !!id,
+    });
+}
+
+export function useUpdateBillingProfile() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ id, data }: { id: string; data: Partial<BillingProfileData> & { effective_date?: string } }) => {
+            const result = await updateBillingProfile(id, data);
+            if (!result.success) throw new Error(result.error || 'Failed to update profile');
+            return result;
+        },
+        onSuccess: (result) => {
+            if (result.approval_required) {
+                toast.info('Changes submitted for approval');
+            } else {
+                toast.success('Billing profile updated successfully');
+            }
+            queryClient.invalidateQueries({ queryKey: ['billing-profiles'] });
+            queryClient.invalidateQueries({ queryKey: ['billing-profile'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to update profile');
+        }
+    });
+}
+
+export function useCheckEffectiveDateImpact(profileId: string | undefined, newEffectiveDate: string | undefined) {
+    return useQuery({
+        queryKey: ['effective-date-impact', profileId, newEffectiveDate],
+        queryFn: async () => {
+            if (!profileId || !newEffectiveDate) throw new Error('Profile ID and date are required');
+            const result = await checkEffectiveDateImpact(profileId, newEffectiveDate);
+            if (result.error) throw new Error(result.error);
+            return {
+                affected_count: result.affected_count,
+                earliest_invoice_date: result.earliest_invoice_date,
+            };
+        },
+        enabled: !!profileId && !!newEffectiveDate,
     });
 }
 
@@ -157,6 +239,18 @@ export function useAllocateWallet() {
         },
         onError: (error) => {
             toast.error(error.message || 'Failed to allocate wallet');
+        }
+    });
+}
+
+// Development Levy Hooks
+export function useDevelopmentLevyProfiles() {
+    return useQuery({
+        queryKey: ['development-levy-profiles'],
+        queryFn: async () => {
+            const result = await getDevelopmentLevyProfiles();
+            if (result.error) throw new Error(result.error);
+            return result.data;
         }
     });
 }

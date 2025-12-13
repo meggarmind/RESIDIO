@@ -156,7 +156,6 @@ export async function transferOwnership(
         resident_role: newOwnerRole,
         move_in_date: today,
         is_active: true,
-        is_billing_responsible: true, // Owners are typically billing responsible
         created_by: user.id,
       });
 

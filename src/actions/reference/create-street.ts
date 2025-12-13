@@ -22,6 +22,7 @@ export async function createStreet(formData: StreetFormData): Promise<CreateStre
     .from('streets')
     .insert({
       name: formData.name,
+      short_name: formData.short_name || null,
       description: formData.description || null,
       created_by: user.id,
     })

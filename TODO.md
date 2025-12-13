@@ -1,8 +1,8 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-10 (Phase 5.4 Complete)
+**Last Updated:** 2025-12-13 (Phase 5.6 UI & Reference Enhancements Complete)
 
-## Current Phase: Phase 5 ✅ COMPLETE
+## Current Phase: Phase 6 - Security Contact List (NEXT UP)
 
 ---
 
@@ -121,6 +121,93 @@
 
 ---
 
+## UI Enhancements (2025-12-12) ✅ COMPLETE
+
+### House Ownership History Tracking
+- [x] Added `house_added` event type to track when houses are added to portal
+- [x] Created migration with backfill for existing houses
+- [x] Display ownership/occupancy timeline on house detail page
+
+### Property Registry Filters
+- [x] Added House Status filter (Occupied/Vacant) to houses table
+
+### Resident Registry Filters
+- [x] Added multi-select Role filter with checkboxes
+- [x] Clear button inside dropdown to reset selections
+- [x] Visual indicator badges below filter bar showing selected roles
+- [x] Clickable badges to remove individual role filters
+
+---
+
+## Phase 5.5: Billing Profile Enhancements ✅ COMPLETE
+
+### One-Time Levies Configuration ✅ COMPLETE
+- [x] Created one-time billing profiles:
+  - Development Levy: ₦500,000 (flat fee per house)
+  - Transformer Levy: ₦30,000 (house-targeted)
+  - Registration Fee: ₦10,000 (resident-targeted: tenant, resident_landlord)
+  - Renovation Fee: ₦500,000 (manual only, not auto-generated)
+
+### Database Migrations ✅ COMPLETE
+- [x] Add `number_of_plots` to houses table (default: 1)
+- [x] Add `effective_date` to billing_profiles table
+- [x] Add `is_development_levy` to billing_profiles table
+- [x] Add `current_development_levy_profile_id` system setting
+- [x] Create `approval_requests` table for maker-checker workflow
+
+### Development Levy Enhancement ✅ COMPLETE (2025-12-13)
+- [x] Added `is_development_levy` boolean flag to billing_profiles
+- [x] **Fixed critical bug**: Removed incorrect plot multiplication - Development Levy is FLAT FEE per house
+- [x] Added `getDevelopmentLevyProfiles()` server action
+- [x] Added `getCurrentDevelopmentLevyProfileId()` / `setCurrentDevelopmentLevyProfileId()` settings helpers
+- [x] Added `useDevelopmentLevyProfiles()` hook
+- [x] Added `useCurrentDevelopmentLevyProfileId()` / `useSetCurrentDevelopmentLevyProfileId()` hooks
+- [x] Added Development Levy checkbox to billing profile form (conditional on one-time)
+- [x] Added Current Development Levy selector in billing settings
+- [x] Profile cards show "Development Levy" badge (blue) and "Current" badge (green)
+
+### Key Implementation Notes:
+- Development Levy is a **flat fee per house** (NOT multiplied by plots)
+- Detection now uses `is_development_levy` flag (with fallback to name-based)
+- Current Development Levy profile tracked in `system_settings`
+- Create new profile records for rate changes (versioning via new profiles)
+
+---
+
+## Phase 5.6: UI & Reference Enhancements ✅ COMPLETE
+
+### 5.6.1 Billing Profile Duplicate Function ✅
+- [x] Add `duplicateBillingProfile()` server action
+- [x] Add `useDuplicateBillingProfile()` hook
+- [x] Add Duplicate (Copy) button to billing profile cards
+
+### 5.6.2 Streets Reference Enhancement ✅
+- [x] Database migration: Add `short_name` column to streets table
+- [x] Run `db:types` to regenerate TypeScript types
+- [x] Update `streetFormSchema` with short_name field
+- [x] Add `updateStreet()` server action
+- [x] Add `duplicateStreet()` server action
+- [x] Add `useUpdateStreet()` and `useDuplicateStreet()` hooks
+- [x] Rewrite `streets-list.tsx`:
+  - Added Short Name column to table
+  - Added Edit button with form dialog
+  - Added Duplicate button
+  - Form fields: Long Name*, Short Name, Description
+
+### Key Implementation Notes:
+- Streets now have `name` (Long Name) and `short_name` fields
+- Edit mode uses same dialog as create, with form state tracking `editingId`
+- Duplicate creates copy with "Copy of {original}" prefix
+- Billing profile duplicate copies profile and all billing items
+
+### Maker-Checker Workflow (Deferred to Phase 5.7)
+- **Maker**: financial_secretary creates change requests
+- **Checker**: chairman approves/rejects requests
+- **Auto-approve**: admin role auto-approves all changes
+- Applies to: effective_date changes (affecting invoices), plots changes (affecting levies)
+
+---
+
 ## Phase 6: Security Contact List
 - [ ] Create security_contacts table migration
 - [ ] Build security contacts management UI
@@ -139,11 +226,23 @@
 
 ---
 
-## Phase 8: Audit Logging
-- [ ] Create audit_logs table migration (immutable)
-- [ ] Implement audit log triggers/functions
-- [ ] Build audit log viewer UI
-- [ ] Add filtering by actor, action, entity
+## Phase 8: Audit Logging ✅ COMPLETE
+- [x] Create audit_logs table migration (immutable, append-only)
+- [x] Add AuditAction enum and AuditEntityType types
+- [x] Create `logAudit()` utility for easy integration from server actions
+- [x] Create audit query server actions with filtering
+- [x] Create React Query hooks for audit logs
+- [x] Build audit log viewer UI at `/settings/audit-logs`
+- [x] Add filtering by actor, action, entity, date range, search
+- [x] Create audit detail dialog with old/new value comparison
+- [x] Add integration documentation (`src/lib/audit/README.md`)
+
+### Key Implementation Notes:
+- Audit logs are immutable (no UPDATE/DELETE policies)
+- Only admin/chairman can view audit logs
+- `logAudit()` is fail-safe - won't break main operations if logging fails
+- Helper functions: `getChangedFields()`, `getChangedValues()` for UPDATE tracking
+- New entity types can be added by extending `AuditEntityType` in `database.ts`
 
 ---
 

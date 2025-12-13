@@ -158,6 +158,59 @@ const routeRoleConfig = {
    - Uses shadcn/ui components
    - Form validation with Zod schemas
 
+### Audit Logging Integration
+
+**IMPORTANT**: After completing any feature that creates, updates, or deletes data, integrate with the audit logging system.
+
+**Documentation**: See `src/lib/audit/README.md` for full integration guide and examples.
+
+**Quick Start**:
+```typescript
+import { logAudit } from '@/lib/audit/logger';
+
+// After CREATE operations
+await logAudit({
+  action: 'CREATE',
+  entityType: 'residents',  // Use appropriate AuditEntityType
+  entityId: newRecord.id,
+  entityDisplay: 'Human-readable name',
+  newValues: newRecord,
+});
+
+// After UPDATE operations (track changes)
+import { logAudit, getChangedValues } from '@/lib/audit/logger';
+
+const changes = getChangedValues(oldRecord, updatedRecord);
+await logAudit({
+  action: 'UPDATE',
+  entityType: 'houses',
+  entityId: id,
+  entityDisplay: house.house_number,
+  oldValues: changes.old,
+  newValues: changes.new,
+});
+
+// After DELETE operations
+await logAudit({
+  action: 'DELETE',
+  entityType: 'invoices',
+  entityId: deletedId,
+  entityDisplay: invoice.invoice_number,
+  oldValues: deletedRecord,
+});
+```
+
+**Available Actions**: `CREATE`, `UPDATE`, `DELETE`, `VERIFY`, `APPROVE`, `REJECT`, `ASSIGN`, `UNASSIGN`, `ACTIVATE`, `DEACTIVATE`, `GENERATE`, `ALLOCATE`
+
+**Available Entity Types**: `residents`, `houses`, `resident_houses`, `invoices`, `payments`, `billing_profiles`, `wallets`, `approval_requests`, `streets`, `house_types`, `security_contacts`, `profiles`
+
+**Adding New Entity Types**: Update `AuditEntityType` in `src/types/database.ts` and add label in `AUDIT_ENTITY_LABELS`.
+
+**Key Points**:
+- Call `logAudit()` AFTER successful operations (not before)
+- Audit logging is fail-safe - won't break main operations if logging fails
+- Only admin/chairman can view audit logs at `/settings/audit-logs`
+
 ### Supabase Client Configuration
 
 The app supports local and cloud Supabase via `NEXT_PUBLIC_ENV_MODE`:
@@ -365,7 +418,7 @@ mcp__supabase__apply_migration(
 - `README.md` - Update hourly or at session end
 
 **Session Workflow**:
-1. **Session Start**: Always run `date` command first to confirm current date/time
+1. **Session Start**: Always run `date` command first to confirm current date/time. Also revalidate last known state as there are concurrent Claude Code sessions
 2. **Problem Analysis**: Do NOT immediately change code when user explains a problem - analyze first and present options
 3. **GitHub Sync**:
    - If connected: Check that pushes are done within 10 mins of writing new files
@@ -394,6 +447,32 @@ When triggered by the above keyphrases, perform the following:
 4. Create/update `NEXT_SESSION_HANDOFF_PROMPT.md` with a complete prompt that provides 100% of the information necessary for the next Claude Code session to pick up exactly where we left off
 
 The handoff must ensure a seamless transition to the next session.
+
+**Phase Completion Git Push Workflow**:
+At the end of each phase after all TODOs have been successfully implemented:
+
+1. **Ask user for git push confirmation**:
+   - "Phase X is complete. Would you like me to push to both master and origin?"
+   - If user says YES → Execute git push with relevant commit message
+   - If user says NO → Continue to next task
+
+2. **Follow-up prompts**:
+   - After each subsequent task completion, ask again if previous answer was NO
+   - Example: "Task Y complete. Ready to push Phase X changes?"
+
+3. **Auto-push after 30 minutes**:
+   - If no positive confirmation received within 30 minutes of phase completion
+   - Auto-push with commit message: "feat: Complete Phase X - [brief description]"
+   - Notify user: "Auto-pushing Phase X changes after 30 min timeout"
+
+4. **Commit message format**:
+   ```
+   feat: [Phase description]
+
+   - [Key change 1]
+   - [Key change 2]
+   - [Key change 3]
+   ```
 
 ## Test Users
 

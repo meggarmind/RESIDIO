@@ -116,7 +116,6 @@ export async function createResident(formData: CreateResidentData): Promise<Crea
         resident_role: formData.resident_role,
         move_in_date: formData.move_in_date || new Date().toISOString().split('T')[0],
         sponsor_resident_id: formData.sponsor_resident_id || null,
-        is_billing_responsible: formData.is_billing_responsible || false,
         created_by: user.id,
       });
 

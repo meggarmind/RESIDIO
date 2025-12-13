@@ -4,13 +4,16 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt } from 'lucide-react';
+import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck } from 'lucide-react';
+import { usePendingApprovalsCount } from '@/hooks/use-approvals';
+import { Badge } from '@/components/ui/badge';
 
 interface NavItem {
   title: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   roles?: string[];
+  showBadge?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -50,6 +53,13 @@ const navItems: NavItem[] = [
     roles: ['admin', 'chairman', 'security_officer'],
   },
   {
+    title: 'Approvals',
+    href: '/approvals',
+    icon: ClipboardCheck,
+    roles: ['admin', 'chairman'],
+    showBadge: true,
+  },
+  {
     title: 'Settings',
     href: '/settings',
     icon: Settings,
@@ -64,6 +74,7 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
   const { profile, isLoading } = useAuth();
+  const { data: pendingCount } = usePendingApprovalsCount();
 
   const filteredNavItems = navItems.filter((item) => {
     if (!item.roles) return true;
@@ -86,6 +97,7 @@ export function Sidebar({ className }: SidebarProps) {
         <ul className="space-y-1">
           {filteredNavItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const showBadgeCount = item.showBadge && pendingCount && pendingCount > 0;
             return (
               <li key={item.href}>
                 <Link
@@ -98,7 +110,12 @@ export function Sidebar({ className }: SidebarProps) {
                   )}
                 >
                   <item.icon className="h-4 w-4" />
-                  {item.title}
+                  <span className="flex-1">{item.title}</span>
+                  {showBadgeCount && (
+                    <Badge variant="destructive" className="h-5 min-w-[20px] px-1.5 text-xs">
+                      {pendingCount}
+                    </Badge>
+                  )}
                 </Link>
               </li>
             );

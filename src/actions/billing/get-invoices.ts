@@ -1,41 +1,14 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import type { InvoiceWithDetails, InvoiceStatus, InvoiceType } from '@/types/database';
 
-export interface InvoiceWithDetails {
-    id: string;
-    invoice_number: string;
-    amount_due: number;
-    amount_paid: number;
-    status: 'unpaid' | 'paid' | 'void' | 'partially_paid';
-    due_date: string;
-    period_start: string;
-    period_end: string;
-    created_at: string;
-    resident: {
-        id: string;
-        first_name: string;
-        last_name: string;
-        resident_code: string;
-    };
-    house: {
-        id: string;
-        house_number: string;
-        street: { name: string };
-    };
-    billing_profile: {
-        id: string;
-        name: string;
-    } | null;
-    invoice_items: {
-        id: string;
-        description: string;
-        amount: number;
-    }[];
-}
+// Re-export for backward compatibility
+export type { InvoiceWithDetails };
 
 export interface GetInvoicesParams {
-    status?: 'unpaid' | 'paid' | 'void' | 'partially_paid';
+    status?: InvoiceStatus;
+    invoiceType?: InvoiceType;
     residentId?: string;
     houseId?: string;
     search?: string;
@@ -51,7 +24,7 @@ export interface GetInvoicesResponse {
 
 export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetInvoicesResponse> {
     const supabase = await createServerSupabaseClient();
-    const { status, residentId, houseId, search, page = 1, limit = 20 } = params;
+    const { status, invoiceType, residentId, houseId, search, page = 1, limit = 20 } = params;
 
     let query = supabase
         .from('invoices')
@@ -66,6 +39,9 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
 
     if (status) {
         query = query.eq('status', status);
+    }
+    if (invoiceType) {
+        query = query.eq('invoice_type', invoiceType);
     }
     if (residentId) {
         query = query.eq('resident_id', residentId);

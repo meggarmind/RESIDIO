@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -23,9 +24,13 @@ import {
 } from '@/components/ui/select';
 import { useStreets, useHouseTypes } from '@/hooks/use-reference';
 import { useCreateHouse, useUpdateHouse } from '@/hooks/use-houses';
+import { useBillingProfiles } from '@/hooks/use-billing';
 import { houseFormSchema, type HouseFormData } from '@/lib/validators/house';
 import { toast } from 'sonner';
 import type { House } from '@/types/database';
+import { FormDescription } from '@/components/ui/form';
+
+const NONE_VALUE = '_none';
 
 interface HouseFormProps {
   house?: House;
@@ -36,6 +41,7 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
   const router = useRouter();
   const { data: streets, isLoading: streetsLoading } = useStreets();
   const { data: houseTypes, isLoading: typesLoading } = useHouseTypes();
+  const { data: billingProfiles, isLoading: profilesLoading } = useBillingProfiles();
   const createMutation = useCreateHouse();
   const updateMutation = useUpdateHouse();
 
@@ -47,17 +53,26 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
       house_type_id: house?.house_type_id ?? '',
       address_line_2: house?.address_line_2 ?? '',
       notes: house?.notes ?? '',
-      date_added_to_portal: new Date().toISOString().split('T')[0], // Default to today
+      date_added_to_portal: '', // Set on client side to avoid hydration mismatch
+      billing_profile_id: house?.billing_profile_id ?? '',
+      number_of_plots: house?.number_of_plots ?? 1,
     },
   });
+
+  // Set today's date on client side only to avoid hydration mismatch
+  useEffect(() => {
+    if (!house) {
+      form.setValue('date_added_to_portal', new Date().toISOString().split('T')[0]);
+    }
+  }, [house, form]);
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
   async function onSubmit(data: HouseFormData) {
     try {
       if (house) {
-        await updateMutation.mutateAsync({ id: house.id, data });
-        toast.success('House updated successfully');
+        const result = await updateMutation.mutateAsync({ id: house.id, data });
+        // Toast is now handled in the hook
       } else {
         await createMutation.mutateAsync(data);
         toast.success('House created successfully');
@@ -175,6 +190,61 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
               )}
             />
           )}
+
+          <FormField
+            control={form.control}
+            name="billing_profile_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Billing Profile Override</FormLabel>
+                <Select
+                  onValueChange={(val) => field.onChange(val === NONE_VALUE ? '' : val)}
+                  defaultValue={field.value || NONE_VALUE}
+                  disabled={profilesLoading}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Use house type default" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value={NONE_VALUE}>Use house type default</SelectItem>
+                    {billingProfiles?.filter(p => p.target_type === 'house' && p.is_active).map((profile) => (
+                      <SelectItem key={profile.id} value={profile.id}>
+                        {profile.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Override the billing profile from the house type for this specific property
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="number_of_plots"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Number of Plots</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={1}
+                    {...field}
+                    onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Development Levy is calculated per plot (₦500,000 × plots)
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         <FormField

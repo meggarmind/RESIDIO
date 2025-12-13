@@ -1,86 +1,111 @@
 # Handoff Summary - Residio Project
 
-**Date:** 2025-12-10 08:17 WAT
-**Current Phase:** Phase 5 - Payment & Billing System (Mostly Complete)
-**Next Focus:** Phase 5.4 pending items OR Phase 6 - Security Contact List
+**Date:** 2025-12-13 07:00 WAT
+**Current Phase:** Phase 5.5 - Billing Profile Enhancements (In Progress)
+**Next Focus:** Complete validators, then server actions
 
 ---
 
 ## Session Goal
 
 This session focused on:
-1. Setting up MCP (Model Context Protocol) servers for enhanced development workflow
-2. Continued from previous session that handled billing system optimization
+1. Configuring one-time billing profiles (levies)
+2. Planning and starting implementation of billing profile enhancements:
+   - Billing profile edit UI
+   - Number of plots for houses (Development Levy calculation)
+   - Maker-checker workflow for sensitive changes
 
 ---
 
 ## Key Decisions Made
 
-### MCP Server Configuration
-- **Supabase MCP**: Project-scoped, connects to cloud instance (kzugmyjjqttardhfejzc)
-- **GitHub MCP**: User-scoped, available across all projects
-- **Memory MCP**: User-scoped, using `@modelcontextprotocol/server-memory` (SQLite-based)
-- **TestSprite MCP**: Project-scoped, for automated testing
+### One-Time Levies Configured
+| Levy | Amount | Target | Auto-Apply |
+|------|--------|--------|------------|
+| Development Levy | ₦500,000 × plots | House | Yes |
+| Transformer Levy | ₦30,000 | House | Yes |
+| Registration Fee | ₦10,000 | Resident (tenant, resident_landlord) | Yes |
+| Renovation Fee | ₦500,000 | House | No (manual only) |
 
-### Security Decision
-- Added `.mcp.json` to `.gitignore` to prevent committing API keys
+### Maker-Checker Workflow Design
+- **Maker**: financial_secretary creates change requests
+- **Checker**: chairman approves/rejects
+- **Auto-approve**: admin role bypasses workflow
+- **Triggers**:
+  - Billing profile effective_date changes that affect existing invoices
+  - House number_of_plots changes that affect existing Development Levy
+
+### Development Levy Calculation
+- Formula: ₦500,000 × number_of_plots
+- Only applies to landlord/developer roles (not tenants)
+- Shown as single line item on invoice
 
 ---
 
 ## Code Changes Made
 
-### Configuration Files Modified
-1. **`.mcp.json`** (created) - Project-scoped MCP servers:
-   - Supabase MCP with access token
-   - TestSprite MCP with API key
+### Database Migrations Applied
+1. `add_number_of_plots_to_houses` - Added `number_of_plots` column (default: 1)
+2. `add_effective_date_to_billing_profiles` - Added `effective_date` column
+3. `create_approval_requests_table` - Full maker-checker workflow table with RLS
 
-2. **`~/.claude.json`** (modified) - User-scoped MCP servers:
-   - GitHub MCP with personal access token
-   - Memory MCP (SQLite-based)
+### Files Modified
+1. **`src/types/database.ts`**:
+   - Added `ApprovalStatus`, `ApprovalRequestType` types
+   - Added `ApprovalRequest`, `ApprovalRequestWithDetails` interfaces
+   - Updated `House` type with `number_of_plots`
+   - Updated `BillingProfile` type with `effective_date`
 
-3. **`.gitignore`** - Added `.mcp.json` to prevent credential exposure
+2. **`src/lib/validators/house.ts`**:
+   - Added `number_of_plots` field to `houseFormSchema`
 
-### Previous Session Changes (Context from Summary)
-- Payment form pre-fill from resident page (query params)
-- `PaymentTable` component accepts `residentId` prop
-- `ResidentPayments` passes residentId to PaymentTable
-- Billing page pagination, filters, search
-- CLAUDE.md enhanced with workflow guidelines and session commands
+3. **`src/lib/validators/billing.ts`**:
+   - Added `effective_date` field to `baseBillingProfileSchema`
+
+### Database Records Created
+- 4 one-time billing profiles with billing items
+- Transformer Levy amount corrected to ₦30,000
 
 ---
 
 ## Current State
 
-### MCP Servers Status
-| Server | Scope | Status |
-|--------|-------|--------|
-| Supabase | Project | Configured |
-| GitHub | User | Connected |
-| Memory | User | Connected |
-| TestSprite | Project | Configured |
+### Completed
+- [x] One-time levies configuration
+- [x] Database migrations (3 migrations)
+- [x] Type definitions
+- [x] House validator update
+- [x] Billing validator update (partial)
 
-### Phase 5 Completion Status
-- **5.1 Payment Records**: Complete
-- **5.2 Wallet System**: Complete
-- **5.3 Billing & Invoices**: Complete
-- **5.4 Pending Items**:
-  - [ ] Bulk payment status update
-  - [ ] Overdue notifications logic
-  - [ ] Payment receipts/export
+### In Progress
+- [ ] Create approval validator (`src/lib/validators/approval.ts`)
+
+### Pending
+- [ ] Server actions (approvals, billing update, house plots)
+- [ ] Update levy generation logic (multiply by plots)
+- [ ] React Query hooks (approvals, billing, houses)
+- [ ] UI components (edit dialog, approvals page, house form update)
+- [ ] Sidebar update (approvals link for admin/chairman)
 
 ---
 
 ## Next Steps (Priority Order)
 
-1. **Continue Phase 5.4** - Implement remaining payment features:
-   - Bulk payment status update functionality
-   - Overdue notifications logic
-   - Payment receipts/export feature
+1. **Create approval validator** - `src/lib/validators/approval.ts`
+2. **Create approval server actions** - `src/actions/approvals/index.ts`
+3. **Update billing profile actions** - Add `updateBillingProfile()` function
+4. **Update house actions** - Handle plots change with maker-checker
+5. **Update levy generation** - Multiply Development Levy by plots
+6. **Create hooks** - Approvals, update billing/house hooks
+7. **Create UI components** - Edit dialog, approvals page
+8. **Update sidebar** - Add approvals link
 
-2. **OR Start Phase 6** - Security Contact List:
-   - Create security_contacts table migration
-   - Build security contacts management UI
-   - Implement access code generation
+---
+
+## Plan File
+
+Full implementation plan saved at:
+`/home/feyijimiohioma/.claude/plans/lucky-kindling-mitten.md`
 
 ---
 
@@ -88,20 +113,13 @@ This session focused on:
 
 ```bash
 cd /home/feyijimiohioma/projects/Residio/residio
-
-# Verify MCP servers
-claude mcp list
-
-# Start development
+npm run supabase:start   # If not running
 npm run dev
-
-# If using local Supabase
-npm run supabase:start
 ```
 
 ---
 
-## Test Users (from seed.sql)
+## Test Users
 
 | Email | Password | Role |
 |-------|----------|------|

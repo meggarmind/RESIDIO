@@ -24,6 +24,7 @@ import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertC
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { getResidents } from '@/actions/residents/get-residents';
+import { INVOICE_TYPE_LABELS, type InvoiceType } from '@/types/database';
 
 const statusColors: Record<string, string> = {
     unpaid: 'bg-yellow-100 text-yellow-800',
@@ -32,10 +33,18 @@ const statusColors: Record<string, string> = {
     void: 'bg-gray-100 text-gray-800',
 };
 
+const invoiceTypeColors: Record<InvoiceType, string> = {
+    SERVICE_CHARGE: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    LEVY: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+    ADJUSTMENT: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+    OTHER: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
+};
+
 export default function BillingPage() {
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(20);
     const [status, setStatus] = useState<string>('all');
+    const [invoiceType, setInvoiceType] = useState<string>('all');
     const [residentId, setResidentId] = useState<string>('all');
     const [search, setSearch] = useState('');
     const [residents, setResidents] = useState<Array<{ id: string; first_name: string; last_name: string }>>([]);
@@ -44,6 +53,7 @@ export default function BillingPage() {
         page,
         limit,
         status: status === 'all' ? undefined : (status as any),
+        invoiceType: invoiceType === 'all' ? undefined : (invoiceType as InvoiceType),
         residentId: residentId === 'all' ? undefined : residentId,
         search: search || undefined,
     });
@@ -72,6 +82,7 @@ export default function BillingPage() {
 
     const handleClearFilters = () => {
         setStatus('all');
+        setInvoiceType('all');
         setResidentId('all');
         setSearch('');
         setPage(1);
@@ -199,6 +210,25 @@ export default function BillingPage() {
                     </Select>
                 </div>
 
+                <div className="w-[160px]">
+                    <label className="text-sm font-medium mb-2 block">Type</label>
+                    <Select value={invoiceType} onValueChange={(value) => {
+                        setInvoiceType(value);
+                        setPage(1);
+                    }}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="All types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All types</SelectItem>
+                            <SelectItem value="SERVICE_CHARGE">Service Charge</SelectItem>
+                            <SelectItem value="LEVY">Levy</SelectItem>
+                            <SelectItem value="ADJUSTMENT">Adjustment</SelectItem>
+                            <SelectItem value="OTHER">Other</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
                 <div className="w-[120px]">
                     <label className="text-sm font-medium mb-2 block">Per Page</label>
                     <Select value={limit.toString()} onValueChange={(value) => {
@@ -216,7 +246,7 @@ export default function BillingPage() {
                     </Select>
                 </div>
 
-                {(status !== 'all' || residentId !== 'all' || search) && (
+                {(status !== 'all' || invoiceType !== 'all' || residentId !== 'all' || search) && (
                     <Button variant="outline" onClick={handleClearFilters}>
                         Clear Filters
                     </Button>
@@ -233,6 +263,7 @@ export default function BillingPage() {
                             <TableHead>Period</TableHead>
                             <TableHead>Due Date</TableHead>
                             <TableHead className="text-right">Amount</TableHead>
+                            <TableHead>Type</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
@@ -240,13 +271,13 @@ export default function BillingPage() {
                     <TableBody>
                         {isLoading ? (
                             <TableRow>
-                                <TableCell colSpan={8} className="h-24 text-center">
+                                <TableCell colSpan={9} className="h-24 text-center">
                                     <Loader2 className="mx-auto h-6 w-6 animate-spin" />
                                 </TableCell>
                             </TableRow>
                         ) : invoices.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={8} className="h-24 text-center">
+                                <TableCell colSpan={9} className="h-24 text-center">
                                     No invoices found. Click "Generate Monthly Invoices" to create them.
                                 </TableCell>
                             </TableRow>
@@ -270,6 +301,11 @@ export default function BillingPage() {
                                     </TableCell>
                                     <TableCell className="text-right font-medium">
                                         {formatCurrency(invoice.amount_due)}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge className={invoice.invoice_type ? invoiceTypeColors[invoice.invoice_type as InvoiceType] : invoiceTypeColors.SERVICE_CHARGE}>
+                                            {invoice.invoice_type ? INVOICE_TYPE_LABELS[invoice.invoice_type as InvoiceType] : 'Service Charge'}
+                                        </Badge>
                                     </TableCell>
                                     <TableCell>
                                         <Badge className={statusColors[invoice.status] || ''}>

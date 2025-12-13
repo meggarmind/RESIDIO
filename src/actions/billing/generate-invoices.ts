@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { debitWalletForInvoice } from '@/actions/billing/wallet';
+import type { BillableRole, RateSnapshot, InvoiceType } from '@/types/database';
 
 interface SkipReason {
     house: string;
@@ -34,6 +35,21 @@ interface ResidentHouseLink {
     };
 }
 
+interface BillingProfileWithItems {
+    id: string;
+    name: string;
+    target_type: 'house' | 'resident';
+    applicable_roles: BillableRole[] | null;
+    is_one_time: boolean;
+    billing_items?: Array<{
+        id: string;
+        name: string;
+        amount: number;
+        frequency: string;
+        is_mandatory: boolean;
+    }>;
+}
+
 /**
  * Determines which resident should be billed for a house based on role priority.
  *
@@ -43,13 +59,13 @@ interface ResidentHouseLink {
  * 3. Non-Resident Landlord - Billed if house is vacant (owner who doesn't live there)
  *
  * Roles that are NEVER billed:
- * - Developer - Holding unsold inventory
+ * - Developer - Only billed for developer-specific one-time levies
  * - Co-Resident - Adult residing but not on title/lease
  * - Household Member - Family dependents
  * - Domestic Staff - Employees
  * - Caretaker - Maintains vacant units
  */
-function findBillableResident(residentHouses: ResidentHouseLink[]): ResidentHouseLink | null {
+function findBillableResident(residentHouses: ResidentHouseLink[], includeVacant: boolean = false): ResidentHouseLink | null {
     const activeResidents = residentHouses.filter(rh => rh.is_active);
 
     // Priority 1: Tenant (leaseholder)
@@ -65,9 +81,12 @@ function findBillableResident(residentHouses: ResidentHouseLink[]): ResidentHous
     }
 
     // Priority 3: Non-Resident Landlord (owner who doesn't live there - vacant house)
-    const nonResidentLandlord = activeResidents.find(rh => rh.resident_role === 'non_resident_landlord');
-    if (nonResidentLandlord) {
-        return nonResidentLandlord;
+    // Only include if vacant house billing is enabled
+    if (includeVacant) {
+        const nonResidentLandlord = activeResidents.find(rh => rh.resident_role === 'non_resident_landlord');
+        if (nonResidentLandlord) {
+            return nonResidentLandlord;
+        }
     }
 
     // No billable resident found
@@ -76,9 +95,116 @@ function findBillableResident(residentHouses: ResidentHouseLink[]): ResidentHous
 }
 
 /**
- * Generates invoices for all occupied houses with billing profiles.
+ * Gets the effective billing profile for a house.
+ * Priority: House override > House Type default
+ */
+async function getEffectiveBillingProfile(
+    supabase: any,
+    house: { id: string; billing_profile_id: string | null; house_type_id: string | null }
+): Promise<BillingProfileWithItems | null> {
+    // If house has a direct override, use that
+    if (house.billing_profile_id) {
+        const { data: profile } = await supabase
+            .from('billing_profiles')
+            .select(`
+                id, name, target_type, applicable_roles, is_one_time,
+                billing_items(id, name, amount, frequency, is_mandatory)
+            `)
+            .eq('id', house.billing_profile_id)
+            .eq('is_active', true)
+            .single();
+
+        return profile;
+    }
+
+    // Otherwise get from house type
+    if (house.house_type_id) {
+        const { data: houseType } = await supabase
+            .from('house_types')
+            .select(`
+                billing_profile_id,
+                billing_profile:billing_profiles(
+                    id, name, target_type, applicable_roles, is_one_time,
+                    billing_items(id, name, amount, frequency, is_mandatory)
+                )
+            `)
+            .eq('id', house.house_type_id)
+            .single();
+
+        if (houseType?.billing_profile) {
+            const profile = Array.isArray(houseType.billing_profile)
+                ? houseType.billing_profile[0]
+                : houseType.billing_profile;
+            return profile;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Gets the system setting value
+ */
+async function getSystemSetting(supabase: any, key: string): Promise<any> {
+    const { data } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', key)
+        .single();
+
+    if (data?.value) {
+        // Value is stored as JSONB, but simple values are stored as strings
+        if (typeof data.value === 'string') {
+            // Try to parse boolean strings
+            if (data.value === 'true') return true;
+            if (data.value === 'false') return false;
+            return data.value;
+        }
+        return data.value;
+    }
+    return null;
+}
+
+/**
+ * Builds a rate snapshot from a billing profile for audit trail
+ */
+function buildRateSnapshot(
+    billingProfile: BillingProfileWithItems,
+    totalAmount: number
+): RateSnapshot {
+    return {
+        billing_profile_id: billingProfile.id,
+        billing_profile_name: billingProfile.name,
+        captured_at: new Date().toISOString(),
+        items: billingProfile.billing_items?.map(item => ({
+            name: item.name,
+            amount: item.amount,
+            frequency: item.frequency,
+            is_mandatory: item.is_mandatory,
+        })) || [],
+        total_amount: totalAmount,
+    };
+}
+
+/**
+ * Determines the invoice type based on billing profile
+ */
+function getInvoiceType(billingProfile: BillingProfileWithItems): InvoiceType {
+    if (billingProfile.is_one_time) {
+        return 'LEVY';
+    }
+    return 'SERVICE_CHARGE';
+}
+
+/**
+ * Generates invoices for all houses with billing profiles.
  * For each house, generates invoices from the resident's move-in date to the current month.
  * Pro-rata applies only to the first (move-in) month; all subsequent months are full rate.
+ *
+ * Billing Logic:
+ * 1. House-targeted profiles (target_type='house'): Bill the primary resident
+ * 2. Resident-targeted profiles (target_type='resident'): Bill residents matching applicable_roles
+ * 3. Vacant house billing: Controlled by system setting 'bill_vacant_houses'
  */
 export async function generateMonthlyInvoices(
     upToDate: Date = new Date()
@@ -106,26 +232,24 @@ export async function generateMonthlyInvoices(
     console.log(`[Billing] Generating invoices up to: ${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`);
 
     try {
-        // 1. Find all occupied houses with billing profiles
+        // Get system settings
+        const billVacantHouses = await getSystemSetting(supabase, 'bill_vacant_houses') === true;
+        const dueWindowSetting = await getSystemSetting(supabase, 'invoice_due_window_days');
+        const dueWindowDays = parseInt(String(dueWindowSetting).replace(/"/g, '')) || 30;
+        console.log(`[Billing] Bill vacant houses: ${billVacantHouses}`);
+        console.log(`[Billing] Due window days: ${dueWindowDays}`);
+
+        // 1. Find all active houses (both occupied and vacant)
         const { data: houses, error: housesError } = await supabase
             .from('houses')
             .select(`
                 id,
                 house_number,
                 house_type_id,
-                house_type:house_types(
-                    id,
-                    name,
-                    billing_profile_id,
-                    billing_profile:billing_profiles(
-                        id,
-                        name,
-                        billing_items(id, name, amount, frequency, is_mandatory)
-                    )
-                ),
+                billing_profile_id,
+                is_occupied,
                 street:streets(name)
             `)
-            .eq('is_occupied', true)
             .eq('is_active', true);
 
         if (housesError) {
@@ -134,46 +258,33 @@ export async function generateMonthlyInvoices(
             return result;
         }
 
-        console.log(`[Billing] Found ${houses?.length || 0} occupied houses`);
+        console.log(`[Billing] Found ${houses?.length || 0} active houses`);
 
         for (const house of houses || []) {
             const houseLabel = `${house.house_number}`;
 
             try {
-                // Validate house type and billing profile
-                if (!house.house_type_id) {
-                    result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: 'No house type assigned' });
-                    continue;
-                }
-
-                const houseType = Array.isArray(house.house_type)
-                    ? house.house_type[0]
-                    : house.house_type;
-
-                if (!houseType) {
-                    result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: 'House type not found' });
-                    continue;
-                }
-
-                if (!houseType.billing_profile_id) {
-                    result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: `House type "${houseType.name}" has no billing profile` });
-                    continue;
-                }
-
-                const billingProfile = Array.isArray(houseType.billing_profile)
-                    ? houseType.billing_profile[0]
-                    : houseType.billing_profile;
+                // Get the effective billing profile (house override or house type default)
+                const billingProfile = await getEffectiveBillingProfile(supabase, house);
 
                 if (!billingProfile) {
                     result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: 'Billing profile data not loaded' });
+                    result.skipReasons.push({ house: houseLabel, reason: 'No billing profile assigned' });
                     continue;
                 }
 
-                // 2. Find the billable resident for this house based on role priority
+                // Skip one-time profiles in monthly generation (handled separately)
+                if (billingProfile.is_one_time) {
+                    continue;
+                }
+
+                // Only process house-targeted profiles for now
+                // Resident-targeted profiles need different handling
+                if (billingProfile.target_type !== 'house') {
+                    continue;
+                }
+
+                // 2. Find all active residents for this house
                 const { data: allResidentLinks, error: residentError } = await supabase
                     .from('resident_houses')
                     .select(`
@@ -187,24 +298,36 @@ export async function generateMonthlyInvoices(
                     .eq('house_id', house.id)
                     .eq('is_active', true);
 
-                if (residentError || !allResidentLinks || allResidentLinks.length === 0) {
+                if (residentError) {
                     result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: 'No active residents found' });
+                    result.skipReasons.push({ house: houseLabel, reason: `Error fetching residents: ${residentError.message}` });
                     continue;
                 }
 
+                if (!allResidentLinks || allResidentLinks.length === 0) {
+                    // Vacant house - check if we should bill
+                    if (!billVacantHouses) {
+                        result.skipped++;
+                        result.skipReasons.push({ house: houseLabel, reason: 'Vacant (no active residents)' });
+                        continue;
+                    }
+                }
+
                 // Find billable resident using priority logic
-                const residentLink = findBillableResident(allResidentLinks as unknown as ResidentHouseLink[]);
+                const residentLink = findBillableResident(
+                    (allResidentLinks || []) as unknown as ResidentHouseLink[],
+                    billVacantHouses
+                );
 
                 if (!residentLink) {
                     result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: 'No billable resident (owner not living in property)' });
+                    result.skipReasons.push({ house: houseLabel, reason: 'No billable resident found' });
                     continue;
                 }
 
                 // Get monthly billing items
                 const monthlyItems = billingProfile.billing_items?.filter(
-                    (item: any) => item.frequency === 'monthly'
+                    (item) => item.frequency === 'monthly'
                 ) || [];
 
                 if (monthlyItems.length === 0) {
@@ -214,7 +337,7 @@ export async function generateMonthlyInvoices(
                 }
 
                 const fullMonthTotal = monthlyItems.reduce(
-                    (sum: number, item: any) => sum + (item.amount || 0),
+                    (sum: number, item) => sum + (item.amount || 0),
                     0
                 );
 
@@ -231,7 +354,9 @@ export async function generateMonthlyInvoices(
                     const periodStart = new Date(currentYear, currentMonth, 1);
                     const periodEnd = new Date(currentYear, currentMonth + 1, 0); // Last day of month
                     const totalDaysInMonth = periodEnd.getDate();
-                    const dueDate = new Date(currentYear, currentMonth, 7);
+                    // Calculate due date using window-based approach (days from period start)
+                    const dueDate = new Date(periodStart);
+                    dueDate.setDate(dueDate.getDate() + dueWindowDays);
 
                     const periodStartStr = periodStart.toISOString().split('T')[0];
                     const periodEndStr = periodEnd.toISOString().split('T')[0];
@@ -242,6 +367,7 @@ export async function generateMonthlyInvoices(
                         .select('id')
                         .eq('resident_id', residentLink.resident_id)
                         .eq('house_id', house.id)
+                        .eq('billing_profile_id', billingProfile.id)
                         .eq('period_start', periodStartStr)
                         .eq('period_end', periodEndStr)
                         .maybeSingle();
@@ -273,6 +399,12 @@ export async function generateMonthlyInvoices(
                     // Generate invoice number
                     const invoiceNumber = `INV-${currentYear}${String(currentMonth + 1).padStart(2, '0')}-${house.id.substring(0, 8).toUpperCase()}`;
 
+                    // Build rate snapshot for audit trail
+                    const rateSnapshot = buildRateSnapshot(billingProfile, fullMonthTotal);
+
+                    // Determine invoice type
+                    const invoiceType = getInvoiceType(billingProfile);
+
                     // Create Invoice
                     const { data: newInvoice, error: invoiceError } = await supabase
                         .from('invoices')
@@ -284,6 +416,8 @@ export async function generateMonthlyInvoices(
                             amount_due: amountDue,
                             amount_paid: 0,
                             status: 'unpaid',
+                            invoice_type: invoiceType,
+                            rate_snapshot: rateSnapshot,
                             due_date: dueDate.toISOString().split('T')[0],
                             period_start: periodStartStr,
                             period_end: periodEndStr,
@@ -303,7 +437,7 @@ export async function generateMonthlyInvoices(
                     }
 
                     // Create Invoice Items
-                    const invoiceItems = monthlyItems.map((item: any) => ({
+                    const invoiceItems = monthlyItems.map((item) => ({
                         invoice_id: newInvoice.id,
                         description: isFirstMonth && fraction < 1
                             ? `${item.name} (Pro-rata: ${activeDays}/${totalDaysInMonth} days)`

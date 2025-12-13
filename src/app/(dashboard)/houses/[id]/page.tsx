@@ -38,8 +38,8 @@ import { Label } from '@/components/ui/label';
 import { HouseForm } from '@/components/houses/house-form';
 import { OccupancyBadge, AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { useHouse, useDeleteHouse, useOwnershipHistory } from '@/hooks/use-houses';
-import { useResidents, useAssignHouse, useUnassignHouse, useMoveOutLandlord, useUpdateResidentHouse, useSwapResidentRoles, useTransferOwnership } from '@/hooks/use-residents';
-import { Home, Pencil, Trash2, Users, ArrowLeft, Plus, Link2, Loader2, DoorOpen, AlertTriangle, SquarePen, ArrowUp, ArrowRightLeft, History, Calendar } from 'lucide-react';
+import { useResidents, useAssignHouse, useUnassignHouse, useMoveOutLandlord, useUpdateResidentHouse, useSwapResidentRoles, useTransferOwnership, useRemoveOwnership } from '@/hooks/use-residents';
+import { Home, Pencil, Trash2, Users, ArrowLeft, Plus, Link2, Loader2, DoorOpen, AlertTriangle, SquarePen, ArrowUp, ArrowRightLeft, History, Calendar, UserMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ResidentRole, ResidentHouse, Resident } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } from '@/types/database';
@@ -82,11 +82,9 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     name: string;
     role: ResidentRole;
     sponsorId: string | null;
-    isBillingResponsible: boolean;
   } | null>(null);
   const [editRole, setEditRole] = useState<ResidentRole>('co_resident');
   const [editSponsorId, setEditSponsorId] = useState('');
-  const [editBillingResponsible, setEditBillingResponsible] = useState(false);
 
   // Promote dialog state
   const [promoteDialogResident, setPromoteDialogResident] = useState<{
@@ -105,6 +103,13 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split('T')[0]);
   const [transferNotes, setTransferNotes] = useState('');
 
+  // Remove ownership dialog state
+  const [removeOwnershipDialogOwner, setRemoveOwnershipDialogOwner] = useState<{
+    id: string;
+    name: string;
+    role: ResidentRole;
+  } | null>(null);
+
   const { data: house, isLoading, error } = useHouse(id);
   const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 1000 });
   const deleteMutation = useDeleteHouse();
@@ -114,6 +119,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
   const updateResidentHouseMutation = useUpdateResidentHouse();
   const swapRolesMutation = useSwapResidentRoles();
   const transferOwnershipMutation = useTransferOwnership();
+  const removeOwnershipMutation = useRemoveOwnership();
   const { data: ownershipHistory, isLoading: historyLoading } = useOwnershipHistory(id);
 
   // Compute derived values - MUST be before any conditional returns (React Rules of Hooks)
@@ -258,7 +264,6 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     resident: { id: string; first_name: string; last_name: string };
     resident_role: string;
     sponsor_resident_id: string | null;
-    is_billing_responsible: boolean;
   }) => {
     const role = rh.resident_role as ResidentRole;
     setEditDialogResident({
@@ -266,11 +271,9 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
       name: `${rh.resident.first_name} ${rh.resident.last_name}`,
       role,
       sponsorId: rh.sponsor_resident_id,
-      isBillingResponsible: rh.is_billing_responsible,
     });
     setEditRole(role);
     setEditSponsorId(rh.sponsor_resident_id || '');
-    setEditBillingResponsible(rh.is_billing_responsible);
   };
 
   // Handle updating resident assignment
@@ -284,7 +287,6 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
         data: {
           resident_role: editRole !== editDialogResident.role ? editRole : undefined,
           sponsor_resident_id: requiresSponsor(editRole) ? editSponsorId : null,
-          is_billing_responsible: editBillingResponsible,
         },
       });
       toast.success('Resident assignment updated');
@@ -344,6 +346,33 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     setTransferNewOwnerRole('non_resident_landlord');
     setTransferDate(new Date().toISOString().split('T')[0]);
     setTransferNotes('');
+  };
+
+  const handleOpenRemoveOwnershipDialog = (rh: {
+    resident: { id: string; first_name: string; last_name: string };
+    resident_role: string;
+  }) => {
+    const role = rh.resident_role as ResidentRole;
+    setRemoveOwnershipDialogOwner({
+      id: rh.resident.id,
+      name: `${rh.resident.first_name} ${rh.resident.last_name}`,
+      role,
+    });
+  };
+
+  const handleRemoveOwnership = async () => {
+    if (!removeOwnershipDialogOwner) return;
+
+    try {
+      await removeOwnershipMutation.mutateAsync({
+        houseId: id,
+        ownerId: removeOwnershipDialogOwner.id,
+      });
+      toast.success('Ownership removed successfully. House is now vacant.');
+      setRemoveOwnershipDialogOwner(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to remove ownership');
+    }
   };
 
   // Handle transfer ownership
@@ -466,7 +495,6 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
           resident_role: selectedRole,
           move_in_date: moveInDate,
           sponsor_resident_id: requiresSponsor(selectedRole) ? sponsorResidentId : null,
-          is_billing_responsible: false,
         },
       });
       toast.success('Resident linked successfully');
@@ -791,6 +819,20 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                             Transfer
                           </Button>
                         )}
+
+                        {/* Remove Ownership button for Non-Resident Landlord/Developer */}
+                        {showTransferButton && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenRemoveOwnershipDialog(rh)}
+                            disabled={removeOwnershipMutation.isPending}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <UserMinus className="h-4 w-4 mr-1" />
+                            Remove
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );
@@ -863,7 +905,19 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                           </span>
                           <div className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Calendar className="h-3 w-3" />
-                            {new Date(record.event_date).toLocaleDateString()}
+                            {/* Show date range for ownership_start and move_in events */}
+                            {(record.event_type === 'ownership_start' || record.event_type === 'move_in') ? (
+                              <span>
+                                {new Date(record.event_date).toLocaleDateString()}
+                                {' - '}
+                                {record.end_date
+                                  ? new Date(record.end_date).toLocaleDateString()
+                                  : <span className="text-green-600 dark:text-green-400">Present</span>
+                                }
+                              </span>
+                            ) : (
+                              new Date(record.event_date).toLocaleDateString()
+                            )}
                           </div>
                         </div>
 
@@ -1232,6 +1286,44 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Remove Ownership Confirmation Dialog */}
+      <AlertDialog
+        open={!!removeOwnershipDialogOwner}
+        onOpenChange={(open) => !open && setRemoveOwnershipDialogOwner(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Remove Ownership
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="mb-3">
+                  Are you sure you want to remove <strong>{removeOwnershipDialogOwner?.name}</strong> as the{' '}
+                  {removeOwnershipDialogOwner?.role && RESIDENT_ROLE_LABELS[removeOwnershipDialogOwner.role]}?
+                </p>
+                <p className="text-amber-600 dark:text-amber-400">
+                  This will make the house completely vacant with no owner assigned.
+                  Any secondary residents will also be removed.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRemoveOwnership}
+              disabled={removeOwnershipMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {removeOwnershipMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Remove Ownership
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

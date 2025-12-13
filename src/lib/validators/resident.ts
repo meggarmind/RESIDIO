@@ -83,7 +83,6 @@ export const houseAssignmentSchema = z.object({
   move_in_date: z.string().optional(),
   // Sponsor fields for secondary roles
   sponsor_resident_id: z.string().uuid().optional().nullable(),
-  is_billing_responsible: z.boolean().default(false),
 }).refine(
   (data) => {
     // domestic_staff and caretaker require a sponsor
@@ -106,7 +105,6 @@ const createResidentBaseSchema = baseResidentSchema.extend({
   resident_role: residentRoleEnum.optional(),
   move_in_date: z.string().optional(),
   sponsor_resident_id: z.string().uuid().optional().nullable(),
-  is_billing_responsible: z.boolean().optional(),
 });
 
 // Combined schema for creating resident with house assignment (with refinements for validation)

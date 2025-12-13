@@ -8,6 +8,8 @@ export const houseFormSchema = z.object({
   address_line_2: z.string().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
   date_added_to_portal: z.string().optional(), // Date house was added to Residio (defaults to today)
+  billing_profile_id: z.string().uuid().optional().nullable().or(z.literal('')), // Override billing profile from house type
+  number_of_plots: z.number().int().min(1, 'Must have at least 1 plot'), // Number of plots (for Development Levy)
 });
 
 export type HouseFormData = z.infer<typeof houseFormSchema>;
@@ -15,6 +17,7 @@ export type HouseFormData = z.infer<typeof houseFormSchema>;
 // Street form schema
 export const streetFormSchema = z.object({
   name: z.string().min(1, 'Street name is required'),
+  short_name: z.string().max(50, 'Short name must be 50 characters or less').optional().or(z.literal('')),
   description: z.string().optional().or(z.literal('')),
 });
 

@@ -6,8 +6,12 @@ import { getHouse } from '@/actions/houses/get-house';
 import { createHouse } from '@/actions/houses/create-house';
 import { updateHouse } from '@/actions/houses/update-house';
 import { deleteHouse } from '@/actions/houses/delete-house';
-import { getOwnershipHistory } from '@/actions/houses/get-ownership-history';
+import { getOwnershipHistory, type OwnershipHistoryWithEndDate } from '@/actions/houses/get-ownership-history';
+
+// Re-export for convenience
+export type { OwnershipHistoryWithEndDate };
 import type { HouseSearchParams, HouseFormData } from '@/lib/validators/house';
+import { toast } from 'sonner';
 
 export function useHouses(params: Partial<HouseSearchParams> = {}) {
   return useQuery({
@@ -70,11 +74,19 @@ export function useUpdateHouse() {
     mutationFn: async ({ id, data }: { id: string; data: HouseFormData }) => {
       const result = await updateHouse(id, data);
       if (result.error) throw new Error(result.error);
-      return result.data;
+      return { data: result.data, approval_required: result.approval_required };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (result, variables) => {
+      if (result.approval_required) {
+        toast.info('Plot change submitted for approval');
+      } else {
+        toast.success('House updated successfully');
+      }
       queryClient.invalidateQueries({ queryKey: ['houses'] });
       queryClient.invalidateQueries({ queryKey: ['house', variables.id] });
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to update house');
     },
   });
 }

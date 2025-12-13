@@ -9,49 +9,88 @@ Continue building the Residio residential estate access management application.
 ## First Steps
 1. Run `date` to confirm current date/time
 2. Read the following files to understand project state:
-   - `residio/CLAUDE.md` - Project conventions and architecture
-   - `residio/TODO.md` - Current phase status and task list
-   - `residio/HANDOFF_SUMMARY.md` - Last session summary
+   - `CLAUDE.md` - Project conventions and architecture
+   - `TODO.md` - Current phase status and task list
+   - `HANDOFF_SUMMARY.md` - Last session summary
+   - `/home/feyijimiohioma/.claude/plans/lucky-kindling-mitten.md` - Full implementation plan
 
 ## Current State
 
 **Project:** Residio - Residential estate access management web app
-**Tech Stack:** Next.js 16, Supabase, TypeScript, Tailwind CSS, shadcn/ui, React Query
-**Current Phase:** Phase 5 - Payment & Billing System (Mostly Complete)
+**Current Phase:** Phase 5.5 - Billing Profile Enhancements (In Progress)
 
-### What's Complete
-- Phase 0-4: Infrastructure, Auth, Dashboard, Resident/House Management
-- Phase 5.1: Payment Records (CRUD, pre-fill from resident page)
-- Phase 5.2: Wallet System (auto-create, transactions, manual adjustments)
-- Phase 5.3: Billing & Invoices (profiles, generation, pagination/filters)
+### What's Been Completed
+- Database migrations applied:
+  - `number_of_plots` added to houses table
+  - `effective_date` added to billing_profiles table
+  - `approval_requests` table created for maker-checker workflow
+- Types updated in `src/types/database.ts`
+- Validators updated (house, billing - partial)
+- One-time levies configured (Development Levy, Transformer Levy, Registration Fee, Renovation Fee)
 
-### MCP Servers Configured
-- **Supabase MCP** (project): Cloud instance kzugmyjjqttardhfejzc
-- **GitHub MCP** (user): Connected
-- **Memory MCP** (user): SQLite-based, connected
-- **TestSprite MCP** (project): Configured
+### What Needs to Be Done (In Order)
 
-## Next Tasks (Choose One Path)
+1. **Create approval validator** - `src/lib/validators/approval.ts`
+   ```typescript
+   export const approvalActionSchema = z.object({
+     request_id: z.string().uuid(),
+     action: z.enum(['approve', 'reject']),
+     notes: z.string().optional(),
+   });
+   ```
 
-### Option A: Complete Phase 5.4 Pending Items
-1. Implement bulk payment status update
-2. Create overdue notifications logic
-3. Add payment receipts/export feature
+2. **Create approval server actions** - `src/actions/approvals/index.ts`
+   - `getApprovalRequests()` - List pending/all requests
+   - `approveRequest()` - Apply changes and update status
+   - `rejectRequest()` - Mark as rejected with notes
+   - `getPendingApprovalsCount()` - For sidebar badge
 
-### Option B: Start Phase 6 - Security Contact List
-1. Create security_contacts table migration
-2. Build security contacts management UI
-3. Implement access code generation
-4. Create validity period management
-5. Build security contact list export
+3. **Update billing profile actions** - `src/actions/billing/profiles.ts`
+   - Add `updateBillingProfile()` function
+   - Add `checkEffectiveDateImpact()` to check if date affects invoices
+
+4. **Update house actions** - `src/actions/houses/update-house.ts`
+   - Handle `number_of_plots` field
+   - Check if plots change affects existing Development Levy
+   - Create approval request if needed (for non-admin/chairman)
+
+5. **Update levy generation** - `src/actions/billing/generate-levies.ts`
+   - Multiply Development Levy amount by `number_of_plots`
+   - Only apply to landlord/developer (not tenants)
+   - Store plots count in rate_snapshot
+
+6. **Create approval hooks** - `src/hooks/use-approvals.ts`
+
+7. **Update billing/house hooks** - Add update mutations
+
+8. **Create UI components**:
+   - `src/components/billing/billing-profile-edit-dialog.tsx`
+   - `src/components/approvals/approval-detail-dialog.tsx`
+   - `src/app/(dashboard)/approvals/page.tsx`
+
+9. **Update house form** - Add `number_of_plots` field
+
+10. **Update sidebar** - Add approvals link for admin/chairman
+
+## Maker-Checker Workflow Rules
+
+| Role | Billing Profile Edit | Effective Date Change | Plots Change |
+|------|---------------------|----------------------|--------------|
+| admin | Auto-approve | Auto-approve | Auto-approve |
+| chairman | Auto-approve | Auto-approve (is checker) | Auto-approve (is checker) |
+| financial_secretary | Auto-approve | Creates approval request | Creates approval request |
 
 ## Key Files to Reference
-- Server actions: `src/actions/`
-- React Query hooks: `src/hooks/`
-- UI components: `src/components/`
-- Database migrations: `supabase/migrations/`
+
+- Plan file: `/home/feyijimiohioma/.claude/plans/lucky-kindling-mitten.md`
+- Billing profiles: `src/actions/billing/profiles.ts`
+- Levy generation: `src/actions/billing/generate-levies.ts`
+- House form: `src/components/houses/house-form.tsx`
+- Billing settings: `src/app/(dashboard)/settings/billing/page.tsx`
+- Sidebar: `src/components/dashboard/sidebar.tsx`
 
 ## Test Users
+
 | Email | Password | Role |
 |-------|----------|------|
 | admin@residio.test | password123 | admin |
@@ -60,13 +99,13 @@ Continue building the Residio residential estate access management application.
 | security@residio.test | password123 | security_officer |
 
 ## Commands
+
 ```bash
 cd /home/feyijimiohioma/projects/Residio/residio
-npm run dev              # Start dev server
 npm run supabase:start   # Start local Supabase
-claude mcp list          # Verify MCP servers
+npm run dev              # Start dev server
 ```
 
 ---
 
-Ask the user which path they want to take (Phase 5.4 completion or Phase 6) before proceeding.
+**START by creating the approval validator, then proceed with server actions.**

@@ -173,7 +173,6 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                     resident_role: selectedRole,
                     move_in_date: isSelectedHouseOccupied ? undefined : moveInDate,
                     sponsor_resident_id: showSponsorField ? sponsorResidentId : null,
-                    is_billing_responsible: false,
                 },
             });
             toast.success('House linked successfully');

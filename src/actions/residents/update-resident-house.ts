@@ -146,9 +146,6 @@ export async function updateResidentHouse(
   if (data.sponsor_resident_id !== undefined) {
     updateData.sponsor_resident_id = data.sponsor_resident_id;
   }
-  if (data.is_billing_responsible !== undefined) {
-    updateData.is_billing_responsible = data.is_billing_responsible;
-  }
 
   // Perform the update
   const { data: updated, error: updateError } = await supabase

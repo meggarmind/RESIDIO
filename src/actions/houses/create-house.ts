@@ -4,6 +4,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import type { House } from '@/types/database';
 import type { HouseFormData } from '@/lib/validators/house';
+import { generateLeviesForHouse } from '@/actions/billing/generate-levies';
 
 export interface CreateHouseResponse {
   data: House | null;
@@ -26,6 +27,8 @@ export async function createHouse(formData: HouseFormData): Promise<CreateHouseR
       house_type_id: formData.house_type_id || null,
       address_line_2: formData.address_line_2 || null,
       notes: formData.notes || null,
+      billing_profile_id: formData.billing_profile_id || null,
+      number_of_plots: formData.number_of_plots ?? 1,
       created_by: user.id,
     })
     .select()
@@ -56,6 +59,18 @@ export async function createHouse(formData: HouseFormData): Promise<CreateHouseR
   } catch (historyError) {
     console.error('[createHouse] Error recording house_added history:', historyError);
     // Don't fail the house creation for history errors
+  }
+
+  // Generate one-time levies for the house (if auto_generate_levies is enabled)
+  // Note: This will only generate levies if there's a primary resident assigned
+  try {
+    const levyResult = await generateLeviesForHouse(data.id);
+    if (levyResult.generated > 0) {
+      console.log(`[createHouse] Generated ${levyResult.generated} levies for house ${data.house_number}`);
+    }
+  } catch (levyError) {
+    console.error('[createHouse] Error generating levies:', levyError);
+    // Don't fail the house creation for levy errors
   }
 
   revalidatePath('/houses');

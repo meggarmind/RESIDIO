@@ -4,9 +4,14 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { HouseOwnershipHistoryWithResident, OwnershipEventType, ResidentRole } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 
+// Extended type with computed end_date for ownership periods
+export interface OwnershipHistoryWithEndDate extends HouseOwnershipHistoryWithResident {
+  end_date: string | null; // Computed from move_out_date or ownership_end event
+}
+
 // Response type (not exported from 'use server' file)
 interface OwnershipHistoryResponse {
-  data: HouseOwnershipHistoryWithResident[] | null;
+  data: OwnershipHistoryWithEndDate[] | null;
   error: string | null;
 }
 
@@ -24,6 +29,7 @@ const OWNERSHIP_EVENT_LABELS: Record<OwnershipEventType, string> = {
 /**
  * Get the full ownership and occupancy history for a house
  * Returns all history events in chronological order (newest first)
+ * Enriched with computed end_date from resident_houses move_out_date
  */
 export async function getOwnershipHistory(houseId: string): Promise<OwnershipHistoryResponse> {
   const supabase = await createServerSupabaseClient();
@@ -37,7 +43,8 @@ export async function getOwnershipHistory(houseId: string): Promise<OwnershipHis
     return { data: null, error: 'House ID is required' };
   }
 
-  const { data, error } = await supabase
+  // Fetch history records
+  const { data: historyData, error: historyError } = await supabase
     .from('house_ownership_history')
     .select(`
       *,
@@ -54,13 +61,51 @@ export async function getOwnershipHistory(houseId: string): Promise<OwnershipHis
     .order('event_date', { ascending: false })
     .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('[getOwnershipHistory] Error:', error);
-    return { data: null, error: error.message };
+  if (historyError) {
+    console.error('[getOwnershipHistory] Error:', historyError);
+    return { data: null, error: historyError.message };
   }
 
+  // Fetch resident_houses records to get move_out_date for end dates
+  const { data: residentHousesData } = await supabase
+    .from('resident_houses')
+    .select('resident_id, move_in_date, move_out_date, is_active')
+    .eq('house_id', houseId);
+
+  // Create a map of resident_id -> move_out_date for quick lookup
+  const residentMoveOutMap = new Map<string, { move_out_date: string | null; is_active: boolean }>();
+  if (residentHousesData) {
+    for (const rh of residentHousesData) {
+      residentMoveOutMap.set(rh.resident_id, {
+        move_out_date: rh.move_out_date,
+        is_active: rh.is_active
+      });
+    }
+  }
+
+  // Enrich history records with computed end_date
+  const enrichedData: OwnershipHistoryWithEndDate[] = (historyData as HouseOwnershipHistoryWithResident[]).map(record => {
+    let end_date: string | null = null;
+
+    // For ownership_start or move_in events, compute end_date
+    if (
+      (record.event_type === 'ownership_start' || record.event_type === 'move_in') &&
+      record.resident_id
+    ) {
+      const residentHouse = residentMoveOutMap.get(record.resident_id);
+      if (residentHouse && !residentHouse.is_active && residentHouse.move_out_date) {
+        end_date = residentHouse.move_out_date;
+      }
+    }
+
+    return {
+      ...record,
+      end_date
+    };
+  });
+
   return {
-    data: data as HouseOwnershipHistoryWithResident[],
+    data: enrichedData,
     error: null
   };
 }

@@ -12,6 +12,7 @@ import { moveOutLandlord } from '@/actions/residents/move-out-landlord';
 import { updateResidentHouse, type UpdateResidentHouseData } from '@/actions/residents/update-resident-house';
 import { swapResidentRoles } from '@/actions/residents/swap-resident-roles';
 import { transferOwnership } from '@/actions/residents/transfer-ownership';
+import { removeOwnership } from '@/actions/residents/remove-ownership';
 import { verifyResident } from '@/actions/residents/verify-resident';
 import type { ResidentSearchParams, CreateResidentData, ResidentFormData, HouseAssignmentData } from '@/lib/validators/resident';
 
@@ -270,6 +271,35 @@ export function useTransferOwnership() {
       queryClient.invalidateQueries({ queryKey: ['residents'] });
       queryClient.invalidateQueries({ queryKey: ['resident', variables.currentOwnerId] });
       queryClient.invalidateQueries({ queryKey: ['resident', variables.newOwnerId] });
+      queryClient.invalidateQueries({ queryKey: ['houses'] });
+      queryClient.invalidateQueries({ queryKey: ['house', variables.houseId] });
+      queryClient.invalidateQueries({ queryKey: ['ownershipHistory', variables.houseId] });
+    },
+  });
+}
+
+export function useRemoveOwnership() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      houseId,
+      ownerId,
+      removalDate,
+      notes
+    }: {
+      houseId: string;
+      ownerId: string;
+      removalDate?: string;
+      notes?: string;
+    }) => {
+      const result = await removeOwnership(houseId, ownerId, removalDate, notes);
+      if (result.error) throw new Error(result.error);
+      return result.success;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['residents'] });
+      queryClient.invalidateQueries({ queryKey: ['resident', variables.ownerId] });
       queryClient.invalidateQueries({ queryKey: ['houses'] });
       queryClient.invalidateQueries({ queryKey: ['house', variables.houseId] });
       queryClient.invalidateQueries({ queryKey: ['ownershipHistory', variables.houseId] });

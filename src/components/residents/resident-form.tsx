@@ -101,7 +101,6 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
       resident_role: undefined,
       move_in_date: new Date().toISOString().split('T')[0],
       sponsor_resident_id: undefined,
-      is_billing_responsible: false,
     },
   });
 

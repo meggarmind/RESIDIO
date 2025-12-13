@@ -3,12 +3,24 @@ import { SettingsNav } from '@/components/dashboard/settings-nav';
 
 const sidebarNavItems = [
     {
+        title: "General",
+        href: "/settings",
+    },
+    {
         title: "Billing Profiles",
         href: "/settings/billing",
     },
     {
+        title: "Security",
+        href: "/settings/security",
+    },
+    {
         title: "References (House Types)",
         href: "/settings/references",
+    },
+    {
+        title: "Audit Logs",
+        href: "/settings/audit-logs",
     },
 ];
 

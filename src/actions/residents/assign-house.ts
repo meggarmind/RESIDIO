@@ -6,6 +6,7 @@ import type { ResidentHouse, ResidentRole, Resident } from '@/types/database';
 import type { HouseAssignmentData } from '@/lib/validators/resident';
 import { isPrimaryRole, requiresSponsor, isResidencyRole, isValidCorporateRole } from '@/lib/validators/resident';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
+import { generateLeviesForHouse } from '@/actions/billing/generate-levies';
 
 export interface AssignHouseResponse {
   data: ResidentHouse | null;
@@ -177,25 +178,26 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
     // If it exists but is inactive, reactivate it instead of creating new
     if (!existing.is_active) {
       // Check for occupancy conflicts before reactivating
-      // For landlord roles, check for ANY existing landlord (single landlord per house rule)
-      if (role === 'resident_landlord' || role === 'non_resident_landlord') {
-        const { data: existingLandlord } = await supabase
+      // For ownership roles, check for ANY existing owner (single owner per house rule)
+      // Owners are: resident_landlord, non_resident_landlord, developer
+      if (role === 'resident_landlord' || role === 'non_resident_landlord' || role === 'developer') {
+        const { data: existingOwner } = await supabase
           .from('resident_houses')
           .select('id, resident_role, resident:residents(first_name, last_name)')
           .eq('house_id', formData.house_id)
-          .in('resident_role', ['resident_landlord', 'non_resident_landlord'])
+          .in('resident_role', ['resident_landlord', 'non_resident_landlord', 'developer'])
           .eq('is_active', true)
           .single();
 
-        if (existingLandlord) {
-          const residentData = existingLandlord.resident as unknown as { first_name: string; last_name: string } | null;
+        if (existingOwner) {
+          const residentData = existingOwner.resident as unknown as { first_name: string; last_name: string } | null;
           const existingName = residentData
             ? `${residentData.first_name} ${residentData.last_name}`
             : 'another resident';
-          const existingRoleLabel = RESIDENT_ROLE_LABELS[existingLandlord.resident_role as ResidentRole];
+          const existingRoleLabel = RESIDENT_ROLE_LABELS[existingOwner.resident_role as ResidentRole];
           return {
             data: null,
-            error: `This house already has a ${existingRoleLabel} (${existingName}). Only one landlord is allowed per house. Please unassign them first.`,
+            error: `This house already has a ${existingRoleLabel} (${existingName}). Only one owner is allowed per house. Please transfer ownership first.`,
           };
         }
 
@@ -261,7 +263,6 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
           move_in_date: formData.move_in_date || new Date().toISOString().split('T')[0],
           move_out_date: null,
           sponsor_resident_id: formData.sponsor_resident_id || null,
-          is_billing_responsible: formData.is_billing_responsible || false,
         })
         .eq('id', existing.id)
         .select()
@@ -306,25 +307,26 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
   }
 
   // Check for occupancy conflicts
-  // For landlord roles, check for ANY existing landlord (single landlord per house rule)
-  if (role === 'resident_landlord' || role === 'non_resident_landlord') {
-    const { data: existingLandlord } = await supabase
+  // For ownership roles, check for ANY existing owner (single owner per house rule)
+  // Owners are: resident_landlord, non_resident_landlord, developer
+  if (role === 'resident_landlord' || role === 'non_resident_landlord' || role === 'developer') {
+    const { data: existingOwner } = await supabase
       .from('resident_houses')
       .select('id, resident_role, resident:residents(first_name, last_name)')
       .eq('house_id', formData.house_id)
-      .in('resident_role', ['resident_landlord', 'non_resident_landlord'])
+      .in('resident_role', ['resident_landlord', 'non_resident_landlord', 'developer'])
       .eq('is_active', true)
       .single();
 
-    if (existingLandlord) {
-      const residentData = existingLandlord.resident as unknown as { first_name: string; last_name: string } | null;
+    if (existingOwner) {
+      const residentData = existingOwner.resident as unknown as { first_name: string; last_name: string } | null;
       const existingName = residentData
         ? `${residentData.first_name} ${residentData.last_name}`
         : 'another resident';
-      const existingRoleLabel = RESIDENT_ROLE_LABELS[existingLandlord.resident_role as ResidentRole];
+      const existingRoleLabel = RESIDENT_ROLE_LABELS[existingOwner.resident_role as ResidentRole];
       return {
         data: null,
-        error: `This house already has a ${existingRoleLabel} (${existingName}). Only one landlord is allowed per house. Please unassign them first.`,
+        error: `This house already has a ${existingRoleLabel} (${existingName}). Only one owner is allowed per house. Please transfer ownership first.`,
       };
     }
 
@@ -392,7 +394,6 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
       resident_role: formData.resident_role,
       move_in_date: formData.move_in_date || today,
       sponsor_resident_id: formData.sponsor_resident_id || null,
-      is_billing_responsible: formData.is_billing_responsible || false,
       created_by: user.id,
     })
     .select()
@@ -424,11 +425,23 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
       console.error('[assignHouse] Error recording history (new assignment):', historyError);
       // Don't fail for history errors
     }
+
+    // Generate one-time levies for the house when a primary resident is assigned
+    try {
+      const levyResult = await generateLeviesForHouse(formData.house_id, residentId);
+      if (levyResult.generated > 0) {
+        console.log(`[assignHouse] Generated ${levyResult.generated} levies for house`);
+      }
+    } catch (levyError) {
+      console.error('[assignHouse] Error generating levies:', levyError);
+      // Don't fail for levy errors
+    }
   }
 
   revalidatePath('/residents');
   revalidatePath(`/residents/${residentId}`);
   revalidatePath('/houses');
   revalidatePath(`/houses/${formData.house_id}`);
+  revalidatePath('/billing');
   return { data, error: null };
 }
