@@ -351,10 +351,7 @@ export default function SecurityPage() {
                 </Link>
               </Button>
             </div>
-            <SecurityContactsTable
-              filters={contactFilters}
-              onFiltersChange={setContactFilters}
-            />
+            <SecurityContactsTable />
           </TabsContent>
         )}
 
