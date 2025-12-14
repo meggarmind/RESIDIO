@@ -445,6 +445,10 @@ When triggered by the above keyphrases, perform the following:
    - Current state of any in-progress tasks or unfinished code
    - Next steps or remaining tasks (primary focus when resuming)
 4. Create/update `NEXT_SESSION_HANDOFF_PROMPT.md` with a complete prompt that provides 100% of the information necessary for the next Claude Code session to pick up exactly where we left off
+5. Update Notion project review page using `mcp__notion__notion-update-page`:
+   - Page ID: `2c92bfe3-ea0c-81df-b05f-ffcef90414fa`
+   - URL: https://www.notion.so/2c92bfe3ea0c81dfb05fffcef90414fa
+   - Update with current project status, completed phases, and in-progress work
 
 The handoff must ensure a seamless transition to the next session.
 

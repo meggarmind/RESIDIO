@@ -178,7 +178,7 @@ export async function createSecurityContact(
   // Verify resident exists
   const { data: resident, error: residentError } = await supabase
     .from('residents')
-    .select('id, first_name, last_name, status')
+    .select('id, first_name, last_name, account_status')
     .eq('id', formData.resident_id)
     .single();
 
@@ -186,7 +186,7 @@ export async function createSecurityContact(
     return { data: null, error: 'Resident not found' };
   }
 
-  if (resident.status !== 'active') {
+  if (resident.account_status !== 'active') {
     return { data: null, error: 'Cannot add security contacts to inactive residents' };
   }
 

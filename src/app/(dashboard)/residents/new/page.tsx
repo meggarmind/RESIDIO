@@ -1,11 +1,12 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ResidentForm, type HouseState } from '@/components/residents/resident-form';
-import { Users } from 'lucide-react';
+import { Users, Loader2 } from 'lucide-react';
 
-export default function NewResidentPage() {
+function NewResidentContent() {
   const searchParams = useSearchParams();
   const preselectedHouseId = searchParams.get('house_id') ?? undefined;
   const houseState = searchParams.get('house_state') as HouseState | null;
@@ -32,5 +33,17 @@ export default function NewResidentPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function NewResidentPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    }>
+      <NewResidentContent />
+    </Suspense>
   );
 }

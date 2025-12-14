@@ -5,8 +5,25 @@ import { paymentFormSchema } from '@/lib/validators/payment'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { creditWallet, allocateWalletToInvoices } from '@/actions/billing/wallet'
+import { logAudit } from '@/lib/audit/logger'
+import type { PaymentRecord } from '@/types/database'
 
-export async function createPayment(data: z.infer<typeof paymentFormSchema>) {
+// Extended schema to include import tracking fields
+const extendedPaymentSchema = paymentFormSchema.extend({
+    import_id: z.string().uuid().optional(),
+    import_row_id: z.string().uuid().optional(),
+})
+
+export type CreatePaymentInput = z.infer<typeof extendedPaymentSchema>
+
+export interface CreatePaymentResult {
+    success?: boolean
+    error?: string
+    details?: z.ZodFlattenedError<CreatePaymentInput>
+    data?: PaymentRecord
+}
+
+export async function createPayment(data: CreatePaymentInput): Promise<CreatePaymentResult> {
     const supabase = await createServerSupabaseClient()
 
     const {
@@ -17,7 +34,7 @@ export async function createPayment(data: z.infer<typeof paymentFormSchema>) {
         return { error: 'Unauthorized' }
     }
 
-    const result = paymentFormSchema.safeParse(data)
+    const result = extendedPaymentSchema.safeParse(data)
 
     if (!result.success) {
         return { error: 'Invalid data', details: result.error.flatten() }
@@ -34,6 +51,8 @@ export async function createPayment(data: z.infer<typeof paymentFormSchema>) {
         notes: result.data.notes,
         period_start: result.data.period_start?.toISOString(),
         period_end: result.data.period_end?.toISOString(),
+        import_id: result.data.import_id,
+        import_row_id: result.data.import_row_id,
     }).select().single()
 
     if (error) {
@@ -60,9 +79,30 @@ export async function createPayment(data: z.infer<typeof paymentFormSchema>) {
         console.log(`[Payment] Auto-allocated ₦${allocateResult.totalAllocated} to ${allocateResult.invoicesPaid} invoices`)
     }
 
+    // Get resident info for audit log
+    const { data: resident } = await supabase
+        .from('residents')
+        .select('first_name, last_name, resident_code')
+        .eq('id', result.data.resident_id)
+        .single()
+
+    // Audit log
+    await logAudit({
+        action: 'CREATE',
+        entityType: 'payments',
+        entityId: paymentRecord.id,
+        entityDisplay: `Payment ₦${result.data.amount.toLocaleString()} for ${resident?.first_name} ${resident?.last_name}`,
+        newValues: {
+            amount: result.data.amount,
+            method: result.data.method,
+            reference_number: result.data.reference_number,
+            from_import: !!result.data.import_id,
+        },
+    })
+
     revalidatePath('/payments')
     revalidatePath('/billing')
     revalidatePath(`/residents/${result.data.resident_id}`)
-    return { success: true }
+    return { success: true, data: paymentRecord as PaymentRecord }
 }
 

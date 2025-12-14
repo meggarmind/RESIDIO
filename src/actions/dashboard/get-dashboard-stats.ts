@@ -10,6 +10,7 @@ export interface DashboardStats {
     totalInvoices: number;
     paidInvoices: number;
     paymentRate: number; // percentage
+    activeAccessCodes: number;
     recentActivity: RecentActivityItem[];
 }
 
@@ -75,11 +76,22 @@ export async function getDashboardStats(): Promise<{ data: DashboardStats | null
             // Continue with default values instead of failing
         }
 
+        // 4. Get active access codes count
+        const { count: activeAccessCodes, error: accessCodesError } = await supabase
+            .from('access_codes')
+            .select('*', { count: 'exact', head: true })
+            .eq('is_active', true)
+            .or('valid_until.is.null,valid_until.gt.' + new Date().toISOString());
+
+        if (accessCodesError) {
+            console.error('Error fetching access codes count:', accessCodesError);
+        }
+
         const paymentRate = totalInvoices && totalInvoices > 0
             ? Math.round(((paidInvoices ?? 0) / totalInvoices) * 100)
             : 0;
 
-        // 4. Get recent activity (last 5 items from payments and residents)
+        // 5. Get recent activity (last 5 items from payments and residents)
         const recentActivity: RecentActivityItem[] = [];
 
         // Recent payments
@@ -141,6 +153,7 @@ export async function getDashboardStats(): Promise<{ data: DashboardStats | null
                 totalInvoices: totalInvoices ?? 0,
                 paidInvoices: paidInvoices ?? 0,
                 paymentRate,
+                activeAccessCodes: activeAccessCodes ?? 0,
                 recentActivity: recentActivity.slice(0, 5)
             },
             error: null

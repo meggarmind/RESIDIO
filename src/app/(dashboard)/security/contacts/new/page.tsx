@@ -1,15 +1,15 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, UserPlus } from 'lucide-react';
+import { ArrowLeft, UserPlus, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { SecurityContactForm } from '@/components/security/security-contact-form';
 import { useCurrentUserSecurityPermissions } from '@/hooks/use-security';
-import { Loader2 } from 'lucide-react';
 
-export default function NewSecurityContactPage() {
+function NewSecurityContactContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const residentId = searchParams.get('resident_id');
@@ -81,5 +81,17 @@ export default function NewSecurityContactPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function NewSecurityContactPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    }>
+      <NewSecurityContactContent />
+    </Suspense>
   );
 }

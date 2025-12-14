@@ -60,16 +60,16 @@ export function ResidentSecurityContacts({ residentId }: ResidentSecurityContact
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
 
   const { data: contactsData, isLoading, refetch } = useResidentSecurityContacts(residentId);
-  const { data: permissions } = useCurrentUserSecurityPermissions();
+  const { data: permissionsData } = useCurrentUserSecurityPermissions();
 
   const updateStatusMutation = useUpdateSecurityContactStatus();
   const deleteMutation = useDeleteSecurityContact();
   const generateCodeMutation = useGenerateAccessCode();
 
-  const canRegisterContacts = permissions?.register_contacts || false;
-  const canUpdateContacts = permissions?.update_contacts || false;
-  const canSuspendRevoke = permissions?.suspend_revoke_contacts || false;
-  const canGenerateCodes = permissions?.generate_codes || false;
+  const canRegisterContacts = permissionsData?.permissions?.register_contacts || false;
+  const canUpdateContacts = permissionsData?.permissions?.update_contacts || false;
+  const canSuspendRevoke = permissionsData?.permissions?.suspend_revoke_contacts || false;
+  const canGenerateCodes = permissionsData?.permissions?.generate_codes || false;
 
   const contacts = contactsData?.data || [];
 

@@ -163,7 +163,10 @@ export type AuditEntityType =
   | 'access_codes'
   | 'access_logs'
   | 'profiles'
-  | 'system_settings';
+  | 'system_settings'
+  | 'bank_statement_imports'
+  | 'resident_payment_aliases'
+  | 'estate_bank_accounts';
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -199,6 +202,9 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   access_logs: 'Access Log',
   profiles: 'User Profile',
   system_settings: 'System Setting',
+  bank_statement_imports: 'Bank Statement Import',
+  resident_payment_aliases: 'Payment Alias',
+  estate_bank_accounts: 'Estate Bank Account',
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -620,6 +626,10 @@ export type HouseOwnershipHistory = Database['public']['Tables']['house_ownershi
 export type HouseOwnershipHistoryInsert = Database['public']['Tables']['house_ownership_history']['Insert'];
 export type HouseOwnershipHistoryUpdate = Database['public']['Tables']['house_ownership_history']['Update'];
 
+export type PaymentRecord = Database['public']['Tables']['payment_records']['Row'];
+export type PaymentRecordInsert = Database['public']['Tables']['payment_records']['Insert'];
+export type PaymentRecordUpdate = Database['public']['Tables']['payment_records']['Update'];
+
 // Phase 6: Security Contact type aliases
 export type SecurityContactCategory = Database['public']['Tables']['security_contact_categories']['Row'];
 export type SecurityContactCategoryInsert = Database['public']['Tables']['security_contact_categories']['Insert'];
@@ -941,3 +951,196 @@ export const DEFAULT_SECURITY_PERMISSIONS: SecurityRolePermissions = {
   configure_categories: ['admin'],
   view_access_logs: ['admin', 'chairman'],
 };
+
+// ============================================
+// Phase 6 (NEW): Bank Statement Import Types
+// ============================================
+
+// Import status for bank statement imports
+export type ImportStatus = 'pending' | 'processing' | 'awaiting_approval' | 'approved' | 'completed' | 'failed' | 'rejected';
+
+// Transaction filter options
+export type TransactionFilter = 'credit' | 'debit' | 'all';
+
+// Match confidence levels
+export type MatchConfidence = 'high' | 'medium' | 'low' | 'none' | 'manual';
+
+// Match methods for resident matching
+export type MatchMethod = 'alias' | 'phone' | 'name' | 'house_number' | 'manual';
+
+// Import row status
+export type ImportRowStatus = 'pending' | 'matched' | 'unmatched' | 'duplicate' | 'created' | 'skipped' | 'error';
+
+// Labels for import statuses
+export const IMPORT_STATUS_LABELS: Record<ImportStatus, string> = {
+  pending: 'Pending',
+  processing: 'Processing',
+  awaiting_approval: 'Awaiting Approval',
+  approved: 'Approved',
+  completed: 'Completed',
+  failed: 'Failed',
+  rejected: 'Rejected',
+};
+
+export const MATCH_CONFIDENCE_LABELS: Record<MatchConfidence, string> = {
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+  none: 'No Match',
+  manual: 'Manual',
+};
+
+export const MATCH_METHOD_LABELS: Record<MatchMethod, string> = {
+  alias: 'Payment Alias',
+  phone: 'Phone Number',
+  name: 'Name Match',
+  house_number: 'House Number',
+  manual: 'Manual Assignment',
+};
+
+export const IMPORT_ROW_STATUS_LABELS: Record<ImportRowStatus, string> = {
+  pending: 'Pending',
+  matched: 'Matched',
+  unmatched: 'Unmatched',
+  duplicate: 'Duplicate',
+  created: 'Created',
+  skipped: 'Skipped',
+  error: 'Error',
+};
+
+export const TRANSACTION_FILTER_LABELS: Record<TransactionFilter, string> = {
+  credit: 'Credits Only',
+  debit: 'Debits Only',
+  all: 'All Transactions',
+};
+
+// Resident Payment Alias type
+export interface ResidentPaymentAlias {
+  id: string;
+  resident_id: string;
+  alias_name: string;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  created_by: string | null;
+}
+
+// Estate Bank Account type
+export interface EstateBankAccount {
+  id: string;
+  account_number: string;
+  account_name: string;
+  bank_name: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+// Bank Statement Import type
+export interface BankStatementImport {
+  id: string;
+  file_name: string;
+  file_type: 'csv' | 'xlsx';
+  bank_account_id: string | null;
+  bank_name: string;
+  transaction_filter: TransactionFilter;
+  total_rows: number;
+  matched_rows: number;
+  created_rows: number;
+  skipped_rows: number;
+  error_rows: number;
+  status: ImportStatus;
+  column_mapping: Record<string, string> | null;
+  import_summary: Record<string, unknown> | null;
+  created_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+// Bank Statement Row type
+export interface BankStatementRow {
+  id: string;
+  import_id: string;
+  row_number: number;
+  raw_data: Record<string, unknown>;
+  transaction_date: string | null;
+  description: string | null;
+  amount: number | null;
+  transaction_type: 'credit' | 'debit' | null;
+  reference: string | null;
+  matched_resident_id: string | null;
+  match_confidence: MatchConfidence | null;
+  match_method: MatchMethod | null;
+  status: ImportRowStatus;
+  payment_id: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+// Bank Statement Import with related data
+export interface BankStatementImportWithDetails extends BankStatementImport {
+  bank_account: EstateBankAccount | null;
+  created_by_profile: {
+    id: string;
+    full_name: string;
+    email: string;
+  } | null;
+  approved_by_profile: {
+    id: string;
+    full_name: string;
+    email: string;
+  } | null;
+}
+
+// Bank Statement Row with resident details (for review UI)
+export interface BankStatementRowWithResident extends BankStatementRow {
+  matched_resident: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    resident_code: string;
+    phone_primary: string;
+    entity_type: EntityType;
+    company_name: string | null;
+  } | null;
+}
+
+// Parsed bank statement row (before database insert)
+export interface ParsedStatementRow {
+  rowNumber: number;
+  rawData: Record<string, unknown>;
+  transactionDate: Date | null;
+  description: string | null;
+  amount: number | null;
+  transactionType: 'credit' | 'debit' | null;
+  reference: string | null;
+}
+
+// Column mapping configuration
+export interface ColumnMapping {
+  date: string;
+  description: string;
+  credit: string;
+  debit: string;
+  reference: string;
+  balance?: string;
+}
+
+// Bank format configuration
+export interface BankFormatConfig {
+  name: string;
+  bankName: string;
+  dateFormat: string;
+  defaultColumns: ColumnMapping;
+  headerRowIndex: number;
+  skipRows?: number[];
+}
+
+// Match result from matching engine
+export interface MatchResult {
+  residentId: string | null;
+  confidence: MatchConfidence;
+  method: MatchMethod | null;
+  matchedValue: string | null; // The value that matched (e.g., alias name, phone number)
+}
