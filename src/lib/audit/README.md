@@ -303,12 +303,38 @@ Features:
 - Detailed view showing old/new value comparison
 - Statistics cards showing activity counts
 
+## Handling Deleted Profiles
+
+The audit logs system is designed to preserve historical records even when user profiles are deleted from the system.
+
+**Database Behavior**:
+- The `actor_id` column has a foreign key constraint to `profiles.id` with `ON DELETE SET NULL`
+- When a profile is deleted, all their audit log entries are preserved with `actor_id = NULL`
+- This ensures compliance requirements are met even when users are removed
+
+**UI Handling**:
+- The `AuditLogWithActor` type has `actor` as a nullable field
+- The UI displays "Unknown" for entries where the actor profile was deleted
+- Always use optional chaining when accessing actor details:
+  ```typescript
+  log.actor?.full_name || 'Unknown'
+  log.actor?.email || 'N/A'
+  ```
+
+**Example**:
+```typescript
+// In components
+<div>{log.actor?.full_name || 'Unknown User'}</div>
+<div className="text-muted-foreground">{log.actor?.email || 'Deleted Profile'}</div>
+```
+
 ## Security Considerations
 
 1. **RLS Policies**: Only admin and chairman can SELECT audit logs
 2. **Immutability**: No UPDATE or DELETE policies exist (append-only)
 3. **All authenticated users can INSERT** (via server actions)
 4. **No sensitive data**: Avoid logging passwords, tokens, or PII in values
+5. **Deleted Profiles**: Audit trail is preserved with `ON DELETE SET NULL` on actor_id
 
 ## Best Practices
 

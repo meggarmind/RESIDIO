@@ -2,7 +2,6 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { paymentStatusEnum } from '@/lib/validators/payment';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 const bulkUpdateSchema = z.object({
@@ -43,7 +42,6 @@ export async function bulkUpdatePayments(input: BulkUpdatePaymentsInput) {
 
     const updatedCount = data?.length ?? 0;
 
-    revalidatePath('/payments');
     return {
         success: true,
         updatedCount,

@@ -19,6 +19,10 @@ const sidebarNavItems = [
         href: "/settings/references",
     },
     {
+        title: "Transaction Tags",
+        href: "/settings/transaction-tags",
+    },
+    {
         title: "Audit Logs",
         href: "/settings/audit-logs",
     },

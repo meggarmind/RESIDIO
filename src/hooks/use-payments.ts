@@ -2,11 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPayments } from '@/actions/payments/get-payments';
 import { getPayment } from '@/actions/payments/get-payment';
 import { createPayment } from '@/actions/payments/create-payment';
+import { createSplitPayment } from '@/actions/payments/create-split-payment';
 import { updatePayment } from '@/actions/payments/update-payment';
 import { deletePayment } from '@/actions/payments/delete-payment';
 import { getPaymentStats } from '@/actions/payments/get-payment-stats';
 import { bulkUpdatePayments, type BulkUpdatePaymentsInput } from '@/actions/payments/bulk-update-payments';
-import type { PaymentSearchParams, PaymentFormData } from '@/lib/validators/payment';
+import type { PaymentSearchParams, PaymentFormData, SplitPaymentFormData } from '@/lib/validators/payment';
 import { toast } from 'sonner';
 
 export function usePayments(params: PaymentSearchParams) {
@@ -104,6 +105,28 @@ export function useBulkUpdatePayments() {
             queryClient.invalidateQueries({ queryKey: ['payments'] });
             queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
             toast.success(result.message);
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+}
+
+export function useCreateSplitPayment() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (data: SplitPaymentFormData) => {
+            const result = await createSplitPayment(data);
+            if (result.error) throw new Error(result.error);
+            return result;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['payments'] });
+            queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['residents'] });
+            queryClient.invalidateQueries({ queryKey: ['invoices'] });
+            toast.success('Split payment created successfully');
         },
         onError: (error) => {
             toast.error(error.message);

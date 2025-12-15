@@ -281,7 +281,11 @@ export function useImport(id: string) {
 export function useImportRows(importId: string, params: ImportRowSearchParams = {}) {
   return useQuery({
     queryKey: ['import-rows', importId, params],
-    queryFn: () => getImportRows(importId, params),
+    queryFn: async () => {
+      const result = await getImportRows(importId, params);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
     enabled: !!importId,
   });
 }

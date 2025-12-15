@@ -75,7 +75,7 @@ export const paymentAliasFormSchema = z.object({
     .min(2, 'Alias name must be at least 2 characters')
     .max(100, 'Alias name must be at most 100 characters'),
   notes: z.string().optional().or(z.literal('')),
-  is_active: z.boolean().default(true),
+  is_active: z.boolean(),
 });
 
 export type PaymentAliasFormData = z.infer<typeof paymentAliasFormSchema>;
@@ -245,3 +245,48 @@ export const duplicateCheckSchema = z.object({
 });
 
 export type DuplicateCheckParams = z.infer<typeof duplicateCheckSchema>;
+
+// ============================================================
+// Transaction Tags Schemas
+// ============================================================
+
+export const transactionTagTypeEnum = z.enum(['credit', 'debit']);
+
+export const transactionTagColorEnum = z.enum([
+  'gray',
+  'blue',
+  'green',
+  'red',
+  'yellow',
+  'purple',
+  'orange',
+]);
+
+export const transactionTagFormSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'Name is required')
+    .max(50, 'Name must be at most 50 characters'),
+  transaction_type: transactionTagTypeEnum,
+  description: z.string().optional().or(z.literal('')),
+  color: transactionTagColorEnum.optional().default('gray'),
+  is_active: z.boolean().optional().default(true),
+  sort_order: z.coerce.number().int().min(0).optional().default(0),
+});
+
+export type TransactionTagFormData = z.infer<typeof transactionTagFormSchema>;
+
+export const transactionTagSearchSchema = z.object({
+  transaction_type: transactionTagTypeEnum.optional(),
+  is_active: z.boolean().optional(),
+});
+
+export type TransactionTagSearchParams = z.infer<typeof transactionTagSearchSchema>;
+
+// Tag Import Row Schema (for tagging rows during import review)
+export const tagImportRowSchema = z.object({
+  row_id: z.string().uuid('Row ID is required'),
+  tag_id: z.string().uuid('Tag ID is required').nullable(),
+});
+
+export type TagImportRowFormData = z.infer<typeof tagImportRowSchema>;

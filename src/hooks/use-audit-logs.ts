@@ -50,6 +50,7 @@ export function useEntityAuditLogs(
 
 /**
  * Hook to fetch audit statistics for dashboard display.
+ * Auto-refreshes every 30 seconds to show real-time activity.
  */
 export function useAuditStats() {
   return useQuery({
@@ -59,6 +60,7 @@ export function useAuditStats() {
       if (result.error) throw new Error(result.error);
       return result.data;
     },
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 }
 

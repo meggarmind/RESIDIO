@@ -5,6 +5,40 @@ import { createMatcher, type ResidentMatchData } from '@/lib/matching';
 import type { BankStatementRow, MatchConfidence, MatchMethod, ResidentPaymentAlias } from '@/types/database';
 
 // ============================================================
+// Retry Helper with Exponential Backoff
+// ============================================================
+
+interface QueryResult<T> {
+  data: T | null;
+  error: { message: string } | null;
+}
+
+async function fetchWithRetry<T>(
+  queryFn: () => Promise<QueryResult<T>>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 1000
+): Promise<QueryResult<T>> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const result = await queryFn();
+    if (!result.error) {
+      return result;
+    }
+
+    console.warn(`Query attempt ${attempt + 1}/${maxRetries} failed:`, result.error.message);
+
+    if (attempt < maxRetries - 1) {
+      const delay = baseDelayMs * Math.pow(2, attempt); // 1s, 2s, 4s
+      await new Promise(resolve => setTimeout(resolve, delay));
+    } else {
+      return result; // Return last error after all retries exhausted
+    }
+  }
+
+  // This shouldn't be reached but TypeScript needs it
+  return { data: null, error: { message: 'Unknown error after retries' } };
+}
+
+// ============================================================
 // Response Types
 // ============================================================
 
@@ -61,41 +95,75 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
     };
   }
 
-  // Load matching data
+  // Load matching data with retry logic for transient network errors
   const [residentsResult, aliasesResult, housesResult] = await Promise.all([
-    supabase
-      .from('residents')
-      .select('id, first_name, last_name, resident_code, phone, email')
-      .eq('is_active', true),
-    supabase
-      .from('resident_payment_aliases')
-      .select(`
-        *,
-        resident:residents(id, first_name, last_name, resident_code)
-      `)
-      .eq('is_active', true),
-    supabase
-      .from('houses')
-      .select(`
-        id,
-        house_number,
-        resident_houses(resident_id, is_active)
-      `)
-      .eq('is_active', true),
+    fetchWithRetry(async () =>
+      supabase
+        .from('residents')
+        .select('id, first_name, last_name, resident_code, phone_primary, email')
+        .eq('account_status', 'active')
+    ),
+    fetchWithRetry(async () =>
+      supabase
+        .from('resident_payment_aliases')
+        .select(`
+          *,
+          resident:residents(id, first_name, last_name, resident_code)
+        `)
+        .eq('is_active', true)
+    ),
+    fetchWithRetry(async () =>
+      supabase
+        .from('houses')
+        .select(`
+          id,
+          house_number,
+          resident_houses(resident_id, is_active)
+        `)
+        .eq('is_active', true)
+    ),
   ]);
 
   if (residentsResult.error || aliasesResult.error || housesResult.error) {
+    // Log actual errors for debugging
+    if (residentsResult.error) {
+      console.error('Failed to load residents:', residentsResult.error.message);
+    }
+    if (aliasesResult.error) {
+      console.error('Failed to load aliases:', aliasesResult.error.message);
+    }
+    if (housesResult.error) {
+      console.error('Failed to load houses:', housesResult.error.message);
+    }
+
+    // Build descriptive error message
+    const errors = [
+      residentsResult.error ? `residents: ${residentsResult.error.message}` : null,
+      aliasesResult.error ? `aliases: ${aliasesResult.error.message}` : null,
+      housesResult.error ? `houses: ${housesResult.error.message}` : null,
+    ].filter(Boolean);
+
     return {
       results: [],
       matched_count: 0,
       unmatched_count: 0,
-      error: 'Failed to load matching data',
+      error: `Failed to load matching data: ${errors.join(', ')}`,
     };
   }
 
+  // Map database fields to matcher interface (phone_primary -> phone)
+  const residentsForMatcher = (residentsResult.data || []).map((r: { id: string; first_name: string; last_name: string; resident_code: string; phone_primary?: string | null; email?: string | null }) => ({
+    id: r.id,
+    first_name: r.first_name,
+    last_name: r.last_name,
+    resident_code: r.resident_code,
+    phone: r.phone_primary,
+    email: r.email,
+  }));
+
   // Create matcher
   const matcher = createMatcher(
-    residentsResult.data as ResidentMatchData[],
+    residentsForMatcher as ResidentMatchData[],
     aliasesResult.data as Array<ResidentPaymentAlias & { resident: ResidentMatchData }>,
     housesResult.data as Array<{ id: string; house_number: string; resident_houses: Array<{ resident_id: string; is_active: boolean }> }>
   );

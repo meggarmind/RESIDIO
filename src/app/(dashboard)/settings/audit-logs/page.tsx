@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AuditFilters, AuditLogsTable } from '@/components/audit';
+import { AuditFilters, AuditLogsTable, AuditExportButton } from '@/components/audit';
 import { useAuditLogs, useAuditStats } from '@/hooks/use-audit-logs';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { AuditAction, AuditEntityType } from '@/types/database';
@@ -33,6 +33,20 @@ export default function AuditLogsPage() {
     setFilters(newFilters);
     setPage(1); // Reset to first page when filters change
   };
+
+  const handleClearFilters = () => {
+    setFilters({});
+    setPage(1);
+  };
+
+  const hasActiveFilters = !!(
+    filters.entityType ||
+    filters.action ||
+    filters.actorId ||
+    filters.startDate ||
+    filters.endDate ||
+    filters.search
+  );
 
   return (
     <div className="space-y-6">
@@ -110,10 +124,15 @@ export default function AuditLogsPage() {
       {/* Logs Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Audit Trail</CardTitle>
-          <CardDescription>
-            {logsData?.total ? `${logsData.total} total entries` : 'Loading...'}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Audit Trail</CardTitle>
+              <CardDescription>
+                {logsData?.total ? `${logsData.total} total entries` : 'Loading...'}
+              </CardDescription>
+            </div>
+            <AuditExportButton filters={filters} />
+          </div>
         </CardHeader>
         <CardContent>
           <AuditLogsTable
@@ -123,6 +142,8 @@ export default function AuditLogsPage() {
             page={page}
             limit={limit}
             onPageChange={setPage}
+            onClearFilters={handleClearFilters}
+            hasFilters={hasActiveFilters}
           />
         </CardContent>
       </Card>

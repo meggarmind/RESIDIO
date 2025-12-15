@@ -211,6 +211,16 @@ await logAudit({
 - Audit logging is fail-safe - won't break main operations if logging fails
 - Only admin/chairman can view audit logs at `/settings/audit-logs`
 
+**Null Actor Handling**:
+- Audit logs use `ON DELETE SET NULL` for `actor_id`, so deleted profiles don't break audit trail
+- The `AuditLogWithActor` type has `actor` as nullable: `actor: {...} | null`
+- Always use optional chaining when displaying actor details:
+  ```typescript
+  log.actor?.full_name || 'Unknown'
+  log.actor?.email || 'N/A'
+  ```
+- UI displays "Unknown" for entries where the actor profile was deleted
+
 ### Supabase Client Configuration
 
 The app supports local and cloud Supabase via `NEXT_PUBLIC_ENV_MODE`:

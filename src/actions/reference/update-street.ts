@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { logAudit, getChangedValues } from '@/lib/audit/logger';
 import type { Street } from '@/types/database';
 import type { StreetFormData } from '@/lib/validators/house';
 
@@ -19,6 +20,27 @@ export async function updateStreet(id: string, formData: StreetFormData): Promis
         return { data: null, error: 'Unauthorized' };
     }
 
+    // Fetch current street for change tracking
+    const { data: currentStreet } = await supabase
+        .from('streets')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+    // If attempting to deactivate, check for mapped houses
+    if (formData.is_active === false && currentStreet?.is_active === true) {
+        const { data: houses } = await supabase
+            .from('houses')
+            .select('id')
+            .eq('street_id', id)
+            .eq('is_active', true)
+            .limit(1);
+
+        if (houses && houses.length > 0) {
+            return { data: null, error: 'Cannot deactivate a street with mapped houses' };
+        }
+    }
+
     // Update
     const { data, error } = await supabase
         .from('streets')
@@ -26,6 +48,7 @@ export async function updateStreet(id: string, formData: StreetFormData): Promis
             name: formData.name,
             short_name: formData.short_name || null,
             description: formData.description || null,
+            is_active: formData.is_active ?? true,
             updated_at: new Date().toISOString(),
         })
         .eq('id', id)
@@ -34,6 +57,19 @@ export async function updateStreet(id: string, formData: StreetFormData): Promis
 
     if (error) {
         return { data: null, error: error.message };
+    }
+
+    // Audit logging
+    if (currentStreet && data) {
+        const changes = getChangedValues(currentStreet, data);
+        await logAudit({
+            action: 'UPDATE',
+            entityType: 'streets',
+            entityId: id,
+            entityDisplay: data.name,
+            oldValues: changes.old,
+            newValues: changes.new,
+        });
     }
 
     revalidatePath('/houses');

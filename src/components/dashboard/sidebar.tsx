@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck } from 'lucide-react';
+import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart } from 'lucide-react';
 import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
 
@@ -41,6 +41,12 @@ const navItems: NavItem[] = [
     roles: ['admin', 'chairman', 'financial_secretary'],
   },
   {
+    title: 'Import Statement',
+    href: '/payments/import',
+    icon: Upload,
+    roles: ['admin', 'chairman', 'financial_secretary'],
+  },
+  {
     title: 'Billing',
     href: '/billing',
     icon: Receipt,
@@ -51,6 +57,12 @@ const navItems: NavItem[] = [
     href: '/security',
     icon: Shield,
     roles: ['admin', 'chairman', 'security_officer'],
+  },
+  {
+    title: 'Reports',
+    href: '/reports/financial-overview',
+    icon: FileBarChart,
+    roles: ['admin', 'chairman', 'financial_secretary'],
   },
   {
     title: 'Approvals',

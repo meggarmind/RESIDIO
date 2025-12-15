@@ -2,16 +2,16 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { paymentFormSchema } from '@/lib/validators/payment'
-import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { creditWallet, allocateWalletToInvoices } from '@/actions/billing/wallet'
 import { logAudit } from '@/lib/audit/logger'
 import type { PaymentRecord } from '@/types/database'
 
-// Extended schema to include import tracking fields
+// Extended schema to include import tracking fields and house association
 const extendedPaymentSchema = paymentFormSchema.extend({
     import_id: z.string().uuid().optional(),
     import_row_id: z.string().uuid().optional(),
+    split_payment_group_id: z.string().uuid().optional().nullable(),
 })
 
 export type CreatePaymentInput = z.infer<typeof extendedPaymentSchema>
@@ -43,6 +43,8 @@ export async function createPayment(data: CreatePaymentInput): Promise<CreatePay
     // Create payment record
     const { data: paymentRecord, error } = await supabase.from('payment_records').insert({
         resident_id: result.data.resident_id,
+        house_id: result.data.house_id,
+        split_payment_group_id: result.data.split_payment_group_id,
         amount: result.data.amount,
         payment_date: result.data.payment_date.toISOString(),
         status: 'paid', // Payments are always "paid" - they represent received funds
@@ -73,8 +75,8 @@ export async function createPayment(data: CreatePaymentInput): Promise<CreatePay
         console.error('Failed to credit wallet:', creditResult.error)
     }
 
-    // Auto-allocate wallet to unpaid invoices
-    const allocateResult = await allocateWalletToInvoices(result.data.resident_id)
+    // Auto-allocate wallet to unpaid invoices (prioritize house if specified)
+    const allocateResult = await allocateWalletToInvoices(result.data.resident_id, result.data.house_id)
     if (allocateResult.success && allocateResult.invoicesPaid > 0) {
         console.log(`[Payment] Auto-allocated ₦${allocateResult.totalAllocated} to ${allocateResult.invoicesPaid} invoices`)
     }
@@ -86,23 +88,35 @@ export async function createPayment(data: CreatePaymentInput): Promise<CreatePay
         .eq('id', result.data.resident_id)
         .single()
 
+    // Get house info if provided
+    let houseInfo = ''
+    if (result.data.house_id) {
+        const { data: house } = await supabase
+            .from('houses')
+            .select('house_number, street:streets(name)')
+            .eq('id', result.data.house_id)
+            .single()
+        if (house) {
+            houseInfo = ` for ${house.house_number}`
+        }
+    }
+
     // Audit log
     await logAudit({
         action: 'CREATE',
         entityType: 'payments',
         entityId: paymentRecord.id,
-        entityDisplay: `Payment ₦${result.data.amount.toLocaleString()} for ${resident?.first_name} ${resident?.last_name}`,
+        entityDisplay: `Payment ₦${result.data.amount.toLocaleString()}${houseInfo} for ${resident?.first_name} ${resident?.last_name}`,
         newValues: {
             amount: result.data.amount,
+            house_id: result.data.house_id,
             method: result.data.method,
             reference_number: result.data.reference_number,
             from_import: !!result.data.import_id,
+            is_split_payment: !!result.data.split_payment_group_id,
         },
     })
 
-    revalidatePath('/payments')
-    revalidatePath('/billing')
-    revalidatePath(`/residents/${result.data.resident_id}`)
     return { success: true, data: paymentRecord as PaymentRecord }
 }
 

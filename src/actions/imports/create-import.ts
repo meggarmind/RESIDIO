@@ -108,6 +108,33 @@ export async function createImport(params: CreateImportParams): Promise<CreateIm
 }
 
 // ============================================================
+// Retry Helper with Exponential Backoff
+// ============================================================
+
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      console.warn(`Retry attempt ${attempt + 1}/${maxRetries} failed:`, lastError.message);
+      if (attempt < maxRetries - 1) {
+        const delay = baseDelayMs * Math.pow(2, attempt); // 1s, 2s, 4s
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+// ============================================================
 // Create Import Rows (Batch)
 // ============================================================
 
@@ -144,12 +171,19 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
 
   for (let i = 0; i < dbRows.length; i += batchSize) {
     const batch = dbRows.slice(i, i + batchSize);
-    const { error } = await supabase.from('bank_statement_rows').insert(batch);
 
-    if (error) {
+    try {
+      // Retry with exponential backoff for transient network errors
+      await retryWithBackoff(async () => {
+        const { error } = await supabase.from('bank_statement_rows').insert(batch);
+        if (error) {
+          throw new Error(error.message);
+        }
+      });
+    } catch (err) {
       return {
         count: totalInserted,
-        error: `Failed to insert rows ${i + 1}-${i + batch.length}: ${error.message}`,
+        error: `Failed to insert rows ${i + 1}-${i + batch.length} after 3 retries: ${err instanceof Error ? err.message : 'Unknown error'}`,
       };
     }
 

@@ -246,22 +246,58 @@ export async function debitWalletForInvoice(
 
 /**
  * Allocate wallet balance to all unpaid invoices (FIFO by due_date)
+ * If priorityHouseId is provided, prioritize invoices for that house first
  */
 export async function allocateWalletToInvoices(
-    residentId: string
+    residentId: string,
+    priorityHouseId?: string | null
 ): Promise<{ success: boolean; invoicesPaid: number; totalAllocated: number; error: string | null }> {
     const supabase = await createServerSupabaseClient();
 
     let invoicesPaid = 0;
     let totalAllocated = 0;
 
-    // Get unpaid invoices ordered by due_date (FIFO)
-    const { data: invoices, error: invoicesError } = await supabase
+    // If priority house provided, get those invoices first
+    if (priorityHouseId) {
+        const { data: priorityInvoices, error: priorityError } = await supabase
+            .from('invoices')
+            .select('id, amount_due, amount_paid, invoice_number')
+            .eq('resident_id', residentId)
+            .eq('house_id', priorityHouseId)
+            .in('status', ['unpaid', 'partially_paid'])
+            .order('due_date', { ascending: true });
+
+        if (!priorityError && priorityInvoices && priorityInvoices.length > 0) {
+            for (const invoice of priorityInvoices) {
+                const result = await debitWalletForInvoice(residentId, invoice.id);
+                if (result.success && result.amountDebited > 0) {
+                    invoicesPaid++;
+                    totalAllocated += result.amountDebited;
+                    console.log(`[Wallet] Allocated ₦${result.amountDebited} to priority house invoice ${invoice.invoice_number}`);
+                }
+
+                // Check if wallet is now empty
+                const { data: wallet } = await getOrCreateWallet(residentId);
+                if (!wallet || wallet.balance <= 0) {
+                    return { success: true, invoicesPaid, totalAllocated, error: null };
+                }
+            }
+        }
+    }
+
+    // Get all remaining unpaid invoices (excluding priority house if provided)
+    let query = supabase
         .from('invoices')
         .select('id, amount_due, amount_paid')
         .eq('resident_id', residentId)
-        .in('status', ['unpaid', 'partially_paid'])
-        .order('due_date', { ascending: true });
+        .in('status', ['unpaid', 'partially_paid']);
+
+    // Exclude priority house invoices (already processed)
+    if (priorityHouseId) {
+        query = query.neq('house_id', priorityHouseId);
+    }
+
+    const { data: invoices, error: invoicesError } = await query.order('due_date', { ascending: true });
 
     if (invoicesError) {
         return { success: false, invoicesPaid: 0, totalAllocated: 0, error: invoicesError.message };

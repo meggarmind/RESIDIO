@@ -2,7 +2,6 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { paymentFormSchema } from '@/lib/validators/payment';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 const updatePaymentSchema = paymentFormSchema.partial();
@@ -25,6 +24,5 @@ export async function updatePayment(id: string, data: z.infer<typeof updatePayme
         return { error: error.message };
     }
 
-    revalidatePath('/payments');
     return { success: true };
 }

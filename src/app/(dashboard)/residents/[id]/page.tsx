@@ -15,8 +15,9 @@ import { WalletBalance } from '@/components/residents/wallet-balance';
 import { WalletTransactions } from '@/components/residents/wallet-transactions';
 import { useResidentIndebtedness } from '@/hooks/use-billing';
 import { ResidentSecurityContacts } from '@/components/residents/resident-security-contacts';
+import { PaymentAliases } from '@/components/residents/payment-aliases';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, CreditCard, AlertTriangle, Receipt, Shield } from 'lucide-react';
+import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, CreditCard, AlertTriangle, Receipt, Shield, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ResidentDetailPageProps {
@@ -162,6 +163,10 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
+          <TabsTrigger value="aliases">
+            <UserCheck className="h-4 w-4 mr-1" />
+            Aliases
+          </TabsTrigger>
           <TabsTrigger value="security">
             <Shield className="h-4 w-4 mr-1" />
             Security
@@ -337,6 +342,13 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
 
         <TabsContent value="payments" className="mt-6">
           <ResidentPayments residentId={id} />
+        </TabsContent>
+
+        <TabsContent value="aliases" className="mt-6">
+          <PaymentAliases
+            residentId={id}
+            residentName={`${resident.first_name} ${resident.last_name}`}
+          />
         </TabsContent>
 
         <TabsContent value="security" className="mt-6">

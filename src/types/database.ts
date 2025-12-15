@@ -166,7 +166,8 @@ export type AuditEntityType =
   | 'system_settings'
   | 'bank_statement_imports'
   | 'resident_payment_aliases'
-  | 'estate_bank_accounts';
+  | 'estate_bank_accounts'
+  | 'transaction_tags';
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -205,6 +206,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   bank_statement_imports: 'Bank Statement Import',
   resident_payment_aliases: 'Payment Alias',
   estate_bank_accounts: 'Estate Bank Account',
+  transaction_tags: 'Transaction Tag',
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -456,15 +458,26 @@ export interface Database {
         Row: {
           id: string;
           resident_id: string;
+          house_id: string | null;
+          split_payment_group_id: string | null;
           amount: number;
           payment_date: string;
           period_start: string;
           period_end: string;
           status: 'paid' | 'pending' | 'failed';
           reference: string | null;
+          import_id: string | null;
+          import_row_id: string | null;
+          method: string | null;
+          notes: string | null;
           created_at: string;
+          updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['payment_records']['Row'], 'id' | 'created_at'>;
+        Insert: Omit<Database['public']['Tables']['payment_records']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          house_id?: string | null;
+          split_payment_group_id?: string | null;
+        };
         Update: Partial<Database['public']['Tables']['payment_records']['Insert']>;
       };
 
@@ -629,6 +642,25 @@ export type HouseOwnershipHistoryUpdate = Database['public']['Tables']['house_ow
 export type PaymentRecord = Database['public']['Tables']['payment_records']['Row'];
 export type PaymentRecordInsert = Database['public']['Tables']['payment_records']['Insert'];
 export type PaymentRecordUpdate = Database['public']['Tables']['payment_records']['Update'];
+
+// Payment with joined house and resident details
+export interface PaymentRecordWithDetails extends PaymentRecord {
+  resident: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    resident_code: string;
+    entity_type: EntityType;
+    company_name: string | null;
+  };
+  house?: {
+    id: string;
+    house_number: string;
+    street: {
+      name: string;
+    };
+  } | null;
+}
 
 // Phase 6: Security Contact type aliases
 export type SecurityContactCategory = Database['public']['Tables']['security_contact_categories']['Row'];
@@ -850,7 +882,7 @@ export interface AuditLogWithActor extends AuditLog {
     full_name: string;
     email: string;
     role: UserRole;
-  };
+  } | null; // Nullable to handle deleted profiles (ON DELETE SET NULL)
 }
 
 // Phase 6: Security Contact Joined Types
@@ -1076,6 +1108,10 @@ export interface BankStatementRow {
   payment_id: string | null;
   error_message: string | null;
   created_at: string;
+  // Transaction tag fields
+  tag_id: string | null;
+  tagged_by: string | null;
+  tagged_at: string | null;
 }
 
 // Bank Statement Import with related data
@@ -1143,4 +1179,58 @@ export interface MatchResult {
   confidence: MatchConfidence;
   method: MatchMethod | null;
   matchedValue: string | null; // The value that matched (e.g., alias name, phone number)
+}
+
+// ============================================================
+// Transaction Tags (for categorizing imported bank statement rows)
+// ============================================================
+
+export type TransactionTagType = 'credit' | 'debit';
+
+export type TransactionTagColor = 'gray' | 'blue' | 'green' | 'red' | 'yellow' | 'purple' | 'orange';
+
+export const TRANSACTION_TAG_TYPE_LABELS: Record<TransactionTagType, string> = {
+  credit: 'Credit (Incoming)',
+  debit: 'Debit (Outgoing)',
+};
+
+export const TRANSACTION_TAG_COLOR_LABELS: Record<TransactionTagColor, string> = {
+  gray: 'Gray',
+  blue: 'Blue',
+  green: 'Green',
+  red: 'Red',
+  yellow: 'Yellow',
+  purple: 'Purple',
+  orange: 'Orange',
+};
+
+export interface TransactionTag {
+  id: string;
+  name: string;
+  transaction_type: TransactionTagType;
+  description: string | null;
+  color: TransactionTagColor;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// For creating/updating tags
+export interface TransactionTagInsert {
+  name: string;
+  transaction_type: TransactionTagType;
+  description?: string | null;
+  color?: TransactionTagColor;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+export interface TransactionTagUpdate {
+  name?: string;
+  transaction_type?: TransactionTagType;
+  description?: string | null;
+  color?: TransactionTagColor;
+  is_active?: boolean;
+  sort_order?: number;
 }

@@ -1,7 +1,6 @@
 'use server'
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
 
 export async function deletePayment(id: string) {
     const supabase = await createServerSupabaseClient();
@@ -15,6 +14,5 @@ export async function deletePayment(id: string) {
         return { error: error.message };
     }
 
-    revalidatePath('/payments');
     return { success: true };
 }

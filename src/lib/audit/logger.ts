@@ -1,10 +1,8 @@
-'use server';
-
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import type { AuditAction, AuditEntityType, AuditLogInsert } from '@/types/database';
 
-// NOTE: Helper functions (getChangedFields, getChangedValues, formatChangeDescription)
-// are now in '@/lib/audit/helpers' - import them directly from there.
+// Re-export helper functions for backwards compatibility
+export { getChangedValues, getChangedFields, formatChangeDescription } from './helpers';
 
 interface LogAuditOptions {
   action: AuditAction;
@@ -56,6 +54,7 @@ interface LogAuditOptions {
  * });
  */
 export async function logAudit(options: LogAuditOptions): Promise<void> {
+  'use server';
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();

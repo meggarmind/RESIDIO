@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useStreets, useUpdateStreet, useDuplicateStreet } from '@/hooks/use-reference';
+import { useStreets, useUpdateStreet, useDuplicateStreet, useDeleteStreet } from '@/hooks/use-reference';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -20,27 +20,44 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { createStreet } from '@/actions/reference/create-street';
 import { toast } from 'sonner';
-import { Plus, Loader2, Pencil, Copy } from 'lucide-react';
+import { Plus, Loader2, Pencil, Copy, Trash2 } from 'lucide-react';
 import type { Street } from '@/types/database';
 
 export function StreetsList() {
     const { data: streetsData, isLoading, refetch } = useStreets();
     const updateMutation = useUpdateStreet();
     const duplicateMutation = useDuplicateStreet();
+    const deleteMutation = useDeleteStreet();
 
     // Dialog state
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Delete confirmation dialog state
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [streetToDelete, setStreetToDelete] = useState<Street | null>(null);
 
     // Form state
     const [editingId, setEditingId] = useState<string | null>(null);
     const [formName, setFormName] = useState('');
     const [formShortName, setFormShortName] = useState('');
     const [formDesc, setFormDesc] = useState('');
+    const [formIsActive, setFormIsActive] = useState(true);
 
     const isEditing = editingId !== null;
 
@@ -49,6 +66,7 @@ export function StreetsList() {
         setFormName('');
         setFormShortName('');
         setFormDesc('');
+        setFormIsActive(true);
     };
 
     const openCreateDialog = () => {
@@ -61,6 +79,7 @@ export function StreetsList() {
         setFormName(street.name);
         setFormShortName(street.short_name || '');
         setFormDesc(street.description || '');
+        setFormIsActive(street.is_active);
         setIsDialogOpen(true);
     };
 
@@ -85,6 +104,7 @@ export function StreetsList() {
                         name: formName,
                         short_name: formShortName || undefined,
                         description: formDesc || undefined,
+                        is_active: formIsActive,
                     }
                 });
                 setIsDialogOpen(false);
@@ -118,6 +138,18 @@ export function StreetsList() {
 
     const handleDuplicate = async (id: string) => {
         await duplicateMutation.mutateAsync(id);
+    };
+
+    const openDeleteDialog = (street: Street) => {
+        setStreetToDelete(street);
+        setDeleteDialogOpen(true);
+    };
+
+    const handleDelete = async () => {
+        if (!streetToDelete) return;
+        await deleteMutation.mutateAsync(streetToDelete.id);
+        setDeleteDialogOpen(false);
+        setStreetToDelete(null);
     };
 
     return (
@@ -182,6 +214,23 @@ export function StreetsList() {
                                         placeholder="Optional details"
                                     />
                                 </div>
+                                {isEditing && (
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="is_active" className="text-right">
+                                            Active
+                                        </Label>
+                                        <div className="col-span-3 flex items-center gap-2">
+                                            <Switch
+                                                id="is_active"
+                                                checked={formIsActive}
+                                                onCheckedChange={setFormIsActive}
+                                            />
+                                            <span className="text-sm text-muted-foreground">
+                                                {formIsActive ? 'Street is active' : 'Street is inactive'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <DialogFooter>
                                 <Button type="submit" disabled={isSubmitting || updateMutation.isPending}>
@@ -256,6 +305,15 @@ export function StreetsList() {
                                             >
                                                 <Copy className="h-4 w-4" />
                                             </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                                onClick={() => openDeleteDialog(street)}
+                                                disabled={deleteMutation.isPending}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -264,6 +322,33 @@ export function StreetsList() {
                     </TableBody>
                 </Table>
             </div>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Street</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete &quot;{streetToDelete?.name}&quot;? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setStreetToDelete(null)}>
+                            Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDelete}
+                            disabled={deleteMutation.isPending}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            {deleteMutation.isPending && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

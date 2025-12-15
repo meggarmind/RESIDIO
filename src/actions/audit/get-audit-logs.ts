@@ -58,12 +58,12 @@ export async function getAuditLogs(
     limit = 50,
   } = params;
 
-  // Build query with actor profile join
+  // Build query with actor profile join (LEFT JOIN to handle null actors)
   let query = supabase
     .from('audit_logs')
     .select(`
       *,
-      actor:profiles!actor_id(id, full_name, email, role)
+      actor:profiles(id, full_name, email, role)
     `, { count: 'exact' });
 
   // Apply filters

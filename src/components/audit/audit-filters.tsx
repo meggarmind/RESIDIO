@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { CalendarIcon, Search, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import {
@@ -100,8 +101,43 @@ export function AuditFilters({ onFiltersChange }: AuditFiltersProps) {
     setEndDate(now);
   };
 
+  // Quick action filters
+  const quickActionFilters: Array<{ label: string; action: string }> = [
+    { label: 'All Actions', action: ALL_VALUE },
+    { label: 'Creates', action: 'CREATE' },
+    { label: 'Updates', action: 'UPDATE' },
+    { label: 'Deletes', action: 'DELETE' },
+    { label: 'Approvals', action: 'APPROVE' },
+  ];
+
+  const handleQuickActionFilter = (actionValue: string) => {
+    setAction(actionValue);
+    onFiltersChange({
+      entityType: entityType === ALL_VALUE ? undefined : (entityType as AuditEntityType),
+      action: actionValue === ALL_VALUE ? undefined : (actionValue as AuditAction),
+      actorId: actorId === ALL_VALUE ? undefined : actorId,
+      startDate: startDate ? startDate.toISOString() : undefined,
+      endDate: endDate ? endDate.toISOString() : undefined,
+      search: search || undefined,
+    });
+  };
+
   return (
     <div className="space-y-4">
+      {/* Quick action filter chips */}
+      <div className="flex flex-wrap items-center gap-2">
+        {quickActionFilters.map((filter) => (
+          <Badge
+            key={filter.label}
+            variant={action === filter.action ? 'default' : 'outline'}
+            className="cursor-pointer hover:bg-accent transition-colors"
+            onClick={() => handleQuickActionFilter(filter.action)}
+          >
+            {filter.label}
+          </Badge>
+        ))}
+      </div>
+
       {/* Search and quick date presets */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[200px]">

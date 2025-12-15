@@ -5,6 +5,7 @@ export const paymentMethodEnum = z.enum(['cash', 'bank_transfer', 'pos', 'cheque
 
 export const paymentFormSchema = z.object({
     resident_id: z.string().uuid('Resident is required'),
+    house_id: z.string().uuid().optional().nullable(),
     amount: z.number().positive('Amount must be positive'),
     payment_date: z.date(),
     status: paymentStatusEnum,
@@ -16,6 +17,28 @@ export const paymentFormSchema = z.object({
 });
 
 export type PaymentFormData = z.infer<typeof paymentFormSchema>;
+
+// Schema for creating split payments across multiple houses
+export const splitPaymentSchema = z.object({
+    resident_id: z.string().uuid('Resident is required'),
+    total_amount: z.number().positive('Total amount must be positive'),
+    payment_date: z.date(),
+    method: paymentMethodEnum.optional().nullable(),
+    reference_number: z.string().optional().or(z.literal('')),
+    notes: z.string().optional().or(z.literal('')),
+    splits: z.array(z.object({
+        house_id: z.string().uuid('House is required'),
+        amount: z.number().positive('Amount must be positive'),
+    })).min(1, 'At least one house must be selected'),
+}).refine(
+    (data) => {
+        const splitTotal = data.splits.reduce((sum, s) => sum + s.amount, 0);
+        return Math.abs(splitTotal - data.total_amount) < 0.01; // Allow 1 kobo rounding
+    },
+    { message: 'Split amounts must equal total amount' }
+);
+
+export type SplitPaymentFormData = z.infer<typeof splitPaymentSchema>;
 
 export const paymentSearchSchema = z.object({
     status: paymentStatusEnum.optional(),

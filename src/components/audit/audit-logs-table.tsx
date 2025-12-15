@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   Table,
   TableBody,
@@ -12,7 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import {
   AUDIT_ACTION_LABELS,
@@ -29,6 +30,8 @@ interface AuditLogsTableProps {
   page: number;
   limit: number;
   onPageChange: (page: number) => void;
+  onClearFilters?: () => void;
+  hasFilters?: boolean;
 }
 
 // Get badge variant based on action type
@@ -60,6 +63,8 @@ export function AuditLogsTable({
   page,
   limit,
   onPageChange,
+  onClearFilters,
+  hasFilters = false,
 }: AuditLogsTableProps) {
   const [selectedLog, setSelectedLog] = useState<AuditLogWithActor | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -108,11 +113,19 @@ export function AuditLogsTable({
 
   if (!logs || logs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="text-muted-foreground">No audit logs found</div>
-        <p className="text-sm text-muted-foreground mt-1">
-          Try adjusting your filters or check back later
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <FileText className="h-12 w-12 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-medium">No audit logs found</h3>
+        <p className="text-sm text-muted-foreground mt-2 max-w-md">
+          {hasFilters
+            ? 'Try adjusting your filters or date range to see more results'
+            : 'Audit logs will appear here as actions are performed in the system'}
         </p>
+        {hasFilters && onClearFilters && (
+          <Button variant="outline" size="sm" onClick={onClearFilters} className="mt-4">
+            Clear Filters
+          </Button>
+        )}
       </div>
     );
   }
@@ -158,7 +171,17 @@ export function AuditLogsTable({
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <div className="text-sm">{log.entity_display || 'N/A'}</div>
+                  {log.entity_id && (log.entity_type === 'residents' || log.entity_type === 'houses' || log.entity_type === 'payments' || log.entity_type === 'invoices') ? (
+                    <Link
+                      href={`/${log.entity_type}/${log.entity_id}`}
+                      className="text-sm hover:underline text-primary"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {log.entity_display || 'N/A'}
+                    </Link>
+                  ) : (
+                    <div className="text-sm">{log.entity_display || 'N/A'}</div>
+                  )}
                   <div className="text-xs text-muted-foreground">
                     {AUDIT_ENTITY_LABELS[log.entity_type]}
                   </div>

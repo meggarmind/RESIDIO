@@ -19,6 +19,7 @@ export const streetFormSchema = z.object({
   name: z.string().min(1, 'Street name is required'),
   short_name: z.string().max(50, 'Short name must be 50 characters or less').optional().or(z.literal('')),
   description: z.string().optional().or(z.literal('')),
+  is_active: z.boolean().optional(),
 });
 
 export type StreetFormData = z.infer<typeof streetFormSchema>;

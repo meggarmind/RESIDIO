@@ -172,7 +172,7 @@ export async function getImportRows(
     .select(`
       *,
       resident:residents(id, first_name, last_name, resident_code),
-      payment:payment_records(id, amount, status)
+      payment:payment_records!payment_id(id, amount, status)
     `, { count: 'exact' })
     .eq('import_id', import_id)
     .order('row_number');
