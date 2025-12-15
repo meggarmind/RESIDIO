@@ -1,8 +1,10 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { SecurityContactStatus, AccessCodeType } from '@/types/database';
 import { SECURITY_CONTACT_STATUS_LABELS, ACCESS_CODE_TYPE_LABELS } from '@/types/database';
+import { formatDateTime, getRelativeTimeDisplay } from '@/lib/utils';
 import { Clock, CheckCircle, AlertTriangle, XCircle, Key, KeyRound } from 'lucide-react';
 
 interface SecurityContactStatusBadgeProps {
@@ -61,16 +63,33 @@ export function AccessCodeTypeBadge({ type }: AccessCodeTypeBadgeProps) {
 
 interface ValidityBadgeProps {
   validUntil: string | null;
+  validFrom?: string | null;
   isActive: boolean;
 }
 
-export function ValidityBadge({ validUntil, isActive }: ValidityBadgeProps) {
+export function ValidityBadge({ validUntil, validFrom, isActive }: ValidityBadgeProps) {
+  const expiryDisplay = validUntil ? formatDateTime(validUntil) : null;
+  const fromDisplay = validFrom ? formatDateTime(validFrom) : null;
+  const relativeTime = validUntil ? getRelativeTimeDisplay(validUntil) : null;
+  const tooltipText = validUntil
+    ? (fromDisplay ? `Valid from ${fromDisplay} to ${expiryDisplay}` : `Expires: ${expiryDisplay}`)
+    : 'No expiry date';
+
   if (!isActive) {
     return (
-      <Badge variant="destructive" className="flex items-center">
-        <XCircle className="mr-1 h-3 w-3" />
-        Inactive
-      </Badge>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="destructive" className="flex items-center cursor-help">
+              <XCircle className="mr-1 h-3 w-3" />
+              Inactive
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{tooltipText}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 
@@ -85,31 +104,60 @@ export function ValidityBadge({ validUntil, isActive }: ValidityBadgeProps) {
 
   const now = new Date();
   const expiryDate = new Date(validUntil);
-  const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const diffMs = expiryDate.getTime() - now.getTime();
 
-  if (daysUntilExpiry < 0) {
+  if (diffMs < 0) {
     return (
-      <Badge variant="destructive" className="flex items-center">
-        <XCircle className="mr-1 h-3 w-3" />
-        Expired
-      </Badge>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="destructive" className="flex items-center cursor-help">
+              <XCircle className="mr-1 h-3 w-3" />
+              Expired
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Expired: {expiryDisplay}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 
+  // Show "Expiring Soon" if less than 7 days remaining
+  const daysUntilExpiry = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
   if (daysUntilExpiry <= 7) {
     return (
-      <Badge variant="outline" className="flex items-center text-yellow-600 border-yellow-600">
-        <AlertTriangle className="mr-1 h-3 w-3" />
-        Expiring Soon ({daysUntilExpiry}d)
-      </Badge>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className="flex items-center text-yellow-600 border-yellow-600 cursor-help">
+              <AlertTriangle className="mr-1 h-3 w-3" />
+              Expiring Soon ({relativeTime})
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{tooltipText}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 
   return (
-    <Badge variant="default" className="flex items-center">
-      <CheckCircle className="mr-1 h-3 w-3" />
-      Valid ({daysUntilExpiry}d)
-    </Badge>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="default" className="flex items-center cursor-help">
+            <CheckCircle className="mr-1 h-3 w-3" />
+            Valid ({relativeTime})
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{tooltipText}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 

@@ -17,7 +17,7 @@ This project uses a Notion-based mobile inbox for capturing development tasks. C
 Run this command to sync development tasks from Notion:
 
 ```bash
-cd /home/feyijimiohioma/mobile-first-notion-workflow && python3 residio_inbox_processor.py
+cd /home/feyijimiohioma/mobile-first-notion-workflow && source .env && python3 residio_inbox_processor.py
 ```
 
 ### Workflow Triggers
@@ -34,7 +34,7 @@ At the start of EVERY Claude Code session, perform these steps IN ORDER:
 
 1. **Run Notion Sync**:
    ```bash
-   cd /home/feyijimiohioma/mobile-first-notion-workflow && python3 residio_inbox_processor.py
+   cd /home/feyijimiohioma/mobile-first-notion-workflow && source .env && python3 residio_inbox_processor.py
    ```
    Display the full output to the user.
 

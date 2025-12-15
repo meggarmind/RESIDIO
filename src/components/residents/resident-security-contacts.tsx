@@ -202,7 +202,7 @@ export function ResidentSecurityContacts({ residentId }: ResidentSecurityContact
                       <div className="flex items-center gap-2 mt-2">
                         <AccessCodeDisplay code={activeCode.code} size="sm" />
                         <AccessCodeTypeBadge type={activeCode.code_type} />
-                        <ValidityBadge validUntil={activeCode.valid_until} isActive={activeCode.is_active} />
+                        <ValidityBadge validFrom={activeCode.valid_from} validUntil={activeCode.valid_until} isActive={activeCode.is_active} />
                       </div>
                     )}
                     {!activeCode && contact.status === 'active' && (

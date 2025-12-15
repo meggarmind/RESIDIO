@@ -15,8 +15,12 @@ const sidebarNavItems = [
         href: "/settings/security",
     },
     {
-        title: "References (House Types)",
-        href: "/settings/references",
+        title: "Streets",
+        href: "/settings/streets",
+    },
+    {
+        title: "House Types",
+        href: "/settings/house-types",
     },
     {
         title: "Transaction Tags",

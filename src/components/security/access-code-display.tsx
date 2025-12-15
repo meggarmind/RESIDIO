@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Copy, Check, Eye, EyeOff } from 'lucide-react';
 import { AccessCodeTypeBadge, ValidityBadge } from './security-badges';
+import { formatDateTime } from '@/lib/utils';
 import type { AccessCode } from '@/types/database';
 
 interface AccessCodeDisplayProps {
@@ -137,13 +138,13 @@ export function AccessCodeCard({ accessCode, onRevoke, onRegenerate }: AccessCod
       </div>
 
       <div className="mt-3 text-xs text-muted-foreground">
-        <p>Created: {new Date(accessCode.created_at).toLocaleDateString()}</p>
+        <p>Created: {formatDateTime(accessCode.created_at)}</p>
         {accessCode.max_uses !== null && (
           <p>Uses: {accessCode.current_uses} / {accessCode.max_uses}</p>
         )}
         {accessCode.revoked_at && (
           <p className="text-destructive">
-            Revoked: {new Date(accessCode.revoked_at).toLocaleDateString()}
+            Revoked: {formatDateTime(accessCode.revoked_at)}
           </p>
         )}
       </div>

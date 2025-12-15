@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { hasSecurityPermission } from './settings';
+import { formatDateTime } from '@/lib/utils';
 import type { SecurityContactFilters } from '@/lib/validators/security-contact';
 
 export interface ExportSecurityContactsResponse {
@@ -128,9 +129,9 @@ export async function exportSecurityContactsCSV(
       contact.next_of_kin_name || '',
       contact.next_of_kin_phone || '',
       activeCode?.code || '',
-      activeCode?.valid_until ? new Date(activeCode.valid_until).toLocaleDateString() : '',
+      activeCode?.valid_until ? formatDateTime(activeCode.valid_until) : '',
       contact.notes || '',
-      contact.created_at ? new Date(contact.created_at).toLocaleDateString() : '',
+      contact.created_at ? formatDateTime(contact.created_at) : '',
     ];
   });
 
@@ -232,8 +233,8 @@ export async function exportAccessLogsCSV(
       contact?.phone_primary || '',
       resident ? `${resident.first_name} ${resident.last_name}` : '',
       resident?.resident_code || '',
-      log.check_in_time ? new Date(log.check_in_time).toLocaleString() : '',
-      log.check_out_time ? new Date(log.check_out_time).toLocaleString() : '',
+      log.check_in_time ? formatDateTime(log.check_in_time) : '',
+      log.check_out_time ? formatDateTime(log.check_out_time) : '',
       log.gate_location || '',
       verifiedBy?.full_name || '',
       log.flagged ? 'Yes' : 'No',

@@ -6,6 +6,7 @@ import type { AccessCode, AccessCodeWithContact } from '@/types/database';
 import type { CreateAccessCodeData, RevokeAccessCodeData, VerifyAccessCodeData } from '@/lib/validators/security-contact';
 import { hasSecurityPermission } from './settings';
 import { logAudit } from '@/lib/audit/logger';
+import { formatDateTime } from '@/lib/utils';
 
 export interface AccessCodeResponse {
   data: AccessCode | null;
@@ -351,7 +352,7 @@ export async function verifyAccessCode(data: VerifyAccessCodeData): Promise<Veri
       data: accessCode as unknown as AccessCodeWithContact,
       valid: false,
       error: null,
-      reason: `Code not yet valid. Valid from: ${validFrom.toLocaleDateString()}`,
+      reason: `Code not yet valid. Valid from: ${formatDateTime(validFrom)}`,
     };
   }
 
@@ -360,7 +361,7 @@ export async function verifyAccessCode(data: VerifyAccessCodeData): Promise<Veri
       data: accessCode as unknown as AccessCodeWithContact,
       valid: false,
       error: null,
-      reason: `Code expired on ${validUntil.toLocaleDateString()}`,
+      reason: `Code expired on ${formatDateTime(validUntil)}`,
     };
   }
 
