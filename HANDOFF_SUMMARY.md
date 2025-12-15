@@ -1,111 +1,125 @@
 # Handoff Summary - Residio Project
 
-**Date:** 2025-12-13 07:00 WAT
-**Current Phase:** Phase 5.5 - Billing Profile Enhancements (In Progress)
-**Next Focus:** Complete validators, then server actions
+**Date:** 2025-12-15 01:30 WAT
+**Current Phase:** Phase 6 - Security Contact List (NEXT UP)
+**Last Completed:** Payment Page Scroll Fix (Phase 5.7)
 
 ---
 
 ## Session Goal
 
 This session focused on:
-1. Configuring one-time billing profiles (levies)
-2. Planning and starting implementation of billing profile enhancements:
-   - Billing profile edit UI
-   - Number of plots for houses (Development Levy calculation)
-   - Maker-checker workflow for sensitive changes
+1. **Investigating and fixing the payment page scroll jump issue**
+2. Root cause analysis of `revalidatePath()` causing full page re-renders
+3. Converting payment page from server component to client component
+4. Ensuring build passes and implementation is complete
 
 ---
 
 ## Key Decisions Made
 
-### One-Time Levies Configured
-| Levy | Amount | Target | Auto-Apply |
-|------|--------|--------|------------|
-| Development Levy | ₦500,000 × plots | House | Yes |
-| Transformer Levy | ₦30,000 | House | Yes |
-| Registration Fee | ₦10,000 | Resident (tenant, resident_landlord) | Yes |
-| Renovation Fee | ₦500,000 | House | No (manual only) |
+### Solution Approach
+**Converted payment page to client component pattern** (same as residents/houses pages)
+- Removed all `revalidatePath()` calls from payment server actions
+- Replaced server-side data fetching with React Query hooks
+- Added proper Suspense boundaries for `useSearchParams()`
+- Maintained URL-based filter persistence
 
-### Maker-Checker Workflow Design
-- **Maker**: financial_secretary creates change requests
-- **Checker**: chairman approves/rejects
-- **Auto-approve**: admin role bypasses workflow
-- **Triggers**:
-  - Billing profile effective_date changes that affect existing invoices
-  - House number_of_plots changes that affect existing Development Levy
-
-### Development Levy Calculation
-- Formula: ₦500,000 × number_of_plots
-- Only applies to landlord/developer roles (not tenants)
-- Shown as single line item on invoice
+### Why This Approach
+1. **Proven pattern**: Residents and houses pages already use this successfully
+2. **Minimal changes**: Only 5 files modified
+3. **Better UX**: Loading states, no scroll jumps, smooth updates
+4. **Maintainable**: Consistent architecture across all list pages
 
 ---
 
 ## Code Changes Made
 
-### Database Migrations Applied
-1. `add_number_of_plots_to_houses` - Added `number_of_plots` column (default: 1)
-2. `add_effective_date_to_billing_profiles` - Added `effective_date` column
-3. `create_approval_requests_table` - Full maker-checker workflow table with RLS
+### Files Modified (5 total)
 
-### Files Modified
-1. **`src/types/database.ts`**:
-   - Added `ApprovalStatus`, `ApprovalRequestType` types
-   - Added `ApprovalRequest`, `ApprovalRequestWithDetails` interfaces
-   - Updated `House` type with `number_of_plots`
-   - Updated `BillingProfile` type with `effective_date`
+1. **`src/actions/payments/delete-payment.ts`**:
+   - Removed `revalidatePath('/payments')` call (line 18)
+   - Removed unused import
 
-2. **`src/lib/validators/house.ts`**:
-   - Added `number_of_plots` field to `houseFormSchema`
+2. **`src/actions/payments/update-payment.ts`**:
+   - Removed `revalidatePath('/payments')` call (line 28)
+   - Removed unused import
 
-3. **`src/lib/validators/billing.ts`**:
-   - Added `effective_date` field to `baseBillingProfileSchema`
+3. **`src/actions/payments/create-payment.ts`**:
+   - Removed 3 `revalidatePath()` calls (lines 103-105)
+   - Removed unused import
+   - Note: File also has new fields for house association and split payments (from concurrent session)
 
-### Database Records Created
-- 4 one-time billing profiles with billing items
-- Transformer Levy amount corrected to ₦30,000
+4. **`src/actions/payments/bulk-update-payments.ts`**:
+   - Removed `revalidatePath('/payments')` call (line 46)
+   - Removed unused import
+
+5. **`src/app/(dashboard)/payments/page.tsx`** - Complete rewrite:
+   - Added `'use client'` directive
+   - Wrapped in `Suspense` boundary
+   - Converted from `async` server component to regular client component
+   - Replaced `searchParams` prop with `useSearchParams()` hook
+   - Replaced server actions with React Query hooks (`usePayments`, `usePaymentStats`)
+   - Added loading states with `<Skeleton>` components
+   - Created reusable `StatCard` component with loading prop
+   - Maintained URL-based filter persistence
 
 ---
 
 ## Current State
 
-### Completed
-- [x] One-time levies configuration
-- [x] Database migrations (3 migrations)
-- [x] Type definitions
-- [x] House validator update
-- [x] Billing validator update (partial)
+### Completed ✅
+- [x] Root cause analysis (identified `revalidatePath()` issue)
+- [x] Removed `revalidatePath()` from 4 payment server actions
+- [x] Converted payments page to client component
+- [x] Added Suspense boundary for `useSearchParams()`
+- [x] Implemented loading states with skeletons
+- [x] Maintained URL-based filter persistence
+- [x] Build verification (passes successfully)
 
-### In Progress
-- [ ] Create approval validator (`src/lib/validators/approval.ts`)
-
-### Pending
-- [ ] Server actions (approvals, billing update, house plots)
-- [ ] Update levy generation logic (multiply by plots)
-- [ ] React Query hooks (approvals, billing, houses)
-- [ ] UI components (edit dialog, approvals page, house form update)
-- [ ] Sidebar update (approvals link for admin/chairman)
+### Testing Status
+**Build**: ✅ Passes (`npm run build`)
+**Manual testing needed**:
+- Scroll position preservation after delete/update
+- Filter persistence in URL after reload
+- Bulk update without scroll jump
+- Pagination without scroll jump
+- Loading states display correctly
 
 ---
 
 ## Next Steps (Priority Order)
 
-1. **Create approval validator** - `src/lib/validators/approval.ts`
-2. **Create approval server actions** - `src/actions/approvals/index.ts`
-3. **Update billing profile actions** - Add `updateBillingProfile()` function
-4. **Update house actions** - Handle plots change with maker-checker
-5. **Update levy generation** - Multiply Development Levy by plots
-6. **Create hooks** - Approvals, update billing/house hooks
-7. **Create UI components** - Edit dialog, approvals page
-8. **Update sidebar** - Add approvals link
+1. **Test the payment page scroll fix** (user should test manually):
+   - Navigate to `/payments`
+   - Scroll down the list
+   - Delete a payment → verify scroll stays in place
+   - Apply filters → verify URL updates
+   - Reload page → verify filters persist
+   - Bulk update → verify no scroll jump
+
+2. **Consider similar fixes for other pages** if they have the same issue:
+   - Check billing page (`/billing`)
+   - Check security contacts page if applicable
+
+3. **Resume Phase 6 - Security Contact List** (deferred from earlier):
+   - Create security_contacts table migration
+   - Build security contacts management UI
+   - Implement access code generation
+   - Create validity period management
+
+4. **Phase 5.7 - Maker-Checker Workflow** (deferred from Phase 5.5):
+   - Create approval validator
+   - Create approval server actions
+   - Update billing profile actions
+   - UI components for approvals
 
 ---
 
-## Plan File
+## Plan Files
 
-Full implementation plan saved at:
-`/home/feyijimiohioma/.claude/plans/lucky-kindling-mitten.md`
+Investigation and implementation plan:
+`/home/feyijimiohioma/.claude/plans/snappy-soaring-gray.md`
 
 ---
 

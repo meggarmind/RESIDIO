@@ -1,6 +1,6 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-13 (Phase 5.6 UI & Reference Enhancements Complete)
+**Last Updated:** 2025-12-15 (Payment Page Scroll Fix Complete)
 
 ## Current Phase: Phase 6 - Security Contact List (NEXT UP)
 
@@ -205,6 +205,53 @@
 - **Checker**: chairman approves/rejects requests
 - **Auto-approve**: admin role auto-approves all changes
 - Applies to: effective_date changes (affecting invoices), plots changes (affecting levies)
+
+---
+
+## Phase 5.7: Payment Page UX Fix ✅ COMPLETE (2025-12-15)
+
+### Problem Fixed
+Payment page was refreshing and jumping to top after any action (delete, update, filter, pagination), creating terrible UX.
+
+### Root Cause
+- Payment page was a server component using `revalidatePath('/payments')` in all mutation actions
+- This forced full server-side re-renders, causing scroll position reset and loss of local state
+- Architecture mismatch: Residents/Houses pages use client components (no issues), Payment page used server component
+
+### Solution Implemented
+**Converted payment page to client component pattern** (following residents/houses pattern):
+
+1. **Removed `revalidatePath()` from 4 server action files**:
+   - `src/actions/payments/delete-payment.ts` - Removed line 18
+   - `src/actions/payments/update-payment.ts` - Removed line 28
+   - `src/actions/payments/create-payment.ts` - Removed 3 calls
+   - `src/actions/payments/bulk-update-payments.ts` - Removed line 46
+
+2. **Converted payments page to client component**:
+   - Added `'use client'` directive
+   - Wrapped in `Suspense` boundary (required for `useSearchParams()`)
+   - Replaced server data fetching with React Query hooks
+   - Added loading states with `<Skeleton>` components
+   - Created reusable `StatCard` component
+   - Maintained URL-based filter persistence via `useSearchParams()`
+
+### Files Modified (5 total)
+- `src/actions/payments/delete-payment.ts`
+- `src/actions/payments/update-payment.ts`
+- `src/actions/payments/create-payment.ts`
+- `src/actions/payments/bulk-update-payments.ts`
+- `src/app/(dashboard)/payments/page.tsx`
+
+### How It Works Now
+**Before**: Delete payment → Server action → `revalidatePath()` → Full SSR re-render → Scroll resets ❌
+**After**: Delete payment → Server action (no revalidatePath) → React Query invalidates → Client refetch → Smooth update, scroll preserved ✅
+
+### Benefits
+- ✅ No more scroll jumps
+- ✅ Maintains URL-based filter state (bookmarkable)
+- ✅ Follows proven pattern (consistent with residents/houses)
+- ✅ Better UX with loading states
+- ✅ Build passes successfully
 
 ---
 
