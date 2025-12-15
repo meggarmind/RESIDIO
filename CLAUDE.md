@@ -8,6 +8,77 @@ Residio is a residential estate access management web application. It automates 
 
 **Current Status**: Phase 5 (Payment Status Management) in progress
 
+## Development Inbox Workflow
+
+This project uses a Notion-based mobile inbox for capturing development tasks. Claude Code processes these automatically.
+
+### Notion Sync Command
+
+Run this command to sync development tasks from Notion:
+
+```bash
+cd /home/feyijimiohioma/mobile-first-notion-workflow && python3 residio_inbox_processor.py
+```
+
+### Workflow Triggers
+
+| Trigger | When | Action |
+|---------|------|--------|
+| **Session Start** | Beginning of every Claude Code session | Run Notion sync, then check prompts folder |
+| **Hourly** | External cron populates prompts folder | Check prompts folder when detected |
+| **Manual** | User types `sync_dev_inbox` | Run Notion sync, then check prompts folder |
+
+### Session Start Procedure
+
+At the start of EVERY Claude Code session, perform these steps IN ORDER:
+
+1. **Run Notion Sync**:
+   ```bash
+   cd /home/feyijimiohioma/mobile-first-notion-workflow && python3 residio_inbox_processor.py
+   ```
+   Display the full output to the user.
+
+2. **Check Prompts Folder**:
+   - Read all `.md` files in `/home/feyijimiohioma/projects/Residio/residio/prompts/`
+   - For each prompt file found, evaluate if it aligns with the current project phase and plan
+
+3. **Process Prompts**:
+   - If prompt aligns with current phase (Phase 5 - Payment Status Management): Execute the task
+   - If prompt is for a future phase: Note it but do not execute; inform user
+   - If prompt is a bug fix, documentation, or tech debt that's safe to address: Execute
+   - If prompt requires clarification: Ask user before proceeding
+
+4. **Move Processed Files**:
+   - After successfully processing a prompt, move the file to `/home/feyijimiohioma/projects/Residio/residio/processed/`
+   - Use: `mv prompts/<filename> processed/<filename>`
+
+### Prompt Processing Guidelines
+
+**Execute immediately** (regardless of phase):
+- Bug fixes affecting current functionality
+- Documentation updates
+- Critical tech debt
+- Security fixes
+
+**Execute if current phase**:
+- New features for Phase 5 (Payment Status Management)
+- Enhancements to existing Phase 5 features
+
+**Defer and notify user**:
+- Features for future phases (Phase 6+)
+- Major architectural changes
+- Features requiring significant new infrastructure
+
+### Folder Structure
+
+```
+residio/
+├── prompts/          # Incoming development prompts (gitignored)
+│   └── *.md          # Auto-generated prompt files from Notion
+├── processed/        # Completed prompts archive (gitignored)
+│   └── *.md          # Moved here after processing
+```
+
 ## Commands
 
 ```bash
@@ -428,7 +499,7 @@ mcp__supabase__apply_migration(
 - `README.md` - Update hourly or at session end
 
 **Session Workflow**:
-1. **Session Start**: Always run `date` command first to confirm current date/time. Also revalidate last known state as there are concurrent Claude Code sessions
+1. **Session Start**: First, execute the Development Inbox Workflow (run Notion sync, check prompts folder, process prompts). Then run `date` command to confirm current date/time. Also revalidate last known state as there are concurrent Claude Code sessions
 2. **Problem Analysis**: Do NOT immediately change code when user explains a problem - analyze first and present options
 3. **GitHub Sync**:
    - If connected: Check that pushes are done within 10 mins of writing new files
@@ -442,6 +513,7 @@ When the user types any of these keyphrases, execute the associated action:
 | `pause_session` | Execute session handoff procedure below |
 | `end_session` | Execute session handoff procedure below |
 | `resume_session` | Read `NEXT_SESSION_HANDOFF_PROMPT.md` and follow its instructions as your prompt |
+| `sync_dev_inbox` | Run Notion sync command, check prompts folder, process prompts per Development Inbox Workflow |
 
 **Session Handoff Procedure**:
 When triggered by the above keyphrases, perform the following:
