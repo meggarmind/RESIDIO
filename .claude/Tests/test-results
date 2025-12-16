@@ -1,0 +1,5 @@
+ 1. Login at http://localhost:3000/login with any test user (e.g., admin@residio.test / password123) - successful
+  2. Verify sidebar navigation shows role-appropriate links - Successful
+  3. Click each sidebar link to navigate between pages - Successful
+  4. Resize browser to test mobile responsiveness (sidebar becomes hamburger menu) - Successful
+  5. Test sign out from user dropdown menu - Succesful

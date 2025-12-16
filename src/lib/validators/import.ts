@@ -59,6 +59,11 @@ export const estateBankAccountFormSchema = z.object({
     .regex(/^\d+$/, 'Account number must contain only digits'),
   account_name: z.string().min(2, 'Account name is required'),
   bank_name: z.string().min(2, 'Bank name is required').default('FirstBank'),
+  description: z
+    .string()
+    .max(500, 'Description must be at most 500 characters')
+    .optional()
+    .or(z.literal('')),
   is_active: z.boolean().default(true),
 });
 

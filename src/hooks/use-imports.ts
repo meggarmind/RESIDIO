@@ -83,9 +83,15 @@ export function useCreateBankAccount() {
       if (result.error) throw new Error(result.error);
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
-      toast.success('Bank account created successfully');
+      if (result.requiresApproval) {
+        toast.info('Bank account creation submitted for approval');
+        queryClient.invalidateQueries({ queryKey: ['approval-requests'] });
+        queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
+      } else {
+        toast.success('Bank account created successfully');
+      }
     },
     onError: (error) => {
       toast.error(error.message);
@@ -102,9 +108,15 @@ export function useUpdateBankAccount() {
       if (result.error) throw new Error(result.error);
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
-      toast.success('Bank account updated successfully');
+      if (result.requiresApproval) {
+        toast.info('Bank account update submitted for approval');
+        queryClient.invalidateQueries({ queryKey: ['approval-requests'] });
+        queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
+      } else {
+        toast.success('Bank account updated successfully');
+      }
     },
     onError: (error) => {
       toast.error(error.message);
@@ -123,8 +135,14 @@ export function useToggleBankAccountStatus() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
-      const status = result.data?.is_active ? 'activated' : 'deactivated';
-      toast.success(`Bank account ${status} successfully`);
+      if (result.requiresApproval) {
+        toast.info('Status change submitted for approval');
+        queryClient.invalidateQueries({ queryKey: ['approval-requests'] });
+        queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
+      } else {
+        const status = result.data?.is_active ? 'activated' : 'deactivated';
+        toast.success(`Bank account ${status} successfully`);
+      }
     },
     onError: (error) => {
       toast.error(error.message);
@@ -141,9 +159,15 @@ export function useDeleteBankAccount() {
       if (result.error) throw new Error(result.error);
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
-      toast.success('Bank account deleted successfully');
+      if (result.requiresApproval) {
+        toast.info('Bank account deletion submitted for approval');
+        queryClient.invalidateQueries({ queryKey: ['approval-requests'] });
+        queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
+      } else {
+        toast.success('Bank account deleted successfully');
+      }
     },
     onError: (error) => {
       toast.error(error.message);

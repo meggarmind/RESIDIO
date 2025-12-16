@@ -38,6 +38,9 @@ const ALL_VALUE = '_all';
 const REQUEST_TYPE_LABELS: Record<string, string> = {
     billing_profile_effective_date: 'Billing Profile Effective Date',
     house_plots_change: 'House Plots Change',
+    bank_account_create: 'Bank Account Creation',
+    bank_account_update: 'Bank Account Update',
+    bank_account_delete: 'Bank Account Deletion',
 };
 
 const STATUS_BADGES: Record<ApprovalStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {

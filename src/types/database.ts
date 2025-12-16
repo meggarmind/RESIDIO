@@ -127,7 +127,21 @@ export type InvoiceStatus = 'unpaid' | 'paid' | 'void' | 'partially_paid' | 'ove
 
 // Approval request types (maker-checker workflow)
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
-export type ApprovalRequestType = 'billing_profile_effective_date' | 'house_plots_change';
+export type ApprovalRequestType =
+  | 'billing_profile_effective_date'
+  | 'house_plots_change'
+  | 'bank_account_create'
+  | 'bank_account_update'
+  | 'bank_account_delete';
+
+// Labels for approval request types
+export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
+  billing_profile_effective_date: 'Billing Profile Effective Date Change',
+  house_plots_change: 'House Plots Change',
+  bank_account_create: 'Bank Account Creation',
+  bank_account_update: 'Bank Account Update',
+  bank_account_delete: 'Bank Account Deletion',
+};
 
 // Phase 8: Audit Logging Types
 export type AuditAction =
@@ -835,11 +849,14 @@ export interface InvoiceWithDetails extends Invoice {
   }>;
 }
 
+// Approval Request entity types
+export type ApprovalEntityType = 'billing_profile' | 'house' | 'estate_bank_account';
+
 // Approval Request type (maker-checker workflow)
 export interface ApprovalRequest {
   id: string;
   request_type: ApprovalRequestType;
-  entity_type: 'billing_profile' | 'house';
+  entity_type: ApprovalEntityType;
   entity_id: string;
   requested_changes: Record<string, unknown>;
   current_values: Record<string, unknown>;
@@ -1063,6 +1080,7 @@ export interface EstateBankAccount {
   account_number: string;
   account_name: string;
   bank_name: string;
+  description: string | null;
   is_active: boolean;
   created_at: string;
 }

@@ -6,8 +6,14 @@ import type {
   ApprovalRequestWithDetails,
   ApprovalStatus,
   ApprovalRequestType,
+  ApprovalEntityType,
   UserRole,
 } from '@/types/database';
+import {
+  createBankAccountDirect,
+  updateBankAccountDirect,
+  deleteBankAccountDirect,
+} from '@/actions/imports/bank-accounts';
 
 // Response types
 interface GetApprovalRequestsResponse {
@@ -106,6 +112,27 @@ export async function getApprovalRequests(params: {
           entity_name = `${house.house_number} ${street?.name || ''}`.trim();
         } else {
           entity_name = 'Deleted House';
+        }
+      } else if (request.entity_type === 'estate_bank_account') {
+        // For pending creates, entity_id is 'pending' so we get info from requested_changes
+        if (request.entity_id === 'pending') {
+          const changes = request.requested_changes as {
+            bank_name?: string;
+            account_number?: string;
+            account_name?: string;
+          };
+          entity_name = changes.account_name
+            ? `${changes.account_name} (${changes.account_number || 'New'})`
+            : `${changes.bank_name || 'Bank'} - ${changes.account_number || 'New Account'}`;
+        } else {
+          const { data: bankAccount } = await supabase
+            .from('estate_bank_accounts')
+            .select('bank_name, account_number, account_name')
+            .eq('id', request.entity_id)
+            .single();
+          entity_name = bankAccount
+            ? `${bankAccount.account_name} (${bankAccount.account_number})`
+            : 'Deleted Account';
         }
       }
 
@@ -312,6 +339,48 @@ async function applyRequestedChanges(request: ApprovalRequest): Promise<Approval
     if (error) {
       return { success: false, error: `Failed to update house: ${error.message}` };
     }
+  } else if (request.request_type === 'bank_account_create') {
+    // Create a new bank account
+    const changes = request.requested_changes as {
+      account_number: string;
+      account_name: string;
+      bank_name: string;
+      description?: string | null;
+      is_active?: boolean;
+    };
+
+    const result = await createBankAccountDirect(changes, request.id);
+    if (result.error) {
+      return { success: false, error: `Failed to create bank account: ${result.error}` };
+    }
+
+    // Update the approval request with the actual entity_id
+    if (result.data) {
+      await supabase
+        .from('approval_requests')
+        .update({ entity_id: result.data.id })
+        .eq('id', request.id);
+    }
+  } else if (request.request_type === 'bank_account_update') {
+    // Update an existing bank account
+    const changes = request.requested_changes as {
+      account_number?: string;
+      account_name?: string;
+      bank_name?: string;
+      description?: string | null;
+      is_active?: boolean;
+    };
+
+    const result = await updateBankAccountDirect(request.entity_id, changes, request.id);
+    if (result.error) {
+      return { success: false, error: `Failed to update bank account: ${result.error}` };
+    }
+  } else if (request.request_type === 'bank_account_delete') {
+    // Delete (or deactivate) a bank account
+    const result = await deleteBankAccountDirect(request.entity_id, request.id);
+    if (result.error) {
+      return { success: false, error: `Failed to delete bank account: ${result.error}` };
+    }
   }
 
   return { success: true, error: null };
@@ -320,7 +389,7 @@ async function applyRequestedChanges(request: ApprovalRequest): Promise<Approval
 // Create an approval request (called internally by other actions)
 export async function createApprovalRequest(params: {
   request_type: ApprovalRequestType;
-  entity_type: 'billing_profile' | 'house';
+  entity_type: ApprovalEntityType;
   entity_id: string;
   requested_changes: Record<string, unknown>;
   current_values: Record<string, unknown>;

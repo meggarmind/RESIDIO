@@ -39,7 +39,7 @@ At the start of EVERY Claude Code session, perform these steps IN ORDER:
    Display the full output to the user.
 
 2. **Check Prompts Folder**:
-   - Read all `.md` files in `/home/feyijimiohioma/projects/Residio/residio/prompts/`
+   - Read all `.md` files in `/home/feyijimiohioma/projects/Residio/prompts/`
    - For each prompt file found, evaluate if it aligns with the current project phase and plan
 
 3. **Process Prompts**:
@@ -49,7 +49,7 @@ At the start of EVERY Claude Code session, perform these steps IN ORDER:
    - If prompt requires clarification: Ask user before proceeding
 
 4. **Move Processed Files**:
-   - After successfully processing a prompt, move the file to `/home/feyijimiohioma/projects/Residio/residio/processed/`
+   - After successfully processing a prompt, move the file to `/home/feyijimiohioma/projects/Residio/processed/`
    - Use: `mv prompts/<filename> processed/<filename>`
 
 ### Prompt Processing Guidelines

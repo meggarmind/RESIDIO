@@ -118,7 +118,7 @@ Check if billing page or other list pages have similar scroll jump issues and ap
 ## Session Startup Commands
 
 ```bash
-cd /home/feyijimiohioma/projects/Residio/residio
+cd /home/feyijimiohioma/projects/Residio
 npm run supabase:start   # If not running
 npm run dev              # Start development server
 ```

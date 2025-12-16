@@ -11,6 +11,10 @@ const sidebarNavItems = [
         href: "/settings/billing",
     },
     {
+        title: "Bank Accounts",
+        href: "/settings/bank-accounts",
+    },
+    {
         title: "Security",
         href: "/settings/security",
     },

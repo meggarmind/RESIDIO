@@ -6,6 +6,7 @@ import {
     getPendingApprovalsCount,
     approveRequest,
     rejectRequest,
+    canAutoApprove,
 } from '@/actions/approvals';
 import type { ApprovalStatus, ApprovalRequestType } from '@/types/database';
 import { toast } from 'sonner';
@@ -40,6 +41,16 @@ export function usePendingApprovalsCount() {
     });
 }
 
+export function useCanAutoApprove() {
+    return useQuery({
+        queryKey: ['can-auto-approve'],
+        queryFn: async () => {
+            return await canAutoApprove();
+        },
+        staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    });
+}
+
 export function useApproveRequest() {
     const queryClient = useQueryClient();
 
@@ -55,6 +66,7 @@ export function useApproveRequest() {
             queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
             queryClient.invalidateQueries({ queryKey: ['billing-profiles'] });
             queryClient.invalidateQueries({ queryKey: ['houses'] });
+            queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
         },
         onError: (error) => {
             toast.error(error.message || 'Failed to approve request');

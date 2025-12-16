@@ -126,7 +126,7 @@ Investigation and implementation plan:
 ## Commands to Resume
 
 ```bash
-cd /home/feyijimiohioma/projects/Residio/residio
+cd /home/feyijimiohioma/projects/Residio
 npm run supabase:start   # If not running
 npm run dev
 ```
