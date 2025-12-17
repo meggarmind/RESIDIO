@@ -229,11 +229,6 @@ export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
   rejected: 'Rejected',
 };
 
-export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
-  billing_profile_effective_date: 'Billing Profile Effective Date Change',
-  house_plots_change: 'House Plots Change',
-};
-
 export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   unpaid: 'Unpaid',
   paid: 'Paid',

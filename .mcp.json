@@ -18,10 +18,10 @@
       "command": "npx",
       "args": [
         "-y",
-        "@testsprite/testsprite-mcp"
+        "@testsprite/testsprite-mcp@latest"
       ],
       "env": {
-        "TESTSPRITE_API_KEY": "sk-user-p19VHtadARS9r8dJPM2f7mN8ocUtENBldz9A78d87ePc2M3nfn604PrE3B9T9FFY9lokALE5ahfYxM5sr8HIC3JPZdKIW0OE-0EnTFWMa7DLd-58UcGSGM2LvXTT22rtIV4"
+        "API_KEY": "sk-user-p19VHtadARS9r8dJPM2f7mN8ocUtENBldz9A78d87ePc2M3nfn604PrE3B9T9FFY9lokALE5ahfYxM5sr8HIC3JPZdKIW0OE-0EnTFWMa7DLd-58UcGSGM2LvXTT22rtIV4"
       }
     }
   }
