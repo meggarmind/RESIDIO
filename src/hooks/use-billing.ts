@@ -257,6 +257,7 @@ export function useDevelopmentLevyProfiles() {
 
 // Overdue Invoices Hooks
 import { checkOverdueInvoices, getOverdueStats } from '@/actions/billing/check-overdue-invoices';
+import { applyLateFees } from '@/actions/billing/apply-late-fees';
 
 export function useOverdueStats() {
     return useQuery({
@@ -290,6 +291,33 @@ export function useCheckOverdueInvoices() {
         },
         onError: (error) => {
             toast.error(error.message || 'Failed to check overdue invoices');
+        }
+    });
+}
+
+export function useApplyLateFees() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async () => {
+            const result = await applyLateFees();
+            if (!result.success) throw new Error(result.errors.join('; ') || 'Failed to apply late fees');
+            return result;
+        },
+        onSuccess: (result) => {
+            if (result.applied === 0) {
+                toast.info('No eligible invoices found for late fees');
+            } else {
+                toast.success(`Applied late fees to ${result.applied} invoice(s). Total: ₦${result.totalLateFees.toLocaleString()}`);
+            }
+            if (result.errors.length > 0) {
+                toast.warning(`${result.errors.length} error(s) occurred`);
+            }
+            queryClient.invalidateQueries({ queryKey: ['invoices'] });
+            queryClient.invalidateQueries({ queryKey: ['overdue-stats'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to apply late fees');
         }
     });
 }

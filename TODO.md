@@ -1,8 +1,8 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-15 (Payment Page Scroll Fix Complete)
+**Last Updated:** 2025-12-19 (SessionStart Hook Automation)
 
-## Current Phase: Phase 6 - Security Contact List (NEXT UP)
+## Current Phase: Phase 9 - Polish (NEXT UP)
 
 ---
 
@@ -255,25 +255,164 @@ Payment page was refreshing and jumping to top after any action (delete, update,
 
 ---
 
-## Phase 6: Security Contact List
-- [ ] Create security_contacts table migration
-- [ ] Build security contacts management UI
-- [ ] Implement access code generation
-- [ ] Create validity period management
-- [ ] Build security contact list export
+## Phase 5.8: Settings Pages Scroll Fix ✅ COMPLETE (2025-12-19)
+
+### Problem Fixed
+Settings pages (streets, house-types, bank-accounts, transaction-tags) had scroll jump issues similar to the payment page fix.
+
+### Solution Implemented
+Extended the Phase 5.7 pattern to 4 additional settings pages:
+
+1. **Removed `revalidatePath()` from 7 server action files**:
+   - `src/actions/reference/create-street.ts`
+   - `src/actions/reference/update-street.ts`
+   - `src/actions/reference/delete-street.ts`
+   - `src/actions/reference/duplicate-street.ts`
+   - `src/actions/reference/create-house-type.ts`
+   - `src/actions/reference/update-house-type.ts`
+   - `src/actions/reference/transaction-tags.ts` (3 functions)
+
+2. **Added 3 missing React Query hooks** to `src/hooks/use-reference.ts`:
+   - `useCreateStreet()`
+   - `useCreateHouseType()`
+   - `useUpdateHouseType()`
+
+3. **Updated 3 components to use hooks**:
+   - `src/components/admin/streets-list.tsx` - Uses `useCreateStreet` hook
+   - `src/components/admin/house-types-list.tsx` - Uses mutation hooks
+   - `src/components/admin/transaction-tags-list.tsx` - Removed `refetch()` call
+
+4. **Converted 4 pages to client components**:
+   - `src/app/(dashboard)/settings/streets/page.tsx`
+   - `src/app/(dashboard)/settings/house-types/page.tsx`
+   - `src/app/(dashboard)/settings/bank-accounts/page.tsx`
+   - `src/app/(dashboard)/settings/transaction-tags/page.tsx`
+
+### Files Modified (15 total)
+- 7 server actions
+- 1 hooks file
+- 3 components
+- 4 pages
 
 ---
 
-## Phase 7: External API (Security Barrier Integration)
-- [ ] Create API route for access verification (`/api/v1/access/verify`)
-- [ ] Implement API key authentication
-- [ ] Add rate limiting
-- [ ] Create API documentation
-- [ ] Test with mock security barrier requests
+## Development Workflow: Notion Inbox Integration ✅ COMPLETE (2025-12-19)
+
+### Problem
+The mobile-first development inbox lacked bidirectional sync - tasks captured in Notion weren't automatically marked complete after processing.
+
+### Solution Implemented
+Enhanced the Notion inbox processor with three key improvements:
+
+1. **YAML Frontmatter with Notion Page ID**:
+   - Prompts now include `notion_page_id` and `notion_url` in frontmatter
+   - Enables bidirectional sync back to Notion after task completion
+
+2. **Module-to-File Mapping**:
+   - Added comprehensive mapping for 9 modules in config
+   - Related files automatically included in prompts based on affected module
+   - Helps Claude Code find relevant code faster
+
+3. **Bidirectional Sync Workflow**:
+   - CLAUDE.md updated with MCP commands for updating Notion status
+   - After completing a task, update Notion to "Done" using `mcp__notion__notion-update-page`
+
+### Files Modified (3)
+- `/home/feyijimiohioma/mobile-first-notion-workflow/residio_inbox_processor.py`
+- `/home/feyijimiohioma/mobile-first-notion-workflow/inbox_processor_config.json`
+- `/home/feyijimiohioma/projects/Residio/CLAUDE.md`
+
+### Key Implementation Notes
+- Prompts saved to `/home/feyijimiohioma/projects/Residio/prompts/`
+- After processing, move to `/home/feyijimiohioma/projects/Residio/processed/`
+- Use `mcp__notion__notion-update-page` to mark Notion tasks as Done
+
+### SessionStart Hook Automation ✅ COMPLETE (2025-12-19)
+Automated the Notion inbox workflow with Claude Code hooks:
+
+**Files Created**:
+- `.claude/hooks/session-start.sh` - SessionStart hook script
+- `.claude/settings.json` - Hook configuration
+
+**Dynamic Phase Detection**:
+- Hook reads current phase from TODO.md automatically
+- No hardcoded phase references - parses `## Current Phase: Phase X - Name` format
+- Displays phase alignment summary at session start
+
+**Prompt Processing Workflow**:
+- **Auto-execute**: Bug Fix, Documentation, Security Fix, Tech Debt (regardless of phase)
+- **Auto-execute**: Prompts matching current phase or Backlog
+- **User decision**: Non-aligned prompts → options: Defer, Execute anyway, Archive
+
+**Folder Structure**:
+```
+prompts/     # Incoming prompts (auto-synced from Notion)
+processed/   # Completed prompts (after task done)
+deferred/    # User chose to defer
+archived/    # User chose to archive
+```
 
 ---
 
-## Phase 8: Audit Logging ✅ COMPLETE
+## Phase 6: Security Contact List ✅ COMPLETE
+
+### Database Migrations ✅
+- [x] Create `security_contact_categories` table with configurable settings
+- [x] Create `security_contacts` table with full contact schema
+- [x] Create `access_codes` table for code management
+- [x] Create `access_logs` table for check-in/check-out tracking
+- [x] Add security module settings to `system_settings`
+- [x] Create `security_settings_view` and `has_security_permission()` function
+- [x] Define enums: `security_contact_status`, `id_document_type`, `access_code_type`
+
+### Server Actions ✅
+- [x] Full CRUD for security contacts (`src/actions/security/contacts.ts`)
+- [x] Access code generation and management (`src/actions/security/codes.ts`)
+- [x] Category management (`src/actions/security/categories.ts`)
+- [x] Security settings management (`src/actions/security/settings.ts`)
+- [x] Access logging and check-in/out (`src/actions/security/access-logs.ts`)
+- [x] CSV export functionality (`src/actions/security/export.ts`)
+- [x] Audit logging integrated on all mutations
+
+### React Query Hooks ✅
+- [x] Complete hook library in `src/hooks/use-security.ts`
+- [x] Contact hooks: useSecurityContacts, useCreateSecurityContact, useUpdateSecurityContact, etc.
+- [x] Access code hooks: useGenerateAccessCode, useRevokeAccessCode, useVerifyAccessCode
+- [x] Access log hooks: useRecordCheckIn, useRecordCheckOut, useAccessLogs
+- [x] Settings hooks: useSecuritySettings, useSecurityRolePermissions
+- [x] Export hooks: useExportSecurityContactsCSV, useExportAccessLogsCSV
+
+### UI Components ✅
+- [x] SecurityContactForm - Create/edit contacts with validation
+- [x] SecurityContactsTable - Data table with filters and pagination
+- [x] SecurityContactStatusBadge - Status display with icons
+- [x] AccessCodeDisplay - Formatted code display with copy
+- [x] CodeVerification - Verification form for security officers
+- [x] ResidentSecurityContacts - Resident detail page integration
+
+### Pages ✅
+- [x] `/security` - Dashboard with stats and tabs
+- [x] `/security/contacts` - Contact list with search/filter
+- [x] `/security/contacts/new` - Register new contact
+- [x] `/security/contacts/[id]` - View/edit contact
+- [x] `/security/verify` - Code verification interface
+- [x] `/security/logs` - Access log viewer
+- [x] `/settings/security` - Security module configuration
+
+### Key Features ✅
+- [x] 11-permission role-based access control system
+- [x] Contact status lifecycle (active → suspended/expired/revoked)
+- [x] Access codes: permanent and one-time with max uses
+- [x] Validity tracking with configurable expiry
+- [x] Check-in/check-out recording with timestamps
+- [x] Flag suspicious activity system
+- [x] CSV export for contacts and access logs
+- [x] Per-resident contact limits
+- [x] Dynamic category configuration
+
+---
+
+## Phase 7: Audit Logging ✅ COMPLETE
 - [x] Create audit_logs table migration (immutable, append-only)
 - [x] Add AuditAction enum and AuditEntityType types
 - [x] Create `logAudit()` utility for easy integration from server actions
@@ -293,10 +432,74 @@ Payment page was refreshing and jumping to top after any action (delete, update,
 
 ---
 
-## Phase 9: Polish & Deployment
+## Phase 8: Application Settings & Configuration ✅ COMPLETE
+Centralized management for all system parameters.
+
+### Settings Infrastructure ✅
+- [x] Unified Settings Layout (`/settings/layout.tsx`) with sidebar navigation
+- [x] 9 navigation items: General, Billing Profiles, Bank Accounts, Security, Streets, House Types, Transaction Tags, Audit Logs, System
+
+### General Settings ✅
+- [x] Estate Information form (name, email, address, phone, website)
+- [x] Social Links (Facebook, Twitter, Instagram URLs)
+- [x] Database migration for general estate settings
+
+### Payment Configuration ✅
+- [x] Late Fee Configuration section in Billing Settings:
+  - Enable/disable late fees toggle
+  - Fee type selector (percentage/fixed)
+  - Fee amount input
+  - Grace period days setting
+- [x] Payment Reminders configuration (config only - email in Phase 9)
+- [x] "Apply Late Fees Now" manual trigger button
+- [x] `apply-late-fees.ts` server action with audit logging
+- [x] Database migration for payment configuration settings
+
+### System Settings ✅
+- [x] System Settings page (`/settings/system`) - admin-only
+- [x] Maintenance Mode with toggle and custom message
+- [x] Maintenance page (`/maintenance`) for locked-out users
+- [x] Middleware-based maintenance mode lockout (non-admin users blocked)
+- [x] Data Retention settings (audit log retention days)
+- [x] Session Settings (timeout minutes - config only)
+- [x] Database migration for system admin settings
+
+### Reference Pages ✅
+- [x] Security Settings (`/settings/security`) - Code validity, contact limits, role permissions
+- [x] Audit Logs viewer (`/settings/audit-logs`)
+- [x] Billing Settings (`/settings/billing`) - Billing profiles, development levy config, late fees
+- [x] Bank Accounts (`/settings/bank-accounts`)
+- [x] Transaction Tags (`/settings/transaction-tags`)
+- [x] Streets reference (`/settings/streets`)
+- [x] House Types reference (`/settings/house-types`)
+
+### Key Implementation Notes:
+- Late fees: Manual trigger via "Apply Late Fees Now" button (admin/chairman/finsec)
+- Payment reminders: Config saved but email implementation deferred to Phase 9
+- Maintenance mode: Full lockout - non-admin users redirected to `/maintenance`
+- System settings use React Query hooks pattern (`useSystemSettings`, `useGeneralSettings`)
+- Late fee calculation supports both percentage and fixed amount types
+
+---
+
+## Phase 9: Polish (NEXT UP)
 - [ ] Add loading states and skeletons
 - [ ] Implement error boundaries
 - [ ] Add toast notifications for actions
+- [ ] Implement payment reminder emails (config already in Phase 8)
+
+---
+
+## Phase 10: Legacy App Migration
+- [ ] Define legacy app data migration strategy
+- [ ] Create data import scripts/tools
+- [ ] Map legacy data to new schema
+- [ ] Test migration process
+- [ ] Document migration procedures
+
+---
+
+## Phase 11: Deployment
 - [ ] Configure Vercel deployment
 - [ ] Set up cloud Supabase project
 - [ ] Configure production environment variables
@@ -304,17 +507,13 @@ Payment page was refreshing and jumping to top after any action (delete, update,
 
 ---
 
-## Phase 10: Application Settings & Configuration
-Centralized management for all system parameters.
-- [ ] Create Settings Layout (`/settings/layout.tsx`) with tabbed navigation
-- [ ] Move Reference Management (Streets/House Types) to `/settings/references`
-- [ ] Improve References UI: Allow toggling items active/inactive
-- [ ] Implement redirects from old `/admin/references` routes
-- [ ] Add General Settings (Estate Name, Branding)
-- [ ] Add Security Settings (Code validity, Contact limits) - *aligned with Phase 6*
-- [ ] Add Payment Configuration (Categories, Late fees) - *aligned with Phase 5*
-- [ ] Add API/Developer Settings (API Keys, Webhooks) - *aligned with Phase 7*
-- [ ] Add System/Audit Settings (Log retention) - *aligned with Phase 8*
+## Phase 12: External API (Security Barrier Integration)
+- [ ] Create API route for access verification (`/api/v1/access/verify`)
+- [ ] Implement API key authentication
+- [ ] Add rate limiting
+- [ ] Create API documentation
+- [ ] Test with mock security barrier requests
+- [ ] Add API/Developer Settings (API Keys, Webhooks) to Settings page
 
 ---
 

@@ -34,6 +34,10 @@ const sidebarNavItems = [
         title: "Audit Logs",
         href: "/settings/audit-logs",
     },
+    {
+        title: "System",
+        href: "/settings/system",
+    },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {

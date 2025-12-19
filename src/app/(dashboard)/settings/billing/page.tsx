@@ -12,7 +12,10 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Building, Users, Clock, Loader2, Pencil, Landmark, CheckCircle, Copy } from 'lucide-react';
+import { Trash2, Building, Users, Clock, Loader2, Pencil, Landmark, CheckCircle, Copy, AlertTriangle, Info, DollarSign, Bell } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { CurrencyInput } from '@/components/ui/currency-input';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { formatCurrency } from '@/lib/utils';
 import {
     Dialog,
@@ -22,8 +25,9 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { BILLABLE_ROLE_OPTIONS, BILLING_TARGET_LABELS } from '@/types/database';
+import { useApplyLateFees } from '@/hooks/use-billing';
 
 const NONE_VALUE = '_none';
 
@@ -37,8 +41,18 @@ export default function BillingSettingsPage() {
     const duplicateMutation = useDuplicateBillingProfile();
     const updateSettingMutation = useUpdateSetting();
     const generateLeviesMutation = useGenerateRetroactiveLevies();
+    const applyLateFeesMutation = useApplyLateFees();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editProfileId, setEditProfileId] = useState<string | null>(null);
+
+    // Reminder days options
+    const REMINDER_DAY_OPTIONS = [
+        { value: 1, label: '1 day before' },
+        { value: 3, label: '3 days before' },
+        { value: 7, label: '7 days before' },
+        { value: 14, label: '14 days before' },
+        { value: 30, label: '30 days before' },
+    ];
 
     // Parse settings into a lookup
     const settingsMap = settings?.reduce((acc, s) => {
@@ -69,6 +83,64 @@ export default function BillingSettingsPage() {
         }
         if (typeof value === 'number') return value;
         return 30;
+    };
+
+    // Parse late fee settings
+    const getLateFeeEnabled = (): boolean => {
+        return settingsMap.late_fee_enabled === true;
+    };
+
+    const getLateFeeType = (): 'percentage' | 'fixed' => {
+        const value = settingsMap.late_fee_type;
+        if (typeof value === 'string') {
+            const parsed = value.replace(/"/g, '');
+            return parsed === 'fixed' ? 'fixed' : 'percentage';
+        }
+        return 'percentage';
+    };
+
+    const getLateFeeAmount = (): number => {
+        const value = settingsMap.late_fee_amount;
+        if (typeof value === 'string') {
+            return parseFloat(value.replace(/"/g, '')) || 5;
+        }
+        if (typeof value === 'number') return value;
+        return 5;
+    };
+
+    const getGracePeriodDays = (): number => {
+        const value = settingsMap.grace_period_days;
+        if (typeof value === 'string') {
+            return parseInt(value.replace(/"/g, '')) || 7;
+        }
+        if (typeof value === 'number') return value;
+        return 7;
+    };
+
+    const getPaymentReminderDays = (): number[] => {
+        const value = settingsMap.payment_reminder_days;
+        if (Array.isArray(value)) return value;
+        if (typeof value === 'string') {
+            try {
+                const parsed = JSON.parse(value);
+                return Array.isArray(parsed) ? parsed : [7, 3, 1];
+            } catch {
+                return [7, 3, 1];
+            }
+        }
+        return [7, 3, 1];
+    };
+
+    const handleReminderDayToggle = (day: number) => {
+        const currentDays = getPaymentReminderDays();
+        const newDays = currentDays.includes(day)
+            ? currentDays.filter(d => d !== day)
+            : [...currentDays, day].sort((a, b) => b - a);
+        updateSettingMutation.mutate({ key: 'payment_reminder_days', value: newDays });
+    };
+
+    const handleLateFeeAmountChange = (value: number | undefined) => {
+        updateSettingMutation.mutate({ key: 'late_fee_amount', value: value || 0 });
     };
 
     if (isLoading || settingsLoading) return <div>Loading settings...</div>;
@@ -161,6 +233,195 @@ export default function BillingSettingsPage() {
                                 disabled={updateSettingMutation.isPending}
                             />
                         </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Late Fee Configuration */}
+            <div>
+                <h3 className="text-lg font-medium flex items-center gap-2">
+                    <DollarSign className="h-5 w-5" />
+                    Late Fee Configuration
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                    Configure penalties for overdue payments.
+                </p>
+                <Card>
+                    <CardContent className="pt-6 space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                                <Label htmlFor="late_fee_enabled">Enable Late Fees</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Apply late fee charges to overdue invoices
+                                </p>
+                            </div>
+                            <Switch
+                                id="late_fee_enabled"
+                                checked={getLateFeeEnabled()}
+                                onCheckedChange={() => handleSettingToggle('late_fee_enabled', getLateFeeEnabled())}
+                                disabled={updateSettingMutation.isPending}
+                            />
+                        </div>
+
+                        {getLateFeeEnabled() && (
+                            <>
+                                <Separator />
+
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label htmlFor="late_fee_type">Late Fee Type</Label>
+                                        <p className="text-sm text-muted-foreground">
+                                            How the late fee is calculated
+                                        </p>
+                                    </div>
+                                    <Select
+                                        value={getLateFeeType()}
+                                        onValueChange={(value) => updateSettingMutation.mutate({ key: 'late_fee_type', value })}
+                                        disabled={updateSettingMutation.isPending}
+                                    >
+                                        <SelectTrigger className="w-[180px]">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="percentage">Percentage of invoice</SelectItem>
+                                            <SelectItem value="fixed">Fixed amount (₦)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <Separator />
+
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label htmlFor="late_fee_amount">
+                                            Late Fee Amount {getLateFeeType() === 'percentage' ? '(%)' : '(₦)'}
+                                        </Label>
+                                        <p className="text-sm text-muted-foreground">
+                                            {getLateFeeType() === 'percentage'
+                                                ? 'Percentage of the invoice total to charge'
+                                                : 'Fixed amount to add to the invoice'}
+                                        </p>
+                                    </div>
+                                    {getLateFeeType() === 'percentage' ? (
+                                        <div className="flex items-center gap-2">
+                                            <Input
+                                                id="late_fee_amount"
+                                                type="number"
+                                                min={0}
+                                                max={100}
+                                                step={0.5}
+                                                value={getLateFeeAmount()}
+                                                onChange={(e) => handleLateFeeAmountChange(parseFloat(e.target.value))}
+                                                className="w-20 text-center"
+                                                disabled={updateSettingMutation.isPending}
+                                            />
+                                            <span className="text-muted-foreground">%</span>
+                                        </div>
+                                    ) : (
+                                        <CurrencyInput
+                                            value={getLateFeeAmount()}
+                                            onValueChange={handleLateFeeAmountChange}
+                                            className="w-32 text-right"
+                                            disabled={updateSettingMutation.isPending}
+                                        />
+                                    )}
+                                </div>
+
+                                <Separator />
+
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <Label htmlFor="grace_period_days">Grace Period (days)</Label>
+                                        <p className="text-sm text-muted-foreground">
+                                            Days after due date before late fee applies
+                                        </p>
+                                    </div>
+                                    <Input
+                                        id="grace_period_days"
+                                        type="number"
+                                        min={0}
+                                        max={30}
+                                        value={getGracePeriodDays()}
+                                        onChange={(e) => handleNumberSettingChange('grace_period_days', parseInt(e.target.value) || 7)}
+                                        className="w-20 text-center"
+                                        disabled={updateSettingMutation.isPending}
+                                    />
+                                </div>
+
+                                <Separator />
+
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-0.5">
+                                            <Label>Apply Late Fees</Label>
+                                            <p className="text-sm text-muted-foreground">
+                                                Manually apply late fees to all eligible overdue invoices
+                                            </p>
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => applyLateFeesMutation.mutate()}
+                                            disabled={applyLateFeesMutation.isPending}
+                                        >
+                                            {applyLateFeesMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                            Apply Late Fees Now
+                                        </Button>
+                                    </div>
+                                    <Alert>
+                                        <Info className="h-4 w-4" />
+                                        <AlertDescription>
+                                            This will calculate and add late fees to all invoices that are overdue past the grace period.
+                                        </AlertDescription>
+                                    </Alert>
+                                </div>
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Payment Reminders */}
+            <div>
+                <h3 className="text-lg font-medium flex items-center gap-2">
+                    <Bell className="h-5 w-5" />
+                    Payment Reminders
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                    Configure when to send payment reminder notifications.
+                </p>
+                <Card>
+                    <CardContent className="pt-6 space-y-4">
+                        <div className="space-y-4">
+                            <Label>Send reminders before due date:</Label>
+                            <div className="grid gap-3">
+                                {REMINDER_DAY_OPTIONS.map((option) => {
+                                    const isChecked = getPaymentReminderDays().includes(option.value);
+                                    return (
+                                        <div key={option.value} className="flex items-center space-x-3">
+                                            <Checkbox
+                                                id={`reminder-${option.value}`}
+                                                checked={isChecked}
+                                                onCheckedChange={() => handleReminderDayToggle(option.value)}
+                                                disabled={updateSettingMutation.isPending}
+                                            />
+                                            <Label
+                                                htmlFor={`reminder-${option.value}`}
+                                                className="font-normal cursor-pointer"
+                                            >
+                                                {option.label}
+                                            </Label>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800">
+                            <AlertTriangle className="h-4 w-4 text-amber-600" />
+                            <AlertDescription className="text-amber-800 dark:text-amber-200">
+                                Email notifications will be implemented in Phase 9. For now, this configuration stores your preferences.
+                            </AlertDescription>
+                        </Alert>
                     </CardContent>
                 </Card>
             </div>

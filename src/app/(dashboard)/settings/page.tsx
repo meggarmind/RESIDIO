@@ -1,18 +1,78 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, CheckCircle2, Loader2, History } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AlertCircle, CheckCircle2, Loader2, History, Save, Globe, Facebook, Instagram, Twitter } from 'lucide-react';
 import { backfillOwnershipHistory, type BackfillResult } from '@/actions/settings/backfill-ownership-history';
 import { toast } from 'sonner';
+import { useGeneralSettings, useUpdateSettings } from '@/hooks/use-settings';
+
+// Helper to convert settings array to key-value object
+function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, string> {
+  if (!settings) return {};
+  return settings.reduce((acc, setting) => {
+    acc[setting.key] = setting.value as string ?? '';
+    return acc;
+  }, {} as Record<string, string>);
+}
 
 export default function SettingsPage() {
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<BackfillResult | null>(null);
+
+  // Estate info form state
+  const [estateForm, setEstateForm] = useState({
+    estate_name: '',
+    estate_address: '',
+    estate_phone: '',
+    estate_email: '',
+    estate_logo_url: '',
+    estate_website_url: '',
+    estate_facebook_url: '',
+    estate_twitter_url: '',
+    estate_instagram_url: '',
+  });
+  const [isDirty, setIsDirty] = useState(false);
+
+  const { data: generalSettings, isLoading: isLoadingSettings } = useGeneralSettings();
+  const updateSettings = useUpdateSettings();
+
+  // Load settings into form when data is fetched
+  useEffect(() => {
+    if (generalSettings) {
+      const settingsObj = settingsToObject(generalSettings);
+      setEstateForm({
+        estate_name: settingsObj.estate_name || '',
+        estate_address: settingsObj.estate_address || '',
+        estate_phone: settingsObj.estate_phone || '',
+        estate_email: settingsObj.estate_email || '',
+        estate_logo_url: settingsObj.estate_logo_url || '',
+        estate_website_url: settingsObj.estate_website_url || '',
+        estate_facebook_url: settingsObj.estate_facebook_url || '',
+        estate_twitter_url: settingsObj.estate_twitter_url || '',
+        estate_instagram_url: settingsObj.estate_instagram_url || '',
+      });
+      setIsDirty(false);
+    }
+  }, [generalSettings]);
+
+  const handleInputChange = (field: keyof typeof estateForm, value: string) => {
+    setEstateForm(prev => ({ ...prev, [field]: value }));
+    setIsDirty(true);
+  };
+
+  const handleSaveEstateInfo = async () => {
+    updateSettings.mutate(estateForm, {
+      onSuccess: () => {
+        setIsDirty(false);
+      }
+    });
+  };
 
   const handleBackfillOwnershipHistory = async () => {
     setIsBackfilling(true);
@@ -38,6 +98,7 @@ export default function SettingsPage() {
       setIsBackfilling(false);
     }
   };
+
   return (
     <div className="space-y-6">
       <div>
@@ -49,32 +110,168 @@ export default function SettingsPage() {
       <Separator />
 
       <div className="space-y-6">
+        {/* Estate Information Card */}
         <Card>
           <CardHeader>
             <CardTitle>Estate Information</CardTitle>
             <CardDescription>
-              Basic information about the estate.
+              Basic information about the estate displayed throughout the application.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="estate-name">Estate Name</Label>
-              <Input id="estate-name" placeholder="Residio Estate" defaultValue="Residio Estate" disabled />
-              <p className="text-[0.8rem] text-muted-foreground">
-                The name of the estate displayed on the dashboard.
-              </p>
-            </div>
+            {isLoadingSettings ? (
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="estate-name">Estate Name</Label>
+                    <Input
+                      id="estate-name"
+                      placeholder="Residio Estate"
+                      value={estateForm.estate_name}
+                      onChange={(e) => handleInputChange('estate_name', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="estate-email">Contact Email</Label>
+                    <Input
+                      id="estate-email"
+                      type="email"
+                      placeholder="contact@estate.com"
+                      value={estateForm.estate_email}
+                      onChange={(e) => handleInputChange('estate_email', e.target.value)}
+                    />
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="support-email">Support Email</Label>
-              <Input id="support-email" type="email" placeholder="support@residio.com" disabled />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="estate-address">Address</Label>
+                  <Input
+                    id="estate-address"
+                    placeholder="123 Estate Road, City, State"
+                    value={estateForm.estate_address}
+                    onChange={(e) => handleInputChange('estate_address', e.target.value)}
+                  />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="estate-phone">Phone Number</Label>
+                    <Input
+                      id="estate-phone"
+                      type="tel"
+                      placeholder="+234 123 456 7890"
+                      value={estateForm.estate_phone}
+                      onChange={(e) => handleInputChange('estate_phone', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="estate-website">Website URL</Label>
+                    <div className="relative">
+                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="estate-website"
+                        type="url"
+                        placeholder="https://www.estate.com"
+                        className="pl-10"
+                        value={estateForm.estate_website_url}
+                        onChange={(e) => handleInputChange('estate_website_url', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
-          <div className="px-6 pb-6">
-            <Button disabled>Save Changes</Button>
-          </div>
         </Card>
 
+        {/* Social Links Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Social Links</CardTitle>
+            <CardDescription>
+              Connect your estate&apos;s social media profiles.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isLoadingSettings ? (
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="facebook-url">Facebook</Label>
+                  <div className="relative">
+                    <Facebook className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="facebook-url"
+                      type="url"
+                      placeholder="https://facebook.com/yourestate"
+                      className="pl-10"
+                      value={estateForm.estate_facebook_url}
+                      onChange={(e) => handleInputChange('estate_facebook_url', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="twitter-url">Twitter / X</Label>
+                  <div className="relative">
+                    <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="twitter-url"
+                      type="url"
+                      placeholder="https://twitter.com/yourestate"
+                      className="pl-10"
+                      value={estateForm.estate_twitter_url}
+                      onChange={(e) => handleInputChange('estate_twitter_url', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="instagram-url">Instagram</Label>
+                  <div className="relative">
+                    <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="instagram-url"
+                      type="url"
+                      placeholder="https://instagram.com/yourestate"
+                      className="pl-10"
+                      value={estateForm.estate_instagram_url}
+                      onChange={(e) => handleInputChange('estate_instagram_url', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Save Button */}
+        {!isLoadingSettings && (
+          <div className="flex justify-end">
+            <Button
+              onClick={handleSaveEstateInfo}
+              disabled={!isDirty || updateSettings.isPending}
+            >
+              {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Save className="mr-2 h-4 w-4" />
+              Save Changes
+            </Button>
+          </div>
+        )}
+
+        {/* Branding Card */}
         <Card>
           <CardHeader>
             <CardTitle>Branding</CardTitle>
@@ -89,12 +286,15 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-medium">Application Logo</p>
-                <p className="text-xs text-muted-foreground">Recommended size: 512x512px</p>
+                <p className="text-xs text-muted-foreground">
+                  Logo upload coming soon. Recommended size: 512x512px
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Data Management Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

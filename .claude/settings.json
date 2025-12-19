@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/feyijimiohioma/projects/Residio/.claude/hooks/session-start.sh",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -6,77 +6,164 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Residio is a residential estate access management web application. It automates resident access control by managing payment status, security contact lists, and providing APIs for external systems (e.g., security barriers).
 
-**Current Status**: Phase 5 (Payment Status Management) in progress
+**Current Status**: See `TODO.md` for current phase (dynamically tracked)
 
 ## Development Inbox Workflow
 
-This project uses a Notion-based mobile inbox for capturing development tasks. Claude Code processes these automatically.
+This project uses a Notion-based mobile inbox for capturing development tasks. Claude Code processes these **automatically via SessionStart hook**.
 
-### Notion Sync Command
+### Automatic Session Start (Hook-Based)
 
-Run this command to sync development tasks from Notion:
+A **SessionStart hook** runs automatically at every Claude Code session start. It:
+1. Runs Notion sync to fetch new tasks from mobile inbox
+2. Analyzes all prompts in `/prompts/` folder
+3. Categorizes prompts by phase alignment
+4. Displays summary to user
+
+**Hook location**: `.claude/hooks/session-start.sh`
+**Hook config**: `.claude/settings.json`
+
+You do NOT need to manually run sync - it happens automatically.
+
+### Manual Sync (if needed)
 
 ```bash
 cd /home/feyijimiohioma/mobile-first-notion-workflow && source .env && python3 residio_inbox_processor.py
 ```
 
+Or type `sync_dev_inbox` to trigger manual sync.
+
 ### Workflow Triggers
 
-| Trigger | When | Action |
-|---------|------|--------|
-| **Session Start** | Beginning of every Claude Code session | Run Notion sync, then check prompts folder |
-| **Hourly** | External cron populates prompts folder | Check prompts folder when detected |
-| **Manual** | User types `sync_dev_inbox` | Run Notion sync, then check prompts folder |
+| Trigger | When | Automatic? |
+|---------|------|------------|
+| **SessionStart** | Every Claude Code session start | Yes (hook) |
+| **Manual** | User types `sync_dev_inbox` | Manual |
+| **Resume** | `resume_session` command | Yes (hook) |
 
 ### Session Start Procedure
 
-At the start of EVERY Claude Code session, perform these steps IN ORDER:
+The SessionStart hook displays a summary. After that, Claude should:
 
-1. **Run Notion Sync**:
-   ```bash
-   cd /home/feyijimiohioma/mobile-first-notion-workflow && source .env && python3 residio_inbox_processor.py
+1. **Read each prompt in `/prompts/`** folder
+2. **Categorize by alignment** (see Prompt Processing Behavior below)
+3. **Process ALL prompts** - do not skip any silently
+
+4. **Complete Task & Update Notion (Bidirectional Sync)**:
+   After successfully completing a prompt task:
+
+   a. **Extract Notion page ID from YAML frontmatter**:
+      ```yaml
+      ---
+      notion_page_id: 2ca2bfe3ea0c80c68727cbda365dfcd3
+      notion_url: https://www.notion.so/...
+      ---
+      ```
+
+   b. **Update Notion status using MCP**:
+      ```
+      mcp__notion__notion-update-page
+      data:
+        page_id: [notion_page_id from frontmatter]
+        command: update_properties
+        properties:
+          Status: Done
+          Processed Date: [today's date YYYY-MM-DD]
+          Analysis Notes: "Completed by Claude Code on [date]. [brief summary of what was done]"
+      ```
+
+   c. **Move file to processed folder**:
+      ```bash
+      mv prompts/<filename> processed/<filename>
+      ```
+
+### Prompt File Format
+
+Prompts now include YAML frontmatter with:
+- `notion_page_id`: For updating Notion after completion
+- `notion_url`: Link back to original Notion item
+- Related files section based on affected module
+- Explicit completion actions
+
+### Prompt Processing Behavior
+
+**IMPORTANT: Process ALL prompts** - do not skip based on phase alone.
+
+**Phase-Aligned (auto-execute):**
+- Matches current phase (as defined in TODO.md)
+- Type: Bug Fix, Documentation, Security Fix, or Technical Debt
+- Phase: Backlog
+
+Action: Add to task list and execute.
+
+**Non-Aligned (user decision required):**
+- Different phase than current (e.g., Phase 3, Phase 6)
+- Not a universally-executable type
+
+Action: Present user with THREE options using `AskUserQuestion`:
+
+| Option | Description | File Action | Notion Status |
+|--------|-------------|-------------|---------------|
+| **Defer** | Save for later phase | `mv prompts/X deferred/X` | "Deferred" |
+| **Execute anyway** | Override phase restriction | Process normally | (per completion) |
+| **Archive** | Skip permanently | `mv prompts/X archived/X` | "Archived" |
+
+### Deferring a Prompt
+
+When user chooses "Defer":
+
+1. **Update Notion status**:
    ```
-   Display the full output to the user.
+   mcp__notion__notion-update-page
+   data:
+     page_id: [notion_page_id from frontmatter]
+     command: update_properties
+     properties:
+       Status: Deferred
+       Analysis Notes: "Deferred to [target phase] by user on [date]"
+   ```
 
-2. **Check Prompts Folder**:
-   - Read all `.md` files in `/home/feyijimiohioma/projects/Residio/prompts/`
-   - For each prompt file found, evaluate if it aligns with the current project phase and plan
+2. **Move file**:
+   ```bash
+   mv prompts/<filename> deferred/<filename>
+   ```
 
-3. **Process Prompts**:
-   - If prompt aligns with current phase (Phase 5 - Payment Status Management): Execute the task
-   - If prompt is for a future phase: Note it but do not execute; inform user
-   - If prompt is a bug fix, documentation, or tech debt that's safe to address: Execute
-   - If prompt requires clarification: Ask user before proceeding
+### Archiving a Prompt
 
-4. **Move Processed Files**:
-   - After successfully processing a prompt, move the file to `/home/feyijimiohioma/projects/Residio/processed/`
-   - Use: `mv prompts/<filename> processed/<filename>`
+When user chooses "Archive":
 
-### Prompt Processing Guidelines
+1. **Update Notion status**:
+   ```
+   mcp__notion__notion-update-page
+   data:
+     page_id: [notion_page_id from frontmatter]
+     command: update_properties
+     properties:
+       Status: Archived
+       Analysis Notes: "Archived by user on [date]. Reason: [if provided]"
+   ```
 
-**Execute immediately** (regardless of phase):
-- Bug fixes affecting current functionality
-- Documentation updates
-- Critical tech debt
-- Security fixes
-
-**Execute if current phase**:
-- New features for Phase 5 (Payment Status Management)
-- Enhancements to existing Phase 5 features
-
-**Defer and notify user**:
-- Features for future phases (Phase 6+)
-- Major architectural changes
-- Features requiring significant new infrastructure
+2. **Move file**:
+   ```bash
+   mv prompts/<filename> archived/<filename>
+   ```
 
 ### Folder Structure
 
 ```
 residio/
-├── prompts/          # Incoming development prompts (gitignored)
-│   └── *.md          # Auto-generated prompt files from Notion
-├── processed/        # Completed prompts archive (gitignored)
-│   └── *.md          # Moved here after processing
+├── prompts/          # Pending prompts (auto-populated from Notion)
+│   └── *.md          # Auto-generated prompt files
+├── processed/        # Successfully completed prompts
+│   └── *.md          # Moved here after task completion
+├── deferred/         # Prompts deferred to later phase
+│   └── *.md          # Moved here when user chooses "Defer"
+├── archived/         # Permanently skipped prompts
+│   └── *.md          # Moved here when user chooses "Archive"
+└── .claude/
+    ├── settings.json      # Hook configuration
+    └── hooks/
+        └── session-start.sh  # SessionStart hook script
 ```
 
 ## Commands

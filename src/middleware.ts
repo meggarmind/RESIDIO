@@ -13,6 +13,9 @@ const routeRoleConfig: Record<string, UserRole[]> = {
   '/dashboard': [], // All authenticated users
 };
 
+// Routes that should be accessible even during maintenance mode
+const maintenanceExemptRoutes = ['/login', '/maintenance', '/api'];
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -48,6 +51,40 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
+
+  // Check maintenance mode (skip for exempt routes)
+  const isExemptRoute = maintenanceExemptRoutes.some(route => pathname.startsWith(route));
+  if (!isExemptRoute) {
+    // Check if maintenance mode is enabled
+    const { data: maintenanceSetting } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'maintenance_mode')
+      .single();
+
+    const isMaintenanceMode = maintenanceSetting?.value === true;
+
+    if (isMaintenanceMode) {
+      // If user is logged in, check if they're an admin
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        // Non-admin users get redirected to maintenance page
+        if (!profile || profile.role !== 'admin') {
+          return NextResponse.redirect(new URL('/maintenance', request.url));
+        }
+        // Admin users can continue
+      } else {
+        // Non-authenticated users during maintenance go to maintenance page
+        // (unless they're going to login)
+        return NextResponse.redirect(new URL('/maintenance', request.url));
+      }
+    }
+  }
 
   // Check if route requires authentication
   const protectedRoute = Object.keys(routeRoleConfig).find(route =>

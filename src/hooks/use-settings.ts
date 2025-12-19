@@ -26,6 +26,28 @@ export function useBillingSettings() {
     });
 }
 
+export function useGeneralSettings() {
+    return useQuery({
+        queryKey: ['settings', 'general'],
+        queryFn: async () => {
+            const result = await getSettings('general');
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        }
+    });
+}
+
+export function useSystemSettings() {
+    return useQuery({
+        queryKey: ['settings', 'system'],
+        queryFn: async () => {
+            const result = await getSettings('system');
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        }
+    });
+}
+
 export function useUpdateSetting() {
     const queryClient = useQueryClient();
 
