@@ -1,8 +1,18 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-19 (SessionStart Hook Automation)
+**Last Updated:** 2025-12-19 (Notion Update Enforcement)
 
 ## Current Phase: Phase 9 - Polish (NEXT UP)
+
+> **📋 Prompts Check**: Always check `/prompts` folder for pending development tasks:
+> - **Session start**: Automated via SessionStart hook
+> - **Between phases**: Check before starting new phase work
+> - **When asked "what's next?"**: Review prompts alongside TODO items
+>
+> **⚠️ MANDATORY: After completing any prompt from Notion inbox:**
+> 1. Move prompt file: `mv prompts/<filename> processed/`
+> 2. Update Notion status to "Done" using `mcp__notion__notion-update-page`
+> 3. If Notion MCP times out, retry up to 3 times before documenting in Troubleshooting section
 
 ---
 
@@ -549,4 +559,24 @@ residio/
 ```
 
 ## Troubleshooting
-*No current issues*
+
+No pending issues.
+
+---
+
+## Recent Updates (2025-12-19)
+
+### Transaction Tags: Keyword Auto-Tagging System ✅
+- Added `keywords` text[] column to `transaction_tags` table
+- Updated TypeScript types for TransactionTag interfaces
+- Added `autoTagTransaction()` server action for keyword-based auto-tagging
+- Added `suggestKeywordsFromDescription()` for learning suggestions
+- Updated UI with keywords input (add/remove chips) in tag form
+- Added Keywords column to tags table showing keyword count
+
+**Files Modified:**
+- `supabase/migrations/20251219115958_add_keywords_to_transaction_tags.sql`
+- `src/types/database.ts`
+- `src/lib/validators/import.ts`
+- `src/actions/reference/transaction-tags.ts`
+- `src/components/admin/transaction-tags-list.tsx`

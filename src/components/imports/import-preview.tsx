@@ -33,6 +33,7 @@ import {
   SkipForward,
   X,
   Eye,
+  Sparkles,
 } from 'lucide-react';
 import {
   useCreateImport,
@@ -561,27 +562,39 @@ export function ImportPreview({
                       )}
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={currentTagId}
-                        onValueChange={(value) => handleTagChange(row.id, value)}
-                      >
-                        <SelectTrigger className="h-8 w-full">
-                          <SelectValue placeholder="Select tag" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={NONE_TAG}>
-                            <span className="text-muted-foreground">No tag</span>
-                          </SelectItem>
-                          {availableTags.map((tag) => (
-                            <SelectItem key={tag.id} value={tag.id}>
-                              <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${tagColorVariants[tag.color].split(' ')[0]}`} />
-                                {tag.name}
-                              </div>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={currentTagId}
+                          onValueChange={(value) => handleTagChange(row.id, value)}
+                        >
+                          <SelectTrigger className="h-8 w-full">
+                            <SelectValue placeholder="Select tag" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NONE_TAG}>
+                              <span className="text-muted-foreground">No tag</span>
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                            {availableTags.map((tag) => (
+                              <SelectItem key={tag.id} value={tag.id}>
+                                <div className="flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full ${tagColorVariants[tag.color].split(' ')[0]}`} />
+                                  {tag.name}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {row.auto_tagged && row.tag_id && (
+                          <Badge
+                            variant="outline"
+                            className="h-5 px-1.5 text-xs bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800"
+                            title="Auto-tagged based on keyword match"
+                          >
+                            <Sparkles className="h-3 w-3 mr-0.5" />
+                            Auto
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">

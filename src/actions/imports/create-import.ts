@@ -2,7 +2,8 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logAudit } from '@/lib/audit/logger';
-import type { BankStatementImport, BankStatementRow, ColumnMapping, TransactionFilter } from '@/types/database';
+import { autoTagTransaction } from '@/actions/reference/transaction-tags';
+import type { BankStatementImport, BankStatementRow, ColumnMapping, TransactionFilter, TransactionTagType } from '@/types/database';
 import type { ParsedRow } from '@/lib/validators/import';
 
 // ============================================================
@@ -188,6 +189,46 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
     }
 
     totalInserted += batch.length;
+  }
+
+  // Auto-tag rows based on keywords
+  // Process in batches to avoid timeout on large imports
+  const autoTagBatchSize = 50;
+  for (let i = 0; i < dbRows.length; i += autoTagBatchSize) {
+    const batch = dbRows.slice(i, i + autoTagBatchSize);
+
+    // Process rows in parallel within each batch
+    const autoTagPromises = batch.map(async (row) => {
+      if (!row.description || !row.transaction_type) return null;
+
+      const { tag } = await autoTagTransaction(
+        row.description,
+        row.transaction_type as TransactionTagType
+      );
+
+      if (tag) {
+        return {
+          row_number: row.row_number,
+          tag_id: tag.id,
+        };
+      }
+      return null;
+    });
+
+    const results = await Promise.all(autoTagPromises);
+    const tagsToApply = results.filter((r): r is { row_number: number; tag_id: string } => r !== null);
+
+    // Batch update rows with their auto-tags
+    for (const tagInfo of tagsToApply) {
+      await supabase
+        .from('bank_statement_rows')
+        .update({
+          tag_id: tagInfo.tag_id,
+          auto_tagged: true,
+        })
+        .eq('import_id', import_id)
+        .eq('row_number', tagInfo.row_number);
+    }
   }
 
   // Update import session status

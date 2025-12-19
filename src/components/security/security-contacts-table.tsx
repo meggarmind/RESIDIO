@@ -30,6 +30,7 @@ import {
 import { SecurityContactStatusBadge, CategoryBadge } from './security-badges';
 import { AccessCodeDisplay } from './access-code-display';
 import { useSecurityContacts, useSecurityContactCategories } from '@/hooks/use-security';
+import { getEffectiveContactStatus, findValidAccessCode } from '@/lib/security/utils';
 import {
   Users,
   Plus,
@@ -179,7 +180,10 @@ export function SecurityContactsTable({
               </TableRow>
             ) : (
               contacts.map((contact) => {
-                const activeCode = contact.access_codes?.find((c) => c.is_active);
+                // Use helper to find valid (non-expired) active code
+                const activeCode = findValidAccessCode(contact.access_codes);
+                // Compute effective status based on code expiration
+                const effectiveStatus = getEffectiveContactStatus(contact.status, contact.access_codes);
                 return (
                   <TableRow key={contact.id}>
                     <TableCell>
@@ -215,7 +219,7 @@ export function SecurityContactsTable({
                       </TableCell>
                     )}
                     <TableCell>
-                      <SecurityContactStatusBadge status={contact.status} />
+                      <SecurityContactStatusBadge status={effectiveStatus} />
                     </TableCell>
                     <TableCell>
                       {activeCode ? (
@@ -258,7 +262,7 @@ export function SecurityContactsTable({
                             Generate Code
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          {contact.status === 'active' && (
+                          {effectiveStatus === 'active' && (
                             <DropdownMenuItem
                               onClick={() =>
                                 router.push(`/security/contacts/${contact.id}?action=suspend`)

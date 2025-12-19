@@ -15,31 +15,12 @@ import {
   AUDIT_ENTITY_LABELS,
   type AuditLogWithActor,
 } from '@/types/database';
+import { getActionBadgeVariant } from '@/lib/audit/helpers';
 
 interface AuditDetailDialogProps {
   log: AuditLogWithActor | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
-
-// Get badge variant based on action type
-function getActionBadgeVariant(action: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  switch (action) {
-    case 'CREATE':
-    case 'ACTIVATE':
-    case 'APPROVE':
-      return 'default';
-    case 'DELETE':
-    case 'DEACTIVATE':
-    case 'REJECT':
-      return 'destructive';
-    case 'UPDATE':
-    case 'ASSIGN':
-    case 'UNASSIGN':
-      return 'secondary';
-    default:
-      return 'outline';
-  }
 }
 
 // Format JSON for display

@@ -68,3 +68,42 @@ export function formatChangeDescription(changedFields: string[]): string {
   if (changedFields.length === 0) return 'No changes';
   return `Changed ${changedFields.join(', ')}`;
 }
+
+/**
+ * Badge variant type for audit action styling.
+ */
+export type ActionBadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
+
+/**
+ * Get the badge variant for an audit action.
+ * Used for consistent color coding across the audit log UI.
+ *
+ * Color scheme:
+ * - Green (default): Constructive actions (CREATE, ACTIVATE, APPROVE, GENERATE)
+ * - Red (destructive): Destructive actions (DELETE, DEACTIVATE, REJECT)
+ * - Gray (secondary): Neutral modifications (UPDATE, ASSIGN, UNASSIGN, ALLOCATE)
+ * - Outline (neutral): Informational actions (VERIFY, LOGIN, LOGOUT)
+ */
+export function getActionBadgeVariant(action: string): ActionBadgeVariant {
+  switch (action) {
+    case 'CREATE':
+    case 'ACTIVATE':
+    case 'APPROVE':
+    case 'GENERATE':
+      return 'default';
+    case 'DELETE':
+    case 'DEACTIVATE':
+    case 'REJECT':
+      return 'destructive';
+    case 'UPDATE':
+    case 'ASSIGN':
+    case 'UNASSIGN':
+    case 'ALLOCATE':
+      return 'secondary';
+    case 'VERIFY':
+    case 'LOGIN':
+    case 'LOGOUT':
+    default:
+      return 'outline';
+  }
+}

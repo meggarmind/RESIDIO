@@ -108,6 +108,7 @@ export async function createTransactionTag(
       color: formData.color || 'gray',
       is_active: formData.is_active ?? true,
       sort_order: formData.sort_order ?? 0,
+      keywords: formData.keywords || [],
     })
     .select()
     .single();
@@ -168,6 +169,7 @@ export async function updateTransactionTag(
   if (formData.color !== undefined) updateData.color = formData.color;
   if (formData.is_active !== undefined) updateData.is_active = formData.is_active;
   if (formData.sort_order !== undefined) updateData.sort_order = formData.sort_order;
+  if (formData.keywords !== undefined) updateData.keywords = formData.keywords;
 
   const { data, error } = await supabase
     .from('transaction_tags')
@@ -274,6 +276,7 @@ export async function tagImportRow(
     tag_id: tagId,
     tagged_by: tagId ? user.id : null,
     tagged_at: tagId ? new Date().toISOString() : null,
+    auto_tagged: false, // Manual tagging clears auto_tagged flag
   };
 
   const { error } = await supabase
@@ -312,6 +315,7 @@ export async function batchTagImportRows(
     tag_id: tagId,
     tagged_by: tagId ? user.id : null,
     tagged_at: tagId ? new Date().toISOString() : null,
+    auto_tagged: false, // Manual tagging clears auto_tagged flag
   };
 
   const { error, count } = await supabase
@@ -324,4 +328,97 @@ export async function batchTagImportRows(
   }
 
   return { updated: count ?? rowIds.length, error: null };
+}
+
+// ============================================================
+// Auto-Tag Transaction (for keyword-based auto-tagging)
+// ============================================================
+
+export interface AutoTagResult {
+  tag: TransactionTag | null;
+  matchedKeyword: string | null;
+}
+
+/**
+ * Automatically find a matching tag based on transaction description keywords.
+ * Performs case-insensitive matching against all active tags' keywords.
+ *
+ * @param description - The transaction description to match against
+ * @param transactionType - 'credit' or 'debit' to filter tags by type
+ * @returns The first matching tag and the keyword that matched, or null if no match
+ */
+export async function autoTagTransaction(
+  description: string,
+  transactionType: TransactionTagType
+): Promise<AutoTagResult> {
+  const supabase = await createServerSupabaseClient();
+
+  // Fetch active tags of the matching type that have keywords
+  const { data: tags, error } = await supabase
+    .from('transaction_tags')
+    .select('*')
+    .eq('transaction_type', transactionType)
+    .eq('is_active', true)
+    .order('sort_order')
+    .order('name');
+
+  if (error || !tags) {
+    return { tag: null, matchedKeyword: null };
+  }
+
+  // Normalize description for case-insensitive matching
+  const normalizedDescription = description.toLowerCase();
+
+  // Check each tag's keywords against the description
+  for (const tag of tags as TransactionTag[]) {
+    if (!tag.keywords || tag.keywords.length === 0) continue;
+
+    for (const keyword of tag.keywords) {
+      if (normalizedDescription.includes(keyword.toLowerCase())) {
+        return { tag, matchedKeyword: keyword };
+      }
+    }
+  }
+
+  return { tag: null, matchedKeyword: null };
+}
+
+// ============================================================
+// Suggest Keywords from Description (for learning)
+// ============================================================
+
+// Common words to exclude from keyword suggestions
+const STOP_WORDS = new Set([
+  'the', 'and', 'for', 'from', 'with', 'this', 'that', 'have', 'has',
+  'was', 'were', 'been', 'being', 'are', 'will', 'would', 'could',
+  'should', 'may', 'might', 'must', 'can', 'than', 'then', 'them',
+  'these', 'those', 'their', 'what', 'when', 'where', 'which', 'who',
+  'how', 'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other',
+  'some', 'such', 'only', 'own', 'same', 'into', 'over', 'after', 'before',
+  'between', 'under', 'above', 'below', 'upon', 'about', 'through',
+  // Banking/transaction common words
+  'transfer', 'payment', 'transaction', 'account', 'bank', 'ref', 'reference',
+  'credit', 'debit', 'amount', 'balance', 'date', 'time', 'number', 'ngn',
+]);
+
+/**
+ * Extract potential keywords from a transaction description for learning.
+ * Filters out common words and returns significant terms.
+ *
+ * @param description - The transaction description to extract keywords from
+ * @returns Array of suggested keywords (unique, lowercase, 3+ chars)
+ */
+export async function suggestKeywordsFromDescription(description: string): Promise<string[]> {
+  // Split by non-alphanumeric characters and filter
+  const words = description
+    .toLowerCase()
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(word =>
+      word.length >= 3 &&
+      !STOP_WORDS.has(word) &&
+      !/^\d+$/.test(word) // Exclude pure numbers
+    );
+
+  // Return unique words
+  return [...new Set(words)];
 }

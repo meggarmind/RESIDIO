@@ -1125,6 +1125,7 @@ export interface BankStatementRow {
   tag_id: string | null;
   tagged_by: string | null;
   tagged_at: string | null;
+  auto_tagged: boolean;
 }
 
 // Bank Statement Import with related data
@@ -1225,6 +1226,7 @@ export interface TransactionTag {
   color: TransactionTagColor;
   is_active: boolean;
   sort_order: number;
+  keywords: string[];
   created_at: string;
   updated_at: string;
 }
@@ -1237,6 +1239,7 @@ export interface TransactionTagInsert {
   color?: TransactionTagColor;
   is_active?: boolean;
   sort_order?: number;
+  keywords?: string[];
 }
 
 export interface TransactionTagUpdate {
@@ -1246,4 +1249,5 @@ export interface TransactionTagUpdate {
   color?: TransactionTagColor;
   is_active?: boolean;
   sort_order?: number;
+  keywords?: string[];
 }

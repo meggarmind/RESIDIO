@@ -19,8 +19,8 @@ import {
   AUDIT_ACTION_LABELS,
   AUDIT_ENTITY_LABELS,
   type AuditLogWithActor,
-  type AuditAction,
 } from '@/types/database';
+import { getActionBadgeVariant } from '@/lib/audit/helpers';
 import { AuditDetailDialog } from './audit-detail-dialog';
 
 interface AuditLogsTableProps {
@@ -32,28 +32,6 @@ interface AuditLogsTableProps {
   onPageChange: (page: number) => void;
   onClearFilters?: () => void;
   hasFilters?: boolean;
-}
-
-// Get badge variant based on action type
-function getActionBadgeVariant(action: AuditAction): 'default' | 'secondary' | 'destructive' | 'outline' {
-  switch (action) {
-    case 'CREATE':
-    case 'ACTIVATE':
-    case 'APPROVE':
-    case 'GENERATE':
-      return 'default';
-    case 'DELETE':
-    case 'DEACTIVATE':
-    case 'REJECT':
-      return 'destructive';
-    case 'UPDATE':
-    case 'ASSIGN':
-    case 'UNASSIGN':
-    case 'ALLOCATE':
-      return 'secondary';
-    default:
-      return 'outline';
-  }
 }
 
 export function AuditLogsTable({

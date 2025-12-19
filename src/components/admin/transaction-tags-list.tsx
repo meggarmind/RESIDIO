@@ -48,7 +48,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Loader2, Pencil, Trash2, X } from 'lucide-react';
 import type { TransactionTag, TransactionTagType, TransactionTagColor } from '@/types/database';
 
 const ALL_VALUE = '_all';
@@ -90,6 +90,8 @@ export function TransactionTagsList() {
   const [formColor, setFormColor] = useState<TransactionTagColor>('gray');
   const [formIsActive, setFormIsActive] = useState(true);
   const [formSortOrder, setFormSortOrder] = useState(0);
+  const [formKeywords, setFormKeywords] = useState<string[]>([]);
+  const [newKeyword, setNewKeyword] = useState('');
 
   const isEditing = editingId !== null;
 
@@ -101,6 +103,8 @@ export function TransactionTagsList() {
     setFormColor('gray');
     setFormIsActive(true);
     setFormSortOrder(0);
+    setFormKeywords([]);
+    setNewKeyword('');
   };
 
   const openCreateDialog = () => {
@@ -116,6 +120,7 @@ export function TransactionTagsList() {
     setFormColor(tag.color);
     setFormIsActive(tag.is_active);
     setFormSortOrder(tag.sort_order);
+    setFormKeywords(tag.keywords || []);
     setIsDialogOpen(true);
   };
 
@@ -142,6 +147,7 @@ export function TransactionTagsList() {
             color: formColor,
             is_active: formIsActive,
             sort_order: formSortOrder,
+            keywords: formKeywords,
           },
         });
         setIsDialogOpen(false);
@@ -154,6 +160,7 @@ export function TransactionTagsList() {
           color: formColor,
           is_active: formIsActive,
           sort_order: formSortOrder,
+          keywords: formKeywords,
         });
         setIsDialogOpen(false);
         resetForm();
@@ -162,6 +169,25 @@ export function TransactionTagsList() {
       // Error already handled by mutation hook
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const addKeyword = () => {
+    const keyword = newKeyword.trim().toLowerCase();
+    if (keyword && !formKeywords.includes(keyword)) {
+      setFormKeywords([...formKeywords, keyword]);
+      setNewKeyword('');
+    }
+  };
+
+  const removeKeyword = (keywordToRemove: string) => {
+    setFormKeywords(formKeywords.filter((k) => k !== keywordToRemove));
+  };
+
+  const handleKeywordKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addKeyword();
     }
   };
 
@@ -320,6 +346,55 @@ export function TransactionTagsList() {
                     min={0}
                   />
                 </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label htmlFor="keywords" className="text-right pt-2">
+                    Keywords
+                  </Label>
+                  <div className="col-span-3 space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        id="keywords"
+                        value={newKeyword}
+                        onChange={(e) => setNewKeyword(e.target.value)}
+                        onKeyDown={handleKeywordKeyDown}
+                        placeholder="Add keyword for auto-tagging"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addKeyword}
+                        disabled={!newKeyword.trim()}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {formKeywords.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {formKeywords.map((keyword) => (
+                          <Badge
+                            key={keyword}
+                            variant="secondary"
+                            className="flex items-center gap-1 pr-1"
+                          >
+                            {keyword}
+                            <button
+                              type="button"
+                              onClick={() => removeKeyword(keyword)}
+                              className="ml-1 rounded-full hover:bg-muted p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Keywords are matched against transaction descriptions for auto-tagging.
+                    </p>
+                  </div>
+                </div>
                 {isEditing && (
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="is_active" className="text-right">
@@ -357,6 +432,7 @@ export function TransactionTagsList() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Type</TableHead>
+              <TableHead>Keywords</TableHead>
               <TableHead>Description</TableHead>
               <TableHead className="w-[80px]">Order</TableHead>
               <TableHead className="w-[100px]">Status</TableHead>
@@ -366,13 +442,13 @@ export function TransactionTagsList() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
             ) : filteredTags.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   No transaction tags found.
                 </TableCell>
               </TableRow>
@@ -386,6 +462,15 @@ export function TransactionTagsList() {
                     <Badge variant={tag.transaction_type === 'credit' ? 'default' : 'secondary'}>
                       {tag.transaction_type === 'credit' ? 'Credit' : 'Debit'}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {tag.keywords && tag.keywords.length > 0 ? (
+                      <span className="text-sm text-muted-foreground">
+                        {tag.keywords.length} keyword{tag.keywords.length !== 1 ? 's' : ''}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground/50">-</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {tag.description || '-'}

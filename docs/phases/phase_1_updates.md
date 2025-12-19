@@ -11,3 +11,42 @@ Enhance transaction tagging with keyword-based auto-tagging, pattern learning, a
 **Dependencies**: None
 
 ---
+
+## Replace Dollar Symbol with Naira Throughout System
+**Added**: 2025-12-19  
+**Type**: Bug Fix  
+**Module**: Core Platform  
+**Priority**: High  
+**Status**: Prompt request generated
+
+Replace all $ currency symbols with ₦ (Naira) throughout the entire application, including Late Fee Configuration header and all other monetary displays.
+
+**Dependencies**: None
+
+---
+
+## Flexible RBAC System with 7 Configurable Admin Roles
+**Added**: 2025-12-19  
+**Type**: Feature  
+**Module**: Core Platform  
+**Priority**: High  
+**Status**: Prompt request generated
+
+Transform hardcoded 4-role system into flexible RBAC with 7 configurable roles (Super Admin, Chairman, Vice Chairman, Financial Officer, Security Officer, Secretary, Project Manager) supporting EXCO/BOT structure with granular module permissions and resident-only assignment.
+
+**Dependencies**: None
+
+---
+
+## Bank Statement Import - Transaction Flow & Visual Indicators
+**Added**: 2025-12-19  
+**Type**: Improvement  
+**Module**: Billing System  
+**Priority**: High  
+**Status**: Prompt request generated
+
+Differentiate credit/debit workflows in bank import; add visual indicators and expense breakdown
+
+**Dependencies**: None
+
+---

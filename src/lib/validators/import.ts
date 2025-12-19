@@ -277,6 +277,7 @@ export const transactionTagFormSchema = z.object({
   color: transactionTagColorEnum.optional().default('gray'),
   is_active: z.boolean().optional().default(true),
   sort_order: z.coerce.number().int().min(0).optional().default(0),
+  keywords: z.array(z.string().min(1, 'Keyword cannot be empty')).optional().default([]),
 });
 
 export type TransactionTagFormData = z.infer<typeof transactionTagFormSchema>;
