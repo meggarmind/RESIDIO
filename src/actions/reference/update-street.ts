@@ -1,7 +1,6 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
 import type { Street } from '@/types/database';
 import type { StreetFormData } from '@/lib/validators/house';
@@ -72,7 +71,5 @@ export async function updateStreet(id: string, formData: StreetFormData): Promis
         });
     }
 
-    revalidatePath('/houses');
-    revalidatePath('/settings/references');
     return { data, error: null };
 }

@@ -1,7 +1,6 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
 import type { TransactionTag, TransactionTagInsert, TransactionTagUpdate, TransactionTagType } from '@/types/database';
 
@@ -130,7 +129,6 @@ export async function createTransactionTag(
     newValues: data,
   });
 
-  revalidatePath('/settings/transaction-tags');
   return { data: data as TransactionTag, error: null };
 }
 
@@ -196,7 +194,6 @@ export async function updateTransactionTag(
     newValues: data,
   });
 
-  revalidatePath('/settings/transaction-tags');
   return { data: data as TransactionTag, error: null };
 }
 
@@ -251,7 +248,6 @@ export async function deleteTransactionTag(id: string): Promise<DeleteTransactio
     oldValues: existingTag,
   });
 
-  revalidatePath('/settings/transaction-tags');
   return { error: null };
 }
 

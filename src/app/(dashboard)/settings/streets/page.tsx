@@ -1,34 +1,9 @@
-import { Metadata } from 'next';
-import { redirect } from 'next/navigation';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+'use client';
+
 import { StreetsList } from '@/components/admin/streets-list';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-export const metadata: Metadata = {
-  title: 'Streets | Settings',
-  description: 'Manage street reference data',
-};
-
-export default async function StreetsPage() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
-  }
-
-  // RBAC Check
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  const allowedRoles = ['admin', 'chairman', 'financial_secretary'];
-  if (!profile || !allowedRoles.includes(profile.role)) {
-    redirect('/dashboard');
-  }
-
+export default function StreetsPage() {
   return (
     <div className="space-y-6">
       <div>

@@ -1,34 +1,9 @@
-import { Metadata } from 'next';
-import { redirect } from 'next/navigation';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+'use client';
+
 import { HouseTypesList } from '@/components/admin/house-types-list';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-export const metadata: Metadata = {
-  title: 'House Types | Settings',
-  description: 'Manage house type reference data',
-};
-
-export default async function HouseTypesPage() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect('/login');
-  }
-
-  // RBAC Check
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  const allowedRoles = ['admin', 'chairman', 'financial_secretary'];
-  if (!profile || !allowedRoles.includes(profile.role)) {
-    redirect('/dashboard');
-  }
-
+export default function HouseTypesPage() {
   return (
     <div className="space-y-6">
       <div>

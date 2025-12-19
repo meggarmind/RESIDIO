@@ -1,7 +1,6 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
 import type { Street } from '@/types/database';
 
 export interface DuplicateStreetResponse {
@@ -46,7 +45,5 @@ export async function duplicateStreet(id: string): Promise<DuplicateStreetRespon
         return { data: null, error: error.message };
     }
 
-    revalidatePath('/houses');
-    revalidatePath('/settings/references');
     return { data, error: null };
 }

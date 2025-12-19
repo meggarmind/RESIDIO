@@ -1,7 +1,6 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
 import type { Street } from '@/types/database';
 import type { StreetFormData } from '@/lib/validators/house';
 
@@ -33,6 +32,5 @@ export async function createStreet(formData: StreetFormData): Promise<CreateStre
     return { data: null, error: error.message };
   }
 
-  revalidatePath('/houses');
   return { data, error: null };
 }

@@ -1,0 +1,170 @@
+{
+  "tech_stack": [
+    "TypeScript",
+    "Next.js 16 (App Router)",
+    "React 19",
+    "Supabase (PostgreSQL + Auth)",
+    "Tailwind CSS v4",
+    "shadcn/ui",
+    "TanStack React Query",
+    "React Hook Form",
+    "Zod validation",
+    "Sonner (toast notifications)",
+    "Lucide React (icons)"
+  ],
+  "features": [
+    {
+      "name": "Authentication",
+      "description": "Email/password authentication via Supabase Auth with login page and session management",
+      "files": [
+        "src/app/(auth)/login/page.tsx",
+        "src/lib/auth/auth-provider.tsx",
+        "src/middleware.ts"
+      ]
+    },
+    {
+      "name": "Role-Based Access Control (RBAC)",
+      "description": "Route protection based on user roles (admin, chairman, financial_secretary, security_officer) via middleware",
+      "files": [
+        "src/middleware.ts",
+        "src/types/database.ts"
+      ]
+    },
+    {
+      "name": "Dashboard Layout",
+      "description": "Collapsible sidebar navigation with role-filtered items, header with user dropdown, and responsive mobile design",
+      "files": [
+        "src/app/(dashboard)/layout.tsx",
+        "src/components/dashboard/sidebar.tsx",
+        "src/components/dashboard/header.tsx",
+        "src/components/dashboard/nav-main.tsx",
+        "src/components/dashboard/nav-user.tsx"
+      ]
+    },
+    {
+      "name": "Dashboard Home",
+      "description": "Stats overview cards showing Total Residents, Houses, Payments with quick action buttons",
+      "files": [
+        "src/app/(dashboard)/dashboard/page.tsx",
+        "src/components/dashboard/stats-cards.tsx",
+        "src/actions/dashboard/index.ts",
+        "src/hooks/use-dashboard.ts"
+      ]
+    },
+    {
+      "name": "Houses Module",
+      "description": "House management with table listing, create/edit forms, filtering by street, and house type management",
+      "files": [
+        "src/app/(dashboard)/houses/page.tsx",
+        "src/app/(dashboard)/houses/new/page.tsx",
+        "src/app/(dashboard)/houses/[id]/page.tsx",
+        "src/components/houses/house-table.tsx",
+        "src/components/houses/house-form.tsx",
+        "src/actions/houses/index.ts",
+        "src/hooks/use-houses.ts"
+      ]
+    },
+    {
+      "name": "Residents Module",
+      "description": "Resident management with table listing, create/edit forms, auto-generated 6-digit codes, status filtering, and house linking",
+      "files": [
+        "src/app/(dashboard)/residents/page.tsx",
+        "src/app/(dashboard)/residents/new/page.tsx",
+        "src/app/(dashboard)/residents/[id]/page.tsx",
+        "src/components/residents/resident-table.tsx",
+        "src/components/residents/resident-form.tsx",
+        "src/components/residents/resident-house-card.tsx",
+        "src/actions/residents/index.ts",
+        "src/hooks/use-residents.ts"
+      ]
+    },
+    {
+      "name": "Payments Module",
+      "description": "Payment records with table listing, create form with currency input, bulk actions, CSV export, and receipt printing",
+      "files": [
+        "src/app/(dashboard)/payments/page.tsx",
+        "src/app/(dashboard)/payments/new/page.tsx",
+        "src/app/(dashboard)/payments/[id]/page.tsx",
+        "src/components/payments/payment-table.tsx",
+        "src/components/payments/payment-form.tsx",
+        "src/components/payments/payment-filters.tsx",
+        "src/components/payments/payment-receipt.tsx",
+        "src/actions/payments/index.ts",
+        "src/hooks/use-payments.ts"
+      ]
+    },
+    {
+      "name": "Billing & Invoices",
+      "description": "Invoice generation, overdue checking, billing profiles management, and wallet system",
+      "files": [
+        "src/app/(dashboard)/billing/page.tsx",
+        "src/app/(dashboard)/settings/billing/page.tsx",
+        "src/components/billing/invoice-table.tsx",
+        "src/components/billing/billing-profile-form.tsx",
+        "src/actions/billing/index.ts",
+        "src/hooks/use-billing.ts"
+      ]
+    },
+    {
+      "name": "Wallet System",
+      "description": "Resident wallet balance display with manual adjustment dialog for credits/debits",
+      "files": [
+        "src/components/residents/wallet-adjustment-dialog.tsx",
+        "src/actions/billing/wallet.ts"
+      ]
+    },
+    {
+      "name": "Reference Management",
+      "description": "Settings for managing streets and house types with billing profile associations",
+      "files": [
+        "src/app/(dashboard)/settings/references/page.tsx",
+        "src/components/admin/street-form.tsx",
+        "src/components/admin/house-type-form.tsx",
+        "src/actions/reference/index.ts",
+        "src/hooks/use-reference.ts"
+      ]
+    },
+    {
+      "name": "Security Contacts",
+      "description": "Read-only security contact list with access codes and validity periods",
+      "files": [
+        "src/app/(dashboard)/security/page.tsx",
+        "src/components/security/security-contacts-table.tsx"
+      ]
+    },
+    {
+      "name": "Supabase Client",
+      "description": "Supabase client configuration supporting both local and cloud modes via environment variables",
+      "files": [
+        "src/lib/supabase/client.ts",
+        "src/lib/supabase/server.ts",
+        "src/lib/supabase/config.ts"
+      ]
+    },
+    {
+      "name": "Currency Input Component",
+      "description": "Custom input component for monetary values with comma formatting and decimal support",
+      "files": [
+        "src/components/ui/currency-input.tsx"
+      ]
+    },
+    {
+      "name": "Form Validation",
+      "description": "Zod schemas for form validation across all modules",
+      "files": [
+        "src/lib/validators/resident.ts",
+        "src/lib/validators/house.ts",
+        "src/lib/validators/payment.ts",
+        "src/lib/validators/billing.ts"
+      ]
+    },
+    {
+      "name": "Audit Logging",
+      "description": "Activity logging for CREATE, UPDATE, DELETE operations with actor tracking",
+      "files": [
+        "src/lib/audit/logger.ts",
+        "src/app/(dashboard)/settings/audit-logs/page.tsx"
+      ]
+    }
+  ]
+}

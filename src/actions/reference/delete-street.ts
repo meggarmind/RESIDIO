@@ -1,7 +1,6 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
 
 export interface DeleteStreetResponse {
@@ -60,7 +59,5 @@ export async function deleteStreet(id: string): Promise<DeleteStreetResponse> {
         oldValues: street,
     });
 
-    revalidatePath('/houses');
-    revalidatePath('/settings/references');
     return { success: true, error: null };
 }

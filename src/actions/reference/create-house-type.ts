@@ -1,7 +1,6 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
 import type { HouseType } from '@/types/database';
 import type { HouseTypeFormData } from '@/lib/validators/house';
 
@@ -34,6 +33,5 @@ export async function createHouseType(formData: HouseTypeFormData): Promise<Crea
     return { data: null, error: error.message };
   }
 
-  revalidatePath('/houses');
   return { data, error: null };
 }

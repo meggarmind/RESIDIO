@@ -1,0 +1,624 @@
+[
+  {
+    "id": "TC001",
+    "title": "Successful login with valid credentials",
+    "description": "Verify that users can successfully authenticate using correct email and password credentials via Supabase Auth and maintain session persistence.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid registered email"
+      },
+      {
+        "type": "action",
+        "description": "Enter correct password"
+      },
+      {
+        "type": "action",
+        "description": "Click the login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the user is redirected to the dashboard with the correct role-based access"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm session token is created and persists after page refresh"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Login failure with invalid credentials",
+    "description": "Verify that the login attempt fails with incorrect email and/or password and appropriate error messages are shown.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter invalid or unregistered email"
+      },
+      {
+        "type": "action",
+        "description": "Enter incorrect password"
+      },
+      {
+        "type": "action",
+        "description": "Click the login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Check that authentication fails and error message for invalid credentials is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no session token is created"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Role-based access control enforcement on routes",
+    "description": "Ensure that all protected routes enforce RBAC middleware correctly, restricting access to unauthorized roles, and allowing it for authorized roles.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as user with role 'resident'"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to access admin-only pages (e.g., billing management, user management)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify access is denied and appropriate error/redirect occurs"
+      },
+      {
+        "type": "action",
+        "description": "Login as user with role 'admin'"
+      },
+      {
+        "type": "action",
+        "description": "Access all role-protected pages"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm successful access to allowed pages"
+      },
+      {
+        "type": "action",
+        "description": "Access security officer pages"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify only users with 'security_officer' role can access these pages"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Dashboard statistics update and quick actions",
+    "description": "Verify that the dashboard displays accurate Total Residents, Houses, and Payments counts reflecting the current database state and quick action buttons navigate correctly.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as admin or appropriate role"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm that the count cards show correct numbers by cross-verifying with backend data"
+      },
+      {
+        "type": "action",
+        "description": "Click quick action buttons (e.g., Add Resident, Add Payment)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify navigation to the corresponding new entry form"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "House management - Create and edit house with validation",
+    "description": "Verify creation and editing of house records with proper form validation using Zod schemas, including mandatory fields and filtering by street and house type.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to house management page"
+      },
+      {
+        "type": "action",
+        "description": "Open new house creation form"
+      },
+      {
+        "type": "action",
+        "description": "Submit the form with missing mandatory fields"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation errors are displayed appropriately"
+      },
+      {
+        "type": "action",
+        "description": "Fill form with valid data including street and house type"
+      },
+      {
+        "type": "action",
+        "description": "Submit the form successfully"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm new house appears in the listing"
+      },
+      {
+        "type": "action",
+        "description": "Filter house list by street and house type"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify listing updates to match filters"
+      },
+      {
+        "type": "action",
+        "description": "Edit an existing house record and save changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm updated information is reflected in the table"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Resident management including auto-generated codes and status filtering",
+    "description": "Test creating, editing, and filtering residents with status options and linking to houses. Confirm auto-generation of 6-digit resident codes.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to residents module"
+      },
+      {
+        "type": "action",
+        "description": "Initiate new resident creation"
+      },
+      {
+        "type": "action",
+        "description": "Submit the form leaving required fields empty"
+      },
+      {
+        "type": "assertion",
+        "description": "Check validation error messages"
+      },
+      {
+        "type": "action",
+        "description": "Fill form with valid data including house linkage"
+      },
+      {
+        "type": "action",
+        "description": "Submit form"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm resident is created with an auto-generated unique 6-digit code"
+      },
+      {
+        "type": "action",
+        "description": "Filter residents by status (e.g., active, inactive)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify listed residents match selected status"
+      },
+      {
+        "type": "action",
+        "description": "Edit an existing resident's details and save"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm updates are reflected accurately"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Payments module - currency input, bulk actions, CSV export, and receipt printing",
+    "description": "Validate that payment creation uses the custom currency input with correct formatting, supports bulk actions, exports CSV correctly, and prints receipts matching screen data.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to payments list page"
+      },
+      {
+        "type": "action",
+        "description": "Open new payment form"
+      },
+      {
+        "type": "action",
+        "description": "Enter payment amount with decimal and comma formatting"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify currency input accepts and displays formatted value correctly"
+      },
+      {
+        "type": "action",
+        "description": "Submit new payment"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm payment is listed with correct amount"
+      },
+      {
+        "type": "action",
+        "description": "Select multiple payments and perform bulk delete or export"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify bulk actions complete successfully"
+      },
+      {
+        "type": "action",
+        "description": "Export payment data as CSV"
+      },
+      {
+        "type": "assertion",
+        "description": "Check CSV file matches displayed data"
+      },
+      {
+        "type": "action",
+        "description": "Open a payment and print receipt"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm printed receipt matches the payment details on screen"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Automated invoice generation and payment status updates",
+    "description": "Test scheduled invoice generation works correctly, payments update invoice statuses, and overdue invoices trigger notifications as expected.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Simulate or trigger invoice generation for residents"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify invoices are created with correct billing profiles and due dates"
+      },
+      {
+        "type": "action",
+        "description": "Record payments against invoices"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm invoice status updates to paid or partial accordingly"
+      },
+      {
+        "type": "action",
+        "description": "Simulate passage of due date without payment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify invoice is marked overdue and notification is triggered"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Wallet system balance display and manual adjustment",
+    "description": "Ensure residents' wallet balances display correctly and manual credit or debit adjustments operate properly with validation.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Access a resident's wallet information"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify current wallet balance displays accurately"
+      },
+      {
+        "type": "action",
+        "description": "Open manual adjustment dialog"
+      },
+      {
+        "type": "action",
+        "description": "Attempt adjustment with invalid input (e.g., negative numbers, non-numeric)"
+      },
+      {
+        "type": "assertion",
+        "description": "Check for validation errors"
+      },
+      {
+        "type": "action",
+        "description": "Make a valid credit adjustment and save"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm wallet balance increases accordingly"
+      },
+      {
+        "type": "action",
+        "description": "Make a valid debit adjustment and save"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm wallet balance decreases accordingly"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Security contacts - read-only display and validity period checks",
+    "description": "Verify that the security contact list is shown as read-only with accurate details and validity periods displayed correctly.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the security contacts module"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm that the list is visible without any editing capability"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that each contact shows correct access codes and validity periods"
+      },
+      {
+        "type": "assertion",
+        "description": "Check no interface elements allow modification"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Audit logging captures all create, update, and delete operations",
+    "description": "Ensure that all CRUD operations on key entities generate correct audit log entries with accurate actor and timestamp information.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Perform create operation on a resident record"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify audit log entry records the creation by the correct user with timestamp"
+      },
+      {
+        "type": "action",
+        "description": "Update a house record"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm audit log entry reflects the update with actor details"
+      },
+      {
+        "type": "action",
+        "description": "Delete a payment record"
+      },
+      {
+        "type": "assertion",
+        "description": "Check corresponding delete audit log entry is created"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Comprehensive form validation using Zod schemas",
+    "description": "Test all forms across houses, residents, payments, and billing modules to validate input constraints, field types, and mandatory fields using Zod schemas.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Open each module's create/edit form"
+      },
+      {
+        "type": "action",
+        "description": "Submit forms with invalid, incomplete, or malformed input data"
+      },
+      {
+        "type": "assertion",
+        "description": "Validate that proper descriptive error messages are shown per invalid field"
+      },
+      {
+        "type": "action",
+        "description": "Submit forms with all valid data"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm forms submit successfully without errors"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Currency input component formatting and validation",
+    "description": "Verify the currency input component handles decimal points and comma delimiters correctly and prevents invalid monetary values.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Type various monetary values into currency input including large numbers, decimals, and commas"
+      },
+      {
+        "type": "assertion",
+        "description": "Check the input formats the number correctly with commas separating thousands and allows decimal points"
+      },
+      {
+        "type": "action",
+        "description": "Attempt invalid input such as letters or multiple decimal points"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify input prevents invalid characters or formats"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "CSV export functionality for payments and residents",
+    "description": "Confirm that exporting data as CSV generates accurate files that match the onscreen filtered data and formatting standards.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Apply filters to payment and resident tables"
+      },
+      {
+        "type": "action",
+        "description": "Initiate CSV export"
+      },
+      {
+        "type": "assertion",
+        "description": "Download and open CSV file to confirm content matches filtered records"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify CSV format correctness and data integrity"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Mobile-first responsive design and offline capability",
+    "description": "Test the platform's layout adapts fluidly across different device sizes and retains critical functionality offline for essential modules.",
+    "category": "ui",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Open the app on multiple devices or simulate different screen sizes including mobile, tablet, and desktop"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify UI components adapt correctly e.g., collapsible sidebar, navigation menus"
+      },
+      {
+        "type": "action",
+        "description": "Disable internet connection and access critical functions like viewing resident information or security contacts"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm app provides offline capability for these features without errors"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Integration with payment gateways Paystack and Flutterwave",
+    "description": "Validate end-to-end payment processing with third-party gateways including successful transactions and error handling scenarios.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Initiate a payment transaction using Paystack"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the transaction completes successfully and payment record updates accordingly"
+      },
+      {
+        "type": "action",
+        "description": "Simulate a failed payment scenario (e.g., insufficient funds) with Flutterwave"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm error handling shows appropriate notification and payment state does not mark as completed"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "Audit log review interface accessibility and filtering",
+    "description": "Test that audit logs can be accessed and filtered by administrators and show accurate details of actor, action, and timestamp.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to audit log page as an authorized admin"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that audit logs load successfully"
+      },
+      {
+        "type": "action",
+        "description": "Apply filters such as by date range, user, or operation type"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm filters work correctly and only matching log entries display"
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Reference management for streets and house types with billing profiles",
+    "description": "Verify creation, editing and deletion of reference data such as streets and house types and associating them with billing profiles.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to reference management page"
+      },
+      {
+        "type": "action",
+        "description": "Create a new street and assign to billing profile"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm new street appears in the list with correct billing profile linkage"
+      },
+      {
+        "type": "action",
+        "description": "Edit an existing house type and change associated billing profile"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify update is saved and visible in UI"
+      },
+      {
+        "type": "action",
+        "description": "Delete a reference entry"
+      },
+      {
+        "type": "assertion",
+        "description": "Confirm removal from the system and no residual data remains"
+      }
+    ]
+  }
+]

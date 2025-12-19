@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useHouseTypes } from '@/hooks/use-reference';
+import { useHouseTypes, useCreateHouseType, useUpdateHouseType } from '@/hooks/use-reference';
 import { useBillingProfiles } from '@/hooks/use-billing';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,17 +30,15 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { createHouseType } from '@/actions/reference/create-house-type';
-import { updateHouseType } from '@/actions/reference/update-house-type';
-import { toast } from 'sonner';
 import { Plus, Loader2, Edit } from 'lucide-react';
 
 export function HouseTypesList() {
-    const { data: typesData, isLoading, refetch } = useHouseTypes();
+    const { data: typesData, isLoading } = useHouseTypes();
     const { data: billingProfiles } = useBillingProfiles();
+    const createMutation = useCreateHouseType();
+    const updateMutation = useUpdateHouseType();
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Form state
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -61,7 +59,6 @@ export function HouseTypesList() {
         e.preventDefault();
         if (!newName.trim()) return;
 
-        setIsSubmitting(true);
         try {
             const payload = {
                 name: newName,
@@ -70,27 +67,19 @@ export function HouseTypesList() {
                 billing_profile_id: selectedProfileId === 'none' ? undefined : selectedProfileId,
             };
 
-            let result;
             if (editingId) {
-                result = await updateHouseType(editingId, payload);
+                await updateMutation.mutateAsync({ id: editingId, data: payload });
             } else {
-                result = await createHouseType(payload);
+                await createMutation.mutateAsync(payload);
             }
-
-            if (!result.error) {
-                toast.success(`House type ${editingId ? 'updated' : 'created'} successfully`);
-                resetForm();
-                setIsDialogOpen(false);
-                refetch();
-            } else {
-                toast.error(result.error || `Failed to ${editingId ? 'update' : 'create'} house type`);
-            }
-        } catch (error) {
-            toast.error('An unexpected error occurred');
-        } finally {
-            setIsSubmitting(false);
+            resetForm();
+            setIsDialogOpen(false);
+        } catch {
+            // Error already handled by mutation hooks
         }
     };
+
+    const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
     const openEdit = (type: any) => {
         setEditingId(type.id);

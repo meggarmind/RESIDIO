@@ -66,7 +66,7 @@ const colorVariants: Record<TransactionTagColor, string> = {
 
 export function TransactionTagsList() {
   const [typeFilter, setTypeFilter] = useState<string>(ALL_VALUE);
-  const { data: tagsData, isLoading, refetch } = useTransactionTags({
+  const { data: tagsData, isLoading } = useTransactionTags({
     transaction_type: typeFilter === ALL_VALUE ? undefined : (typeFilter as TransactionTagType),
     include_inactive: true,
   });
@@ -157,7 +157,6 @@ export function TransactionTagsList() {
         });
         setIsDialogOpen(false);
         resetForm();
-        refetch();
       }
     } catch {
       // Error already handled by mutation hook

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useStreets, useUpdateStreet, useDuplicateStreet, useDeleteStreet } from '@/hooks/use-reference';
+import { useStreets, useCreateStreet, useUpdateStreet, useDuplicateStreet, useDeleteStreet } from '@/hooks/use-reference';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -33,13 +33,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { createStreet } from '@/actions/reference/create-street';
-import { toast } from 'sonner';
 import { Plus, Loader2, Pencil, Copy, Trash2 } from 'lucide-react';
 import type { Street } from '@/types/database';
 
 export function StreetsList() {
-    const { data: streetsData, isLoading, refetch } = useStreets();
+    const { data: streetsData, isLoading } = useStreets();
+    const createMutation = useCreateStreet();
     const updateMutation = useUpdateStreet();
     const duplicateMutation = useDuplicateStreet();
     const deleteMutation = useDeleteStreet();
@@ -107,30 +106,18 @@ export function StreetsList() {
                         is_active: formIsActive,
                     }
                 });
-                setIsDialogOpen(false);
-                resetForm();
             } else {
                 // Create new street
-                const result = await createStreet({
+                await createMutation.mutateAsync({
                     name: formName,
                     short_name: formShortName || undefined,
                     description: formDesc || undefined,
                 });
-
-                if (!result.error) {
-                    toast.success('Street created successfully');
-                    setIsDialogOpen(false);
-                    resetForm();
-                    refetch();
-                } else {
-                    toast.error(result.error || 'Failed to create street');
-                }
             }
-        } catch (error) {
-            // Error already handled by mutation hook for updates
-            if (!isEditing) {
-                toast.error('An unexpected error occurred');
-            }
+            setIsDialogOpen(false);
+            resetForm();
+        } catch {
+            // Error already handled by mutation hooks
         } finally {
             setIsSubmitting(false);
         }

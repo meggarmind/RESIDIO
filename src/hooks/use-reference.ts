@@ -3,9 +3,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getStreets } from '@/actions/reference/get-streets';
 import { getHouseTypes } from '@/actions/reference/get-house-types';
+import { createStreet } from '@/actions/reference/create-street';
 import { updateStreet } from '@/actions/reference/update-street';
 import { duplicateStreet } from '@/actions/reference/duplicate-street';
 import { deleteStreet } from '@/actions/reference/delete-street';
+import { createHouseType } from '@/actions/reference/create-house-type';
+import { updateHouseType } from '@/actions/reference/update-house-type';
 import {
   getTransactionTags,
   createTransactionTag,
@@ -13,7 +16,7 @@ import {
   deleteTransactionTag,
 } from '@/actions/reference/transaction-tags';
 import { toast } from 'sonner';
-import type { StreetFormData } from '@/lib/validators/house';
+import type { StreetFormData, HouseTypeFormData } from '@/lib/validators/house';
 import type { TransactionTagInsert, TransactionTagUpdate, TransactionTagType } from '@/types/database';
 
 export function useStreets() {
@@ -84,6 +87,25 @@ export function useDeleteStreet() {
   });
 }
 
+export function useCreateStreet() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: StreetFormData) => {
+      const result = await createStreet(data);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: () => {
+      toast.success('Street created successfully');
+      queryClient.invalidateQueries({ queryKey: ['streets'] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to create street');
+    },
+  });
+}
+
 export function useHouseTypes() {
   return useQuery({
     queryKey: ['house-types'],
@@ -91,6 +113,44 @@ export function useHouseTypes() {
       const result = await getHouseTypes();
       if (result.error) throw new Error(result.error);
       return result.data;
+    },
+  });
+}
+
+export function useCreateHouseType() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: HouseTypeFormData) => {
+      const result = await createHouseType(data);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: () => {
+      toast.success('House type created successfully');
+      queryClient.invalidateQueries({ queryKey: ['house-types'] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to create house type');
+    },
+  });
+}
+
+export function useUpdateHouseType() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: HouseTypeFormData }) => {
+      const result = await updateHouseType(id, data);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: () => {
+      toast.success('House type updated successfully');
+      queryClient.invalidateQueries({ queryKey: ['house-types'] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to update house type');
     },
   });
 }
