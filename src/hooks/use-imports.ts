@@ -29,6 +29,7 @@ import {
   getImportRows,
   getImportStats,
   getImportRowSummary,
+  getImportBreakdown,
   getPendingApprovalImports,
   createImport,
   createImportRows,
@@ -330,6 +331,22 @@ export function useImportRowSummary(importId: string) {
     queryKey: ['import-row-summary', importId],
     queryFn: async () => {
       const result = await getImportRowSummary(importId);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    enabled: !!importId,
+  });
+}
+
+/**
+ * Hook to get the breakdown of an import by transaction type and tag.
+ * Returns totals for credits/debits and per-tag aggregations.
+ */
+export function useImportBreakdown(importId: string) {
+  return useQuery({
+    queryKey: ['import-breakdown', importId],
+    queryFn: async () => {
+      const result = await getImportBreakdown(importId);
       if (result.error) throw new Error(result.error);
       return result.data;
     },

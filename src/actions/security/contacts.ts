@@ -89,8 +89,25 @@ export async function getSecurityContacts(
     query = query.eq('status', status);
   }
 
-  // Note: expiring_within_days would require a more complex query
-  // involving access_codes.valid_until - skipped for MVP
+  // Expiring within X days filter - filter contacts with codes expiring soon
+  // This uses a subquery approach since we can't do complex date logic in Supabase JS client
+  if (expiring_within_days) {
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + expiring_within_days);
+    const futureDateStr = futureDate.toISOString();
+    const nowStr = new Date().toISOString();
+
+    // We need contacts where at least one access code:
+    // 1. is_active = true
+    // 2. valid_until IS NOT NULL (has an expiration)
+    // 3. valid_until > NOW() (not yet expired)
+    // 4. valid_until <= NOW() + X days (expiring within X days)
+    query = query
+      .eq('access_codes.is_active', true)
+      .not('access_codes.valid_until', 'is', null)
+      .gt('access_codes.valid_until', nowStr)
+      .lte('access_codes.valid_until', futureDateStr);
+  }
 
   // Pagination
   const offset = (page - 1) * limit;
@@ -475,6 +492,159 @@ export async function deleteSecurityContact(id: string): Promise<{ success: bool
   revalidatePath('/security/contacts');
 
   return { success: true, error: null };
+}
+
+/**
+ * Gets the count of truly active security contacts.
+ * A contact is considered "active" only if:
+ * 1. Their status is 'active'
+ * 2. They have at least one access code that is:
+ *    - is_active = true
+ *    - valid_until is NULL (no expiry) OR valid_until > NOW()
+ */
+export async function getActiveContactCount(): Promise<{
+  count: number;
+  error: string | null;
+}> {
+  const supabase = await createServerSupabaseClient();
+
+  // Check permission
+  const canView = await hasSecurityPermission('view_contacts');
+  if (!canView) {
+    return { count: 0, error: 'Permission denied' };
+  }
+
+  // Query to count contacts with at least one valid (non-expired) access code
+  const { data, error } = await supabase
+    .from('security_contacts')
+    .select(
+      `
+      id,
+      access_codes!inner(id, is_active, valid_until)
+    `
+    )
+    .eq('status', 'active')
+    .eq('access_codes.is_active', true)
+    .or('valid_until.is.null,valid_until.gt.now()', { referencedTable: 'access_codes' });
+
+  if (error) {
+    console.error('Get active contact count error:', error);
+    return { count: 0, error: 'Failed to count active contacts' };
+  }
+
+  // Get unique contact IDs (in case a contact has multiple valid codes)
+  const uniqueContactIds = new Set(data?.map((c) => c.id) || []);
+
+  return { count: uniqueContactIds.size, error: null };
+}
+
+/**
+ * Gets the count of expired security contacts.
+ * A contact is considered "expired" if:
+ * 1. Their status is 'active' (stored status)
+ * 2. ALL their access codes are either:
+ *    - is_active = false, OR
+ *    - valid_until <= NOW() (expired)
+ */
+export async function getExpiredContactCount(): Promise<{
+  count: number;
+  error: string | null;
+}> {
+  const supabase = await createServerSupabaseClient();
+
+  // Check permission
+  const canView = await hasSecurityPermission('view_contacts');
+  if (!canView) {
+    return { count: 0, error: 'Permission denied' };
+  }
+
+  // Get all contacts with status='active' and check if they have any valid codes
+  const { data, error } = await supabase
+    .from('security_contacts')
+    .select(
+      `
+      id,
+      access_codes(id, is_active, valid_until)
+    `
+    )
+    .eq('status', 'active');
+
+  if (error) {
+    console.error('Get expired contact count error:', error);
+    return { count: 0, error: 'Failed to count expired contacts' };
+  }
+
+  // Count contacts where ALL codes are expired or inactive
+  const now = new Date();
+  let expiredCount = 0;
+
+  for (const contact of data || []) {
+    const codes = contact.access_codes || [];
+    if (codes.length === 0) {
+      // No codes = effectively expired
+      expiredCount++;
+      continue;
+    }
+
+    const hasValidCode = codes.some((code: { is_active: boolean; valid_until: string | null }) => {
+      if (!code.is_active) return false;
+      if (!code.valid_until) return true; // No expiry = always valid
+      return new Date(code.valid_until) > now;
+    });
+
+    if (!hasValidCode) {
+      expiredCount++;
+    }
+  }
+
+  return { count: expiredCount, error: null };
+}
+
+/**
+ * Gets the count of contacts expiring within X days.
+ */
+export async function getExpiringContactCount(days: number = 7): Promise<{
+  count: number;
+  error: string | null;
+}> {
+  const supabase = await createServerSupabaseClient();
+
+  // Check permission
+  const canView = await hasSecurityPermission('view_contacts');
+  if (!canView) {
+    return { count: 0, error: 'Permission denied' };
+  }
+
+  const now = new Date();
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + days);
+  const nowStr = now.toISOString();
+  const futureDateStr = futureDate.toISOString();
+
+  // Query contacts with codes expiring within X days
+  const { data, error } = await supabase
+    .from('security_contacts')
+    .select(
+      `
+      id,
+      access_codes!inner(id, is_active, valid_until)
+    `
+    )
+    .eq('status', 'active')
+    .eq('access_codes.is_active', true)
+    .not('access_codes.valid_until', 'is', null)
+    .gt('access_codes.valid_until', nowStr)
+    .lte('access_codes.valid_until', futureDateStr);
+
+  if (error) {
+    console.error('Get expiring contact count error:', error);
+    return { count: 0, error: 'Failed to count expiring contacts' };
+  }
+
+  // Get unique contact IDs
+  const uniqueContactIds = new Set(data?.map((c) => c.id) || []);
+
+  return { count: uniqueContactIds.size, error: null };
 }
 
 /**

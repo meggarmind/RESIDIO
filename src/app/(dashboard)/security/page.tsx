@@ -25,6 +25,9 @@ import {
   useSecurityContacts,
   useTodayAccessLogs,
   useCurrentUserSecurityPermissions,
+  useActiveContactCount,
+  useExpiredContactCount,
+  useExpiringContactCount,
 } from '@/hooks/use-security';
 import type { SecurityContactFilters } from '@/lib/validators/security-contact';
 
@@ -38,14 +41,19 @@ export default function SecurityPage() {
   const { data: permissionsData, isLoading: permissionsLoading } = useCurrentUserSecurityPermissions();
   const { data: contactsData, isLoading: contactsLoading } = useSecurityContacts(contactFilters);
   const { data: todayLogs, isLoading: logsLoading } = useTodayAccessLogs();
+  const { data: activeCount, isLoading: activeCountLoading } = useActiveContactCount();
+  const { data: expiredCount, isLoading: expiredCountLoading } = useExpiredContactCount();
+  const { data: expiringCount, isLoading: expiringCountLoading } = useExpiringContactCount(7);
 
   const canViewContacts = permissionsData?.permissions?.view_contacts || false;
   const canRegisterContacts = permissionsData?.permissions?.register_contacts || false;
   const canVerifyCodes = permissionsData?.permissions?.verify_codes || false;
   const canViewLogs = permissionsData?.permissions?.view_access_logs || false;
 
-  // Calculate stats
-  const activeContactsCount = contactsData?.count || 0;
+  // Use the accurate active count (excludes expired contacts)
+  const activeContactsCount = activeCount ?? 0;
+  const expiredContactsCount = expiredCount ?? 0;
+  const expiringContactsCount = expiringCount ?? 0;
   const todayCheckIns = todayLogs?.filter(log => log.check_in_time)?.length || 0;
   const currentlyInside = todayLogs?.filter(log => log.check_in_time && !log.check_out_time)?.length || 0;
   const flaggedToday = todayLogs?.filter(log => log.flagged)?.length || 0;
@@ -82,17 +90,57 @@ export default function SecurityPage() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Contacts</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {activeCountLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : activeContactsCount}
+            </div>
+            <p className="text-xs text-muted-foreground">With valid access codes</p>
+          </CardContent>
+        </Card>
+
+        {/* Expiring Soon Card */}
+        <Card className={expiringContactsCount > 0 ? 'border-yellow-300 dark:border-yellow-700' : ''}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
+            <Clock className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {contactsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : activeContactsCount}
+              {expiringCountLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : expiringContactsCount > 0 ? (
+                <span className="text-yellow-600">{expiringContactsCount}</span>
+              ) : (
+                <span className="text-muted-foreground">0</span>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground">Registered security contacts</p>
+            <p className="text-xs text-muted-foreground">Within 7 days</p>
+          </CardContent>
+        </Card>
+
+        {/* Expired Card */}
+        <Card className={expiredContactsCount > 0 ? 'border-red-300 dark:border-red-700' : ''}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Expired</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {expiredCountLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : expiredContactsCount > 0 ? (
+                <span className="text-red-600">{expiredContactsCount}</span>
+              ) : (
+                <span className="text-muted-foreground">0</span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">No valid codes</p>
           </CardContent>
         </Card>
 
@@ -112,7 +160,7 @@ export default function SecurityPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Currently Inside</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">

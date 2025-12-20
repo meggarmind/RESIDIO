@@ -178,15 +178,9 @@ npm run lint             # ESLint
 npm run test             # Run Vitest tests
 npm run test:ui          # Vitest with UI
 
-# Local Supabase (via Supabase CLI - requires Docker)
-npm run supabase:start   # Start local Supabase (npx supabase start)
-npm run supabase:stop    # Stop local Supabase
-npm run supabase:reset   # Reset database (npx supabase db reset)
-npm run supabase:status  # Show status and API keys
-
-# Database
-npm run db:migrate       # Push migrations to local DB
-npm run db:types         # Generate TypeScript types from schema
+# Database (Cloud Supabase via MCP)
+# This project uses CLOUD Supabase - always use MCP tools for database operations
+npm run db:types         # Generate TypeScript types from cloud schema
 ```
 
 ## Tech Stack
@@ -381,9 +375,9 @@ await logAudit({
 
 ### Supabase Client Configuration
 
-The app supports local and cloud Supabase via `NEXT_PUBLIC_ENV_MODE`:
-- `local` - Uses `*_LOCAL` env vars (Supabase CLI on ports 54321-54327)
-- `cloud` - Uses `*_CLOUD` env vars
+**IMPORTANT**: This project uses **CLOUD Supabase** exclusively. The MCP server is connected to the cloud instance. Always use `mcp__supabase__*` tools for database operations.
+
+`NEXT_PUBLIC_ENV_MODE=cloud` is set in `.env` to use cloud credentials.
 
 **Three client types**:
 - `createClient()` - Browser client for React Query hooks
@@ -478,13 +472,8 @@ Currently implemented in:
 
 Required env vars (see `.env.example`):
 ```
-# Mode selector
-NEXT_PUBLIC_ENV_MODE=local  # or 'cloud'
-
-# Local Supabase (from npx supabase status)
-NEXT_PUBLIC_SUPABASE_URL_LOCAL=http://127.0.0.1:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY_LOCAL=...
-SUPABASE_SERVICE_ROLE_KEY_LOCAL=...
+# Mode selector - ALWAYS use 'cloud' for this project
+NEXT_PUBLIC_ENV_MODE=cloud
 
 # Cloud Supabase (from Supabase dashboard)
 NEXT_PUBLIC_SUPABASE_URL_CLOUD=https://...
@@ -534,9 +523,9 @@ SUPABASE_SERVICE_ROLE_KEY_CLOUD=...
 | Apply migrations | `mcp__supabase__apply_migration` | - |
 | Run SQL queries | `mcp__supabase__execute_sql` | - |
 | Check logs | `mcp__supabase__get_logs` | - |
-| Start/stop local Supabase | - | `npx supabase start/stop` |
-| Reset database | - | `npx supabase db reset` |
-| Generate types (local) | - | `npm run db:types` |
+| Generate types | `mcp__supabase__generate_typescript_types` | `npm run db:types` |
+
+**Note**: This project uses CLOUD Supabase. Do NOT use local Supabase CLI commands like `npx supabase start/stop/reset`.
 
 **Example - Applying a migration**:
 ```
@@ -550,14 +539,14 @@ mcp__supabase__apply_migration(
 
 1. **Session Start**:
    ```bash
-   npm run supabase:start
-   npm run dev
+   npm run dev  # Start Next.js dev server
+   # Cloud Supabase is always available - no need to start local instance
    ```
 
-2. **Database Changes**:
-   - Create migration: Use `mcp__supabase__apply_migration` (preferred) or `npx supabase migration new <name>`
-   - Apply migrations: Use `mcp__supabase__apply_migration` (preferred) or `npm run db:migrate`
-   - Update types: `npm run db:types`
+2. **Database Changes** (via MCP):
+   - Apply migrations: `mcp__supabase__apply_migration`
+   - Run queries: `mcp__supabase__execute_sql`
+   - Update types: `npm run db:types` or `mcp__supabase__generate_typescript_types`
 
 3. **Adding Features**:
    - Create server action in `src/actions/`

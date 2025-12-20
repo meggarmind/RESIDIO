@@ -18,6 +18,9 @@ import {
   updateSecurityContactStatus,
   deleteSecurityContact,
   searchSecurityContacts,
+  getActiveContactCount,
+  getExpiredContactCount,
+  getExpiringContactCount,
   // Codes
   generateAccessCode,
   getContactAccessCodes,
@@ -152,6 +155,53 @@ export function useSecurityContacts(filters: SecurityContactFilters = {}) {
       if (result.error) throw new Error(result.error);
       return { data: result.data, count: result.count };
     },
+  });
+}
+
+/**
+ * Hook to get the count of truly active security contacts.
+ * Excludes contacts with all expired access codes.
+ */
+export function useActiveContactCount() {
+  return useQuery({
+    queryKey: ['activeContactCount'],
+    queryFn: async () => {
+      const result = await getActiveContactCount();
+      if (result.error) throw new Error(result.error);
+      return result.count;
+    },
+    refetchInterval: 60000, // Refresh every minute
+  });
+}
+
+/**
+ * Hook to get the count of expired security contacts.
+ * Includes contacts with status='active' but all codes expired.
+ */
+export function useExpiredContactCount() {
+  return useQuery({
+    queryKey: ['expiredContactCount'],
+    queryFn: async () => {
+      const result = await getExpiredContactCount();
+      if (result.error) throw new Error(result.error);
+      return result.count;
+    },
+    refetchInterval: 60000, // Refresh every minute
+  });
+}
+
+/**
+ * Hook to get the count of contacts expiring within X days.
+ */
+export function useExpiringContactCount(days: number = 7) {
+  return useQuery({
+    queryKey: ['expiringContactCount', days],
+    queryFn: async () => {
+      const result = await getExpiringContactCount(days);
+      if (result.error) throw new Error(result.error);
+      return result.count;
+    },
+    refetchInterval: 60000, // Refresh every minute
   });
 }
 

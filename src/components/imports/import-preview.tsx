@@ -20,8 +20,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   ArrowLeft,
+  ArrowDownLeft,
+  ArrowUpRight,
   Loader2,
   AlertCircle,
   AlertTriangle,
@@ -34,6 +37,8 @@ import {
   X,
   Eye,
   Sparkles,
+  TableIcon,
+  BarChart3,
 } from 'lucide-react';
 import {
   useCreateImport,
@@ -48,6 +53,7 @@ import { useTransactionTags } from '@/hooks/use-reference';
 import { tagImportRow } from '@/actions/reference/transaction-tags';
 import { ManualMatchDialog } from './manual-match-dialog';
 import { RowDetailsDialog } from './row-details-dialog';
+import { ImportBreakdown } from './import-breakdown';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { ParsedRow } from '@/lib/validators/import';
@@ -113,11 +119,13 @@ export function ImportPreview({
   const [isMatching, setIsMatching] = useState(false);
   const [matchingComplete, setMatchingComplete] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>(ALL_VALUE);
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState<'all' | 'credit' | 'debit'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRow, setSelectedRow] = useState<BankStatementRow | null>(null);
   const [showMatchDialog, setShowMatchDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'table' | 'breakdown'>('table');
 
   const createImportMutation = useCreateImport();
   const createRowsMutation = useCreateImportRows();
@@ -281,9 +289,28 @@ export function ImportPreview({
     }
   };
 
+  // Calculate counts for transaction types
+  const transactionCounts = useMemo(() => {
+    const credits = rows.filter(r => r.transaction_type === 'credit');
+    const debits = rows.filter(r => r.transaction_type === 'debit');
+    return {
+      credit: credits.length,
+      debit: debits.length,
+      creditMatched: credits.filter(r => r.status === 'matched').length,
+      debitMatched: debits.filter(r => r.status === 'matched').length,
+      creditTotal: credits.reduce((sum, r) => sum + (r.amount || 0), 0),
+      debitTotal: debits.reduce((sum, r) => sum + (r.amount || 0), 0),
+    };
+  }, [rows]);
+
   // Filter displayed rows
   const displayRows = useMemo(() => {
     let filtered = rows;
+
+    // Filter by transaction type
+    if (transactionTypeFilter !== 'all') {
+      filtered = filtered.filter(row => row.transaction_type === transactionTypeFilter);
+    }
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -294,7 +321,7 @@ export function ImportPreview({
     }
 
     return filtered;
-  }, [rows, searchQuery]);
+  }, [rows, searchQuery, transactionTypeFilter]);
 
   const getStatusBadge = (status: string, transactionType: 'credit' | 'debit' | null, confidence?: string) => {
     // Handle pending status (no color variation needed)
@@ -441,48 +468,148 @@ export function ImportPreview({
     <div className="space-y-6">
       {/* Summary Stats */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 border rounded-lg text-center">
-            <p className="text-2xl font-bold">{summary.total}</p>
-            <p className="text-sm text-muted-foreground">Total Rows</p>
+        <div className="space-y-4">
+          {/* Main stats row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 border rounded-lg text-center">
+              <p className="text-2xl font-bold">{summary.total}</p>
+              <p className="text-sm text-muted-foreground">Total Rows</p>
+            </div>
+            <div className="p-4 border rounded-lg text-center border-green-200 dark:border-green-800">
+              <p className="text-2xl font-bold text-green-600">{summary.matched}</p>
+              <p className="text-sm text-muted-foreground">Matched</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                ({transactionCounts.creditMatched} CR / {transactionCounts.debitMatched} DR)
+              </p>
+            </div>
+            <div className="p-4 border rounded-lg text-center border-red-200 dark:border-red-800">
+              <p className="text-2xl font-bold text-red-600">{summary.unmatched}</p>
+              <p className="text-sm text-muted-foreground">Unmatched</p>
+            </div>
+            <div className="p-4 border rounded-lg text-center border-yellow-200 dark:border-yellow-800">
+              <p className="text-2xl font-bold text-yellow-600">{summary.pending}</p>
+              <p className="text-sm text-muted-foreground">Pending</p>
+            </div>
           </div>
-          <div className="p-4 border rounded-lg text-center">
-            <p className="text-2xl font-bold text-green-600">{summary.matched}</p>
-            <p className="text-sm text-muted-foreground">Matched</p>
-          </div>
-          <div className="p-4 border rounded-lg text-center">
-            <p className="text-2xl font-bold text-red-600">{summary.unmatched}</p>
-            <p className="text-sm text-muted-foreground">Unmatched</p>
-          </div>
-          <div className="p-4 border rounded-lg text-center">
-            <p className="text-2xl font-bold text-yellow-600">{summary.pending}</p>
-            <p className="text-sm text-muted-foreground">Pending</p>
+
+          {/* Credit/Debit breakdown row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 border rounded-lg border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ArrowDownLeft className="h-5 w-5 text-green-600" />
+                  <span className="font-medium text-green-700 dark:text-green-400">Credits (In)</span>
+                </div>
+                <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                  {transactionCounts.credit}
+                </Badge>
+              </div>
+              <p className="text-xl font-bold text-green-700 dark:text-green-400 mt-2">
+                ₦{transactionCounts.creditTotal.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+            <div className="p-4 border rounded-lg border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ArrowUpRight className="h-5 w-5 text-red-600" />
+                  <span className="font-medium text-red-700 dark:text-red-400">Debits (Out)</span>
+                </div>
+                <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300">
+                  {transactionCounts.debit}
+                </Badge>
+              </div>
+              <p className="text-xl font-bold text-red-700 dark:text-red-400 mt-2">
+                ₦{transactionCounts.debitTotal.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search description or reference..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_VALUE}>All Status</SelectItem>
-            <SelectItem value="matched">Matched</SelectItem>
-            <SelectItem value="unmatched">Unmatched</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-          </SelectContent>
-        </Select>
+      {/* View Mode Tabs and Filters */}
+      <div className="space-y-4">
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'table' | 'breakdown')}>
+          <TabsList>
+            <TabsTrigger value="table" className="gap-2">
+              <TableIcon className="h-4 w-4" />
+              Table View
+            </TabsTrigger>
+            <TabsTrigger value="breakdown" className="gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Breakdown
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {viewMode === 'table' && (
+          <div className="space-y-4">
+            {/* Transaction Type Toggle */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Show:</span>
+              <div className="flex border rounded-lg overflow-hidden">
+                <Button
+                  variant={transactionTypeFilter === 'all' ? 'default' : 'ghost'}
+                  size="sm"
+                  className={cn(
+                    'rounded-none border-0',
+                    transactionTypeFilter === 'all' && 'bg-primary'
+                  )}
+                  onClick={() => setTransactionTypeFilter('all')}
+                >
+                  All ({rows.length})
+                </Button>
+                <Button
+                  variant={transactionTypeFilter === 'credit' ? 'default' : 'ghost'}
+                  size="sm"
+                  className={cn(
+                    'rounded-none border-0 gap-1',
+                    transactionTypeFilter === 'credit' && 'bg-green-600 hover:bg-green-700'
+                  )}
+                  onClick={() => setTransactionTypeFilter('credit')}
+                >
+                  <ArrowDownLeft className="h-3 w-3" />
+                  Credits ({transactionCounts.credit})
+                </Button>
+                <Button
+                  variant={transactionTypeFilter === 'debit' ? 'default' : 'ghost'}
+                  size="sm"
+                  className={cn(
+                    'rounded-none border-0 gap-1',
+                    transactionTypeFilter === 'debit' && 'bg-red-600 hover:bg-red-700'
+                  )}
+                  onClick={() => setTransactionTypeFilter('debit')}
+                >
+                  <ArrowUpRight className="h-3 w-3" />
+                  Debits ({transactionCounts.debit})
+                </Button>
+              </div>
+            </div>
+
+            {/* Search and Status Filter */}
+            <div className="flex flex-wrap gap-4">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search description or reference..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_VALUE}>All Status</SelectItem>
+                  <SelectItem value="matched">Matched</SelectItem>
+                  <SelectItem value="unmatched">Unmatched</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Subtle loading indicator during refetch */}
@@ -493,12 +620,19 @@ export function ImportPreview({
         </div>
       )}
 
+      {/* Breakdown View */}
+      {viewMode === 'breakdown' && importId && (
+        <ImportBreakdown importId={importId} />
+      )}
+
       {/* Rows Table */}
+      {viewMode === 'table' && (
       <div className="border rounded-lg overflow-hidden overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-16">#</TableHead>
+              <TableHead className="w-20">Type</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Description</TableHead>
               <TableHead className="text-right">Amount</TableHead>
@@ -511,7 +645,7 @@ export function ImportPreview({
           <TableBody>
             {displayRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8">
+                <TableCell colSpan={9} className="text-center py-8">
                   {searchQuery ? (
                     <span className="text-muted-foreground">
                       No rows match your search: &ldquo;{searchQuery}&rdquo;
@@ -531,10 +665,34 @@ export function ImportPreview({
               displayRows.map((row) => {
                 const availableTags = getTagsForRow(row as BankStatementRow);
                 const currentTagId = row.tag_id || NONE_TAG;
+                const isCredit = row.transaction_type === 'credit';
+                const isDebit = row.transaction_type === 'debit';
 
                 return (
-                  <TableRow key={row.id}>
+                  <TableRow
+                    key={row.id}
+                    className={cn(
+                      'hover:bg-muted/50 transition-colors',
+                      isCredit && 'border-l-4 border-l-green-500',
+                      isDebit && 'border-l-4 border-l-red-500'
+                    )}
+                  >
                     <TableCell className="font-mono text-sm">{row.row_number}</TableCell>
+                    <TableCell>
+                      {row.transaction_type === 'credit' ? (
+                        <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
+                          <ArrowDownLeft className="h-3 w-3" />
+                          CR
+                        </Badge>
+                      ) : row.transaction_type === 'debit' ? (
+                        <Badge variant="outline" className="gap-1 bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800">
+                          <ArrowUpRight className="h-3 w-3" />
+                          DR
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">--</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {row.transaction_date
                         ? new Date(row.transaction_date).toLocaleDateString()
@@ -652,6 +810,7 @@ export function ImportPreview({
           </TableBody>
         </Table>
       </div>
+      )}
 
       {/* Warning for unmatched rows */}
       {summary && summary.unmatched > 0 && (

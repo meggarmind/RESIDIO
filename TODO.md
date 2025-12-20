@@ -580,3 +580,20 @@ No pending issues.
 - `src/lib/validators/import.ts`
 - `src/actions/reference/transaction-tags.ts`
 - `src/components/admin/transaction-tags-list.tsx`
+
+### Import Flow Auto-Tagging Integration ✅
+Integrated `autoTagTransaction()` into the bank statement import workflow:
+
+- Added `auto_tagged` boolean column to `bank_statement_rows` table
+- Auto-tagging runs during `createImportRows()` after row insertion
+- Rows are matched against tag keywords and auto-tagged with `auto_tagged: true`
+- Manual tagging via `tagImportRow()` clears the `auto_tagged` flag
+- UI shows purple "Auto" badge with sparkles icon for auto-tagged rows
+- Build passes successfully
+
+**Files Modified:**
+- `supabase/migrations/20251219_add_auto_tagged_to_bank_statement_rows.sql`
+- `src/types/database.ts` - Added `auto_tagged` to `BankStatementRow`
+- `src/actions/imports/create-import.ts` - Auto-tag logic after row insert
+- `src/actions/reference/transaction-tags.ts` - Clear auto_tagged on manual tag
+- `src/components/imports/import-preview.tsx` - Auto-tag indicator badge

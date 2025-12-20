@@ -296,3 +296,134 @@ export async function getImportRowSummary(import_id: string): Promise<{ data: Im
 export async function getPendingApprovalImports(): Promise<GetImportsResponse> {
   return getImports({ status: 'awaiting_approval' });
 }
+
+// ============================================================
+// Get Import Breakdown by Transaction Type and Tag
+// ============================================================
+
+export interface TagBreakdownItem {
+  tag_id: string | null;
+  tag_name: string;
+  tag_color: string;
+  count: number;
+  total: number;
+}
+
+export interface TransactionTypeBreakdown {
+  count: number;
+  total: number;
+  byTag: TagBreakdownItem[];
+}
+
+export interface ImportBreakdown {
+  credits: TransactionTypeBreakdown;
+  debits: TransactionTypeBreakdown;
+  untagged: {
+    credits: { count: number; total: number };
+    debits: { count: number; total: number };
+  };
+  netFlow: number;
+}
+
+export async function getImportBreakdown(
+  import_id: string
+): Promise<{ data: ImportBreakdown | null; error: string | null }> {
+  const supabase = await createServerSupabaseClient();
+
+  // Get all rows with their tags
+  const { data: rows, error: rowsError } = await supabase
+    .from('bank_statement_rows')
+    .select(`
+      id,
+      amount,
+      transaction_type,
+      tag_id,
+      tag:transaction_tags(id, name, color)
+    `)
+    .eq('import_id', import_id)
+    .not('status', 'eq', 'skipped');
+
+  if (rowsError) {
+    return { data: null, error: rowsError.message };
+  }
+
+  // Initialize breakdown
+  const breakdown: ImportBreakdown = {
+    credits: { count: 0, total: 0, byTag: [] },
+    debits: { count: 0, total: 0, byTag: [] },
+    untagged: {
+      credits: { count: 0, total: 0 },
+      debits: { count: 0, total: 0 },
+    },
+    netFlow: 0,
+  };
+
+  // Aggregate by tag
+  const creditTagMap = new Map<string, TagBreakdownItem>();
+  const debitTagMap = new Map<string, TagBreakdownItem>();
+
+  for (const row of rows || []) {
+    const amount = row.amount || 0;
+    // Supabase returns single object for many-to-one relationships, but TypeScript infers array
+    const tagData = row.tag;
+    const tag = (Array.isArray(tagData) ? tagData[0] : tagData) as { id: string; name: string; color: string } | null;
+
+    if (row.transaction_type === 'credit') {
+      breakdown.credits.count++;
+      breakdown.credits.total += amount;
+      breakdown.netFlow += amount;
+
+      if (tag) {
+        const existing = creditTagMap.get(tag.id);
+        if (existing) {
+          existing.count++;
+          existing.total += amount;
+        } else {
+          creditTagMap.set(tag.id, {
+            tag_id: tag.id,
+            tag_name: tag.name,
+            tag_color: tag.color,
+            count: 1,
+            total: amount,
+          });
+        }
+      } else {
+        breakdown.untagged.credits.count++;
+        breakdown.untagged.credits.total += amount;
+      }
+    } else if (row.transaction_type === 'debit') {
+      breakdown.debits.count++;
+      breakdown.debits.total += amount;
+      breakdown.netFlow -= amount;
+
+      if (tag) {
+        const existing = debitTagMap.get(tag.id);
+        if (existing) {
+          existing.count++;
+          existing.total += amount;
+        } else {
+          debitTagMap.set(tag.id, {
+            tag_id: tag.id,
+            tag_name: tag.name,
+            tag_color: tag.color,
+            count: 1,
+            total: amount,
+          });
+        }
+      } else {
+        breakdown.untagged.debits.count++;
+        breakdown.untagged.debits.total += amount;
+      }
+    }
+  }
+
+  // Convert maps to arrays, sorted by total descending
+  breakdown.credits.byTag = Array.from(creditTagMap.values()).sort(
+    (a, b) => b.total - a.total
+  );
+  breakdown.debits.byTag = Array.from(debitTagMap.values()).sort(
+    (a, b) => b.total - a.total
+  );
+
+  return { data: breakdown, error: null };
+}

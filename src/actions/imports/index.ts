@@ -63,6 +63,7 @@ export {
   getImportRows,
   getImportStats,
   getImportRowSummary,
+  getImportBreakdown,
   getPendingApprovalImports,
   type ImportSearchParams,
   type ImportRowSearchParams,
@@ -73,4 +74,7 @@ export {
   type BankStatementRowWithResident,
   type ImportStats,
   type ImportRowSummary,
+  type ImportBreakdown,
+  type TagBreakdownItem,
+  type TransactionTypeBreakdown,
 } from './get-imports';
