@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { debitWalletForInvoice } from '@/actions/billing/wallet';
+import { sendInvoiceEmail } from '@/actions/email/send-invoice-email';
 import type { BillableRole, RateSnapshot, InvoiceType } from '@/types/database';
 
 interface SkipReason {
@@ -462,6 +463,11 @@ export async function generateMonthlyInvoices(
                     if (debitResult.success && debitResult.amountDebited > 0) {
                         console.log(`[Billing] Auto-debited ₦${debitResult.amountDebited} from wallet for ${invoiceNumber}`);
                     }
+
+                    // Send invoice email (non-blocking)
+                    sendInvoiceEmail(newInvoice.id).catch((err) => {
+                        console.error(`[Billing] Failed to send invoice email for ${invoiceNumber}:`, err);
+                    });
 
                     // Move to next month
                     currentMonth++;

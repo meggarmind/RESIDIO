@@ -6,6 +6,7 @@ import type { Resident, ResidentRole } from '@/types/database';
 import type { CreateResidentData } from '@/lib/validators/resident';
 import { requiresSponsor, isValidCorporateRole } from '@/lib/validators/resident';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
+import { sendWelcomeEmail } from '@/actions/email/send-welcome-email';
 
 type CreateResidentResponse = {
   data: Resident | null;
@@ -124,6 +125,13 @@ export async function createResident(formData: CreateResidentData): Promise<Crea
       await supabase.from('residents').delete().eq('id', resident.id);
       return { data: null, error: `Failed to assign house: ${assignmentError.message}` };
     }
+  }
+
+  // Send welcome email if resident has email (non-blocking)
+  if (resident.email) {
+    sendWelcomeEmail(resident.id).catch((err) => {
+      console.error(`[Resident] Failed to send welcome email for ${resident.resident_code}:`, err);
+    });
   }
 
   revalidatePath('/residents');

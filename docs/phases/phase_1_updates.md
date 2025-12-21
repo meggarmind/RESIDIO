@@ -63,3 +63,16 @@ Build a complete Resident View portal enabling residents to manage properties, v
 **Dependencies**: payment gateway, notification service
 
 ---
+
+## Build Comprehensive Alert Management Module
+**Added**: 2025-12-21  
+**Type**: Feature  
+**Module**: Core Platform  
+**Priority**: High  
+**Status**: Prompt request generated
+
+Centralized alert management system with multi-channel delivery (Email primary, SMS opt-in, WhatsApp future opt-out), configurable timing rules, automatic escalation workflows, smart deduplication, and comprehensive audit trails for all notifications across billing, security, and resident management.
+
+**Dependencies**: SMS gateway, notification service, email service
+
+---

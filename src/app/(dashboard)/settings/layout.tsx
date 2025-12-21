@@ -15,6 +15,10 @@ const sidebarNavItems = [
         href: "/settings/bank-accounts",
     },
     {
+        title: "Email",
+        href: "/settings/email",
+    },
+    {
         title: "Security",
         href: "/settings/security",
     },
