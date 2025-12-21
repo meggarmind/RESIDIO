@@ -60,7 +60,13 @@ The SessionStart hook displays a summary. After that, Claude should:
       ---
       ```
 
-   b. **Update Notion status using MCP**:
+   b. **Update Notion status using direct API utility** (preferred when MCP unavailable):
+      ```bash
+      cd /home/feyijimiohioma/mobile-first-notion-workflow && source .env && \
+      python3 update_notion_prompt.py "/home/feyijimiohioma/projects/Residio/prompts/<filename>.md" "Done" "Completed by Claude Code on [date]"
+      ```
+
+      **Alternative: Update Notion status using MCP** (if available):
       ```
       mcp__notion__notion-update-page
       data:
@@ -112,7 +118,13 @@ Action: Present user with THREE options using `AskUserQuestion`:
 
 When user chooses "Defer":
 
-1. **Update Notion status**:
+1. **Update Notion status using direct API utility** (preferred):
+   ```bash
+   cd /home/feyijimiohioma/mobile-first-notion-workflow && source .env && \
+   python3 update_notion_prompt.py "/home/feyijimiohioma/projects/Residio/prompts/<filename>.md" "Deferred" "Deferred to [target phase] by user on [date]"
+   ```
+
+   **Alternative (MCP)**:
    ```
    mcp__notion__notion-update-page
    data:
@@ -128,11 +140,19 @@ When user chooses "Defer":
    mv prompts/<filename> deferred/<filename>
    ```
 
+**Re-check behavior**: Deferred prompts are automatically re-checked at every session start. If the current phase (from TODO.md) matches the prompt's phase, it will be flagged as `[NOW ALIGNED]` with a suggestion to move it back to `prompts/`.
+
 ### Archiving a Prompt
 
 When user chooses "Archive":
 
-1. **Update Notion status**:
+1. **Update Notion status using direct API utility** (preferred):
+   ```bash
+   cd /home/feyijimiohioma/mobile-first-notion-workflow && source .env && \
+   python3 update_notion_prompt.py "/home/feyijimiohioma/projects/Residio/prompts/<filename>.md" "Archived" "Archived by user on [date]. Reason: [if provided]"
+   ```
+
+   **Alternative (MCP)**:
    ```
    mcp__notion__notion-update-page
    data:

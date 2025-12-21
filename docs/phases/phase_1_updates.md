@@ -50,3 +50,16 @@ Differentiate credit/debit workflows in bank import; add visual indicators and e
 **Dependencies**: None
 
 ---
+
+## Resident View - Complete Portal & Self-Service Features
+**Added**: 2025-12-21  
+**Type**: Feature  
+**Module**: Resident Portal  
+**Priority**: High  
+**Status**: Prompt request generated
+
+Build a complete Resident View portal enabling residents to manage properties, view bills and payments, control security access, and manage notifications while maintaining strict access controls.
+
+**Dependencies**: payment gateway, notification service
+
+---
