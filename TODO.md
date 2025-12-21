@@ -1,8 +1,8 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-20 (Import Flow & Security Visibility Enhancements)
+**Last Updated:** 2025-12-21 (Phase Roadmap Reorganization - Phases 10-22, 25-28)
 
-## Current Phase: Phase 9 - Polish (NEXT UP)
+## Current Phase: Phase 10 - Flexible RBAC System (NEXT UP)
 
 > **📋 Prompts Check**: Always check `/prompts` folder for pending development tasks:
 > - **Session start**: Automated via SessionStart hook
@@ -492,39 +492,231 @@ Centralized management for all system parameters.
 
 ---
 
-## Phase 9: Polish ✅ MOSTLY COMPLETE
+## Phase 9: Polish ✅ COMPLETE
 - [x] Add loading states and skeletons (all tables and pages have skeleton loaders)
 - [x] Implement error boundaries (4 files: error.tsx, (dashboard)/error.tsx, global-error.tsx, not-found.tsx)
 - [x] Add toast notifications for actions (payment-form already uses toast.error)
 - [x] Fix 'use server' export violations (ACTION_ROLES separated to action-roles.ts)
-- [ ] Implement payment reminder emails (config already in Phase 8 - deferred, requires email service)
+- [x] Implement email integration (Resend API, payment reminders, invoice notifications, welcome emails)
 
 ---
 
-## Phase 10: Legacy App Migration
-- [ ] Define legacy app data migration strategy
+## Current Phase: Phase 10 - Flexible RBAC System (NEXT UP)
+
+---
+
+## Phase 10: Flexible RBAC System
+Transform hardcoded 4-role system to 7+ configurable roles:
+- [ ] Database migration for roles table with permissions
+- [ ] Define 7 roles: Super Admin, Chairman, Vice Chairman, Financial Officer, Security Officer, Secretary, Project Manager
+- [ ] EXCO/BOT organizational structure support
+- [ ] Granular module-level permissions (per-feature access control)
+- [ ] Role assignment restricted to residents only
+- [ ] Update middleware for dynamic role checking
+- [ ] Update auth context and all role checks throughout app
+- [ ] Role management UI in settings
+- [ ] Audit logging for role changes
+
+---
+
+## Phase 11: Alert Management Module
+Centralized notification system (Email-only for now):
+- [ ] Notification templates database table
+- [ ] Multi-channel architecture (Email primary, SMS/WhatsApp hooks for later)
+- [ ] Configurable timing rules and schedules
+- [ ] Automatic escalation workflows
+- [ ] Smart deduplication (prevent duplicate alerts)
+- [ ] Notification preferences per resident
+- [ ] Notification history/log viewer
+- [ ] Comprehensive audit trails
+
+---
+
+## Phase 12: Resident View Portal
+Self-service portal for residents:
+- [ ] Resident authentication (separate from admin login)
+- [ ] Read-only dashboard with property info
+- [ ] View invoices and payment history
+- [ ] Download payment receipts (PDF)
+- [ ] Manage security contacts (add/edit/remove within limits)
+- [ ] Notification preferences management
+- [ ] Profile management (update contact info)
+- [ ] Mobile-responsive design
+
+---
+
+## Phase 13: Dashboard & Analytics
+Enhanced analytics and reporting:
+- [ ] Financial dashboard with revenue/expense charts
+- [ ] Occupancy analytics and trends
+- [ ] Payment compliance rates
+- [ ] Overdue invoice aging reports
+- [ ] Resident demographics
+- [ ] Key performance indicators (KPIs)
+- [ ] Exportable reports (PDF/Excel)
+- [ ] Date range filters
+
+---
+
+## Phase 14: Document Management
+Central document repository:
+- [ ] Documents database table with categories
+- [ ] File upload to Supabase Storage
+- [ ] Document library UI with search/filter
+- [ ] Document templates (notices, letters)
+- [ ] Resident document access (invoices, receipts)
+- [ ] Version control for policies
+- [ ] Compliance certificate storage
+- [ ] Access control per document type
+
+---
+
+## Phase 15: Community Communication
+Enhanced communication tools:
+- [ ] Announcements database table
+- [ ] Community announcements/bulletin board
+- [ ] Scheduled announcements (future publish date)
+- [ ] Message templates library
+- [ ] In-app notification center
+- [ ] Read receipts tracking
+- [ ] Emergency broadcast system
+- [ ] Announcement categories
+
+---
+
+## Phase 16: Legacy App Migration
+Data migration from existing system:
+- [ ] Define legacy data mapping schema
 - [ ] Create data import scripts/tools
-- [ ] Map legacy data to new schema
-- [ ] Test migration process
-- [ ] Document migration procedures
+- [ ] Resident data migration
+- [ ] House data migration
+- [ ] Payment history migration
+- [ ] Validate data integrity
+- [ ] Migration testing procedures
+- [ ] Rollback procedures documentation
 
 ---
 
-## Phase 11: Deployment
-- [ ] Configure Vercel deployment
-- [ ] Set up cloud Supabase project
-- [ ] Configure production environment variables
-- [ ] Final testing and bug fixes
+## Phase 17: UI Enhancement & Polish
+Pre-deployment UI improvements:
+- [ ] Responsive design review (all breakpoints)
+- [ ] Accessibility improvements (WCAG compliance)
+- [ ] Performance optimization (lazy loading, code splitting)
+- [ ] UI consistency review
+- [ ] Loading state improvements
+- [ ] Error message improvements
+- [ ] Mobile responsiveness testing
+- [ ] Cross-browser testing
 
 ---
 
-## Phase 12: External API (Security Barrier Integration)
+## Phase 18: Deployment & Production
+Production deployment:
+- [ ] Vercel deployment configuration
+- [ ] Production Supabase setup
+- [ ] Environment variables configuration
+- [ ] SSL/domain setup (residio.estate or similar)
+- [ ] Performance optimization
+- [ ] Final testing
+- [ ] Monitoring setup
+- [ ] Backup procedures
+
+---
+
+## Phase 19: External API - Security Barrier Integration
+API for external systems:
 - [ ] Create API route for access verification (`/api/v1/access/verify`)
-- [ ] Implement API key authentication
-- [ ] Add rate limiting
-- [ ] Create API documentation
+- [ ] API key authentication system
+- [ ] Rate limiting
+- [ ] Webhook support for events
+- [ ] API documentation (OpenAPI/Swagger)
+- [ ] Developer settings page (API Keys management)
 - [ ] Test with mock security barrier requests
-- [ ] Add API/Developer Settings (API Keys, Webhooks) to Settings page
+
+---
+
+## POST-DEPLOYMENT PRIORITY PHASES
+
+---
+
+## Phase 20: WhatsApp Integration
+WhatsApp Business API:
+- [ ] WhatsApp Business account setup
+- [ ] Message templates approval (Meta requirement)
+- [ ] Opt-out by default (regulatory compliance)
+- [ ] Two-way messaging support
+- [ ] Media message support
+- [ ] Integration with Alert Management module
+
+---
+
+## Phase 21: SMS Integration
+SMS notification channel:
+- [ ] SMS gateway integration (Termii, Africa's Talking, or similar)
+- [ ] Opt-in/opt-out management
+- [ ] SMS templates
+- [ ] Delivery tracking
+- [ ] Cost tracking per message
+- [ ] Integration with Alert Management module
+
+---
+
+## Phase 22: Mobile Application
+Native mobile experience:
+- [ ] React Native or Flutter app setup
+- [ ] Push notifications
+- [ ] Offline capability
+- [ ] Biometric authentication
+- [ ] QR code scanning for access verification
+- [ ] Resident portal features (mobile-optimized)
+
+---
+
+## DEFERRED PHASES (Phase 25+)
+
+---
+
+## Phase 25: Payment Gateway Integration
+Online payment processing:
+- [ ] Paystack/Flutterwave integration
+- [ ] Online invoice payment
+- [ ] Payment confirmation automation
+- [ ] Wallet top-up online
+- [ ] Transaction reconciliation
+- [ ] Payment webhook handlers
+
+---
+
+## Phase 26: Advanced Billing Features
+Enhanced billing capabilities:
+- [ ] Recurring payment scheduling
+- [ ] Early payment discounts
+- [ ] Payment plans for delinquent accounts
+- [ ] Utility metering (water/electric sub-metering)
+- [ ] Surcharge rules engine
+- [ ] Multi-currency support (optional)
+
+---
+
+## Phase 27: Violation & Compliance Tracking
+Rule enforcement system:
+- [ ] Violation categories and rules database
+- [ ] Violation reporting and tracking
+- [ ] Warning/fine escalation workflow
+- [ ] Violation history per resident
+- [ ] Appeal process
+- [ ] Compliance reports
+
+---
+
+## Phase 28: Committee & Meeting Management
+Association governance:
+- [ ] Committee creation and membership
+- [ ] Meeting scheduling and invitations
+- [ ] Agenda management
+- [ ] Meeting minutes recording
+- [ ] Voting/polling system
+- [ ] AGM management
 
 ---
 

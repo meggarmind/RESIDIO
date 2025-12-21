@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -14,7 +14,6 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Mail,
@@ -30,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useSettings, useUpdateSetting } from '@/hooks/use-settings';
 import { useTestEmail, useSendPaymentReminders } from '@/hooks/use-email';
+import { getEmailStatus } from '@/actions/email/get-email-status';
 
 export default function EmailSettingsPage() {
   const { data: settings, isLoading } = useSettings('email');
@@ -37,6 +37,11 @@ export default function EmailSettingsPage() {
   const sendReminders = useSendPaymentReminders();
   const testEmailMutation = useTestEmail();
   const [testEmailAddress, setTestEmailAddress] = useState('');
+  const [isEmailConfigured, setIsEmailConfigured] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    getEmailStatus().then((status) => setIsEmailConfigured(status.isConfigured));
+  }, []);
 
   const settingsMap =
     settings?.reduce(
@@ -62,7 +67,6 @@ export default function EmailSettingsPage() {
     }
   };
 
-  const isEmailConfigured = !!process.env.NEXT_PUBLIC_EMAIL_CONFIGURED;
   const lastRun = settingsMap.email_last_reminder_run as string | null;
 
   if (isLoading) {
@@ -101,23 +105,25 @@ export default function EmailSettingsPage() {
       <Separator />
 
       {/* Configuration Status */}
-      <Alert variant={isEmailConfigured ? 'default' : 'destructive'}>
-        {isEmailConfigured ? (
-          <CheckCircle2 className="h-4 w-4" />
-        ) : (
-          <AlertCircle className="h-4 w-4" />
-        )}
-        <AlertDescription>
+      {isEmailConfigured !== null && (
+        <Alert variant={isEmailConfigured ? 'default' : 'destructive'}>
           {isEmailConfigured ? (
-            'Email service is configured and ready to send.'
+            <CheckCircle2 className="h-4 w-4" />
           ) : (
-            <>
-              Email service is not configured. Add <code className="text-xs">RESEND_API_KEY</code>{' '}
-              to your environment variables to enable email sending.
-            </>
+            <AlertCircle className="h-4 w-4" />
           )}
-        </AlertDescription>
-      </Alert>
+          <AlertDescription>
+            {isEmailConfigured ? (
+              'Email service is configured and ready to send.'
+            ) : (
+              <>
+                Email service is not configured. Add <code className="text-xs">RESEND_API_KEY</code>{' '}
+                to your environment variables to enable email sending.
+              </>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Master Toggle */}
       <Card>
@@ -139,7 +145,7 @@ export default function EmailSettingsPage() {
               onCheckedChange={() =>
                 handleToggle('email_enabled', settingsMap.email_enabled !== false)
               }
-              disabled={updateSetting.isPending}
+              disabled={updateSetting.isPending || !isEmailConfigured}
             />
           </div>
         </CardContent>
