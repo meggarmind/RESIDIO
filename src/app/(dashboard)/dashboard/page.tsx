@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useDashboardStats } from '@/hooks/use-dashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { Users, CreditCard, Shield, TrendingUp, Receipt, UserPlus } from 'lucide-react';
 
@@ -55,8 +56,59 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Loading...</p>
+      <div className="space-y-6">
+        <div>
+          <Skeleton className="h-9 w-64" />
+          <Skeleton className="h-5 w-80 mt-2" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-4" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-3 w-24 mt-2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-4 w-48 mt-1" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <Skeleton className="h-4 w-4 mt-0.5" />
+                  <div className="flex-1">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-48 mt-1" />
+                  </div>
+                  <Skeleton className="h-3 w-12" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-4 w-36 mt-1" />
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="flex justify-between">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -81,12 +133,19 @@ export default function DashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {statsLoading ? '...' : stats?.totalResidents ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {statsLoading ? 'Loading...' : `${stats?.activeResidents ?? 0} active members`}
-            </p>
+            {statsLoading ? (
+              <>
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-24 mt-2" />
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats?.totalResidents ?? 0}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats?.activeResidents ?? 0} active members
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -96,12 +155,19 @@ export default function DashboardPage() {
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {statsLoading ? '...' : formatCurrency(stats?.paymentsThisMonthAmount ?? 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {statsLoading ? 'Loading...' : `${stats?.paymentsThisMonth ?? 0} transactions`}
-            </p>
+            {statsLoading ? (
+              <>
+                <Skeleton className="h-8 w-24" />
+                <Skeleton className="h-3 w-20 mt-2" />
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{formatCurrency(stats?.paymentsThisMonthAmount ?? 0)}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats?.paymentsThisMonth ?? 0} transactions
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -111,10 +177,17 @@ export default function DashboardPage() {
             <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {statsLoading ? '...' : stats?.activeAccessCodes ?? 0}
-            </div>
-            <p className="text-xs text-muted-foreground">Security contacts</p>
+            {statsLoading ? (
+              <>
+                <Skeleton className="h-8 w-12" />
+                <Skeleton className="h-3 w-24 mt-2" />
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats?.activeAccessCodes ?? 0}</div>
+                <p className="text-xs text-muted-foreground">Security contacts</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -124,12 +197,19 @@ export default function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {statsLoading ? '...' : `${stats?.paymentRate ?? 0}%`}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {statsLoading ? 'Loading...' : `${stats?.paidInvoices ?? 0} of ${stats?.totalInvoices ?? 0} invoices paid`}
-            </p>
+            {statsLoading ? (
+              <>
+                <Skeleton className="h-8 w-14" />
+                <Skeleton className="h-3 w-32 mt-2" />
+              </>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats?.paymentRate ?? 0}%</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats?.paidInvoices ?? 0} of {stats?.totalInvoices ?? 0} invoices paid
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -142,7 +222,18 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {statsLoading ? (
-              <p className="text-sm text-muted-foreground">Loading activity...</p>
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <Skeleton className="h-4 w-4 mt-0.5" />
+                    <div className="flex-1">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-48 mt-1" />
+                    </div>
+                    <Skeleton className="h-3 w-12" />
+                  </div>
+                ))}
+              </div>
             ) : stats?.recentActivity && stats.recentActivity.length > 0 ? (
               <div className="space-y-4">
                 {stats.recentActivity.map((activity) => (

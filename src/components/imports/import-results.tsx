@@ -21,7 +21,7 @@ import {
   Download,
   RotateCcw,
 } from 'lucide-react';
-import type { ProcessImportResult } from '@/actions/imports/process-import';
+import type { ProcessImportResult } from '@/actions/imports/types';
 
 interface ImportResultsProps {
   result: ProcessImportResult;

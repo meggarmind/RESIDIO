@@ -5,8 +5,21 @@ import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { getAuditLogs, type GetAuditLogsParams } from '@/actions/audit';
-import { AUDIT_ACTION_LABELS, AUDIT_ENTITY_LABELS } from '@/types/database';
+import { getAuditLogs } from '@/actions/audit';
+import { AUDIT_ACTION_LABELS, AUDIT_ENTITY_LABELS, type AuditAction, type AuditEntityType } from '@/types/database';
+
+// Type for audit log params (defined inline since it's from 'use server' file)
+type GetAuditLogsParams = {
+  entityType?: AuditEntityType;
+  entityId?: string;
+  action?: AuditAction;
+  actorId?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+};
 
 interface AuditExportButtonProps {
   filters: GetAuditLogsParams;

@@ -17,18 +17,18 @@ import { hasSecurityPermission } from './settings';
 import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
 
-export interface SecurityContactResponse {
+type SecurityContactResponse = {
   data: SecurityContact | null;
   error: string | null;
 }
 
-export interface SecurityContactsResponse {
+type SecurityContactsResponse = {
   data: SecurityContactWithDetails[];
   count: number;
   error: string | null;
 }
 
-export interface SecurityContactDetailResponse {
+type SecurityContactDetailResponse = {
   data: SecurityContactWithDetails | null;
   error: string | null;
 }

@@ -4,7 +4,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { logAudit } from '@/lib/audit/logger';
 import type { ResidentRole } from '@/types/database';
 
-export interface BackfillResult {
+type BackfillResult = {
   success: boolean;
   error: string | null;
   summary: {

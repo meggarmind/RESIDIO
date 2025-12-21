@@ -1,20 +1,23 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizeAction } from '@/lib/auth/authorize';
+import { ACTION_ROLES } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
 
-export interface DeleteHouseResponse {
+type DeleteHouseResponse = {
   success: boolean;
   error: string | null;
 }
 
 export async function deleteHouse(id: string): Promise<DeleteHouseResponse> {
-  const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: 'Unauthorized' };
+  // Authorization check - only admin, chairman, financial_secretary can delete houses
+  const auth = await authorizeAction(ACTION_ROLES.houses);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error };
   }
+
+  const supabase = await createServerSupabaseClient();
 
   // Check if house has active residents
   const { data: residents } = await supabase

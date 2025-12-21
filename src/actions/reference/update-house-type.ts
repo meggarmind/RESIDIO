@@ -1,22 +1,24 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizeAction } from '@/lib/auth/authorize';
+import { ACTION_ROLES } from '@/lib/auth/action-roles';
 import type { HouseType } from '@/types/database';
 import type { HouseTypeFormData } from '@/lib/validators/house';
 
-export interface UpdateHouseTypeResponse {
+type UpdateHouseTypeResponse = {
     data: HouseType | null;
     error: string | null;
 }
 
 export async function updateHouseType(id: string, formData: HouseTypeFormData): Promise<UpdateHouseTypeResponse> {
-    const supabase = await createServerSupabaseClient();
-
-    // Check auth
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        return { data: null, error: 'Unauthorized' };
+    // Authorization check - only admin, chairman can update house types
+    const auth = await authorizeAction(ACTION_ROLES.reference);
+    if (!auth.authorized) {
+        return { data: null, error: auth.error };
     }
+
+    const supabase = await createServerSupabaseClient();
 
     // Update
     const { data, error } = await supabase

@@ -1,21 +1,23 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizeAction } from '@/lib/auth/authorize';
+import { ACTION_ROLES } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 
-export interface DeleteStreetResponse {
+type DeleteStreetResponse = {
     success: boolean;
     error: string | null;
 }
 
 export async function deleteStreet(id: string): Promise<DeleteStreetResponse> {
-    const supabase = await createServerSupabaseClient();
-
-    // Check auth
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        return { success: false, error: 'Unauthorized' };
+    // Authorization check - only admin, chairman can delete streets
+    const auth = await authorizeAction(ACTION_ROLES.reference);
+    if (!auth.authorized) {
+        return { success: false, error: auth.error };
     }
+
+    const supabase = await createServerSupabaseClient();
 
     // Fetch street for audit logging
     const { data: street } = await supabase

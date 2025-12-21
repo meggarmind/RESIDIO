@@ -1,20 +1,21 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { sanitizeSearchInput } from '@/lib/utils';
 import type { HouseWithStreet, ResidentRole } from '@/types/database';
 import type { HouseSearchParams } from '@/lib/validators/house';
 
-export interface HouseWithRoles extends HouseWithStreet {
+type HouseWithRoles = HouseWithStreet & {
   activeRoles: ResidentRole[];
-}
+};
 
-export interface GetHousesResponse {
+type GetHousesResponse = {
   data: HouseWithStreet[];
   count: number;
   error: string | null;
 }
 
-export interface GetHousesWithRolesResponse {
+type GetHousesWithRolesResponse = {
   data: HouseWithRoles[];
   count: number;
   error: string | null;
@@ -35,7 +36,8 @@ export async function getHouses(params: Partial<HouseSearchParams> = {}): Promis
 
   // Apply filters
   if (search) {
-    query = query.ilike('house_number', `%${search}%`);
+    const sanitized = sanitizeSearchInput(search);
+    query = query.ilike('house_number', `%${sanitized}%`);
   }
   if (street_id) {
     query = query.eq('street_id', street_id);
@@ -81,7 +83,8 @@ export async function getHousesWithRoles(params: Partial<HouseSearchParams> = {}
 
   // Apply filters
   if (search) {
-    query = query.ilike('house_number', `%${search}%`);
+    const sanitized = sanitizeSearchInput(search);
+    query = query.ilike('house_number', `%${sanitized}%`);
   }
   if (street_id) {
     query = query.eq('street_id', street_id);
@@ -112,7 +115,8 @@ export async function getHousesWithRoles(params: Partial<HouseSearchParams> = {}
     .eq('is_occupied', false);
 
   if (search) {
-    unoccupiedQuery = unoccupiedQuery.ilike('house_number', `%${search}%`);
+    const sanitized = sanitizeSearchInput(search);
+    unoccupiedQuery = unoccupiedQuery.ilike('house_number', `%${sanitized}%`);
   }
   if (street_id) {
     unoccupiedQuery = unoccupiedQuery.eq('street_id', street_id);

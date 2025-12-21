@@ -3,7 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { HouseWithResidents } from '@/types/database';
 
-export interface GetHouseResponse {
+type GetHouseResponse = {
   data: HouseWithResidents | null;
   error: string | null;
 }

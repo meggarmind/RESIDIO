@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { SystemSetting } from '@/types/database';
 
-export interface UpdateSettingResponse {
+type UpdateSettingResponse = {
     data: SystemSetting | null;
     error: string | null;
 }

@@ -2,7 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
-export interface DashboardStats {
+type DashboardStats = {
     totalResidents: number;
     activeResidents: number;
     paymentsThisMonth: number;
@@ -14,7 +14,7 @@ export interface DashboardStats {
     recentActivity: RecentActivityItem[];
 }
 
-export interface RecentActivityItem {
+type RecentActivityItem = {
     id: string;
     type: 'payment' | 'resident' | 'invoice';
     description: string;

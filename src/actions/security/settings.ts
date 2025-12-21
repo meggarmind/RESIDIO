@@ -6,7 +6,7 @@ import type { SecurityRolePermissions, UserRole } from '@/types/database';
 import { DEFAULT_SECURITY_PERMISSIONS, SECURITY_PERMISSION_LABELS } from '@/types/database';
 import { logAudit } from '@/lib/audit/logger';
 
-export interface SecuritySettingsResponse {
+type SecuritySettingsResponse = {
   data: {
     role_permissions: SecurityRolePermissions;
     max_contacts_per_resident: number | null;
@@ -18,7 +18,7 @@ export interface SecuritySettingsResponse {
   error: string | null;
 }
 
-export interface UpdateSecuritySettingsResponse {
+type UpdateSecuritySettingsResponse = {
   success: boolean;
   error: string | null;
 }

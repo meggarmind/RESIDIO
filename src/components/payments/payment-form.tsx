@@ -73,7 +73,7 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
             onSuccess?.();
             router.push('/payments');
         } catch (error) {
-            console.error(error);
+            toast.error(error instanceof Error ? error.message : 'Failed to save payment');
         }
     }
 

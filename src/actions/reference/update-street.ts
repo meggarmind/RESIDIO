@@ -1,23 +1,25 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizeAction } from '@/lib/auth/authorize';
+import { ACTION_ROLES } from '@/lib/auth/action-roles';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
 import type { Street } from '@/types/database';
 import type { StreetFormData } from '@/lib/validators/house';
 
-export interface UpdateStreetResponse {
+type UpdateStreetResponse = {
     data: Street | null;
     error: string | null;
 }
 
 export async function updateStreet(id: string, formData: StreetFormData): Promise<UpdateStreetResponse> {
-    const supabase = await createServerSupabaseClient();
-
-    // Check auth
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        return { data: null, error: 'Unauthorized' };
+    // Authorization check - only admin, chairman can update streets
+    const auth = await authorizeAction(ACTION_ROLES.reference);
+    if (!auth.authorized) {
+        return { data: null, error: auth.error };
     }
+
+    const supabase = await createServerSupabaseClient();
 
     // Fetch current street for change tracking
     const { data: currentStreet } = await supabase

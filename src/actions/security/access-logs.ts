@@ -7,12 +7,12 @@ import type { CheckInData, CheckOutData, FlagAccessData, AccessLogsFilters } fro
 import { hasSecurityPermission } from './settings';
 import { logAudit } from '@/lib/audit/logger';
 
-export interface AccessLogResponse {
+type AccessLogResponse = {
   data: AccessLog | null;
   error: string | null;
 }
 
-export interface AccessLogsResponse {
+type AccessLogsResponse = {
   data: AccessLogWithDetails[];
   count: number;
   error: string | null;

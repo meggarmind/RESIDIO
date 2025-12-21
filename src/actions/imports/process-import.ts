@@ -3,14 +3,14 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logAudit } from '@/lib/audit/logger';
 import type { BankStatementImport, BankStatementRow, PaymentRecord } from '@/types/database';
-import { createPayment, type CreatePaymentResult } from '@/actions/payments/create-payment';
+import { createPayment } from '@/actions/payments/create-payment';
 import { updateImportStatus } from './create-import';
 
 // ============================================================
 // Response Types
 // ============================================================
 
-export interface ProcessImportResult {
+type ProcessImportResult = {
   success: boolean;
   created_count: number;
   skipped_count: number;
@@ -19,7 +19,7 @@ export interface ProcessImportResult {
   import_id: string;
 }
 
-export interface DuplicateCheckResult {
+type DuplicateCheckResult = {
   is_duplicate: boolean;
   existing_payment?: PaymentRecord;
   reason?: string;
@@ -84,7 +84,7 @@ export async function checkDuplicate(
 // Process Import - Create Payments
 // ============================================================
 
-export interface ProcessImportOptions {
+type ProcessImportOptions = {
   import_id: string;
   /** atomic: all-or-nothing, individual: process each row independently */
   mode?: 'atomic' | 'individual';
@@ -268,7 +268,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
         .from('bank_statement_rows')
         .update({
           status: 'created',
-          payment_id: (paymentResult.data as CreatePaymentResult['data'])?.id,
+          payment_id: paymentResult.data?.id,
         })
         .eq('id', row.id);
 

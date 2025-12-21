@@ -1,9 +1,10 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { sanitizeSearchInput } from '@/lib/utils';
 import type { AuditLogWithActor, AuditAction, AuditEntityType } from '@/types/database';
 
-export interface GetAuditLogsParams {
+type GetAuditLogsParams = {
   entityType?: AuditEntityType;
   entityId?: string;
   action?: AuditAction;
@@ -15,7 +16,7 @@ export interface GetAuditLogsParams {
   limit?: number;
 }
 
-export interface GetAuditLogsResponse {
+type GetAuditLogsResponse = {
   data: AuditLogWithActor[] | null;
   total: number;
   error: string | null;
@@ -74,7 +75,8 @@ export async function getAuditLogs(
   if (startDate) query = query.gte('created_at', startDate);
   if (endDate) query = query.lte('created_at', endDate);
   if (search) {
-    query = query.or(`entity_display.ilike.%${search}%,description.ilike.%${search}%`);
+    const sanitized = sanitizeSearchInput(search);
+    query = query.or(`entity_display.ilike.%${sanitized}%,description.ilike.%${sanitized}%`);
   }
 
   // Pagination (ordered by most recent first)

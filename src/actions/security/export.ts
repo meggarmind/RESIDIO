@@ -5,7 +5,7 @@ import { hasSecurityPermission } from './settings';
 import { formatDateTime } from '@/lib/utils';
 import type { SecurityContactFilters } from '@/lib/validators/security-contact';
 
-export interface ExportSecurityContactsResponse {
+type ExportSecurityContactsResponse = {
   data: string | null;
   error: string | null;
 }

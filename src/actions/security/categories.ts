@@ -8,12 +8,12 @@ import { hasSecurityPermission } from './settings';
 import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
 
-export interface CategoryResponse {
+type CategoryResponse = {
   data: SecurityContactCategory | null;
   error: string | null;
 }
 
-export interface CategoriesResponse {
+type CategoriesResponse = {
   data: SecurityContactCategory[];
   error: string | null;
 }

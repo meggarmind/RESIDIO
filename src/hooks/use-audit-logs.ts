@@ -6,9 +6,21 @@ import {
   getEntityAuditLogs,
   getAuditStats,
   getAuditActors,
-  type GetAuditLogsParams,
 } from '@/actions/audit';
-import type { AuditEntityType } from '@/types/database';
+import type { AuditEntityType, AuditAction } from '@/types/database';
+
+// Type for audit log params (defined inline since it's from 'use server' file)
+type GetAuditLogsParams = {
+  entityType?: AuditEntityType;
+  entityId?: string;
+  action?: AuditAction;
+  actorId?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+};
 
 /**
  * Hook to fetch audit logs with filtering and pagination.

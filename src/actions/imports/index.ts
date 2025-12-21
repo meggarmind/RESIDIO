@@ -4,6 +4,50 @@
  * Central export for all bank statement import actions.
  */
 
+// Re-export all types from the types file (not from 'use server' files)
+export type {
+  // Bank Account Types
+  GetBankAccountsResponse,
+  GetBankAccountResponse,
+  MutateBankAccountResponse,
+  DeleteBankAccountResponse,
+  // Import Types
+  BankStatementImportWithDetails,
+  BankStatementRowWithResident,
+  GetImportsResponse,
+  GetImportResponse,
+  GetImportRowsResponse,
+  ImportSearchParams,
+  ImportRowSearchParams,
+  ImportStats,
+  ImportRowSummary,
+  TagBreakdownItem,
+  TransactionTypeBreakdown,
+  ImportBreakdown,
+  // Create Import Types
+  CreateImportParams,
+  CreateImportResponse,
+  CreateImportRowsParams,
+  CreateImportRowsResponse,
+  UpdateImportStatusParams,
+  // Match Residents Types
+  MatchRowResult,
+  MatchResidentsResponse,
+  ManualMatchParams,
+  ManualMatchResponse,
+  BatchUpdateParams,
+  // Process Import Types
+  ProcessImportOptions,
+  ProcessImportResult,
+  DuplicateCheckResult,
+  // Aliases Types
+  ResidentPaymentAliasWithResident,
+  GetAliasesResponse,
+  GetAliasResponse,
+  MutateAliasResponse,
+  GetAliasesWithResidentResponse,
+} from './types';
+
 // Bank Accounts
 export {
   getBankAccounts,
@@ -12,9 +56,6 @@ export {
   updateBankAccount,
   toggleBankAccountStatus,
   deleteBankAccount,
-  type GetBankAccountsResponse,
-  type GetBankAccountResponse,
-  type MutateBankAccountResponse,
 } from './bank-accounts';
 
 // Create Import
@@ -23,11 +64,6 @@ export {
   createImportRows,
   updateImportStatus,
   deleteImport,
-  type CreateImportParams,
-  type CreateImportResponse,
-  type CreateImportRowsParams,
-  type CreateImportRowsResponse,
-  type UpdateImportStatusParams,
 } from './create-import';
 
 // Match Residents
@@ -37,11 +73,6 @@ export {
   unmatchRow,
   skipRow,
   batchUpdateRowStatus,
-  type MatchRowResult,
-  type MatchResidentsResponse,
-  type ManualMatchResponse,
-  type ManualMatchParams,
-  type BatchUpdateParams,
 } from './match-residents';
 
 // Process Import
@@ -51,9 +82,6 @@ export {
   approveImport,
   rejectImport,
   submitForApproval,
-  type ProcessImportOptions,
-  type ProcessImportResult,
-  type DuplicateCheckResult,
 } from './process-import';
 
 // Get Imports
@@ -65,16 +93,4 @@ export {
   getImportRowSummary,
   getImportBreakdown,
   getPendingApprovalImports,
-  type ImportSearchParams,
-  type ImportRowSearchParams,
-  type GetImportsResponse,
-  type GetImportResponse,
-  type GetImportRowsResponse,
-  type BankStatementImportWithDetails,
-  type BankStatementRowWithResident,
-  type ImportStats,
-  type ImportRowSummary,
-  type ImportBreakdown,
-  type TagBreakdownItem,
-  type TransactionTypeBreakdown,
 } from './get-imports';

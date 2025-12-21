@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { sanitizeSearchInput } from '@/lib/utils';
 import { PaymentSearchParams } from '@/lib/validators/payment';
 
 export async function getPayments(params: PaymentSearchParams) {
@@ -27,7 +28,7 @@ export async function getPayments(params: PaymentSearchParams) {
 
   if (status) query = query.eq('status', status);
   if (resident_id) query = query.eq('resident_id', resident_id);
-  if (searchQuery) query = query.ilike('reference_number', `%${searchQuery}%`);
+  if (searchQuery) query = query.ilike('reference_number', `%${sanitizeSearchInput(searchQuery)}%`);
   if (start_date) query = query.gte('payment_date', start_date);
   if (end_date) query = query.lte('payment_date', end_date);
 

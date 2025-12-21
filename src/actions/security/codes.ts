@@ -8,17 +8,17 @@ import { hasSecurityPermission } from './settings';
 import { logAudit } from '@/lib/audit/logger';
 import { formatDateTime } from '@/lib/utils';
 
-export interface AccessCodeResponse {
+type AccessCodeResponse = {
   data: AccessCode | null;
   error: string | null;
 }
 
-export interface AccessCodesResponse {
+type AccessCodesResponse = {
   data: AccessCode[];
   error: string | null;
 }
 
-export interface VerifyCodeResponse {
+type VerifyCodeResponse = {
   data: AccessCodeWithContact | null;
   valid: boolean;
   error: string | null;

@@ -8,9 +8,21 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle2, Loader2, History, Save, Globe, Facebook, Instagram, Twitter } from 'lucide-react';
-import { backfillOwnershipHistory, type BackfillResult } from '@/actions/settings/backfill-ownership-history';
+import { backfillOwnershipHistory } from '@/actions/settings/backfill-ownership-history';
 import { toast } from 'sonner';
 import { useGeneralSettings, useUpdateSettings } from '@/hooks/use-settings';
+
+// Type for backfill result (defined inline since it's from 'use server' file)
+type BackfillResult = {
+  success: boolean;
+  error: string | null;
+  summary: {
+    housesProcessed: number;
+    ownershipEndEventsCreated: number;
+    moveOutEventsCreated: number;
+    errors: string[];
+  } | null;
+};
 
 // Helper to convert settings array to key-value object
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, string> {

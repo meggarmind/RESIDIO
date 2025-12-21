@@ -7,7 +7,7 @@ import type { CreateResidentData } from '@/lib/validators/resident';
 import { requiresSponsor, isValidCorporateRole } from '@/lib/validators/resident';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 
-export interface CreateResidentResponse {
+type CreateResidentResponse = {
   data: Resident | null;
   error: string | null;
 }

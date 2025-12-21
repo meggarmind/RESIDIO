@@ -17,7 +17,7 @@ import {
   FileCheck,
 } from 'lucide-react';
 import { useImport, useImportRowSummary, useProcessImport } from '@/hooks/use-imports';
-import type { ProcessImportResult } from '@/actions/imports/process-import';
+import type { ProcessImportResult } from '@/actions/imports/types';
 
 interface ImportConfirmationProps {
   importId: string;

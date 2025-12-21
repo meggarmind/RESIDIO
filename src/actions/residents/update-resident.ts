@@ -1,22 +1,25 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizeAction } from '@/lib/auth/authorize';
+import { ACTION_ROLES } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
 import type { Resident } from '@/types/database';
 import type { ResidentFormData } from '@/lib/validators/resident';
 
-export interface UpdateResidentResponse {
+type UpdateResidentResponse = {
   data: Resident | null;
   error: string | null;
 }
 
 export async function updateResident(id: string, formData: ResidentFormData): Promise<UpdateResidentResponse> {
-  const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { data: null, error: 'Unauthorized' };
+  // Authorization check - only admin, chairman, financial_secretary can update residents
+  const auth = await authorizeAction(ACTION_ROLES.residents);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error };
   }
+
+  const supabase = await createServerSupabaseClient();
 
   // Validate corporate entity fields
   if (formData.entity_type === 'corporate' && !formData.company_name?.trim()) {
@@ -43,7 +46,7 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
       emergency_contact_phone: formData.emergency_contact_phone || null,
       emergency_contact_relationship: formData.emergency_contact_relationship || null,
       notes: formData.notes || null,
-      updated_by: user.id,
+      updated_by: auth.userId,
     })
     .eq('id', id)
     .select()

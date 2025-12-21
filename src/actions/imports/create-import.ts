@@ -10,12 +10,12 @@ import type { ParsedRow } from '@/lib/validators/import';
 // Response Types
 // ============================================================
 
-export interface CreateImportResponse {
+type CreateImportResponse = {
   data: BankStatementImport | null;
   error: string | null;
 }
 
-export interface CreateImportRowsResponse {
+type CreateImportRowsResponse = {
   count: number;
   error: string | null;
 }
@@ -24,7 +24,7 @@ export interface CreateImportRowsResponse {
 // Create Import Session
 // ============================================================
 
-export interface CreateImportParams {
+type CreateImportParams = {
   file_name: string;
   file_type: 'csv' | 'xlsx';
   bank_account_id: string;
@@ -139,7 +139,7 @@ async function retryWithBackoff<T>(
 // Create Import Rows (Batch)
 // ============================================================
 
-export interface CreateImportRowsParams {
+type CreateImportRowsParams = {
   import_id: string;
   rows: ParsedRow[];
 }
@@ -247,7 +247,7 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
 // Update Import Status
 // ============================================================
 
-export interface UpdateImportStatusParams {
+type UpdateImportStatusParams = {
   import_id: string;
   status: BankStatementImport['status'];
   matched_rows?: number;

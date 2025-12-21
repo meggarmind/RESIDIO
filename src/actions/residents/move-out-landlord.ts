@@ -4,7 +4,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 
-export interface MoveOutLandlordResponse {
+type MoveOutLandlordResponse = {
   success: boolean;
   error: string | null;
   movedOutResidents?: number; // Count of secondary residents that were also removed

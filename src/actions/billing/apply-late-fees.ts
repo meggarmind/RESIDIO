@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getSettingValue } from '@/actions/settings/get-settings';
 import { logAudit } from '@/lib/audit/logger';
 
-export interface ApplyLateFeesResult {
+type ApplyLateFeesResult = {
     success: boolean;
     processed: number;
     applied: number;

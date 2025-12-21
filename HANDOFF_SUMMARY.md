@@ -1,125 +1,88 @@
 # Handoff Summary - Residio Project
 
-**Date:** 2025-12-15 01:30 WAT
-**Current Phase:** Phase 6 - Security Contact List (NEXT UP)
-**Last Completed:** Payment Page Scroll Fix (Phase 5.7)
+**Date:** 2025-12-21
+**Current Phase:** Phase 9 - Polish (mostly complete)
+**Last Completed:** Fixed 'use server' export violations
 
 ---
 
 ## Session Goal
 
-This session focused on:
-1. **Investigating and fixing the payment page scroll jump issue**
-2. Root cause analysis of `revalidatePath()` causing full page re-renders
-3. Converting payment page from server component to client component
-4. Ensuring build passes and implementation is complete
+This session continued from a previous session where Phase 9 Polish was being implemented. A critical runtime error was blocking the application:
+- **Error:** "A 'use server' file can only export async functions, found object"
+- **Cause:** `ACTION_ROLES` object and `AuthorizationResult` interface were being exported from `src/lib/auth/authorize.ts` (a 'use server' file)
 
 ---
 
 ## Key Decisions Made
 
-### Solution Approach
-**Converted payment page to client component pattern** (same as residents/houses pages)
-- Removed all `revalidatePath()` calls from payment server actions
-- Replaced server-side data fetching with React Query hooks
-- Added proper Suspense boundaries for `useSearchParams()`
-- Maintained URL-based filter persistence
+### 'use server' Export Fix
+- Created separate file `src/lib/auth/action-roles.ts` for non-async exports
+- Kept only `authorizeAction` async function in `authorize.ts`
+- Updated 9 consumer files to import from new location
 
-### Why This Approach
-1. **Proven pattern**: Residents and houses pages already use this successfully
-2. **Minimal changes**: Only 5 files modified
-3. **Better UX**: Loading states, no scroll jumps, smooth updates
-4. **Maintainable**: Consistent architecture across all list pages
+### Phase 9 Verification
+- Confirmed all Phase 9 items were already implemented in previous sessions
+- Only remaining item is payment reminder emails (requires email service setup)
 
 ---
 
 ## Code Changes Made
 
-### Files Modified (5 total)
+### Files Created (1)
 
-1. **`src/actions/payments/delete-payment.ts`**:
-   - Removed `revalidatePath('/payments')` call (line 18)
-   - Removed unused import
+1. **`src/lib/auth/action-roles.ts`** (NEW):
+   - Contains `AuthorizationResult` interface
+   - Contains `ACTION_ROLES` const object
+   - No 'use server' directive (allows type/const exports)
 
-2. **`src/actions/payments/update-payment.ts`**:
-   - Removed `revalidatePath('/payments')` call (line 28)
-   - Removed unused import
+### Files Modified (10)
 
-3. **`src/actions/payments/create-payment.ts`**:
-   - Removed 3 `revalidatePath()` calls (lines 103-105)
-   - Removed unused import
-   - Note: File also has new fields for house association and split payments (from concurrent session)
+1. **`src/lib/auth/authorize.ts`**:
+   - Removed `AuthorizationResult` interface export
+   - Removed `ACTION_ROLES` const export
+   - Added import for `AuthorizationResult` from action-roles.ts
 
-4. **`src/actions/payments/bulk-update-payments.ts`**:
-   - Removed `revalidatePath('/payments')` call (line 46)
-   - Removed unused import
-
-5. **`src/app/(dashboard)/payments/page.tsx`** - Complete rewrite:
-   - Added `'use client'` directive
-   - Wrapped in `Suspense` boundary
-   - Converted from `async` server component to regular client component
-   - Replaced `searchParams` prop with `useSearchParams()` hook
-   - Replaced server actions with React Query hooks (`usePayments`, `usePaymentStats`)
-   - Added loading states with `<Skeleton>` components
-   - Created reusable `StatCard` component with loading prop
-   - Maintained URL-based filter persistence
+2-10. **9 consumer files** - Updated imports to split `authorizeAction` and `ACTION_ROLES`:
+   - `src/actions/residents/update-resident.ts`
+   - `src/actions/residents/delete-resident.ts`
+   - `src/actions/reference/update-street.ts`
+   - `src/actions/reference/update-house-type.ts`
+   - `src/actions/reference/delete-street.ts`
+   - `src/actions/houses/update-house.ts`
+   - `src/actions/houses/delete-house.ts`
+   - `src/actions/payments/update-payment.ts`
+   - `src/actions/payments/delete-payment.ts`
 
 ---
 
 ## Current State
 
 ### Completed ✅
-- [x] Root cause analysis (identified `revalidatePath()` issue)
-- [x] Removed `revalidatePath()` from 4 payment server actions
-- [x] Converted payments page to client component
-- [x] Added Suspense boundary for `useSearchParams()`
-- [x] Implemented loading states with skeletons
-- [x] Maintained URL-based filter persistence
-- [x] Build verification (passes successfully)
+- [x] Fixed 'use server' export violation (ACTION_ROLES moved to action-roles.ts)
+- [x] Build passes successfully
+- [x] Dev server runs without errors
+- [x] Verified all Phase 9 Polish items implemented:
+  - Error boundaries (4 files)
+  - Table skeleton loaders (3 tables)
+  - Page loading states (dashboard, security, billing)
+  - Toast notifications (payment-form)
 
-### Testing Status
-**Build**: ✅ Passes (`npm run build`)
-**Manual testing needed**:
-- Scroll position preservation after delete/update
-- Filter persistence in URL after reload
-- Bulk update without scroll jump
-- Pagination without scroll jump
-- Loading states display correctly
+### Phase 9 Status
+- **Mostly complete** - only payment reminder emails remain (deferred, needs email service)
 
 ---
 
 ## Next Steps (Priority Order)
 
-1. **Test the payment page scroll fix** (user should test manually):
-   - Navigate to `/payments`
-   - Scroll down the list
-   - Delete a payment → verify scroll stays in place
-   - Apply filters → verify URL updates
-   - Reload page → verify filters persist
-   - Bulk update → verify no scroll jump
+1. **Phase 10: Legacy App Migration**:
+   - Define legacy app data migration strategy
+   - Create data import scripts/tools
+   - Map legacy data to new schema
 
-2. **Consider similar fixes for other pages** if they have the same issue:
-   - Check billing page (`/billing`)
-   - Check security contacts page if applicable
+2. **Or continue Phase 9** with email service setup for payment reminders
 
-3. **Resume Phase 6 - Security Contact List** (deferred from earlier):
-   - Create security_contacts table migration
-   - Build security contacts management UI
-   - Implement access code generation
-   - Create validity period management
-
-4. **Phase 5.7 - Maker-Checker Workflow** (deferred from Phase 5.5):
-   - Create approval validator
-   - Create approval server actions
-   - Update billing profile actions
-   - UI components for approvals
-
----
-
-## Plan Files
-
-Investigation and implementation plan:
-`/home/feyijimiohioma/.claude/plans/snappy-soaring-gray.md`
+3. **Check for new prompts** from Notion inbox
 
 ---
 
@@ -127,7 +90,6 @@ Investigation and implementation plan:
 
 ```bash
 cd /home/feyijimiohioma/projects/Residio
-npm run supabase:start   # If not running
 npm run dev
 ```
 

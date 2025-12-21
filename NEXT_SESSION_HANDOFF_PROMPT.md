@@ -1,127 +1,73 @@
 # Next Session Handoff Prompt
 
-## Session Context
-**Date:** 2025-12-15 01:30 WAT
-**Last Session Focus:** Fixed payment page scroll jump issue
-**Current State:** Ready for Phase 6 - Security Contact List
+**Date:** 2025-12-21
+**Phase:** Phase 9 - Polish (mostly complete)
 
 ---
 
-## What Was Just Completed
+## Context
 
-### Payment Page Scroll Fix (Phase 5.7) ✅
+Phase 9 Polish is mostly complete. The main work accomplished today was fixing a critical runtime error.
 
-**Problem**: Payment page was refreshing and jumping to top after any action (delete, update, filter), creating terrible UX.
+### Critical Fix Completed
+Fixed "A 'use server' file can only export async functions, found object" error:
+- **Problem:** `ACTION_ROLES` object and `AuthorizationResult` interface were exported from `authorize.ts` (a 'use server' file)
+- **Solution:** Created `src/lib/auth/action-roles.ts` with the interface and const, updated 9 consumer files
 
-**Root Cause**: Payment page was a server component using `revalidatePath('/payments')` in all mutation server actions, forcing full page re-renders.
-
-**Solution**: Converted payment page to client component pattern (like residents/houses pages):
-
-**Files Modified (5)**:
-1. `src/actions/payments/delete-payment.ts` - Removed `revalidatePath()`
-2. `src/actions/payments/update-payment.ts` - Removed `revalidatePath()`
-3. `src/actions/payments/create-payment.ts` - Removed `revalidatePath()`
-4. `src/actions/payments/bulk-update-payments.ts` - Removed `revalidatePath()`
-5. `src/app/(dashboard)/payments/page.tsx` - Complete rewrite to client component
-
-**Implementation Details**:
-- Added `'use client'` directive
-- Wrapped in `Suspense` boundary for `useSearchParams()`
-- Replaced server data fetching with React Query hooks
-- Added loading states with Skeleton components
-- Maintained URL-based filter persistence
-
-**Build Status**: ✅ Passes successfully (`npm run build`)
-
-**Testing Needed**: User should manually test scroll preservation, filter persistence, bulk updates, pagination.
+### Phase 9 Status
+All Phase 9 items verified complete except payment reminder emails (deferred - requires email service):
+- ✅ Error boundaries (4 files exist and working)
+- ✅ Table skeleton loaders (houses-table, residents-table, security-contacts-table)
+- ✅ Page loading states (dashboard, security, billing pages)
+- ✅ Toast notifications (payment-form uses toast.error)
 
 ---
 
-## Current Project State
+## Immediate Action
 
-### Completed Phases
-- Phase 0: Project Setup ✅
-- Phase 1: Authentication & RBAC ✅
-- Phase 2: Dashboard Shell ✅
-- Phase 3: Resident & House Management ✅
-- Phase 4: Resident & House Enhancements ✅
-- Phase 5: Payment & Billing System ✅
-  - 5.1: Payment Records ✅
-  - 5.2: Wallet System ✅
-  - 5.3: Billing & Invoices ✅
-  - 5.4: Payment Enhancements ✅
-  - 5.5: Billing Profile Enhancements ✅
-  - 5.6: UI & Reference Enhancements ✅
-  - 5.7: Payment Page UX Fix ✅ (just completed)
-- Phase 8: Audit Logging ✅
+1. **Run Notion sync** to check for new prompts:
+   ```bash
+   cd /home/feyijimiohioma/mobile-first-notion-workflow && source .env && python3 residio_inbox_processor.py
+   ```
 
-### Next Phase
-**Phase 6: Security Contact List** (NEXT UP)
+2. **Check `/prompts` folder** for any new tasks
 
-TODOs from `TODO.md`:
-- [ ] Create security_contacts table migration
-- [ ] Build security contacts management UI
-- [ ] Implement access code generation
-- [ ] Create validity period management
-- [ ] Build security contact list export
+3. **Decide next phase**:
+   - Option A: Continue Phase 9 by setting up email service for payment reminders
+   - Option B: Start Phase 10 - Legacy App Migration
 
 ---
 
-## Important Context
+## Key Files Modified in This Session
 
-### Architecture Patterns
-**List Pages**: Use client components with React Query hooks (residents, houses, payments)
-- No `revalidatePath()` in server actions
-- URL-based filters via `useSearchParams()`
-- Loading states with Skeleton components
-- Suspense boundaries for hooks that need them
+### New File Created
+- [src/lib/auth/action-roles.ts](src/lib/auth/action-roles.ts) - Contains `AuthorizationResult` interface and `ACTION_ROLES` const
 
-**Server Actions**: Keep as server actions but avoid `revalidatePath()` for pages with complex client state
-- React Query handles cache invalidation
-- Mutations use `queryClient.invalidateQueries()`
-
-### Concurrent Development Note
-There appears to be concurrent work happening on payment features (noticed new fields like `house_id`, `split_payment_group_id` in `create-payment.ts`). This is expected and the changes coexist properly.
-
-### Tech Stack
-- Next.js 16 (App Router) with TypeScript
-- Supabase (PostgreSQL + Auth)
-- React Query for client-side state
-- shadcn/ui components
-- Tailwind CSS v4
-
-### Key Files to Know
-- `TODO.md` - Project status and phase tracking
-- `CLAUDE.md` - Development guidelines and conventions
-- `HANDOFF_SUMMARY.md` - Session summaries
-- `.claude/plans/` - Implementation plans
+### Files Updated (9 consumer files)
+- `src/actions/residents/update-resident.ts`
+- `src/actions/residents/delete-resident.ts`
+- `src/actions/reference/update-street.ts`
+- `src/actions/reference/update-house-type.ts`
+- `src/actions/reference/delete-street.ts`
+- `src/actions/houses/update-house.ts`
+- `src/actions/houses/delete-house.ts`
+- `src/actions/payments/update-payment.ts`
+- `src/actions/payments/delete-payment.ts`
 
 ---
 
-## Recommended Next Actions
+## Build Status
 
-### Option 1: Start Phase 6 - Security Contact List
-Begin implementing the security contacts feature for managing resident access codes and validity periods.
-
-### Option 2: Test Payment Page Fix
-If the user wants to verify the scroll fix first:
-1. Start dev server (`npm run dev`)
-2. Navigate to `/payments`
-3. Test scroll preservation, filters, bulk updates
-4. Report any issues
-
-### Option 3: Similar UX Improvements
-Check if billing page or other list pages have similar scroll jump issues and apply the same pattern.
+✅ Build passes (`npm run build`)
+✅ Dev server runs without errors
 
 ---
 
-## Session Startup Commands
+## Environment
 
-```bash
-cd /home/feyijimiohioma/projects/Residio
-npm run supabase:start   # If not running
-npm run dev              # Start development server
-```
+- **Supabase**: Cloud only (via MCP server)
+- **Dev server**: `npm run dev` (http://localhost:3000)
+- **No local Supabase** - all database operations via cloud
 
 ---
 
@@ -133,28 +79,3 @@ npm run dev              # Start development server
 | chairman@residio.test | password123 | chairman |
 | finance@residio.test | password123 | financial_secretary |
 | security@residio.test | password123 | security_officer |
-
----
-
-## Git Repository
-https://github.com/meggarmind/RESIDIO
-
----
-
-## Questions to Ask User (if needed)
-
-1. "Would you like to test the payment page scroll fix first, or shall I proceed with Phase 6 (Security Contact List)?"
-2. "Did you notice the scroll jump issue on any other pages (billing, security, etc.)?"
-3. "Are there any specific features or priorities you'd like me to focus on?"
-
----
-
-## Critical Reminders
-
-1. **Always check TODO.md first** to understand current state
-2. **Follow CLAUDE.md conventions** for all development
-3. **Use TodoWrite tool** to track progress on complex tasks
-4. **Run `date` command** at session start to confirm current date/time
-5. **Update documentation** (TODO.md, HANDOFF_SUMMARY.md) when completing work
-6. **Build verification** before considering work complete
-7. **Ask clarifying questions** rather than making assumptions

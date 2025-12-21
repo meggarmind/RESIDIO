@@ -1,12 +1,12 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { sanitizeSearchInput } from '@/lib/utils';
 import type { InvoiceWithDetails, InvoiceStatus, InvoiceType } from '@/types/database';
 
-// Re-export for backward compatibility
-export type { InvoiceWithDetails };
+// Note: InvoiceWithDetails is now imported from @/types/database directly where needed
 
-export interface GetInvoicesParams {
+type GetInvoicesParams = {
     status?: InvoiceStatus;
     invoiceType?: InvoiceType;
     residentId?: string;
@@ -16,7 +16,7 @@ export interface GetInvoicesParams {
     limit?: number;
 }
 
-export interface GetInvoicesResponse {
+type GetInvoicesResponse = {
     data: InvoiceWithDetails[];
     total: number;
     error: string | null;
@@ -50,7 +50,8 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
         query = query.eq('house_id', houseId);
     }
     if (search) {
-        query = query.or(`invoice_number.ilike.%${search}%`);
+        const sanitized = sanitizeSearchInput(search);
+        query = query.or(`invoice_number.ilike.%${sanitized}%`);
     }
 
     // Pagination
@@ -93,7 +94,7 @@ export async function getInvoiceById(id: string): Promise<{ data: InvoiceWithDet
     return { data: data as any, error: null };
 }
 
-export interface ResidentIndebtedness {
+type ResidentIndebtedness = {
     totalUnpaid: number;
     invoiceCount: number;
     unpaidCount: number;

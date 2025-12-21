@@ -6,7 +6,7 @@ import type { House } from '@/types/database';
 import type { HouseFormData } from '@/lib/validators/house';
 import { generateLeviesForHouse } from '@/actions/billing/generate-levies';
 
-export interface CreateHouseResponse {
+type CreateHouseResponse = {
   data: House | null;
   error: string | null;
 }

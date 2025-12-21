@@ -3,7 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
-export interface WalletTransaction {
+type WalletTransaction = {
     id: string;
     wallet_id: string;
     type: 'credit' | 'debit';
@@ -15,7 +15,7 @@ export interface WalletTransaction {
     created_at: string;
 }
 
-export interface WalletWithBalance {
+type WalletWithBalance = {
     id: string;
     resident_id: string;
     balance: number;

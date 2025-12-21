@@ -8,7 +8,7 @@ import { createPayment } from './create-payment'
 import { logAudit } from '@/lib/audit/logger'
 import type { PaymentRecord } from '@/types/database'
 
-export interface CreateSplitPaymentResult {
+type CreateSplitPaymentResult = {
     success?: boolean
     error?: string
     details?: z.ZodFlattenedError<SplitPaymentFormData>

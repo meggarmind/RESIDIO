@@ -3,7 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { Street } from '@/types/database';
 
-export interface DuplicateStreetResponse {
+type DuplicateStreetResponse = {
     data: Street | null;
     error: string | null;
 }

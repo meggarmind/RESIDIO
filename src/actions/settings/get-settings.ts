@@ -3,12 +3,12 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { SystemSetting } from '@/types/database';
 
-export interface GetSettingsResponse {
+type GetSettingsResponse = {
     data: SystemSetting[];
     error: string | null;
 }
 
-export interface GetSettingResponse {
+type GetSettingResponse = {
     data: SystemSetting | null;
     error: string | null;
 }

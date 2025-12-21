@@ -29,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
 import { SecurityContactStatusBadge, CategoryBadge } from './security-badges';
 import { AccessCodeDisplay } from './access-code-display';
 import { useSecurityContacts, useSecurityContactCategories, useExpiredContactCount } from '@/hooks/use-security';
@@ -285,11 +286,23 @@ export function SecurityContactsTable({
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={showResidentColumn ? 8 : 7} className="text-center py-8">
-                  Loading contacts...
-                </TableCell>
-              </TableRow>
+              [...Array(5)].map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-20 mt-1" />
+                  </TableCell>
+                  <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
+                  {showResidentColumn && (
+                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  )}
+                  <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                  <TableCell><Skeleton className="h-6 w-24 rounded" /></TableCell>
+                  <TableCell><Skeleton className="h-8 w-8" /></TableCell>
+                </TableRow>
+              ))
             ) : contacts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={showResidentColumn ? 8 : 7} className="text-center py-8">

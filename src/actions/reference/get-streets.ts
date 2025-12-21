@@ -3,7 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { Street } from '@/types/database';
 
-export interface GetStreetsResponse {
+type GetStreetsResponse = {
   data: Street[];
   error: string | null;
 }

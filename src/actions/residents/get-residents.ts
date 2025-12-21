@@ -1,14 +1,16 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { sanitizeSearchInput } from '@/lib/utils';
 import type { ResidentWithHouses } from '@/types/database';
 import type { ResidentSearchParams } from '@/lib/validators/resident';
 
-export interface GetResidentsResponse {
+// Type moved to avoid 'use server' export restriction
+type GetResidentsResponse = {
   data: ResidentWithHouses[];
   count: number;
   error: string | null;
-}
+};
 
 export async function getResidents(params: Partial<ResidentSearchParams> = {}): Promise<GetResidentsResponse> {
   const supabase = await createServerSupabaseClient();
@@ -30,7 +32,8 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
 
   // Apply filters
   if (search) {
-    query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,resident_code.eq.${search},phone_primary.ilike.%${search}%`);
+    const sanitized = sanitizeSearchInput(search);
+    query = query.or(`first_name.ilike.%${sanitized}%,last_name.ilike.%${sanitized}%,resident_code.eq.${search},phone_primary.ilike.%${sanitized}%`);
   }
   if (status) {
     query = query.eq('account_status', status);

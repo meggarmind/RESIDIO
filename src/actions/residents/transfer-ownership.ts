@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 
-export interface TransferOwnershipResponse {
+type TransferOwnershipResponse = {
   success: boolean;
   error: string | null;
 }

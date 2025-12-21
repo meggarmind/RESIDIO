@@ -1,6 +1,6 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-19 (Notion Update Enforcement)
+**Last Updated:** 2025-12-20 (Import Flow & Security Visibility Enhancements)
 
 ## Current Phase: Phase 9 - Polish (NEXT UP)
 
@@ -492,11 +492,12 @@ Centralized management for all system parameters.
 
 ---
 
-## Phase 9: Polish (NEXT UP)
-- [ ] Add loading states and skeletons
-- [ ] Implement error boundaries
-- [ ] Add toast notifications for actions
-- [ ] Implement payment reminder emails (config already in Phase 8)
+## Phase 9: Polish ✅ MOSTLY COMPLETE
+- [x] Add loading states and skeletons (all tables and pages have skeleton loaders)
+- [x] Implement error boundaries (4 files: error.tsx, (dashboard)/error.tsx, global-error.tsx, not-found.tsx)
+- [x] Add toast notifications for actions (payment-form already uses toast.error)
+- [x] Fix 'use server' export violations (ACTION_ROLES separated to action-roles.ts)
+- [ ] Implement payment reminder emails (config already in Phase 8 - deferred, requires email service)
 
 ---
 
@@ -597,3 +598,97 @@ Integrated `autoTagTransaction()` into the bank statement import workflow:
 - `src/actions/imports/create-import.ts` - Auto-tag logic after row insert
 - `src/actions/reference/transaction-tags.ts` - Clear auto_tagged on manual tag
 - `src/components/imports/import-preview.tsx` - Auto-tag indicator badge
+
+---
+
+## Recent Updates (2025-12-21)
+
+### Phase 9 Polish: 'use server' Export Fix ✅
+Fixed critical runtime error "A 'use server' file can only export async functions, found object":
+
+**Problem**: Next.js 15/16 enforces strict rules that 'use server' files can only export async functions. The file `src/lib/auth/authorize.ts` was exporting:
+- `AuthorizationResult` interface (invalid)
+- `ACTION_ROLES` const object (invalid)
+
+**Solution**:
+1. Created `src/lib/auth/action-roles.ts` - new file containing interface and const (no 'use server')
+2. Updated `src/lib/auth/authorize.ts` - removed exports, only exports `authorizeAction` function
+3. Updated 9 consumer files to import `ACTION_ROLES` from new location
+
+**Files Modified:**
+- `src/lib/auth/action-roles.ts` (NEW)
+- `src/lib/auth/authorize.ts`
+- `src/actions/residents/update-resident.ts`
+- `src/actions/residents/delete-resident.ts`
+- `src/actions/reference/update-street.ts`
+- `src/actions/reference/update-house-type.ts`
+- `src/actions/reference/delete-street.ts`
+- `src/actions/houses/update-house.ts`
+- `src/actions/houses/delete-house.ts`
+- `src/actions/payments/update-payment.ts`
+- `src/actions/payments/delete-payment.ts`
+
+### Phase 9 Polish Verification ✅
+Verified all Phase 9 items were already implemented:
+- Error boundaries: All 4 files exist and are properly implemented
+- Table skeleton loaders: houses-table, residents-table, security-contacts-table all have Skeleton states
+- Page loading states: dashboard, security, billing pages have skeleton loaders
+- Toast notifications: payment-form uses toast.error for error handling
+
+---
+
+## Recent Updates (2025-12-20)
+
+### Security Contacts: Expired Visibility Controls ✅
+Enhanced visibility controls for expired security contacts:
+
+- Added `getExpiredContactCount()` and `getExpiringContactCount()` server actions
+- Added `useExpiredContactCount()` and `useExpiringContactCount()` hooks
+- Security dashboard now shows 6 stat cards: Active, Expiring Soon, Expired, Check-ins, Currently Inside, Flagged
+- Added "Show Expired" toggle button with badge count
+- Expired rows have: red left border, reduced opacity, strikethrough on name
+- Expired badge shows "Xd ago" with tooltip showing exact date
+- By default, expired contacts are hidden; toggle shows only expired
+
+**Files Modified:**
+- `src/actions/security/contacts.ts` - Added expired/expiring count functions
+- `src/hooks/use-security.ts` - Added count hooks
+- `src/components/security/security-contacts-table.tsx` - Enhanced filtering and styling
+- `src/app/(dashboard)/security/page.tsx` - Added new stat cards
+
+### Bank Statement Import: Visual Polish & Workflow Separation ✅
+Comprehensive enhancement of import flow with credit/debit differentiation:
+
+- Added transaction type filter toggle (All/Credits/Debits) with counts
+- Summary stats now show CR/DR breakdown with colored cards
+- Table rows have colored left border (green=credit, red=debit)
+- Added `transactionCounts` computed values for filtering
+- Enhanced summary cards with icons and border colors
+
+**Files Modified:**
+- `src/components/imports/import-preview.tsx` - Transaction type filter, enhanced stats
+
+### Bank Statement Import: Expense Breakdown Enhancements ✅
+Added export functionality, interactive charts, and additional metrics:
+
+- Added "Export CSV" button for breakdown data
+- Added interactive horizontal bar chart with hover effects
+- Added tooltips showing tag details on hover
+- Added average transaction metrics per type
+- Added top credit/debit category cards
+- Added clickable tag cards for drill-down (optional callback)
+- Enhanced tag cards show average amount per category
+
+**Files Modified:**
+- `src/components/imports/import-breakdown.tsx` - Full enhancement
+
+### Cloud Supabase Configuration Update ✅
+Updated CLAUDE.md to reflect cloud-only Supabase usage:
+
+- Removed local Supabase CLI references
+- Updated Development Workflow section
+- Updated MCP vs CLI guidance
+- Updated environment variables section
+
+**Files Modified:**
+- `CLAUDE.md` - Updated Supabase configuration guidance

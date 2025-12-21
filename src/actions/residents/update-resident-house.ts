@@ -6,13 +6,13 @@ import type { ResidentRole, ResidentHouse } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { requiresSponsor } from '@/lib/validators/resident';
 
-export interface UpdateResidentHouseData {
+type UpdateResidentHouseData = {
   resident_role?: ResidentRole;
   sponsor_resident_id?: string | null;
   is_billing_responsible?: boolean;
 }
 
-export interface UpdateResidentHouseResponse {
+type UpdateResidentHouseResponse = {
   data: ResidentHouse | null;
   error: string | null;
 }

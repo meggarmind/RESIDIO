@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { HouseType } from '@/types/database';
 import type { HouseTypeFormData } from '@/lib/validators/house';
 
-export interface CreateHouseTypeResponse {
+type CreateHouseTypeResponse = {
   data: HouseType | null;
   error: string | null;
 }

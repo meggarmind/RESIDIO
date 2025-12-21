@@ -59,3 +59,25 @@ export function getRelativeTimeDisplay(futureDate: Date | string): string {
   if (diffMinutes > 0) return `${diffMinutes}m`;
   return '<1m';
 }
+
+/**
+ * Sanitize search input for use with PostgREST/Supabase ilike queries.
+ * Escapes special pattern characters to prevent injection attacks.
+ *
+ * Special characters in PostgreSQL LIKE patterns:
+ * - % matches any sequence of characters
+ * - _ matches any single character
+ * - \ is the escape character
+ *
+ * @param input - The raw search input from user
+ * @returns Sanitized string safe for use in ilike queries
+ */
+export function sanitizeSearchInput(input: string): string {
+  if (!input) return '';
+
+  // Escape backslash first (order matters), then other special chars
+  return input
+    .replace(/\\/g, '\\\\')  // \ -> \\
+    .replace(/%/g, '\\%')    // % -> \%
+    .replace(/_/g, '\\_');   // _ -> \_
+}

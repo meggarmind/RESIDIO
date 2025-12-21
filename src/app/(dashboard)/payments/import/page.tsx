@@ -12,7 +12,7 @@ import { ImportPreview } from '@/components/imports/import-preview';
 import { ImportConfirmation } from '@/components/imports/import-confirmation';
 import { ImportResults } from '@/components/imports/import-results';
 import type { ParsedRow } from '@/lib/validators/import';
-import type { ProcessImportResult } from '@/actions/imports/process-import';
+import type { ProcessImportResult } from '@/actions/imports/types';
 
 type WizardStep = 'upload' | 'mapping' | 'review' | 'confirm' | 'results';
 

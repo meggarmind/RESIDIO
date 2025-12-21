@@ -6,9 +6,15 @@ import { createSplitPayment } from '@/actions/payments/create-split-payment';
 import { updatePayment } from '@/actions/payments/update-payment';
 import { deletePayment } from '@/actions/payments/delete-payment';
 import { getPaymentStats } from '@/actions/payments/get-payment-stats';
-import { bulkUpdatePayments, type BulkUpdatePaymentsInput } from '@/actions/payments/bulk-update-payments';
+import { bulkUpdatePayments } from '@/actions/payments/bulk-update-payments';
 import type { PaymentSearchParams, PaymentFormData, SplitPaymentFormData } from '@/lib/validators/payment';
 import { toast } from 'sonner';
+
+// Type for bulk update input (defined inline since it's from 'use server' file)
+type BulkUpdatePaymentsInput = {
+    ids: string[];
+    status: 'pending' | 'paid' | 'overdue' | 'failed';
+};
 
 export function usePayments(params: PaymentSearchParams) {
     return useQuery({

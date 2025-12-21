@@ -8,17 +8,17 @@ import type { TransactionTag, TransactionTagInsert, TransactionTagUpdate, Transa
 // Response Types
 // ============================================================
 
-export interface GetTransactionTagsResponse {
+type GetTransactionTagsResponse = {
   data: TransactionTag[];
   error: string | null;
 }
 
-export interface TransactionTagResponse {
+type TransactionTagResponse = {
   data: TransactionTag | null;
   error: string | null;
 }
 
-export interface DeleteTransactionTagResponse {
+type DeleteTransactionTagResponse = {
   error: string | null;
 }
 
@@ -257,7 +257,7 @@ export async function deleteTransactionTag(id: string): Promise<DeleteTransactio
 // Tag Import Row (for tagging during import review)
 // ============================================================
 
-export interface TagImportRowResponse {
+type TagImportRowResponse = {
   error: string | null;
 }
 
@@ -295,7 +295,7 @@ export async function tagImportRow(
 // Batch Tag Import Rows
 // ============================================================
 
-export interface BatchTagImportRowsResponse {
+type BatchTagImportRowsResponse = {
   updated: number;
   error: string | null;
 }
@@ -334,7 +334,7 @@ export async function batchTagImportRows(
 // Auto-Tag Transaction (for keyword-based auto-tagging)
 // ============================================================
 
-export interface AutoTagResult {
+type AutoTagResult = {
   tag: TransactionTag | null;
   matchedKeyword: string | null;
 }

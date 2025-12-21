@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { sanitizeSearchInput } from '@/lib/utils';
 import { logAudit } from '@/lib/audit/logger';
 import type { ResidentPaymentAlias } from '@/types/database';
 import {
@@ -14,31 +15,31 @@ import {
 // Response Types
 // ============================================================
 
-export interface GetAliasesResponse {
+type GetAliasesResponse = {
   data: ResidentPaymentAlias[];
   error: string | null;
 }
 
-export interface GetAliasResponse {
+type GetAliasResponse = {
   data: ResidentPaymentAlias | null;
   error: string | null;
 }
 
-export interface MutateAliasResponse {
+type MutateAliasResponse = {
   data: ResidentPaymentAlias | null;
   error: string | null;
 }
 
-export interface ResidentPaymentAliasWithResident extends ResidentPaymentAlias {
+type ResidentPaymentAliasWithResident = ResidentPaymentAlias & {
   resident?: {
     id: string;
     first_name: string;
     last_name: string;
     resident_code: string;
   };
-}
+};
 
-export interface GetAliasesWithResidentResponse {
+type GetAliasesWithResidentResponse = {
   data: ResidentPaymentAliasWithResident[];
   error: string | null;
 }
@@ -88,7 +89,7 @@ export async function getAllAliases(
   }
 
   if (query) {
-    dbQuery = dbQuery.ilike('alias_name', `%${query}%`);
+    dbQuery = dbQuery.ilike('alias_name', `%${sanitizeSearchInput(query)}%`);
   }
 
   if (typeof is_active === 'boolean') {

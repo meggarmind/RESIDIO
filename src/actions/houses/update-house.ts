@@ -1,12 +1,14 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizeAction } from '@/lib/auth/authorize';
+import { ACTION_ROLES } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
 import type { House } from '@/types/database';
 import type { HouseFormData } from '@/lib/validators/house';
 import { createApprovalRequest, canAutoApprove } from '@/actions/approvals';
 
-export interface UpdateHouseResponse {
+type UpdateHouseResponse = {
   data: House | null;
   error: string | null;
   approval_required?: boolean;
@@ -36,12 +38,13 @@ async function hasExistingDevelopmentLevy(houseId: string): Promise<boolean> {
 }
 
 export async function updateHouse(id: string, formData: HouseFormData): Promise<UpdateHouseResponse> {
-  const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { data: null, error: 'Unauthorized' };
+  // Authorization check - only admin, chairman, financial_secretary can update houses
+  const auth = await authorizeAction(ACTION_ROLES.houses);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error };
   }
+
+  const supabase = await createServerSupabaseClient();
 
   // Get current house data to check for plots change
   const { data: currentHouse, error: fetchError } = await supabase

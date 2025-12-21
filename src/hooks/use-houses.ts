@@ -6,11 +6,14 @@ import { getHouse } from '@/actions/houses/get-house';
 import { createHouse } from '@/actions/houses/create-house';
 import { updateHouse } from '@/actions/houses/update-house';
 import { deleteHouse } from '@/actions/houses/delete-house';
-import { getOwnershipHistory, type OwnershipHistoryWithEndDate } from '@/actions/houses/get-ownership-history';
-
-// Re-export for convenience
-export type { OwnershipHistoryWithEndDate };
+import { getOwnershipHistory } from '@/actions/houses/get-ownership-history';
 import type { HouseSearchParams, HouseFormData } from '@/lib/validators/house';
+import type { HouseOwnershipHistoryWithResident } from '@/types/database';
+
+// Extended type with computed end_date for ownership periods
+export type OwnershipHistoryWithEndDate = HouseOwnershipHistoryWithResident & {
+  end_date: string | null;
+};
 import { toast } from 'sonner';
 
 export function useHouses(params: Partial<HouseSearchParams> = {}) {

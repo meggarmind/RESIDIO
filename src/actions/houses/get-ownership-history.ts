@@ -5,9 +5,9 @@ import type { HouseOwnershipHistoryWithResident, OwnershipEventType, ResidentRol
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 
 // Extended type with computed end_date for ownership periods
-export interface OwnershipHistoryWithEndDate extends HouseOwnershipHistoryWithResident {
+type OwnershipHistoryWithEndDate = HouseOwnershipHistoryWithResident & {
   end_date: string | null; // Computed from move_out_date or ownership_end event
-}
+};
 
 // Response type (not exported from 'use server' file)
 interface OwnershipHistoryResponse {

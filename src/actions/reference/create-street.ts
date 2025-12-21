@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { Street } from '@/types/database';
 import type { StreetFormData } from '@/lib/validators/house';
 
-export interface CreateStreetResponse {
+type CreateStreetResponse = {
   data: Street | null;
   error: string | null;
 }

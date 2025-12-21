@@ -7,7 +7,7 @@ import type { BankStatementImport, BankStatementRow, ImportStatus } from '@/type
 // Response Types
 // ============================================================
 
-export interface BankStatementImportWithDetails extends BankStatementImport {
+type BankStatementImportWithDetails = BankStatementImport & {
   bank_account?: {
     id: string;
     account_number: string;
@@ -24,9 +24,9 @@ export interface BankStatementImportWithDetails extends BankStatementImport {
     full_name: string;
     email: string;
   };
-}
+};
 
-export interface BankStatementRowWithResident extends BankStatementRow {
+type BankStatementRowWithResident = BankStatementRow & {
   resident?: {
     id: string;
     first_name: string;
@@ -38,20 +38,20 @@ export interface BankStatementRowWithResident extends BankStatementRow {
     amount: number;
     status: string;
   };
-}
+};
 
-export interface GetImportsResponse {
+type GetImportsResponse = {
   data: BankStatementImportWithDetails[];
   count: number;
   error: string | null;
 }
 
-export interface GetImportResponse {
+type GetImportResponse = {
   data: BankStatementImportWithDetails | null;
   error: string | null;
 }
 
-export interface GetImportRowsResponse {
+type GetImportRowsResponse = {
   data: BankStatementRowWithResident[];
   count: number;
   error: string | null;
@@ -61,7 +61,7 @@ export interface GetImportRowsResponse {
 // Search Params
 // ============================================================
 
-export interface ImportSearchParams {
+type ImportSearchParams = {
   status?: ImportStatus;
   bank_account_id?: string;
   created_by?: string;
@@ -71,7 +71,7 @@ export interface ImportSearchParams {
   limit?: number;
 }
 
-export interface ImportRowSearchParams {
+type ImportRowSearchParams = {
   status?: BankStatementRow['status'];
   has_match?: boolean;
   page?: number;
@@ -205,7 +205,7 @@ export async function getImportRows(
 // Get Import Stats
 // ============================================================
 
-export interface ImportStats {
+type ImportStats = {
   total_imports: number;
   pending_imports: number;
   awaiting_approval: number;
@@ -252,7 +252,7 @@ export async function getImportStats(): Promise<{ data: ImportStats | null; erro
 // Get Import Row Summary
 // ============================================================
 
-export interface ImportRowSummary {
+type ImportRowSummary = {
   total: number;
   matched: number;
   unmatched: number;
@@ -301,7 +301,7 @@ export async function getPendingApprovalImports(): Promise<GetImportsResponse> {
 // Get Import Breakdown by Transaction Type and Tag
 // ============================================================
 
-export interface TagBreakdownItem {
+type TagBreakdownItem = {
   tag_id: string | null;
   tag_name: string;
   tag_color: string;
@@ -309,13 +309,13 @@ export interface TagBreakdownItem {
   total: number;
 }
 
-export interface TransactionTypeBreakdown {
+type TransactionTypeBreakdown = {
   count: number;
   total: number;
   byTag: TagBreakdownItem[];
 }
 
-export interface ImportBreakdown {
+type ImportBreakdown = {
   credits: TransactionTypeBreakdown;
   debits: TransactionTypeBreakdown;
   untagged: {

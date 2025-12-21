@@ -9,12 +9,20 @@ import { deleteResident } from '@/actions/residents/delete-resident';
 import { assignHouse } from '@/actions/residents/assign-house';
 import { unassignHouse } from '@/actions/residents/unassign-house';
 import { moveOutLandlord } from '@/actions/residents/move-out-landlord';
-import { updateResidentHouse, type UpdateResidentHouseData } from '@/actions/residents/update-resident-house';
+import { updateResidentHouse } from '@/actions/residents/update-resident-house';
 import { swapResidentRoles } from '@/actions/residents/swap-resident-roles';
 import { transferOwnership } from '@/actions/residents/transfer-ownership';
 import { removeOwnership } from '@/actions/residents/remove-ownership';
 import { verifyResident } from '@/actions/residents/verify-resident';
 import type { ResidentSearchParams, CreateResidentData, ResidentFormData, HouseAssignmentData } from '@/lib/validators/resident';
+import type { ResidentRole } from '@/types/database';
+
+// Type for resident house update data (defined inline since it's from 'use server' file)
+type UpdateResidentHouseData = {
+  resident_role?: ResidentRole;
+  sponsor_resident_id?: string | null;
+  is_billing_responsible?: boolean;
+};
 
 export function useResidents(params: Partial<ResidentSearchParams> = {}) {
   return useQuery({

@@ -9,7 +9,7 @@ const bulkUpdateSchema = z.object({
     status: paymentStatusEnum,
 });
 
-export type BulkUpdatePaymentsInput = z.infer<typeof bulkUpdateSchema>;
+type BulkUpdatePaymentsInput = z.infer<typeof bulkUpdateSchema>;
 
 export async function bulkUpdatePayments(input: BulkUpdatePaymentsInput) {
     const validation = bulkUpdateSchema.safeParse(input);

@@ -36,9 +36,29 @@ import {
 import {
   getFinancialOverview,
   getBankAccountsForFilter,
-  type FinancialOverviewResult,
 } from '@/actions/reports/get-financial-overview';
-import type { TransactionTagColor } from '@/types/database';
+import type { TransactionTagColor, TransactionTagType } from '@/types/database';
+
+// Type for financial overview result (defined inline since it's from 'use server' file)
+type TagBreakdown = {
+  tagId: string | null;
+  tagName: string;
+  tagColor: string;
+  transactionType: TransactionTagType;
+  count: number;
+  total: number;
+};
+
+type FinancialOverviewResult = {
+  summary: {
+    totalCredits: number;
+    totalDebits: number;
+    netBalance: number;
+    transactionCount: number;
+  };
+  byTag: TagBreakdown[];
+  error?: string;
+};
 
 const ALL_VALUE = '_all';
 

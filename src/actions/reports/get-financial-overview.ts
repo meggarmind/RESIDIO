@@ -3,21 +3,21 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { TransactionTagType } from '@/types/database';
 
-export interface FinancialOverviewParams {
+type FinancialOverviewParams = {
   startDate: string;
   endDate: string;
   transactionType?: 'credit' | 'debit' | 'all';
   bankAccountId?: string;
 }
 
-export interface FinancialSummary {
+type FinancialSummary = {
   totalCredits: number;
   totalDebits: number;
   netBalance: number;
   transactionCount: number;
 }
 
-export interface TagBreakdown {
+type TagBreakdown = {
   tagId: string | null;
   tagName: string;
   tagColor: string;
@@ -26,7 +26,7 @@ export interface TagBreakdown {
   total: number;
 }
 
-export interface FinancialOverviewResult {
+type FinancialOverviewResult = {
   summary: FinancialSummary;
   byTag: TagBreakdown[];
   error?: string;

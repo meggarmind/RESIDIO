@@ -42,7 +42,7 @@ async function fetchWithRetry<T>(
 // Response Types
 // ============================================================
 
-export interface MatchRowResult {
+type MatchRowResult = {
   row_id: string;
   resident_id: string | null;
   confidence: MatchConfidence;
@@ -50,14 +50,14 @@ export interface MatchRowResult {
   matched_value?: string;
 }
 
-export interface MatchResidentsResponse {
+type MatchResidentsResponse = {
   results: MatchRowResult[];
   matched_count: number;
   unmatched_count: number;
   error: string | null;
 }
 
-export interface ManualMatchResponse {
+type ManualMatchResponse = {
   data: BankStatementRow | null;
   error: string | null;
 }
@@ -227,7 +227,7 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
 // Manual Match / Reassign Row
 // ============================================================
 
-export interface ManualMatchParams {
+type ManualMatchParams = {
   row_id: string;
   resident_id: string;
   save_as_alias?: boolean;
@@ -412,7 +412,7 @@ export async function skipRow(row_id: string): Promise<ManualMatchResponse> {
 // Batch Update Row Status
 // ============================================================
 
-export interface BatchUpdateParams {
+type BatchUpdateParams = {
   row_ids: string[];
   status: BankStatementRow['status'];
 }

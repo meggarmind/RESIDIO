@@ -3,7 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
-export interface OverdueInvoice {
+type OverdueInvoice = {
     id: string;
     invoice_number: string;
     amount_due: number;

@@ -10,9 +10,21 @@ import {
     duplicateBillingProfile,
     BillingProfileData,
 } from '@/actions/billing/profiles';
-import { getInvoices, GetInvoicesParams, getResidentIndebtedness } from '@/actions/billing/get-invoices';
+import { getInvoices, getResidentIndebtedness } from '@/actions/billing/get-invoices';
 import { generateMonthlyInvoices } from '@/actions/billing/generate-invoices';
 import { toast } from 'sonner';
+import type { InvoiceStatus, InvoiceType } from '@/types/database';
+
+// Type for invoice filter params (defined inline since it's from 'use server' file)
+type GetInvoicesParams = {
+    status?: InvoiceStatus;
+    invoiceType?: InvoiceType;
+    residentId?: string;
+    houseId?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+};
 
 export function useBillingProfiles() {
     return useQuery({

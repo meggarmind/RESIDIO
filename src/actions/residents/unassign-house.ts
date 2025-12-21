@@ -4,7 +4,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 
-export interface UnassignHouseResponse {
+type UnassignHouseResponse = {
   success: boolean;
   error: string | null;
   cascadeRemovedCount?: number; // Count of secondary residents also removed (for tenant removal)

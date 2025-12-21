@@ -8,7 +8,7 @@ import { isPrimaryRole, requiresSponsor, isResidencyRole, isValidCorporateRole }
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { generateLeviesForHouse } from '@/actions/billing/generate-levies';
 
-export interface AssignHouseResponse {
+type AssignHouseResponse = {
   data: ResidentHouse | null;
   error: string | null;
 }

@@ -10,24 +10,24 @@ import { canAutoApprove, createApprovalRequest } from '@/actions/approvals';
 // Response Types
 // ============================================================
 
-export interface GetBankAccountsResponse {
+type GetBankAccountsResponse = {
   data: EstateBankAccount[];
   error: string | null;
 }
 
-export interface GetBankAccountResponse {
+type GetBankAccountResponse = {
   data: EstateBankAccount | null;
   error: string | null;
 }
 
-export interface MutateBankAccountResponse {
+type MutateBankAccountResponse = {
   data: EstateBankAccount | null;
   error: string | null;
   requiresApproval?: boolean;
   approvalRequestId?: string;
 }
 
-export interface DeleteBankAccountResponse {
+type DeleteBankAccountResponse = {
   error: string | null;
   requiresApproval?: boolean;
   approvalRequestId?: string;

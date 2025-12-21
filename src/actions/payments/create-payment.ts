@@ -14,9 +14,9 @@ const extendedPaymentSchema = paymentFormSchema.extend({
     split_payment_group_id: z.string().uuid().optional().nullable(),
 })
 
-export type CreatePaymentInput = z.infer<typeof extendedPaymentSchema>
+type CreatePaymentInput = z.infer<typeof extendedPaymentSchema>
 
-export interface CreatePaymentResult {
+type CreatePaymentResult = {
     success?: boolean
     error?: string
     details?: z.ZodFlattenedError<CreatePaymentInput>
