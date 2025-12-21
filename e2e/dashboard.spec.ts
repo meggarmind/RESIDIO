@@ -8,8 +8,9 @@ test.describe('Phase 2: Dashboard Shell', () => {
         // Check dashboard has loaded
         await expect(page).toHaveURL(/\/dashboard/);
 
-        // Look for stats cards or main dashboard content
-        await expect(page.locator('main, [role="main"], .dashboard')).toBeVisible();
+        // Look for dashboard stats cards (Total Residents, Payments, etc.)
+        await expect(page.getByText(/Total Residents/i)).toBeVisible({ timeout: 10000 });
+        await expect(page.getByText(/Payments This Month/i)).toBeVisible({ timeout: 10000 });
     });
 
     test('TC2.2: Sidebar navigation is visible for admin', async ({ page }) => {
@@ -77,16 +78,19 @@ test.describe('Phase 2: Dashboard Shell', () => {
     test('TC2.6: Navigation links work correctly', async ({ page }) => {
         await loginAs(page, 'admin');
 
+        // Wait for dashboard to fully load
+        await expect(page.getByText(/Total Residents/i)).toBeVisible({ timeout: 10000 });
+
         // Click on Residents link
         await page.getByRole('link', { name: /residents/i }).click();
-        await expect(page).toHaveURL(/\/residents/);
+        await expect(page).toHaveURL(/\/residents/, { timeout: 10000 });
 
         // Click on Houses link
         await page.getByRole('link', { name: /houses/i }).click();
-        await expect(page).toHaveURL(/\/houses/);
+        await expect(page).toHaveURL(/\/houses/, { timeout: 10000 });
 
         // Navigate back to dashboard
         await page.getByRole('link', { name: /dashboard/i }).click();
-        await expect(page).toHaveURL(/\/dashboard/);
+        await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
     });
 });

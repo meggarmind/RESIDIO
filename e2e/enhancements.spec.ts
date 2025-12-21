@@ -7,37 +7,29 @@ test.describe('Phase 4: Enhancements', () => {
     });
 
     test.describe('Reference Management', () => {
-        test('TC4.1: Settings references page loads', async ({ page }) => {
-            await page.goto('/settings/references');
+        test('TC4.1: Settings streets page loads', async ({ page }) => {
+            await page.goto('/settings/streets');
 
-            // Check page loaded (may redirect or show content)
-            await expect(page.locator('main, [role="main"]')).toBeVisible({ timeout: 10000 });
+            // Check page loaded with streets content
+            await expect(page.getByText(/Streets/i).first()).toBeVisible({ timeout: 10000 });
         });
 
-        test('TC4.2: Streets section is visible', async ({ page }) => {
-            await page.goto('/settings/references');
+        test('TC4.2: Streets list is visible', async ({ page }) => {
+            await page.goto('/settings/streets');
 
-            // Look for streets section or tab
-            const streetsSection = page.getByRole('heading', { name: /streets/i }).or(
-                page.getByRole('tab', { name: /streets/i })
-            ).or(page.locator('text=Streets'));
-
-            await expect(streetsSection.first()).toBeVisible({ timeout: 10000 });
+            // Look for streets list or table
+            await expect(page.locator('table, [role="table"], .street').first()).toBeVisible({ timeout: 10000 });
         });
 
-        test('TC4.3: House types section is visible', async ({ page }) => {
-            await page.goto('/settings/references');
+        test('TC4.3: House types page is visible', async ({ page }) => {
+            await page.goto('/settings/house-types');
 
-            // Look for house types section or tab
-            const houseTypesSection = page.getByRole('heading', { name: /house types/i }).or(
-                page.getByRole('tab', { name: /house types/i })
-            ).or(page.locator('text=House Types'));
-
-            await expect(houseTypesSection.first()).toBeVisible({ timeout: 10000 });
+            // Look for house types content
+            await expect(page.getByText(/House Types/i).first()).toBeVisible({ timeout: 10000 });
         });
 
         test('TC4.4: Add new street dialog can be opened', async ({ page }) => {
-            await page.goto('/settings/references');
+            await page.goto('/settings/streets');
 
             // Find and click add street button
             const addStreetBtn = page.getByRole('button', { name: /add.*street/i }).or(
@@ -96,18 +88,23 @@ test.describe('Phase 4: Enhancements', () => {
         test('TC4.9: Settings navigation contains billing link', async ({ page }) => {
             await page.goto('/settings');
 
-            // Look for billing link in settings
+            // Wait for settings page to fully load
+            await page.waitForLoadState('networkidle');
+            await expect(page.locator('main, [role="main"]')).toBeVisible({ timeout: 10000 });
+
+            // Look for billing link in settings nav (not the main sidebar) - link text is "Billing Profiles"
+            // Use specific href to avoid matching the main sidebar /billing link
             await expect(
-                page.getByRole('link', { name: /billing/i }).or(page.locator('a[href*="billing"]'))
+                page.locator('a[href="/settings/billing"]')
             ).toBeVisible({ timeout: 10000 });
         });
 
-        test('TC4.10: Settings navigation contains references link', async ({ page }) => {
+        test('TC4.10: Settings navigation contains streets link', async ({ page }) => {
             await page.goto('/settings');
 
-            // Look for references link in settings
+            // Look for streets link in settings (references was split into separate pages)
             await expect(
-                page.getByRole('link', { name: /references/i }).or(page.locator('a[href*="references"]'))
+                page.getByRole('link', { name: /streets/i }).or(page.locator('a[href*="streets"]'))
             ).toBeVisible({ timeout: 10000 });
         });
     });

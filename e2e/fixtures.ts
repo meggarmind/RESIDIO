@@ -12,8 +12,9 @@ export const TEST_USERS = {
 export async function loginAs(page: Page, userType: keyof typeof TEST_USERS) {
     const user = TEST_USERS[userType];
     await page.goto('/login');
+    await page.waitForLoadState('networkidle');
     await page.fill('input[type="email"], input[name="email"]', user.email);
     await page.fill('input[type="password"]', user.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+    await page.waitForURL(/\/dashboard/, { timeout: 30000 });
 }

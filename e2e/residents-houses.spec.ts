@@ -20,14 +20,15 @@ test.describe('Phase 3: Resident & House Management', () => {
         test('TC3.2: Navigate to new house form', async ({ page }) => {
             await page.goto('/houses');
 
-            // Click on "Add House" or "New House" button
-            const addButton = page.getByRole('link', { name: /add|new|create/i }).or(
-                page.getByRole('button', { name: /add|new|create/i })
-            );
+            // Wait for table to load first
+            await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
+
+            // Click on "Add House" button specifically
+            const addButton = page.getByRole('button', { name: /add house/i });
             await addButton.click();
 
             // Should be on new house page
-            await expect(page).toHaveURL(/\/houses\/new/);
+            await expect(page).toHaveURL(/\/houses\/new/, { timeout: 10000 });
         });
 
         test('TC3.3: House form shows required fields', async ({ page }) => {
@@ -66,14 +67,15 @@ test.describe('Phase 3: Resident & House Management', () => {
         test('TC3.6: Navigate to new resident form', async ({ page }) => {
             await page.goto('/residents');
 
-            // Click on "Add Resident" or "New Resident" button
-            const addButton = page.getByRole('link', { name: /add|new|create/i }).or(
-                page.getByRole('button', { name: /add|new|create/i })
-            );
+            // Wait for table to load first
+            await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
+
+            // Click on "Add Resident" button specifically
+            const addButton = page.getByRole('button', { name: /add resident/i });
             await addButton.click();
 
             // Should be on new resident page
-            await expect(page).toHaveURL(/\/residents\/new/);
+            await expect(page).toHaveURL(/\/residents\/new/, { timeout: 10000 });
         });
 
         test('TC3.7: Resident form shows required fields', async ({ page }) => {
