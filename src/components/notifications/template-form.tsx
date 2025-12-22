@@ -149,167 +149,175 @@ export function TemplateForm({ template, onSuccess, onCancel }: TemplateFormProp
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Internal Name</FormLabel>
-                <FormControl>
-                  <Input
-                    {...field}
-                    placeholder="payment_reminder_7day"
-                    disabled={isEditing}
-                  />
-                </FormControl>
-                <FormDescription>
-                  Lowercase with underscores, used in code
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        {/* Section 1: Basic Information */}
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base">Basic Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Internal Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder="payment_reminder_7day"
+                        disabled={isEditing}
+                      />
+                    </FormControl>
+                    <FormDescription>e.g., payment_reminder_7day</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <FormField
-            control={form.control}
-            name="display_name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Display Name</FormLabel>
-                <FormControl>
-                  <Input {...field} placeholder="Payment Reminder (7 Days)" />
-                </FormControl>
-                <FormDescription>
-                  Human-readable name shown in UI
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+              <FormField
+                control={form.control}
+                name="display_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Display Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Payment Reminder (7 Days)" />
+                    </FormControl>
+                    <FormDescription>Shown in template list</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="category"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Category</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {categories.map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="channel"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Channel</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select channel" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {channels.map(([value, label]) => (
+                          <SelectItem
+                            key={value}
+                            value={value}
+                            disabled={!isChannelImplemented(value)}
+                          >
+                            {label}
+                            {!isChannelImplemented(value) && ' (Coming soon)'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Section 2: Template Content */}
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base">Template Content</CardTitle>
+            <CardDescription className="flex items-center gap-2">
+              <Info className="h-4 w-4" />
+              Use <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">{'{{variable_name}}'}</code> syntax for dynamic content
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {channel === 'email' && (
+              <FormField
+                control={form.control}
+                name="subject_template"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Subject Template</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Payment Reminder: {{invoice_number}}" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            <FormField
+              control={form.control}
+              name="body_template"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Body Template</FormLabel>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
+                    <Textarea
+                      {...field}
+                      placeholder="Dear {{resident_name}},&#10;&#10;Your payment of ₦{{amount_due}} is due on {{due_date}}."
+                      rows={8}
+                    />
                   </FormControl>
-                  <SelectContent>
-                    {categories.map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {channel === 'email' && (
+              <FormField
+                control={form.control}
+                name="html_template"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>HTML Template (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        placeholder="<p>Dear {{resident_name}},</p>"
+                        rows={4}
+                      />
+                    </FormControl>
+                    <FormDescription>For rich email formatting</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
-          />
+          </CardContent>
+        </Card>
 
-          <FormField
-            control={form.control}
-            name="channel"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Channel</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select channel" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {channels.map(([value, label]) => (
-                      <SelectItem
-                        key={value}
-                        value={value}
-                        disabled={!isChannelImplemented(value)}
-                      >
-                        {label}
-                        {!isChannelImplemented(value) && ' (Coming soon)'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        {channel === 'email' && (
-          <FormField
-            control={form.control}
-            name="subject_template"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Subject Template</FormLabel>
-                <FormControl>
-                  <Input {...field} placeholder="Payment Reminder: {{invoice_number}}" />
-                </FormControl>
-                <FormDescription>
-                  Email subject with {'{{variable}}'} placeholders
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-
-        <FormField
-          control={form.control}
-          name="body_template"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Body Template</FormLabel>
-              <FormControl>
-                <Textarea
-                  {...field}
-                  placeholder="Dear {{resident_name}},&#10;&#10;Your payment of ₦{{amount_due}} is due on {{due_date}}."
-                  rows={8}
-                />
-              </FormControl>
-              <FormDescription>
-                Message body with {'{{variable}}'} placeholders
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {channel === 'email' && (
-          <FormField
-            control={form.control}
-            name="html_template"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>HTML Template (Optional)</FormLabel>
-                <FormControl>
-                  <Textarea
-                    {...field}
-                    placeholder="<p>Dear {{resident_name}},</p>"
-                    rows={4}
-                  />
-                </FormControl>
-                <FormDescription>
-                  Optional HTML version for rich email content
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-
-        {/* Variables Section */}
+        {/* Section 3: Template Variables */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -374,24 +382,30 @@ export function TemplateForm({ template, onSuccess, onCancel }: TemplateFormProp
           </CardContent>
         </Card>
 
-        <FormField
-          control={form.control}
-          name="is_active"
-          render={({ field }) => (
-            <FormItem className="flex items-center gap-3 rounded-lg border p-4">
-              <FormControl>
-                <Switch checked={field.value} onCheckedChange={field.onChange} />
-              </FormControl>
-              <div>
-                <FormLabel className="text-base mb-0">Active</FormLabel>
-                <FormDescription className="mt-0.5">
-                  Only active templates can be used for sending notifications
-                </FormDescription>
-              </div>
-            </FormItem>
-          )}
-        />
+        {/* Section 4: Settings */}
+        <Card>
+          <CardContent className="pt-6">
+            <FormField
+              control={form.control}
+              name="is_active"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-3">
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                  <div>
+                    <FormLabel className="text-base mb-0">Active</FormLabel>
+                    <FormDescription className="mt-0.5">
+                      Only active templates can be used for sending notifications
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+          </CardContent>
+        </Card>
 
+        {/* Action Buttons */}
         <div className="flex gap-3 justify-end">
           {onCancel && (
             <Button type="button" variant="outline" onClick={onCancel}>
