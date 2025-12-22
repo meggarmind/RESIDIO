@@ -1,88 +1,120 @@
 # Handoff Summary - Residio Project
 
-**Date:** 2025-12-21
-**Current Phase:** Phase 9 - Polish (mostly complete)
-**Last Completed:** Fixed 'use server' export violations
+**Date:** 2025-12-22
+**Current Phase:** Phase 11 - Alert Management Module (NEXT UP)
+**Last Completed:** Phase 10 - Flexible RBAC System
 
 ---
 
 ## Session Goal
 
-This session continued from a previous session where Phase 9 Polish was being implemented. A critical runtime error was blocking the application:
-- **Error:** "A 'use server' file can only export async functions, found object"
-- **Cause:** `ACTION_ROLES` object and `AuthorizationResult` interface were being exported from `src/lib/auth/authorize.ts` (a 'use server' file)
+This session completed Phase 10: Flexible RBAC System implementation. The main work involved:
+1. Fixing RLS infinite recursion on app_roles table that caused sidebar to only show Dashboard
+2. Building CRUD UI for role management with permissions dialog
+3. Moving "Import Statement" under "Payments" in sidebar and permissions dialog
+4. Verifying audit logging was already integrated
 
 ---
 
 ## Key Decisions Made
 
-### 'use server' Export Fix
-- Created separate file `src/lib/auth/action-roles.ts` for non-async exports
-- Kept only `authorizeAction` async function in `authorize.ts`
-- Updated 9 consumer files to import from new location
+### RLS Policy Fix
+- Created `is_super_admin()` SECURITY DEFINER function to bypass RLS during checks
+- Split `FOR ALL` policy into separate INSERT/UPDATE/DELETE policies
+- Applied via Supabase Management API migration
 
-### Phase 9 Verification
-- Confirmed all Phase 9 items were already implemented in previous sessions
-- Only remaining item is payment reminder emails (requires email service setup)
+### Role Management UI
+- Chose "Separate dialog/modal" for permission management (vs inline accordion)
+- System roles show "System" badge and cannot be deleted
+- Super Administrator has no edit/delete buttons visible
+
+### Sidebar Navigation
+- Added nested navigation support with `children` property
+- Import Statement now appears indented under Payments
+
+### Permission Categories
+- Merged 'imports' category into 'payments' in UI (database still tracks separately)
+- Permissions dialog shows 9 categories (imports permissions appear under "Payments & Imports")
 
 ---
 
 ## Code Changes Made
 
-### Files Created (1)
+### Files Created (4)
 
-1. **`src/lib/auth/action-roles.ts`** (NEW):
-   - Contains `AuthorizationResult` interface
-   - Contains `ACTION_ROLES` const object
-   - No 'use server' directive (allows type/const exports)
+1. **`supabase/migrations/20251222000001_fix_rbac_rls_policies.sql`**:
+   - Creates `is_super_admin()` SECURITY DEFINER function
+   - Drops problematic `FOR ALL` policies
+   - Creates separate INSERT/UPDATE/DELETE policies for app_roles and role_permissions
 
-### Files Modified (10)
+2. **`src/components/admin/roles-list.tsx`**:
+   - Full CRUD table for role management
+   - Create/edit dialog with form validation
+   - Delete confirmation dialog
+   - System role protection (can't delete, limited editing)
 
-1. **`src/lib/auth/authorize.ts`**:
-   - Removed `AuthorizationResult` interface export
-   - Removed `ACTION_ROLES` const export
-   - Added import for `AuthorizationResult` from action-roles.ts
+3. **`src/components/admin/role-permissions-dialog.tsx`**:
+   - Permission management modal
+   - Category-based collapsible grouping
+   - Bulk select per category with indeterminate state
+   - Fixed scroll with `h-[50vh]` height constraint
 
-2-10. **9 consumer files** - Updated imports to split `authorizeAction` and `ACTION_ROLES`:
-   - `src/actions/residents/update-resident.ts`
-   - `src/actions/residents/delete-resident.ts`
-   - `src/actions/reference/update-street.ts`
-   - `src/actions/reference/update-house-type.ts`
-   - `src/actions/reference/delete-street.ts`
-   - `src/actions/houses/update-house.ts`
-   - `src/actions/houses/delete-house.ts`
-   - `src/actions/payments/update-payment.ts`
-   - `src/actions/payments/delete-payment.ts`
+4. **`src/components/ui/collapsible.tsx`**:
+   - shadcn/ui collapsible component for permissions dialog
+
+### Files Modified (6)
+
+1. **`src/components/dashboard/sidebar.tsx`**:
+   - Added `children?: NavItem[]` to interface
+   - Moved Import Statement as child of Payments
+   - Added nested rendering with `pl-9` indent
+
+2. **`src/app/(dashboard)/settings/roles/page.tsx`**:
+   - Simplified to use RolesList component
+
+3. **`src/app/(dashboard)/settings/layout.tsx`**:
+   - Added "Roles & Permissions" nav item
+
+4. **`src/lib/auth/action-roles.ts`**:
+   - Added PERMISSIONS constant with all 42 permission keys
+
+5. **`src/lib/auth/auth-provider.tsx`**:
+   - Added `hasPermission` and `hasAnyPermission` helpers
+
+6. **`src/hooks/use-roles.ts`**:
+   - Complete hook library for roles management
 
 ---
 
 ## Current State
 
 ### Completed ✅
-- [x] Fixed 'use server' export violation (ACTION_ROLES moved to action-roles.ts)
-- [x] Build passes successfully
-- [x] Dev server runs without errors
-- [x] Verified all Phase 9 Polish items implemented:
-  - Error boundaries (4 files)
-  - Table skeleton loaders (3 tables)
-  - Page loading states (dashboard, security, billing)
-  - Toast notifications (payment-form)
+- [x] Phase 10: Flexible RBAC System fully implemented
+- [x] 42 permissions across 10 categories (residents, houses, payments, billing, security, reports, settings, approvals, system, imports)
+- [x] Role categories: exco, bot, staff, resident
+- [x] System roles protected from deletion
+- [x] Permission-based sidebar navigation
+- [x] Nested navigation (Imports under Payments)
+- [x] Audit logging for all RBAC changes
 
-### Phase 9 Status
-- **Mostly complete** - only payment reminder emails remain (deferred, needs email service)
+### What Works
+- Admin can create, edit, delete custom roles
+- Admin can manage permissions for any role (including system roles)
+- Sidebar filters nav items based on user permissions
+- Permission changes take effect after user re-login
+- Audit log tracks all role/permission changes
 
 ---
 
 ## Next Steps (Priority Order)
 
-1. **Phase 10: Legacy App Migration**:
-   - Define legacy app data migration strategy
-   - Create data import scripts/tools
-   - Map legacy data to new schema
+1. **Phase 11: Alert Management Module**:
+   - Notification templates database table
+   - Multi-channel architecture (Email primary)
+   - Configurable timing rules and schedules
+   - Automatic escalation workflows
 
-2. **Or continue Phase 9** with email service setup for payment reminders
-
-3. **Check for new prompts** from Notion inbox
+2. **Check for new prompts** from Notion inbox
 
 ---
 
@@ -99,7 +131,7 @@ npm run dev
 
 | Email | Password | Role |
 |-------|----------|------|
-| admin@residio.test | password123 | admin |
+| admin@residio.test | password123 | super_admin |
 | chairman@residio.test | password123 | chairman |
 | finance@residio.test | password123 | financial_secretary |
 | security@residio.test | password123 | security_officer |

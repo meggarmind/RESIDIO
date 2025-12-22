@@ -1,12 +1,64 @@
-// User roles for app access (profiles table)
+// =====================================================
+// Phase 10: New Flexible RBAC System
+// =====================================================
+
+// New role names (from app_roles table)
+export type AppRoleName =
+  | 'super_admin'
+  | 'chairman'
+  | 'vice_chairman'
+  | 'financial_officer'
+  | 'security_officer'
+  | 'secretary'
+  | 'project_manager'
+  | 'resident';
+
+// Role category (organizational structure)
+export type RoleCategory = 'exco' | 'bot' | 'staff' | 'resident';
+
+// Permission category (module grouping)
+export type PermissionCategory =
+  | 'residents'
+  | 'houses'
+  | 'payments'
+  | 'billing'
+  | 'security'
+  | 'reports'
+  | 'settings'
+  | 'imports'
+  | 'approvals'
+  | 'system';
+
+// Human-readable labels for new roles
+export const APP_ROLE_LABELS: Record<AppRoleName, string> = {
+  super_admin: 'Super Administrator',
+  chairman: 'Chairman',
+  vice_chairman: 'Vice Chairman',
+  financial_officer: 'Financial Officer',
+  security_officer: 'Security Officer',
+  secretary: 'Secretary',
+  project_manager: 'Project Manager',
+  resident: 'Resident',
+};
+
+// Legacy: User roles for app access (profiles table) - DEPRECATED, use AppRoleName
+// Kept for backwards compatibility during migration
 export type UserRole = 'chairman' | 'financial_secretary' | 'security_officer' | 'admin';
 
-// Human-readable labels for user roles
+// Legacy: Human-readable labels for user roles - DEPRECATED
 export const USER_ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Administrator',
   chairman: 'Chairman',
   financial_secretary: 'Financial Secretary',
   security_officer: 'Security Officer',
+};
+
+// Mapping from old roles to new roles (for migration/backwards compat)
+export const LEGACY_TO_NEW_ROLE_MAP: Record<UserRole, AppRoleName> = {
+  admin: 'super_admin',
+  chairman: 'chairman',
+  financial_secretary: 'financial_officer',
+  security_officer: 'security_officer',
 };
 
 // Entity types (Individual or Corporate only)
@@ -181,7 +233,10 @@ export type AuditEntityType =
   | 'bank_statement_imports'
   | 'resident_payment_aliases'
   | 'estate_bank_accounts'
-  | 'transaction_tags';
+  | 'transaction_tags'
+  | 'app_roles'           // Phase 10: RBAC
+  | 'app_permissions'     // Phase 10: RBAC
+  | 'role_permissions';   // Phase 10: RBAC
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -221,6 +276,9 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   resident_payment_aliases: 'Payment Alias',
   estate_bank_accounts: 'Estate Bank Account',
   transaction_tags: 'Transaction Tag',
+  app_roles: 'Role',               // Phase 10: RBAC
+  app_permissions: 'Permission',   // Phase 10: RBAC
+  role_permissions: 'Role Permission', // Phase 10: RBAC
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -1250,4 +1308,87 @@ export interface TransactionTagUpdate {
   is_active?: boolean;
   sort_order?: number;
   keywords?: string[];
+}
+
+// ============================================================
+// Phase 10: RBAC Types
+// ============================================================
+
+// App Role (from app_roles table)
+export interface AppRole {
+  id: string;
+  name: AppRoleName;
+  display_name: string;
+  description: string | null;
+  category: RoleCategory;
+  level: number;
+  is_system_role: boolean;
+  is_active: boolean;
+  can_be_assigned_to_resident: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+export interface AppRoleInsert {
+  name: string;
+  display_name: string;
+  description?: string | null;
+  category?: RoleCategory;
+  level?: number;
+  is_system_role?: boolean;
+  is_active?: boolean;
+  can_be_assigned_to_resident?: boolean;
+}
+
+export interface AppRoleUpdate {
+  display_name?: string;
+  description?: string | null;
+  category?: RoleCategory;
+  level?: number;
+  is_active?: boolean;
+  can_be_assigned_to_resident?: boolean;
+}
+
+// App Permission (from app_permissions table)
+export interface AppPermission {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string | null;
+  category: PermissionCategory;
+  is_active: boolean;
+  created_at: string;
+}
+
+// Role Permission junction (from role_permissions table)
+export interface RolePermission {
+  id: string;
+  role_id: string;
+  permission_id: string;
+  created_at: string;
+  created_by: string | null;
+}
+
+// Role with permissions (for UI display)
+export interface AppRoleWithPermissions extends AppRole {
+  permissions: AppPermission[];
+}
+
+// Profile with role details (new RBAC)
+export interface ProfileWithRole {
+  id: string;
+  email: string;
+  full_name: string;
+  role_id: string | null;
+  role: AppRole | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Permission check result
+export interface PermissionCheckResult {
+  hasPermission: boolean;
+  permissions: string[];
+  roleName: AppRoleName | null;
 }

@@ -7,6 +7,10 @@ const sidebarNavItems = [
         href: "/settings",
     },
     {
+        title: "Roles & Permissions",
+        href: "/settings/roles",
+    },
+    {
         title: "Billing Profiles",
         href: "/settings/billing",
     },

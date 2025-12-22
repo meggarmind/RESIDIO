@@ -1,15 +1,22 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { supabaseConfig } from '@/lib/supabase/config';
-import { UserRole } from '@/types/database';
+import { ROUTE_PERMISSIONS, Permission } from '@/lib/auth/action-roles';
 
-// Route protection configuration
-// Maps route prefixes to allowed roles (empty array = any authenticated user)
-const routeRoleConfig: Record<string, UserRole[]> = {
-  '/admin': ['admin'],
-  '/residents': ['admin', 'chairman', 'financial_secretary'],
-  '/payments': ['admin', 'chairman', 'financial_secretary'],
-  '/security': ['admin', 'chairman', 'security_officer'],
+// Route protection configuration using new permission system
+// Maps route prefixes to required permissions (empty array = any authenticated user)
+const routePermissionConfig: Record<string, Permission[]> = {
+  '/residents': [ROUTE_PERMISSIONS['/residents'][0]],
+  '/houses': [ROUTE_PERMISSIONS['/houses'][0]],
+  '/payments': [ROUTE_PERMISSIONS['/payments'][0]],
+  '/payments/import': [ROUTE_PERMISSIONS['/payments/import'][0]],
+  '/billing': [ROUTE_PERMISSIONS['/billing'][0]],
+  '/security': [ROUTE_PERMISSIONS['/security'][0]],
+  '/reports': ROUTE_PERMISSIONS['/reports'], // Any of these permissions
+  '/approvals': [ROUTE_PERMISSIONS['/approvals'][0]],
+  '/settings/roles': [ROUTE_PERMISSIONS['/settings/roles'][0]],
+  '/settings/system': [ROUTE_PERMISSIONS['/settings/system'][0]],
+  '/settings': [ROUTE_PERMISSIONS['/settings'][0]],
   '/dashboard': [], // All authenticated users
 };
 
@@ -87,7 +94,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Check if route requires authentication
-  const protectedRoute = Object.keys(routeRoleConfig).find(route =>
+  // Sort routes by specificity (longer paths first) to match more specific routes first
+  const sortedRoutes = Object.keys(routePermissionConfig).sort((a, b) => b.length - a.length);
+  const protectedRoute = sortedRoutes.find(route =>
     pathname.startsWith(route)
   );
 
@@ -99,17 +108,45 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    // Check role-based access
-    const allowedRoles = routeRoleConfig[protectedRoute];
-    if (allowedRoles.length > 0) {
-      // Fetch user profile to check role
+    // Check permission-based access
+    const requiredPermissions = routePermissionConfig[protectedRoute];
+    if (requiredPermissions.length > 0) {
+      // Fetch user's role_id and then their permissions
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role_id')
         .eq('id', user.id)
         .single();
 
-      if (!profile || !allowedRoles.includes(profile.role as UserRole)) {
+      if (!profile?.role_id) {
+        // No role assigned, redirect to dashboard with error
+        const redirectUrl = new URL('/dashboard', request.url);
+        redirectUrl.searchParams.set('error', 'unauthorized');
+        return NextResponse.redirect(redirectUrl);
+      }
+
+      // Get permission IDs for this role
+      const { data: rolePerms } = await supabase
+        .from('role_permissions')
+        .select('permission_id')
+        .eq('role_id', profile.role_id);
+
+      const permissionIds = rolePerms?.map((rp) => rp.permission_id) || [];
+
+      // Get permission names
+      let userPermissions: string[] = [];
+      if (permissionIds.length > 0) {
+        const { data: permsData } = await supabase
+          .from('app_permissions')
+          .select('name')
+          .in('id', permissionIds);
+        userPermissions = permsData?.map((p) => p.name) || [];
+      }
+
+      // Check if user has ANY of the required permissions
+      const hasPermission = requiredPermissions.some(p => userPermissions.includes(p));
+
+      if (!hasPermission) {
         // Redirect to dashboard with error if user lacks permission
         const redirectUrl = new URL('/dashboard', request.url);
         redirectUrl.searchParams.set('error', 'unauthorized');

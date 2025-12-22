@@ -76,3 +76,16 @@ Centralized alert management system with multi-channel delivery (Email primary, 
 **Dependencies**: SMS gateway, notification service, email service
 
 ---
+
+## Add Email Receipt Button to Payment Details
+**Added**: 2025-12-22  
+**Type**: Feature  
+**Module**: Billing System  
+**Priority**: Medium  
+**Status**: Prompt request generated
+
+Add email button next to Print Receipt button to send receipts to residents. Include modal for selecting recipients when house has multiple co-residents.
+
+**Dependencies**: notification service, email service, payment gateway
+
+---

@@ -7,13 +7,16 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart } from 'lucide-react';
 import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 interface NavItem {
   title: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles?: string[];
+  permissions?: string[]; // New: required permissions (user needs at least one)
+  roles?: string[]; // Legacy: kept for backwards compat
   showBadge?: boolean;
+  children?: NavItem[]; // Nested navigation items
 }
 
 const navItems: NavItem[] = [
@@ -21,61 +24,64 @@ const navItems: NavItem[] = [
     title: 'Dashboard',
     href: '/dashboard',
     icon: Home,
+    // All authenticated users
   },
   {
     title: 'Residents',
     href: '/residents',
     icon: Users,
-    roles: ['admin', 'chairman', 'financial_secretary'],
+    permissions: [PERMISSIONS.RESIDENTS_VIEW],
   },
   {
     title: 'Houses',
     href: '/houses',
     icon: Building2,
-    roles: ['admin', 'chairman', 'financial_secretary'],
+    permissions: [PERMISSIONS.HOUSES_VIEW],
   },
   {
     title: 'Payments',
     href: '/payments',
     icon: CreditCard,
-    roles: ['admin', 'chairman', 'financial_secretary'],
-  },
-  {
-    title: 'Import Statement',
-    href: '/payments/import',
-    icon: Upload,
-    roles: ['admin', 'chairman', 'financial_secretary'],
+    permissions: [PERMISSIONS.PAYMENTS_VIEW],
+    children: [
+      {
+        title: 'Import Statement',
+        href: '/payments/import',
+        icon: Upload,
+        permissions: [PERMISSIONS.IMPORTS_CREATE],
+      },
+    ],
   },
   {
     title: 'Billing',
     href: '/billing',
     icon: Receipt,
-    roles: ['admin', 'chairman', 'financial_secretary'],
+    permissions: [PERMISSIONS.BILLING_VIEW],
   },
   {
     title: 'Security',
     href: '/security',
     icon: Shield,
-    roles: ['admin', 'chairman', 'security_officer'],
+    permissions: [PERMISSIONS.SECURITY_VIEW],
   },
   {
     title: 'Reports',
     href: '/reports/financial-overview',
     icon: FileBarChart,
-    roles: ['admin', 'chairman', 'financial_secretary'],
+    permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_OCCUPANCY, PERMISSIONS.REPORTS_VIEW_SECURITY],
   },
   {
     title: 'Approvals',
     href: '/approvals',
     icon: ClipboardCheck,
-    roles: ['admin', 'chairman'],
+    permissions: [PERMISSIONS.APPROVALS_VIEW],
     showBadge: true,
   },
   {
     title: 'Settings',
     href: '/settings',
     icon: Settings,
-    roles: ['admin', 'chairman', 'financial_secretary'],
+    permissions: [PERMISSIONS.SETTINGS_VIEW],
   },
 ];
 
@@ -85,14 +91,16 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
-  const { profile, isLoading } = useAuth();
+  const { profile, isLoading, hasAnyPermission } = useAuth();
   const { data: pendingCount } = usePendingApprovalsCount();
 
   const filteredNavItems = navItems.filter((item) => {
-    if (!item.roles) return true;
+    // No permissions required = visible to all
+    if (!item.permissions) return true;
     // While loading, show items that the user might have access to (will be filtered properly once loaded)
     if (isLoading) return true;
-    return profile?.role && item.roles.includes(profile.role);
+    // Check if user has any of the required permissions
+    return hasAnyPermission(item.permissions);
   });
 
   return (
@@ -110,6 +118,14 @@ export function Sidebar({ className }: SidebarProps) {
           {filteredNavItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
             const showBadgeCount = item.showBadge && pendingCount && pendingCount > 0;
+
+            // Filter children based on permissions
+            const filteredChildren = item.children?.filter((child) => {
+              if (!child.permissions) return true;
+              if (isLoading) return true;
+              return hasAnyPermission(child.permissions);
+            });
+
             return (
               <li key={item.href}>
                 <Link
@@ -129,6 +145,30 @@ export function Sidebar({ className }: SidebarProps) {
                     </Badge>
                   )}
                 </Link>
+                {/* Render nested children with indent */}
+                {filteredChildren && filteredChildren.length > 0 && (
+                  <ul className="mt-1 space-y-1">
+                    {filteredChildren.map((child) => {
+                      const isChildActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
+                      return (
+                        <li key={child.href}>
+                          <Link
+                            href={child.href}
+                            className={cn(
+                              'flex items-center gap-3 rounded-lg px-3 py-2 pl-9 text-sm font-medium transition-colors',
+                              isChildActive
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            )}
+                          >
+                            <child.icon className="h-4 w-4" />
+                            <span className="flex-1">{child.title}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </li>
             );
           })}
@@ -141,8 +181,8 @@ export function Sidebar({ className }: SidebarProps) {
           </div>
           <div className="flex-1 truncate">
             <p className="text-sm font-medium truncate">{profile?.full_name}</p>
-            <p className="text-xs text-muted-foreground capitalize">
-              {profile?.role?.replace('_', ' ')}
+            <p className="text-xs text-muted-foreground">
+              {profile?.role_display_name || profile?.role?.replace('_', ' ')}
             </p>
           </div>
         </div>
