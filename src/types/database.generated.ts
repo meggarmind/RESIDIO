@@ -690,6 +690,69 @@ export type Database = {
           },
         ]
       }
+      escalation_states: {
+        Row: {
+          created_at: string
+          current_level: number
+          entity_id: string
+          entity_type: string
+          id: string
+          is_resolved: boolean
+          last_notification_id: string | null
+          last_notified_at: string | null
+          next_scheduled_at: string | null
+          resident_id: string
+          resolved_at: string | null
+          resolved_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_level?: number
+          entity_id: string
+          entity_type: string
+          id?: string
+          is_resolved?: boolean
+          last_notification_id?: string | null
+          last_notified_at?: string | null
+          next_scheduled_at?: string | null
+          resident_id: string
+          resolved_at?: string | null
+          resolved_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_level?: number
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          is_resolved?: boolean
+          last_notification_id?: string | null
+          last_notified_at?: string | null
+          next_scheduled_at?: string | null
+          resident_id?: string
+          resolved_at?: string | null
+          resolved_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "escalation_states_last_notification_id_fkey"
+            columns: ["last_notification_id"]
+            isOneToOne: false
+            referencedRelation: "notification_history"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "escalation_states_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       estate_bank_accounts: {
         Row: {
           account_name: string
@@ -1095,6 +1158,380 @@ export type Database = {
             columns: ["resident_id"]
             isOneToOne: false
             referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_history: {
+        Row: {
+          body_preview: string | null
+          channel: string
+          clicked_at: string | null
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          external_id: string | null
+          id: string
+          metadata: Json | null
+          opened_at: string | null
+          queue_id: string | null
+          recipient_email: string | null
+          recipient_id: string | null
+          recipient_phone: string | null
+          schedule_id: string | null
+          sent_at: string | null
+          status: string
+          subject: string | null
+          template_id: string | null
+        }
+        Insert: {
+          body_preview?: string | null
+          channel: string
+          clicked_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          external_id?: string | null
+          id?: string
+          metadata?: Json | null
+          opened_at?: string | null
+          queue_id?: string | null
+          recipient_email?: string | null
+          recipient_id?: string | null
+          recipient_phone?: string | null
+          schedule_id?: string | null
+          sent_at?: string | null
+          status: string
+          subject?: string | null
+          template_id?: string | null
+        }
+        Update: {
+          body_preview?: string | null
+          channel?: string
+          clicked_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          external_id?: string | null
+          id?: string
+          metadata?: Json | null
+          opened_at?: string | null
+          queue_id?: string | null
+          recipient_email?: string | null
+          recipient_id?: string | null
+          recipient_phone?: string | null
+          schedule_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_history_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "notification_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_history_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_history_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "notification_schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_history_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "notification_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_preferences: {
+        Row: {
+          category: string
+          channel: string
+          created_at: string
+          enabled: boolean
+          frequency: string | null
+          id: string
+          quiet_hours_end: string | null
+          quiet_hours_start: string | null
+          resident_id: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          channel?: string
+          created_at?: string
+          enabled?: boolean
+          frequency?: string | null
+          id?: string
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          resident_id: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          channel?: string
+          created_at?: string
+          enabled?: boolean
+          frequency?: string | null
+          id?: string
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          resident_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_queue: {
+        Row: {
+          attempts: number
+          body: string
+          channel: string
+          created_at: string
+          created_by: string | null
+          dedup_window_minutes: number | null
+          deduplication_key: string | null
+          error_message: string | null
+          html_body: string | null
+          id: string
+          last_attempt_at: string | null
+          max_attempts: number
+          metadata: Json | null
+          priority: number
+          recipient_email: string | null
+          recipient_id: string
+          recipient_phone: string | null
+          schedule_id: string | null
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          subject: string | null
+          template_id: string | null
+          variables: Json | null
+        }
+        Insert: {
+          attempts?: number
+          body: string
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          dedup_window_minutes?: number | null
+          deduplication_key?: string | null
+          error_message?: string | null
+          html_body?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          max_attempts?: number
+          metadata?: Json | null
+          priority?: number
+          recipient_email?: string | null
+          recipient_id: string
+          recipient_phone?: string | null
+          schedule_id?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          template_id?: string | null
+          variables?: Json | null
+        }
+        Update: {
+          attempts?: number
+          body?: string
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          dedup_window_minutes?: number | null
+          deduplication_key?: string | null
+          error_message?: string | null
+          html_body?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          max_attempts?: number
+          metadata?: Json | null
+          priority?: number
+          recipient_email?: string | null
+          recipient_id?: string
+          recipient_phone?: string | null
+          schedule_id?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          template_id?: string | null
+          variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_queue_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_queue_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_queue_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "notification_schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_queue_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "notification_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_schedules: {
+        Row: {
+          conditions: Json | null
+          created_at: string
+          cron_expression: string | null
+          escalation_sequence: number | null
+          event_type: string | null
+          id: string
+          is_active: boolean
+          name: string
+          parent_schedule_id: string | null
+          template_id: string
+          trigger_type: string
+          trigger_value: number | null
+          updated_at: string
+        }
+        Insert: {
+          conditions?: Json | null
+          created_at?: string
+          cron_expression?: string | null
+          escalation_sequence?: number | null
+          event_type?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          parent_schedule_id?: string | null
+          template_id: string
+          trigger_type: string
+          trigger_value?: number | null
+          updated_at?: string
+        }
+        Update: {
+          conditions?: Json | null
+          created_at?: string
+          cron_expression?: string | null
+          escalation_sequence?: number | null
+          event_type?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          parent_schedule_id?: string | null
+          template_id?: string
+          trigger_type?: string
+          trigger_value?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_schedules_parent_schedule_id_fkey"
+            columns: ["parent_schedule_id"]
+            isOneToOne: false
+            referencedRelation: "notification_schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_schedules_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "notification_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_templates: {
+        Row: {
+          body_template: string
+          category: string
+          channel: string
+          created_at: string
+          created_by: string | null
+          display_name: string
+          html_template: string | null
+          id: string
+          is_active: boolean
+          is_system: boolean
+          name: string
+          subject_template: string | null
+          updated_at: string
+          variables: Json
+        }
+        Insert: {
+          body_template: string
+          category: string
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          display_name: string
+          html_template?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          name: string
+          subject_template?: string | null
+          updated_at?: string
+          variables?: Json
+        }
+        Update: {
+          body_template?: string
+          category?: string
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          display_name?: string
+          html_template?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          name?: string
+          subject_template?: string | null
+          updated_at?: string
+          variables?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1883,6 +2320,7 @@ export type Database = {
         Args: { permission_name: string }
         Returns: boolean
       }
+      is_super_admin: { Args: never; Returns: boolean }
       record_ownership_history: {
         Args: {
           p_created_by?: string

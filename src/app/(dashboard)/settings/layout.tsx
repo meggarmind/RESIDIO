@@ -23,6 +23,10 @@ const sidebarNavItems = [
         href: "/settings/email",
     },
     {
+        title: "Notifications",
+        href: "/settings/notifications",
+    },
+    {
         title: "Security",
         href: "/settings/security",
     },

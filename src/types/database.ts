@@ -236,7 +236,13 @@ export type AuditEntityType =
   | 'transaction_tags'
   | 'app_roles'           // Phase 10: RBAC
   | 'app_permissions'     // Phase 10: RBAC
-  | 'role_permissions';   // Phase 10: RBAC
+  | 'role_permissions'    // Phase 10: RBAC
+  | 'notification_templates'    // Phase 11: Notifications
+  | 'notification_schedules'    // Phase 11: Notifications
+  | 'notification_queue'        // Phase 11: Notifications
+  | 'notification_history'      // Phase 11: Notifications
+  | 'notification_preferences'  // Phase 11: Notifications
+  | 'escalation_states';        // Phase 11: Notifications
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -279,6 +285,12 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   app_roles: 'Role',               // Phase 10: RBAC
   app_permissions: 'Permission',   // Phase 10: RBAC
   role_permissions: 'Role Permission', // Phase 10: RBAC
+  notification_templates: 'Notification Template',    // Phase 11: Notifications
+  notification_schedules: 'Notification Schedule',    // Phase 11: Notifications
+  notification_queue: 'Queued Notification',          // Phase 11: Notifications
+  notification_history: 'Notification',               // Phase 11: Notifications
+  notification_preferences: 'Notification Preference', // Phase 11: Notifications
+  escalation_states: 'Escalation State',              // Phase 11: Notifications
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {

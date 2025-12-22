@@ -610,6 +610,7 @@ When the user types any of these keyphrases, execute the associated action:
 | `end_session` | Execute session handoff procedure below |
 | `resume_session` | Read `NEXT_SESSION_HANDOFF_PROMPT.md` and follow its instructions as your prompt |
 | `sync_dev_inbox` | Run Notion sync command, check prompts folder, process prompts per Development Inbox Workflow |
+| `sync_up` | Execute sync-up procedure below |
 
 **Session Handoff Procedure**:
 When triggered by the above keyphrases, perform the following:
@@ -629,6 +630,67 @@ When triggered by the above keyphrases, perform the following:
    - Update with current project status, completed phases, and in-progress work
 
 The handoff must ensure a seamless transition to the next session.
+
+**Sync-Up Procedure**:
+When triggered by `sync_up`, perform the following:
+
+1. **Update Internal Documentation**:
+   - Update `TODO.md` with current state
+   - Update `CLAUDE.md` if any new patterns/conventions were established
+   - Run `date` to confirm current timestamp
+
+2. **Git Commit & Push**:
+   - Run `git status` to review changes
+   - Run `git diff --stat` to summarize modifications
+   - Stage all relevant changes: `git add .`
+   - Create commit with descriptive message following format:
+
+     ```text
+     chore(sync): [brief description of session work]
+
+     - [Key change 1]
+     - [Key change 2]
+
+     🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+     Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+     ```
+
+   - Push to remote: `git push`
+
+3. **Evaluate Pending Work**:
+   a. **Check `/prompts/` folder** for pending development tasks
+   b. **Check `/deferred/` folder** for deferred tasks that may now be aligned
+   c. **Read current phase from `TODO.md`** to understand project state
+   d. **Identify next phase** from TODO.md roadmap
+
+4. **Present Options to User**:
+   Display a structured summary with recommendations:
+
+   ```
+   ═══════════════════════════════════════════════════════
+   SYNC-UP COMPLETE
+   ═══════════════════════════════════════════════════════
+   📁 Git Status: [X files changed, pushed to origin/master]
+   📅 Current Phase: Phase N - [Name] [STATUS]
+   📋 Next Phase: Phase N+1 - [Name]
+
+   PENDING WORK:
+   ┌─────────────────────────────────────────────────────┐
+   │ Prompts: X pending, Y deferred (Z now aligned)     │
+   │ Backlog items: X                                    │
+   └─────────────────────────────────────────────────────┘
+
+   RECOMMENDED NEXT ACTIONS:
+   (a) Continue current phase work [if incomplete]
+   (b) Start next phase [if current complete]
+   (c) Process aligned prompts [if any now aligned]
+   (d) Review deferred items [if phase changed]
+   (e) End session [if stopping work]
+
+   What would you like to do?
+   ═══════════════════════════════════════════════════════
+   ```
 
 **Phase Completion Git Push Workflow**:
 At the end of each phase after all TODOs have been successfully implemented:

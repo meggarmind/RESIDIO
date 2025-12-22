@@ -89,3 +89,42 @@ Add email button next to Print Receipt button to send receipts to residents. Inc
 **Dependencies**: notification service, email service, payment gateway
 
 ---
+
+## Add Aggregate House Payment Status to Property Details
+**Added**: 2025-12-22  
+**Type**: Feature  
+**Module**: Billing System  
+**Priority**: Medium  
+**Status**: Prompt request generated
+
+Add cumulative payment status to House Detail View showing total outstanding balance from all past/present residents plus landlord fees, with drill-down to detailed breakdown.
+
+**Dependencies**: payment gateway
+
+---
+
+## Enable Payment Allocation to Previous Properties
+**Added**: 2025-12-22  
+**Type**: Feature  
+**Module**: Payment Gateway  
+**Priority**: Medium  
+**Status**: Prompt request generated
+
+Allow residents to allocate payments toward outstanding balances at previous properties, with conditional display when old debts exist and default allocation to current house.
+
+**Dependencies**: payment gateway
+
+---
+
+## Add Cross-Property Payment History to Resident Detail View
+**Added**: 2025-12-22  
+**Type**: Feature  
+**Module**: Billing System  
+**Priority**: Medium  
+**Status**: Prompt request generated
+
+Add consolidated payment history to Resident Detail View showing total outstanding and per-property breakdown across all properties the resident has been associated with, visible in both Admin and Resident portals.
+
+**Dependencies**: payment gateway
+
+---

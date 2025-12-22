@@ -6,11 +6,22 @@ import { getSettingValue, getSettings } from '@/actions/settings/get-settings';
 import type { SendEmailOptions, SendEmailResult, EmailLogEntry, EstateEmailSettings } from './types';
 
 /**
+ * Truncate text for preview (for notification history)
+ */
+function truncateForPreview(text: string, maxLength = 200): string {
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength - 3) + '...';
+}
+
+/**
  * Log email send attempt to database
+ * Now also logs to notification_history for unified notification tracking
  */
 async function logEmail(entry: EmailLogEntry): Promise<void> {
   try {
     const supabase = createAdminClient();
+
+    // Log to legacy email_logs table
     await supabase.from('email_logs').insert({
       recipient_email: entry.recipientEmail,
       recipient_name: entry.recipientName || null,
@@ -21,6 +32,30 @@ async function logEmail(entry: EmailLogEntry): Promise<void> {
       status: entry.status,
       error_message: entry.errorMessage || null,
       metadata: entry.metadata || null,
+    });
+
+    // Also log to notification_history for unified tracking
+    // This bridges the legacy email system with the new notification system
+    await supabase.from('notification_history').insert({
+      queue_id: null, // Legacy emails don't go through queue
+      template_id: null,
+      schedule_id: null,
+      recipient_id: entry.residentId || null,
+      recipient_email: entry.recipientEmail,
+      recipient_phone: null,
+      channel: 'email',
+      subject: entry.subject,
+      body_preview: entry.emailType ? `[${entry.emailType}] Email sent via legacy system` : 'Email sent via legacy system',
+      status: entry.status === 'sent' ? 'sent' : 'failed',
+      external_id: entry.resendId || null,
+      error_message: entry.errorMessage || null,
+      metadata: {
+        ...entry.metadata,
+        legacy_email: true,
+        email_type: entry.emailType,
+        recipient_name: entry.recipientName,
+      },
+      sent_at: entry.status === 'sent' ? new Date().toISOString() : null,
     });
   } catch (error) {
     // Fail silently - email logging should not break the main operation

@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart } from 'lucide-react';
 import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
+import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 interface NavItem {
@@ -174,7 +175,8 @@ export function Sidebar({ className }: SidebarProps) {
           })}
         </ul>
       </nav>
-      <div className="border-t p-4">
+      <div className="border-t p-4 space-y-3">
+        <ThemeSwitcher />
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium">
             {profile?.full_name?.charAt(0) || '?'}

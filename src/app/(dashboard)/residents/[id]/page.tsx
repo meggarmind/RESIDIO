@@ -16,8 +16,9 @@ import { WalletTransactions } from '@/components/residents/wallet-transactions';
 import { useResidentIndebtedness } from '@/hooks/use-billing';
 import { ResidentSecurityContacts } from '@/components/residents/resident-security-contacts';
 import { PaymentAliases } from '@/components/residents/payment-aliases';
+import { PreferencesForm } from '@/components/notifications/preferences-form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, CreditCard, AlertTriangle, Receipt, Shield, UserCheck } from 'lucide-react';
+import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, CreditCard, AlertTriangle, Receipt, Shield, UserCheck, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ResidentDetailPageProps {
@@ -170,6 +171,10 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
           <TabsTrigger value="security">
             <Shield className="h-4 w-4 mr-1" />
             Security
+          </TabsTrigger>
+          <TabsTrigger value="notifications">
+            <Bell className="h-4 w-4 mr-1" />
+            Notifications
           </TabsTrigger>
         </TabsList>
 
@@ -353,6 +358,10 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
 
         <TabsContent value="security" className="mt-6">
           <ResidentSecurityContacts residentId={id} />
+        </TabsContent>
+
+        <TabsContent value="notifications" className="mt-6">
+          <PreferencesForm residentId={id} />
         </TabsContent>
       </Tabs>
     </div>

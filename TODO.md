@@ -1,8 +1,8 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-21 (Phase Roadmap Reorganization - Phases 10-22, 25-28)
+**Last Updated:** 2025-12-22 (Phase 11 Alert Management Module Complete)
 
-## Current Phase: Phase 10 - Flexible RBAC System (NEXT UP)
+## Current Phase: Phase 12 - Resident View Portal (NEXT UP)
 
 > **📋 Prompts Check**: Always check `/prompts` folder for pending development tasks:
 > - **Session start**: Automated via SessionStart hook
@@ -501,10 +501,6 @@ Centralized management for all system parameters.
 
 ---
 
-## Current Phase: Phase 11 - Alert Management Module (NEXT UP)
-
----
-
 ## Phase 10: Flexible RBAC System ✅ COMPLETE
 Transform hardcoded 4-role system to 7+ configurable roles:
 - [x] Database migration for roles table with permissions (20251222000000_create_rbac_system.sql)
@@ -523,16 +519,84 @@ Transform hardcoded 4-role system to 7+ configurable roles:
 
 ---
 
-## Phase 11: Alert Management Module
-Centralized notification system (Email-only for now):
-- [ ] Notification templates database table
-- [ ] Multi-channel architecture (Email primary, SMS/WhatsApp hooks for later)
-- [ ] Configurable timing rules and schedules
-- [ ] Automatic escalation workflows
-- [ ] Smart deduplication (prevent duplicate alerts)
-- [ ] Notification preferences per resident
-- [ ] Notification history/log viewer
-- [ ] Comprehensive audit trails
+## Phase 11: Alert Management Module ✅ COMPLETE
+Centralized notification system (Email-only for now, SMS/WhatsApp future-proofed):
+
+### Phase 11.1: Database Foundation ✅
+- [x] Create notification_templates table with variables JSON field
+- [x] Create notification_schedules table for trigger rules
+- [x] Create notification_queue table for pending notifications
+- [x] Create notification_history table for sent notifications
+- [x] Create notification_preferences table per resident
+- [x] Create escalation_states table for escalation tracking
+- [x] Add notification entity types to AuditEntityType
+
+### Phase 11.2: Core Notification Library ✅
+- [x] `src/lib/notifications/types.ts` - Channel-agnostic type definitions
+- [x] `src/lib/notifications/templates.ts` - Template rendering with {{variable}} interpolation
+- [x] `src/lib/notifications/deduplication.ts` - Composite key deduplication strategy
+- [x] `src/lib/notifications/send.ts` - Channel dispatcher pattern (email implemented, SMS/WhatsApp stubs)
+- [x] `src/lib/notifications/queue.ts` - Priority queue management
+- [x] `src/lib/notifications/escalation.ts` - Escalation state machine
+- [x] `src/lib/notifications/preferences.ts` - Per-resident notification preferences
+
+### Phase 11.3: Server Actions ✅
+- [x] Template CRUD actions (`src/actions/notifications/templates.ts`)
+- [x] Schedule CRUD actions (`src/actions/notifications/schedules.ts`)
+- [x] Queue management actions (`src/actions/notifications/queue.ts`)
+- [x] History query actions (`src/actions/notifications/history.ts`)
+- [x] Preference management actions (`src/actions/notifications/preferences.ts`)
+- [x] High-level send actions (`src/actions/notifications/send.ts`)
+
+### Phase 11.4: React Query Hooks ✅
+- [x] Complete hook library in `src/hooks/use-notifications.ts`
+- [x] Template hooks: useNotificationTemplates, useCreateTemplate, useUpdateTemplate, etc.
+- [x] Schedule hooks: useNotificationSchedules, useCreateSchedule, etc.
+- [x] Queue hooks: useNotificationQueue, useCancelNotification, useRetryNotification
+- [x] History hooks: useNotificationHistory, useNotificationStats
+- [x] Preference hooks: useResidentPreferences, useUpdateResidentPreference
+
+### Phase 11.5: Admin UI - Templates & Schedules ✅
+- [x] Notifications dashboard page (`/settings/notifications`)
+- [x] Template list component with actions (edit, preview, duplicate, toggle, delete)
+- [x] Template form with variable management UI
+- [x] Schedule list component with trigger type display
+- [x] Schedule form with trigger type configuration
+- [x] Templates page (`/settings/notifications/templates`)
+- [x] Schedules page (`/settings/notifications/schedules`)
+
+### Phase 11.6: Notification History Viewer ✅
+- [x] History page with tabs (`/settings/notifications/history`)
+- [x] NotificationHistory component with filters (channel, status, search)
+- [x] QueueViewer component for pending queue items
+- [x] Detail dialogs for history entries and queue items
+- [x] Pagination support for history
+
+### Phase 11.7: Resident Preferences ✅
+- [x] PreferencesForm component with per-category, per-channel toggles
+- [x] Added Notifications tab to resident detail page
+- [x] Email enabled by default, SMS/WhatsApp shown as "Coming soon"
+- [x] Frequency settings (immediate, daily digest, weekly digest, none)
+- [x] Pending changes pattern for batch saving
+
+### Phase 11.8: Cron Job & Queue Processing ✅
+- [x] Created `/api/cron/process-notifications` route
+- [x] Updated `vercel.json` with 5-minute cron schedule
+- [x] Queue processing with priority ordering
+- [x] Daily purge of old sent/cancelled items (30-day retention)
+
+### Phase 11.9: Migrate Existing Email Flows ✅
+- [x] Updated `logEmail()` to also write to notification_history
+- [x] Legacy emails now appear in unified notification history
+- [x] Marked with `legacy_email: true` metadata for identification
+
+### Key Implementation Notes:
+- **Channel Dispatcher Pattern**: `send.ts` dispatches to channel-specific senders
+- **Template Variables**: Handlebars-style `{{variable}}` interpolation
+- **Deduplication Key**: `{channel}:{category}:{entity_type}:{entity_id}:{resident_id}`
+- **Priority Queue**: 1=Urgent, 3=High, 5=Normal, 7=Low, 9=Bulk
+- **Bridge Pattern**: Legacy emails write to both `email_logs` and `notification_history`
+- **Future SMS/WhatsApp**: Just implement sender functions and update IMPLEMENTED_CHANNELS
 
 ---
 
