@@ -1,73 +1,99 @@
 # Next Session Handoff Prompt
 
-**Date:** 2025-12-21
-**Phase:** Phase 9 - Polish (mostly complete)
+**Date:** 2025-12-22
+**Current Phase:** Phase 12 - Resident View Portal
 
 ---
 
 ## Context
 
-Phase 9 Polish is mostly complete. The main work accomplished today was fixing a critical runtime error.
+Phase 11 (Alert Management Module) and Phase 10 (RBAC) are complete. The next work is Phase 12: Resident View Portal.
 
-### Critical Fix Completed
-Fixed "A 'use server' file can only export async functions, found object" error:
-- **Problem:** `ACTION_ROLES` object and `AuthorizationResult` interface were exported from `authorize.ts` (a 'use server' file)
-- **Solution:** Created `src/lib/auth/action-roles.ts` with the interface and const, updated 9 consumer files
+### Completed This Session
 
-### Phase 9 Status
-All Phase 9 items verified complete except payment reminder emails (deferred - requires email service):
-- ✅ Error boundaries (4 files exist and working)
-- ✅ Table skeleton loaders (houses-table, residents-table, security-contacts-table)
-- ✅ Page loading states (dashboard, security, billing pages)
-- ✅ Toast notifications (payment-form uses toast.error)
+1. **Phase 11 Alert Management Module** - Full notification system with:
+   - Database tables: notification_templates, notification_schedules, notification_queue, notification_history, notification_preferences
+   - Core library: templates, deduplication, queue management, escalation, channel dispatcher
+   - Server actions and React Query hooks
+   - Admin UI: templates, schedules, history viewer, preferences
+   - Cron job for queue processing (every 5 minutes)
+   - Bridge to legacy email system
 
----
+2. **sync_up Command** - Added to CLAUDE.md for session consolidation
 
-## Immediate Action
+3. **Template Form Optimization** - Backlog task, reorganized into Card sections
 
-1. **Run Notion sync** to check for new prompts:
-   ```bash
-   cd /home/feyijimiohioma/mobile-first-notion-workflow && source .env && python3 residio_inbox_processor.py
-   ```
-
-2. **Check `/prompts` folder** for any new tasks
-
-3. **Decide next phase**:
-   - Option A: Continue Phase 9 by setting up email service for payment reminders
-   - Option B: Start Phase 10 - Legacy App Migration
+4. **Notion Cleanup** - Updated 11 processed prompts to "Done" status
 
 ---
 
-## Key Files Modified in This Session
+## Immediate Action When Resuming
 
-### New File Created
-- [src/lib/auth/action-roles.ts](src/lib/auth/action-roles.ts) - Contains `AuthorizationResult` interface and `ACTION_ROLES` const
+1. **SessionStart hook will run automatically** - syncs Notion and shows prompt summary
 
-### Files Updated (9 consumer files)
-- `src/actions/residents/update-resident.ts`
-- `src/actions/residents/delete-resident.ts`
-- `src/actions/reference/update-street.ts`
-- `src/actions/reference/update-house-type.ts`
-- `src/actions/reference/delete-street.ts`
-- `src/actions/houses/update-house.ts`
-- `src/actions/houses/delete-house.ts`
-- `src/actions/payments/update-payment.ts`
-- `src/actions/payments/delete-payment.ts`
+2. **Process Phase 12 prompt**: `/prompts/20251221_phase_12_resident_view_portal.md`
 
----
-
-## Build Status
-
-✅ Build passes (`npm run build`)
-✅ Dev server runs without errors
+3. **Phase 12 Tasks** (from TODO.md):
+   - [ ] Resident authentication (separate from admin login)
+   - [ ] Read-only dashboard with property info
+   - [ ] View invoices and payment history
+   - [ ] Download payment receipts (PDF)
+   - [ ] Manage security contacts (add/edit/remove within limits)
+   - [ ] Notification preferences management
+   - [ ] Profile management (update contact info)
+   - [ ] Mobile-responsive design
 
 ---
 
-## Environment
+## Pending Prompts
 
-- **Supabase**: Cloud only (via MCP server)
-- **Dev server**: `npm run dev` (http://localhost:3000)
-- **No local Supabase** - all database operations via cloud
+### Aligned (Ready to Execute)
+
+- **Phase 12**: `20251221_phase_12_resident_view_portal.md`
+
+### Not Aligned (User Decision Required)
+
+- **Phase 1** (4 items): Payment improvements
+- **Phase 4** (7 items): Financial reports, dashboard overhaul
+
+---
+
+## Key Technical Decisions for Phase 12
+
+1. **Separate Authentication**: Residents should have their own login flow, distinct from admin
+2. **Existing RBAC**: Phase 10 already has "resident" role - leverage this
+3. **Notification Preferences**: Phase 11 PreferencesForm already on resident detail page
+4. **Read-Only Access**: Residents view their data but limited write capabilities
+
+---
+
+## Key Patterns Established
+
+### Zod Schema with Default Values
+
+```typescript
+type FormData = { field: number };
+const schema = z.object({ field: z.number() }) satisfies z.ZodType<FormData>;
+```
+
+### Form Section Pattern
+
+Use shadcn/ui Card components to group related fields.
+
+### Notification System
+
+- Channel dispatcher in `src/lib/notifications/send.ts`
+- Template variables: `{{variable_name}}` syntax
+- Priority queue: 1=Urgent, 3=High, 5=Normal, 7=Low, 9=Bulk
+
+---
+
+## Commands
+
+```bash
+cd /home/feyijimiohioma/projects/Residio
+npm run dev
+```
 
 ---
 
@@ -75,7 +101,13 @@ All Phase 9 items verified complete except payment reminder emails (deferred - r
 
 | Email | Password | Role |
 |-------|----------|------|
-| admin@residio.test | password123 | admin |
+| admin@residio.test | password123 | super_admin |
 | chairman@residio.test | password123 | chairman |
 | finance@residio.test | password123 | financial_secretary |
 | security@residio.test | password123 | security_officer |
+
+---
+
+## Repository
+
+GitHub: https://github.com/meggarmind/RESIDIO

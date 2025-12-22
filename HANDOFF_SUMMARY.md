@@ -1,120 +1,143 @@
 # Handoff Summary - Residio Project
 
 **Date:** 2025-12-22
-**Current Phase:** Phase 11 - Alert Management Module (NEXT UP)
-**Last Completed:** Phase 10 - Flexible RBAC System
+**Current Phase:** Phase 12 - Resident View Portal (NEXT UP)
+**Last Completed:** Phase 11 - Alert Management Module
 
 ---
 
 ## Session Goal
 
-This session completed Phase 10: Flexible RBAC System implementation. The main work involved:
-1. Fixing RLS infinite recursion on app_roles table that caused sidebar to only show Dashboard
-2. Building CRUD UI for role management with permissions dialog
-3. Moving "Import Statement" under "Payments" in sidebar and permissions dialog
-4. Verifying audit logging was already integrated
+This session completed:
+1. Phase 11 Alert Management Module (notification system)
+2. Added `sync_up` command to CLAUDE.md
+3. Processed prompts and updated Notion status for all completed tasks
+4. Optimized notification template form layout (Backlog task)
 
 ---
 
 ## Key Decisions Made
 
-### RLS Policy Fix
-- Created `is_super_admin()` SECURITY DEFINER function to bypass RLS during checks
-- Split `FOR ALL` policy into separate INSERT/UPDATE/DELETE policies
-- Applied via Supabase Management API migration
+### Phase 11 Alert Management Module
+- Built centralized notification system with email as primary channel (SMS/WhatsApp future-proofed)
+- Used **channel dispatcher pattern** in `send.ts` for extensibility
+- Template variables use Handlebars-style `{{variable}}` interpolation
+- Deduplication key format: `{channel}:{category}:{entity_type}:{entity_id}:{resident_id}`
+- Priority queue: 1=Urgent, 3=High, 5=Normal, 7=Low, 9=Bulk
+- Bridged legacy email system with new notification_history via dual-write pattern
 
-### Role Management UI
-- Chose "Separate dialog/modal" for permission management (vs inline accordion)
-- System roles show "System" badge and cannot be deleted
-- Super Administrator has no edit/delete buttons visible
+### sync_up Command
+- Added new keyword command to CLAUDE.md
+- Consolidates session state, commits/pushes to git, evaluates pending work, presents options
+- Documented full procedure with structured output format
 
-### Sidebar Navigation
-- Added nested navigation support with `children` property
-- Import Statement now appears indented under Payments
-
-### Permission Categories
-- Merged 'imports' category into 'payments' in UI (database still tracks separately)
-- Permissions dialog shows 9 categories (imports permissions appear under "Payments & Imports")
+### Template Form Optimization
+- Reorganized into 4 Card sections: Basic Info, Content, Variables, Settings
+- Shortened helper text for cleaner UI
+- Added syntax hint with Info icon in Content section header
 
 ---
 
 ## Code Changes Made
 
-### Files Created (4)
+### Phase 11 Files Created
 
-1. **`supabase/migrations/20251222000001_fix_rbac_rls_policies.sql`**:
-   - Creates `is_super_admin()` SECURITY DEFINER function
-   - Drops problematic `FOR ALL` policies
-   - Creates separate INSERT/UPDATE/DELETE policies for app_roles and role_permissions
+**Database Migration:**
+- `supabase/migrations/20251223000000_create_notification_system.sql`
 
-2. **`src/components/admin/roles-list.tsx`**:
-   - Full CRUD table for role management
-   - Create/edit dialog with form validation
-   - Delete confirmation dialog
-   - System role protection (can't delete, limited editing)
+**Core Library (`src/lib/notifications/`):**
+- `types.ts` - Channel-agnostic type definitions
+- `templates.ts` - Template rendering with {{variable}} interpolation
+- `deduplication.ts` - Composite key deduplication strategy
+- `send.ts` - Channel dispatcher pattern
+- `queue.ts` - Priority queue management
+- `escalation.ts` - Escalation state machine
+- `preferences.ts` - Per-resident notification preferences
+- `index.ts` - Barrel export
 
-3. **`src/components/admin/role-permissions-dialog.tsx`**:
-   - Permission management modal
-   - Category-based collapsible grouping
-   - Bulk select per category with indeterminate state
-   - Fixed scroll with `h-[50vh]` height constraint
+**Server Actions (`src/actions/notifications/`):**
+- `templates.ts`, `schedules.ts`, `queue.ts`, `history.ts`, `preferences.ts`, `send.ts`
 
-4. **`src/components/ui/collapsible.tsx`**:
-   - shadcn/ui collapsible component for permissions dialog
+**React Query Hooks:**
+- `src/hooks/use-notifications.ts` - Complete hook library
 
-### Files Modified (6)
+**Admin UI Components (`src/components/notifications/`):**
+- `template-form.tsx`, `template-list.tsx`
+- `schedule-form.tsx`, `schedule-list.tsx`
+- `notification-history.tsx`, `queue-viewer.tsx`
+- `preferences-form.tsx`
 
-1. **`src/components/dashboard/sidebar.tsx`**:
-   - Added `children?: NavItem[]` to interface
-   - Moved Import Statement as child of Payments
-   - Added nested rendering with `pl-9` indent
+**Admin Pages:**
+- `src/app/(dashboard)/settings/notifications/page.tsx`
+- `src/app/(dashboard)/settings/notifications/templates/page.tsx`
+- `src/app/(dashboard)/settings/notifications/schedules/page.tsx`
+- `src/app/(dashboard)/settings/notifications/history/page.tsx`
 
-2. **`src/app/(dashboard)/settings/roles/page.tsx`**:
-   - Simplified to use RolesList component
+**Cron Job:**
+- `src/app/api/cron/process-notifications/route.ts`
+- `vercel.json` updated with 5-minute schedule
 
-3. **`src/app/(dashboard)/settings/layout.tsx`**:
-   - Added "Roles & Permissions" nav item
+### Files Modified
 
-4. **`src/lib/auth/action-roles.ts`**:
-   - Added PERMISSIONS constant with all 42 permission keys
-
-5. **`src/lib/auth/auth-provider.tsx`**:
-   - Added `hasPermission` and `hasAnyPermission` helpers
-
-6. **`src/hooks/use-roles.ts`**:
-   - Complete hook library for roles management
+- `CLAUDE.md` - Added sync_up command and Sync-Up Procedure section
+- `TODO.md` - Updated Phase 11 to COMPLETE, Phase 12 as current
+- `src/lib/email/send-email.ts` - Bridge to notification_history table
+- `src/app/(dashboard)/residents/[id]/page.tsx` - Added Notifications tab
+- `src/components/notifications/template-form.tsx` - Card-based layout optimization
 
 ---
 
 ## Current State
 
-### Completed ✅
-- [x] Phase 10: Flexible RBAC System fully implemented
-- [x] 42 permissions across 10 categories (residents, houses, payments, billing, security, reports, settings, approvals, system, imports)
-- [x] Role categories: exco, bot, staff, resident
-- [x] System roles protected from deletion
-- [x] Permission-based sidebar navigation
-- [x] Nested navigation (Imports under Payments)
-- [x] Audit logging for all RBAC changes
+### Git Status
+All changes committed and pushed to origin/master (2 commits this session)
 
-### What Works
-- Admin can create, edit, delete custom roles
-- Admin can manage permissions for any role (including system roles)
-- Sidebar filters nav items based on user permissions
-- Permission changes take effect after user re-login
-- Audit log tracks all role/permission changes
+### Notion Status
+- 10 processed prompts updated to "Done"
+- Phase 11 prompt archived to processed/
+- Backlog template optimization prompt completed
+
+### Pending Prompts in `/prompts/`:
+| Phase | Count | Status |
+|-------|-------|--------|
+| Phase 12 | 1 | ALIGNED - ready to execute |
+| Phase 1 | 4 | Not aligned (Payment improvements) |
+| Phase 4 | 7 | Not aligned (Financial reports, dashboard) |
 
 ---
 
 ## Next Steps (Priority Order)
 
-1. **Phase 11: Alert Management Module**:
-   - Notification templates database table
-   - Multi-channel architecture (Email primary)
-   - Configurable timing rules and schedules
-   - Automatic escalation workflows
+1. **Start Phase 12: Resident View Portal**
+   - Resident authentication (separate from admin login)
+   - Read-only dashboard with property info
+   - View invoices and payment history
+   - Download payment receipts (PDF)
+   - Manage security contacts
+   - Notification preferences management
+   - Profile management
+   - Mobile-responsive design
 
-2. **Check for new prompts** from Notion inbox
+2. **Process Phase 12 prompt**: `20251221_phase_12_resident_view_portal.md`
+
+3. **Defer non-aligned prompts** per user decision
+
+---
+
+## Technical Notes
+
+### Zod Schema Pattern for Forms
+When using `.default()` modifiers with Zod, define explicit type and use `satisfies z.ZodType<T>`:
+```typescript
+type FormData = { field: number };
+const schema = z.object({ field: z.number() }) satisfies z.ZodType<FormData>;
+```
+
+### Lucide Icons
+Don't accept `title` prop - wrap in `<span title="...">` instead.
+
+### Form Section Pattern
+Use shadcn/ui Card components to group related form fields with CardHeader and CardContent for visual hierarchy.
 
 ---
 
