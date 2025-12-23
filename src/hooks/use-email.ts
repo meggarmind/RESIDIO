@@ -1,10 +1,11 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { testEmail } from '@/actions/email/test-email';
 import { sendPaymentReminders } from '@/actions/email/send-payment-reminders';
 import { sendInvoiceEmail } from '@/actions/email/send-invoice-email';
 import { sendWelcomeEmail } from '@/actions/email/send-welcome-email';
+import { sendPaymentReceiptEmail, getPaymentRecipients } from '@/actions/email/send-payment-receipt-email';
 import { toast } from 'sonner';
 
 /**
@@ -86,6 +87,42 @@ export function useSendWelcomeEmail() {
     },
     onError: () => {
       // Silently fail for welcome emails
+    },
+  });
+}
+
+/**
+ * Hook for getting potential recipients for a payment receipt
+ */
+export function usePaymentRecipients(paymentId: string | undefined) {
+  return useQuery({
+    queryKey: ['payment-recipients', paymentId],
+    queryFn: async () => {
+      if (!paymentId) throw new Error('Payment ID is required');
+      return getPaymentRecipients(paymentId);
+    },
+    enabled: !!paymentId,
+  });
+}
+
+/**
+ * Hook for sending a payment receipt email
+ */
+export function useSendPaymentReceiptEmail() {
+  return useMutation({
+    mutationFn: async ({ paymentId, recipientEmails }: { paymentId: string; recipientEmails: string[] }) => {
+      return sendPaymentReceiptEmail(paymentId, recipientEmails);
+    },
+    onSuccess: (result) => {
+      if (result.success) {
+        const count = result.sentTo?.length || 0;
+        toast.success(`Receipt sent to ${count} recipient${count > 1 ? 's' : ''}`);
+      } else {
+        toast.error(result.error || 'Failed to send receipt');
+      }
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to send receipt');
     },
   });
 }

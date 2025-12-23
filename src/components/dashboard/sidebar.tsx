@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart } from 'lucide-react';
+import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart, FilePlus } from 'lucide-react';
 import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
@@ -67,9 +67,23 @@ const navItems: NavItem[] = [
   },
   {
     title: 'Reports',
-    href: '/reports/financial-overview',
+    href: '/reports',
     icon: FileBarChart,
     permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_OCCUPANCY, PERMISSIONS.REPORTS_VIEW_SECURITY],
+    children: [
+      {
+        title: 'Generate Reports',
+        href: '/reports',
+        icon: FilePlus,
+        permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+      },
+      {
+        title: 'Financial Overview',
+        href: '/reports/financial-overview',
+        icon: FileBarChart,
+        permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+      },
+    ],
   },
   {
     title: 'Approvals',

@@ -18,7 +18,14 @@ const routePermissionConfig: Record<string, Permission[]> = {
   '/settings/system': [ROUTE_PERMISSIONS['/settings/system'][0]],
   '/settings': [ROUTE_PERMISSIONS['/settings'][0]],
   '/dashboard': [], // All authenticated users
+  '/portal': [], // Resident portal - requires resident_id (checked separately)
 };
+
+// Admin routes that residents should NOT access
+const adminOnlyRoutes = [
+  '/residents', '/houses', '/payments', '/billing', '/security',
+  '/reports', '/approvals', '/settings', '/dashboard'
+];
 
 // Routes that should be accessible even during maintenance mode
 const maintenanceExemptRoutes = ['/login', '/maintenance', '/api'];
@@ -108,16 +115,34 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
+    // Fetch profile once for all checks
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role_id, resident_id')
+      .eq('id', user.id)
+      .single();
+
+    const isResidentUser = profile?.resident_id != null;
+
+    // Portal route checks
+    if (pathname.startsWith('/portal')) {
+      // Only residents can access portal
+      if (!isResidentUser) {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
+      // Resident accessing portal - allow through
+      return response;
+    }
+
+    // Resident user trying to access admin routes - redirect to portal
+    if (isResidentUser && adminOnlyRoutes.some(route => pathname.startsWith(route))) {
+      return NextResponse.redirect(new URL('/portal', request.url));
+    }
+
     // Check permission-based access
     const requiredPermissions = routePermissionConfig[protectedRoute];
     if (requiredPermissions.length > 0) {
-      // Fetch user's role_id and then their permissions
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role_id')
-        .eq('id', user.id)
-        .single();
-
+      // Use profile already fetched above for role_id
       if (!profile?.role_id) {
         // No role assigned, redirect to dashboard with error
         const redirectUrl = new URL('/dashboard', request.url);
@@ -157,7 +182,15 @@ export async function middleware(request: NextRequest) {
 
   // Redirect logged-in users away from login page
   if (pathname === '/login' && user) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    // Check if user is a resident to redirect appropriately
+    const { data: loginProfile } = await supabase
+      .from('profiles')
+      .select('resident_id')
+      .eq('id', user.id)
+      .single();
+
+    const redirectPath = loginProfile?.resident_id ? '/portal' : '/dashboard';
+    return NextResponse.redirect(new URL(redirectPath, request.url));
   }
 
   return response;

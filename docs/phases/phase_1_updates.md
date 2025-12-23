@@ -128,3 +128,16 @@ Add consolidated payment history to Resident Detail View showing total outstandi
 **Dependencies**: payment gateway
 
 ---
+
+## Fix Email Receipt "Payment Not Found" Error
+**Added**: 2025-12-23  
+**Type**: Bug Fix  
+**Module**: Billing System  
+**Priority**: High  
+**Status**: Prompt request generated
+
+Receipt preview displays and prints correctly but email function shows "Payment not found" error, preventing admins from sending receipts to residents.
+
+**Dependencies**: payment gateway, email service, notification service
+
+---

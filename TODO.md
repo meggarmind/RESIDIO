@@ -1,8 +1,15 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-22 (Phase 11 Alert Management Module Complete)
+**Last Updated:** 2025-12-23 (Phase 4 Financial Reports - Dual Template System Complete, Infinite Loop Bug Fixed)
 
 ## Current Phase: Phase 12 - Resident View Portal (NEXT UP)
+
+### Recent Session Work (2025-12-23):
+- ✅ Fixed sidebar navigation - Reports now shows both "Generate Reports" wizard and "Financial Overview" as children
+- ✅ Fixed hydration error - nested `<button>` elements in AccountSelectionStep (changed to `<div role="button">`)
+- ✅ Fixed "Maximum update depth exceeded" infinite loop on Select All in report wizard
+  - Root cause: `watch()` returns new object refs, non-memoized handlers caused re-render cascade
+  - Solution: Used `getValues()` in handlers, `useCallback` for memoization, `React.memo` for component
 
 > **📋 Prompts Check**: Always check `/prompts` folder for pending development tasks:
 > - **Session start**: Automated via SessionStart hook
@@ -665,16 +672,57 @@ Data migration from existing system:
 
 ---
 
-## Phase 17: UI Enhancement & Polish
-Pre-deployment UI improvements:
-- [ ] Responsive design review (all breakpoints)
-- [ ] Accessibility improvements (WCAG compliance)
-- [ ] Performance optimization (lazy loading, code splitting)
-- [ ] UI consistency review
-- [ ] Loading state improvements
-- [ ] Error message improvements
-- [ ] Mobile responsiveness testing
-- [ ] Cross-browser testing
+## Phase 17: UI Enhancement & Polish ✅ COMPLETE
+Comprehensive UI/UX improvements:
+
+### 17.1 Dark Mode Activation ✅
+- [x] Add ThemeProvider to providers.tsx (next-themes)
+- [x] Update layout.tsx with suppressHydrationWarning
+- [x] Create theme-switcher.tsx component (Sun/Moon/Monitor icons)
+- [x] Add theme switcher to sidebar footer (desktop)
+- [x] Add compact theme switcher to header (mobile)
+
+### 17.2 Semantic Colors System ✅
+- [x] Add success/warning/info CSS variables (oklch, light + dark modes)
+- [x] Add semantic variants to Badge component (success, warning, info)
+- [x] Add semantic variants to Alert component (success, warning, info)
+
+### 17.3 Loading & Feedback Polish ✅
+- [x] Create skeleton variants (SkeletonText, SkeletonAvatar, SkeletonCard, SkeletonTableRow)
+- [x] Enhance Sonner toast styling with semantic colors
+- [x] Add toast icons for success/error/warning/info
+
+### 17.4 Component Refinements ✅
+- [x] Add isLoading prop to Button with spinner and preserved width
+- [x] Add loadingText prop for custom loading messages
+- [x] Add interactive prop to Card for hover lift effect
+- [x] Add button press feedback (scale animation)
+
+### 17.5 Micro-interactions & Polish ✅
+- [x] Add shake animation keyframe (for form errors)
+- [x] Add fade-in-up animation keyframe
+- [x] Add scale-in animation keyframe
+- [x] Add card-interactive and table-row-interactive utility classes
+
+### Key Implementation Notes:
+- Theme switcher uses next-themes with attribute="class" for Tailwind dark mode
+- Semantic colors use oklch color space for perceptual uniformity
+- Button isLoading auto-disables and shows spinner while preserving children text
+- All new components follow existing shadcn/ui patterns
+
+### Files Modified:
+- `src/components/providers.tsx` - ThemeProvider wrapper
+- `src/app/layout.tsx` - suppressHydrationWarning
+- `src/components/ui/theme-switcher.tsx` - NEW
+- `src/components/dashboard/sidebar.tsx` - Theme switcher added
+- `src/components/dashboard/header.tsx` - Mobile theme switcher
+- `src/app/globals.css` - Semantic colors + animations
+- `src/components/ui/badge.tsx` - success/warning/info variants
+- `src/components/ui/alert.tsx` - success/warning/info variants
+- `src/components/ui/skeleton.tsx` - New skeleton variants
+- `src/components/ui/sonner.tsx` - Enhanced toast styling
+- `src/components/ui/button.tsx` - isLoading prop + press feedback
+- `src/components/ui/card.tsx` - interactive prop
 
 ---
 
@@ -858,6 +906,53 @@ Integrated `autoTagTransaction()` into the bank statement import workflow:
 - `src/actions/imports/create-import.ts` - Auto-tag logic after row insert
 - `src/actions/reference/transaction-tags.ts` - Clear auto_tagged on manual tag
 - `src/components/imports/import-preview.tsx` - Auto-tag indicator badge
+
+---
+
+## Recent Updates (2025-12-22)
+
+### Phase 17: UI Enhancement & Polish ✅ COMPLETE
+Comprehensive UI/UX overhaul implementing dark mode, semantic colors, and micro-interactions:
+
+**Dark Mode Implementation:**
+- Added `ThemeProvider` from next-themes wrapping the app
+- Created `ThemeSwitcher` component with Light/Dark/System options
+- Theme toggle appears in sidebar footer (desktop) and header (mobile)
+- All existing dark mode CSS is now accessible via theme switcher
+
+**Semantic Colors (oklch):**
+- Added success (green), warning (amber), info (blue) color variables
+- Both light and dark mode variants using oklch color space
+- New Badge variants: `success`, `warning`, `info`
+- New Alert variants: `success`, `warning`, `info`
+- Toast notifications styled with semantic colors and icons
+
+**Enhanced Components:**
+- `Button`: Added `isLoading` prop with spinner, `loadingText` prop, press feedback animation
+- `Card`: Added `interactive` prop for hover lift effect
+- `Skeleton`: Added SkeletonText, SkeletonAvatar, SkeletonCard, SkeletonTableRow variants
+
+**Micro-interactions:**
+- Shake animation for form errors
+- Fade-in-up and scale-in animations
+- Card hover lift effect utility class
+- Table row hover effect utility class
+
+**Files Created:**
+- `src/components/ui/theme-switcher.tsx`
+
+**Files Modified (11):**
+- `src/components/providers.tsx`
+- `src/app/layout.tsx`
+- `src/app/globals.css`
+- `src/components/dashboard/sidebar.tsx`
+- `src/components/dashboard/header.tsx`
+- `src/components/ui/badge.tsx`
+- `src/components/ui/alert.tsx`
+- `src/components/ui/skeleton.tsx`
+- `src/components/ui/sonner.tsx`
+- `src/components/ui/button.tsx`
+- `src/components/ui/card.tsx`
 
 ---
 

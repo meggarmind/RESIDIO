@@ -1,143 +1,110 @@
 # Handoff Summary - Residio Project
 
-**Date:** 2025-12-22
+**Date:** 2025-12-23
 **Current Phase:** Phase 12 - Resident View Portal (NEXT UP)
-**Last Completed:** Phase 11 - Alert Management Module
+**Last Completed:** Phase 4 Financial Reports - Dual Template System + Bug Fixes
 
 ---
 
 ## Session Goal
 
 This session completed:
-1. Phase 11 Alert Management Module (notification system)
-2. Added `sync_up` command to CLAUDE.md
-3. Processed prompts and updated Notion status for all completed tasks
-4. Optimized notification template form layout (Backlog task)
+1. Fixed sidebar navigation - Reports children nav items for both wizard and financial overview
+2. Fixed hydration error - nested buttons in AccountSelectionStep
+3. Fixed "Maximum update depth exceeded" infinite loop bug on Select All in report wizard
+4. Build auth register-resident-portal.ts fixes (Zod issues, Supabase listUsers)
 
 ---
 
 ## Key Decisions Made
 
-### Phase 11 Alert Management Module
-- Built centralized notification system with email as primary channel (SMS/WhatsApp future-proofed)
-- Used **channel dispatcher pattern** in `send.ts` for extensibility
-- Template variables use Handlebars-style `{{variable}}` interpolation
-- Deduplication key format: `{channel}:{category}:{entity_type}:{entity_id}:{resident_id}`
-- Priority queue: 1=Urgent, 3=High, 5=Normal, 7=Low, 9=Bulk
-- Bridged legacy email system with new notification_history via dual-write pattern
+### Infinite Loop Fix (Most Complex)
+- **Root Cause**: React Hook Form's `watch()` returns a new object reference on every render. Combined with non-memoized handlers reading from `formValues`, any `setValue` call caused re-render cascade.
+- **Solution Applied**:
+  - Used `getValues('bankAccountIds')` inside handlers to avoid stale closures
+  - Memoized `handleAccountToggle` and `handleSelectAll` with `useCallback`
+  - Created specific `watch('bankAccountIds')` for stable prop passing
+  - Wrapped `AccountSelectionStep` in `React.memo` to prevent unnecessary re-renders
 
-### sync_up Command
-- Added new keyword command to CLAUDE.md
-- Consolidates session state, commits/pushes to git, evaluates pending work, presents options
-- Documented full procedure with structured output format
+### Hydration Error Fix
+- Changed outer `<button>` wrapper in AccountSelectionStep to `<div role="button">` with `tabIndex={0}` and keyboard handlers (Enter/Space)
+- Replaced Radix Checkbox with simple div + Check icon visual indicator
 
-### Template Form Optimization
-- Reorganized into 4 Card sections: Basic Info, Content, Variables, Settings
-- Shortened helper text for cleaner UI
-- Added syntax hint with Info icon in Content section header
+### Sidebar Navigation Fix
+- Added children array to Reports nav item
+- Both "Generate Reports" (wizard at /reports) and "Financial Overview" (/reports/financial-overview) now accessible
 
 ---
 
 ## Code Changes Made
 
-### Phase 11 Files Created
-
-**Database Migration:**
-- `supabase/migrations/20251223000000_create_notification_system.sql`
-
-**Core Library (`src/lib/notifications/`):**
-- `types.ts` - Channel-agnostic type definitions
-- `templates.ts` - Template rendering with {{variable}} interpolation
-- `deduplication.ts` - Composite key deduplication strategy
-- `send.ts` - Channel dispatcher pattern
-- `queue.ts` - Priority queue management
-- `escalation.ts` - Escalation state machine
-- `preferences.ts` - Per-resident notification preferences
-- `index.ts` - Barrel export
-
-**Server Actions (`src/actions/notifications/`):**
-- `templates.ts`, `schedules.ts`, `queue.ts`, `history.ts`, `preferences.ts`, `send.ts`
-
-**React Query Hooks:**
-- `src/hooks/use-notifications.ts` - Complete hook library
-
-**Admin UI Components (`src/components/notifications/`):**
-- `template-form.tsx`, `template-list.tsx`
-- `schedule-form.tsx`, `schedule-list.tsx`
-- `notification-history.tsx`, `queue-viewer.tsx`
-- `preferences-form.tsx`
-
-**Admin Pages:**
-- `src/app/(dashboard)/settings/notifications/page.tsx`
-- `src/app/(dashboard)/settings/notifications/templates/page.tsx`
-- `src/app/(dashboard)/settings/notifications/schedules/page.tsx`
-- `src/app/(dashboard)/settings/notifications/history/page.tsx`
-
-**Cron Job:**
-- `src/app/api/cron/process-notifications/route.ts`
-- `vercel.json` updated with 5-minute schedule
-
 ### Files Modified
 
-- `CLAUDE.md` - Added sync_up command and Sync-Up Procedure section
-- `TODO.md` - Updated Phase 11 to COMPLETE, Phase 12 as current
-- `src/lib/email/send-email.ts` - Bridge to notification_history table
-- `src/app/(dashboard)/residents/[id]/page.tsx` - Added Notifications tab
-- `src/components/notifications/template-form.tsx` - Card-based layout optimization
+**`src/components/reports/report-request-wizard.tsx`:**
+- Added `memo` to React imports
+- Added `getValues` to form destructure
+- Added `selectedAccountIds = watch('bankAccountIds')` for stable prop
+- Memoized `handleAccountToggle` with `useCallback` + `getValues()`
+- Created memoized `handleSelectAll` callback
+- Wrapped `AccountSelectionStep` in `React.memo`
+- Changed outer button to div with role="button" and accessibility
+- Replaced Radix Checkbox with simple div + Check icon visual
+
+**`src/components/dashboard/sidebar.tsx`:**
+- Added `FilePlus` to lucide-react imports
+- Added `children` array to Reports nav item with Generate Reports and Financial Overview
+
+**`src/actions/auth/register-resident-portal.ts`:**
+- Fixed Zod `.errors` to `.issues` (line 39)
+- Fixed `getUserByEmail` to `listUsers()` with filter (lines 91-94)
 
 ---
 
 ## Current State
 
 ### Git Status
-All changes committed and pushed to origin/master (2 commits this session)
+Many uncommitted changes from this and previous session including:
+- Financial reports module (wizard, viewer, templates)
+- Resident portal authentication
+- Dashboard enhancements
+- Bug fixes
 
-### Notion Status
-- 10 processed prompts updated to "Done"
-- Phase 11 prompt archived to processed/
-- Backlog template optimization prompt completed
+### Pending Phase 4 Financial Reports:
+- [pending] Edit, Recategorization & Version History
+- [pending] Configurable Recurring Periods
+- [pending] Notification & Subscription System
 
 ### Pending Prompts in `/prompts/`:
-| Phase | Count | Status |
-|-------|-------|--------|
-| Phase 12 | 1 | ALIGNED - ready to execute |
-| Phase 1 | 4 | Not aligned (Payment improvements) |
-| Phase 4 | 7 | Not aligned (Financial reports, dashboard) |
+- Phase 12 aligned prompts ready for execution
+- Phase 4 prompts (financial reports) - user chose to execute anyway
 
 ---
 
 ## Next Steps (Priority Order)
 
-1. **Start Phase 12: Resident View Portal**
+1. **Continue Phase 4 Financial Reports** (if user wants to complete)
+   - Edit, Recategorization & Version History
+   - Configurable Recurring Periods
+   - Notification & Subscription System
+
+2. **OR Start Phase 12: Resident View Portal**
    - Resident authentication (separate from admin login)
    - Read-only dashboard with property info
    - View invoices and payment history
-   - Download payment receipts (PDF)
-   - Manage security contacts
-   - Notification preferences management
-   - Profile management
-   - Mobile-responsive design
-
-2. **Process Phase 12 prompt**: `20251221_phase_12_resident_view_portal.md`
-
-3. **Defer non-aligned prompts** per user decision
 
 ---
 
 ## Technical Notes
 
-### Zod Schema Pattern for Forms
-When using `.default()` modifiers with Zod, define explicit type and use `satisfies z.ZodType<T>`:
-```typescript
-type FormData = { field: number };
-const schema = z.object({ field: z.number() }) satisfies z.ZodType<FormData>;
-```
+### React Hook Form + Watch() Gotchas
+- `watch()` returns NEW object reference every render
+- Use `getValues()` inside handlers for current values without subscription
+- Memoize handlers with `useCallback` when passing to children
+- Use specific `watch('fieldName')` instead of full `watch()` when possible
+- Wrap stateful children in `React.memo`
 
 ### Lucide Icons
 Don't accept `title` prop - wrap in `<span title="...">` instead.
-
-### Form Section Pattern
-Use shadcn/ui Card components to group related form fields with CardHeader and CardContent for visual hierarchy.
 
 ---
 

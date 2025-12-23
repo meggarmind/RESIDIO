@@ -16,6 +16,8 @@ interface Profile {
   role_name: AppRoleName | null;
   role_display_name: string | null;
   permissions: string[];
+  // Resident portal fields
+  resident_id: string | null;
 }
 
 interface AuthContextType {
@@ -28,6 +30,9 @@ interface AuthContextType {
   hasPermission: (permission: string) => boolean;
   hasAnyPermission: (permissions: string[]) => boolean;
   hasAllPermissions: (permissions: string[]) => boolean;
+  // Resident portal helpers
+  isResident: boolean;
+  residentId: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -89,10 +94,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    // Fetch profile
+    // Fetch profile including resident_id for portal access
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
-      .select('id, email, full_name, role, role_id')
+      .select('id, email, full_name, role, role_id, resident_id')
       .eq('id', userId)
       .single();
 
@@ -143,6 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role_name: appRole?.name as AppRoleName | null,
       role_display_name: appRole?.display_name || null,
       permissions,
+      resident_id: profileData.resident_id,
     });
   }, [supabase]);
 
@@ -170,6 +176,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return permissions.every(p => profile.permissions.includes(p));
   }, [profile?.permissions]);
 
+  // Resident portal helpers - derived from profile
+  const isResident = useMemo(() => {
+    return profile?.resident_id != null;
+  }, [profile?.resident_id]);
+
+  const residentId = useMemo(() => {
+    return profile?.resident_id ?? null;
+  }, [profile?.resident_id]);
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -180,6 +195,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasPermission,
       hasAnyPermission,
       hasAllPermissions,
+      isResident,
+      residentId,
     }}>
       {children}
     </AuthContext.Provider>

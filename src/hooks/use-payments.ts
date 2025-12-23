@@ -7,6 +7,7 @@ import { updatePayment } from '@/actions/payments/update-payment';
 import { deletePayment } from '@/actions/payments/delete-payment';
 import { getPaymentStats } from '@/actions/payments/get-payment-stats';
 import { bulkUpdatePayments } from '@/actions/payments/bulk-update-payments';
+import { getResidentPropertiesForPayment } from '@/actions/payments/get-resident-properties-for-payment';
 import type { PaymentSearchParams, PaymentFormData, SplitPaymentFormData } from '@/lib/validators/payment';
 import { toast } from 'sonner';
 
@@ -137,5 +138,19 @@ export function useCreateSplitPayment() {
         onError: (error) => {
             toast.error(error.message);
         },
+    });
+}
+
+// Hook to get resident's properties with outstanding amounts for payment allocation
+export function useResidentPropertiesForPayment(residentId: string | undefined) {
+    return useQuery({
+        queryKey: ['resident-properties-for-payment', residentId],
+        queryFn: async () => {
+            if (!residentId) throw new Error('Resident ID is required');
+            const result = await getResidentPropertiesForPayment(residentId);
+            if (result.error) throw new Error(result.error);
+            return result;
+        },
+        enabled: !!residentId,
     });
 }

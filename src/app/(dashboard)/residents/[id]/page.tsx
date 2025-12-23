@@ -13,12 +13,12 @@ import { LinkedHouses } from '@/components/residents/linked-houses';
 import { ResidentPayments } from '@/components/residents/resident-payments';
 import { WalletBalance } from '@/components/residents/wallet-balance';
 import { WalletTransactions } from '@/components/residents/wallet-transactions';
-import { useResidentIndebtedness } from '@/hooks/use-billing';
+import { CrossPropertyPaymentSummary } from '@/components/residents/cross-property-payment-summary';
 import { ResidentSecurityContacts } from '@/components/residents/resident-security-contacts';
 import { PaymentAliases } from '@/components/residents/payment-aliases';
 import { PreferencesForm } from '@/components/notifications/preferences-form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, CreditCard, AlertTriangle, Receipt, Shield, UserCheck, Bell } from 'lucide-react';
+import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ResidentDetailPageProps {
@@ -32,7 +32,6 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const isEditing = searchParams.get('edit') === 'true';
 
   const { data: resident, isLoading, error } = useResident(id);
-  const { data: indebtedness } = useResidentIndebtedness(id);
   const deleteMutation = useDeleteResident();
   const verifyMutation = useVerifyResident();
 
@@ -234,37 +233,8 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
             {/* House Assignments */}
             <LinkedHouses resident={resident} />
 
-            {/* Indebtedness Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Receipt className="h-5 w-5" />
-                  Outstanding Balance
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-primary">
-                    ₦{(indebtedness?.totalUnpaid ?? 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}
-                  </p>
-                  <p className="text-sm text-muted-foreground">Total Unpaid</p>
-                </div>
-                <Separator />
-                <div className="grid grid-cols-2 gap-4 text-center">
-                  <div>
-                    <p className="text-lg font-medium text-destructive flex items-center justify-center gap-1">
-                      {(indebtedness?.unpaidCount ?? 0) > 0 && <AlertTriangle className="h-4 w-4" />}
-                      {indebtedness?.unpaidCount ?? 0}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Unpaid</p>
-                  </div>
-                  <div>
-                    <p className="text-lg font-medium text-amber-600">{indebtedness?.partiallyPaidCount ?? 0}</p>
-                    <p className="text-sm text-muted-foreground">Partially Paid</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Cross-Property Payment Summary */}
+            <CrossPropertyPaymentSummary residentId={id} />
 
             {/* Emergency Contact */}
             {(resident.emergency_contact_name || resident.emergency_contact_phone || resident.emergency_contact_resident) && (

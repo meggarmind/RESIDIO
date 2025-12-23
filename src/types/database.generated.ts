@@ -1628,6 +1628,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          resident_id: string | null
           role: Database["public"]["Enums"]["user_role"]
           role_id: string | null
           updated_at: string
@@ -1637,6 +1638,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          resident_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           role_id?: string | null
           updated_at?: string
@@ -1646,11 +1648,19 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          resident_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           role_id?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_role_id_fkey"
             columns: ["role_id"]
@@ -1833,6 +1843,9 @@ export type Database = {
           phone_primary: string
           phone_secondary: string | null
           photo_url: string | null
+          portal_enabled: boolean | null
+          portal_enabled_at: string | null
+          portal_enabled_by: string | null
           profile_id: string | null
           rc_number: string | null
           resident_code: string
@@ -1865,6 +1878,9 @@ export type Database = {
           phone_primary: string
           phone_secondary?: string | null
           photo_url?: string | null
+          portal_enabled?: boolean | null
+          portal_enabled_at?: string | null
+          portal_enabled_by?: string | null
           profile_id?: string | null
           rc_number?: string | null
           resident_code: string
@@ -1897,6 +1913,9 @@ export type Database = {
           phone_primary?: string
           phone_secondary?: string | null
           photo_url?: string | null
+          portal_enabled?: boolean | null
+          portal_enabled_at?: string | null
+          portal_enabled_by?: string | null
           profile_id?: string | null
           rc_number?: string | null
           resident_code?: string
@@ -1923,6 +1942,13 @@ export type Database = {
           {
             foreignKeyName: "residents_id_verified_by_fkey"
             columns: ["id_verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "residents_portal_enabled_by_fkey"
+            columns: ["portal_enabled_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2310,6 +2336,7 @@ export type Database = {
           permission_name: string
         }[]
       }
+      get_my_resident_id: { Args: never; Returns: string }
       get_my_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
@@ -2320,6 +2347,7 @@ export type Database = {
         Args: { permission_name: string }
         Returns: boolean
       }
+      is_resident: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       record_ownership_history: {
         Args: {

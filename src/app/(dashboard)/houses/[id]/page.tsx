@@ -36,6 +36,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { HouseForm } from '@/components/houses/house-form';
+import { HousePaymentStatus } from '@/components/houses/house-payment-status';
 import { OccupancyBadge, AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { useHouse, useDeleteHouse, useOwnershipHistory } from '@/hooks/use-houses';
 import { useResidents, useAssignHouse, useUnassignHouse, useMoveOutLandlord, useUpdateResidentHouse, useSwapResidentRoles, useTransferOwnership, useRemoveOwnership } from '@/hooks/use-residents';
@@ -842,6 +843,9 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Payment Status */}
+      <HousePaymentStatus houseId={id} />
 
       {/* Ownership & Occupancy History */}
       <Card>

@@ -10,7 +10,7 @@ import {
     duplicateBillingProfile,
     BillingProfileData,
 } from '@/actions/billing/profiles';
-import { getInvoices, getResidentIndebtedness } from '@/actions/billing/get-invoices';
+import { getInvoices, getResidentIndebtedness, getHousePaymentStatus, getResidentCrossPropertyPaymentSummary } from '@/actions/billing/get-invoices';
 import { generateMonthlyInvoices } from '@/actions/billing/generate-invoices';
 import { toast } from 'sonner';
 import type { InvoiceStatus, InvoiceType } from '@/types/database';
@@ -197,6 +197,34 @@ export function useResidentIndebtedness(residentId: string | undefined) {
         queryFn: async () => {
             if (!residentId) throw new Error('Resident ID is required');
             const result = await getResidentIndebtedness(residentId);
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        enabled: !!residentId,
+    });
+}
+
+// House Payment Status Hook - aggregate payment status for a house across all residents
+export function useHousePaymentStatus(houseId: string | undefined) {
+    return useQuery({
+        queryKey: ['house-payment-status', houseId],
+        queryFn: async () => {
+            if (!houseId) throw new Error('House ID is required');
+            const result = await getHousePaymentStatus(houseId);
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        enabled: !!houseId,
+    });
+}
+
+// Resident Cross-Property Payment Summary Hook - payment status across all properties for a resident
+export function useResidentCrossPropertyPaymentSummary(residentId: string | undefined) {
+    return useQuery({
+        queryKey: ['resident-cross-property-payment', residentId],
+        queryFn: async () => {
+            if (!residentId) throw new Error('Resident ID is required');
+            const result = await getResidentCrossPropertyPaymentSummary(residentId);
             if (result.error) throw new Error(result.error);
             return result.data;
         },

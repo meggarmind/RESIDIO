@@ -1,90 +1,83 @@
 # Next Session Handoff Prompt
 
-**Date:** 2025-12-22
+**Date:** 2025-12-23
 **Current Phase:** Phase 12 - Resident View Portal
 
 ---
 
 ## Context
 
-Phase 11 (Alert Management Module) and Phase 10 (RBAC) are complete. The next work is Phase 12: Resident View Portal.
+You are resuming work on **Residio**, a residential estate access management web application built with Next.js 16, Supabase, React Query, shadcn/ui, and TypeScript.
 
-### Completed This Session
+---
 
-1. **Phase 11 Alert Management Module** - Full notification system with:
-   - Database tables: notification_templates, notification_schedules, notification_queue, notification_history, notification_preferences
-   - Core library: templates, deduplication, queue management, escalation, channel dispatcher
-   - Server actions and React Query hooks
-   - Admin UI: templates, schedules, history viewer, preferences
-   - Cron job for queue processing (every 5 minutes)
-   - Bridge to legacy email system
+## Last Session Summary (2025-12-23)
 
-2. **sync_up Command** - Added to CLAUDE.md for session consolidation
+### Completed:
+1. **Fixed sidebar navigation** - Reports now shows both "Generate Reports" wizard and "Financial Overview" as children nav items
+2. **Fixed hydration error** - Nested `<button>` elements in AccountSelectionStep changed to `<div role="button">`
+3. **Fixed infinite loop bug** - "Maximum update depth exceeded" on Select All in report wizard
+   - Root cause: `watch()` returns new object refs on every render
+   - Solution: Used `getValues()` in handlers, `useCallback` memoization, `React.memo` wrapper
+4. **Fixed build errors** in `register-resident-portal.ts` (Zod `.issues`, Supabase `listUsers`)
 
-3. **Template Form Optimization** - Backlog task, reorganized into Card sections
-
-4. **Notion Cleanup** - Updated 11 processed prompts to "Done" status
+### Pending Phase 4 Financial Reports Tasks:
+- [ ] Edit, Recategorization & Version History
+- [ ] Configurable Recurring Periods
+- [ ] Notification & Subscription System
 
 ---
 
 ## Immediate Action When Resuming
 
-1. **SessionStart hook will run automatically** - syncs Notion and shows prompt summary
+1. **SessionStart hook runs automatically** - syncs Notion and shows prompt summary
 
-2. **Process Phase 12 prompt**: `/prompts/20251221_phase_12_resident_view_portal.md`
+2. **Options**:
+   - Continue Phase 4 Financial Reports (3 remaining tasks)
+   - Start Phase 12 Resident View Portal
+   - Process prompts from Notion inbox
 
-3. **Phase 12 Tasks** (from TODO.md):
+3. **Phase 12 Tasks** (when starting):
    - [ ] Resident authentication (separate from admin login)
    - [ ] Read-only dashboard with property info
    - [ ] View invoices and payment history
    - [ ] Download payment receipts (PDF)
-   - [ ] Manage security contacts (add/edit/remove within limits)
+   - [ ] Manage security contacts
    - [ ] Notification preferences management
-   - [ ] Profile management (update contact info)
+   - [ ] Profile management
    - [ ] Mobile-responsive design
 
 ---
 
-## Pending Prompts
+## Key Files Modified This Session
 
-### Aligned (Ready to Execute)
-
-- **Phase 12**: `20251221_phase_12_resident_view_portal.md`
-
-### Not Aligned (User Decision Required)
-
-- **Phase 1** (4 items): Payment improvements
-- **Phase 4** (7 items): Financial reports, dashboard overhaul
+- `src/components/reports/report-request-wizard.tsx` - Fixed infinite loop with memo/useCallback pattern
+- `src/components/dashboard/sidebar.tsx` - Added Reports children nav
+- `src/actions/auth/register-resident-portal.ts` - Fixed Zod/Supabase issues
 
 ---
 
-## Key Technical Decisions for Phase 12
-
-1. **Separate Authentication**: Residents should have their own login flow, distinct from admin
-2. **Existing RBAC**: Phase 10 already has "resident" role - leverage this
-3. **Notification Preferences**: Phase 11 PreferencesForm already on resident detail page
-4. **Read-Only Access**: Residents view their data but limited write capabilities
-
----
-
-## Key Patterns Established
-
-### Zod Schema with Default Values
+## Important Technical Pattern (React Hook Form)
 
 ```typescript
-type FormData = { field: number };
-const schema = z.object({ field: z.number() }) satisfies z.ZodType<FormData>;
+// BAD - watch() returns new ref every render, causes infinite loops
+const formValues = watch();
+const handler = () => {
+  const current = formValues.someField; // Stale closure!
+  setValue('field', newValue);
+};
+
+// GOOD - use getValues() in handlers, memoize with useCallback
+const { watch, setValue, getValues } = form;
+const selectedField = watch('someField'); // For rendering only
+const handler = useCallback(() => {
+  const current = getValues('someField'); // Fresh value!
+  setValue('field', newValue);
+}, [getValues, setValue]);
+
+// BEST - also wrap child components in React.memo
+const ChildComponent = memo(function ChildComponent({ handler }) { ... });
 ```
-
-### Form Section Pattern
-
-Use shadcn/ui Card components to group related fields.
-
-### Notification System
-
-- Channel dispatcher in `src/lib/notifications/send.ts`
-- Template variables: `{{variable_name}}` syntax
-- Priority queue: 1=Urgent, 3=High, 5=Normal, 7=Low, 9=Bulk
 
 ---
 
@@ -92,7 +85,9 @@ Use shadcn/ui Card components to group related fields.
 
 ```bash
 cd /home/feyijimiohioma/projects/Residio
-npm run dev
+npm run dev          # Start dev server
+npm run build        # Production build
+npm run db:types     # Generate TypeScript types from Supabase
 ```
 
 ---

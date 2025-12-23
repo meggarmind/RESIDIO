@@ -3,11 +3,12 @@
 import { use, useRef } from 'react';
 import { PaymentForm } from '@/components/payments/payment-form';
 import { PaymentReceipt } from '@/components/payments/payment-receipt';
+import { EmailReceiptDialog } from '@/components/payments/email-receipt-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePayment } from '@/hooks/use-payments';
-import { Printer, ArrowLeft, FileText, Pencil } from 'lucide-react';
+import { Printer, ArrowLeft, FileText, Pencil, Mail } from 'lucide-react';
 import Link from 'next/link';
 
 interface PaymentDetailPageProps {
@@ -90,10 +91,21 @@ export default function PaymentDetailPage({ params }: PaymentDetailPageProps) {
                         </p>
                     </div>
                 </div>
-                <Button onClick={handlePrint} variant="outline">
-                    <Printer className="h-4 w-4 mr-2" />
-                    Print Receipt
-                </Button>
+                <div className="flex gap-2">
+                    <EmailReceiptDialog
+                        paymentId={id}
+                        trigger={
+                            <Button variant="outline">
+                                <Mail className="h-4 w-4 mr-2" />
+                                Email Receipt
+                            </Button>
+                        }
+                    />
+                    <Button onClick={handlePrint} variant="outline">
+                        <Printer className="h-4 w-4 mr-2" />
+                        Print Receipt
+                    </Button>
+                </div>
             </div>
 
             <Tabs defaultValue="details" className="w-full">
@@ -124,10 +136,21 @@ export default function PaymentDetailPage({ params }: PaymentDetailPageProps) {
                         <CardHeader>
                             <CardTitle className="flex items-center justify-between">
                                 <span>Receipt Preview</span>
-                                <Button onClick={handlePrint} size="sm">
-                                    <Printer className="h-4 w-4 mr-2" />
-                                    Print
-                                </Button>
+                                <div className="flex gap-2">
+                                    <EmailReceiptDialog
+                                        paymentId={id}
+                                        trigger={
+                                            <Button variant="outline" size="sm">
+                                                <Mail className="h-4 w-4 mr-2" />
+                                                Email
+                                            </Button>
+                                        }
+                                    />
+                                    <Button onClick={handlePrint} size="sm">
+                                        <Printer className="h-4 w-4 mr-2" />
+                                        Print
+                                    </Button>
+                                </div>
                             </CardTitle>
                         </CardHeader>
                         <CardContent>

@@ -4,6 +4,7 @@
 
 export type EmailType =
   | 'payment_reminder'
+  | 'payment_receipt'
   | 'invoice_generated'
   | 'welcome'
   | 'notification'

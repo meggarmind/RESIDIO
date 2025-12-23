@@ -1,13 +1,15 @@
 'use client';
 
 import * as React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
     Form,
     FormControl,
@@ -24,11 +26,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { useCreatePayment, useUpdatePayment } from '@/hooks/use-payments';
+import { useCreatePayment, useUpdatePayment, useResidentPropertiesForPayment } from '@/hooks/use-payments';
 import { useResidents } from '@/hooks/use-residents';
 import { paymentFormSchema, type PaymentFormData } from '@/lib/validators/payment';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { formatCurrency } from '@/lib/utils';
+import { Home, AlertTriangle, MapPin } from 'lucide-react';
 
 interface PaymentFormProps {
     initialData?: any;
@@ -49,6 +53,7 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
         resolver: zodResolver(paymentFormSchema),
         defaultValues: {
             resident_id: initialData?.resident_id ?? residentId ?? '',
+            house_id: initialData?.house_id ?? undefined,
             amount: initialData?.amount ? Number(initialData.amount) : 0,
             payment_date: initialData?.payment_date ? new Date(initialData.payment_date) : new Date(),
             status: initialData?.status ?? 'pending',
@@ -59,6 +64,23 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
             period_end: initialData?.period_end ? new Date(initialData.period_end) : undefined,
         },
     });
+
+    // Watch the resident_id to fetch their properties
+    const watchedResidentId = useWatch({ control: form.control, name: 'resident_id' });
+    const { data: propertiesData, isLoading: propertiesLoading } = useResidentPropertiesForPayment(watchedResidentId);
+
+    // Auto-set house_id to current property if only one exists (and not editing)
+    React.useEffect(() => {
+        if (!isEditing && propertiesData?.data && propertiesData.data.length > 0) {
+            const currentProperty = propertiesData.data.find(p => p.isCurrent);
+            if (currentProperty && !form.getValues('house_id')) {
+                form.setValue('house_id', currentProperty.houseId);
+            }
+        }
+    }, [propertiesData, isEditing, form]);
+
+    const showPropertySelector = !isEditing && propertiesData?.hasPreviousPropertyDebts;
+    const properties = propertiesData?.data ?? [];
 
     async function onSubmit(data: PaymentFormData) {
         try {
@@ -90,7 +112,11 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                         <FormItem>
                             <FormLabel>Resident *</FormLabel>
                             <Select
-                                onValueChange={field.onChange}
+                                onValueChange={(value) => {
+                                    field.onChange(value);
+                                    // Reset house_id when resident changes
+                                    form.setValue('house_id', undefined);
+                                }}
                                 defaultValue={field.value}
                                 disabled={isEditing || !!residentId || residentsLoading}
                             >
@@ -111,6 +137,69 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                         </FormItem>
                     )}
                 />
+
+                {/* Property Selector - shown when resident has outstanding debts at previous properties */}
+                {watchedResidentId && propertiesLoading && (
+                    <div className="space-y-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-10 w-full" />
+                    </div>
+                )}
+
+                {showPropertySelector && (
+                    <FormField
+                        control={form.control}
+                        name="house_id"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="flex items-center gap-2">
+                                    <Home className="h-4 w-4" />
+                                    Allocate to Property
+                                </FormLabel>
+                                <Select
+                                    onValueChange={field.onChange}
+                                    value={field.value || undefined}
+                                >
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select property" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {properties.map((property) => (
+                                            <SelectItem key={property.houseId} value={property.houseId}>
+                                                <div className="flex items-center justify-between w-full gap-4">
+                                                    <div className="flex items-center gap-2">
+                                                        {property.isCurrent && (
+                                                            <MapPin className="h-3 w-3 text-primary" />
+                                                        )}
+                                                        {!property.isCurrent && property.outstandingAmount > 0 && (
+                                                            <AlertTriangle className="h-3 w-3 text-amber-500" />
+                                                        )}
+                                                        <span>{property.houseNumber} {property.streetName}</span>
+                                                        {property.isCurrent && (
+                                                            <Badge variant="outline" className="text-xs py-0">Current</Badge>
+                                                        )}
+                                                    </div>
+                                                    {property.outstandingAmount > 0 && (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {formatCurrency(property.outstandingAmount)} due
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormDescription className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    Outstanding balances exist at previous properties
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                )}
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <FormField
