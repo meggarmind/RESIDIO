@@ -48,6 +48,11 @@ export interface GeneratedReport {
     generation_duration_ms: number | null;
     generated_by: string | null;
     created_at: string;
+    // Versioning fields
+    version: number;
+    parent_report_id: string | null;
+    is_latest: boolean;
+    edit_notes: string | null;
 }
 
 export interface CreateScheduleInput {
@@ -448,4 +453,127 @@ export async function markScheduleExecuted(id: string, frequency: ScheduleFreque
             next_run_at: nextRunAt.toISOString(),
         })
         .eq('id', id);
+}
+
+// ============================================================
+// Report Versioning Functions
+// ============================================================
+
+// Create a new version of a report with edited data
+export async function createReportVersion(input: {
+    parent_report_id: string;
+    report_data: unknown;
+    edit_notes: string;
+}): Promise<{ data: GeneratedReport | null; error: string | null }> {
+    const supabase = await createServerSupabaseClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        return { data: null, error: 'Unauthorized' };
+    }
+
+    // Get the parent report
+    const { data: parent, error: parentError } = await supabase
+        .from('generated_reports')
+        .select('*')
+        .eq('id', input.parent_report_id)
+        .single();
+
+    if (parentError || !parent) {
+        return { data: null, error: 'Parent report not found' };
+    }
+
+    // Find the original report (root of version chain)
+    const originalId = parent.parent_report_id || parent.id;
+
+    // Get the highest version number in the chain
+    const { data: versions } = await supabase
+        .from('generated_reports')
+        .select('version')
+        .or(`id.eq.${originalId},parent_report_id.eq.${originalId}`)
+        .order('version', { ascending: false })
+        .limit(1);
+
+    const nextVersion = (versions?.[0]?.version || 1) + 1;
+
+    // Mark all existing versions as not latest
+    await supabase
+        .from('generated_reports')
+        .update({ is_latest: false })
+        .or(`id.eq.${originalId},parent_report_id.eq.${originalId}`);
+
+    // Create the new version
+    const { data, error } = await supabase
+        .from('generated_reports')
+        .insert({
+            name: `${parent.name} (v${nextVersion})`,
+            report_type: parent.report_type,
+            schedule_id: parent.schedule_id,
+            period_start: parent.period_start,
+            period_end: parent.period_end,
+            period_preset: parent.period_preset,
+            bank_account_ids: parent.bank_account_ids,
+            template_style: parent.template_style,
+            report_data: input.report_data,
+            summary: parent.summary,
+            generation_trigger: 'manual',
+            generated_by: user.id,
+            version: nextVersion,
+            parent_report_id: originalId,
+            is_latest: true,
+            edit_notes: input.edit_notes,
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('[Reports] Failed to create report version:', error);
+        return { data: null, error: error.message };
+    }
+
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'system_settings',
+        entityId: data.id,
+        entityDisplay: `Report Version: ${data.name}`,
+        oldValues: { version: parent.version },
+        newValues: { version: nextVersion, edit_notes: input.edit_notes },
+        description: `Created version ${nextVersion} of report`,
+    });
+
+    revalidatePath('/reports');
+    return { data, error: null };
+}
+
+// Get version history for a report
+export async function getReportVersionHistory(reportId: string): Promise<{ data: GeneratedReport[] | null; error: string | null }> {
+    const supabase = await createServerSupabaseClient();
+
+    // First get the report to find the original
+    const { data: report, error: reportError } = await supabase
+        .from('generated_reports')
+        .select('id, parent_report_id')
+        .eq('id', reportId)
+        .single();
+
+    if (reportError || !report) {
+        return { data: null, error: 'Report not found' };
+    }
+
+    // Find the original report ID
+    const originalId = report.parent_report_id || report.id;
+
+    // Get all versions including the original
+    const { data, error } = await supabase
+        .from('generated_reports')
+        .select('*')
+        .or(`id.eq.${originalId},parent_report_id.eq.${originalId}`)
+        .order('version', { ascending: false });
+
+    if (error) {
+        console.error('[Reports] Failed to fetch version history:', error);
+        return { data: null, error: error.message };
+    }
+
+    return { data, error: null };
 }

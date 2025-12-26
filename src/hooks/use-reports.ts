@@ -12,6 +12,8 @@ import {
     getGeneratedReport,
     saveGeneratedReport,
     deleteGeneratedReport,
+    createReportVersion,
+    getReportVersionHistory,
     type ReportSchedule,
     type GeneratedReport as DBGeneratedReport,
     type CreateScheduleInput,
@@ -86,6 +88,11 @@ export type GeneratedReport = {
     generatedAt: string;
     parameters: ReportRequestFormData;
     data: ReportData;
+    // Versioning fields
+    version: number;
+    parentReportId: string | null;
+    isLatest: boolean;
+    editNotes: string | null;
 };
 
 // In-memory store for generated reports (will be replaced with server storage later)
@@ -150,6 +157,10 @@ export function useGenerateReport() {
                 generatedAt: new Date().toISOString(),
                 parameters: params,
                 data: result.report,
+                version: 1,
+                parentReportId: null,
+                isLatest: true,
+                editNotes: null,
             };
 
             // Also keep in memory for immediate access
@@ -187,6 +198,11 @@ function mapDbReportToGeneratedReport(dbReport: DBGeneratedReport): GeneratedRep
             includeDetails: true,
         },
         data: dbReport.report_data as ReportData,
+        // Versioning fields
+        version: dbReport.version ?? 1,
+        parentReportId: dbReport.parent_report_id ?? null,
+        isLatest: dbReport.is_latest ?? true,
+        editNotes: dbReport.edit_notes ?? null,
     };
 }
 
@@ -332,6 +348,49 @@ export function useDeleteReportSchedule() {
         onError: (error) => {
             toast.error(error instanceof Error ? error.message : 'Failed to delete schedule');
         },
+    });
+}
+
+// ============================================================
+// Report Versioning Hooks
+// ============================================================
+
+export function useCreateReportVersion() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (input: { parentReportId: string; reportData: unknown; editNotes: string }) => {
+            const result = await createReportVersion({
+                parent_report_id: input.parentReportId,
+                report_data: input.reportData,
+                edit_notes: input.editNotes,
+            });
+            if (!result.data) throw new Error(result.error || 'Failed to create version');
+            return mapDbReportToGeneratedReport(result.data);
+        },
+        onSuccess: () => {
+            toast.success('New version created');
+            queryClient.invalidateQueries({ queryKey: ['generated-reports'] });
+            queryClient.invalidateQueries({ queryKey: ['generated-report'] });
+            queryClient.invalidateQueries({ queryKey: ['report-versions'] });
+        },
+        onError: (error) => {
+            toast.error(error instanceof Error ? error.message : 'Failed to create version');
+        },
+    });
+}
+
+export function useReportVersionHistory(reportId: string | null) {
+    return useQuery({
+        queryKey: ['report-versions', reportId],
+        queryFn: async () => {
+            if (!reportId) return [];
+            const result = await getReportVersionHistory(reportId);
+            if (result.error) throw new Error(result.error);
+            return result.data?.map(mapDbReportToGeneratedReport) || [];
+        },
+        enabled: !!reportId,
+        staleTime: 30 * 1000,
     });
 }
 

@@ -281,9 +281,21 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
                 timeStyle: 'short',
               })}
             </p>
-            <p className="mt-1">
-              Report ID: <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{report.id}</code>
-            </p>
+            <div className="flex items-center justify-center gap-3 mt-1">
+              <span>
+                Report ID: <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{report.id}</code>
+              </span>
+              {report.version > 1 && (
+                <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+                  Version {report.version}
+                </span>
+              )}
+              {report.editNotes && (
+                <span className="text-xs italic">
+                  Edit: {report.editNotes}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
