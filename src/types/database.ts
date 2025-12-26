@@ -242,7 +242,8 @@ export type AuditEntityType =
   | 'notification_queue'        // Phase 11: Notifications
   | 'notification_history'      // Phase 11: Notifications
   | 'notification_preferences'  // Phase 11: Notifications
-  | 'escalation_states';        // Phase 11: Notifications
+  | 'escalation_states'          // Phase 11: Notifications
+  | 'invoice_generation_log';   // Phase 12: Invoice Automation
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -291,6 +292,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   notification_history: 'Notification',               // Phase 11: Notifications
   notification_preferences: 'Notification Preference', // Phase 11: Notifications
   escalation_states: 'Escalation State',              // Phase 11: Notifications
+  invoice_generation_log: 'Invoice Generation',       // Phase 12: Invoice Automation
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {

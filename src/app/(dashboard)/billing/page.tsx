@@ -1,6 +1,6 @@
 'use client';
 
-import { useInvoices, useGenerateInvoices, useCheckOverdueInvoices, useOverdueStats } from '@/hooks/use-billing';
+import { useInvoices, useGenerateInvoices, useCheckOverdueInvoices, useOverdueStats, useLatestGenerationLog } from '@/hooks/use-billing';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/lib/utils';
-import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertCircle } from 'lucide-react';
+import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertCircle, Clock, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { getResidents } from '@/actions/residents/get-residents';
@@ -61,6 +61,7 @@ export default function BillingPage() {
     const generateMutation = useGenerateInvoices();
     const checkOverdueMutation = useCheckOverdueInvoices();
     const { data: overdueStats } = useOverdueStats();
+    const { data: lastGeneration } = useLatestGenerationLog();
 
     const invoices = data?.data ?? [];
     const totalCount = data?.total ?? 0;
@@ -128,6 +129,42 @@ export default function BillingPage() {
                     </Button>
                 </div>
             </div>
+
+            {/* Last Generation Info */}
+            {lastGeneration && (
+                <div className="rounded-lg border bg-muted/50 p-4">
+                    <div className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        <div className="flex-1">
+                            <p className="font-medium">
+                                Last generated: {new Date(lastGeneration.generated_at).toLocaleDateString('en-NG', {
+                                    weekday: 'short',
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                })}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                {lastGeneration.generated_count} generated, {lastGeneration.skipped_count} skipped
+                                {lastGeneration.error_count > 0 && `, ${lastGeneration.error_count} errors`}
+                                {' • '}
+                                <span className="capitalize">{lastGeneration.trigger_type}</span>
+                                {lastGeneration.actor?.full_name && ` by ${lastGeneration.actor.full_name}`}
+                                {lastGeneration.duration_ms && ` • ${(lastGeneration.duration_ms / 1000).toFixed(1)}s`}
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Clock className="h-4 w-4" />
+                            {lastGeneration.target_period && new Date(lastGeneration.target_period).toLocaleDateString('en-NG', {
+                                month: 'short',
+                                year: 'numeric',
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Overdue Alert Banner */}
             {overdueStats && overdueStats.count > 0 && (

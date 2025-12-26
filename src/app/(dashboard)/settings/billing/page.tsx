@@ -2,7 +2,7 @@
 
 import { BillingProfileForm } from '@/components/billing/billing-profile-form';
 import { BillingProfileEditDialog } from '@/components/billing/billing-profile-edit-dialog';
-import { useBillingProfiles, useDeleteBillingProfile, useDevelopmentLevyProfiles, useDuplicateBillingProfile } from '@/hooks/use-billing';
+import { useBillingProfiles, useDeleteBillingProfile, useDevelopmentLevyProfiles, useDuplicateBillingProfile, useInvoiceGenerationDay, useUpdateInvoiceGenerationDay, useAutoGenerateEnabled, useUpdateAutoGenerateEnabled } from '@/hooks/use-billing';
 import { useBillingSettings, useUpdateSetting, useGenerateRetroactiveLevies, useCurrentDevelopmentLevyProfileId, useSetCurrentDevelopmentLevyProfileId } from '@/hooks/use-settings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Building, Users, Clock, Loader2, Pencil, Landmark, CheckCircle, Copy, AlertTriangle, Info, DollarSign, Bell } from 'lucide-react';
+import { Trash2, Building, Users, Clock, Loader2, Pencil, Landmark, CheckCircle, Copy, AlertTriangle, Info, DollarSign, Bell, CalendarClock } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -42,6 +42,10 @@ export default function BillingSettingsPage() {
     const updateSettingMutation = useUpdateSetting();
     const generateLeviesMutation = useGenerateRetroactiveLevies();
     const applyLateFeesMutation = useApplyLateFees();
+    const { data: generationDay, isLoading: generationDayLoading } = useInvoiceGenerationDay();
+    const updateGenerationDayMutation = useUpdateInvoiceGenerationDay();
+    const { data: autoGenerateEnabled, isLoading: autoGenerateLoading } = useAutoGenerateEnabled();
+    const updateAutoGenerateMutation = useUpdateAutoGenerateEnabled();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editProfileId, setEditProfileId] = useState<string | null>(null);
 
@@ -422,6 +426,87 @@ export default function BillingSettingsPage() {
                                 Email notifications will be implemented in Phase 9. For now, this configuration stores your preferences.
                             </AlertDescription>
                         </Alert>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Invoice Generation */}
+            <div>
+                <h3 className="text-lg font-medium flex items-center gap-2">
+                    <CalendarClock className="h-5 w-5" />
+                    Invoice Generation
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                    Configure automated monthly invoice generation.
+                </p>
+                <Card>
+                    <CardContent className="pt-6 space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                                <Label htmlFor="auto_generate_invoices">Auto-Generate Invoices</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Automatically generate monthly invoices on the configured day
+                                </p>
+                            </div>
+                            <Switch
+                                id="auto_generate_invoices"
+                                checked={autoGenerateEnabled === true}
+                                onCheckedChange={(checked) => updateAutoGenerateMutation.mutate(checked)}
+                                disabled={updateAutoGenerateMutation.isPending || autoGenerateLoading}
+                            />
+                        </div>
+
+                        <Separator />
+
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                                <Label htmlFor="generation_day">Generation Day</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Day of the month when invoices are generated
+                                </p>
+                            </div>
+                            <Select
+                                value={String(generationDay || 2)}
+                                onValueChange={(value) => updateGenerationDayMutation.mutate(parseInt(value))}
+                                disabled={updateGenerationDayMutation.isPending || generationDayLoading}
+                            >
+                                <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="Select day" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => {
+                                        const suffix = day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th';
+                                        const note = day === 2 ? ' (default)' : day === 3 ? ' (recommended)' : '';
+                                        return (
+                                            <SelectItem key={day} value={String(day)}>
+                                                {day}{suffix} of month{note}
+                                            </SelectItem>
+                                        );
+                                    })}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <Alert>
+                            <Info className="h-4 w-4" />
+                            <AlertDescription>
+                                Invoices are generated automatically each day at 6 AM UTC. The system only generates on the configured day.
+                                Bank statements typically arrive on the 2nd or 3rd of each month.
+                            </AlertDescription>
+                        </Alert>
+
+                        {autoGenerateEnabled && (
+                            <div className="flex items-center gap-2 text-sm text-green-600">
+                                <CheckCircle className="h-4 w-4" />
+                                <span>Auto-generation is active - invoices will be created on the {generationDay || 2}{generationDay === 1 ? 'st' : generationDay === 2 ? 'nd' : generationDay === 3 ? 'rd' : 'th'} of each month</span>
+                            </div>
+                        )}
+                        {!autoGenerateEnabled && (
+                            <div className="text-sm text-amber-600 flex items-center gap-2">
+                                <AlertTriangle className="h-4 w-4" />
+                                <span>Auto-generation is disabled - invoices must be generated manually from the Billing page</span>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>

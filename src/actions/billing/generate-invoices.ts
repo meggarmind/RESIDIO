@@ -1,10 +1,13 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { debitWalletForInvoice } from '@/actions/billing/wallet';
 import { sendInvoiceEmail } from '@/actions/email/send-invoice-email';
+import { logAudit } from '@/lib/audit/logger';
 import type { BillableRole, RateSnapshot, InvoiceType } from '@/types/database';
+
+export type InvoiceGenerationTrigger = 'manual' | 'cron' | 'api';
 
 interface SkipReason {
     house: string;
@@ -17,6 +20,8 @@ interface GenerateInvoicesResult {
     skipped: number;
     skipReasons: SkipReason[];
     errors: string[];
+    logId?: string;
+    durationMs?: number;
 }
 
 /**
@@ -144,6 +149,17 @@ async function getEffectiveBillingProfile(
 }
 
 /**
+ * Formats a date as YYYY-MM-DD string without timezone conversion.
+ * Using toISOString() can shift dates by a day due to UTC conversion.
+ */
+function formatDateLocal(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+/**
  * Gets the system setting value
  */
 async function getSystemSetting(supabase: any, key: string): Promise<any> {
@@ -206,15 +222,24 @@ function getInvoiceType(billingProfile: BillingProfileWithItems): InvoiceType {
  * 1. House-targeted profiles (target_type='house'): Bill the primary resident
  * 2. Resident-targeted profiles (target_type='resident'): Bill residents matching applicable_roles
  * 3. Vacant house billing: Controlled by system setting 'bill_vacant_houses'
+ *
+ * @param upToDate - Generate invoices up to this date (defaults to current date)
+ * @param triggerType - How generation was triggered: 'manual' (UI), 'cron' (scheduled), 'api' (external)
  */
 export async function generateMonthlyInvoices(
-    upToDate: Date = new Date()
+    upToDate: Date = new Date(),
+    triggerType: InvoiceGenerationTrigger = 'manual'
 ): Promise<GenerateInvoicesResult> {
-    const supabase = await createServerSupabaseClient();
+    const startTime = Date.now();
 
-    // Check auth
+    // Use admin client for cron/api triggers to bypass RLS, server client for manual
+    const supabase = triggerType === 'manual'
+        ? await createServerSupabaseClient()
+        : createAdminClient();
+
+    // Check auth (for manual triggers, cron uses service role)
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    if (!user && triggerType === 'manual') {
         return { success: false, generated: 0, skipped: 0, skipReasons: [], errors: ['Unauthorized'] };
     }
 
@@ -229,8 +254,9 @@ export async function generateMonthlyInvoices(
     // Current month boundaries (target end)
     const targetYear = upToDate.getFullYear();
     const targetMonth = upToDate.getMonth();
+    const targetPeriod = new Date(targetYear, targetMonth, 1);
 
-    console.log(`[Billing] Generating invoices up to: ${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`);
+    console.log(`[Billing] Generating invoices up to: ${targetYear}-${String(targetMonth + 1).padStart(2, '0')} (trigger: ${triggerType})`);
 
     try {
         // Get system settings
@@ -359,8 +385,8 @@ export async function generateMonthlyInvoices(
                     const dueDate = new Date(periodStart);
                     dueDate.setDate(dueDate.getDate() + dueWindowDays);
 
-                    const periodStartStr = periodStart.toISOString().split('T')[0];
-                    const periodEndStr = periodEnd.toISOString().split('T')[0];
+                    const periodStartStr = formatDateLocal(periodStart);
+                    const periodEndStr = formatDateLocal(periodEnd);
 
                     // Check for existing invoice (idempotency)
                     const { data: existingInvoice } = await supabase
@@ -419,10 +445,10 @@ export async function generateMonthlyInvoices(
                             status: 'unpaid',
                             invoice_type: invoiceType,
                             rate_snapshot: rateSnapshot,
-                            due_date: dueDate.toISOString().split('T')[0],
+                            due_date: formatDateLocal(dueDate),
                             period_start: periodStartStr,
                             period_end: periodEndStr,
-                            created_by: user.id,
+                            created_by: user?.id || null,
                         })
                         .select()
                         .single();
@@ -486,7 +512,61 @@ export async function generateMonthlyInvoices(
         result.errors.push(`Unexpected error: ${error.message}`);
     }
 
-    console.log(`[Billing] Complete: Generated=${result.generated}, Skipped=${result.skipped}`);
+    // Calculate duration
+    const durationMs = Date.now() - startTime;
+    result.durationMs = durationMs;
+
+    console.log(`[Billing] Complete: Generated=${result.generated}, Skipped=${result.skipped}, Duration=${durationMs}ms`);
+
+    // Log to invoice_generation_log table
+    try {
+        const { data: logEntry, error: logError } = await supabase
+            .from('invoice_generation_log')
+            .insert({
+                generated_by: user?.id || null,
+                trigger_type: triggerType,
+                target_period: formatDateLocal(targetPeriod),
+                generated_count: result.generated,
+                skipped_count: result.skipped,
+                error_count: result.errors.length,
+                skip_reasons: result.skipReasons,
+                errors: result.errors.length > 0 ? result.errors : null,
+                duration_ms: durationMs,
+            })
+            .select('id')
+            .single();
+
+        if (logError) {
+            console.error('[Billing] Failed to log generation:', logError.message);
+        } else if (logEntry) {
+            result.logId = logEntry.id;
+
+            // Log to audit system
+            await logAudit({
+                action: 'GENERATE',
+                entityType: 'invoice_generation_log',
+                entityId: logEntry.id,
+                entityDisplay: `Invoice Generation - ${result.generated} invoices`,
+                newValues: {
+                    generated_count: result.generated,
+                    skipped_count: result.skipped,
+                    error_count: result.errors.length,
+                    target_period: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`,
+                },
+                description: triggerType === 'cron'
+                    ? 'Automated monthly invoice generation'
+                    : triggerType === 'api'
+                    ? 'API-triggered invoice generation'
+                    : 'Manual invoice generation',
+                metadata: {
+                    trigger_type: triggerType,
+                    duration_ms: durationMs,
+                },
+            });
+        }
+    } catch (logError: any) {
+        console.error('[Billing] Failed to log generation:', logError.message);
+    }
 
     revalidatePath('/billing');
     return result;

@@ -164,7 +164,7 @@ export function useGenerateInvoices() {
 
     return useMutation({
         mutationFn: async (targetDate?: Date) => {
-            const result = await generateMonthlyInvoices(targetDate);
+            const result = await generateMonthlyInvoices(targetDate, 'manual');
             if (!result.success && result.errors.length > 0) {
                 throw new Error(result.errors.join(', '));
             }
@@ -183,6 +183,8 @@ export function useGenerateInvoices() {
                 toast.error(`Errors: ${result.errors.slice(0, 2).join('; ')}${result.errors.length > 2 ? '...' : ''}`);
             }
             queryClient.invalidateQueries({ queryKey: ['invoices'] });
+            queryClient.invalidateQueries({ queryKey: ['latest-generation-log'] });
+            queryClient.invalidateQueries({ queryKey: ['generation-history'] });
         },
         onError: (error) => {
             toast.error(error.message || 'Failed to generate invoices');
@@ -359,6 +361,111 @@ export function useApplyLateFees() {
         onError: (error) => {
             toast.error(error.message || 'Failed to apply late fees');
         }
+    });
+}
+
+// Invoice Generation Log Hooks
+import {
+    getLatestGenerationLog,
+    getGenerationHistory,
+    getGenerationStats,
+    getInvoiceGenerationDay,
+    updateInvoiceGenerationDay,
+    getAutoGenerateEnabled,
+    updateAutoGenerateEnabled,
+} from '@/actions/billing/get-generation-log';
+
+export function useLatestGenerationLog() {
+    return useQuery({
+        queryKey: ['latest-generation-log'],
+        queryFn: async () => {
+            const result = await getLatestGenerationLog();
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        refetchInterval: 60000, // Refresh every minute
+    });
+}
+
+export function useGenerationHistory(page: number = 1, limit: number = 10) {
+    return useQuery({
+        queryKey: ['generation-history', page, limit],
+        queryFn: async () => {
+            const result = await getGenerationHistory({ page, limit });
+            if (result.error) throw new Error(result.error);
+            return { data: result.data, total: result.total };
+        },
+    });
+}
+
+export function useGenerationStats(days: number = 30) {
+    return useQuery({
+        queryKey: ['generation-stats', days],
+        queryFn: async () => {
+            const result = await getGenerationStats(days);
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+    });
+}
+
+export function useInvoiceGenerationDay() {
+    return useQuery({
+        queryKey: ['invoice-generation-day'],
+        queryFn: async () => {
+            const result = await getInvoiceGenerationDay();
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+    });
+}
+
+export function useUpdateInvoiceGenerationDay() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (day: number) => {
+            const result = await updateInvoiceGenerationDay(day);
+            if (!result.success) throw new Error(result.error || 'Failed to update');
+            return result;
+        },
+        onSuccess: () => {
+            toast.success('Invoice generation day updated');
+            queryClient.invalidateQueries({ queryKey: ['invoice-generation-day'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to update generation day');
+        },
+    });
+}
+
+export function useAutoGenerateEnabled() {
+    return useQuery({
+        queryKey: ['auto-generate-invoices'],
+        queryFn: async () => {
+            const result = await getAutoGenerateEnabled();
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+    });
+}
+
+export function useUpdateAutoGenerateEnabled() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (enabled: boolean) => {
+            const result = await updateAutoGenerateEnabled(enabled);
+            if (!result.success) throw new Error(result.error || 'Failed to update');
+            return result;
+        },
+        onSuccess: (_, enabled) => {
+            toast.success(enabled ? 'Auto-generation enabled' : 'Auto-generation disabled');
+            queryClient.invalidateQueries({ queryKey: ['auto-generate-invoices'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to update auto-generation setting');
+        },
     });
 }
 
