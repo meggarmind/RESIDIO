@@ -368,7 +368,7 @@ async function fetchQuickStats(supabase: any): Promise<QuickStats> {
         { count: activeResidents },
         { count: pendingVerification },
         { count: totalSecurityContacts },
-        { count: activeSecurityContacts }
+        { data: contactsWithValidCodes }
     ] = await Promise.all([
         supabase.from('houses').select('*', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('houses').select('*', { count: 'exact', head: true }).eq('is_active', true).eq('is_occupied', true),
@@ -376,8 +376,17 @@ async function fetchQuickStats(supabase: any): Promise<QuickStats> {
         supabase.from('residents').select('*', { count: 'exact', head: true }).eq('account_status', 'active'),
         supabase.from('residents').select('*', { count: 'exact', head: true }).eq('verification_status', 'pending'),
         supabase.from('security_contacts').select('*', { count: 'exact', head: true }),
-        supabase.from('security_contacts').select('*', { count: 'exact', head: true }).eq('status', 'active')
+        // Fix: Count contacts with at least one valid (non-expired) access code
+        supabase
+            .from('security_contacts')
+            .select('id, access_codes!inner(id, is_active, valid_until)')
+            .eq('status', 'active')
+            .eq('access_codes.is_active', true)
+            .or('valid_until.is.null,valid_until.gt.now()', { referencedTable: 'access_codes' })
     ]);
+
+    // Count unique contacts with valid codes (a contact may have multiple valid codes)
+    const activeSecurityContacts = new Set(contactsWithValidCodes?.map((c: { id: string }) => c.id) || []).size;
 
     return {
         totalHouses: totalHouses ?? 0,
@@ -387,7 +396,7 @@ async function fetchQuickStats(supabase: any): Promise<QuickStats> {
         activeResidents: activeResidents ?? 0,
         pendingVerification: pendingVerification ?? 0,
         totalSecurityContacts: totalSecurityContacts ?? 0,
-        activeSecurityContacts: activeSecurityContacts ?? 0
+        activeSecurityContacts: activeSecurityContacts
     };
 }
 
