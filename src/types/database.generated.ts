@@ -780,6 +780,68 @@ export type Database = {
         }
         Relationships: []
       }
+      generated_reports: {
+        Row: {
+          bank_account_ids: string[] | null
+          created_at: string
+          generated_by: string | null
+          generation_duration_ms: number | null
+          generation_trigger: string
+          id: string
+          name: string
+          period_end: string
+          period_preset: string | null
+          period_start: string
+          report_data: Json
+          report_type: string
+          schedule_id: string | null
+          summary: Json | null
+          template_style: string | null
+        }
+        Insert: {
+          bank_account_ids?: string[] | null
+          created_at?: string
+          generated_by?: string | null
+          generation_duration_ms?: number | null
+          generation_trigger: string
+          id?: string
+          name: string
+          period_end: string
+          period_preset?: string | null
+          period_start: string
+          report_data: Json
+          report_type: string
+          schedule_id?: string | null
+          summary?: Json | null
+          template_style?: string | null
+        }
+        Update: {
+          bank_account_ids?: string[] | null
+          created_at?: string
+          generated_by?: string | null
+          generation_duration_ms?: number | null
+          generation_trigger?: string
+          id?: string
+          name?: string
+          period_end?: string
+          period_preset?: string | null
+          period_start?: string
+          report_data?: Json
+          report_type?: string
+          schedule_id?: string | null
+          summary?: Json | null
+          template_style?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_reports_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "report_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       house_levy_history: {
         Row: {
           applied_at: string | null
@@ -1040,6 +1102,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      invoice_generation_log: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error_count: number
+          errors: Json | null
+          generated_at: string
+          generated_by: string | null
+          generated_count: number
+          id: string
+          skip_reasons: Json | null
+          skipped_count: number
+          target_period: string | null
+          trigger_type: string
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error_count?: number
+          errors?: Json | null
+          generated_at?: string
+          generated_by?: string | null
+          generated_count?: number
+          id?: string
+          skip_reasons?: Json | null
+          skipped_count?: number
+          target_period?: string | null
+          trigger_type: string
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error_count?: number
+          errors?: Json | null
+          generated_at?: string
+          generated_by?: string | null
+          generated_count?: number
+          id?: string
+          skip_reasons?: Json | null
+          skipped_count?: number
+          target_period?: string | null
+          trigger_type?: string
+        }
+        Relationships: []
       }
       invoice_items: {
         Row: {
@@ -1669,6 +1776,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      report_schedules: {
+        Row: {
+          bank_account_ids: string[] | null
+          created_at: string
+          created_by: string | null
+          day_of_month: number | null
+          day_of_week: number | null
+          description: string | null
+          frequency: string
+          id: string
+          include_charts: boolean | null
+          include_summary: boolean | null
+          is_active: boolean | null
+          last_run_at: string | null
+          name: string
+          next_run_at: string | null
+          period_preset: string | null
+          report_type: string
+          template_style: string | null
+          updated_at: string
+        }
+        Insert: {
+          bank_account_ids?: string[] | null
+          created_at?: string
+          created_by?: string | null
+          day_of_month?: number | null
+          day_of_week?: number | null
+          description?: string | null
+          frequency: string
+          id?: string
+          include_charts?: boolean | null
+          include_summary?: boolean | null
+          is_active?: boolean | null
+          last_run_at?: string | null
+          name: string
+          next_run_at?: string | null
+          period_preset?: string | null
+          report_type: string
+          template_style?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bank_account_ids?: string[] | null
+          created_at?: string
+          created_by?: string | null
+          day_of_month?: number | null
+          day_of_week?: number | null
+          description?: string | null
+          frequency?: string
+          id?: string
+          include_charts?: boolean | null
+          include_summary?: boolean | null
+          is_active?: boolean | null
+          last_run_at?: string | null
+          name?: string
+          next_run_at?: string | null
+          period_preset?: string | null
+          report_type?: string
+          template_style?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       resident_houses: {
         Row: {
@@ -2629,3 +2799,4 @@ export const Constants = {
     },
   },
 } as const
+

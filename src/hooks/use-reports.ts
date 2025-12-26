@@ -2,8 +2,23 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFinancialOverview, getBankAccountsForFilter } from '@/actions/reports/get-financial-overview';
 import { generateReport, type ReportData } from '@/actions/reports/report-engine';
 import { getTransactionTags } from '@/actions/reference/transaction-tags';
+import {
+    getReportSchedules,
+    getReportSchedule,
+    createReportSchedule,
+    updateReportSchedule,
+    deleteReportSchedule,
+    getGeneratedReports,
+    getGeneratedReport,
+    saveGeneratedReport,
+    deleteGeneratedReport,
+    type ReportSchedule,
+    type GeneratedReport as DBGeneratedReport,
+    type CreateScheduleInput,
+} from '@/actions/reports/report-schedules';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 import { getDateRangeFromPreset } from '@/lib/validators/reports';
+import { toast } from 'sonner';
 
 // ============================================================
 // Bank Accounts Hook (for report filters)
@@ -87,13 +102,17 @@ export function useGenerateReport() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (params: ReportRequestFormData): Promise<GeneratedReport> => {
+        mutationFn: async (params: ReportRequestFormData & { saveToHistory?: boolean }): Promise<GeneratedReport> => {
+            const startTime = Date.now();
+
             // Use the new report engine that supports all 4 report types
             const result = await generateReport(params);
 
             if (!result.success || !result.report) {
                 throw new Error(result.error || 'Failed to generate report');
             }
+
+            const durationMs = Date.now() - startTime;
 
             // Calculate date range for title
             const dateRange = params.periodPreset === 'custom'
@@ -108,6 +127,22 @@ export function useGenerateReport() {
                 title += ` - As of ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
             }
 
+            // Save to database if requested (default: true)
+            if (params.saveToHistory !== false) {
+                await saveGeneratedReport({
+                    name: title,
+                    report_type: params.reportType,
+                    period_start: dateRange.startDate,
+                    period_end: dateRange.endDate,
+                    period_preset: params.periodPreset !== 'custom' ? params.periodPreset : undefined,
+                    bank_account_ids: params.bankAccountIds,
+                    template_style: 'modern',
+                    report_data: result.report,
+                    generation_trigger: 'manual',
+                    generation_duration_ms: durationMs,
+                });
+            }
+
             const report: GeneratedReport = {
                 id: crypto.randomUUID(),
                 type: params.reportType,
@@ -117,7 +152,7 @@ export function useGenerateReport() {
                 data: result.report,
             };
 
-            // Store in memory (will be replaced with server storage)
+            // Also keep in memory for immediate access
             generatedReports = [report, ...generatedReports.slice(0, 9)];
 
             return report;
@@ -129,16 +164,176 @@ export function useGenerateReport() {
 }
 
 // ============================================================
-// Generated Reports List Hook
+// Generated Reports List Hook (Database-backed)
 // ============================================================
 
-export function useGeneratedReports() {
-    return useQuery({
-        queryKey: ['generated-reports'],
-        queryFn: async () => {
-            // Return in-memory reports (will be replaced with server fetch)
-            return generatedReports;
+// Map database record to component-expected format
+function mapDbReportToGeneratedReport(dbReport: DBGeneratedReport): GeneratedReport {
+    return {
+        id: dbReport.id,
+        type: dbReport.report_type,
+        title: dbReport.name,
+        generatedAt: dbReport.created_at,
+        parameters: {
+            reportType: dbReport.report_type,
+            periodPreset: (dbReport.period_preset || 'custom') as ReportRequestFormData['periodPreset'],
+            startDate: dbReport.period_start,
+            endDate: dbReport.period_end,
+            bankAccountIds: dbReport.bank_account_ids || [],
+            categoryIds: [],
+            transactionType: 'all',
+            aggregation: 'monthly',
+            includeCharts: true,
+            includeDetails: true,
         },
-        staleTime: 0, // Always refetch
+        data: dbReport.report_data as ReportData,
+    };
+}
+
+export function useGeneratedReports(options?: {
+    limit?: number;
+    offset?: number;
+    report_type?: ReportRequestFormData['reportType'];
+}) {
+    return useQuery({
+        queryKey: ['generated-reports', options],
+        queryFn: async () => {
+            const result = await getGeneratedReports(options);
+            if (result.error) throw new Error(result.error);
+            // Map database records to component-expected format
+            const mappedReports = result.data?.map(mapDbReportToGeneratedReport) || [];
+            return { data: mappedReports, count: result.count };
+        },
+        staleTime: 30 * 1000, // 30 seconds
     });
 }
+
+// ============================================================
+// Single Generated Report Hook
+// ============================================================
+
+export function useGeneratedReportDetail(id: string | null) {
+    return useQuery({
+        queryKey: ['generated-report', id],
+        queryFn: async () => {
+            if (!id) throw new Error('No report ID');
+            const result = await getGeneratedReport(id);
+            if (result.error) throw new Error(result.error);
+            if (!result.data) return null;
+            return mapDbReportToGeneratedReport(result.data);
+        },
+        enabled: !!id,
+    });
+}
+
+// ============================================================
+// Delete Generated Report Hook
+// ============================================================
+
+export function useDeleteGeneratedReport() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (id: string) => {
+            const result = await deleteGeneratedReport(id);
+            if (!result.success) throw new Error(result.error || 'Failed to delete report');
+            return result;
+        },
+        onSuccess: () => {
+            toast.success('Report deleted');
+            queryClient.invalidateQueries({ queryKey: ['generated-reports'] });
+        },
+        onError: (error) => {
+            toast.error(error instanceof Error ? error.message : 'Failed to delete report');
+        },
+    });
+}
+
+// ============================================================
+// Report Schedules Hooks
+// ============================================================
+
+export function useReportSchedules() {
+    return useQuery({
+        queryKey: ['report-schedules'],
+        queryFn: async () => {
+            const result = await getReportSchedules();
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        staleTime: 60 * 1000, // 1 minute
+    });
+}
+
+export function useReportSchedule(id: string | null) {
+    return useQuery({
+        queryKey: ['report-schedule', id],
+        queryFn: async () => {
+            if (!id) throw new Error('No schedule ID');
+            const result = await getReportSchedule(id);
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        enabled: !!id,
+    });
+}
+
+export function useCreateReportSchedule() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (input: CreateScheduleInput) => {
+            const result = await createReportSchedule(input);
+            if (!result.data) throw new Error(result.error || 'Failed to create schedule');
+            return result.data;
+        },
+        onSuccess: () => {
+            toast.success('Report schedule created');
+            queryClient.invalidateQueries({ queryKey: ['report-schedules'] });
+        },
+        onError: (error) => {
+            toast.error(error instanceof Error ? error.message : 'Failed to create schedule');
+        },
+    });
+}
+
+export function useUpdateReportSchedule() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ id, input }: { id: string; input: Partial<CreateScheduleInput> & { is_active?: boolean } }) => {
+            const result = await updateReportSchedule(id, input);
+            if (!result.data) throw new Error(result.error || 'Failed to update schedule');
+            return result.data;
+        },
+        onSuccess: () => {
+            toast.success('Report schedule updated');
+            queryClient.invalidateQueries({ queryKey: ['report-schedules'] });
+        },
+        onError: (error) => {
+            toast.error(error instanceof Error ? error.message : 'Failed to update schedule');
+        },
+    });
+}
+
+export function useDeleteReportSchedule() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (id: string) => {
+            const result = await deleteReportSchedule(id);
+            if (!result.success) throw new Error(result.error || 'Failed to delete schedule');
+            return result;
+        },
+        onSuccess: () => {
+            toast.success('Report schedule deleted');
+            queryClient.invalidateQueries({ queryKey: ['report-schedules'] });
+        },
+        onError: (error) => {
+            toast.error(error instanceof Error ? error.message : 'Failed to delete schedule');
+        },
+    });
+}
+
+// Export types for use in components
+export type { ReportSchedule, DBGeneratedReport as ServerGeneratedReport, CreateScheduleInput };

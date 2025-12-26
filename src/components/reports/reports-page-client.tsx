@@ -18,13 +18,15 @@ import {
     FileText,
     Sparkles,
     Calendar,
+    CalendarClock,
     TrendingUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ReportRequestWizard } from '@/components/reports/report-request-wizard';
 import { ReportViewer } from '@/components/reports/report-viewer';
-import { useGenerateReport, useGeneratedReports, type GeneratedReport } from '@/hooks/use-reports';
+import { ReportSchedulesPanel } from '@/components/reports/report-schedules';
+import { useGenerateReport, useGeneratedReports, useReportSchedules, type GeneratedReport } from '@/hooks/use-reports';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -194,15 +196,16 @@ function EmptyReportsState({ onCreateNew }: { onCreateNew: () => void }) {
 // ============================================================
 
 function QuickStatsCard() {
-    const { data: reports } = useGeneratedReports();
-    const reportsThisMonth = reports?.filter((r) => {
+    const { data: reportsResult } = useGeneratedReports();
+    const reports = reportsResult?.data || [];
+    const reportsThisMonth = reports.filter((r) => {
         const reportDate = new Date(r.generatedAt);
         const now = new Date();
         return (
             reportDate.getMonth() === now.getMonth() &&
             reportDate.getFullYear() === now.getFullYear()
         );
-    }).length || 0;
+    }).length;
 
     return (
         <Card className="border-dashed">
@@ -212,7 +215,7 @@ function QuickStatsCard() {
                         <TrendingUp className="h-5 w-5 text-emerald-600" />
                     </div>
                     <div>
-                        <p className="text-2xl font-bold">{reports?.length || 0}</p>
+                        <p className="text-2xl font-bold">{reportsResult?.count || 0}</p>
                         <p className="text-xs text-muted-foreground">
                             {reportsThisMonth} generated this month
                         </p>
@@ -230,7 +233,9 @@ function QuickStatsCard() {
 export function ReportsPageClient() {
     const [activeTab, setActiveTab] = useState<string>('new');
     const [selectedReport, setSelectedReport] = useState<GeneratedReport | null>(null);
-    const { data: reports, isLoading: reportsLoading } = useGeneratedReports();
+    const { data: reportsData, isLoading: reportsLoading } = useGeneratedReports();
+    const reports = reportsData?.data || [];
+    const reportsCount = reportsData?.count || 0;
     const generateReport = useGenerateReport();
 
     const handleGenerate = async (data: ReportRequestFormData) => {
@@ -285,15 +290,15 @@ export function ReportsPageClient() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsList className="grid w-full max-w-lg grid-cols-3">
                     <TabsTrigger value="new" className="gap-2">
                         <Plus className="h-4 w-4" />
                         New Report
                     </TabsTrigger>
                     <TabsTrigger value="recent" className="gap-2">
                         <History className="h-4 w-4" />
-                        Recent Reports
-                        {reports && reports.length > 0 && (
+                        History
+                        {reports.length > 0 && (
                             <Badge
                                 variant="secondary"
                                 className="ml-1.5 h-5 w-5 p-0 flex items-center justify-center text-[10px]"
@@ -301,6 +306,10 @@ export function ReportsPageClient() {
                                 {reports.length}
                             </Badge>
                         )}
+                    </TabsTrigger>
+                    <TabsTrigger value="schedules" className="gap-2">
+                        <CalendarClock className="h-4 w-4" />
+                        Schedules
                     </TabsTrigger>
                 </TabsList>
 
@@ -340,6 +349,24 @@ export function ReportsPageClient() {
                             ) : (
                                 <EmptyReportsState onCreateNew={() => setActiveTab('new')} />
                             )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Schedules Tab */}
+                <TabsContent value="schedules" className="mt-6">
+                    <Card>
+                        <CardHeader className="pb-4">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <CalendarClock className="h-5 w-5 text-emerald-600" />
+                                Report Schedules
+                            </CardTitle>
+                            <CardDescription>
+                                Configure automated recurring report generation
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ReportSchedulesPanel />
                         </CardContent>
                     </Card>
                 </TabsContent>
