@@ -123,10 +123,12 @@ export async function middleware(request: NextRequest) {
       .single();
 
     const isResidentUser = profile?.resident_id != null;
+    const hasAdminRole = profile?.role_id != null;
 
     // Portal route checks
     if (pathname.startsWith('/portal')) {
-      // Only residents can access portal
+      // Only residents (users with resident_id) can access portal
+      // Note: Admins who are also residents CAN access portal
       if (!isResidentUser) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
       }
@@ -134,8 +136,9 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
-    // Resident user trying to access admin routes - redirect to portal
-    if (isResidentUser && adminOnlyRoutes.some(route => pathname.startsWith(route))) {
+    // Pure resident (no admin role) trying to access admin routes - redirect to portal
+    // Admins with resident_id can access BOTH dashboard AND portal
+    if (isResidentUser && !hasAdminRole && adminOnlyRoutes.some(route => pathname.startsWith(route))) {
       return NextResponse.redirect(new URL('/portal', request.url));
     }
 
@@ -180,14 +183,17 @@ export async function middleware(request: NextRequest) {
   // Redirect logged-in users away from login page
   // Note: For login page, we still need to fetch profile since we skip the protected route check
   if (pathname === '/login' && user) {
-    // Fetch profile to determine redirect destination (resident → portal, admin → dashboard)
+    // Fetch profile to determine redirect destination
     const { data: loginProfile } = await supabase
       .from('profiles')
-      .select('resident_id')
+      .select('resident_id, role_id')
       .eq('id', user.id)
       .single();
 
-    const redirectPath = loginProfile?.resident_id ? '/portal' : '/dashboard';
+    // Admin users go to dashboard, pure residents go to portal
+    const hasAdminRole = loginProfile?.role_id != null;
+    const isResident = loginProfile?.resident_id != null;
+    const redirectPath = (hasAdminRole || !isResident) ? '/dashboard' : '/portal';
     return NextResponse.redirect(new URL(redirectPath, request.url));
   }
 
