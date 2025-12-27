@@ -27,9 +27,11 @@ import {
   Calendar,
   Home,
   Download,
+  Loader2,
 } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 import type { InvoiceWithDetails, InvoiceStatus } from '@/types/database';
 
 // Status configuration
@@ -230,11 +232,56 @@ function InvoiceDetailSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const [isDownloading, setIsDownloading] = useState(false);
+
   if (!invoice) return null;
 
   const config = statusConfig[invoice.status];
   const StatusIcon = config.icon;
   const remaining = (invoice.amount_due || 0) - (invoice.amount_paid || 0);
+  const isPaid = invoice.status === 'paid';
+
+  // Download receipt handler
+  const handleDownloadReceipt = async () => {
+    setIsDownloading(true);
+    try {
+      const response = await fetch(`/api/receipts/${invoice.id}`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to download receipt');
+      }
+
+      // Get the blob from the response
+      const blob = await response.blob();
+
+      // Create a download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+
+      // Get filename from Content-Disposition header or generate one
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `RCP-${invoice.invoice_number?.replace('INV-', '') || invoice.id.slice(0, 8)}.pdf`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match) filename = match[1];
+      }
+
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Receipt downloaded successfully');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to download receipt');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -342,10 +389,24 @@ function InvoiceDetailSheet({
             </div>
           )}
 
-          {/* Download Button - Future Feature */}
-          <Button variant="outline" className="w-full gap-2" disabled>
-            <Download className="h-4 w-4" />
-            Download Receipt (Coming Soon)
+          {/* Download Receipt Button */}
+          <Button
+            variant={isPaid ? 'default' : 'outline'}
+            className="w-full gap-2"
+            onClick={handleDownloadReceipt}
+            disabled={isDownloading}
+          >
+            {isDownloading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Generating PDF...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4" />
+                {isPaid ? 'Download Receipt' : 'Download Invoice'}
+              </>
+            )}
           </Button>
         </div>
       </SheetContent>
