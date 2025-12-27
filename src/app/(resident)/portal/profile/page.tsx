@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useResident } from '@/hooks/use-residents';
 import { useResidentPreferences, useUpdateResidentPreference } from '@/hooks/use-notifications';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +18,17 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   User,
   Mail,
@@ -32,10 +44,15 @@ import {
   CheckCircle2,
   Calendar,
   CreditCard,
+  Users,
+  Trash2,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { HouseholdMemberForm } from '@/components/resident-portal/household-member-form';
+import { getHouseholdMembers, removeHouseholdMember } from '@/actions/residents/add-household-member';
 import type { ResidentWithHouses, HouseWithStreet, ResidentRole } from '@/types/database';
 
 // Type for resident houses with joined house data
@@ -44,6 +61,7 @@ type ResidentHouseWithDetails = {
   resident_id: string;
   house_id: string;
   resident_role: ResidentRole;
+  is_primary: boolean;
   move_in_date: string;
   move_out_date: string | null;
   is_active: boolean;
@@ -60,6 +78,20 @@ const roleLabels: Record<string, string> = {
   household_member: 'Household Member',
   domestic_staff: 'Staff',
   caretaker: 'Caretaker',
+  contractor: 'Contractor',
+};
+
+// Role color classes for badges (with dark mode support)
+const roleColors: Record<string, string> = {
+  resident_landlord: 'bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800',
+  non_resident_landlord: 'bg-purple-500/10 text-purple-700 border-purple-200 dark:text-purple-400 dark:border-purple-800',
+  tenant: 'bg-green-500/10 text-green-700 border-green-200 dark:text-green-400 dark:border-green-800',
+  household_member: 'bg-gray-500/10 text-gray-700 border-gray-200 dark:text-gray-400 dark:border-gray-700',
+  domestic_staff: 'bg-teal-500/10 text-teal-700 border-teal-200 dark:text-teal-400 dark:border-teal-800',
+  contractor: 'bg-amber-500/10 text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-800',
+  caretaker: 'bg-indigo-500/10 text-indigo-700 border-indigo-200 dark:text-indigo-400 dark:border-indigo-800',
+  co_resident: 'bg-cyan-500/10 text-cyan-700 border-cyan-200 dark:text-cyan-400 dark:border-cyan-800',
+  developer: 'bg-rose-500/10 text-rose-700 border-rose-200 dark:text-rose-400 dark:border-rose-800',
 };
 
 /**
@@ -92,6 +124,9 @@ export default function ResidentProfilePage() {
 
   // Get active properties (cast to our detailed type)
   const activeProperties = (resident.resident_houses?.filter(rh => rh.is_active) || []) as ResidentHouseWithDetails[];
+
+  // Find primary property (where user can manage household members)
+  const primaryProperty = (resident.resident_houses?.find(rh => rh.is_active && rh.is_primary) || null) as ResidentHouseWithDetails | null;
 
   // Copy resident code
   const copyCode = () => {
@@ -211,6 +246,14 @@ export default function ResidentProfilePage() {
         </CardContent>
       </Card>
 
+      {/* Household Members - Only show if user is primary resident */}
+      {primaryProperty && (
+        <HouseholdMembersCard
+          houseId={primaryProperty.house_id}
+          houseName={`${primaryProperty.house?.house_number}, ${primaryProperty.house?.street?.name}`}
+        />
+      )}
+
       {/* Notification Preferences */}
       <Card>
         <CardHeader className="pb-2">
@@ -261,7 +304,10 @@ function PropertyCard({
           {house?.house_number}, {house?.street?.name}
         </p>
         <div className="flex items-center gap-2 mt-0.5">
-          <Badge variant="outline" className="text-[10px]">
+          <Badge
+            variant="outline"
+            className={cn("text-[10px]", roleColors[property.resident_role])}
+          >
             {roleLabels[property.resident_role] || property.resident_role}
           </Badge>
         </div>
@@ -300,7 +346,10 @@ function PropertyDetailSheet({
 
         <div className="space-y-4">
           {/* Role Badge */}
-          <Badge variant="secondary">
+          <Badge
+            variant="outline"
+            className={cn("text-sm", roleColors[property.resident_role])}
+          >
             {roleLabels[property.resident_role] || property.resident_role}
           </Badge>
 
@@ -341,6 +390,132 @@ function PropertyDetailSheet({
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+// Household Members Card Component
+function HouseholdMembersCard({
+  houseId,
+  houseName,
+}: {
+  houseId: string;
+  houseName: string;
+}) {
+  const queryClient = useQueryClient();
+
+  // Fetch household members
+  const { data: membersData, isLoading } = useQuery({
+    queryKey: ['householdMembers', houseId],
+    queryFn: () => getHouseholdMembers(houseId),
+    enabled: !!houseId,
+  });
+
+  // Remove mutation
+  const removeMutation = useMutation({
+    mutationFn: removeHouseholdMember,
+    onSuccess: () => {
+      toast.success('Member removed');
+      queryClient.invalidateQueries({ queryKey: ['householdMembers', houseId] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to remove member');
+    },
+  });
+
+  const members = membersData?.data || [];
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Household Members
+            </CardTitle>
+            <CardDescription>People linked to your property</CardDescription>
+          </div>
+          <HouseholdMemberForm houseId={houseId} houseName={houseName} />
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        ) : members.length === 0 ? (
+          <div className="py-6 text-center text-muted-foreground text-sm">
+            <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p>No household members added</p>
+            <p className="text-xs mt-1">Add family members, contractors, or staff</p>
+          </div>
+        ) : (
+          members.map((member) => (
+            <div
+              key={member.id}
+              className="flex items-center gap-3 p-3 rounded-lg border"
+            >
+              <div className="p-2 rounded-full bg-muted">
+                <User className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate">
+                  {member.resident?.first_name} {member.resident?.last_name}
+                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <Badge
+                    variant="outline"
+                    className={cn("text-[10px]", roleColors[member.resident_role])}
+                  >
+                    {roleLabels[member.resident_role] || member.resident_role}
+                  </Badge>
+                  {member.resident?.phone_primary && (
+                    <span className="text-xs text-muted-foreground">
+                      {member.resident.phone_primary}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    disabled={removeMutation.isPending}
+                  >
+                    {removeMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remove household member?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will remove {member.resident?.first_name} {member.resident?.last_name} from your household.
+                      They will no longer have access tied to your property.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => removeMutation.mutate(member.id)}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Remove
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

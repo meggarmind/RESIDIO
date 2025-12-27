@@ -1,5 +1,6 @@
 import { PortalHeader } from '@/components/resident-portal/portal-header';
 import { PortalBottomNav } from '@/components/resident-portal/portal-bottom-nav';
+import { PortalSidebar } from '@/components/resident-portal/portal-sidebar';
 
 export const metadata = {
   title: 'Resident Portal | Residio',
@@ -9,12 +10,17 @@ export const metadata = {
 /**
  * Resident Portal Layout
  *
- * A mobile-first layout for the resident self-service portal.
- * Features:
+ * A responsive layout for the resident self-service portal.
+ *
+ * Mobile (< md):
  * - Fixed header (56px) with branding and user menu
- * - Scrollable main content area
+ * - Scrollable main content area (max-w-lg)
  * - Fixed bottom navigation (64px + safe area)
- * - Dark mode support via existing theme
+ *
+ * Desktop (md+):
+ * - Fixed sidebar (256px) with navigation
+ * - Full-width content area (max-w-4xl)
+ * - No bottom navigation
  */
 export default function ResidentPortalLayout({
   children,
@@ -32,23 +38,34 @@ export default function ResidentPortalLayout({
         }}
       />
 
-      {/* Fixed Header */}
-      <PortalHeader />
+      {/* Desktop: Sidebar (hidden on mobile) */}
+      <PortalSidebar className="hidden md:flex" />
+
+      {/* Mobile: Fixed Header (hidden on desktop) */}
+      <div className="md:hidden">
+        <PortalHeader />
+      </div>
 
       {/* Main Content Area */}
       <main
-        className="pt-14 pb-20 min-h-screen"
+        className="
+          pt-14 pb-20 min-h-screen
+          md:pt-0 md:pb-0 md:ml-64
+        "
         style={{
           paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))',
         }}
       >
-        <div className="max-w-lg mx-auto px-4 py-4">
+        {/* Responsive container: narrow on mobile, wider on desktop */}
+        <div className="max-w-lg mx-auto px-4 py-4 md:max-w-4xl md:py-6 lg:max-w-6xl">
           {children}
         </div>
       </main>
 
-      {/* Fixed Bottom Navigation */}
-      <PortalBottomNav />
+      {/* Mobile: Fixed Bottom Navigation (hidden on desktop) */}
+      <div className="md:hidden">
+        <PortalBottomNav />
+      </div>
     </div>
   );
 }

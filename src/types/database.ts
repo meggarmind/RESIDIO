@@ -519,6 +519,7 @@ export interface Database {
           resident_id: string;
           house_id: string;
           resident_role: ResidentRole;
+          is_primary: boolean;
           move_in_date: string;
           move_out_date: string | null;
           is_active: boolean;

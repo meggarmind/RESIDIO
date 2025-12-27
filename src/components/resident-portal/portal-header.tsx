@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -10,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, ChevronDown } from 'lucide-react';
+import { LogOut, ChevronDown, LayoutDashboard } from 'lucide-react';
 
 /**
  * Portal Header Component
@@ -21,7 +23,10 @@ import { LogOut, ChevronDown } from 'lucide-react';
  * - Avatar dropdown on the right with sign out
  */
 export function PortalHeader() {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, hasAnyPermission } = useAuth();
+
+  // Check if user has admin dashboard access (any admin permission indicates dashboard access)
+  const hasAdminAccess = hasAnyPermission([PERMISSIONS.RESIDENTS_VIEW]);
 
   // Get initials for avatar fallback
   const getInitials = (name: string) => {
@@ -97,6 +102,17 @@ export function PortalHeader() {
                 <p className="text-xs leading-none text-muted-foreground">{profile?.email}</p>
               </div>
             </DropdownMenuLabel>
+            {hasAdminAccess && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard">
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    Admin Dashboard
+                  </Link>
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={signOut}

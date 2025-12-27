@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart, FilePlus, BarChart3 } from 'lucide-react';
+import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart, FilePlus, BarChart3, User } from 'lucide-react';
 import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
@@ -112,7 +112,7 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
-  const { profile, isLoading, hasAnyPermission } = useAuth();
+  const { profile, isLoading, hasAnyPermission, residentId } = useAuth();
   const { data: pendingCount } = usePendingApprovalsCount();
 
   const filteredNavItems = navItems.filter((item) => {
@@ -197,6 +197,16 @@ export function Sidebar({ className }: SidebarProps) {
       </nav>
       <div className="border-t p-4 space-y-3">
         <ThemeSwitcher />
+        {/* View as Resident link - only shown if user has a resident_id */}
+        {residentId && (
+          <Link
+            href="/portal"
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          >
+            <User className="h-4 w-4" />
+            <span>View as Resident</span>
+          </Link>
+        )}
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium">
             {profile?.full_name?.charAt(0) || '?'}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,14 +14,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
-import { Menu, LogOut, User } from 'lucide-react';
+import { Menu, LogOut, User, Home } from 'lucide-react';
 
 interface HeaderProps {
   onMenuClick?: () => void;
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, residentId } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -68,6 +69,17 @@ export function Header({ onMenuClick }: HeaderProps) {
             <User className="mr-2 h-4 w-4" />
             {profile?.role?.replace('_', ' ')}
           </DropdownMenuItem>
+          {residentId && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/portal">
+                  <Home className="mr-2 h-4 w-4" />
+                  Resident Portal
+                </Link>
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={signOut} className="text-destructive">
             <LogOut className="mr-2 h-4 w-4" />

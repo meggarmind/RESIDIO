@@ -17,6 +17,8 @@ import {
   ChevronRight,
   TrendingUp,
   Clock,
+  Building2,
+  UserPlus,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
@@ -62,8 +64,8 @@ export default function ResidentPortalHomePage() {
         </p>
       </div>
 
-      {/* Balance Cards */}
-      <div className="grid gap-3">
+      {/* Balance Cards - responsive grid on desktop */}
+      <div className="grid gap-3 md:grid-cols-2">
         {/* Wallet Balance */}
         <Card className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border-emerald-500/20">
           <CardContent className="p-4">
@@ -109,20 +111,28 @@ export default function ResidentPortalHomePage() {
         )}
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Quick Stats - 2 cols mobile, 4 cols desktop */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Link href="/portal/profile">
           <Card className="h-full hover:border-primary/30 transition-colors cursor-pointer">
             <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-500/10">
-                  <Home className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              {activeProperties > 0 ? (
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-500/10">
+                    <Home className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{activeProperties}</p>
+                    <p className="text-xs text-muted-foreground">Properties</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{activeProperties}</p>
-                  <p className="text-xs text-muted-foreground">Properties</p>
+              ) : (
+                <div className="text-center py-2">
+                  <Building2 className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1" />
+                  <p className="text-xs text-muted-foreground">No properties</p>
+                  <p className="text-[10px] text-muted-foreground/70">Contact admin</p>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </Link>
@@ -130,26 +140,34 @@ export default function ResidentPortalHomePage() {
         <Link href="/portal/security-contacts">
           <Card className="h-full hover:border-primary/30 transition-colors cursor-pointer">
             <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-purple-500/10">
-                  <Shield className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              {activeContacts > 0 ? (
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-purple-500/10">
+                    <Shield className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{activeContacts}</p>
+                    <p className="text-xs text-muted-foreground">Contacts</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{activeContacts}</p>
-                  <p className="text-xs text-muted-foreground">Contacts</p>
+              ) : (
+                <div className="text-center py-2">
+                  <UserPlus className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1" />
+                  <p className="text-xs text-muted-foreground">No contacts</p>
+                  <p className="text-[10px] text-muted-foreground/70">Add your first</p>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </Link>
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - vertical mobile, horizontal grid on desktop */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Quick Actions</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-2 md:grid md:grid-cols-3 md:gap-3 md:space-y-0">
           <Link href="/portal/invoices" className="block">
             <Button variant="ghost" className="w-full justify-between h-auto py-3 px-4">
               <div className="flex items-center gap-3">
