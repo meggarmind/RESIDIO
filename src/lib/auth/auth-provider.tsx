@@ -106,37 +106,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Fetch role details if role_id exists
+    // Fetch role details and permissions in parallel (3x faster than sequential)
     let appRole: { name: string; display_name: string } | null = null;
-    if (profileData?.role_id) {
-      const { data: roleData } = await supabase
-        .from('app_roles')
-        .select('name, display_name')
-        .eq('id', profileData.role_id)
-        .single();
-      appRole = roleData;
-    }
-
-    // Fetch user's permissions
     let permissions: string[] = [];
+
     if (profileData?.role_id) {
-      // First get permission IDs for this role
-      const { data: rolePerms } = await supabase
-        .from('role_permissions')
-        .select('permission_id')
-        .eq('role_id', profileData.role_id);
+      // Run both queries in parallel since they only depend on role_id
+      const [roleResult, permissionsResult] = await Promise.all([
+        // Fetch role details
+        supabase
+          .from('app_roles')
+          .select('name, display_name')
+          .eq('id', profileData.role_id)
+          .single(),
+        // Fetch permissions with nested select (combines 2 queries into 1)
+        supabase
+          .from('role_permissions')
+          .select('permission:app_permissions!inner(name)')
+          .eq('role_id', profileData.role_id),
+      ]);
 
-      const permissionIds = rolePerms?.map((rp) => rp.permission_id) || [];
-
-      if (permissionIds.length > 0) {
-        // Then get permission names
-        const { data: permsData } = await supabase
-          .from('app_permissions')
-          .select('name')
-          .in('id', permissionIds);
-
-        permissions = permsData?.map((p) => p.name) || [];
-      }
+      appRole = roleResult.data;
+      // Extract permission names from nested result
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      permissions = (permissionsResult.data as any[] ?? [])
+        .map((rp) => rp.permission?.name)
+        .filter((name): name is string => name != null);
     }
 
     setProfile({

@@ -1,27 +1,21 @@
+import { memo } from 'react';
 import { Badge } from '@/components/ui/badge';
+
+// Static variant map (defined outside component to avoid recreation)
+const PAYMENT_STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+    paid: 'default',
+    pending: 'secondary',
+    overdue: 'destructive',
+    failed: 'destructive',
+};
 
 interface PaymentStatusBadgeProps {
     status: string;
 }
 
-export function PaymentStatusBadge({ status }: PaymentStatusBadgeProps) {
-    let variant: 'default' | 'secondary' | 'destructive' | 'outline' = 'default';
-
-    switch (status) {
-        case 'paid':
-            variant = 'default'; // Using default (usually black/primary) for success for now, or could custom style
-            break;
-        case 'pending':
-            variant = 'secondary';
-            break;
-        case 'overdue':
-        case 'failed':
-            variant = 'destructive';
-            break;
-        default:
-            variant = 'outline';
-    }
-
+// Memoized to prevent re-renders in payment tables
+export const PaymentStatusBadge = memo(function PaymentStatusBadge({ status }: PaymentStatusBadgeProps) {
+    const variant = PAYMENT_STATUS_VARIANTS[status] ?? 'outline';
     // Capitalize first letter
     const label = status.charAt(0).toUpperCase() + status.slice(1);
 
@@ -30,4 +24,4 @@ export function PaymentStatusBadge({ status }: PaymentStatusBadgeProps) {
             {label}
         </Badge>
     );
-}
+});

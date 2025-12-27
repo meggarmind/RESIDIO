@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -34,10 +34,72 @@ import { useResidents } from '@/hooks/use-residents';
 import { useStreets } from '@/hooks/use-reference';
 import { Users, Plus, Search, Eye, Pencil, UserPlus, ChevronDown, X } from 'lucide-react';
 import type { ResidentSearchParams } from '@/lib/validators/resident';
-import type { AccountStatus, ResidentRole } from '@/types/database';
+import type { AccountStatus, ResidentRole, ResidentWithHouses } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 
 const ALL_VALUE = '_all';
+
+// Memoized row component to prevent unnecessary re-renders
+// This significantly improves performance for large resident lists
+const ResidentRow = memo(function ResidentRow({ resident }: { resident: ResidentWithHouses }) {
+  // Show first active house assignment
+  const activeHouse = resident.resident_houses?.find((rh) => rh.is_active);
+  const address = activeHouse
+    ? `${activeHouse.house?.house_number} ${activeHouse.house?.street?.name}`
+    : '-';
+
+  return (
+    <TableRow>
+      <TableCell>
+        <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
+          {resident.resident_code}
+        </span>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium">
+            {resident.first_name} {resident.last_name}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell>{resident.phone_primary}</TableCell>
+      <TableCell>{address}</TableCell>
+      <TableCell>
+        <div className="flex flex-wrap gap-1">
+          {resident.resident_houses?.filter(rh => rh.is_active).length ? (
+            resident.resident_houses
+              .filter(rh => rh.is_active)
+              .map((rh) => (
+                <ResidentRoleBadge key={rh.id} role={rh.resident_role} />
+              ))
+          ) : (
+            <Badge variant="outline" className="text-muted-foreground">
+              Unassigned
+            </Badge>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        <AccountStatusBadge status={resident.account_status} />
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href={`/residents/${resident.id}`}>
+              <Eye className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button variant="ghost" size="icon" asChild>
+            <Link href={`/residents/${resident.id}?edit=true`}>
+              <Pencil className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 export function ResidentsTable() {
   const router = useRouter();
@@ -252,67 +314,9 @@ export function ResidentsTable() {
                 </TableCell>
               </TableRow>
             ) : (
-              data?.data.map((resident) => {
-                // Show first active house assignment (role-based billing determines responsibility, not primary flag)
-                const activeHouse = resident.resident_houses?.find(
-                  (rh) => rh.is_active
-                );
-                const address = activeHouse
-                  ? `${activeHouse.house?.house_number} ${activeHouse.house?.street?.name}`
-                  : '-';
-
-                return (
-                  <TableRow key={resident.id}>
-                    <TableCell>
-                      <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
-                        {resident.resident_code}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">
-                          {resident.first_name} {resident.last_name}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{resident.phone_primary}</TableCell>
-                    <TableCell>{address}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {resident.resident_houses?.filter(rh => rh.is_active).length ? (
-                          resident.resident_houses
-                            .filter(rh => rh.is_active)
-                            .map((rh) => (
-                              <ResidentRoleBadge key={rh.id} role={rh.resident_role} />
-                            ))
-                        ) : (
-                          <Badge variant="outline" className="text-muted-foreground">
-                            Unassigned
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <AccountStatusBadge status={resident.account_status} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" asChild>
-                          <Link href={`/residents/${resident.id}`}>
-                            <Eye className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                        <Button variant="ghost" size="icon" asChild>
-                          <Link href={`/residents/${resident.id}?edit=true`}>
-                            <Pencil className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+              data?.data.map((resident) => (
+                <ResidentRow key={resident.id} resident={resident} />
+              ))
             )}
           </TableBody>
         </Table>

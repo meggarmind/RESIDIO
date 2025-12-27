@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo, useCallback } from 'react';
 import {
     Table,
     TableBody,
@@ -42,6 +42,72 @@ interface PaymentTableProps {
     residentId?: string;
 }
 
+// Memoized row component to prevent unnecessary re-renders
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const PaymentRow = memo(function PaymentRow({
+    payment,
+    showResident,
+    isSelected,
+    onToggleSelection,
+    onDelete,
+}: {
+    payment: any;
+    showResident: boolean;
+    isSelected: boolean;
+    onToggleSelection: (id: string) => void;
+    onDelete: (id: string) => void;
+}) {
+    return (
+        <TableRow>
+            <TableCell>
+                <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => onToggleSelection(payment.id)}
+                    aria-label={`Select payment ${payment.reference_number}`}
+                />
+            </TableCell>
+            <TableCell>{format(new Date(payment.payment_date), 'MMM d, yyyy')}</TableCell>
+            {showResident && (
+                <TableCell>
+                    <div className="flex flex-col">
+                        <span className="font-medium">
+                            {payment.resident?.first_name} {payment.resident?.last_name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{payment.resident?.resident_code}</span>
+                    </div>
+                </TableCell>
+            )}
+            <TableCell className="font-medium">
+                {formatCurrency(Number(payment.amount))}
+            </TableCell>
+            <TableCell className="capitalize">
+                {payment.method ? payment.method.replace('_', ' ') : '-'}
+            </TableCell>
+            <TableCell>
+                <PaymentStatusBadge status={payment.status} />
+            </TableCell>
+            <TableCell className="text-xs font-mono">{payment.reference_number || '-'}</TableCell>
+            <TableCell className="text-right">
+                <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="icon" asChild>
+                        <Link href={`/payments/${payment.id}`}>
+                            <Eye className="h-4 w-4" />
+                        </Link>
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => onDelete(payment.id)}
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                </div>
+            </TableCell>
+        </TableRow>
+    );
+});
+
 export function PaymentTable({ data, showResident = true, residentId }: PaymentTableProps) {
     const router = useRouter();
     const deleteMutation = useDeletePayment();
@@ -51,22 +117,25 @@ export function PaymentTable({ data, showResident = true, residentId }: PaymentT
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const handleDelete = async (id: string) => {
+    // Memoized handlers to prevent unnecessary re-renders of PaymentRow
+    const handleDelete = useCallback(async (id: string) => {
         if (confirm('Are you sure you want to delete this payment record? This action cannot be undone.')) {
             await deleteMutation.mutateAsync(id);
         }
-    };
+    }, [deleteMutation]);
 
-    // Toggle single selection
-    const toggleSelection = (id: string) => {
-        const newSelected = new Set(selectedIds);
-        if (newSelected.has(id)) {
-            newSelected.delete(id);
-        } else {
-            newSelected.add(id);
-        }
-        setSelectedIds(newSelected);
-    };
+    // Toggle single selection - memoized for PaymentRow
+    const toggleSelection = useCallback((id: string) => {
+        setSelectedIds(prev => {
+            const newSelected = new Set(prev);
+            if (newSelected.has(id)) {
+                newSelected.delete(id);
+            } else {
+                newSelected.add(id);
+            }
+            return newSelected;
+        });
+    }, []);
 
     // Toggle select all
     const toggleSelectAll = () => {
@@ -203,54 +272,14 @@ export function PaymentTable({ data, showResident = true, residentId }: PaymentT
                     </TableHeader>
                     <TableBody>
                         {data.map((payment) => (
-                            <TableRow key={payment.id}>
-                                <TableCell>
-                                    <Checkbox
-                                        checked={selectedIds.has(payment.id)}
-                                        onCheckedChange={() => toggleSelection(payment.id)}
-                                        aria-label={`Select payment ${payment.reference_number}`}
-                                    />
-                                </TableCell>
-                                <TableCell>{format(new Date(payment.payment_date), 'MMM d, yyyy')}</TableCell>
-                                {showResident && (
-                                    <TableCell>
-                                        <div className="flex flex-col">
-                                            <span className="font-medium">
-                                                {payment.resident?.first_name} {payment.resident?.last_name}
-                                            </span>
-                                            <span className="text-xs text-muted-foreground">{payment.resident?.resident_code}</span>
-                                        </div>
-                                    </TableCell>
-                                )}
-                                <TableCell className="font-medium">
-                                    {formatCurrency(Number(payment.amount))}
-                                </TableCell>
-                                <TableCell className="capitalize">
-                                    {payment.method ? payment.method.replace('_', ' ') : '-'}
-                                </TableCell>
-                                <TableCell>
-                                    <PaymentStatusBadge status={payment.status} />
-                                </TableCell>
-                                <TableCell className="text-xs font-mono">{payment.reference_number || '-'}</TableCell>
-                                <TableCell className="text-right">
-                                    <div className="flex justify-end gap-2">
-                                        <Button variant="ghost" size="icon" asChild>
-                                            <Link href={`/payments/${payment.id}`}>
-                                                <Eye className="h-4 w-4" />
-                                            </Link>
-                                        </Button>
-
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="text-destructive hover:text-destructive"
-                                            onClick={() => handleDelete(payment.id)}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
+                            <PaymentRow
+                                key={payment.id}
+                                payment={payment}
+                                showResident={showResident}
+                                isSelected={selectedIds.has(payment.id)}
+                                onToggleSelection={toggleSelection}
+                                onDelete={handleDelete}
+                            />
                         ))}
                     </TableBody>
                 </Table>

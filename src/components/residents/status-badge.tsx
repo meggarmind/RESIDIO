@@ -1,74 +1,80 @@
 'use client';
 
+import { memo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import type { AccountStatus, VerificationStatus, ResidentRole, EntityType } from '@/types/database';
 import { RESIDENT_ROLE_LABELS, ENTITY_TYPE_LABELS } from '@/types/database';
+
+// Static variant configs (defined outside components to avoid recreation)
+const ACCOUNT_STATUS_VARIANTS: Record<AccountStatus, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
+  active: { variant: 'default', label: 'Active' },
+  inactive: { variant: 'secondary', label: 'Inactive' },
+  suspended: { variant: 'destructive', label: 'Suspended' },
+  archived: { variant: 'outline', label: 'Archived' },
+};
+
+const VERIFICATION_STATUS_VARIANTS: Record<VerificationStatus, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
+  pending: { variant: 'outline', label: 'Pending' },
+  submitted: { variant: 'secondary', label: 'Submitted' },
+  verified: { variant: 'default', label: 'Verified' },
+  rejected: { variant: 'destructive', label: 'Rejected' },
+};
+
+const RESIDENT_ROLE_VARIANTS: Record<ResidentRole, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  resident_landlord: 'default',
+  non_resident_landlord: 'default',
+  tenant: 'secondary',
+  developer: 'default',
+  co_resident: 'outline',
+  household_member: 'outline',
+  domestic_staff: 'outline',
+  caretaker: 'outline',
+};
+
+const ENTITY_TYPE_VARIANTS: Record<EntityType, 'default' | 'secondary' | 'outline'> = {
+  individual: 'outline',
+  corporate: 'secondary',
+};
 
 interface AccountStatusBadgeProps {
   status: AccountStatus;
 }
 
-export function AccountStatusBadge({ status }: AccountStatusBadgeProps) {
-  const variants: Record<AccountStatus, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
-    active: { variant: 'default', label: 'Active' },
-    inactive: { variant: 'secondary', label: 'Inactive' },
-    suspended: { variant: 'destructive', label: 'Suspended' },
-    archived: { variant: 'outline', label: 'Archived' },
-  };
-
-  const { variant, label } = variants[status];
-
+// Memoized badges prevent re-renders when parent updates but badge props are unchanged
+// This is especially impactful for tables with many rows
+export const AccountStatusBadge = memo(function AccountStatusBadge({ status }: AccountStatusBadgeProps) {
+  const { variant, label } = ACCOUNT_STATUS_VARIANTS[status];
   return <Badge variant={variant}>{label}</Badge>;
-}
+});
 
 interface VerificationStatusBadgeProps {
   status: VerificationStatus;
 }
 
-export function VerificationStatusBadge({ status }: VerificationStatusBadgeProps) {
-  const variants: Record<VerificationStatus, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
-    pending: { variant: 'outline', label: 'Pending' },
-    submitted: { variant: 'secondary', label: 'Submitted' },
-    verified: { variant: 'default', label: 'Verified' },
-    rejected: { variant: 'destructive', label: 'Rejected' },
-  };
-
-  const { variant, label } = variants[status];
-
+export const VerificationStatusBadge = memo(function VerificationStatusBadge({ status }: VerificationStatusBadgeProps) {
+  const { variant, label } = VERIFICATION_STATUS_VARIANTS[status];
   return <Badge variant={variant}>{label}</Badge>;
-}
+});
 
 interface OccupancyBadgeProps {
   isOccupied: boolean;
 }
 
-export function OccupancyBadge({ isOccupied }: OccupancyBadgeProps) {
+export const OccupancyBadge = memo(function OccupancyBadge({ isOccupied }: OccupancyBadgeProps) {
   return (
     <Badge variant={isOccupied ? 'default' : 'outline'}>
       {isOccupied ? 'Occupied' : 'Vacant'}
     </Badge>
   );
-}
+});
 
 interface ResidentRoleBadgeProps {
   role: ResidentRole;
 }
 
-export function ResidentRoleBadge({ role }: ResidentRoleBadgeProps) {
-  // Color coding by role type (updated for new role names)
-  const roleVariants: Record<ResidentRole, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-    resident_landlord: 'default',
-    non_resident_landlord: 'default',
-    tenant: 'secondary',
-    developer: 'default',
-    co_resident: 'outline',
-    household_member: 'outline',
-    domestic_staff: 'outline',
-    caretaker: 'outline',
-  };
-
+export const ResidentRoleBadge = memo(function ResidentRoleBadge({ role }: ResidentRoleBadgeProps) {
   // Handle unknown/legacy role values gracefully
-  const variant = roleVariants[role] ?? 'destructive';
+  const variant = RESIDENT_ROLE_VARIANTS[role] ?? 'destructive';
   const label = RESIDENT_ROLE_LABELS[role] ?? role ?? 'Unknown';
 
   return (
@@ -76,21 +82,16 @@ export function ResidentRoleBadge({ role }: ResidentRoleBadgeProps) {
       {label}
     </Badge>
   );
-}
+});
 
 interface EntityTypeBadgeProps {
   entityType: EntityType;
 }
 
-export function EntityTypeBadge({ entityType }: EntityTypeBadgeProps) {
-  const variants: Record<EntityType, 'default' | 'secondary' | 'outline'> = {
-    individual: 'outline',
-    corporate: 'secondary',
-  };
-
+export const EntityTypeBadge = memo(function EntityTypeBadge({ entityType }: EntityTypeBadgeProps) {
   return (
-    <Badge variant={variants[entityType]}>
+    <Badge variant={ENTITY_TYPE_VARIANTS[entityType]}>
       {ENTITY_TYPE_LABELS[entityType]}
     </Badge>
   );
-}
+});
