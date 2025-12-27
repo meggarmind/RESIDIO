@@ -1,110 +1,169 @@
 #!/bin/bash
-# Residio Session Start Hook - Notion sync and prompt detection
-# Automatically runs at session start via Claude Code hooks
+# ============================================================================
+# Universal Session Start Hook for Notion Sync Manager
+# ============================================================================
+# Works with any project configured in NSMA
+# Place in: ~/.claude/hooks/ or project-specific hooks directory
+# ============================================================================
 
-PROMPTS_DIR="/home/feyijimiohioma/projects/Residio/prompts"
-NOTION_DIR="/home/feyijimiohioma/mobile-first-notion-workflow"
-TODO_FILE="/home/feyijimiohioma/projects/Residio/TODO.md"
+PROJECT_ROOT="$(pwd)"
+PROJECT_NAME="$(basename "$PROJECT_ROOT")"
+PROMPTS_DIR="$PROJECT_ROOT/prompts"
+NSMA_CLI="/home/feyijimiohioma/projects/Nsma/cli/index.js"
 
-# Extract current phase from TODO.md dynamically
-# Format: "## Current Phase: Phase 9 - Polish (NEXT UP)"
-CURRENT_PHASE=$(grep -m1 "^## Current Phase:" "$TODO_FILE" 2>/dev/null | sed 's/## Current Phase: //' | sed 's/ -.*//' | xargs)
-if [ -z "$CURRENT_PHASE" ]; then
-    CURRENT_PHASE="Unknown"
+# Check if this project uses the new structure
+if [ ! -d "$PROMPTS_DIR" ]; then
+    echo "No prompts directory found. Skipping Notion sync."
+    exit 0
 fi
 
-echo "Current Phase: $CURRENT_PHASE (from TODO.md)"
+# Create subfolders if missing (first-time setup)
+mkdir -p "$PROMPTS_DIR/pending" "$PROMPTS_DIR/processed" "$PROMPTS_DIR/archived" "$PROMPTS_DIR/deferred" 2>/dev/null
+
+# Try to extract current phase from TODO.md if it exists
+TODO_FILE="$PROJECT_ROOT/TODO.md"
+CURRENT_PHASE="Unknown"
+if [ -f "$TODO_FILE" ]; then
+    CURRENT_PHASE=$(grep -m1 "^## Current Phase:" "$TODO_FILE" 2>/dev/null | sed 's/## Current Phase: //' | sed 's/ -.*//' | xargs)
+    [ -z "$CURRENT_PHASE" ] && CURRENT_PHASE="Unknown"
+fi
+
+echo "╔══════════════════════════════════════════════════════════╗"
+echo "║           NOTION SYNC MANAGER - Session Start            ║"
+echo "╚══════════════════════════════════════════════════════════╝"
+echo ""
+echo "Project: $PROJECT_NAME"
+echo "Current Phase: $CURRENT_PHASE"
 echo ""
 
-# Run Notion sync
-echo "Running Notion sync..."
-cd "$NOTION_DIR" && source .env && python3 residio_inbox_processor.py 2>&1
+# Run sync for this project if CLI exists
+if [ -f "$NSMA_CLI" ]; then
+    echo "🔄 Running Notion sync..."
+    node "$NSMA_CLI" --project "$PROJECT_NAME" 2>&1
+    echo ""
+else
+    echo "⚠️  NSMA CLI not found at $NSMA_CLI"
+    echo "   Run sync manually from http://localhost:3100"
+    echo ""
+fi
 
-# Count and categorize prompts
-echo ""
-echo "═══════════════════════════════════════════════════════"
-echo "PENDING PROMPTS SUMMARY"
-echo "═══════════════════════════════════════════════════════"
+# ============================================================================
+# PENDING PROMPTS ANALYSIS
+# ============================================================================
+echo "═══════════════════════════════════════════════════════════"
+echo "PENDING PROMPTS"
+echo "═══════════════════════════════════════════════════════════"
 
-# Check if prompts directory exists and has files
-if [ ! -d "$PROMPTS_DIR" ] || [ -z "$(ls -A "$PROMPTS_DIR"/*.md 2>/dev/null)" ]; then
-    echo "No pending prompts found."
-    echo "═══════════════════════════════════════════════════════"
+PENDING_DIR="$PROMPTS_DIR/pending"
+
+if [ ! -d "$PENDING_DIR" ] || [ -z "$(ls -A "$PENDING_DIR"/*.md 2>/dev/null)" ]; then
+    echo "✨ No pending prompts."
 else
     aligned_count=0
     decision_count=0
 
-    for f in "$PROMPTS_DIR"/*.md; do
+    for f in "$PENDING_DIR"/*.md; do
         [ -e "$f" ] || continue
 
         filename=$(basename "$f")
-        phase=$(grep -m1 "Phase\*\*:" "$f" 2>/dev/null | sed 's/.*Phase\*\*: //')
-        type=$(grep -m1 "Type\*\*:" "$f" 2>/dev/null | sed 's/.*Type\*\*: //')
+        # Read from YAML frontmatter
+        phase=$(grep -m1 "^phase:" "$f" 2>/dev/null | sed 's/phase: //')
+        type=$(grep -m1 "^type:" "$f" 2>/dev/null | sed 's/type: //')
+        priority=$(grep -m1 "^priority:" "$f" 2>/dev/null | sed 's/priority: //')
         title=$(grep -m1 "^# Development Task:" "$f" 2>/dev/null | sed 's/# Development Task: //')
-
-        # Default title to filename if not found
         [ -z "$title" ] && title="$filename"
 
-        # Determine alignment
+        # Determine if aligned
+        # Always execute: Bug Fix, Documentation, Security Fix, Technical Debt
         if [[ "$type" =~ ^(Bug\ Fix|Documentation|Security\ Fix|Technical\ Debt)$ ]]; then
-            echo "[EXECUTE] $title"
-            echo "   Type: $type (always execute)"
+            echo "✅ [EXECUTE] $title"
+            echo "   Type: $type (always execute) | Priority: $priority"
             ((aligned_count++))
         elif [[ "$phase" == "$CURRENT_PHASE" ]] || [[ "$phase" == "Backlog" ]]; then
-            echo "[EXECUTE] $title"
-            echo "   Phase: $phase (aligned)"
+            echo "✅ [EXECUTE] $title"
+            echo "   Phase: $phase (aligned) | Priority: $priority"
             ((aligned_count++))
         else
-            echo "[DECISION REQUIRED] $title"
-            echo "   Phase: $phase (not aligned with $CURRENT_PHASE)"
-            echo "   Options: (a) Defer, (b) Execute anyway, (c) Archive"
+            echo "⚠️  [DECISION] $title"
+            echo "   Phase: $phase ≠ $CURRENT_PHASE | Priority: $priority"
+            echo "   → (d)efer, (e)xecute anyway, (a)rchive"
             ((decision_count++))
         fi
         echo ""
     done
 
-    echo "═══════════════════════════════════════════════════════"
-    echo "Summary: $aligned_count aligned, $decision_count require decision"
-    echo "Read /prompts folder to process tasks."
-    echo "═══════════════════════════════════════════════════════"
+    echo "═══════════════════════════════════════════════════════════"
+    echo "Summary: $aligned_count ready to execute, $decision_count need decision"
 fi
 
-# Check deferred prompts for phase alignment
-DEFERRED_DIR="/home/feyijimiohioma/projects/Residio/deferred"
+# ============================================================================
+# DEFERRED PROMPTS CHECK
+# ============================================================================
+DEFERRED_DIR="$PROMPTS_DIR/deferred"
 
 if [ -d "$DEFERRED_DIR" ] && [ -n "$(ls -A "$DEFERRED_DIR"/*.md 2>/dev/null)" ]; then
     echo ""
-    echo "═══════════════════════════════════════════════════════"
-    echo "DEFERRED PROMPTS (Review for Phase Alignment)"
-    echo "═══════════════════════════════════════════════════════"
+    echo "═══════════════════════════════════════════════════════════"
+    echo "DEFERRED PROMPTS (check for phase alignment)"
+    echo "═══════════════════════════════════════════════════════════"
 
     now_aligned=0
-    still_deferred=0
 
     for f in "$DEFERRED_DIR"/*.md; do
         [ -e "$f" ] || continue
 
         filename=$(basename "$f")
-        phase=$(grep -m1 "Phase\*\*:" "$f" 2>/dev/null | sed 's/.*Phase\*\*: //')
+        phase=$(grep -m1 "^phase:" "$f" 2>/dev/null | sed 's/phase: //')
         title=$(grep -m1 "^# Development Task:" "$f" 2>/dev/null | sed 's/# Development Task: //')
         [ -z "$title" ] && title="$filename"
 
         if [[ "$phase" == "$CURRENT_PHASE" ]] || [[ "$phase" == "Backlog" ]]; then
-            echo "[NOW ALIGNED] $title"
-            echo "   Phase: $phase - Consider moving to prompts/"
+            echo "🔄 [NOW ALIGNED] $title"
+            echo "   Phase: $phase → mv deferred/$filename pending/"
             ((now_aligned++))
-        else
-            echo "[STILL DEFERRED] $title"
-            echo "   Phase: $phase"
-            ((still_deferred++))
         fi
-        echo ""
     done
 
-    echo "═══════════════════════════════════════════════════════"
-    echo "Deferred: $now_aligned now aligned, $still_deferred still deferred"
-    if [ $now_aligned -gt 0 ]; then
-        echo "Run: mv deferred/<file>.md prompts/ to re-activate"
+    if [ $now_aligned -eq 0 ]; then
+        echo "No deferred prompts aligned with current phase."
+    else
+        echo ""
+        echo "Run: mv prompts/deferred/<file>.md prompts/pending/"
     fi
-    echo "═══════════════════════════════════════════════════════"
+    echo "═══════════════════════════════════════════════════════════"
 fi
+
+# ============================================================================
+# INBOX CHECK
+# ============================================================================
+INBOX_DIR="$HOME/.notion-sync-manager/inbox/pending"
+
+if [ -d "$INBOX_DIR" ] && [ -n "$(ls -A "$INBOX_DIR"/*.md 2>/dev/null)" ]; then
+    inbox_count=$(ls -1 "$INBOX_DIR"/*.md 2>/dev/null | wc -l)
+
+    echo ""
+    echo "═══════════════════════════════════════════════════════════"
+    echo "📥 INBOX: $inbox_count item(s) need assignment"
+    echo "═══════════════════════════════════════════════════════════"
+
+    for f in "$INBOX_DIR"/*.md; do
+        [ -e "$f" ] || continue
+
+        filename=$(basename "$f")
+        title=$(grep -m1 "^# Development Task:" "$f" 2>/dev/null | sed 's/# Development Task: //')
+        original=$(grep -m1 "^original_project:" "$f" 2>/dev/null | sed 's/original_project: //')
+        [ -z "$title" ] && title="$filename"
+
+        echo "  • $title"
+        [ -n "$original" ] && echo "    (was: $original)"
+    done
+
+    echo ""
+    echo "Assign items at: http://localhost:3100/inbox"
+    echo "═══════════════════════════════════════════════════════════"
+fi
+
+echo ""
+echo "📂 Prompts location: $PROMPTS_DIR/pending/"
+echo "🌐 Dashboard: http://localhost:3100"
+echo ""

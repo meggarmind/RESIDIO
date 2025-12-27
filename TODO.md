@@ -1,8 +1,19 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-23 (Phase 4 Financial Reports - Dual Template System Complete, Infinite Loop Bug Fixed)
+**Last Updated:** 2025-12-27 (Phase 13 Complete - Analytics Dashboard Implemented)
 
-## Current Phase: Phase 12 - Resident View Portal (NEXT UP)
+## Current Phase: Phase 14 - Document Management (NEXT UP)
+
+### Recent Session Work (2025-12-27):
+- ✅ Completed Phase 13: Analytics Dashboard MVP
+  - Installed Recharts v2.15.0 for interactive charts
+  - Created `/analytics` route with RBAC (admin/chairman/financial_secretary only)
+  - Implemented 6 interactive charts: Revenue Trend, Collection Rate, Occupancy Gauge, Payment Compliance, Payment Methods Pie, Category Breakdown
+  - Added date range filtering with presets (This Month, Last Month, Last Quarter, YTD, Last Year, Custom)
+  - URL-based state for shareable analytics links
+  - Auto-refresh every 2 minutes via React Query
+  - Full skeleton loading states and error handling
+  - Mobile-responsive grid layout
 
 ### Recent Session Work (2025-12-23):
 - ✅ Fixed sidebar navigation - Reports now shows both "Generate Reports" wizard and "Financial Overview" as children
@@ -315,58 +326,58 @@ Extended the Phase 5.7 pattern to 4 additional settings pages:
 
 ## Development Workflow: Notion Inbox Integration ✅ COMPLETE (2025-12-19)
 
-### Problem
-The mobile-first development inbox lacked bidirectional sync - tasks captured in Notion weren't automatically marked complete after processing.
+### Migration to NSMA ✅ (2025-12-27)
+Migrated from Python inbox processor to NSMA (Notion Sync Manager):
 
-### Solution Implemented
-Enhanced the Notion inbox processor with three key improvements:
+| Aspect | Old (Python) | New (NSMA) |
+|--------|--------------|------------|
+| **Database ID** | `0f46cdeb58f64ee5b419a4dcd145752d` | `2d22bfe3-ea0c-8105-9ebe-f821673358c3` |
+| **Directory** | Flat: `prompts/`, `deferred/`, `processed/` | Nested: `prompts/{pending,deferred,processed,archived}` |
+| **Hook** | Python script | NSMA CLI (Node.js) |
+| **Config** | `inbox_processor_config.json` | `.nsma-config.md` (7 phases, 17 modules) |
+| **Dashboard** | None | http://localhost:3100 |
+
+**New Workflow**:
+- Prompts written to: `/home/feyijimiohioma/projects/Residio/prompts/pending/`
+- After completion: `mv prompts/pending/<file> prompts/processed/`
+- To defer: `mv prompts/pending/<file> prompts/deferred/`
+- Manual sync: `node /home/feyijimiohioma/projects/Nsma/cli/index.js --project residio`
+
+**Old processor preserved** at `/home/feyijimiohioma/mobile-first-notion-workflow/` for reference.
+
+### Original Implementation (2025-12-19)
+Enhanced the Notion inbox processor with:
 
 1. **YAML Frontmatter with Notion Page ID**:
-   - Prompts now include `notion_page_id` and `notion_url` in frontmatter
+   - Prompts include `notion_page_id` and `notion_url` in frontmatter
    - Enables bidirectional sync back to Notion after task completion
 
 2. **Module-to-File Mapping**:
-   - Added comprehensive mapping for 9 modules in config
+   - Comprehensive mapping for modules (now auto-imported from `.nsma-config.md`)
    - Related files automatically included in prompts based on affected module
-   - Helps Claude Code find relevant code faster
 
 3. **Bidirectional Sync Workflow**:
    - CLAUDE.md updated with MCP commands for updating Notion status
-   - After completing a task, update Notion to "Done" using `mcp__notion__notion-update-page`
+   - Use `mcp__notion__notion-update-page` or NSMA dashboard
 
-### Files Modified (3)
-- `/home/feyijimiohioma/mobile-first-notion-workflow/residio_inbox_processor.py`
-- `/home/feyijimiohioma/mobile-first-notion-workflow/inbox_processor_config.json`
-- `/home/feyijimiohioma/projects/Residio/CLAUDE.md`
-
-### Key Implementation Notes
-- Prompts saved to `/home/feyijimiohioma/projects/Residio/prompts/`
-- After processing, move to `/home/feyijimiohioma/projects/Residio/processed/`
-- Use `mcp__notion__notion-update-page` to mark Notion tasks as Done
-
-### SessionStart Hook Automation ✅ COMPLETE (2025-12-19)
-Automated the Notion inbox workflow with Claude Code hooks:
-
-**Files Created**:
-- `.claude/hooks/session-start.sh` - SessionStart hook script
+### SessionStart Hook (Updated 2025-12-27)
+**Files**:
+- `.claude/hooks/session-start.sh` - NSMA universal hook
 - `.claude/settings.json` - Hook configuration
 
-**Dynamic Phase Detection**:
-- Hook reads current phase from TODO.md automatically
-- No hardcoded phase references - parses `## Current Phase: Phase X - Name` format
-- Displays phase alignment summary at session start
+**Features**:
+- Dynamic phase detection from TODO.md
+- Prompt categorization (aligned vs decision-required)
+- Deferred prompt re-check for phase alignment
+- Inbox item notification (for unassigned items)
 
-**Prompt Processing Workflow**:
-- **Auto-execute**: Bug Fix, Documentation, Security Fix, Tech Debt (regardless of phase)
-- **Auto-execute**: Prompts matching current phase or Backlog
-- **User decision**: Non-aligned prompts → options: Defer, Execute anyway, Archive
-
-**Folder Structure**:
+**Folder Structure** (NSMA):
 ```
-prompts/     # Incoming prompts (auto-synced from Notion)
-processed/   # Completed prompts (after task done)
-deferred/    # User chose to defer
-archived/    # User chose to archive
+prompts/
+├── pending/     # Active prompts (auto-synced from Notion)
+├── processed/   # Completed prompts
+├── deferred/    # User chose to defer
+└── archived/    # User chose to archive
 ```
 
 ---
@@ -607,29 +618,67 @@ Centralized notification system (Email-only for now, SMS/WhatsApp future-proofed
 
 ---
 
-## Phase 12: Resident View Portal
+## Phase 12: Resident View Portal ✅ COMPLETE
 Self-service portal for residents:
-- [ ] Resident authentication (separate from admin login)
-- [ ] Read-only dashboard with property info
-- [ ] View invoices and payment history
-- [ ] Download payment receipts (PDF)
-- [ ] Manage security contacts (add/edit/remove within limits)
-- [ ] Notification preferences management
-- [ ] Profile management (update contact info)
-- [ ] Mobile-responsive design
+- [x] Resident authentication (uses existing auth with resident_id check)
+- [x] Read-only dashboard with property info (/portal - wallet balance, outstanding, properties)
+- [x] View invoices and payment history (/portal/invoices - filter tabs, detail sheets)
+- [x] Download payment receipts (PDF) - Uses @react-pdf/renderer with API route
+- [x] Manage security contacts (add/edit/remove within limits) (/portal/security-contacts)
+- [x] Notification preferences management (/portal/profile - email toggles)
+- [x] Profile management (update contact info) (/portal/profile - read-only for now)
+- [x] Mobile-responsive design (mobile-first layout with bottom nav)
 
 ---
 
-## Phase 13: Dashboard & Analytics
-Enhanced analytics and reporting:
-- [ ] Financial dashboard with revenue/expense charts
-- [ ] Occupancy analytics and trends
-- [ ] Payment compliance rates
-- [ ] Overdue invoice aging reports
+## Phase 13: Dashboard & Analytics ✅ COMPLETE (2025-12-27)
+
+### MVP Implementation (Core Charts)
+- [x] Recharts library integration (v2.15.0)
+- [x] Analytics types (`src/types/analytics.ts`)
+- [x] Server action with parallel data fetching (`src/actions/analytics/get-analytics-data.ts`)
+- [x] React Query hook with 2-minute auto-refresh (`src/hooks/use-analytics.ts`)
+- [x] URL-based date range state (`src/hooks/use-date-range.ts`)
+- [x] Date range filter with 5 presets + custom picker
+- [x] KPI Summary Cards (revenue, net income, collection rate, occupancy)
+- [x] Revenue Trend Line Chart (monthly revenue over time)
+- [x] Collection Rate Area Chart (with 80% target reference line)
+- [x] Occupancy Gauge (progress bar with stats)
+- [x] Payment Compliance Card (on-time vs late stacked bar)
+- [x] Payment Method Pie Chart (bank transfer, cash, wallet, etc.)
+- [x] Category Breakdown Bar Chart (invoice amounts by billing profile)
+- [x] RBAC: admin/chairman/financial_secretary only
+- [x] Sidebar navigation link with BarChart3 icon
+- [x] Full skeleton loading states
+- [x] Mobile-responsive grid layout
+
+### Key Files Created (14 new files)
+- `src/types/analytics.ts` - TypeScript interfaces
+- `src/actions/analytics/get-analytics-data.ts` - Server action
+- `src/hooks/use-analytics.ts` - React Query hook
+- `src/hooks/use-date-range.ts` - URL state management
+- `src/components/analytics/date-range-filter.tsx`
+- `src/components/analytics/analytics-header.tsx`
+- `src/components/analytics/kpi-summary-cards.tsx`
+- `src/components/analytics/revenue-trend-chart.tsx`
+- `src/components/analytics/collection-rate-chart.tsx`
+- `src/components/analytics/occupancy-gauge.tsx`
+- `src/components/analytics/payment-compliance-card.tsx`
+- `src/components/analytics/payment-method-breakdown.tsx`
+- `src/components/analytics/category-breakdown-chart.tsx`
+- `src/app/(dashboard)/analytics/page.tsx` - Server component with RBAC
+- `src/app/(dashboard)/analytics/analytics-page-client.tsx` - Client dashboard
+
+### Files Modified
+- `src/components/dashboard/sidebar.tsx` - Added Analytics nav item
+- `package.json` - Added recharts dependency
+
+### Future Enhancements (Phase 13.2+)
+- [ ] PDF export (using @react-pdf/renderer)
+- [ ] Excel export (using xlsx library)
+- [ ] Invoice aging reports
 - [ ] Resident demographics
-- [ ] Key performance indicators (KPIs)
-- [ ] Exportable reports (PDF/Excel)
-- [ ] Date range filters
+- [ ] YoY/MoM comparative analytics
 
 ---
 
@@ -1047,3 +1096,34 @@ Updated CLAUDE.md to reflect cloud-only Supabase usage:
 
 **Files Modified:**
 - `CLAUDE.md` - Updated Supabase configuration guidance
+
+---
+
+## Recent Updates (2025-12-27)
+
+### Phase 12 Completion: PDF Receipt Downloads ✅
+Implemented PDF receipt generation for the resident portal:
+
+**Package Added:**
+- `@react-pdf/renderer` - Server-side PDF generation from React components
+
+**Files Created:**
+- `src/lib/pdf/invoice-receipt.tsx` - PDF template component with styled receipt layout
+- `src/app/api/receipts/[id]/route.ts` - API route for authenticated PDF generation
+
+**Files Modified:**
+- `src/app/(resident)/portal/invoices/page.tsx` - Enabled download button with loading state
+
+**Key Features:**
+- Professional receipt layout with estate branding
+- Displays invoice items, amounts, and payment status
+- Authorization check: residents can only download their own receipts
+- Admin/chairman/financial_secretary can download any receipt
+- Loading state with spinner during PDF generation
+- Toast notifications for success/error feedback
+
+**Technical Notes:**
+- Uses `renderToBuffer()` for server-side PDF generation
+- Converts Buffer to Uint8Array for NextResponse compatibility
+- Filename derived from invoice number (e.g., `RCP-202312-0001.pdf`)
+- Estate name fetched from system settings
