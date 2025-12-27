@@ -12,8 +12,9 @@ export function useDashboardStats() {
             if (result.error) throw new Error(result.error);
             return result.data;
         },
-        // Refresh every 30 seconds for real-time feel
-        refetchInterval: 30000,
+        // Optimized: 30s → 60s (dashboard data doesn't change that frequently)
+        refetchInterval: 60000,
+        staleTime: 30000,
     });
 }
 
@@ -25,8 +26,8 @@ export function useEnhancedDashboardStats() {
             if (result.error) throw new Error(result.error);
             return result.data;
         },
-        // Refresh every 60 seconds (more data = longer interval)
-        refetchInterval: 60000,
-        staleTime: 30000, // Consider data fresh for 30 seconds
+        // Optimized: 60s → 180s (heavy query, data is relatively stable)
+        refetchInterval: 180000,
+        staleTime: 60000, // Consider data fresh for 1 minute
     });
 }

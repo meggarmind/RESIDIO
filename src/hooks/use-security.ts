@@ -170,7 +170,9 @@ export function useActiveContactCount() {
       if (result.error) throw new Error(result.error);
       return result.count;
     },
-    refetchInterval: 60000, // Refresh every minute
+    // Optimized: 60s → 120s (count doesn't change frequently)
+    refetchInterval: 120000,
+    staleTime: 60000,
   });
 }
 
@@ -186,7 +188,9 @@ export function useExpiredContactCount() {
       if (result.error) throw new Error(result.error);
       return result.count;
     },
-    refetchInterval: 60000, // Refresh every minute
+    // Optimized: 60s → 120s (count doesn't change frequently)
+    refetchInterval: 120000,
+    staleTime: 60000,
   });
 }
 
@@ -201,7 +205,9 @@ export function useExpiringContactCount(days: number = 7) {
       if (result.error) throw new Error(result.error);
       return result.count;
     },
-    refetchInterval: 60000, // Refresh every minute
+    // Optimized: 60s → 300s (expiring contacts are checked less frequently)
+    refetchInterval: 300000,
+    staleTime: 120000,
   });
 }
 
@@ -436,7 +442,9 @@ export function useAccessLogStats() {
       if (result.error) throw new Error(result.error);
       return result;
     },
-    refetchInterval: 60000, // Refresh every minute
+    // Optimized: 60s → 120s (stats aggregates don't need frequent updates)
+    refetchInterval: 120000,
+    staleTime: 60000,
   });
 }
 

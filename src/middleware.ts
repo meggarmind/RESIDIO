@@ -150,23 +150,20 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(redirectUrl);
       }
 
-      // Get permission IDs for this role
+      // Get permissions for this role in a single query with nested select
+      // This replaces 2 sequential queries with 1 query (~2x faster)
       const { data: rolePerms } = await supabase
         .from('role_permissions')
-        .select('permission_id')
+        .select(`
+          permission:app_permissions!inner(name)
+        `)
         .eq('role_id', profile.role_id);
 
-      const permissionIds = rolePerms?.map((rp) => rp.permission_id) || [];
-
-      // Get permission names
-      let userPermissions: string[] = [];
-      if (permissionIds.length > 0) {
-        const { data: permsData } = await supabase
-          .from('app_permissions')
-          .select('name')
-          .in('id', permissionIds);
-        userPermissions = permsData?.map((p) => p.name) || [];
-      }
+      // Extract permission names from the joined result
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const userPermissions = (rolePerms as any[] ?? [])
+        .map((rp) => rp.permission?.name)
+        .filter((name): name is string => name != null);
 
       // Check if user has ANY of the required permissions
       const hasPermission = requiredPermissions.some(p => userPermissions.includes(p));
@@ -181,8 +178,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect logged-in users away from login page
+  // Note: For login page, we still need to fetch profile since we skip the protected route check
   if (pathname === '/login' && user) {
-    // Check if user is a resident to redirect appropriately
+    // Fetch profile to determine redirect destination (resident → portal, admin → dashboard)
     const { data: loginProfile } = await supabase
       .from('profiles')
       .select('resident_id')
