@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, CreditCard, Shield, User } from 'lucide-react';
+import { Home, CreditCard, Shield, User, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -15,6 +15,7 @@ const navItems: NavItem[] = [
   { href: '/portal', label: 'Home', icon: Home },
   { href: '/portal/invoices', label: 'Payments', icon: CreditCard },
   { href: '/portal/security-contacts', label: 'Contacts', icon: Shield },
+  { href: '/portal/documents', label: 'Docs', icon: FileText },
   { href: '/portal/profile', label: 'Profile', icon: User },
 ];
 

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart, FilePlus, BarChart3, User } from 'lucide-react';
+import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart, FilePlus, BarChart3, User, FileText } from 'lucide-react';
 import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
@@ -90,6 +90,12 @@ const navItems: NavItem[] = [
         permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
       },
     ],
+  },
+  {
+    title: 'Documents',
+    href: '/documents',
+    icon: FileText,
+    permissions: [PERMISSIONS.DOCUMENTS_VIEW],
   },
   {
     title: 'Approvals',

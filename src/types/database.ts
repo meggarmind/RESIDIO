@@ -27,7 +27,8 @@ export type PermissionCategory =
   | 'settings'
   | 'imports'
   | 'approvals'
-  | 'system';
+  | 'system'
+  | 'documents';
 
 // Human-readable labels for new roles
 export const APP_ROLE_LABELS: Record<AppRoleName, string> = {
@@ -1406,4 +1407,138 @@ export interface PermissionCheckResult {
   hasPermission: boolean;
   permissions: string[];
   roleName: AppRoleName | null;
+}
+
+// =====================================================
+// Phase 15: Document Management Types
+// =====================================================
+
+// Document category (from document_categories table)
+export interface DocumentCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  is_resident_accessible: boolean;
+  is_active: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Allowed document file types
+export type DocumentFileType = 'pdf' | 'docx' | 'xlsx' | 'txt';
+
+// Allowed MIME types for document upload
+export const ALLOWED_DOCUMENT_MIME_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // XLSX
+  'text/plain', // TXT
+] as const;
+
+export const DOCUMENT_MIME_TYPE_LABELS: Record<string, string> = {
+  'application/pdf': 'PDF Document',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word Document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'Excel Spreadsheet',
+  'text/plain': 'Text File',
+};
+
+export const DOCUMENT_FILE_EXTENSIONS: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'text/plain': '.txt',
+};
+
+// Maximum file size for document upload (50MB)
+export const MAX_DOCUMENT_FILE_SIZE = 50 * 1024 * 1024;
+
+// Document (from documents table)
+export interface Document {
+  id: string;
+  title: string;
+  description: string | null;
+  file_name: string;
+  file_path: string;
+  file_type: string | null;
+  file_size_bytes: number | null;
+  mime_type: string | null;
+  category_id: string | null;
+  resident_id: string | null;
+  house_id: string | null;
+  version: number;
+  parent_document_id: string | null;
+  uploaded_by: string;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Document with relations
+export interface DocumentWithRelations extends Document {
+  category: DocumentCategory | null;
+  uploader: {
+    id: string;
+    full_name: string;
+  } | null;
+  resident: {
+    id: string;
+    full_name: string;
+  } | null;
+  house: {
+    id: string;
+    unit_number: string;
+    street: { name: string } | null;
+  } | null;
+}
+
+// Document access log action types
+export type DocumentAccessAction = 'view' | 'download' | 'upload' | 'update' | 'delete';
+
+// Document access log (from document_access_logs table)
+export interface DocumentAccessLog {
+  id: string;
+  document_id: string;
+  accessed_by: string;
+  action: DocumentAccessAction;
+  ip_address: string | null;
+  user_agent: string | null;
+  accessed_at: string;
+}
+
+// Document access log with relations
+export interface DocumentAccessLogWithRelations extends DocumentAccessLog {
+  document: Document;
+  user: {
+    id: string;
+    full_name: string;
+  };
+}
+
+// Document upload input
+export interface DocumentUploadInput {
+  title: string;
+  description?: string;
+  category_id?: string;
+  file: File;
+}
+
+// Document update input
+export interface DocumentUpdateInput {
+  title?: string;
+  description?: string;
+  category_id?: string | null;
+  is_archived?: boolean;
+}
+
+// Document list filter params
+export interface DocumentListParams {
+  category_id?: string;
+  search?: string;
+  is_archived?: boolean;
+  uploaded_by?: string;
+  from_date?: string;
+  to_date?: string;
+  page?: number;
+  limit?: number;
 }

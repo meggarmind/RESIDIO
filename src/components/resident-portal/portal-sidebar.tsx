@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { Home, CreditCard, Shield, User, LayoutDashboard } from 'lucide-react';
+import { Home, CreditCard, Shield, User, LayoutDashboard, FileText } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 
 interface NavItem {
@@ -18,6 +18,7 @@ const navItems: NavItem[] = [
   { href: '/portal', label: 'Home', icon: Home },
   { href: '/portal/invoices', label: 'Payments', icon: CreditCard },
   { href: '/portal/security-contacts', label: 'Security Contacts', icon: Shield },
+  { href: '/portal/documents', label: 'Documents', icon: FileText },
   { href: '/portal/profile', label: 'Profile', icon: User },
 ];
 

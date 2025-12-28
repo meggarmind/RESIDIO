@@ -99,6 +99,13 @@ export const PERMISSIONS = {
   SYSTEM_MANAGE_MAINTENANCE: 'system.manage_maintenance',
   SYSTEM_MANAGE_DATA_RETENTION: 'system.manage_data_retention',
   SYSTEM_VIEW_ALL_SETTINGS: 'system.view_all_settings',
+
+  // Documents Module (Phase 15)
+  DOCUMENTS_VIEW: 'documents.view',
+  DOCUMENTS_UPLOAD: 'documents.upload',
+  DOCUMENTS_UPDATE: 'documents.update',
+  DOCUMENTS_DELETE: 'documents.delete',
+  DOCUMENTS_MANAGE_CATEGORIES: 'documents.manage_categories',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -115,10 +122,12 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/billing': [PERMISSIONS.BILLING_VIEW],
   '/security': [PERMISSIONS.SECURITY_VIEW],
   '/reports': [PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_OCCUPANCY, PERMISSIONS.REPORTS_VIEW_SECURITY],
+  '/documents': [PERMISSIONS.DOCUMENTS_VIEW],
   '/approvals': [PERMISSIONS.APPROVALS_VIEW],
   '/settings': [PERMISSIONS.SETTINGS_VIEW],
   '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES],
   '/settings/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
+  '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
   '/dashboard': [], // All authenticated users
 };
 
