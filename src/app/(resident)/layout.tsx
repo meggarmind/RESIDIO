@@ -1,7 +1,7 @@
 import { PortalHeader } from '@/components/resident-portal/portal-header';
 import { PortalBottomNav } from '@/components/resident-portal/portal-bottom-nav';
 import { PortalSidebar } from '@/components/resident-portal/portal-sidebar';
-import { PortalBreadcrumb } from '@/components/resident-portal/portal-breadcrumb';
+import { PortalLayoutContent } from '@/components/resident-portal/portal-layout-content';
 
 export const metadata = {
   title: 'Resident Portal | Residio',
@@ -57,11 +57,8 @@ export default function ResidentPortalLayout({
           paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))',
         }}
       >
-        {/* Responsive container: narrow on mobile, wider on desktop */}
-        <div className="max-w-lg mx-auto px-4 py-4 md:max-w-4xl md:py-6 lg:max-w-6xl">
-          <PortalBreadcrumb />
-          {children}
-        </div>
+        {/* Theme-aware responsive container */}
+        <PortalLayoutContent>{children}</PortalLayoutContent>
       </main>
 
       {/* Mobile: Fixed Bottom Navigation (hidden on desktop) */}

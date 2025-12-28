@@ -71,6 +71,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { z } from 'zod';
+import { useLayoutTheme } from '@/contexts/layout-theme-context';
 import type { SecurityContactWithDetails, SecurityContactStatus } from '@/types/database';
 
 // Simplified schema for resident portal
@@ -104,6 +105,7 @@ const statusConfig: Record<SecurityContactStatus, { icon: React.ElementType; lab
 export default function ResidentSecurityContactsPage() {
   const { residentId } = useAuth();
   const isDesktop = useIsDesktop();
+  const { isExpanded } = useLayoutTheme();
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<SecurityContactWithDetails | null>(null);
   const [editingContact, setEditingContact] = useState<SecurityContactWithDetails | null>(null);
@@ -121,12 +123,18 @@ export default function ResidentSecurityContactsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className={cn('space-y-6', isExpanded && 'space-y-8')}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Security Contacts</h1>
-          <p className="text-muted-foreground">Manage access for your visitors</p>
+          <h1 className={cn(
+            'text-2xl font-bold tracking-tight',
+            isExpanded && 'text-3xl xl:text-4xl'
+          )}>Security Contacts</h1>
+          <p className={cn(
+            'text-muted-foreground',
+            isExpanded && 'text-base'
+          )}>Manage access for your visitors</p>
         </div>
         <Button size="sm" onClick={() => setIsAddSheetOpen(true)} className="gap-1.5">
           <Plus className="h-4 w-4" />
@@ -135,7 +143,10 @@ export default function ResidentSecurityContactsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className={cn(
+        'grid grid-cols-2 gap-3',
+        isExpanded && 'lg:grid-cols-4 gap-4'
+      )}>
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -181,7 +192,8 @@ export default function ResidentSecurityContactsPage() {
           'gap-3',
           isDesktop
             ? 'grid grid-cols-2 lg:grid-cols-3'
-            : 'space-y-3'
+            : 'space-y-3',
+          isExpanded && 'xl:grid-cols-4 gap-4'
         )}>
           {contacts.map((contact) => (
             <ContactCard
@@ -189,6 +201,7 @@ export default function ResidentSecurityContactsPage() {
               contact={contact}
               onClick={() => setSelectedContact(contact)}
               isDesktop={isDesktop}
+              isExpanded={isExpanded}
               onEdit={() => {
                 setEditingContact(contact);
               }}
@@ -246,12 +259,14 @@ function ContactCard({
   contact,
   onClick,
   isDesktop,
+  isExpanded,
   onEdit,
   onDelete,
 }: {
   contact: SecurityContactWithDetails;
   onClick: () => void;
   isDesktop: boolean;
+  isExpanded: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -319,8 +334,11 @@ function ContactCard({
           </Badge>
 
           {isDesktop ? (
-            /* Desktop: Hover actions */
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            /* Desktop: Hover actions (always visible when expanded) */
+            <div className={cn(
+              'flex items-center gap-1 transition-opacity',
+              isExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            )}>
               <Button
                 variant="ghost"
                 size="icon"

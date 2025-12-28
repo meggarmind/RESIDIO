@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Home, CreditCard, Shield, User, LayoutDashboard, FileText } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
+import { LayoutThemeSwitcher } from '@/components/ui/layout-theme-switcher';
 import { PortalSearch } from './portal-search';
 
 interface NavItem {
@@ -109,7 +110,11 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
 
       {/* Footer */}
       <div className="border-t p-4 space-y-3">
-        <ThemeSwitcher />
+        {/* Theme Controls */}
+        <div className="flex items-center gap-2 px-3">
+          <ThemeSwitcher />
+          <LayoutThemeSwitcher />
+        </div>
 
         {/* Admin Dashboard link - only shown if user has admin permissions */}
         {hasAdminAccess && (

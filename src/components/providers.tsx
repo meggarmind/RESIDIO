@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/lib/auth/auth-provider';
+import { LayoutThemeProvider } from '@/contexts/layout-theme-context';
 import { Toaster } from '@/components/ui/sonner';
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -26,12 +27,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          {children}
-          <Toaster />
-        </AuthProvider>
-      </QueryClientProvider>
+      <LayoutThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
+        </QueryClientProvider>
+      </LayoutThemeProvider>
     </ThemeProvider>
   );
 }

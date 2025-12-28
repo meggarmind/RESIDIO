@@ -192,3 +192,66 @@
 .table-row-interactive {
   @apply transition-colors hover:bg-muted/50;
 }
+
+/* ============================================
+   Layout Theme System
+   ============================================
+   Provides compact (mobile-first) and expanded (desktop-optimized) layouts.
+   Controlled by LayoutThemeProvider via document class.
+*/
+
+/* Layout Theme Variables - Compact (default/mobile) */
+:root {
+  --layout-container-max: 72rem;       /* 1152px - max-w-6xl */
+  --layout-grid-gap: 0.75rem;          /* gap-3 */
+  --layout-card-padding: 1rem;         /* p-4 */
+  --layout-section-gap: 1.5rem;        /* space-y-6 */
+  --layout-icon-size: 1rem;            /* h-4 w-4 */
+  --layout-title-size: 1.5rem;         /* text-2xl */
+  --layout-heading-size: 1.125rem;     /* text-lg */
+}
+
+/* Layout Theme Variables - Expanded (desktop) */
+.layout-expanded {
+  --layout-container-max: 100rem;      /* 1600px */
+  --layout-grid-gap: 1.5rem;           /* gap-6 */
+  --layout-card-padding: 1.5rem;       /* p-6 */
+  --layout-section-gap: 2rem;          /* space-y-8 */
+  --layout-icon-size: 1.25rem;         /* h-5 w-5 */
+  --layout-title-size: 2.25rem;        /* text-4xl */
+  --layout-heading-size: 1.25rem;      /* text-xl */
+}
+
+/* Utility classes that respond to layout theme */
+.layout-container {
+  max-width: var(--layout-container-max);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.layout-grid-gap {
+  gap: var(--layout-grid-gap);
+}
+
+.layout-card-padding {
+  padding: var(--layout-card-padding);
+}
+
+.layout-section-gap > * + * {
+  margin-top: var(--layout-section-gap);
+}
+
+.layout-icon {
+  width: var(--layout-icon-size);
+  height: var(--layout-icon-size);
+}
+
+.layout-title {
+  font-size: var(--layout-title-size);
+  line-height: 1.2;
+}
+
+.layout-heading {
+  font-size: var(--layout-heading-size);
+  line-height: 1.4;
+}

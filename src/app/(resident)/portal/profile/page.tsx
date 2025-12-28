@@ -52,6 +52,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { useLayoutTheme } from '@/contexts/layout-theme-context';
 import { HouseholdMemberForm } from '@/components/resident-portal/household-member-form';
 import { getHouseholdMembers, removeHouseholdMember } from '@/actions/residents/add-household-member';
 import type { ResidentWithHouses, HouseWithStreet, ResidentRole } from '@/types/database';
@@ -109,6 +110,7 @@ export default function ResidentProfilePage() {
   const { data: preferences, isLoading: preferencesLoading } = useResidentPreferences(residentId || '');
   const [selectedProperty, setSelectedProperty] = useState<ResidentHouseWithDetails | null>(null);
   const isDesktop = useIsDesktop();
+  const { isExpanded } = useLayoutTheme();
 
   const isLoading = residentLoading || preferencesLoading;
 
@@ -141,11 +143,17 @@ export default function ResidentProfilePage() {
   // Desktop: Two-column layout (1/3 + 2/3)
   // Mobile: Stacked layout
   return (
-    <div className="space-y-6">
+    <div className={cn('space-y-6', isExpanded && 'space-y-8')}>
       {/* Header */}
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">My Profile</h1>
-        <p className="text-muted-foreground">Your account information</p>
+        <h1 className={cn(
+          'text-2xl font-bold tracking-tight',
+          isExpanded && 'text-3xl xl:text-4xl'
+        )}>My Profile</h1>
+        <p className={cn(
+          'text-muted-foreground',
+          isExpanded && 'text-base'
+        )}>Your account information</p>
       </div>
 
       <div className={cn(
@@ -166,7 +174,8 @@ export default function ResidentProfilePage() {
                 {/* Avatar */}
                 <div className={cn(
                   'rounded-full bg-primary/10 flex items-center justify-center shrink-0',
-                  isDesktop ? 'w-24 h-24' : 'w-16 h-16'
+                  isDesktop ? 'w-24 h-24' : 'w-16 h-16',
+                  isExpanded && 'xl:w-32 xl:h-32'
                 )}>
                   <span className={cn(
                     'font-semibold text-primary',
@@ -266,7 +275,8 @@ export default function ResidentProfilePage() {
               <CardDescription>Properties you are linked to</CardDescription>
             </CardHeader>
             <CardContent className={cn(
-              isDesktop ? 'grid gap-3 grid-cols-1 lg:grid-cols-2' : 'space-y-2'
+              isDesktop ? 'grid gap-3 grid-cols-1 lg:grid-cols-2' : 'space-y-2',
+              isExpanded && 'xl:grid-cols-3'
             )}>
               {activeProperties.length === 0 ? (
                 <div className="py-4 text-center text-muted-foreground text-sm col-span-full">
@@ -290,6 +300,7 @@ export default function ResidentProfilePage() {
               houseId={primaryProperty.house_id}
               houseName={`${primaryProperty.house?.house_number}, ${primaryProperty.house?.street?.name}`}
               isDesktop={isDesktop}
+              isExpanded={isExpanded}
             />
           )}
 
@@ -307,6 +318,7 @@ export default function ResidentProfilePage() {
                 residentId={residentId || ''}
                 preferences={preferences || []}
                 isDesktop={isDesktop}
+                isExpanded={isExpanded}
               />
             </CardContent>
           </Card>
@@ -444,10 +456,12 @@ function HouseholdMembersCard({
   houseId,
   houseName,
   isDesktop = false,
+  isExpanded = false,
 }: {
   houseId: string;
   houseName: string;
   isDesktop?: boolean;
+  isExpanded?: boolean;
 }) {
   const queryClient = useQueryClient();
 
@@ -486,9 +500,12 @@ function HouseholdMembersCard({
           <HouseholdMemberForm houseId={houseId} houseName={houseName} />
         </div>
       </CardHeader>
-      <CardContent className={cn(isDesktop ? 'grid gap-3 grid-cols-1 lg:grid-cols-2' : 'space-y-2')}>
+      <CardContent className={cn(
+        isDesktop ? 'grid gap-3 grid-cols-1 lg:grid-cols-2' : 'space-y-2',
+        isExpanded && 'xl:grid-cols-3 gap-4'
+      )}>
         {isLoading ? (
-          <div className={cn(isDesktop ? 'col-span-full grid gap-2 grid-cols-2' : 'space-y-2')}>
+          <div className={cn(isDesktop ? 'col-span-full grid gap-2 grid-cols-2' : 'space-y-2', isExpanded && 'grid-cols-3')}>
             <Skeleton className="h-14 w-full" />
             <Skeleton className="h-14 w-full" />
           </div>
@@ -572,6 +589,7 @@ function NotificationPreferences({
   residentId,
   preferences,
   isDesktop = false,
+  isExpanded = false,
 }: {
   residentId: string;
   preferences: Array<{
@@ -581,6 +599,7 @@ function NotificationPreferences({
     enabled: boolean;
   }>;
   isDesktop?: boolean;
+  isExpanded?: boolean;
 }) {
   const updatePreference = useUpdateResidentPreference();
 
@@ -612,7 +631,10 @@ function NotificationPreferences({
   };
 
   return (
-    <div className={cn(isDesktop ? 'grid gap-3 grid-cols-2' : 'space-y-3')}>
+    <div className={cn(
+      isDesktop ? 'grid gap-3 grid-cols-2' : 'space-y-3',
+      isExpanded && 'xl:grid-cols-4 gap-4'
+    )}>
       {categories.map(({ key, label, icon: Icon }) => {
         const pref = getEmailPreference(key);
         const isEnabled = pref?.enabled ?? true;

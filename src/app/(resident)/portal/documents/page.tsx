@@ -28,6 +28,8 @@ import { getDocumentDownloadUrl } from '@/actions/documents/download-document';
 import { FileText, Search, Download, Eye, X, LayoutGrid, List, FileIcon, FileSpreadsheet, FileImage, File } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { toast } from 'sonner';
+import { useLayoutTheme } from '@/contexts/layout-theme-context';
+import { cn } from '@/lib/utils';
 import type { DocumentWithRelations, DocumentListParams } from '@/types/database';
 
 const ALL_VALUE = '_all';
@@ -41,6 +43,7 @@ export default function ResidentDocumentsPage() {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const [previewDoc, setPreviewDoc] = useState<DocumentWithRelations | null>(null);
   const isDesktop = useIsDesktop();
+  const { isExpanded } = useLayoutTheme();
 
   const { data, isLoading } = useResidentDocuments(params);
   const { data: categories = [] } = useDocumentCategories();
@@ -90,10 +93,16 @@ export default function ResidentDocumentsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className={cn('space-y-6', isExpanded && 'space-y-8')}>
       <div>
-        <h1 className="text-3xl font-bold">Documents</h1>
-        <p className="text-muted-foreground">
+        <h1 className={cn(
+          'text-3xl font-bold',
+          isExpanded && 'text-4xl'
+        )}>Documents</h1>
+        <p className={cn(
+          'text-muted-foreground',
+          isExpanded && 'text-base'
+        )}>
           Access estate policies, forms, and important documents.
         </p>
       </div>
@@ -109,7 +118,10 @@ export default function ResidentDocumentsPage() {
           {/* Toolbar */}
           <div className="flex flex-col sm:flex-row gap-4 justify-between">
             <div className="flex flex-1 gap-2">
-              <div className="relative flex-1 max-w-sm">
+              <div className={cn(
+                'relative flex-1 max-w-sm',
+                isExpanded && 'lg:max-w-md xl:max-w-lg'
+              )}>
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search documents..."
@@ -198,9 +210,13 @@ export default function ResidentDocumentsPage() {
               documents={documents}
               onView={handleView}
               onDownload={handleDownload}
+              isExpanded={isExpanded}
             />
           ) : viewMode === 'grid' ? (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className={cn(
+              'grid gap-4 sm:grid-cols-2',
+              isExpanded && 'lg:grid-cols-3'
+            )}>
               {documents.map((doc) => (
                 <DocumentCard
                   key={doc.id}
@@ -377,10 +393,12 @@ function DocumentTable({
   documents,
   onView,
   onDownload,
+  isExpanded,
 }: {
   documents: DocumentWithRelations[];
   onView: (doc: DocumentWithRelations) => void;
   onDownload: (doc: DocumentWithRelations) => void;
+  isExpanded: boolean;
 }) {
   const formatFileSize = (bytes: number | null): string => {
     if (!bytes) return '-';
@@ -430,11 +448,17 @@ function DocumentTable({
               </TableCell>
               <TableCell>
                 <div className="min-w-0">
-                  <p className="font-medium truncate max-w-[250px]" title={doc.title}>
+                  <p className={cn(
+                    'font-medium truncate max-w-[250px]',
+                    isExpanded && 'xl:max-w-[400px]'
+                  )} title={doc.title}>
                     {doc.title}
                   </p>
                   {doc.description && (
-                    <p className="text-xs text-muted-foreground truncate max-w-[250px]">
+                    <p className={cn(
+                      'text-xs text-muted-foreground truncate max-w-[250px]',
+                      isExpanded && 'xl:max-w-[400px]'
+                    )}>
                       {doc.description}
                     </p>
                   )}
@@ -450,7 +474,10 @@ function DocumentTable({
                 {format(new Date(doc.created_at), 'MMM d, yyyy')}
               </TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className={cn(
+                  'flex justify-end gap-1 transition-opacity',
+                  isExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                )}>
                   <Button
                     variant="ghost"
                     size="icon"

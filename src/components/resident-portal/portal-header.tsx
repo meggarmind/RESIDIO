@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LogOut, ChevronDown, LayoutDashboard } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
+import { LayoutThemeSwitcher } from '@/components/ui/layout-theme-switcher';
 import { PortalSearch } from './portal-search';
 
 /**
@@ -76,9 +77,10 @@ export function PortalHeader() {
           </span>
         </div>
 
-        {/* Right: Search + Theme Toggle + Avatar Dropdown */}
+        {/* Right: Search + Layout Theme + Color Theme + Avatar Dropdown */}
         <div className="flex items-center gap-1">
           <PortalSearch variant="input" />
+          <LayoutThemeSwitcher />
           <ThemeSwitcher variant="compact" />
           <DropdownMenu>
           <DropdownMenuTrigger asChild>

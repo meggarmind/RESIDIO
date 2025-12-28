@@ -41,6 +41,7 @@ import {
 import { formatCurrency, cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useLayoutTheme } from '@/contexts/layout-theme-context';
 import type { InvoiceWithDetails, InvoiceStatus } from '@/types/database';
 
 // Status configuration
@@ -64,6 +65,7 @@ const statusConfig: Record<InvoiceStatus, { icon: React.ElementType; label: stri
 export default function ResidentInvoicesPage() {
   const { residentId } = useAuth();
   const isDesktop = useIsDesktop();
+  const { isExpanded } = useLayoutTheme();
   const [activeTab, setActiveTab] = useState<string>('all');
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithDetails | null>(null);
 
@@ -95,15 +97,24 @@ export default function ResidentInvoicesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className={cn('space-y-6', isExpanded && 'space-y-8')}>
       {/* Header */}
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Payments</h1>
-        <p className="text-muted-foreground">View your invoices and payment history</p>
+        <h1 className={cn(
+          'text-2xl font-bold tracking-tight',
+          isExpanded && 'text-3xl xl:text-4xl'
+        )}>Payments</h1>
+        <p className={cn(
+          'text-muted-foreground',
+          isExpanded && 'text-base'
+        )}>View your invoices and payment history</p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className={cn(
+        'grid grid-cols-2 gap-3',
+        isExpanded && 'lg:grid-cols-4 gap-4'
+      )}>
         <Card className="bg-gradient-to-br from-red-500/10 to-orange-500/5 border-red-500/20">
           <CardContent className="p-4">
             <div className="space-y-1">

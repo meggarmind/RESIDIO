@@ -24,10 +24,11 @@ import {
   Sparkles,
   Bell,
 } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, cn } from '@/lib/utils';
 import Link from 'next/link';
 import { ActivityFeed } from '@/components/resident-portal/activity-feed';
 import { AnnouncementsCarousel } from '@/components/resident-portal/announcements-carousel';
+import { useLayoutTheme } from '@/contexts/layout-theme-context';
 
 /**
  * Resident Portal Home Page
@@ -40,6 +41,7 @@ import { AnnouncementsCarousel } from '@/components/resident-portal/announcement
  */
 export default function ResidentPortalHomePage() {
   const { residentId } = useAuth();
+  const { isExpanded } = useLayoutTheme();
   const { data: resident, isLoading: residentLoading } = useResident(residentId || undefined);
   const { data: indebtedness, isLoading: indebtednessLoading } = useResidentIndebtedness(residentId || undefined);
   const { data: wallet, isLoading: walletLoading } = useResidentWallet(residentId || undefined);
@@ -66,11 +68,14 @@ export default function ResidentPortalHomePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className={cn('space-y-6', isExpanded && 'space-y-8')}>
       {/* Welcome Section with Action Counter */}
       <div className="flex items-start justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className={cn(
+            'text-2xl font-bold tracking-tight',
+            isExpanded && 'text-3xl xl:text-4xl'
+          )}>
             Welcome back
           </h1>
           <p className="text-muted-foreground">
@@ -91,7 +96,10 @@ export default function ResidentPortalHomePage() {
       </div>
 
       {/* Financial Summary Cards */}
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className={cn(
+        'grid gap-3 md:grid-cols-2',
+        isExpanded && 'lg:grid-cols-4 gap-4'
+      )}>
         {/* Wallet Balance */}
         <Card className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border-emerald-500/20">
           <CardContent className="p-4">
@@ -159,8 +167,11 @@ export default function ResidentPortalHomePage() {
         )}
       </div>
 
-      {/* Quick Stats - 2 cols mobile, 4 cols desktop */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {/* Quick Stats - 2 cols mobile, 4 cols desktop, 6 cols expanded */}
+      <div className={cn(
+        'grid grid-cols-2 gap-3 md:grid-cols-4',
+        isExpanded && 'xl:grid-cols-6 gap-4'
+      )}>
         <Link href="/portal/profile">
           <Card className="h-full hover:border-primary/30 transition-colors cursor-pointer">
             <CardContent className="p-4">
@@ -212,8 +223,14 @@ export default function ResidentPortalHomePage() {
 
       {/* Service Tiles - Vibrant grid */}
       <div className="space-y-3">
-        <h2 className="text-base font-semibold">Quick Services</h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <h2 className={cn(
+          'text-base font-semibold',
+          isExpanded && 'text-lg xl:text-xl'
+        )}>Quick Services</h2>
+        <div className={cn(
+          'grid grid-cols-2 gap-3 md:grid-cols-4',
+          isExpanded && 'xl:grid-cols-5 2xl:grid-cols-6 gap-4'
+        )}>
           {/* Invoices Tile */}
           <Link href="/portal/invoices" className="group">
             <Card className="h-full bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent border-amber-500/20 hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/5 transition-all duration-300">
@@ -272,8 +289,11 @@ export default function ResidentPortalHomePage() {
         </div>
       </div>
 
-      {/* Announcements & Activity - 2 col on desktop */}
-      <div className="grid gap-4 md:grid-cols-2">
+      {/* Announcements & Activity - 2 col on desktop, 3 col expanded */}
+      <div className={cn(
+        'grid gap-4 md:grid-cols-2',
+        isExpanded && 'xl:grid-cols-3'
+      )}>
         {/* Estate Announcements */}
         <AnnouncementsCarousel
           announcements={[
