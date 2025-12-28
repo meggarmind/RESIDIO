@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Home, CreditCard, Shield, User, LayoutDashboard, FileText } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
+import { PortalSearch } from './portal-search';
 
 interface NavItem {
   href: string;
@@ -54,7 +55,7 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
   return (
     <aside className={cn('fixed left-0 top-0 h-full w-64 flex flex-col border-r bg-card', className)}>
       {/* Logo / Branding */}
-      <div className="p-6">
+      <div className="p-6 pb-4">
         <Link href="/portal" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
             <svg
@@ -72,6 +73,11 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
           </div>
           <span className="text-xl font-bold">Residio</span>
         </Link>
+      </div>
+
+      {/* Search */}
+      <div className="px-4 pb-4">
+        <PortalSearch variant="button" />
       </div>
 
       {/* Navigation */}

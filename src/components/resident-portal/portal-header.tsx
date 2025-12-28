@@ -13,6 +13,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { LogOut, ChevronDown, LayoutDashboard } from 'lucide-react';
+import { ThemeSwitcher } from '@/components/ui/theme-switcher';
+import { PortalSearch } from './portal-search';
 
 /**
  * Portal Header Component
@@ -74,8 +76,11 @@ export function PortalHeader() {
           </span>
         </div>
 
-        {/* Right: Avatar Dropdown */}
-        <DropdownMenu>
+        {/* Right: Search + Theme Toggle + Avatar Dropdown */}
+        <div className="flex items-center gap-1">
+          <PortalSearch variant="input" />
+          <ThemeSwitcher variant="compact" />
+          <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               className="flex items-center gap-1.5 p-1 -m-1 rounded-full
@@ -123,6 +128,7 @@ export function PortalHeader() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
     </header>
   );
