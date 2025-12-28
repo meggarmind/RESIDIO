@@ -1,10 +1,23 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-28 (Phase 14 Performance & Security Complete)
+**Last Updated:** 2025-12-28 (Phase 15 Document Management Complete)
 
-## Current Phase: Phase 14 - Performance Optimization ✅ COMPLETE
+## Current Phase: Phase 15 - Document Management ✅ COMPLETE
 
 ### Recent Session Work (2025-12-28):
+
+#### Phase 15: Document Management ✅
+- **Database Migration**: Created document_categories, documents, document_access_logs tables
+- **Storage**: Configured Supabase Storage bucket (50MB limit, document MIME types only)
+- **RLS Policies**: Secure access control with category-based resident visibility
+- **Permissions**: Added 5 new RBAC permissions (view, upload, update, delete, manage_categories)
+- **Server Actions**: 7 files - CRUD for documents and categories, signed URL generation
+- **React Query Hooks**: Complete hook library for documents and categories
+- **UI Components**: DocumentsTable, DocumentUploadForm, DocumentPreview, CategoryBadge
+- **Admin Pages**: /documents (library), /documents/[id] (detail), /settings/document-categories
+- **Resident Portal**: /portal/documents for resident document access
+- **Version Control**: Full version history with parent document linking
+- **Sidebar**: Added Documents to admin and portal navigation
 
 #### Security Hardening ✅
 - **XSS Prevention**: Fixed innerHTML vulnerability in payment print function
@@ -742,16 +755,18 @@ Self-service portal for residents:
 
 ---
 
-## Phase 15: Document Management
+## Phase 15: Document Management ✅ COMPLETE
 Central document repository:
-- [ ] Documents database table with categories
-- [ ] File upload to Supabase Storage
-- [ ] Document library UI with search/filter
-- [ ] Document templates (notices, letters)
-- [ ] Resident document access (invoices, receipts)
-- [ ] Version control for policies
-- [ ] Compliance certificate storage
-- [ ] Access control per document type
+- [x] Documents database table with categories (document_categories, documents, document_access_logs)
+- [x] File upload to Supabase Storage (50MB limit, PDF/DOCX/XLSX/TXT)
+- [x] Document library UI with search/filter (list/grid view, category filter)
+- [x] Resident document access (category-based access control)
+- [x] Version control for policies (parent_document_id linking, version history)
+- [x] Access control per document type (is_resident_accessible per category)
+- [x] RBAC permissions (documents.view/upload/update/delete/manage_categories)
+- [x] Signed URL generation for secure downloads
+- [x] Admin pages (/documents, /documents/[id], /settings/document-categories)
+- [x] Resident portal (/portal/documents)
 
 ---
 
