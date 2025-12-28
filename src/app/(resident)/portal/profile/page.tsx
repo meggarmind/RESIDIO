@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useResident } from '@/hooks/use-residents';
 import { useResidentPreferences, useUpdateResidentPreference } from '@/hooks/use-notifications';
+import { useIsDesktop } from '@/hooks/use-media-query';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,12 +13,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+  ResponsiveSheet,
+  ResponsiveSheetHeader,
+  ResponsiveSheetTitle,
+  ResponsiveSheetDescription,
+  ResponsiveSheetBody,
+} from '@/components/ui/responsive-sheet';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -107,6 +108,7 @@ export default function ResidentProfilePage() {
   const { data: resident, isLoading: residentLoading } = useResident(residentId || undefined);
   const { data: preferences, isLoading: preferencesLoading } = useResidentPreferences(residentId || '');
   const [selectedProperty, setSelectedProperty] = useState<ResidentHouseWithDetails | null>(null);
+  const isDesktop = useIsDesktop();
 
   const isLoading = residentLoading || preferencesLoading;
 
@@ -136,6 +138,8 @@ export default function ResidentProfilePage() {
     }
   };
 
+  // Desktop: Two-column layout (1/3 + 2/3)
+  // Mobile: Stacked layout
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -144,132 +148,170 @@ export default function ResidentProfilePage() {
         <p className="text-muted-foreground">Your account information</p>
       </div>
 
-      {/* Resident Info Card */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-start gap-4">
-            {/* Avatar */}
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <span className="text-xl font-semibold text-primary">
-                {resident.first_name?.[0]}{resident.last_name?.[0]}
-              </span>
-            </div>
+      <div className={cn(
+        isDesktop && 'flex gap-6'
+      )}>
+        {/* Left Column (Desktop) / Full width (Mobile) */}
+        <div className={cn(
+          'space-y-6',
+          isDesktop && 'w-1/3 shrink-0'
+        )}>
+          {/* Resident Info Card */}
+          <Card>
+            <CardContent className={cn('p-4', isDesktop && 'p-6')}>
+              <div className={cn(
+                'flex items-start gap-4',
+                isDesktop && 'flex-col items-center text-center'
+              )}>
+                {/* Avatar */}
+                <div className={cn(
+                  'rounded-full bg-primary/10 flex items-center justify-center shrink-0',
+                  isDesktop ? 'w-24 h-24' : 'w-16 h-16'
+                )}>
+                  <span className={cn(
+                    'font-semibold text-primary',
+                    isDesktop ? 'text-3xl' : 'text-xl'
+                  )}>
+                    {resident.first_name?.[0]}{resident.last_name?.[0]}
+                  </span>
+                </div>
 
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-semibold truncate">
-                {resident.first_name} {resident.last_name}
-              </h2>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant="secondary" className="font-mono">
-                  {resident.resident_code}
-                </Badge>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={copyCode}
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
+                {/* Info */}
+                <div className={cn('flex-1 min-w-0', isDesktop && 'w-full')}>
+                  <h2 className={cn(
+                    'font-semibold truncate',
+                    isDesktop ? 'text-xl' : 'text-lg'
+                  )}>
+                    {resident.first_name} {resident.last_name}
+                  </h2>
+                  <div className={cn(
+                    'flex items-center gap-2 mt-1',
+                    isDesktop && 'justify-center'
+                  )}>
+                    <Badge variant="secondary" className="font-mono">
+                      {resident.resident_code}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={copyCode}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <div className={cn(
+                    'flex items-center gap-1 mt-2 text-xs text-muted-foreground',
+                    isDesktop && 'justify-center'
+                  )}>
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Verified Resident</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                <span>Verified Resident</span>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      {/* Contact Info */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Contact Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {resident.email && (
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-              <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Email</p>
-                <p className="text-sm font-medium truncate">{resident.email}</p>
-              </div>
-            </div>
+          {/* Contact Info */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Contact Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {resident.email && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Email</p>
+                    <p className="text-sm font-medium truncate">{resident.email}</p>
+                  </div>
+                </div>
+              )}
+
+              {resident.phone_primary && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Phone</p>
+                    <p className="text-sm font-medium">{resident.phone_primary}</p>
+                  </div>
+                </div>
+              )}
+
+              {resident.phone_secondary && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Alternative Phone</p>
+                    <p className="text-sm font-medium">{resident.phone_secondary}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column (Desktop) / Continue stacked (Mobile) */}
+        <div className={cn(
+          'space-y-6',
+          isDesktop ? 'flex-1' : 'mt-6'
+        )}>
+          {/* Properties */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Home className="h-4 w-4" />
+                My Properties
+              </CardTitle>
+              <CardDescription>Properties you are linked to</CardDescription>
+            </CardHeader>
+            <CardContent className={cn(
+              isDesktop ? 'grid gap-3 grid-cols-1 lg:grid-cols-2' : 'space-y-2'
+            )}>
+              {activeProperties.length === 0 ? (
+                <div className="py-4 text-center text-muted-foreground text-sm col-span-full">
+                  No properties linked
+                </div>
+              ) : (
+                activeProperties.map((property) => (
+                  <PropertyCard
+                    key={property.id}
+                    property={property}
+                    onClick={() => setSelectedProperty(property)}
+                  />
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Household Members - Only show if user is primary resident */}
+          {primaryProperty && (
+            <HouseholdMembersCard
+              houseId={primaryProperty.house_id}
+              houseName={`${primaryProperty.house?.house_number}, ${primaryProperty.house?.street?.name}`}
+              isDesktop={isDesktop}
+            />
           )}
 
-          {resident.phone_primary && (
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-              <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Phone</p>
-                <p className="text-sm font-medium">{resident.phone_primary}</p>
-              </div>
-            </div>
-          )}
-
-          {resident.phone_secondary && (
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-              <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Alternative Phone</p>
-                <p className="text-sm font-medium">{resident.phone_secondary}</p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Properties */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Home className="h-4 w-4" />
-            My Properties
-          </CardTitle>
-          <CardDescription>Properties you are linked to</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {activeProperties.length === 0 ? (
-            <div className="py-4 text-center text-muted-foreground text-sm">
-              No properties linked
-            </div>
-          ) : (
-            activeProperties.map((property) => (
-              <PropertyCard
-                key={property.id}
-                property={property}
-                onClick={() => setSelectedProperty(property)}
+          {/* Notification Preferences */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Bell className="h-4 w-4" />
+                Notifications
+              </CardTitle>
+              <CardDescription>Manage how you receive updates</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <NotificationPreferences
+                residentId={residentId || ''}
+                preferences={preferences || []}
+                isDesktop={isDesktop}
               />
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Household Members - Only show if user is primary resident */}
-      {primaryProperty && (
-        <HouseholdMembersCard
-          houseId={primaryProperty.house_id}
-          houseName={`${primaryProperty.house?.house_number}, ${primaryProperty.house?.street?.name}`}
-        />
-      )}
-
-      {/* Notification Preferences */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            Notifications
-          </CardTitle>
-          <CardDescription>Manage how you receive updates</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <NotificationPreferences
-            residentId={residentId || ''}
-            preferences={preferences || []}
-          />
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       {/* Property Detail Sheet */}
       <PropertyDetailSheet
@@ -317,7 +359,7 @@ function PropertyCard({
   );
 }
 
-// Property Detail Sheet
+// Property Detail Sheet (uses ResponsiveSheet for desktop drawer)
 function PropertyDetailSheet({
   property,
   open,
@@ -332,64 +374,68 @@ function PropertyDetailSheet({
   const house = property.house;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[70vh] rounded-t-3xl">
-        <SheetHeader className="text-left pb-4">
-          <SheetTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            {house?.house_number}
-          </SheetTitle>
-          <SheetDescription>
-            {house?.street?.name}
-          </SheetDescription>
-        </SheetHeader>
+    <ResponsiveSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      variant="drawer"
+      drawerWidth="md"
+      mobileHeight="h-[70vh]"
+    >
+      <ResponsiveSheetHeader>
+        <ResponsiveSheetTitle className="flex items-center gap-2">
+          <Building2 className="h-5 w-5" />
+          {house?.house_number}
+        </ResponsiveSheetTitle>
+        <ResponsiveSheetDescription>
+          {house?.street?.name}
+        </ResponsiveSheetDescription>
+      </ResponsiveSheetHeader>
 
-        <div className="space-y-4">
-          {/* Role Badge */}
-          <Badge
-            variant="outline"
-            className={cn("text-sm", roleColors[property.resident_role])}
-          >
-            {roleLabels[property.resident_role] || property.resident_role}
-          </Badge>
+      <ResponsiveSheetBody className="space-y-4">
+        {/* Role Badge */}
+        <Badge
+          variant="outline"
+          className={cn("text-sm", roleColors[property.resident_role])}
+        >
+          {roleLabels[property.resident_role] || property.resident_role}
+        </Badge>
 
-          {/* Property Details */}
-          <div className="space-y-3">
-            {house?.house_type && (
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                <Home className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Property Type</p>
-                  <p className="text-sm font-medium">{house.house_type.name}</p>
-                </div>
-              </div>
-            )}
-
+        {/* Property Details */}
+        <div className="space-y-3">
+          {house?.house_type && (
             <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <Home className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-xs text-muted-foreground">Address</p>
+                <p className="text-xs text-muted-foreground">Property Type</p>
+                <p className="text-sm font-medium">{house.house_type.name}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+            <div>
+              <p className="text-xs text-muted-foreground">Address</p>
+              <p className="text-sm font-medium">
+                {house?.house_number}, {house?.street?.name}
+              </p>
+            </div>
+          </div>
+
+          {property.move_in_date && (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Move-in Date</p>
                 <p className="text-sm font-medium">
-                  {house?.house_number}, {house?.street?.name}
+                  {format(new Date(property.move_in_date), 'MMMM d, yyyy')}
                 </p>
               </div>
             </div>
-
-            {property.move_in_date && (
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Move-in Date</p>
-                  <p className="text-sm font-medium">
-                    {format(new Date(property.move_in_date), 'MMMM d, yyyy')}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
-      </SheetContent>
-    </Sheet>
+      </ResponsiveSheetBody>
+    </ResponsiveSheet>
   );
 }
 
@@ -397,9 +443,11 @@ function PropertyDetailSheet({
 function HouseholdMembersCard({
   houseId,
   houseName,
+  isDesktop = false,
 }: {
   houseId: string;
   houseName: string;
+  isDesktop?: boolean;
 }) {
   const queryClient = useQueryClient();
 
@@ -438,14 +486,14 @@ function HouseholdMembersCard({
           <HouseholdMemberForm houseId={houseId} houseName={houseName} />
         </div>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className={cn(isDesktop ? 'grid gap-3 grid-cols-1 lg:grid-cols-2' : 'space-y-2')}>
         {isLoading ? (
-          <div className="space-y-2">
+          <div className={cn(isDesktop ? 'col-span-full grid gap-2 grid-cols-2' : 'space-y-2')}>
             <Skeleton className="h-14 w-full" />
             <Skeleton className="h-14 w-full" />
           </div>
         ) : members.length === 0 ? (
-          <div className="py-6 text-center text-muted-foreground text-sm">
+          <div className="py-6 text-center text-muted-foreground text-sm col-span-full">
             <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p>No household members added</p>
             <p className="text-xs mt-1">Add family members, contractors, or staff</p>
@@ -523,6 +571,7 @@ function HouseholdMembersCard({
 function NotificationPreferences({
   residentId,
   preferences,
+  isDesktop = false,
 }: {
   residentId: string;
   preferences: Array<{
@@ -531,6 +580,7 @@ function NotificationPreferences({
     channel: string;
     enabled: boolean;
   }>;
+  isDesktop?: boolean;
 }) {
   const updatePreference = useUpdateResidentPreference();
 
@@ -562,7 +612,7 @@ function NotificationPreferences({
   };
 
   return (
-    <div className="space-y-3">
+    <div className={cn(isDesktop ? 'grid gap-3 grid-cols-2' : 'space-y-3')}>
       {categories.map(({ key, label, icon: Icon }) => {
         const pref = getEmailPreference(key);
         const isEnabled = pref?.enabled ?? true;
@@ -592,7 +642,10 @@ function NotificationPreferences({
         );
       })}
 
-      <p className="text-xs text-muted-foreground pt-2">
+      <p className={cn(
+        'text-xs text-muted-foreground pt-2',
+        isDesktop && 'col-span-full'
+      )}>
         SMS and WhatsApp notifications coming soon
       </p>
     </div>
@@ -601,6 +654,8 @@ function NotificationPreferences({
 
 // Skeleton
 function ProfileSkeleton() {
+  const isDesktop = useIsDesktop();
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -608,10 +663,20 @@ function ProfileSkeleton() {
         <Skeleton className="h-4 w-48" />
       </div>
 
-      <Skeleton className="h-28 w-full rounded-xl" />
-      <Skeleton className="h-40 w-full rounded-xl" />
-      <Skeleton className="h-32 w-full rounded-xl" />
-      <Skeleton className="h-40 w-full rounded-xl" />
+      <div className={cn(isDesktop && 'flex gap-6')}>
+        {/* Left column skeleton */}
+        <div className={cn('space-y-6', isDesktop && 'w-1/3 shrink-0')}>
+          <Skeleton className={cn('w-full rounded-xl', isDesktop ? 'h-48' : 'h-28')} />
+          <Skeleton className="h-40 w-full rounded-xl" />
+        </div>
+
+        {/* Right column skeleton */}
+        <div className={cn('space-y-6', isDesktop ? 'flex-1' : 'mt-6')}>
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-40 w-full rounded-xl" />
+        </div>
+      </div>
     </div>
   );
 }

@@ -12,12 +12,21 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { CategoryBadge, FileTypeBadge } from '@/components/documents/category-badge';
 import { DocumentPreview } from '@/components/documents/document-preview';
 import { useResidentDocuments, useDocumentCategories } from '@/hooks/use-documents';
+import { useIsDesktop } from '@/hooks/use-media-query';
 import { getDocumentDownloadUrl } from '@/actions/documents/download-document';
-import { FileText, Search, Download, Eye, X, LayoutGrid, List } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { FileText, Search, Download, Eye, X, LayoutGrid, List, FileIcon, FileSpreadsheet, FileImage, File } from 'lucide-react';
+import { formatDistanceToNow, format } from 'date-fns';
 import { toast } from 'sonner';
 import type { DocumentWithRelations, DocumentListParams } from '@/types/database';
 
@@ -31,6 +40,7 @@ export default function ResidentDocumentsPage() {
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const [previewDoc, setPreviewDoc] = useState<DocumentWithRelations | null>(null);
+  const isDesktop = useIsDesktop();
 
   const { data, isLoading } = useResidentDocuments(params);
   const { data: categories = [] } = useDocumentCategories();
@@ -137,33 +147,44 @@ export default function ResidentDocumentsPage() {
               </Select>
             </div>
 
-            <div className="border rounded-lg p-1 flex">
-              <Button
-                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setViewMode('grid')}
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setViewMode('list')}
-              >
-                <List className="h-4 w-4" />
-              </Button>
-            </div>
+            {/* View mode toggle - only on mobile */}
+            {!isDesktop && (
+              <div className="border rounded-lg p-1 flex">
+                <Button
+                  variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setViewMode('grid')}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setViewMode('list')}
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Content */}
           {isLoading ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Skeleton key={i} className="h-40 w-full" />
-              ))}
-            </div>
+            isDesktop ? (
+              <div className="space-y-2">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Skeleton key={i} className="h-14 w-full" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <Skeleton key={i} className="h-40 w-full" />
+                ))}
+              </div>
+            )
           ) : documents.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -172,8 +193,14 @@ export default function ResidentDocumentsPage() {
                 There are no documents shared with residents at this time.
               </p>
             </div>
+          ) : isDesktop ? (
+            <DocumentTable
+              documents={documents}
+              onView={handleView}
+              onDownload={handleDownload}
+            />
           ) : viewMode === 'grid' ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               {documents.map((doc) => (
                 <DocumentCard
                   key={doc.id}
@@ -298,7 +325,7 @@ function DocumentCard({
   );
 }
 
-// List view item for resident portal
+// List view item for resident portal (mobile)
 function DocumentListItem({
   document,
   onView,
@@ -341,6 +368,113 @@ function DocumentListItem({
           <Download className="h-4 w-4" />
         </Button>
       </div>
+    </div>
+  );
+}
+
+// Desktop table view
+function DocumentTable({
+  documents,
+  onView,
+  onDownload,
+}: {
+  documents: DocumentWithRelations[];
+  onView: (doc: DocumentWithRelations) => void;
+  onDownload: (doc: DocumentWithRelations) => void;
+}) {
+  const formatFileSize = (bytes: number | null): string => {
+    if (!bytes) return '-';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getFileIcon = (mimeType: string | null) => {
+    if (!mimeType) return <File className="h-5 w-5 text-muted-foreground" />;
+
+    if (mimeType === 'application/pdf') {
+      return <FileText className="h-5 w-5 text-red-500" />;
+    }
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType === 'text/csv') {
+      return <FileSpreadsheet className="h-5 w-5 text-green-600" />;
+    }
+    if (mimeType.startsWith('image/')) {
+      return <FileImage className="h-5 w-5 text-blue-500" />;
+    }
+    if (mimeType.includes('word') || mimeType.includes('document')) {
+      return <FileIcon className="h-5 w-5 text-blue-600" />;
+    }
+    return <File className="h-5 w-5 text-muted-foreground" />;
+  };
+
+  return (
+    <div className="border rounded-lg">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-12"></TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>Category</TableHead>
+            <TableHead className="text-right">Size</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {documents.map((doc) => (
+            <TableRow key={doc.id} className="group">
+              <TableCell>
+                <div className="p-1.5 rounded bg-muted/50 w-fit">
+                  {getFileIcon(doc.mime_type)}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="min-w-0">
+                  <p className="font-medium truncate max-w-[250px]" title={doc.title}>
+                    {doc.title}
+                  </p>
+                  {doc.description && (
+                    <p className="text-xs text-muted-foreground truncate max-w-[250px]">
+                      {doc.description}
+                    </p>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell>
+                <CategoryBadge category={doc.category} />
+              </TableCell>
+              <TableCell className="text-right text-sm text-muted-foreground">
+                {formatFileSize(doc.file_size_bytes)}
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {format(new Date(doc.created_at), 'MMM d, yyyy')}
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => onView(doc)}
+                    title="View"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => onDownload(doc)}
+                    title="Download"
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

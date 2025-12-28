@@ -1,84 +1,88 @@
-# Session Handoff - Portal Enhancements Complete
+# Session Handoff - Portal Desktop Layout Enhancements
 
 **Date**: 2025-12-28
-**Session Type**: Implementation
+**Session Type**: Implementation (Concurrent Session)
 **Current Phase**: Phase 15 Complete + Portal Enhancements
 
 ---
 
 ## What Was Completed This Session
 
-### 1. Phase 15 Verification ✅
-- Build passes successfully
-- All document management features working
+### Portal Desktop Layout Enhancements ✅ (7 Prompts)
 
-### 2. Portal & Self-Service Enhancements ✅ (6 Prompts)
+Transformed the resident portal from mobile-first to responsive desktop layouts.
 
-| # | Enhancement | Key Changes |
-|---|------------|-------------|
-| 1 | **File Upload 10MB** | `next.config.ts` - server action body size limit |
-| 2 | **Theme Toggle** | Light default, mobile header toggle |
-| 3 | **Service Tiles** | 4 vibrant gradient tiles with hover animations |
-| 4 | **Financial Summary** | Celebratory zero-balance + action counter badge |
-| 5 | **Global Search** | ⌘K command palette + breadcrumb navigation |
-| 6 | **Activity Feed** | Placeholder components for Phase 16 |
+#### Foundation Components Created
+| File | Purpose |
+|------|---------|
+| `src/hooks/use-media-query.ts` | Viewport detection with `useIsDesktop`, `useIsMobile` |
+| `src/components/ui/responsive-sheet.tsx` | Auto-switching Sheet/Drawer/Modal based on viewport |
 
-### 3. New Components Created
-- `src/components/resident-portal/portal-search.tsx`
-- `src/components/resident-portal/portal-breadcrumb.tsx`
-- `src/components/resident-portal/activity-feed.tsx`
-- `src/components/resident-portal/announcements-carousel.tsx`
+#### Pages Enhanced
+| Page | Desktop Enhancement |
+|------|---------------------|
+| **Invoices** | Table view with sortable columns; invoice detail in right-side drawer |
+| **Security Contacts** | 2-3 column card grid; hover actions; ResponsiveSheet modals for forms |
+| **Documents** | Table view with file type icons (color-coded); hover actions |
+| **Profile** | Two-column layout (1/3 identity + 2/3 content); grid-based cards |
+
+#### Key Patterns Applied
+- **Conditional rendering**: `isDesktop ? <Table/> : <CardList/>`
+- **Hover-reveal actions**: `opacity-0 group-hover:opacity-100`
+- **Grid layouts within cards**: Properties, household members, notifications
+- **ResponsiveSheet variants**: `drawer` for details, `modal` for forms
 
 ---
 
 ## Git Status
 
 ```
-2 commits ahead of origin/master (not pushed):
-095922e chore: cleanup stale files and add invoice utility scripts
-fa26e8b feat(portal): enhance resident portal UX with 6 improvements
+Uncommitted changes:
+Modified:
+- src/app/(resident)/portal/documents/page.tsx
+- src/app/(resident)/portal/invoices/page.tsx
+- src/app/(resident)/portal/profile/page.tsx
+- src/app/(resident)/portal/security-contacts/page.tsx
 
-Working tree: clean
+Untracked (new files):
+- src/components/ui/responsive-sheet.tsx
+- src/hooks/use-media-query.ts
 ```
 
-**To push**: `git push`
+**Build Status**: `npm run build` passes successfully
+
+---
+
+## Prompts Processed
+
+All 7 portal desktop layout prompts moved to `prompts/processed/`:
+- `20251228_portal_&_self-service_global_sheet_modal_desktop_variants.md`
+- `20251228_portal_&_self-service_payments_page_desktop_list_layout.md`
+- `20251228_portal_&_self-service_invoice_detail_desktop_drawer_layout.md`
+- `20251228_portal_&_self-service_security_contacts_desktop_grid_layout.md`
+- `20251228_portal_&_self-service_security_contact_form_desktop_modal.md`
+- `20251228_portal_&_self-service_documents_page_desktop_file_browser.md`
+- `20251228_portal_&_self-service_profile_page_desktop_two_column_layout.md`
 
 ---
 
 ## Next Steps
 
-### Option A: Push & Continue to Phase 16
+### 1. Commit and Push
 ```bash
+git add .
+git commit -m "feat(portal): add desktop-optimized layouts for all portal pages"
 git push
 ```
-Then start Phase 16: Announcement & Communication System
-- The `announcements-carousel.tsx` is ready to receive real data
-- The `activity-feed.tsx` is ready for payment/invoice events
 
-### Option B: Check for New Prompts
-```bash
-ls prompts/pending/
-```
-All 6 prompts from today were processed and moved to `prompts/processed/`
-
-### Option C: Review Deferred Prompts
+### 2. Review Deferred Prompts
 ```bash
 cat prompts/deferred/20251222_phase_4_financial_reports__notification___subscr.md
 ```
-One deferred prompt exists from Phase 4
+One deferred prompt exists (Financial Reports - deferred to Phase 16)
 
----
-
-## Key Files Modified
-
-| File | Changes |
-|------|---------|
-| `next.config.ts` | Added `serverActions.bodySizeLimit: '10mb'` |
-| `src/components/providers.tsx` | `defaultTheme: 'light'` |
-| `src/app/(resident)/layout.tsx` | Added breadcrumb component |
-| `src/app/(resident)/portal/page.tsx` | Service tiles, financial summary, activity sections |
-| `src/components/resident-portal/portal-header.tsx` | Search + theme toggle |
-| `src/components/resident-portal/portal-sidebar.tsx` | Search button |
+### 3. Consider Phase 16
+Phase 16: Community Communication is next if ready to proceed.
 
 ---
 
@@ -88,7 +92,7 @@ One deferred prompt exists from Phase 4
 cd /home/feyijimiohioma/projects/Residio
 npm run dev          # Start dev server (localhost:3000)
 npm run build        # Production build
-git push             # Push 2 pending commits
+git status           # Check uncommitted changes
 ```
 
 ---

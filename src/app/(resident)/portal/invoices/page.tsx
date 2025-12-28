@@ -3,18 +3,27 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useInvoices, useResidentIndebtedness, useResidentWallet } from '@/hooks/use-billing';
+import { useIsDesktop } from '@/hooks/use-media-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  ResponsiveSheet,
+  ResponsiveSheetHeader,
+  ResponsiveSheetTitle,
+  ResponsiveSheetDescription,
+  ResponsiveSheetBody,
+} from '@/components/ui/responsive-sheet';
 import {
   CreditCard,
   FileText,
@@ -54,6 +63,7 @@ const statusConfig: Record<InvoiceStatus, { icon: React.ElementType; label: stri
  */
 export default function ResidentInvoicesPage() {
   const { residentId } = useAuth();
+  const isDesktop = useIsDesktop();
   const [activeTab, setActiveTab] = useState<string>('all');
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithDetails | null>(null);
 
@@ -131,7 +141,7 @@ export default function ResidentInvoicesPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value={activeTab} className="mt-4 space-y-3">
+        <TabsContent value={activeTab} className="mt-4">
           {filteredInvoices.length === 0 ? (
             <Card className="border-dashed">
               <CardContent className="py-8 text-center">
@@ -139,14 +149,23 @@ export default function ResidentInvoicesPage() {
                 <p className="text-muted-foreground">No invoices found</p>
               </CardContent>
             </Card>
+          ) : isDesktop ? (
+            /* Desktop: Table Layout */
+            <InvoiceTable
+              invoices={filteredInvoices}
+              onSelect={setSelectedInvoice}
+            />
           ) : (
-            filteredInvoices.map((invoice) => (
-              <InvoiceCard
-                key={invoice.id}
-                invoice={invoice}
-                onClick={() => setSelectedInvoice(invoice)}
-              />
-            ))
+            /* Mobile: Card Layout */
+            <div className="space-y-3">
+              {filteredInvoices.map((invoice) => (
+                <InvoiceCard
+                  key={invoice.id}
+                  invoice={invoice}
+                  onClick={() => setSelectedInvoice(invoice)}
+                />
+              ))}
+            </div>
           )}
         </TabsContent>
       </Tabs>
@@ -161,7 +180,7 @@ export default function ResidentInvoicesPage() {
   );
 }
 
-// Invoice Card Component
+// Invoice Card Component (Mobile)
 function InvoiceCard({
   invoice,
   onClick,
@@ -222,7 +241,94 @@ function InvoiceCard({
   );
 }
 
-// Invoice Detail Sheet
+// Invoice Table Component (Desktop)
+function InvoiceTable({
+  invoices,
+  onSelect,
+}: {
+  invoices: InvoiceWithDetails[];
+  onSelect: (invoice: InvoiceWithDetails) => void;
+}) {
+  return (
+    <Card>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Invoice #</TableHead>
+            <TableHead>Property</TableHead>
+            <TableHead>Category</TableHead>
+            <TableHead>Due Date</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
+            <TableHead className="text-right">Paid</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="w-[50px]"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {invoices.map((invoice) => {
+            const config = statusConfig[invoice.status];
+            const StatusIcon = config.icon;
+            const remaining = (invoice.amount_due || 0) - (invoice.amount_paid || 0);
+
+            return (
+              <TableRow
+                key={invoice.id}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => onSelect(invoice)}
+              >
+                <TableCell className="font-medium">
+                  {invoice.invoice_number}
+                </TableCell>
+                <TableCell>
+                  {invoice.house ? (
+                    <span className="text-sm">
+                      {invoice.house.house_number}
+                      {invoice.house.street?.name && `, ${invoice.house.street.name}`}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <span className="text-sm text-muted-foreground">
+                    {invoice.billing_profile?.name || '-'}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  {invoice.due_date ? (
+                    format(new Date(invoice.due_date), 'MMM d, yyyy')
+                  ) : (
+                    '-'
+                  )}
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  {formatCurrency(invoice.amount_due || 0)}
+                </TableCell>
+                <TableCell className="text-right text-emerald-600">
+                  {formatCurrency(invoice.amount_paid || 0)}
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant="secondary"
+                    className={cn('gap-1', config.color)}
+                  >
+                    <StatusIcon className="h-3 w-3" />
+                    {config.label}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </Card>
+  );
+}
+
+// Invoice Detail Sheet (Responsive: bottom sheet on mobile, right drawer on desktop)
 function InvoiceDetailSheet({
   invoice,
   open,
@@ -284,19 +390,24 @@ function InvoiceDetailSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl">
-        <SheetHeader className="text-left pb-4">
-          <SheetTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            {invoice.invoice_number}
-          </SheetTitle>
-          <SheetDescription>
-            {invoice.billing_profile?.name || 'Invoice Details'}
-          </SheetDescription>
-        </SheetHeader>
+    <ResponsiveSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      variant="drawer"
+      drawerWidth="lg"
+    >
+      <ResponsiveSheetHeader>
+        <ResponsiveSheetTitle className="flex items-center gap-2">
+          <FileText className="h-5 w-5" />
+          {invoice.invoice_number}
+        </ResponsiveSheetTitle>
+        <ResponsiveSheetDescription>
+          {invoice.billing_profile?.name || 'Invoice Details'}
+        </ResponsiveSheetDescription>
+      </ResponsiveSheetHeader>
 
-        <div className="space-y-6 overflow-y-auto pb-8">
+      <ResponsiveSheetBody>
+        <div className="space-y-6 pb-8">
           {/* Status Badge */}
           <div className={cn(
             'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium',
@@ -306,7 +417,7 @@ function InvoiceDetailSheet({
             {config.label}
           </div>
 
-          {/* Amounts */}
+          {/* Amounts - Two columns on desktop */}
           <div className="grid grid-cols-2 gap-4">
             <Card>
               <CardContent className="p-4">
@@ -409,8 +520,8 @@ function InvoiceDetailSheet({
             )}
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </ResponsiveSheetBody>
+    </ResponsiveSheet>
   );
 }
 

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useIsDesktop } from '@/hooks/use-media-query';
 import {
   useResidentSecurityContacts,
   useSecurityContactCategories,
@@ -34,13 +35,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from '@/components/ui/sheet';
+  ResponsiveSheet,
+  ResponsiveSheetHeader,
+  ResponsiveSheetTitle,
+  ResponsiveSheetDescription,
+  ResponsiveSheetBody,
+  ResponsiveSheetFooter,
+} from '@/components/ui/responsive-sheet';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -102,6 +103,7 @@ const statusConfig: Record<SecurityContactStatus, { icon: React.ElementType; lab
  */
 export default function ResidentSecurityContactsPage() {
   const { residentId } = useAuth();
+  const isDesktop = useIsDesktop();
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<SecurityContactWithDetails | null>(null);
   const [editingContact, setEditingContact] = useState<SecurityContactWithDetails | null>(null);
@@ -162,29 +164,41 @@ export default function ResidentSecurityContactsPage() {
         </Card>
       </div>
 
-      {/* Contacts List */}
-      <div className="space-y-3">
-        {contacts.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="py-8 text-center">
-              <Shield className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="text-muted-foreground mb-4">No security contacts yet</p>
-              <Button size="sm" onClick={() => setIsAddSheetOpen(true)} className="gap-1.5">
-                <Plus className="h-4 w-4" />
-                Add First Contact
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          contacts.map((contact) => (
+      {/* Contacts List - Grid on desktop, stack on mobile */}
+      {contacts.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-8 text-center">
+            <Shield className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-muted-foreground mb-4">No security contacts yet</p>
+            <Button size="sm" onClick={() => setIsAddSheetOpen(true)} className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Add First Contact
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className={cn(
+          'gap-3',
+          isDesktop
+            ? 'grid grid-cols-2 lg:grid-cols-3'
+            : 'space-y-3'
+        )}>
+          {contacts.map((contact) => (
             <ContactCard
               key={contact.id}
               contact={contact}
               onClick={() => setSelectedContact(contact)}
+              isDesktop={isDesktop}
+              onEdit={() => {
+                setEditingContact(contact);
+              }}
+              onDelete={() => {
+                setDeleteContact(contact);
+              }}
             />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Add Contact Sheet */}
       <AddContactSheet
@@ -227,24 +241,45 @@ export default function ResidentSecurityContactsPage() {
   );
 }
 
-// Contact Card Component
+// Contact Card Component (responsive: compact on mobile, full card with hover actions on desktop)
 function ContactCard({
   contact,
   onClick,
+  isDesktop,
+  onEdit,
+  onDelete,
 }: {
   contact: SecurityContactWithDetails;
   onClick: () => void;
+  isDesktop: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   const config = statusConfig[contact.status];
   const StatusIcon = config.icon;
 
+  // Category color mapping for visual distinction
+  const categoryColors: Record<string, string> = {
+    'Family': 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+    'Driver': 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+    'Staff': 'bg-purple-500/10 text-purple-600 border-purple-500/20',
+    'Visitor': 'bg-teal-500/10 text-teal-600 border-teal-500/20',
+    'Contractor': 'bg-orange-500/10 text-orange-600 border-orange-500/20',
+  };
+  const categoryColor = categoryColors[contact.category?.name || ''] || 'bg-muted text-muted-foreground';
+
   return (
     <Card
-      className="cursor-pointer hover:border-primary/30 transition-colors active:scale-[0.99]"
+      className={cn(
+        'cursor-pointer transition-all active:scale-[0.99]',
+        isDesktop
+          ? 'hover:shadow-lg hover:border-primary/30 group'
+          : 'hover:border-primary/30'
+      )}
       onClick={onClick}
     >
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between gap-3">
+      <CardContent className={cn('p-4', isDesktop && 'pb-3')}>
+        <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             {/* Avatar */}
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -256,32 +291,70 @@ function ContactCard({
             {/* Info */}
             <div className="min-w-0">
               <p className="font-medium truncate">{contact.full_name}</p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{contact.category?.name || 'Contact'}</span>
-                {contact.relationship && (
-                  <>
-                    <span className="text-muted-foreground/30">•</span>
-                    <span>{contact.relationship}</span>
-                  </>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                {contact.phone_primary && (
+                  <span className="flex items-center gap-1">
+                    <Phone className="h-3 w-3" />
+                    {contact.phone_primary}
+                  </span>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Status & Arrow */}
-          <div className="flex items-center gap-2 shrink-0">
-            <Badge className={cn('text-[10px]', config.color)}>
-              {config.label}
-            </Badge>
+          {/* Status Badge */}
+          <Badge className={cn('text-[10px] shrink-0', config.color)}>
+            <StatusIcon className="h-3 w-3 mr-1" />
+            {config.label}
+          </Badge>
+        </div>
+
+        {/* Category Badge & Desktop Actions */}
+        <div className={cn(
+          'flex items-center justify-between mt-3',
+          isDesktop ? 'pt-3 border-t' : ''
+        )}>
+          <Badge variant="outline" className={cn('text-[10px]', categoryColor)}>
+            {contact.category?.name || 'Contact'}
+          </Badge>
+
+          {isDesktop ? (
+            /* Desktop: Hover actions */
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+              >
+                <Edit2 className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-destructive hover:text-destructive"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            /* Mobile: Arrow indicator */
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          </div>
+          )}
         </div>
       </CardContent>
     </Card>
   );
 }
 
-// Add Contact Sheet
+// Add Contact Sheet (Responsive: bottom sheet on mobile, centered modal on desktop)
 function AddContactSheet({
   open,
   onOpenChange,
@@ -320,15 +393,20 @@ function AddContactSheet({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl">
-        <SheetHeader className="text-left pb-4">
-          <SheetTitle>Add Security Contact</SheetTitle>
-          <SheetDescription>
-            Add a new person to your security contact list
-          </SheetDescription>
-        </SheetHeader>
+    <ResponsiveSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      variant="modal"
+      modalSize="md"
+    >
+      <ResponsiveSheetHeader>
+        <ResponsiveSheetTitle>Add Security Contact</ResponsiveSheetTitle>
+        <ResponsiveSheetDescription>
+          Add a new person to your security contact list
+        </ResponsiveSheetDescription>
+      </ResponsiveSheetHeader>
 
+      <ResponsiveSheetBody>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -398,7 +476,7 @@ function AddContactSheet({
               )}
             />
 
-            <SheetFooter className="pt-4">
+            <ResponsiveSheetFooter>
               <Button
                 type="submit"
                 className="w-full"
@@ -407,15 +485,15 @@ function AddContactSheet({
                 {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Add Contact
               </Button>
-            </SheetFooter>
+            </ResponsiveSheetFooter>
           </form>
         </Form>
-      </SheetContent>
-    </Sheet>
+      </ResponsiveSheetBody>
+    </ResponsiveSheet>
   );
 }
 
-// Contact Detail Sheet
+// Contact Detail Sheet (Responsive: bottom sheet on mobile, right drawer on desktop)
 function ContactDetailSheet({
   contact,
   open,
@@ -447,19 +525,24 @@ function ContactDetailSheet({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl">
-        <SheetHeader className="text-left pb-4">
-          <SheetTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            {contact.full_name}
-          </SheetTitle>
-          <SheetDescription>
-            {contact.category?.name || 'Security Contact'}
-          </SheetDescription>
-        </SheetHeader>
+    <ResponsiveSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      variant="drawer"
+      drawerWidth="md"
+    >
+      <ResponsiveSheetHeader>
+        <ResponsiveSheetTitle className="flex items-center gap-2">
+          <User className="h-5 w-5" />
+          {contact.full_name}
+        </ResponsiveSheetTitle>
+        <ResponsiveSheetDescription>
+          {contact.category?.name || 'Security Contact'}
+        </ResponsiveSheetDescription>
+      </ResponsiveSheetHeader>
 
-        <div className="space-y-6 overflow-y-auto pb-8">
+      <ResponsiveSheetBody>
+        <div className="space-y-6 pb-8">
           {/* Status Badge */}
           <div className={cn(
             'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium',
@@ -546,12 +629,12 @@ function ContactDetailSheet({
             </Button>
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </ResponsiveSheetBody>
+    </ResponsiveSheet>
   );
 }
 
-// Edit Contact Sheet
+// Edit Contact Sheet (Responsive: bottom sheet on mobile, centered modal on desktop)
 function EditContactSheet({
   contact,
   open,
@@ -592,15 +675,20 @@ function EditContactSheet({
   if (!contact) return null;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl">
-        <SheetHeader className="text-left pb-4">
-          <SheetTitle>Edit Contact</SheetTitle>
-          <SheetDescription>
-            Update contact information
-          </SheetDescription>
-        </SheetHeader>
+    <ResponsiveSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      variant="modal"
+      modalSize="md"
+    >
+      <ResponsiveSheetHeader>
+        <ResponsiveSheetTitle>Edit Contact</ResponsiveSheetTitle>
+        <ResponsiveSheetDescription>
+          Update contact information
+        </ResponsiveSheetDescription>
+      </ResponsiveSheetHeader>
 
+      <ResponsiveSheetBody>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -670,7 +758,7 @@ function EditContactSheet({
               )}
             />
 
-            <SheetFooter className="pt-4">
+            <ResponsiveSheetFooter>
               <Button
                 type="submit"
                 className="w-full"
@@ -679,11 +767,11 @@ function EditContactSheet({
                 {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Save Changes
               </Button>
-            </SheetFooter>
+            </ResponsiveSheetFooter>
           </form>
         </Form>
-      </SheetContent>
-    </Sheet>
+      </ResponsiveSheetBody>
+    </ResponsiveSheet>
   );
 }
 

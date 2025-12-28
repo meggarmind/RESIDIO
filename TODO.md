@@ -1,6 +1,6 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-28 (Phase 15 Document Management Complete)
+**Last Updated:** 2025-12-28 (Portal Desktop Layout Enhancements Complete)
 
 ## Current Phase: Phase 15 - Document Management ✅ COMPLETE
 
@@ -1270,3 +1270,52 @@ Comprehensive portal improvements from development inbox prompts:
 - `src/components/resident-portal/portal-header.tsx` - Admin Dashboard link
 - `src/components/resident-portal/portal-sidebar.tsx` - Admin Dashboard link
 - `src/types/database.ts` - Added is_primary to resident_houses
+
+---
+
+## Recent Updates (2025-12-28)
+
+### Portal Desktop Layout Enhancements ✅
+Implemented 7 desktop-optimized layouts for the resident portal:
+
+**Foundation Components Created:**
+- `src/hooks/use-media-query.ts` - Viewport detection with `useIsDesktop`, `useIsMobile`, `useMediaQuery`
+- `src/components/ui/responsive-sheet.tsx` - Auto-switching Sheet/Drawer/Modal based on viewport
+  - Mobile: Bottom sheet (existing behavior)
+  - Desktop: Right-side drawer OR centered dialog (per variant prop)
+  - Variants: `drawer` (detail views), `modal` (forms), `sheet` (always bottom)
+
+**Pages Enhanced:**
+
+| Page | Enhancement |
+|------|-------------|
+| **Invoices** (`portal/invoices`) | Desktop table with sortable columns; invoice detail in right-side drawer |
+| **Security Contacts** (`portal/security-contacts`) | 2-3 column card grid; hover actions; ResponsiveSheet modals for forms |
+| **Documents** (`portal/documents`) | Desktop table with file type icons (color-coded); category badges; hover actions |
+| **Profile** (`portal/profile`) | Two-column layout (1/3 identity + 2/3 content); grid-based cards for properties/notifications |
+
+**Key Patterns Applied:**
+- **Conditional rendering**: `isDesktop ? <Table/> : <CardList/>`
+- **Hover-reveal actions**: `opacity-0 group-hover:opacity-100 transition-opacity`
+- **Grid layouts within cards**: Properties, household members, notifications use grid on desktop
+- **ResponsiveSheet variants**: `drawer` for detail views, `modal` for form dialogs
+
+**Files Created (2):**
+- `src/hooks/use-media-query.ts`
+- `src/components/ui/responsive-sheet.tsx`
+
+**Files Modified (4):**
+- `src/app/(resident)/portal/invoices/page.tsx` - Desktop table + ResponsiveSheet drawer
+- `src/app/(resident)/portal/security-contacts/page.tsx` - Grid layout + ResponsiveSheet modals
+- `src/app/(resident)/portal/documents/page.tsx` - Desktop table with file icons
+- `src/app/(resident)/portal/profile/page.tsx` - Two-column layout + ResponsiveSheet drawer
+
+**Prompts Processed (7):**
+All moved to `prompts/processed/`:
+- `20251228_portal_&_self-service_global_sheet_modal_desktop_variants.md`
+- `20251228_portal_&_self-service_payments_page_desktop_list_layout.md`
+- `20251228_portal_&_self-service_invoice_detail_desktop_drawer_layout.md`
+- `20251228_portal_&_self-service_security_contacts_desktop_grid_layout.md`
+- `20251228_portal_&_self-service_security_contact_form_desktop_modal.md`
+- `20251228_portal_&_self-service_documents_page_desktop_file_browser.md`
+- `20251228_portal_&_self-service_profile_page_desktop_two_column_layout.md`
