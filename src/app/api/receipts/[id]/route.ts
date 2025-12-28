@@ -36,10 +36,10 @@ export async function GET(
       );
     }
 
-    // Get user's profile and resident_id
+    // Get user's profile, role, and permissions using new RBAC system
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, role, resident_id')
+      .select('id, role_id, resident_id')
       .eq('id', user.id)
       .single();
 
@@ -48,6 +48,23 @@ export async function GET(
         { error: 'Profile not found' },
         { status: 404 }
       );
+    }
+
+    // Check permissions using new RBAC system
+    let hasManagePaymentsPermission = false;
+    if (profile.role_id) {
+      const { data: rolePerms } = await supabase
+        .from('role_permissions')
+        .select('permission:app_permissions!inner(name)')
+        .eq('role_id', profile.role_id);
+
+      const permissions = (rolePerms as unknown as { permission: { name: string } }[] ?? [])
+        .map((rp) => rp.permission?.name)
+        .filter((name): name is string => name != null);
+
+      // Users with manage_payments or view_payments can access receipts
+      hasManagePaymentsPermission = permissions.includes('manage_payments') ||
+        permissions.includes('view_payments');
     }
 
     // Fetch the invoice
@@ -60,11 +77,10 @@ export async function GET(
       );
     }
 
-    // Authorization: User must own the invoice OR be an admin/chairman/financial_secretary
-    const isAdmin = ['admin', 'chairman', 'financial_secretary'].includes(profile.role || '');
+    // Authorization: User must own the invoice OR have payment permissions
     const isOwner = profile.resident_id && invoice.resident?.id === profile.resident_id;
 
-    if (!isAdmin && !isOwner) {
+    if (!hasManagePaymentsPermission && !isOwner) {
       return NextResponse.json(
         { error: 'Forbidden - You do not have access to this receipt' },
         { status: 403 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDueSchedules, markScheduleExecuted, saveGeneratedReport } from '@/actions/reports/report-schedules';
 import { generateReport } from '@/actions/reports/report-engine';
 import { getDateRangeFromPreset } from '@/lib/validators/reports';
+import { verifyCronAuth } from '@/lib/auth/cron-auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -9,16 +10,13 @@ export const maxDuration = 300;
 /**
  * Cron endpoint for generating scheduled reports
  * Runs daily at 6 AM UTC, checks for due schedules
+ *
+ * Authentication: Bearer token matching CRON_SECRET env var (timing-safe)
  */
 export async function GET(request: NextRequest) {
-    // Verify cron secret
-    const authHeader = request.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
-
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
-        console.log('[ReportsCron] Unauthorized request');
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Verify cron secret using timing-safe comparison
+    const authError = verifyCronAuth(request);
+    if (authError) return authError;
 
     console.log('[ReportsCron] Checking for due report schedules');
 

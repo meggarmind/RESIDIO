@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processQueue, purgeOldItems } from '@/lib/notifications/queue';
+import { verifyCronAuth } from '@/lib/auth/cron-auth';
 
 // Configure for Vercel
 export const runtime = 'nodejs';
@@ -14,25 +15,12 @@ export const maxDuration = 60; // 1 minute max
  * 2. Sends them via their respective channels (email, sms, whatsapp)
  * 3. Periodically purges old sent/cancelled items
  *
- * Authentication: Bearer token matching CRON_SECRET env var
+ * Authentication: Bearer token matching CRON_SECRET env var (timing-safe)
  */
 export async function GET(request: NextRequest) {
-  // Verify cron secret
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  // In development, allow without auth if no secret is set
-  if (process.env.NODE_ENV === 'production' || cronSecret) {
-    if (!cronSecret) {
-      console.error('[Cron] CRON_SECRET not configured');
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
-
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      console.warn('[Cron] Unauthorized request to process-notifications');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  }
+  // Verify cron secret using timing-safe comparison
+  const authError = verifyCronAuth(request);
+  if (authError) return authError;
 
   try {
     console.log('[Cron] Starting notification queue processing');

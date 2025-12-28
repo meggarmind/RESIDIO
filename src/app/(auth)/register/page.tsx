@@ -11,12 +11,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Check, X } from 'lucide-react';
 import { registerResidentPortal } from '@/actions/auth/register-resident-portal';
+import { passwordSchema, PASSWORD_REQUIREMENTS } from '@/lib/validators/password';
 
 const registerSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: passwordSchema,
   confirmPassword: z.string(),
   residentCode: z.string().length(6, 'Resident code must be 6 digits').regex(/^\d+$/, 'Resident code must contain only numbers'),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -31,6 +32,7 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [passwordValue, setPasswordValue] = useState('');
 
   const {
     register,
@@ -145,10 +147,35 @@ export default function RegisterPage() {
             <Input
               id="password"
               type="password"
-              placeholder="Minimum 8 characters"
-              {...register('password')}
+              placeholder="Create a strong password"
+              {...register('password', {
+                onChange: (e) => setPasswordValue(e.target.value),
+              })}
               disabled={isLoading}
             />
+            {/* Password strength indicators */}
+            {passwordValue && (
+              <div className="space-y-1 pt-1">
+                {PASSWORD_REQUIREMENTS.map((req) => {
+                  const met = req.test(passwordValue);
+                  return (
+                    <div
+                      key={req.id}
+                      className={`flex items-center gap-2 text-xs ${
+                        met ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
+                      }`}
+                    >
+                      {met ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <X className="h-3 w-3" />
+                      )}
+                      <span>{req.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {errors.password && (
               <p className="text-sm text-destructive">{errors.password.message}</p>
             )}

@@ -2,11 +2,12 @@
 
 import { createAdminClient } from '@/lib/supabase/server';
 import { z } from 'zod';
+import { passwordSchema } from '@/lib/validators/password';
 
 // Validation schema for portal registration
 const registerSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: passwordSchema,
   residentCode: z.string().length(6, 'Resident code must be 6 digits'),
 });
 

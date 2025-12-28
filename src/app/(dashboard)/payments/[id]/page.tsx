@@ -24,35 +24,50 @@ export default function PaymentDetailPage({ params }: PaymentDetailPageProps) {
         const printContent = receiptRef.current;
         if (!printContent) return;
 
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) {
-            alert('Please allow pop-ups to print the receipt');
+        // Security: Use iframe with sandbox to prevent XSS
+        // The sandbox attribute blocks script execution in the cloned content
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'absolute';
+        iframe.style.top = '-10000px';
+        iframe.style.left = '-10000px';
+        iframe.setAttribute('sandbox', 'allow-same-origin'); // Blocks scripts but allows styling
+        document.body.appendChild(iframe);
+
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!iframeDoc) {
+            document.body.removeChild(iframe);
             return;
         }
 
-        printWindow.document.write(`
+        // Clone the content safely into the sandboxed iframe
+        iframeDoc.open();
+        iframeDoc.write(`
             <!DOCTYPE html>
             <html>
             <head>
                 <title>Payment Receipt</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body { font-family: system-ui, -apple-system, sans-serif; }
+                    body { font-family: system-ui, -apple-system, sans-serif; padding: 20px; }
                     @media print {
                         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                     }
                 </style>
             </head>
-            <body>
-                ${printContent.innerHTML}
-            </body>
+            <body></body>
             </html>
         `);
-        printWindow.document.close();
-        printWindow.focus();
+        iframeDoc.close();
+
+        // Clone nodes instead of using innerHTML to preserve security
+        const clonedContent = printContent.cloneNode(true) as HTMLElement;
+        iframeDoc.body.appendChild(clonedContent);
+
+        // Print after content is loaded
         setTimeout(() => {
-            printWindow.print();
-            printWindow.close();
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            document.body.removeChild(iframe);
         }, 250);
     };
 

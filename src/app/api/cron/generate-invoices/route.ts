@@ -4,6 +4,7 @@ import {
     getInvoiceGenerationDay,
     getAutoGenerateEnabled,
 } from '@/actions/billing/get-generation-log';
+import { verifyCronAuth } from '@/lib/auth/cron-auth';
 
 // Configure for Vercel
 export const runtime = 'nodejs';
@@ -17,25 +18,12 @@ export const maxDuration = 300; // 5 minutes max (invoice generation can take ti
  * 1. If auto-generation is enabled
  * 2. If today matches the configured generation day
  *
- * Authentication: Bearer token matching CRON_SECRET env var
+ * Authentication: Bearer token matching CRON_SECRET env var (timing-safe)
  */
 export async function GET(request: NextRequest) {
-    // Verify cron secret
-    const authHeader = request.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
-
-    // In development, allow without auth if no secret is set
-    if (process.env.NODE_ENV === 'production' || cronSecret) {
-        if (!cronSecret) {
-            console.error('[Cron] CRON_SECRET not configured');
-            return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-        }
-
-        if (authHeader !== `Bearer ${cronSecret}`) {
-            console.warn('[Cron] Unauthorized request to generate-invoices');
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-    }
+    // Verify cron secret using timing-safe comparison
+    const authError = verifyCronAuth(request);
+    if (authError) return authError;
 
     try {
         console.log('[Cron] Checking invoice generation conditions');
