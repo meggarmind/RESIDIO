@@ -187,14 +187,87 @@ residio/
 │   │   └── *.md
 │   └── archived/               # Permanently skipped
 │       └── *.md
+├── docs/
+│   └── validation/             # QA-Director validation reports
+│       └── *.md
 ├── .nsma-config.md             # NSMA phase/module configuration (auto-imported)
 └── .claude/
     ├── settings.json           # Hook configuration
+    ├── agents/
+    │   └── qa-director.md      # QA-Director agent definition
+    ├── commands/
+    │   └── qa-director-validate.md  # Manual validation trigger
     └── hooks/
-        └── session-start.sh    # NSMA SessionStart hook
+        ├── session-start.sh    # NSMA SessionStart hook
+        └── task-complete.sh    # QA-Director PostToolUse hook
 ```
 
 **NSMA Dashboard**: http://localhost:3100 (when running)
+
+---
+
+## QA-Director Validation System
+
+The QA-Director Agent automatically validates completed work across security, code quality, documentation, and performance domains.
+
+### Automatic Triggers
+
+A **PostToolUse hook** monitors for prompt completion:
+- **Prompt Completion**: Triggers when file moves from `prompts/pending/` to `prompts/processed/`
+- **Phase Completion**: Triggers when all prompts in a phase are completed (pending count = 0)
+
+**Hook location**: `.claude/hooks/task-complete.sh`
+
+### Manual Trigger
+
+```
+/qa-director-validate [scope]
+```
+
+**Scope Options:**
+| Scope | Example |
+|-------|---------|
+| `prompt <filename>` | `/qa-director-validate prompt feature-auth.md` |
+| `phase <number>` | `/qa-director-validate phase 15` |
+| `module <name>` | `/qa-director-validate module auth` |
+| `files <paths>` | `/qa-director-validate files src/actions/auth.ts` |
+| `all` | `/qa-director-validate all` |
+| *(no arg)* | Auto-detect from git diff |
+
+### Validation Domains
+
+| Domain | Focus Areas |
+|--------|-------------|
+| **Security** | RLS policies, auth checks, OWASP, secrets detection |
+| **Code Quality** | TypeScript types, React patterns, tech debt |
+| **Documentation** | JSDoc coverage, docs completeness |
+| **Performance** | N+1 queries, memoization, caching |
+
+### Severity Levels
+
+| Level | Action Required | Examples |
+|-------|-----------------|----------|
+| **CRITICAL** | Immediate | RLS violations, exposed secrets |
+| **HIGH** | Before release | Missing auth, N+1 queries |
+| **MEDIUM** | Current phase | Code duplication, missing JSDoc |
+| **LOW** | Backlog | Style issues, suggestions |
+
+### Reports
+
+Reports are generated in `docs/validation/validation-YYYYMMDD-HHMMSS.md` with:
+- Executive summary
+- Findings ranked by severity
+- Action items (prioritized)
+- Notion sync status
+
+### Configuration Files
+
+| File | Purpose |
+|------|---------|
+| `.claude/agents/qa-director.md` | Agent definition |
+| `.claude/commands/qa-director-validate.md` | Slash command |
+| `.claude/hooks/task-complete.sh` | Auto-trigger hook |
+| `docs/validation/README.md` | System documentation |
 
 ---
 
