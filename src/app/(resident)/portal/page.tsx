@@ -1,11 +1,13 @@
 'use client';
 
+import { useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useResident } from '@/hooks/use-residents';
 import { useResidentIndebtedness, useResidentWallet } from '@/hooks/use-billing';
 import { useResidentSecurityContacts } from '@/hooks/use-security';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useHouseResidentsBatch } from '@/hooks/use-houses';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -14,8 +16,6 @@ import {
   Shield,
   CreditCard,
   Home,
-  TrendingUp,
-  Clock,
   Building2,
   UserPlus,
   FileText,
@@ -28,18 +28,21 @@ import { formatCurrency, cn } from '@/lib/utils';
 import Link from 'next/link';
 import { ActivityFeed } from '@/components/resident-portal/activity-feed';
 import { AnnouncementsCarousel } from '@/components/resident-portal/announcements-carousel';
+import { PropertyCarousel } from '@/components/resident-portal/property-carousel';
 import { useLayoutTheme } from '@/contexts/layout-theme-context';
+import type { HouseWithStreet, ResidentRole } from '@/types/database';
 
 /**
  * Resident Portal Home Page
  *
- * Mobile-first dashboard showing:
- * - Wallet balance
- * - Outstanding balance (indebtedness)
- * - Quick stats (security contacts, properties)
+ * Property-centric dashboard showing:
+ * - Property carousel (hero section)
+ * - Compact financial summary
+ * - Quick stats (security contacts)
  * - Quick action buttons
  */
 export default function ResidentPortalHomePage() {
+  const router = useRouter();
   const { residentId } = useAuth();
   const { isExpanded } = useLayoutTheme();
   const { data: resident, isLoading: residentLoading } = useResident(residentId || undefined);
@@ -47,10 +50,40 @@ export default function ResidentPortalHomePage() {
   const { data: wallet, isLoading: walletLoading } = useResidentWallet(residentId || undefined);
   const { data: contactsData, isLoading: contactsLoading } = useResidentSecurityContacts(residentId || undefined);
 
-  const isLoading = residentLoading || indebtednessLoading || walletLoading || contactsLoading;
+  // Get active properties with their house IDs
+  const activeResidentHouses = useMemo(() => {
+    return resident?.resident_houses?.filter(rh => rh.is_active) || [];
+  }, [resident]);
+
+  const houseIds = useMemo(() => {
+    return activeResidentHouses.map(rh => rh.house?.id).filter(Boolean) as string[];
+  }, [activeResidentHouses]);
+
+  // Fetch residents for all houses in batch
+  const { data: houseResidentsMap, isLoading: residentsLoading } = useHouseResidentsBatch(houseIds);
+
+  const isLoading = residentLoading || indebtednessLoading || walletLoading || contactsLoading || residentsLoading;
+
+  // Build property data for carousel - sort to put primary property first
+  const propertyData = useMemo(() => {
+    return activeResidentHouses
+      .filter(rh => rh.house) // Ensure house exists
+      .sort((a, b) => {
+        // Primary property first
+        if (a.is_primary && !b.is_primary) return -1;
+        if (!a.is_primary && b.is_primary) return 1;
+        return 0;
+      })
+      .map(rh => ({
+        house: rh.house as HouseWithStreet,
+        residentRole: rh.resident_role as ResidentRole,
+        isPrimary: rh.is_primary ?? false,
+        residents: houseResidentsMap?.[rh.house!.id] || [],
+      }));
+  }, [activeResidentHouses, houseResidentsMap]);
 
   // Count active properties
-  const activeProperties = resident?.resident_houses?.filter(rh => rh.is_active)?.length || 0;
+  const activeProperties = activeResidentHouses.length;
 
   // Count active security contacts
   const contacts = contactsData?.data || [];
@@ -58,10 +91,15 @@ export default function ResidentPortalHomePage() {
 
   // Calculate action count (pending items requiring attention)
   const unpaidInvoices = indebtedness?.invoiceCount || 0;
-  const actionCount = unpaidInvoices; // Can be extended with other actionable items
+  const actionCount = unpaidInvoices;
 
   // Check if balance is clear (celebratory state)
   const hasZeroBalance = (indebtedness?.totalUnpaid || 0) === 0;
+
+  // Handle property card click - navigate to property detail
+  const handlePropertyClick = (houseId: string) => {
+    router.push(`/portal/properties/${houseId}`);
+  };
 
   if (isLoading) {
     return <PortalHomeSkeleton />;
@@ -95,127 +133,114 @@ export default function ResidentPortalHomePage() {
         )}
       </div>
 
-      {/* Financial Summary Cards */}
+      {/* Property Carousel - Hero Section */}
+      {activeProperties > 0 ? (
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className={cn(
+              'text-base font-semibold',
+              isExpanded && 'text-lg'
+            )}>
+              My Properties
+            </h2>
+            {activeProperties > 1 && (
+              <span className="text-xs text-muted-foreground">
+                {activeProperties} properties
+              </span>
+            )}
+          </div>
+          <PropertyCarousel
+            properties={propertyData}
+            onPropertyClick={handlePropertyClick}
+          />
+        </section>
+      ) : (
+        <Card className="border-dashed border-2">
+          <CardContent className="p-6 text-center">
+            <Building2 className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+            <h3 className="font-semibold text-lg mb-1">No Properties Assigned</h3>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+              You don&apos;t have any properties linked to your account yet.
+              Please contact your estate administrator.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Compact Financial Summary */}
       <div className={cn(
-        'grid gap-3 md:grid-cols-2',
-        isExpanded && 'lg:grid-cols-4 gap-4'
+        'grid gap-3',
+        isExpanded ? 'md:grid-cols-3' : 'md:grid-cols-2'
       )}>
-        {/* Wallet Balance */}
+        {/* Wallet Balance - Compact */}
         <Card className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border-emerald-500/20">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-emerald-500/20">
-                  <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Wallet Balance</p>
-                  <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                    {formatCurrency(wallet?.balance || 0)}
-                  </p>
-                </div>
-              </div>
-              <TrendingUp className="h-5 w-5 text-emerald-500/40" />
+          <CardContent className="p-3 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-emerald-500/20">
+              <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Wallet</p>
+              <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                {formatCurrency(wallet?.balance || 0)}
+              </p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Outstanding Balance or Celebratory Zero State */}
+        {/* Outstanding Balance - Compact */}
         {hasZeroBalance ? (
-          <Card className="bg-gradient-to-br from-green-500/10 via-emerald-500/5 to-teal-500/5 border-green-500/30">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-green-500/20 relative">
-                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-                    <Sparkles className="h-3 w-3 text-yellow-500 absolute -top-1 -right-1 animate-pulse" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Outstanding Balance</p>
-                    <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                      All Clear!
-                    </p>
-                  </div>
-                </div>
-                <Badge className="bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30 text-xs">
-                  Paid up
-                </Badge>
+          <Card className="bg-gradient-to-br from-green-500/10 to-emerald-500/5 border-green-500/30">
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-green-500/20 relative">
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <Sparkles className="h-2.5 w-2.5 text-yellow-500 absolute -top-0.5 -right-0.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">Outstanding</p>
+                <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                  All Clear!
+                </p>
               </div>
             </CardContent>
           </Card>
         ) : (
           <Card className="bg-gradient-to-br from-red-500/10 to-orange-500/5 border-red-500/20">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-red-500/20">
-                    <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Outstanding Balance</p>
-                    <p className="text-xl font-bold text-red-600 dark:text-red-400">
-                      {formatCurrency(indebtedness?.totalUnpaid || 0)}
-                    </p>
-                  </div>
-                </div>
-                <Badge variant="destructive" className="text-xs">
-                  {unpaidInvoices} invoice{unpaidInvoices !== 1 ? 's' : ''}
-                </Badge>
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-red-500/20">
+                <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
               </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">Outstanding</p>
+                <p className="text-lg font-bold text-red-600 dark:text-red-400 truncate">
+                  {formatCurrency(indebtedness?.totalUnpaid || 0)}
+                </p>
+              </div>
+              <Badge variant="destructive" className="text-[10px] shrink-0">
+                {unpaidInvoices}
+              </Badge>
             </CardContent>
           </Card>
         )}
-      </div>
 
-      {/* Quick Stats - 2 cols mobile, 4 cols desktop, 6 cols expanded */}
-      <div className={cn(
-        'grid grid-cols-2 gap-3 md:grid-cols-4',
-        isExpanded && 'xl:grid-cols-6 gap-4'
-      )}>
-        <Link href="/portal/profile">
-          <Card className="h-full hover:border-primary/30 transition-colors cursor-pointer">
-            <CardContent className="p-4">
-              {activeProperties > 0 ? (
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-blue-500/10">
-                    <Home className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{activeProperties}</p>
-                    <p className="text-xs text-muted-foreground">Properties</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-2">
-                  <Building2 className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1" />
-                  <p className="text-xs text-muted-foreground">No properties</p>
-                  <p className="text-[10px] text-muted-foreground/70">Contact admin</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/portal/security-contacts">
-          <Card className="h-full hover:border-primary/30 transition-colors cursor-pointer">
-            <CardContent className="p-4">
-              {activeContacts > 0 ? (
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-500/10">
-                    <Shield className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{activeContacts}</p>
-                    <p className="text-xs text-muted-foreground">Contacts</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-2">
-                  <UserPlus className="h-6 w-6 mx-auto text-muted-foreground/50 mb-1" />
-                  <p className="text-xs text-muted-foreground">No contacts</p>
-                  <p className="text-[10px] text-muted-foreground/70">Add your first</p>
-                </div>
-              )}
+        {/* Security Contacts - Compact */}
+        <Link href="/portal/security-contacts" className="contents">
+          <Card className="hover:border-primary/30 transition-colors cursor-pointer">
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/10">
+                <Shield className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">Contacts</p>
+                {activeContacts > 0 ? (
+                  <p className="text-lg font-bold">{activeContacts}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    <UserPlus className="h-3 w-3 inline mr-1" />
+                    Add first
+                  </p>
+                )}
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground/50" />
             </CardContent>
           </Card>
         </Link>
@@ -281,7 +306,7 @@ export default function ResidentPortalHomePage() {
                   <Home className="h-5 w-5 text-rose-600 dark:text-rose-400" />
                 </div>
                 <h3 className="font-semibold text-sm mb-1">Profile</h3>
-                <p className="text-xs text-muted-foreground flex-1">Your properties</p>
+                <p className="text-xs text-muted-foreground flex-1">Your account & settings</p>
                 <ArrowRight className="h-4 w-4 text-rose-600/50 mt-2 group-hover:translate-x-1 transition-transform" />
               </CardContent>
             </Card>
@@ -318,21 +343,41 @@ export default function ResidentPortalHomePage() {
 function PortalHomeSkeleton() {
   return (
     <div className="space-y-6">
+      {/* Welcome Section */}
       <div className="space-y-1">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-32" />
       </div>
 
-      <div className="grid gap-3">
-        <Skeleton className="h-24 w-full rounded-xl" />
-        <Skeleton className="h-24 w-full rounded-xl" />
+      {/* Property Carousel Skeleton */}
+      <div className="space-y-2">
+        <Skeleton className="h-5 w-28" />
+        <Skeleton className="h-36 w-full rounded-xl" />
+        <div className="flex justify-center gap-1.5">
+          <Skeleton className="h-1.5 w-4 rounded-full" />
+          <Skeleton className="h-1.5 w-1.5 rounded-full" />
+          <Skeleton className="h-1.5 w-1.5 rounded-full" />
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Skeleton className="h-20 w-full rounded-xl" />
-        <Skeleton className="h-20 w-full rounded-xl" />
+      {/* Financial Summary Skeleton */}
+      <div className="grid gap-3 md:grid-cols-2">
+        <Skeleton className="h-16 w-full rounded-xl" />
+        <Skeleton className="h-16 w-full rounded-xl" />
       </div>
 
+      {/* Quick Services Skeleton */}
+      <div className="space-y-3">
+        <Skeleton className="h-5 w-28" />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+        </div>
+      </div>
+
+      {/* Activity Section Skeleton */}
       <Skeleton className="h-48 w-full rounded-xl" />
     </div>
   );

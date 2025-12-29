@@ -89,6 +89,7 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
           street_id: formData.street_id,
           house_type_id: formData.house_type_id || null,
           address_line_2: formData.address_line_2 || null,
+          short_name: formData.short_name || null,
           notes: formData.notes || null,
           billing_profile_id: formData.billing_profile_id || null,
           // Don't update number_of_plots - pending approval
@@ -121,6 +122,7 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
       street_id: formData.street_id,
       house_type_id: formData.house_type_id || null,
       address_line_2: formData.address_line_2 || null,
+      short_name: formData.short_name || null,
       notes: formData.notes || null,
       billing_profile_id: formData.billing_profile_id || null,
       number_of_plots: newPlots,

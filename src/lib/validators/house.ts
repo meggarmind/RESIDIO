@@ -6,6 +6,7 @@ export const houseFormSchema = z.object({
   street_id: z.string().uuid('Please select a street'),
   house_type_id: z.string().uuid('Please select a house type').optional().or(z.literal('')),
   address_line_2: z.string().optional().or(z.literal('')),
+  short_name: z.string().max(50, 'Short name must be 50 characters or less').optional().or(z.literal('')), // Auto-generated property identifier
   notes: z.string().optional().or(z.literal('')),
   date_added_to_portal: z.string().optional(), // Date house was added to Residio (defaults to today)
   billing_profile_id: z.string().uuid().optional().nullable().or(z.literal('')), // Override billing profile from house type

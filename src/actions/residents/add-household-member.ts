@@ -18,9 +18,11 @@ const HouseholdMemberSchema = z.object({
   first_name: z.string().min(1, 'First name is required'),
   last_name: z.string().min(1, 'Last name is required'),
   phone_primary: z.string().optional(),
+  email: z.string().email('Invalid email address').optional().or(z.literal('')),
   resident_role: z.enum(['household_member', 'domestic_staff', 'caretaker']),
   house_id: z.string().uuid('Invalid house ID'),
   relationship: z.string().optional(), // e.g., "Spouse", "Child", "Driver"
+  send_portal_invite: z.boolean().optional(), // Whether to send portal invitation email
 });
 
 export type HouseholdMemberInput = z.infer<typeof HouseholdMemberSchema>;
@@ -58,7 +60,7 @@ export async function addHouseholdMember(
     return { data: null, error: parsed.error.issues[0].message };
   }
 
-  const { first_name, last_name, phone_primary, resident_role, house_id, relationship } = parsed.data;
+  const { first_name, last_name, phone_primary, email, resident_role, house_id, relationship, send_portal_invite } = parsed.data;
 
   // Validate role is allowed
   if (!ALLOWED_HOUSEHOLD_ROLES.includes(resident_role)) {
@@ -100,6 +102,7 @@ export async function addHouseholdMember(
       first_name,
       last_name,
       phone_primary: phone_primary || null,
+      email: email || null,
       resident_type: 'resident', // Default type
       verification_status: 'verified', // Auto-verify when added by primary resident
       entity_type: 'individual',
@@ -133,9 +136,31 @@ export async function addHouseholdMember(
     return { data: null, error: `Failed to assign to house: ${assignmentError.message}` };
   }
 
+  // Send portal invitation email if requested
+  if (send_portal_invite && email) {
+    // TODO: Implement email invitation system
+    // For now, we'll log the intent and store it for future implementation
+    // This would typically:
+    // 1. Generate a unique invitation token
+    // 2. Store the invitation in a pending_invitations table
+    // 3. Send an email with a signup link containing the token
+    // 4. When they sign up, link their auth user to this resident record
+    console.log(`Portal invitation requested for ${email} (resident: ${newResident.id})`);
+
+    // Create a pending invitation record (if table exists)
+    // await supabase.from('pending_invitations').insert({
+    //   resident_id: newResident.id,
+    //   email,
+    //   invited_by: user.id,
+    //   house_id,
+    //   expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+    // });
+  }
+
   // Revalidate relevant paths
   revalidatePath('/portal/profile');
   revalidatePath('/residents');
+  revalidatePath(`/portal/properties/${house_id}`);
 
   return { data: newResident, error: null };
 }

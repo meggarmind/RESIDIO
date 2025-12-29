@@ -1,16 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, CheckCircle2, Loader2, History, Save, Globe, Facebook, Instagram, Twitter } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, History, Save, Globe, Facebook, Instagram, Twitter, Upload, X, ImageIcon } from 'lucide-react';
 import { backfillOwnershipHistory } from '@/actions/settings/backfill-ownership-history';
 import { toast } from 'sonner';
-import { useGeneralSettings, useUpdateSettings } from '@/hooks/use-settings';
+import { useGeneralSettings, useUpdateSettings, useUploadEstateLogo, useRemoveEstateLogo } from '@/hooks/use-settings';
 
 // Type for backfill result (defined inline since it's from 'use server' file)
 type BackfillResult = {
@@ -36,6 +37,7 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
 export default function SettingsPage() {
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<BackfillResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Estate info form state
   const [estateForm, setEstateForm] = useState({
@@ -53,6 +55,8 @@ export default function SettingsPage() {
 
   const { data: generalSettings, isLoading: isLoadingSettings } = useGeneralSettings();
   const updateSettings = useUpdateSettings();
+  const uploadLogo = useUploadEstateLogo();
+  const removeLogo = useRemoveEstateLogo();
 
   // Load settings into form when data is fetched
   useEffect(() => {
@@ -84,6 +88,38 @@ export default function SettingsPage() {
         setIsDirty(false);
       }
     });
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Please upload a PNG, JPG, WebP, or SVG image');
+      return;
+    }
+
+    // Validate file size (2MB max)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('File size must be less than 2MB');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    uploadLogo.mutate(formData);
+
+    // Reset the file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    removeLogo.mutate();
   };
 
   const handleBackfillOwnershipHistory = async () => {
@@ -286,23 +322,115 @@ export default function SettingsPage() {
         {/* Branding Card */}
         <Card>
           <CardHeader>
-            <CardTitle>Branding</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5" />
+              Branding
+            </CardTitle>
             <CardDescription>
-              Customize the look and feel of your application.
+              Customize the look and feel of your application with your estate logo.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-lg bg-primary/10 border-2 border-dashed border-primary/50 flex items-center justify-center text-muted-foreground">
-                Logo
+          <CardContent className="space-y-4">
+            {isLoadingSettings ? (
+              <div className="flex items-center gap-4">
+                <Skeleton className="h-20 w-20 rounded-lg" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-48" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Application Logo</p>
-                <p className="text-xs text-muted-foreground">
-                  Logo upload coming soon. Recommended size: 512x512px
-                </p>
-              </div>
-            </div>
+            ) : (
+              <>
+                <div className="flex items-start gap-4">
+                  {/* Logo Preview */}
+                  <div className="relative group">
+                    {estateForm.estate_logo_url ? (
+                      <div className="relative h-20 w-20 rounded-lg overflow-hidden border bg-muted">
+                        <Image
+                          src={estateForm.estate_logo_url}
+                          alt="Estate Logo"
+                          fill
+                          className="object-contain"
+                          unoptimized
+                        />
+                        {/* Remove button overlay */}
+                        <button
+                          onClick={handleRemoveLogo}
+                          disabled={removeLogo.isPending}
+                          className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          title="Remove logo"
+                        >
+                          {removeLogo.isPending ? (
+                            <Loader2 className="h-5 w-5 text-white animate-spin" />
+                          ) : (
+                            <X className="h-5 w-5 text-white" />
+                          )}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="h-20 w-20 rounded-lg bg-primary/10 border-2 border-dashed border-primary/50 flex items-center justify-center text-muted-foreground">
+                        <ImageIcon className="h-8 w-8" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Upload Controls */}
+                  <div className="flex-1 space-y-2">
+                    <div>
+                      <p className="text-sm font-medium">Estate Logo</p>
+                      <p className="text-xs text-muted-foreground">
+                        Upload your estate logo. Recommended size: 512x512px. Max 2MB.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                        id="logo-upload"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadLogo.isPending}
+                      >
+                        {uploadLogo.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Upload className="mr-2 h-4 w-4" />
+                        )}
+                        {estateForm.estate_logo_url ? 'Replace Logo' : 'Upload Logo'}
+                      </Button>
+
+                      {estateForm.estate_logo_url && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleRemoveLogo}
+                          disabled={removeLogo.isPending}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          {removeLogo.isPending ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <X className="mr-2 h-4 w-4" />
+                          )}
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      Supported formats: PNG, JPG, WebP, SVG
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 

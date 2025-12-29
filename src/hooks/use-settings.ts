@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, getBillingSettings, getCurrentDevelopmentLevyProfileId } from '@/actions/settings/get-settings';
 import { updateSetting, updateSettings, setCurrentDevelopmentLevyProfileId } from '@/actions/settings/update-setting';
+import { uploadEstateLogo, removeEstateLogo } from '@/actions/settings/upload-estate-logo';
 import { generateRetroactiveLevies } from '@/actions/billing/generate-levies';
 import { toast } from 'sonner';
 
@@ -135,6 +136,45 @@ export function useSetCurrentDevelopmentLevyProfileId() {
         },
         onError: (error) => {
             toast.error(error.message || 'Failed to update Development Levy profile');
+        }
+    });
+}
+
+// Estate Logo Hooks
+export function useUploadEstateLogo() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (formData: FormData) => {
+            const result = await uploadEstateLogo(formData);
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        onSuccess: () => {
+            toast.success('Logo uploaded successfully');
+            queryClient.invalidateQueries({ queryKey: ['settings'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to upload logo');
+        }
+    });
+}
+
+export function useRemoveEstateLogo() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async () => {
+            const result = await removeEstateLogo();
+            if (!result.success) throw new Error(result.error || 'Failed to remove logo');
+            return result;
+        },
+        onSuccess: () => {
+            toast.success('Logo removed successfully');
+            queryClient.invalidateQueries({ queryKey: ['settings'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to remove logo');
         }
     });
 }

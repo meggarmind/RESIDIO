@@ -1,88 +1,82 @@
-# Session Handoff - Portal Desktop Layout Enhancements
+# Session Handoff - 2025-12-30
 
-**Date**: 2025-12-28
-**Session Type**: Implementation (Concurrent Session)
-**Current Phase**: Phase 15 Complete + Portal Enhancements
+**Date**: 2025-12-30
+**Session Type**: Bug Fixes + Feature Implementation
 
 ---
 
 ## What Was Completed This Session
 
-### Portal Desktop Layout Enhancements ✅ (7 Prompts)
+### 1. Property Shortname System ✅
+- Added `short_name` column to houses table
+- Created auto-generation trigger from street code + house number
+- Updated `update-house.ts` with short_name field in both update blocks
+- Updated `create-house.ts` with short_name support
+- Updated house form with auto-generation UI
+- **Migration applied successfully**
 
-Transformed the resident portal from mobile-first to responsive desktop layouts.
+### 2. Portal Breadcrumb Fix ✅
+- Updated `portal-breadcrumb.tsx` to show property shortname instead of UUID
+- Uses `useHouse` hook to fetch property data dynamically
+- Falls back to street name + house number if shortname not set
 
-#### Foundation Components Created
-| File | Purpose |
-|------|---------|
-| `src/hooks/use-media-query.ts` | Viewport detection with `useIsDesktop`, `useIsMobile` |
-| `src/components/ui/responsive-sheet.tsx` | Auto-switching Sheet/Drawer/Modal based on viewport |
+### 3. Estate Logo Upload Feature ✅
+- Created `upload-estate-logo.ts` server action
+- Added `useUploadEstateLogo` and `useRemoveEstateLogo` hooks
+- Updated settings page with full logo upload UI
+- Created `logos` storage bucket migration
+- **Migration applied successfully**
 
-#### Pages Enhanced
-| Page | Desktop Enhancement |
-|------|---------------------|
-| **Invoices** | Table view with sortable columns; invoice detail in right-side drawer |
-| **Security Contacts** | 2-3 column card grid; hover actions; ResponsiveSheet modals for forms |
-| **Documents** | Table view with file type icons (color-coded); hover actions |
-| **Profile** | Two-column layout (1/3 identity + 2/3 content); grid-based cards |
-
-#### Key Patterns Applied
-- **Conditional rendering**: `isDesktop ? <Table/> : <CardList/>`
-- **Hover-reveal actions**: `opacity-0 group-hover:opacity-100`
-- **Grid layouts within cards**: Properties, household members, notifications
-- **ResponsiveSheet variants**: `drawer` for details, `modal` for forms
-
----
-
-## Git Status
-
-```
-Uncommitted changes:
-Modified:
-- src/app/(resident)/portal/documents/page.tsx
-- src/app/(resident)/portal/invoices/page.tsx
-- src/app/(resident)/portal/profile/page.tsx
-- src/app/(resident)/portal/security-contacts/page.tsx
-
-Untracked (new files):
-- src/components/ui/responsive-sheet.tsx
-- src/hooks/use-media-query.ts
-```
-
-**Build Status**: `npm run build` passes successfully
+### 4. Bug Fixes ✅
+- Fixed FK ambiguity in `get-house-residents.ts` (changed `residents!inner` to `residents!resident_houses_resident_id_fkey`)
+- This resolved "Current occupants showing empty" and "Vacant status" bugs
 
 ---
 
-## Prompts Processed
+## ⚠️ IMMEDIATE FIX REQUIRED
 
-All 7 portal desktop layout prompts moved to `prompts/processed/`:
-- `20251228_portal_&_self-service_global_sheet_modal_desktop_variants.md`
-- `20251228_portal_&_self-service_payments_page_desktop_list_layout.md`
-- `20251228_portal_&_self-service_invoice_detail_desktop_drawer_layout.md`
-- `20251228_portal_&_self-service_security_contacts_desktop_grid_layout.md`
-- `20251228_portal_&_self-service_security_contact_form_desktop_modal.md`
-- `20251228_portal_&_self-service_documents_page_desktop_file_browser.md`
-- `20251228_portal_&_self-service_profile_page_desktop_two_column_layout.md`
+The `src/types/database.generated.ts` file was corrupted with an error message.
 
----
-
-## Next Steps
-
-### 1. Commit and Push
+**To fix:**
 ```bash
-git add .
-git commit -m "feat(portal): add desktop-optimized layouts for all portal pages"
-git push
+git checkout src/types/database.generated.ts
+npm run build
 ```
 
-### 2. Review Deferred Prompts
-```bash
-cat prompts/deferred/20251222_phase_4_financial_reports__notification___subscr.md
-```
-One deferred prompt exists (Financial Reports - deferred to Phase 16)
+---
 
-### 3. Consider Phase 16
-Phase 16: Community Communication is next if ready to proceed.
+## All Prompts Processed
+
+All pending prompts moved to `prompts/processed/`:
+- Fix current occupants showing empty
+- Fix portal showing vacant for properties with Resident Landlord
+- Fix breadcrumb to show property shortname
+- Implement property shortname and street code system
+- Auto-generate property shortname when adding new property
+- Implement estate logo upload feature
+
+---
+
+## Files Modified This Session
+
+| File | Change |
+|------|--------|
+| `src/actions/houses/update-house.ts` | Added short_name field |
+| `src/actions/houses/get-house-residents.ts` | Fixed FK ambiguity |
+| `src/components/resident-portal/portal-breadcrumb.tsx` | Show shortname instead of ID |
+| `src/actions/settings/upload-estate-logo.ts` | NEW: Logo upload server action |
+| `src/hooks/use-settings.ts` | Added logo upload/remove hooks |
+| `src/app/(dashboard)/settings/page.tsx` | Updated branding card with logo upload UI |
+| `supabase/migrations/20251229100000_add_property_shortname.sql` | NEW |
+| `supabase/migrations/20251229110000_add_logos_storage_bucket.sql` | NEW |
+
+---
+
+## Resume Instructions
+
+1. Restore the corrupted types file: `git checkout src/types/database.generated.ts`
+2. Run build to verify: `npm run build`
+3. Test the new features in the browser
 
 ---
 
@@ -94,17 +88,6 @@ npm run dev          # Start dev server (localhost:3000)
 npm run build        # Production build
 git status           # Check uncommitted changes
 ```
-
----
-
-## Test Users
-
-| Email | Password | Role |
-|-------|----------|------|
-| admin@residio.test | password123 | admin |
-| chairman@residio.test | password123 | chairman |
-| finance@residio.test | password123 | financial_secretary |
-| security@residio.test | password123 | security_officer |
 
 ---
 

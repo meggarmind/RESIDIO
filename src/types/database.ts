@@ -449,6 +449,7 @@ export interface Database {
           street_id: string;
           house_type_id: string | null;
           address_line_2: string | null;
+          short_name: string | null; // Human-readable property identifier (e.g., OAK-10A)
           is_occupied: boolean;
           is_active: boolean;
           notes: string | null;
@@ -458,10 +459,11 @@ export interface Database {
           updated_at: string;
           created_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['houses']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_occupied' | 'number_of_plots'> & {
+        Insert: Omit<Database['public']['Tables']['houses']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_occupied' | 'number_of_plots' | 'short_name'> & {
           id?: string;
           is_occupied?: boolean;
           number_of_plots?: number;
+          short_name?: string | null;
         };
         Update: Partial<Database['public']['Tables']['houses']['Insert']>;
       };

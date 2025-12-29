@@ -7,8 +7,10 @@ import { createHouse } from '@/actions/houses/create-house';
 import { updateHouse } from '@/actions/houses/update-house';
 import { deleteHouse } from '@/actions/houses/delete-house';
 import { getOwnershipHistory } from '@/actions/houses/get-ownership-history';
+import { getHouseResidents, getHouseResidentsBatch } from '@/actions/houses/get-house-residents';
 import type { HouseSearchParams, HouseFormData } from '@/lib/validators/house';
 import type { HouseOwnershipHistoryWithResident } from '@/types/database';
+import type { ResidentSummary } from '@/actions/houses/get-house-residents';
 
 // Extended type with computed end_date for ownership periods
 export type OwnershipHistoryWithEndDate = HouseOwnershipHistoryWithResident & {
@@ -123,5 +125,39 @@ export function useOwnershipHistory(houseId: string | undefined) {
       return result.data;
     },
     enabled: !!houseId,
+  });
+}
+
+/**
+ * Fetch all active residents linked to a specific house.
+ * Returns resident summaries including role and primary status.
+ */
+export function useHouseResidents(houseId: string | undefined) {
+  return useQuery({
+    queryKey: ['houseResidents', houseId],
+    queryFn: async () => {
+      if (!houseId) throw new Error('House ID is required');
+      const result = await getHouseResidents(houseId);
+      if (result.error) throw new Error(result.error);
+      return result.data as ResidentSummary[];
+    },
+    enabled: !!houseId,
+  });
+}
+
+/**
+ * Fetch residents for multiple houses in a single query.
+ * Useful for dashboard where we need residents for all user's properties.
+ * Returns a record mapping house_id to array of ResidentSummary.
+ */
+export function useHouseResidentsBatch(houseIds: string[]) {
+  return useQuery({
+    queryKey: ['houseResidentsBatch', houseIds],
+    queryFn: async () => {
+      const result = await getHouseResidentsBatch(houseIds);
+      if (result.error) throw new Error(result.error);
+      return result.data as Record<string, ResidentSummary[]>;
+    },
+    enabled: houseIds.length > 0,
   });
 }

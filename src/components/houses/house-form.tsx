@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useEffect, useMemo } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import {
   Select,
@@ -28,9 +29,18 @@ import { useBillingProfiles } from '@/hooks/use-billing';
 import { houseFormSchema, type HouseFormData } from '@/lib/validators/house';
 import { toast } from 'sonner';
 import type { House } from '@/types/database';
-import { FormDescription } from '@/components/ui/form';
+import { Sparkles } from 'lucide-react';
 
 const NONE_VALUE = '_none';
+
+/**
+ * Generate a property shortname from street code and house number
+ * Format: STREET_CODE-HOUSE_NUMBER (e.g., OAK-10A)
+ */
+function generateShortname(streetShortName: string | null | undefined, houseNumber: string): string {
+  if (!streetShortName || !houseNumber) return '';
+  return `${streetShortName.toUpperCase()}-${houseNumber.toUpperCase()}`;
+}
 
 interface HouseFormProps {
   house?: House;
@@ -52,12 +62,28 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
       street_id: house?.street_id ?? '',
       house_type_id: house?.house_type_id ?? '',
       address_line_2: house?.address_line_2 ?? '',
+      short_name: house?.short_name ?? '',
       notes: house?.notes ?? '',
       date_added_to_portal: '', // Set on client side to avoid hydration mismatch
       billing_profile_id: house?.billing_profile_id ?? '',
       number_of_plots: house?.number_of_plots ?? 1,
     },
   });
+
+  // Watch for changes to street and house number to auto-generate shortname
+  const watchedStreetId = useWatch({ control: form.control, name: 'street_id' });
+  const watchedHouseNumber = useWatch({ control: form.control, name: 'house_number' });
+  const watchedShortName = useWatch({ control: form.control, name: 'short_name' });
+
+  // Get the selected street's short_name
+  const selectedStreet = useMemo(() => {
+    return streets?.find(s => s.id === watchedStreetId);
+  }, [streets, watchedStreetId]);
+
+  // Auto-generate shortname when street or house number changes (only if not manually edited)
+  const suggestedShortname = useMemo(() => {
+    return generateShortname(selectedStreet?.short_name, watchedHouseNumber);
+  }, [selectedStreet?.short_name, watchedHouseNumber]);
 
   // Set today's date on client side only to avoid hydration mismatch
   useEffect(() => {
@@ -66,12 +92,23 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
     }
   }, [house, form]);
 
+  // Auto-fill shortname when it's empty and we have a suggestion
+  useEffect(() => {
+    // Only auto-fill for new houses or if shortname is empty
+    if (!watchedShortName && suggestedShortname) {
+      form.setValue('short_name', suggestedShortname);
+    }
+  }, [suggestedShortname, watchedShortName, form]);
+
   const isLoading = createMutation.isPending || updateMutation.isPending;
+
+  // Check if user has manually modified the shortname
+  const isShortNameManuallyEdited = watchedShortName !== suggestedShortname && watchedShortName !== '';
 
   async function onSubmit(data: HouseFormData) {
     try {
       if (house) {
-        const result = await updateMutation.mutateAsync({ id: house.id, data });
+        await updateMutation.mutateAsync({ id: house.id, data });
         // Toast is now handled in the hook
       } else {
         await createMutation.mutateAsync(data);
@@ -83,6 +120,11 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
       toast.error(error instanceof Error ? error.message : 'An error occurred');
     }
   }
+
+  // Reset shortname to suggested value
+  const handleResetShortname = () => {
+    form.setValue('short_name', suggestedShortname);
+  };
 
   return (
     <Form {...form}>
@@ -122,10 +164,59 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
                     {streets?.map((street) => (
                       <SelectItem key={street.id} value={street.id}>
                         {street.name}
+                        {street.short_name && (
+                          <span className="ml-2 text-muted-foreground">
+                            ({street.short_name})
+                          </span>
+                        )}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="short_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center gap-2">
+                  Property Shortname
+                  {suggestedShortname && !isShortNameManuallyEdited && (
+                    <span className="flex items-center gap-1 text-xs text-emerald-600 font-normal">
+                      <Sparkles className="h-3 w-3" />
+                      Auto-generated
+                    </span>
+                  )}
+                </FormLabel>
+                <div className="flex gap-2">
+                  <FormControl>
+                    <Input
+                      placeholder={suggestedShortname || 'e.g., OAK-10A'}
+                      {...field}
+                      className={isShortNameManuallyEdited ? '' : 'text-muted-foreground'}
+                    />
+                  </FormControl>
+                  {isShortNameManuallyEdited && suggestedShortname && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleResetShortname}
+                      className="shrink-0"
+                    >
+                      Reset
+                    </Button>
+                  )}
+                </div>
+                <FormDescription>
+                  {selectedStreet?.short_name
+                    ? `Auto-generated from street code "${selectedStreet.short_name}" + house number. You can edit it.`
+                    : 'Set a street code in street settings to enable auto-generation.'}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

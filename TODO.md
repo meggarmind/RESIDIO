@@ -796,6 +796,25 @@ Data migration from existing system:
 
 ---
 
+## Future Ideas / Backlog
+
+Ideas for future phases (not yet scheduled):
+
+### Admin-Created Theme System
+Full-fledged theme system supporting multiple admin-created themes:
+- [ ] Database table for themes (name, colors, typography, spacing config)
+- [ ] Theme editor UI for admins (color pickers, live preview)
+- [ ] Theme assignment (estate-wide default, user preference)
+- [ ] Export/import themes as JSON
+- [ ] Built-in theme presets (light, dark, high contrast, etc.)
+- [ ] CSS variable injection from database-stored themes
+- [ ] Theme scheduling (seasonal themes, events)
+
+> **Context**: Current layout theme system (compact/expanded) provides the foundation.
+> This extends it to full visual theming with admin control over colors, fonts, etc.
+
+---
+
 ## Phase 17: UI Enhancement & Polish ✅ COMPLETE
 Comprehensive UI/UX improvements:
 
