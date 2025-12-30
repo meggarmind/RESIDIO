@@ -55,3 +55,6 @@ testsprite_tests/tmp/
 # Logs
 *.log
 logs/
+
+# Direnv configuration (loads from .env.local)
+.envrc
