@@ -238,6 +238,7 @@ export type AuditEntityType =
   | 'app_roles'           // Phase 10: RBAC
   | 'app_permissions'     // Phase 10: RBAC
   | 'role_permissions'    // Phase 10: RBAC
+  | 'role_assignment_rules' // Role assignment restrictions
   | 'notification_templates'    // Phase 11: Notifications
   | 'notification_schedules'    // Phase 11: Notifications
   | 'notification_queue'        // Phase 11: Notifications
@@ -287,6 +288,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   app_roles: 'Role',               // Phase 10: RBAC
   app_permissions: 'Permission',   // Phase 10: RBAC
   role_permissions: 'Role Permission', // Phase 10: RBAC
+  role_assignment_rules: 'Role Assignment Rule',
   notification_templates: 'Notification Template',    // Phase 11: Notifications
   notification_schedules: 'Notification Schedule',    // Phase 11: Notifications
   notification_queue: 'Queued Notification',          // Phase 11: Notifications
@@ -1409,6 +1411,36 @@ export interface PermissionCheckResult {
   hasPermission: boolean;
   permissions: string[];
   roleName: AppRoleName | null;
+}
+
+// Role Assignment Rules (for configuring which resident types can be assigned which roles)
+export interface RoleAssignmentRule {
+  id: string;
+  resident_role: ResidentRole;
+  app_role_id: string;
+  is_allowed: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+export interface RoleAssignmentRuleInsert {
+  resident_role: ResidentRole;
+  app_role_id: string;
+  is_allowed?: boolean;
+}
+
+export interface RoleAssignmentRuleUpdate {
+  is_allowed?: boolean;
+}
+
+// Role assignment rule with role details for UI
+export interface RoleAssignmentRuleWithRole extends RoleAssignmentRule {
+  app_role: {
+    id: string;
+    name: AppRoleName;
+    display_name: string;
+  };
 }
 
 // =====================================================

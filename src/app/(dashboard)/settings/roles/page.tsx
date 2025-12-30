@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { RolesList } from '@/components/admin/roles-list';
+import { RoleAssignmentRulesEditor } from '@/components/admin/role-assignment-rules';
 
 export default function RolesSettingsPage() {
   return (
@@ -20,6 +21,19 @@ export default function RolesSettingsPage() {
         </CardHeader>
         <CardContent>
           <RolesList />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Role Assignment Rules</CardTitle>
+          <CardDescription>
+            Configure which resident types are allowed to be assigned each executive role.
+            This helps enforce organizational policies about role eligibility.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RoleAssignmentRulesEditor />
         </CardContent>
       </Card>
     </div>

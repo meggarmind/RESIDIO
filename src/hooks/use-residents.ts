@@ -14,7 +14,7 @@ import { updateResidentHouse } from '@/actions/residents/update-resident-house';
 import { swapResidentRoles } from '@/actions/residents/swap-resident-roles';
 import { transferOwnership } from '@/actions/residents/transfer-ownership';
 import { removeOwnership } from '@/actions/residents/remove-ownership';
-import { verifyResident } from '@/actions/residents/verify-resident';
+import { verifyResident, rejectResidentVerification } from '@/actions/residents/verify-resident';
 import type { ResidentSearchParams, CreateResidentData, ResidentFormData, HouseAssignmentData } from '@/lib/validators/resident';
 import type { ResidentRole } from '@/types/database';
 
@@ -260,6 +260,22 @@ export function useVerifyResident() {
       return result.success;
     },
     onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['residents'] });
+      queryClient.invalidateQueries({ queryKey: ['resident', id] });
+    },
+  });
+}
+
+export function useRejectResidentVerification() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const result = await rejectResidentVerification(id, reason);
+      if (result.error) throw new Error(result.error);
+      return result.success;
+    },
+    onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['residents'] });
       queryClient.invalidateQueries({ queryKey: ['resident', id] });
     },

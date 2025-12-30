@@ -45,3 +45,13 @@ prompts/
 processed/
 deferred/
 archived/
+
+# MCP configuration (contains secrets)
+.mcp.json
+
+# TestSprite temporary files
+testsprite_tests/tmp/
+
+# Logs
+*.log
+logs/

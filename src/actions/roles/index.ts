@@ -413,6 +413,44 @@ export async function assignRoleToUser(
 
   const supabase = await createServerSupabaseClient();
 
+  // Check role assignment rules
+  const { checkRoleAssignmentAllowed } = await import('./assignment-rules');
+  const ruleCheck = await checkRoleAssignmentAllowed(userId, roleId);
+  if (!ruleCheck.allowed) {
+    return {
+      success: false,
+      error: ruleCheck.reason || 'Role assignment not allowed for this user type',
+    };
+  }
+
+  // Get role info to check if it requires verification
+  const { data: targetRole } = await supabase
+    .from('app_roles')
+    .select('name')
+    .eq('id', roleId)
+    .single();
+
+  // For the "resident" role, verify the user's linked resident is verified
+  if (targetRole?.name === 'resident') {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('resident_id')
+      .eq('id', userId)
+      .single();
+
+    if (profile?.resident_id) {
+      const { isResidentVerified } = await import('../residents/verify-resident');
+      const verificationCheck = await isResidentVerified(profile.resident_id);
+
+      if (!verificationCheck.isVerified) {
+        return {
+          success: false,
+          error: `Cannot assign "Resident" role: the linked resident must be verified first (current status: ${verificationCheck.status || 'unknown'})`,
+        };
+      }
+    }
+  }
+
   // Get old role for audit
   const { data: oldProfile } = await supabase
     .from('profiles')

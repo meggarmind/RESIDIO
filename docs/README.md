@@ -44,6 +44,7 @@ See [Development Environment](setup/development-environment.md) for detailed set
 
 ### Architecture
 - [Database Schema](architecture/database-schema.md) - Core entities, relationships, triggers, and enums
+- [Resident Types & Roles](architecture/resident-types-roles.md) - Resident classification, roles, and business logic
 
 ### API
 - [Supabase Integration](api/supabase-integration.md) - Data layer patterns, client configuration, MCP tools, form handling
@@ -54,6 +55,7 @@ See [Development Environment](setup/development-environment.md) for detailed set
 
 ### Security
 - [Access Control](security/access-control.md) - Authentication, RBAC, route protection, RLS, audit logging
+- [RBAC Permissions Audit](security/rbac-permissions-audit.md) - Complete permission inventory, role-permission matrix
 
 ---
 

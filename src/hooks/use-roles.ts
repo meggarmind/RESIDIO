@@ -212,3 +212,94 @@ export function useUsersWithRoles() {
     },
   });
 }
+
+// =====================================================
+// Role Assignment Rules
+// =====================================================
+
+import {
+  getRulesByResidentRole,
+  updateRoleAssignmentRule,
+  batchUpdateRoleAssignmentRules,
+} from '@/actions/roles/assignment-rules';
+import type { ResidentRole } from '@/types/database';
+
+const ASSIGNMENT_RULES_KEY = ['role-assignment-rules'];
+
+/**
+ * Fetch role assignment rules grouped by resident role
+ */
+export function useRoleAssignmentRules() {
+  return useQuery({
+    queryKey: ASSIGNMENT_RULES_KEY,
+    queryFn: async () => {
+      const result = await getRulesByResidentRole();
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result.data;
+    },
+  });
+}
+
+/**
+ * Update a single role assignment rule
+ */
+export function useUpdateRoleAssignmentRule() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      residentRole,
+      appRoleId,
+      isAllowed,
+    }: {
+      residentRole: ResidentRole;
+      appRoleId: string;
+      isAllowed: boolean;
+    }) => {
+      const result = await updateRoleAssignmentRule(residentRole, appRoleId, isAllowed);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENT_RULES_KEY });
+      toast.success('Rule updated successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to update rule');
+    },
+  });
+}
+
+/**
+ * Batch update multiple role assignment rules
+ */
+export function useBatchUpdateRoleAssignmentRules() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (
+      updates: Array<{
+        residentRole: ResidentRole;
+        appRoleId: string;
+        isAllowed: boolean;
+      }>
+    ) => {
+      const result = await batchUpdateRoleAssignmentRules(updates);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ASSIGNMENT_RULES_KEY });
+      toast.success('Rules updated successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to update rules');
+    },
+  });
+}
