@@ -9,6 +9,13 @@ export type ResidentStats = {
   suspended: number;
 };
 
+export type ContactVerificationStats = {
+  verified: number;
+  unverified: number;
+  partial: number;
+  total: number;
+};
+
 type GetResidentStatsResponse = {
   data: ResidentStats | null;
   error: string | null;
@@ -45,6 +52,66 @@ export async function getResidentStats(): Promise<GetResidentStatsResponse> {
       active: activeResult.count ?? 0,
       inactive: inactiveResult.count ?? 0,
       suspended: suspendedResult.count ?? 0,
+    },
+    error: null,
+  };
+}
+
+type GetContactVerificationStatsResponse = {
+  data: ContactVerificationStats | null;
+  error: string | null;
+};
+
+/**
+ * Fetches contact verification stats.
+ * - verified: both email (if present) and phone are verified
+ * - unverified: neither email nor phone is verified
+ * - partial: one is verified, the other is not
+ *
+ * Uses raw SQL for complex conditional counting.
+ */
+export async function getContactVerificationStats(): Promise<GetContactVerificationStatsResponse> {
+  const supabase = await createServerSupabaseClient();
+
+  // We need to fetch residents with their verification fields to calculate stats
+  // Using a more efficient approach with RPC or a simpler query
+  const { data: residents, error } = await supabase
+    .from('residents')
+    .select('email, email_verified_at, phone_verified_at')
+    .eq('account_status', 'active'); // Only count active residents
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  let verified = 0;
+  let unverified = 0;
+  let partial = 0;
+
+  for (const resident of residents || []) {
+    const hasEmail = !!resident.email;
+    const emailVerified = !!resident.email_verified_at;
+    const phoneVerified = !!resident.phone_verified_at;
+
+    // Email is considered complete if not present or verified
+    const emailComplete = !hasEmail || emailVerified;
+    const phoneComplete = phoneVerified;
+
+    if (emailComplete && phoneComplete) {
+      verified++;
+    } else if (!emailVerified && !phoneVerified) {
+      unverified++;
+    } else {
+      partial++;
+    }
+  }
+
+  return {
+    data: {
+      verified,
+      unverified,
+      partial,
+      total: residents?.length ?? 0,
     },
     error: null,
   };

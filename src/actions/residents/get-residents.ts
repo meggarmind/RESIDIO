@@ -3,7 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { sanitizeSearchInput } from '@/lib/utils';
 import type { ResidentWithHouses } from '@/types/database';
-import type { ResidentSearchParams } from '@/lib/validators/resident';
+import type { ResidentSearchParams, ContactVerificationFilter } from '@/lib/validators/resident';
 
 // Type moved to avoid 'use server' export restriction
 type GetResidentsResponse = {
@@ -12,9 +12,37 @@ type GetResidentsResponse = {
   error: string | null;
 };
 
+/**
+ * Helper to determine contact verification status
+ * - 'verified': all available contacts are verified (email if exists + phone)
+ * - 'unverified': has contacts but none are verified
+ * - 'incomplete': missing required contact info (no email AND no phone verified)
+ * - 'partial': some contacts verified, some not
+ */
+function getContactVerificationStatus(resident: ResidentWithHouses): ContactVerificationFilter {
+  const hasEmail = !!resident.email;
+  const emailVerified = !!resident.email_verified_at;
+  const phoneVerified = !!resident.phone_verified_at;
+
+  // Calculate what needs verification
+  const emailComplete = !hasEmail || emailVerified; // No email = considered complete
+  const phoneComplete = phoneVerified;
+
+  if (emailComplete && phoneComplete) {
+    return 'verified';
+  }
+
+  if (!emailVerified && !phoneVerified) {
+    return 'unverified';
+  }
+
+  // Partial: one verified, one not
+  return 'partial';
+}
+
 export async function getResidents(params: Partial<ResidentSearchParams> = {}): Promise<GetResidentsResponse> {
   const supabase = await createServerSupabaseClient();
-  const { search, status, verification, type, street_id, house_id, resident_role, page = 1, limit = 20 } = params;
+  const { search, status, verification, contact_verification, type, street_id, house_id, resident_role, page = 1, limit = 20 } = params;
 
   let query = supabase
     .from('residents')
@@ -73,6 +101,14 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
         resident_role.includes(rh.resident_role) && rh.is_active
       )
     );
+  }
+
+  // Filter by contact verification status
+  if (contact_verification) {
+    filteredData = filteredData.filter(resident => {
+      const status = getContactVerificationStatus(resident);
+      return status === contact_verification;
+    });
   }
 
   return {

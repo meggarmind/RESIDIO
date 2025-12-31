@@ -134,3 +134,71 @@ export function ContactVerificationBadgeCompact({
     </Badge>
   );
 }
+
+/**
+ * Granular verification status badge for Personal Information section.
+ * Shows specific verification states: Pending, Email Verified, Phone Verified, or Fully Verified.
+ */
+export function GranularVerificationBadge({
+  emailVerifiedAt,
+  phoneVerifiedAt,
+  hasEmail,
+  hasPhone = true,
+}: ContactVerificationBadgeProps & { hasPhone?: boolean }) {
+  const emailVerified = !!emailVerifiedAt;
+  const phoneVerified = !!phoneVerifiedAt;
+
+  // Calculate verification states
+  const emailNeeded = hasEmail && !emailVerified;
+  const phoneNeeded = hasPhone && !phoneVerified;
+  const emailComplete = !hasEmail || emailVerified; // No email = considered complete
+  const phoneComplete = !hasPhone || phoneVerified; // No phone = considered complete
+
+  // Fully verified: all required contacts are verified
+  if (emailComplete && phoneComplete) {
+    return (
+      <Badge variant="secondary" className="bg-green-100 text-green-700 border-green-200">
+        <Check className="h-3 w-3 mr-1" />
+        Fully Verified
+      </Badge>
+    );
+  }
+
+  // Nothing verified yet
+  if (emailNeeded && phoneNeeded) {
+    return (
+      <Badge variant="secondary" className="bg-amber-100 text-amber-700 border-amber-200">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        Pending
+      </Badge>
+    );
+  }
+
+  // Only email verified
+  if (emailVerified && !phoneVerified) {
+    return (
+      <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200">
+        <Mail className="h-3 w-3 mr-1" />
+        Email Verified
+      </Badge>
+    );
+  }
+
+  // Only phone verified
+  if (phoneVerified && !emailVerified) {
+    return (
+      <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200">
+        <Phone className="h-3 w-3 mr-1" />
+        Phone Verified
+      </Badge>
+    );
+  }
+
+  // Fallback (should not reach here)
+  return (
+    <Badge variant="secondary" className="bg-amber-100 text-amber-700 border-amber-200">
+      <AlertCircle className="h-3 w-3 mr-1" />
+      Pending
+    </Badge>
+  );
+}

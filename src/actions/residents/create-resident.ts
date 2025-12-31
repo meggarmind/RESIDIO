@@ -1,12 +1,13 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { Resident, ResidentRole } from '@/types/database';
 import type { CreateResidentData } from '@/lib/validators/resident';
 import { requiresSponsor, isValidCorporateRole } from '@/lib/validators/resident';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { sendWelcomeEmail } from '@/actions/email/send-welcome-email';
+import { sendEmailVerification, sendPhoneVerification } from '@/actions/verification/send-verification';
 
 type CreateResidentResponse = {
   data: Resident | null;
@@ -127,12 +128,37 @@ export async function createResident(formData: CreateResidentData): Promise<Crea
     }
   }
 
-  // Send welcome email if resident has email (non-blocking)
+  // Send welcome email and verification codes if resident has email/phone (non-blocking)
+  // These run in parallel for better performance
+  const notifications: Promise<unknown>[] = [];
+
   if (resident.email) {
-    sendWelcomeEmail(resident.id).catch((err) => {
-      console.error(`[Resident] Failed to send welcome email for ${resident.resident_code}:`, err);
-    });
+    // Send welcome email
+    notifications.push(
+      sendWelcomeEmail(resident.id).catch((err) => {
+        console.error(`[Resident] Failed to send welcome email for ${resident.resident_code}:`, err);
+      })
+    );
+
+    // Send email verification code
+    notifications.push(
+      sendEmailVerification(resident.id).catch((err) => {
+        console.error(`[Resident] Failed to send email verification for ${resident.resident_code}:`, err);
+      })
+    );
   }
+
+  // Send phone verification code (SMS)
+  if (resident.phone_primary) {
+    notifications.push(
+      sendPhoneVerification(resident.id).catch((err) => {
+        console.error(`[Resident] Failed to send phone verification for ${resident.resident_code}:`, err);
+      })
+    );
+  }
+
+  // Wait for all notifications to complete (or fail gracefully)
+  await Promise.allSettled(notifications);
 
   revalidatePath('/residents');
   revalidatePath('/houses');

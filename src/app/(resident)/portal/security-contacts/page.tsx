@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useIsDesktop } from '@/hooks/use-media-query';
+import { FeatureRestrictionGate } from '@/components/resident-portal/feature-restriction-gate';
 import {
   useResidentSecurityContacts,
   useSecurityContactCategories,
@@ -123,24 +124,28 @@ export default function ResidentSecurityContactsPage() {
   }
 
   return (
-    <div className={cn('space-y-6', isExpanded && 'space-y-8')}>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className={cn(
-            'text-2xl font-bold tracking-tight',
-            isExpanded && 'text-3xl xl:text-4xl'
-          )}>Security Contacts</h1>
-          <p className={cn(
-            'text-muted-foreground',
-            isExpanded && 'text-base'
-          )}>Manage access for your visitors</p>
+    <FeatureRestrictionGate
+      featureName="security contacts"
+      loadingFallback={<SecurityContactsSkeleton />}
+    >
+      <div className={cn('space-y-6', isExpanded && 'space-y-8')}>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className={cn(
+              'text-2xl font-bold tracking-tight',
+              isExpanded && 'text-3xl xl:text-4xl'
+            )}>Security Contacts</h1>
+            <p className={cn(
+              'text-muted-foreground',
+              isExpanded && 'text-base'
+            )}>Manage access for your visitors</p>
+          </div>
+          <Button size="sm" onClick={() => setIsAddSheetOpen(true)} className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            Add
+          </Button>
         </div>
-        <Button size="sm" onClick={() => setIsAddSheetOpen(true)} className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          Add
-        </Button>
-      </div>
 
       {/* Stats */}
       <div className={cn(
@@ -244,13 +249,14 @@ export default function ResidentSecurityContactsPage() {
         categories={categories || []}
       />
 
-      {/* Delete Confirmation Dialog */}
-      <DeleteContactDialog
-        contact={deleteContact}
-        open={!!deleteContact}
-        onOpenChange={(open) => !open && setDeleteContact(null)}
-      />
-    </div>
+        {/* Delete Confirmation Dialog */}
+        <DeleteContactDialog
+          contact={deleteContact}
+          open={!!deleteContact}
+          onOpenChange={(open) => !open && setDeleteContact(null)}
+        />
+      </div>
+    </FeatureRestrictionGate>
   );
 }
 

@@ -164,11 +164,15 @@ export { createResidentBaseSchema };
 
 export type CreateResidentData = z.infer<typeof createResidentBaseSchema>;
 
+// Contact verification status filter
+export type ContactVerificationFilter = 'verified' | 'unverified' | 'incomplete' | 'partial';
+
 // Search/filter params schema
 export const residentSearchSchema = z.object({
   search: z.string().optional(),
   status: z.enum(['active', 'inactive', 'suspended', 'archived']).optional(),
   verification: z.enum(['pending', 'submitted', 'verified', 'rejected']).optional(),
+  contact_verification: z.enum(['verified', 'unverified', 'incomplete', 'partial']).optional(),
   type: z.enum(['primary', 'secondary']).optional(),
   entity_type: entityTypeEnum.optional(),
   resident_role: z.array(residentRoleEnum).optional(),

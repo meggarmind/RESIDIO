@@ -31,10 +31,10 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { ContactVerificationBadge } from '@/components/residents/contact-verification-badge';
-import { useResidents } from '@/hooks/use-residents';
+import { useResidents, useContactVerificationStats } from '@/hooks/use-residents';
 import { useStreets } from '@/hooks/use-reference';
-import { Users, Plus, Search, Eye, Pencil, UserPlus, ChevronDown, X } from 'lucide-react';
-import type { ResidentSearchParams } from '@/lib/validators/resident';
+import { Users, Plus, Search, Eye, Pencil, UserPlus, ChevronDown, X, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import type { ResidentSearchParams, ContactVerificationFilter } from '@/lib/validators/resident';
 import type { AccountStatus, ResidentRole, ResidentWithHouses } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 
@@ -109,11 +109,21 @@ const ResidentRow = memo(function ResidentRow({ resident }: { resident: Resident
   );
 });
 
+// Labels for contact verification filter
+const CONTACT_VERIFICATION_LABELS: Record<ContactVerificationFilter | typeof ALL_VALUE, string> = {
+  [ALL_VALUE]: 'All Verification',
+  verified: 'Verified',
+  unverified: 'Unverified',
+  incomplete: 'Incomplete',
+  partial: 'Partial',
+};
+
 export function ResidentsTable() {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<AccountStatus | typeof ALL_VALUE>(ALL_VALUE);
   const [streetId, setStreetId] = useState<string>(ALL_VALUE);
+  const [contactVerification, setContactVerification] = useState<ContactVerificationFilter | typeof ALL_VALUE>(ALL_VALUE);
   const [selectedRoles, setSelectedRoles] = useState<ResidentRole[]>([]);
   const [page, setPage] = useState(1);
 
@@ -129,6 +139,7 @@ export function ResidentsTable() {
     search: search || undefined,
     status: status === ALL_VALUE ? undefined : status as AccountStatus,
     street_id: streetId === ALL_VALUE ? undefined : streetId,
+    contact_verification: contactVerification === ALL_VALUE ? undefined : contactVerification as ContactVerificationFilter,
     resident_role: selectedRoles.length > 0 ? selectedRoles : undefined,
     page,
     limit: 20,
@@ -136,6 +147,7 @@ export function ResidentsTable() {
 
   const { data, isLoading, error } = useResidents(params);
   const { data: streets } = useStreets();
+  const { data: verificationStats } = useContactVerificationStats();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,11 +244,75 @@ export function ResidentsTable() {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <Select value={contactVerification} onValueChange={(v) => setContactVerification(v as ContactVerificationFilter | typeof ALL_VALUE)}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All Verification" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_VALUE}>All Verification</SelectItem>
+            <SelectItem value="verified">
+              <span className="flex items-center gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                Verified
+              </span>
+            </SelectItem>
+            <SelectItem value="partial">
+              <span className="flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5 text-blue-600" />
+                Partial
+              </span>
+            </SelectItem>
+            <SelectItem value="unverified">
+              <span className="flex items-center gap-2">
+                <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
+                Unverified
+              </span>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+
         <Button onClick={() => router.push('/residents/new')}>
           <Plus className="h-4 w-4 mr-2" />
           Add Resident
         </Button>
       </div>
+
+      {/* Verification Stats Summary */}
+      {verificationStats && (verificationStats.unverified > 0 || verificationStats.partial > 0) && (
+        <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border">
+          <div className="text-sm text-muted-foreground">Contact Verification:</div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setContactVerification('verified')}
+              className="flex items-center gap-1.5 text-sm hover:underline"
+            >
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <span className="font-medium">{verificationStats.verified}</span>
+              <span className="text-muted-foreground">verified</span>
+            </button>
+            {verificationStats.partial > 0 && (
+              <button
+                onClick={() => setContactVerification('partial')}
+                className="flex items-center gap-1.5 text-sm hover:underline"
+              >
+                <Clock className="h-4 w-4 text-blue-600" />
+                <span className="font-medium">{verificationStats.partial}</span>
+                <span className="text-muted-foreground">partial</span>
+              </button>
+            )}
+            {verificationStats.unverified > 0 && (
+              <button
+                onClick={() => setContactVerification('unverified')}
+                className="flex items-center gap-1.5 text-sm hover:underline"
+              >
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <span className="font-medium text-amber-700">{verificationStats.unverified}</span>
+                <span className="text-muted-foreground">unverified</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Active Role Filters */}
       {selectedRoles.length > 0 && (
@@ -261,6 +337,21 @@ export function ResidentsTable() {
           >
             Clear all
           </Button>
+        </div>
+      )}
+
+      {/* Active Verification Filter */}
+      {contactVerification !== ALL_VALUE && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Verification filter:</span>
+          <Badge
+            variant="secondary"
+            className="cursor-pointer hover:bg-secondary/80"
+            onClick={() => setContactVerification(ALL_VALUE)}
+          >
+            {CONTACT_VERIFICATION_LABELS[contactVerification]}
+            <X className="ml-1 h-3 w-3" />
+          </Badge>
         </div>
       )}
 

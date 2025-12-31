@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useInvoices, useResidentIndebtedness, useResidentWallet } from '@/hooks/use-billing';
 import { useIsDesktop } from '@/hooks/use-media-query';
+import { FeatureRestrictionGate } from '@/components/resident-portal/feature-restriction-gate';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -97,18 +98,22 @@ export default function ResidentInvoicesPage() {
   }
 
   return (
-    <div className={cn('space-y-6', isExpanded && 'space-y-8')}>
-      {/* Header */}
-      <div className="space-y-1">
-        <h1 className={cn(
-          'text-2xl font-bold tracking-tight',
-          isExpanded && 'text-3xl xl:text-4xl'
-        )}>Payments</h1>
-        <p className={cn(
-          'text-muted-foreground',
-          isExpanded && 'text-base'
-        )}>View your invoices and payment history</p>
-      </div>
+    <FeatureRestrictionGate
+      featureName="payment history"
+      loadingFallback={<InvoicesSkeleton />}
+    >
+      <div className={cn('space-y-6', isExpanded && 'space-y-8')}>
+        {/* Header */}
+        <div className="space-y-1">
+          <h1 className={cn(
+            'text-2xl font-bold tracking-tight',
+            isExpanded && 'text-3xl xl:text-4xl'
+          )}>Payments</h1>
+          <p className={cn(
+            'text-muted-foreground',
+            isExpanded && 'text-base'
+          )}>View your invoices and payment history</p>
+        </div>
 
       {/* Summary Cards */}
       <div className={cn(
@@ -181,13 +186,14 @@ export default function ResidentInvoicesPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Invoice Detail Sheet */}
-      <InvoiceDetailSheet
-        invoice={selectedInvoice}
-        open={!!selectedInvoice}
-        onOpenChange={(open) => !open && setSelectedInvoice(null)}
-      />
-    </div>
+        {/* Invoice Detail Sheet */}
+        <InvoiceDetailSheet
+          invoice={selectedInvoice}
+          open={!!selectedInvoice}
+          onOpenChange={(open) => !open && setSelectedInvoice(null)}
+        />
+      </div>
+    </FeatureRestrictionGate>
   );
 }
 

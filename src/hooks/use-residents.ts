@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getResidents } from '@/actions/residents/get-residents';
 import { getResident } from '@/actions/residents/get-resident';
-import { getResidentStats } from '@/actions/residents/get-resident-stats';
+import { getResidentStats, getContactVerificationStats } from '@/actions/residents/get-resident-stats';
 import { createResident } from '@/actions/residents/create-resident';
 import { updateResident } from '@/actions/residents/update-resident';
 import { deleteResident } from '@/actions/residents/delete-resident';
@@ -50,6 +50,22 @@ export function useResidentStats() {
       return result.data;
     },
     staleTime: 60000, // Cache for 1 minute (stats don't change frequently)
+  });
+}
+
+/**
+ * Hook for fetching contact verification stats (verified, unverified, partial).
+ * Shows how many residents have complete, no, or partial contact verification.
+ */
+export function useContactVerificationStats() {
+  return useQuery({
+    queryKey: ['contactVerificationStats'],
+    queryFn: async () => {
+      const result = await getContactVerificationStats();
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    staleTime: 60000, // Cache for 1 minute
   });
 }
 

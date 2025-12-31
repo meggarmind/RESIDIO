@@ -7,8 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ResidentForm } from '@/components/residents/resident-form';
-import { AccountStatusBadge, VerificationStatusBadge } from '@/components/residents/status-badge';
+import { AccountStatusBadge } from '@/components/residents/status-badge';
+import { GranularVerificationBadge } from '@/components/residents/contact-verification-badge';
 import { useResident, useDeleteResident, useVerifyResident } from '@/hooks/use-residents';
+import { useVerificationStatus } from '@/hooks/use-verification';
 import { LinkedHouses } from '@/components/residents/linked-houses';
 import { ResidentPayments } from '@/components/residents/resident-payments';
 import { WalletBalance } from '@/components/residents/wallet-balance';
@@ -33,6 +35,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const isEditing = searchParams.get('edit') === 'true';
 
   const { data: resident, isLoading, error } = useResident(id);
+  const { data: verificationStatus } = useVerificationStatus(id);
   const deleteMutation = useDeleteResident();
   const verifyMutation = useVerifyResident();
 
@@ -132,7 +135,11 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
           </div>
         </div>
         <div className="flex gap-2">
-          {resident.verification_status !== 'verified' && (
+          {/* Show verify button only if contact verification is incomplete */}
+          {!(
+            (resident.email ? verificationStatus?.email?.verified : true) &&
+            (resident.phone_primary ? verificationStatus?.phone?.verified : true)
+          ) && (
             <Button
               variant="default"
               onClick={handleVerify}
@@ -196,7 +203,12 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
                 <Separator />
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Verification</span>
-                  <VerificationStatusBadge status={resident.verification_status} />
+                  <GranularVerificationBadge
+                    emailVerifiedAt={verificationStatus?.email?.verified_at ?? null}
+                    phoneVerifiedAt={verificationStatus?.phone?.verified_at ?? null}
+                    hasEmail={!!resident.email}
+                    hasPhone={!!resident.phone_primary}
+                  />
                 </div>
                 <Separator />
                 <div className="flex justify-between items-center">
