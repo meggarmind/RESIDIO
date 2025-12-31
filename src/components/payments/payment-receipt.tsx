@@ -26,6 +26,7 @@ interface PaymentReceiptProps {
         } | null;
         house?: {
             house_number: string;
+            short_name?: string | null;
             street?: {
                 name: string;
             } | null;
@@ -73,8 +74,8 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
                     </p>
                     {payment.house && (
                         <p className="text-sm text-gray-600">
-                            Address: {payment.house.house_number}
-                            {payment.house.street?.name && `, ${payment.house.street.name}`}
+                            Property: {payment.house.short_name || payment.house.house_number}
+                            {payment.house.street?.name && ` • ${payment.house.house_number} ${payment.house.street.name}`}
                         </p>
                     )}
                 </div>

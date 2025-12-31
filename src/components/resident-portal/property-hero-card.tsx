@@ -3,7 +3,7 @@
 import { Home, MapPin, Users, ChevronRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { cn, getPropertyShortname } from '@/lib/utils';
 import { ResidentAvatarCluster } from './resident-avatar-cluster';
 import type { ResidentSummary } from '@/actions/houses/get-house-residents';
 import type { ResidentRole, HouseWithStreet } from '@/types/database';
@@ -59,6 +59,7 @@ export function PropertyHeroCard({
 }: PropertyHeroCardProps) {
   const isOccupied = currentResidents.length > 0;
   const occupancyGradient = isOccupied ? occupancyGradients.occupied : occupancyGradients.vacant;
+  const shortname = getPropertyShortname(house);
   const address = `${house.house_number}, ${house.street.name}`;
 
   return (
@@ -95,11 +96,16 @@ export function PropertyHeroCard({
             )} />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-lg leading-tight truncate">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="font-mono text-sm font-bold bg-muted px-2 py-0.5 rounded">
+                {shortname}
+              </span>
+            </div>
+            <h3 className="font-medium text-sm text-muted-foreground leading-tight truncate">
               {address}
             </h3>
             {house.house_type && (
-              <p className="text-sm text-muted-foreground truncate">
+              <p className="text-xs text-muted-foreground/70 truncate">
                 {house.house_type.name}
               </p>
             )}

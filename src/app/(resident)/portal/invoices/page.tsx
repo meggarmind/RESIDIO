@@ -39,7 +39,7 @@ import {
   Download,
   Loader2,
 } from 'lucide-react';
-import { formatCurrency, cn } from '@/lib/utils';
+import { formatCurrency, cn, getPropertyShortname } from '@/lib/utils';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useLayoutTheme } from '@/contexts/layout-theme-context';
@@ -299,8 +299,14 @@ function InvoiceTable({
                 <TableCell>
                   {invoice.house ? (
                     <span className="text-sm">
-                      {invoice.house.house_number}
-                      {invoice.house.street?.name && `, ${invoice.house.street.name}`}
+                      <span className="font-mono font-semibold bg-muted px-1.5 py-0.5 rounded text-xs">
+                        {getPropertyShortname(invoice.house)}
+                      </span>
+                      {invoice.house.street?.name && (
+                        <span className="text-muted-foreground ml-1.5">
+                          {invoice.house.street.name}
+                        </span>
+                      )}
                     </span>
                   ) : (
                     <span className="text-muted-foreground">-</span>
@@ -467,7 +473,12 @@ function InvoiceDetailSheet({
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                 <Home className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <p className="text-sm font-medium">Property</p>
+                  <p className="text-sm font-medium">
+                    <span className="font-mono font-semibold bg-background px-1.5 py-0.5 rounded text-xs mr-1">
+                      {getPropertyShortname(invoice.house)}
+                    </span>
+                    Property
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {invoice.house.house_number}, {invoice.house.street?.name}
                   </p>

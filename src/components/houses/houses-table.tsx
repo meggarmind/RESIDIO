@@ -26,6 +26,7 @@ import { useHouses } from '@/hooks/use-houses';
 import { useStreets, useHouseTypes } from '@/hooks/use-reference';
 import { Home, Plus, Search, Eye, Pencil } from 'lucide-react';
 import type { HouseSearchParams } from '@/lib/validators/house';
+import { getPropertyShortname } from '@/lib/utils';
 
 const ALL_VALUE = '_all';
 
@@ -130,6 +131,7 @@ export function HousesTable() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Property ID</TableHead>
               <TableHead>House</TableHead>
               <TableHead>Street</TableHead>
               <TableHead>Type</TableHead>
@@ -141,6 +143,7 @@ export function HousesTable() {
             {isLoading ? (
               [...Array(5)].map((_, i) => (
                 <TableRow key={i}>
+                  <TableCell><Skeleton className="h-5 w-20 rounded" /></TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Skeleton className="h-4 w-4" />
@@ -160,13 +163,18 @@ export function HousesTable() {
               ))
             ) : data?.data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   No houses found
                 </TableCell>
               </TableRow>
             ) : (
               data?.data.map((house) => (
                 <TableRow key={house.id}>
+                  <TableCell>
+                    <span className="font-mono text-sm font-semibold bg-muted px-2 py-0.5 rounded">
+                      {getPropertyShortname(house)}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Home className="h-4 w-4 text-muted-foreground" />

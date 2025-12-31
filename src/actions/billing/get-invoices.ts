@@ -31,7 +31,7 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
         .select(`
       *,
       resident:residents(id, first_name, last_name, resident_code),
-      house:houses(id, house_number, street:streets(name)),
+      house:houses(id, house_number, short_name, street:streets(name)),
       billing_profile:billing_profiles(id, name),
       invoice_items(id, description, amount)
     `, { count: 'exact' })
@@ -80,7 +80,7 @@ export async function getInvoiceById(id: string): Promise<{ data: InvoiceWithDet
         .select(`
       *,
       resident:residents(id, first_name, last_name, resident_code, phone_primary, email),
-      house:houses(id, house_number, street:streets(name)),
+      house:houses(id, house_number, short_name, street:streets(name)),
       billing_profile:billing_profiles(id, name),
       invoice_items(id, description, amount)
     `)
@@ -317,7 +317,7 @@ export async function getResidentCrossPropertyPaymentSummary(residentId: string)
             amount_paid,
             status,
             house_id,
-            house:houses(id, house_number, street:streets(name))
+            house:houses(id, house_number, short_name, street:streets(name))
         `)
         .eq('resident_id', residentId)
         .neq('status', 'void');

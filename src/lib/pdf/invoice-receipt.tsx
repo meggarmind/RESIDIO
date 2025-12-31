@@ -296,8 +296,8 @@ export function InvoiceReceiptPDF({ invoice, estateName = 'Residio Estate' }: In
             </Text>
             {invoice.house && (
               <Text style={styles.billToDetail}>
-                Property: {invoice.house.house_number}
-                {invoice.house.street?.name && `, ${invoice.house.street.name}`}
+                Property: {invoice.house.short_name || invoice.house.house_number}
+                {invoice.house.street?.name && ` • ${invoice.house.house_number} ${invoice.house.street.name}`}
               </Text>
             )}
             {invoice.resident?.email && (

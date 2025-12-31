@@ -30,6 +30,7 @@ import type { ResidentWithHouses, ResidentRole } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, CORPORATE_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } from '@/types/database';
 import { requiresSponsor } from '@/lib/validators/resident';
 import { ResidentRoleBadge } from './status-badge';
+import { formatPropertyDisplay, getPropertyShortname } from '@/lib/utils';
 
 interface LinkedHousesProps {
     resident: ResidentWithHouses;
@@ -261,9 +262,10 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                                 else if (hasDeveloper) status = ' (Developer Inventory)';
                                                 else if (h.is_occupied) status = ' (Occupied)';
 
+                                                const displayName = formatPropertyDisplay(h, 'full');
                                                 return (
                                                     <SelectItem key={h.id} value={h.id}>
-                                                        {h.house_number} {h.street?.name}{status}
+                                                        {displayName}{status}
                                                     </SelectItem>
                                                 );
                                             })}
@@ -334,7 +336,12 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                             className="font-medium hover:underline flex items-center gap-1"
                                         >
                                             <Home className="h-3 w-3" />
-                                            {rh.house?.house_number} {rh.house?.street?.name}
+                                            <span className="font-mono text-sm font-semibold bg-muted px-1.5 py-0.5 rounded">
+                                                {getPropertyShortname(rh.house)}
+                                            </span>
+                                            <span className="text-muted-foreground">
+                                                {rh.house?.street?.name}
+                                            </span>
                                         </Link>
                                     </div>
 

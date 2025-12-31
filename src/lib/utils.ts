@@ -81,3 +81,59 @@ export function sanitizeSearchInput(input: string): string {
     .replace(/%/g, '\\%')    // % -> \%
     .replace(/_/g, '\\_');   // _ -> \_
 }
+
+/**
+ * Format property display with shortname as primary identifier.
+ *
+ * When a property has a shortname (e.g., "OAK-10A"), it returns:
+ * - Compact: "OAK-10A"
+ * - Full: "OAK-10A • 10A Oak Avenue"
+ *
+ * Fallback when no shortname:
+ * - "10A Oak Avenue" or "10A" if no street
+ *
+ * @param house - Property object with optional short_name, house_number, and street
+ * @param format - 'compact' for shortname only, 'full' for shortname with address
+ */
+export function formatPropertyDisplay(
+  house: {
+    short_name?: string | null;
+    house_number?: string | null;
+    street?: { name?: string | null } | null;
+  } | null | undefined,
+  format: 'compact' | 'full' = 'compact'
+): string {
+  if (!house) return '';
+
+  const shortname = house.short_name;
+  const houseNumber = house.house_number || '';
+  const streetName = house.street?.name || '';
+
+  // Build full address for fallback or full format
+  const fullAddress = streetName
+    ? `${houseNumber} ${streetName}`.trim()
+    : houseNumber;
+
+  // Compact: prefer shortname, fallback to house number
+  if (format === 'compact') {
+    return shortname || houseNumber || '';
+  }
+
+  // Full: shortname with address context
+  if (shortname) {
+    return fullAddress ? `${shortname} • ${fullAddress}` : shortname;
+  }
+
+  return fullAddress;
+}
+
+/**
+ * Get property shortname for display, with fallback to house number.
+ * Use this for table columns, badges, and compact displays.
+ */
+export function getPropertyShortname(
+  house: { short_name?: string | null; house_number?: string | null } | null | undefined
+): string {
+  if (!house) return '';
+  return house.short_name || house.house_number || '';
+}

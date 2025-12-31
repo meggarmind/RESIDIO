@@ -958,6 +958,7 @@ export interface InvoiceWithDetails extends Invoice {
   house: {
     id: string;
     house_number: string;
+    short_name?: string | null;
     street: { name: string };
   };
   billing_profile: {

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { Home, CreditCard, Shield, User, LayoutDashboard, FileText } from 'lucide-react';
+import { Home, CreditCard, Shield, User, LayoutDashboard, FileText, LogOut } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import { LayoutThemeSwitcher } from '@/components/ui/layout-theme-switcher';
 import { PortalSearch } from './portal-search';
@@ -40,7 +40,7 @@ interface PortalSidebarProps {
  */
 export function PortalSidebar({ className }: PortalSidebarProps) {
   const pathname = usePathname();
-  const { profile, hasAnyPermission } = useAuth();
+  const { profile, signOut, hasAnyPermission } = useAuth();
 
   // Check if user has admin dashboard access (any admin permission indicates dashboard access)
   const hasAdminAccess = hasAnyPermission([PERMISSIONS.RESIDENTS_VIEW]);
@@ -137,6 +137,15 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
             <p className="text-xs text-muted-foreground">Resident</p>
           </div>
         </div>
+
+        {/* Sign Out button */}
+        <button
+          onClick={signOut}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Sign out</span>
+        </button>
       </div>
     </aside>
   );

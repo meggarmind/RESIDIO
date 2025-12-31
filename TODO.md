@@ -1,8 +1,33 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-28 (Portal Desktop Layout Enhancements Complete)
+**Last Updated:** 2025-12-31 (Property Shortnames & Portal UX Enhancements)
 
 ## Current Phase: Phase 15 - Document Management ✅ COMPLETE
+
+### Recent Session Work (2025-12-31):
+
+#### Bug Fixes & UX Enhancements ✅
+
+- **Portal Logout Button**: Added Sign Out button to desktop sidebar (was only in mobile header)
+- **Property Shortnames**: System-wide display of property shortnames (e.g., `PALM-10`)
+  - Created `formatPropertyDisplay()` and `getPropertyShortname()` utilities in `src/lib/utils.ts`
+  - Updated 8 components to display shortnames consistently:
+    - `houses-table.tsx` - Added "Property ID" column with shortname badge
+    - `linked-houses.tsx` - Updated dropdown and card displays
+    - `property-hero-card.tsx` - Shortname as primary identifier
+    - `property-carousel.tsx` - Uses shortname in cards
+    - `portal/invoices/page.tsx` - Updated table and detail views
+    - `payment-receipt.tsx` - Updated receipt display
+    - `invoice-receipt.tsx` (PDF) - Updated property display
+  - Updated `InvoiceWithDetails` type to include `short_name`
+  - Updated `get-invoices.ts` queries to select `short_name`
+
+#### RLS Security Fix ✅
+
+- **Infinite Recursion Fix**: Fixed "infinite recursion detected in policy for relation 'resident_houses'"
+  - Created `get_my_house_ids()` SECURITY DEFINER function to bypass RLS
+  - Updated "Residents can view housemates house assignments" policy to use helper function
+  - Migration: `fix_resident_houses_rls_recursion`
 
 ### Recent Session Work (2025-12-28):
 
