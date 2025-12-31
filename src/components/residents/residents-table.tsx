@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
+import { ContactVerificationBadge } from '@/components/residents/contact-verification-badge';
 import { useResidents } from '@/hooks/use-residents';
 import { useStreets } from '@/hooks/use-reference';
 import { Users, Plus, Search, Eye, Pencil, UserPlus, ChevronDown, X } from 'lucide-react';
@@ -82,6 +83,13 @@ const ResidentRow = memo(function ResidentRow({ resident }: { resident: Resident
       </TableCell>
       <TableCell>
         <AccountStatusBadge status={resident.account_status} />
+      </TableCell>
+      <TableCell>
+        <ContactVerificationBadge
+          emailVerifiedAt={resident.email_verified_at}
+          phoneVerifiedAt={resident.phone_verified_at}
+          hasEmail={!!resident.email}
+        />
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-2">
@@ -267,6 +275,7 @@ export function ResidentsTable() {
               <TableHead>Address</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Verified</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -287,6 +296,7 @@ export function ResidentsTable() {
                   <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                  <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Skeleton className="h-8 w-8" />
@@ -297,7 +307,7 @@ export function ResidentsTable() {
               ))
             ) : data?.data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-12">
+                <TableCell colSpan={8} className="py-12">
                   <div className="flex flex-col items-center justify-center gap-4 text-center">
                     <UserPlus className="size-12 text-muted-foreground" />
                     <div className="space-y-2">

@@ -23,6 +23,7 @@ const roleLabels: Record<ResidentRole, string> = {
   household_member: 'Household Member',
   domestic_staff: 'Domestic Staff',
   caretaker: 'Caretaker',
+  contractor: 'Contractor',
 };
 
 // Role colors for badges

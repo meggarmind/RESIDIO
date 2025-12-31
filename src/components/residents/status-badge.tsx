@@ -29,6 +29,7 @@ const RESIDENT_ROLE_VARIANTS: Record<ResidentRole, 'default' | 'secondary' | 'de
   household_member: 'outline',
   domestic_staff: 'outline',
   caretaker: 'outline',
+  contractor: 'secondary',
 };
 
 const ENTITY_TYPE_VARIANTS: Record<EntityType, 'default' | 'secondary' | 'outline'> = {

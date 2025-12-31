@@ -210,6 +210,7 @@ export async function batchUpdateRoleAssignmentRules(
 
 /**
  * Check if a role can be assigned to a user based on their resident type
+ * and contact verification status
  */
 export async function checkRoleAssignmentAllowed(
   userId: string,
@@ -275,5 +276,77 @@ export async function checkRoleAssignmentAllowed(
     };
   }
 
+  // Check contact verification requirement
+  const verificationCheck = await checkContactVerificationRequirement(
+    profile.resident_id,
+    appRoleId
+  );
+
+  if (!verificationCheck.allowed) {
+    return {
+      success: true,
+      allowed: false,
+      reason: verificationCheck.reason,
+    };
+  }
+
   return { success: true, allowed: true };
+}
+
+/**
+ * Check if a resident meets the contact verification requirements for a role
+ */
+async function checkContactVerificationRequirement(
+  residentId: string,
+  appRoleId: string
+): Promise<{
+  allowed: boolean;
+  reason?: string;
+}> {
+  const supabase = await createServerSupabaseClient();
+
+  // Get role's verification requirement
+  const { data: role, error: roleError } = await supabase
+    .from('app_roles')
+    .select('id, display_name, requires_contact_verification')
+    .eq('id', appRoleId)
+    .single();
+
+  if (roleError || !role) {
+    return { allowed: false, reason: 'Role not found' };
+  }
+
+  // If role doesn't require verification, allow
+  if (!role.requires_contact_verification) {
+    return { allowed: true };
+  }
+
+  // Get resident's verification status
+  const { data: resident, error: residentError } = await supabase
+    .from('residents')
+    .select('email, email_verified_at')
+    .eq('id', residentId)
+    .single();
+
+  if (residentError || !resident) {
+    return { allowed: false, reason: 'Resident not found' };
+  }
+
+  // Check if email is verified (email verification is required for all roles that need verification)
+  if (!resident.email_verified_at) {
+    // Check if they even have an email
+    if (!resident.email) {
+      return {
+        allowed: false,
+        reason: `The "${role.display_name}" role requires a verified email address. Please add an email address first.`,
+      };
+    }
+
+    return {
+      allowed: false,
+      reason: `The "${role.display_name}" role requires a verified email address. Please verify your email first.`,
+    };
+  }
+
+  return { allowed: true };
 }

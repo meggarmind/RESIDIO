@@ -54,6 +54,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useLayoutTheme } from '@/contexts/layout-theme-context';
 import { HouseholdMemberForm } from '@/components/resident-portal/household-member-form';
+import { ContactVerificationCard } from '@/components/resident-portal/contact-verification-card';
 import { getHouseholdMembers, removeHouseholdMember } from '@/actions/residents/add-household-member';
 import type { ResidentWithHouses, HouseWithStreet, ResidentRole } from '@/types/database';
 
@@ -258,6 +259,15 @@ export default function ResidentProfilePage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Contact Verification */}
+          {residentId && (
+            <ContactVerificationCard
+              residentId={residentId}
+              email={resident.email}
+              phone={resident.phone_primary}
+            />
+          )}
         </div>
 
         {/* Right Column (Desktop) / Continue stacked (Mobile) */}

@@ -428,3 +428,578 @@ export async function deactivateExpiredCodes(): Promise<{ count: number; error: 
 
   return { count: data?.length || 0, error: null };
 }
+
+// ============================================================
+// Time-Limited Access Codes for Visiting Domestic Staff
+// ============================================================
+
+export type TimeWindow = {
+  start_time: string; // HH:MM format (e.g., "08:00")
+  end_time: string;   // HH:MM format (e.g., "17:00")
+  days_of_week: number[]; // 0=Sunday, 1=Monday, ..., 6=Saturday
+};
+
+export type CreateTimeLimitedCodeData = {
+  contact_id: string;
+  valid_from: string;
+  valid_until: string;
+  time_window?: TimeWindow;
+  renewal_reminder_days?: number; // Days before expiry to send reminder (default: 3)
+  notes?: string;
+};
+
+export type ExpiringCodeInfo = {
+  code_id: string;
+  code: string;
+  valid_until: string;
+  days_until_expiry: number;
+  contact_id: string;
+  contact_name: string;
+  resident_id: string;
+  resident_name: string;
+  resident_phone: string;
+};
+
+export type DailyAccessReport = {
+  date: string;
+  total_entries: number;
+  total_exits: number;
+  active_on_premises: number;
+  entries: Array<{
+    contact_name: string;
+    contact_category: string;
+    resident_name: string;
+    access_code: string;
+    entry_time: string;
+    exit_time: string | null;
+    house_number: string;
+  }>;
+  expiring_codes: ExpiringCodeInfo[];
+};
+
+/**
+ * Generate a time-limited access code for visiting domestic staff
+ *
+ * This creates a code with specific validity windows:
+ * - Date range (valid_from to valid_until)
+ * - Optional daily time window (e.g., 8am-5pm on weekdays only)
+ */
+export async function generateTimeLimitedAccessCode(
+  data: CreateTimeLimitedCodeData
+): Promise<AccessCodeResponse> {
+  const supabase = await createServerSupabaseClient();
+
+  // Check permission
+  const canGenerate = await hasSecurityPermission('generate_codes');
+  if (!canGenerate) {
+    return { data: null, error: 'Permission denied: Cannot generate access codes' };
+  }
+
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { data: null, error: 'Unauthorized' };
+  }
+
+  // Verify contact exists and is active
+  const { data: contact, error: contactError } = await supabase
+    .from('security_contacts')
+    .select(`
+      id, full_name, status,
+      resident:residents(id, first_name, last_name),
+      category:security_contact_categories(name)
+    `)
+    .eq('id', data.contact_id)
+    .single();
+
+  if (contactError || !contact) {
+    return { data: null, error: 'Security contact not found' };
+  }
+
+  if (contact.status !== 'active') {
+    return { data: null, error: 'Cannot generate code for inactive contact' };
+  }
+
+  // Validate dates
+  const validFrom = new Date(data.valid_from);
+  const validUntil = new Date(data.valid_until);
+
+  if (validUntil <= validFrom) {
+    return { data: null, error: 'Valid until date must be after valid from date' };
+  }
+
+  // Create the access code with time window stored in a notes field or tags
+  // Since the schema doesn't have time_window columns, we'll encode it
+  const timeWindowEncoded = data.time_window
+    ? `TIME_WINDOW:${data.time_window.start_time}-${data.time_window.end_time}:${data.time_window.days_of_week.join(',')}`
+    : null;
+
+  const { data: accessCode, error: createError } = await supabase
+    .from('access_codes')
+    .insert({
+      contact_id: data.contact_id,
+      code_type: 'permanent', // Permanent but with validity limits
+      valid_from: validFrom.toISOString(),
+      valid_until: validUntil.toISOString(),
+      is_active: true,
+    })
+    .select()
+    .single();
+
+  if (createError) {
+    console.error('Generate time-limited access code error:', createError);
+    return { data: null, error: 'Failed to generate access code' };
+  }
+
+  // Store the time window metadata in system_settings or a related table
+  if (timeWindowEncoded) {
+    await supabase.from('system_settings').upsert({
+      key: `access_code_time_window_${accessCode.id}`,
+      value: JSON.stringify(data.time_window),
+    }, { onConflict: 'key' });
+  }
+
+  // Store renewal reminder setting
+  if (data.renewal_reminder_days) {
+    await supabase.from('system_settings').upsert({
+      key: `access_code_reminder_${accessCode.id}`,
+      value: String(data.renewal_reminder_days),
+    }, { onConflict: 'key' });
+  }
+
+  // Audit log
+  const residentData = contact.resident as unknown as { first_name: string; last_name: string } | null;
+  const categoryName = (contact.category as unknown as { name: string })?.name || 'Unknown';
+  await logAudit({
+    action: 'GENERATE',
+    entityType: 'access_codes',
+    entityId: accessCode.id,
+    entityDisplay: `Time-limited code ${accessCode.code} for ${contact.full_name} (${categoryName})`,
+    newValues: {
+      ...accessCode,
+      time_window: data.time_window,
+      renewal_reminder_days: data.renewal_reminder_days,
+    },
+  });
+
+  revalidatePath('/security');
+  revalidatePath('/security/contacts');
+  revalidatePath(`/security/contacts/${data.contact_id}`);
+
+  return { data: accessCode, error: null };
+}
+
+/**
+ * Check if an access code is valid for the current time window
+ */
+export async function isCodeValidForTimeWindow(codeId: string): Promise<{ valid: boolean; reason?: string }> {
+  const supabase = await createServerSupabaseClient();
+
+  // Get time window setting for this code
+  const { data: setting } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', `access_code_time_window_${codeId}`)
+    .single();
+
+  if (!setting?.value) {
+    // No time window restriction
+    return { valid: true };
+  }
+
+  try {
+    const timeWindow: TimeWindow = JSON.parse(setting.value);
+    const now = new Date();
+    const currentDay = now.getDay();
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    // Check day of week
+    if (!timeWindow.days_of_week.includes(currentDay)) {
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const allowedDays = timeWindow.days_of_week.map(d => dayNames[d]).join(', ');
+      return {
+        valid: false,
+        reason: `Access only allowed on: ${allowedDays}`,
+      };
+    }
+
+    // Check time of day
+    if (currentTime < timeWindow.start_time || currentTime > timeWindow.end_time) {
+      return {
+        valid: false,
+        reason: `Access only allowed between ${timeWindow.start_time} and ${timeWindow.end_time}`,
+      };
+    }
+
+    return { valid: true };
+  } catch {
+    return { valid: true }; // Invalid setting format, allow access
+  }
+}
+
+/**
+ * Extended verify that also checks time windows
+ */
+export async function verifyAccessCodeWithTimeWindow(data: VerifyAccessCodeData): Promise<VerifyCodeResponse> {
+  // First do the standard verification
+  const result = await verifyAccessCode(data);
+
+  if (!result.valid || !result.data) {
+    return result;
+  }
+
+  // Check time window
+  const timeWindowCheck = await isCodeValidForTimeWindow(result.data.id);
+  if (!timeWindowCheck.valid) {
+    return {
+      ...result,
+      valid: false,
+      reason: timeWindowCheck.reason,
+    };
+  }
+
+  return result;
+}
+
+/**
+ * Get codes expiring within the next N days
+ *
+ * Used for renewal notifications and reports
+ */
+export async function getExpiringCodes(daysAhead: number = 7): Promise<{ data: ExpiringCodeInfo[]; error: string | null }> {
+  const supabase = await createServerSupabaseClient();
+
+  const now = new Date();
+  const futureDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+
+  const { data: codes, error } = await supabase
+    .from('access_codes')
+    .select(`
+      id,
+      code,
+      valid_until,
+      contact:security_contacts!inner(
+        id,
+        full_name,
+        resident:residents(
+          id,
+          first_name,
+          last_name,
+          phone_primary
+        )
+      )
+    `)
+    .eq('is_active', true)
+    .gte('valid_until', now.toISOString())
+    .lte('valid_until', futureDate.toISOString())
+    .order('valid_until');
+
+  if (error) {
+    console.error('Get expiring codes error:', error);
+    return { data: [], error: 'Failed to fetch expiring codes' };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const expiringCodes: ExpiringCodeInfo[] = (codes || []).map((c: any) => {
+    const contact = c.contact;
+    const resident = contact?.resident;
+    const validUntil = new Date(c.valid_until);
+    const daysUntilExpiry = Math.ceil((validUntil.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+
+    return {
+      code_id: c.id,
+      code: c.code,
+      valid_until: c.valid_until,
+      days_until_expiry: daysUntilExpiry,
+      contact_id: contact?.id || '',
+      contact_name: contact?.full_name || '',
+      resident_id: resident?.id || '',
+      resident_name: resident ? `${resident.first_name} ${resident.last_name}` : '',
+      resident_phone: resident?.phone_primary || '',
+    };
+  });
+
+  return { data: expiringCodes, error: null };
+}
+
+/**
+ * Get codes that need renewal reminders
+ *
+ * Returns codes where:
+ * - valid_until is within reminder_days of now
+ * - A reminder hasn't been sent yet (tracked in system_settings)
+ */
+export async function getCodesNeedingRenewalReminder(): Promise<{ data: ExpiringCodeInfo[]; error: string | null }> {
+  const supabase = await createServerSupabaseClient();
+
+  // Get all active codes with their reminder settings
+  const { data: codes, error } = await supabase
+    .from('access_codes')
+    .select(`
+      id,
+      code,
+      valid_until,
+      contact:security_contacts!inner(
+        id,
+        full_name,
+        resident:residents(
+          id,
+          first_name,
+          last_name,
+          phone_primary
+        )
+      )
+    `)
+    .eq('is_active', true)
+    .not('valid_until', 'is', null)
+    .order('valid_until');
+
+  if (error) {
+    console.error('Get codes needing renewal error:', error);
+    return { data: [], error: 'Failed to fetch codes' };
+  }
+
+  const now = new Date();
+  const needsReminder: ExpiringCodeInfo[] = [];
+
+  for (const code of codes || []) {
+    // Get reminder setting for this code
+    const { data: reminderSetting } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', `access_code_reminder_${code.id}`)
+      .single();
+
+    const reminderDays = reminderSetting?.value ? parseInt(reminderSetting.value, 10) : 3;
+
+    // Check if already reminded
+    const { data: sentSetting } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', `access_code_reminder_sent_${code.id}`)
+      .single();
+
+    if (sentSetting?.value === 'true') {
+      continue; // Already sent
+    }
+
+    const validUntil = new Date(code.valid_until);
+    const daysUntilExpiry = Math.ceil((validUntil.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+
+    if (daysUntilExpiry <= reminderDays && daysUntilExpiry > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const contact = code.contact as any;
+      const resident = contact?.resident;
+
+      needsReminder.push({
+        code_id: code.id,
+        code: code.code,
+        valid_until: code.valid_until,
+        days_until_expiry: daysUntilExpiry,
+        contact_id: contact?.id || '',
+        contact_name: contact?.full_name || '',
+        resident_id: resident?.id || '',
+        resident_name: resident ? `${resident.first_name} ${resident.last_name}` : '',
+        resident_phone: resident?.phone_primary || '',
+      });
+    }
+  }
+
+  return { data: needsReminder, error: null };
+}
+
+/**
+ * Mark a code's reminder as sent
+ */
+export async function markReminderSent(codeId: string): Promise<{ success: boolean; error: string | null }> {
+  const supabase = await createServerSupabaseClient();
+
+  const { error } = await supabase.from('system_settings').upsert({
+    key: `access_code_reminder_sent_${codeId}`,
+    value: 'true',
+  }, { onConflict: 'key' });
+
+  if (error) {
+    return { success: false, error: 'Failed to mark reminder as sent' };
+  }
+
+  return { success: true, error: null };
+}
+
+/**
+ * Generate end-of-day security report for domestic staff access
+ *
+ * This report includes:
+ * - All entries/exits for the day
+ * - Anyone still on premises
+ * - Codes expiring in the next few days
+ */
+export async function generateDailyAccessReport(date?: string): Promise<{ data: DailyAccessReport | null; error: string | null }> {
+  const supabase = await createServerSupabaseClient();
+
+  // Check permission
+  const canView = await hasSecurityPermission('view_contacts');
+  if (!canView) {
+    return { data: null, error: 'Permission denied' };
+  }
+
+  const reportDate = date || new Date().toISOString().split('T')[0];
+  const startOfDay = `${reportDate}T00:00:00.000Z`;
+  const endOfDay = `${reportDate}T23:59:59.999Z`;
+
+  // Get all access logs for the day
+  const { data: accessLogs, error: logsError } = await supabase
+    .from('access_logs')
+    .select(`
+      id,
+      action,
+      timestamp,
+      contact:security_contacts(
+        id,
+        full_name,
+        category:security_contact_categories(name),
+        resident:residents(
+          first_name,
+          last_name
+        )
+      ),
+      access_code:access_codes(code),
+      house:houses(house_number)
+    `)
+    .gte('timestamp', startOfDay)
+    .lte('timestamp', endOfDay)
+    .order('timestamp');
+
+  if (logsError) {
+    console.error('Get access logs error:', logsError);
+    return { data: null, error: 'Failed to fetch access logs' };
+  }
+
+  // Process logs into entries
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const entriesMap = new Map<string, any>();
+
+  for (const log of accessLogs || []) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const contact = log.contact as any;
+    const contactId = contact?.id;
+
+    if (!contactId) continue;
+
+    if (log.action === 'check_in') {
+      entriesMap.set(contactId, {
+        contact_name: contact?.full_name || '',
+        contact_category: contact?.category?.name || '',
+        resident_name: contact?.resident
+          ? `${contact.resident.first_name} ${contact.resident.last_name}`
+          : '',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        access_code: (log.access_code as any)?.code || '',
+        entry_time: log.timestamp,
+        exit_time: null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        house_number: (log.house as any)?.house_number || '',
+      });
+    } else if (log.action === 'check_out' && entriesMap.has(contactId)) {
+      const entry = entriesMap.get(contactId);
+      entry.exit_time = log.timestamp;
+    }
+  }
+
+  const entries = Array.from(entriesMap.values());
+  const totalEntries = entries.length;
+  const totalExits = entries.filter(e => e.exit_time).length;
+  const activeOnPremises = entries.filter(e => !e.exit_time).length;
+
+  // Get expiring codes
+  const { data: expiringCodes } = await getExpiringCodes(3);
+
+  return {
+    data: {
+      date: reportDate,
+      total_entries: totalEntries,
+      total_exits: totalExits,
+      active_on_premises: activeOnPremises,
+      entries,
+      expiring_codes: expiringCodes || [],
+    },
+    error: null,
+  };
+}
+
+/**
+ * Extend an access code's validity
+ */
+export async function extendAccessCodeValidity(
+  codeId: string,
+  newValidUntil: string,
+  notes?: string
+): Promise<AccessCodeResponse> {
+  const supabase = await createServerSupabaseClient();
+
+  // Check permission
+  const canGenerate = await hasSecurityPermission('generate_codes');
+  if (!canGenerate) {
+    return { data: null, error: 'Permission denied' };
+  }
+
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { data: null, error: 'Unauthorized' };
+  }
+
+  // Get existing code
+  const { data: existingCode, error: fetchError } = await supabase
+    .from('access_codes')
+    .select('*, contact:security_contacts(full_name)')
+    .eq('id', codeId)
+    .single();
+
+  if (fetchError || !existingCode) {
+    return { data: null, error: 'Access code not found' };
+  }
+
+  if (!existingCode.is_active) {
+    return { data: null, error: 'Cannot extend a revoked code' };
+  }
+
+  const oldValidUntil = existingCode.valid_until;
+
+  // Update validity
+  const { data: updatedCode, error: updateError } = await supabase
+    .from('access_codes')
+    .update({
+      valid_until: new Date(newValidUntil).toISOString(),
+    })
+    .eq('id', codeId)
+    .select()
+    .single();
+
+  if (updateError) {
+    console.error('Extend access code error:', updateError);
+    return { data: null, error: 'Failed to extend access code' };
+  }
+
+  // Clear reminder sent flag so a new reminder can be sent
+  await supabase
+    .from('system_settings')
+    .delete()
+    .eq('key', `access_code_reminder_sent_${codeId}`);
+
+  // Audit log
+  const contactData = existingCode.contact as unknown as { full_name: string } | null;
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'access_codes',
+    entityId: codeId,
+    entityDisplay: `Extended code ${existingCode.code} for ${contactData?.full_name || 'Unknown'}`,
+    oldValues: { valid_until: oldValidUntil },
+    newValues: { valid_until: newValidUntil, notes },
+  });
+
+  revalidatePath('/security');
+  revalidatePath('/security/contacts');
+
+  return { data: updatedCode, error: null };
+}

@@ -191,6 +191,7 @@ export type Database = {
           is_system_role: boolean | null
           level: number | null
           name: string
+          requires_contact_verification: boolean
           updated_at: string | null
         }
         Insert: {
@@ -205,6 +206,7 @@ export type Database = {
           is_system_role?: boolean | null
           level?: number | null
           name: string
+          requires_contact_verification?: boolean
           updated_at?: string | null
         }
         Update: {
@@ -219,6 +221,7 @@ export type Database = {
           is_system_role?: boolean | null
           level?: number | null
           name?: string
+          requires_contact_verification?: boolean
           updated_at?: string | null
         }
         Relationships: [
@@ -640,6 +643,180 @@ export type Database = {
           },
         ]
       }
+      document_access_logs: {
+        Row: {
+          accessed_at: string | null
+          accessed_by: string
+          action: string
+          document_id: string
+          id: string
+          ip_address: unknown
+          user_agent: string | null
+        }
+        Insert: {
+          accessed_at?: string | null
+          accessed_by: string
+          action: string
+          document_id: string
+          id?: string
+          ip_address?: unknown
+          user_agent?: string | null
+        }
+        Update: {
+          accessed_at?: string | null
+          accessed_by?: string
+          action?: string
+          document_id?: string
+          id?: string
+          ip_address?: unknown
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_access_logs_accessed_by_fkey"
+            columns: ["accessed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_access_logs_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_categories: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          is_resident_accessible: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_resident_accessible?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_resident_accessible?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      documents: {
+        Row: {
+          category_id: string | null
+          created_at: string | null
+          description: string | null
+          file_name: string
+          file_path: string
+          file_size_bytes: number | null
+          file_type: string | null
+          house_id: string | null
+          id: string
+          is_archived: boolean | null
+          mime_type: string | null
+          parent_document_id: string | null
+          resident_id: string | null
+          title: string
+          updated_at: string | null
+          uploaded_by: string
+          version: number | null
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          file_name: string
+          file_path: string
+          file_size_bytes?: number | null
+          file_type?: string | null
+          house_id?: string | null
+          id?: string
+          is_archived?: boolean | null
+          mime_type?: string | null
+          parent_document_id?: string | null
+          resident_id?: string | null
+          title: string
+          updated_at?: string | null
+          uploaded_by: string
+          version?: number | null
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          file_name?: string
+          file_path?: string
+          file_size_bytes?: number | null
+          file_type?: string | null
+          house_id?: string | null
+          id?: string
+          is_archived?: boolean | null
+          mime_type?: string | null
+          parent_document_id?: string | null
+          resident_id?: string | null
+          title?: string
+          updated_at?: string | null
+          uploaded_by?: string
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "document_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_parent_document_id_fkey"
+            columns: ["parent_document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_logs: {
         Row: {
           created_at: string | null
@@ -784,11 +961,14 @@ export type Database = {
         Row: {
           bank_account_ids: string[] | null
           created_at: string
+          edit_notes: string | null
           generated_by: string | null
           generation_duration_ms: number | null
           generation_trigger: string
           id: string
+          is_latest: boolean | null
           name: string
+          parent_report_id: string | null
           period_end: string
           period_preset: string | null
           period_start: string
@@ -797,15 +977,19 @@ export type Database = {
           schedule_id: string | null
           summary: Json | null
           template_style: string | null
+          version: number | null
         }
         Insert: {
           bank_account_ids?: string[] | null
           created_at?: string
+          edit_notes?: string | null
           generated_by?: string | null
           generation_duration_ms?: number | null
           generation_trigger: string
           id?: string
+          is_latest?: boolean | null
           name: string
+          parent_report_id?: string | null
           period_end: string
           period_preset?: string | null
           period_start: string
@@ -814,15 +998,19 @@ export type Database = {
           schedule_id?: string | null
           summary?: Json | null
           template_style?: string | null
+          version?: number | null
         }
         Update: {
           bank_account_ids?: string[] | null
           created_at?: string
+          edit_notes?: string | null
           generated_by?: string | null
           generation_duration_ms?: number | null
           generation_trigger?: string
           id?: string
+          is_latest?: boolean | null
           name?: string
+          parent_report_id?: string | null
           period_end?: string
           period_preset?: string | null
           period_start?: string
@@ -831,8 +1019,16 @@ export type Database = {
           schedule_id?: string | null
           summary?: Json | null
           template_style?: string | null
+          version?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "generated_reports_parent_report_id_fkey"
+            columns: ["parent_report_id"]
+            isOneToOne: false
+            referencedRelation: "generated_reports"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "generated_reports_schedule_id_fkey"
             columns: ["schedule_id"]
@@ -1039,6 +1235,7 @@ export type Database = {
           is_occupied: boolean
           notes: string | null
           number_of_plots: number
+          short_name: string | null
           street_id: string
           updated_at: string
         }
@@ -1054,6 +1251,7 @@ export type Database = {
           is_occupied?: boolean
           notes?: string | null
           number_of_plots?: number
+          short_name?: string | null
           street_id: string
           updated_at?: string
         }
@@ -1069,6 +1267,7 @@ export type Database = {
           is_occupied?: boolean
           notes?: string | null
           number_of_plots?: number
+          short_name?: string | null
           street_id?: string
           updated_at?: string
         }
@@ -1847,11 +2046,14 @@ export type Database = {
           house_id: string
           id: string
           is_active: boolean
+          is_live_in: boolean | null
+          is_primary: boolean | null
           move_in_date: string
           move_out_date: string | null
           resident_id: string
           resident_role: Database["public"]["Enums"]["resident_role"]
           sponsor_resident_id: string | null
+          tags: string[] | null
           updated_at: string
         }
         Insert: {
@@ -1860,11 +2062,14 @@ export type Database = {
           house_id: string
           id?: string
           is_active?: boolean
+          is_live_in?: boolean | null
+          is_primary?: boolean | null
           move_in_date?: string
           move_out_date?: string | null
           resident_id: string
           resident_role?: Database["public"]["Enums"]["resident_role"]
           sponsor_resident_id?: string | null
+          tags?: string[] | null
           updated_at?: string
         }
         Update: {
@@ -1873,11 +2078,14 @@ export type Database = {
           house_id?: string
           id?: string
           is_active?: boolean
+          is_live_in?: boolean | null
+          is_primary?: boolean | null
           move_in_date?: string
           move_out_date?: string | null
           resident_id?: string
           resident_role?: Database["public"]["Enums"]["resident_role"]
           sponsor_resident_id?: string | null
+          tags?: string[] | null
           updated_at?: string
         }
         Relationships: [
@@ -1995,6 +2203,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           email: string | null
+          email_verified_at: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           emergency_contact_relationship: string | null
@@ -2012,6 +2221,7 @@ export type Database = {
           notes: string | null
           phone_primary: string
           phone_secondary: string | null
+          phone_verified_at: string | null
           photo_url: string | null
           portal_enabled: boolean | null
           portal_enabled_at: string | null
@@ -2030,6 +2240,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           email?: string | null
+          email_verified_at?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           emergency_contact_relationship?: string | null
@@ -2047,6 +2258,7 @@ export type Database = {
           notes?: string | null
           phone_primary: string
           phone_secondary?: string | null
+          phone_verified_at?: string | null
           photo_url?: string | null
           portal_enabled?: boolean | null
           portal_enabled_at?: string | null
@@ -2065,6 +2277,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           email?: string | null
+          email_verified_at?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           emergency_contact_relationship?: string | null
@@ -2082,6 +2295,7 @@ export type Database = {
           notes?: string | null
           phone_primary?: string
           phone_secondary?: string | null
+          phone_verified_at?: string | null
           photo_url?: string | null
           portal_enabled?: boolean | null
           portal_enabled_at?: string | null
@@ -2133,6 +2347,51 @@ export type Database = {
           {
             foreignKeyName: "residents_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      role_assignment_rules: {
+        Row: {
+          app_role_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_allowed: boolean | null
+          resident_role: string
+          updated_at: string | null
+        }
+        Insert: {
+          app_role_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_allowed?: boolean | null
+          resident_role: string
+          updated_at?: string | null
+        }
+        Update: {
+          app_role_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_allowed?: boolean | null
+          resident_role?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_assignment_rules_app_role_id_fkey"
+            columns: ["app_role_id"]
+            isOneToOne: false
+            referencedRelation: "app_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_assignment_rules_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2428,6 +2687,47 @@ export type Database = {
         }
         Relationships: []
       }
+      verification_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          resident_id: string
+          target_value: string
+          token: string
+          token_type: Database["public"]["Enums"]["verification_type"]
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          resident_id: string
+          target_value: string
+          token: string
+          token_type: Database["public"]["Enums"]["verification_type"]
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          resident_id?: string
+          target_value?: string
+          token?: string
+          token_type?: Database["public"]["Enums"]["verification_type"]
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_tokens_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wallet_transactions: {
         Row: {
           amount: number
@@ -2498,6 +2798,10 @@ export type Database = {
     }
     Functions: {
       generate_access_code: { Args: never; Returns: string }
+      generate_house_shortname: {
+        Args: { p_house_number: string; p_street_id: string }
+        Returns: string
+      }
       generate_resident_code: { Args: never; Returns: string }
       get_my_permissions: {
         Args: never
@@ -2518,6 +2822,10 @@ export type Database = {
         Returns: boolean
       }
       is_resident: { Args: never; Returns: boolean }
+      is_role_assignment_allowed: {
+        Args: { p_app_role_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_super_admin: { Args: never; Returns: boolean }
       record_ownership_history: {
         Args: {
@@ -2581,6 +2889,7 @@ export type Database = {
         | "imports"
         | "approvals"
         | "system"
+        | "documents"
       resident_role:
         | "non_resident_landlord"
         | "tenant"
@@ -2590,6 +2899,7 @@ export type Database = {
         | "resident_landlord"
         | "caretaker"
         | "developer"
+        | "contractor"
       resident_type: "primary" | "secondary"
       security_contact_status: "active" | "suspended" | "expired" | "revoked"
       user_role:
@@ -2598,6 +2908,7 @@ export type Database = {
         | "security_officer"
         | "admin"
       verification_status: "pending" | "submitted" | "verified" | "rejected"
+      verification_type: "email" | "phone"
       wallet_transaction_type: "credit" | "debit"
     }
     CompositeTypes: {
@@ -2775,6 +3086,7 @@ export const Constants = {
         "imports",
         "approvals",
         "system",
+        "documents",
       ],
       resident_role: [
         "non_resident_landlord",
@@ -2785,6 +3097,7 @@ export const Constants = {
         "resident_landlord",
         "caretaker",
         "developer",
+        "contractor",
       ],
       resident_type: ["primary", "secondary"],
       security_contact_status: ["active", "suspended", "expired", "revoked"],
@@ -2795,6 +3108,7 @@ export const Constants = {
         "admin",
       ],
       verification_status: ["pending", "submitted", "verified", "rejected"],
+      verification_type: ["email", "phone"],
       wallet_transaction_type: ["credit", "debit"],
     },
   },

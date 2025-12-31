@@ -80,8 +80,9 @@ supabase/
 
 | Table | Description |
 |-------|-------------|
-| `residents` | Community members with auto-generated codes |
-| `resident_houses` | Junction table (many-to-many) for property assignments |
+| `residents` | Community members with auto-generated codes, contact verification |
+| `resident_houses` | Junction table (many-to-many) for property assignments with roles, sponsor links, live-in flags, and tags |
+| `verification_tokens` | OTP tokens for email/phone contact verification |
 
 ### Financial
 
@@ -144,6 +145,28 @@ supabase/
 - Can link to existing resident (by ID)
 - Or manual entry with name/phone
 
+### Resident-House Assignment (`resident_houses`)
+The junction table manages many-to-many relationships between residents and houses:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `resident_id` | UUID | Reference to resident |
+| `house_id` | UUID | Reference to house |
+| `resident_role` | enum | Role in this property (see `resident_role` enum) |
+| `is_primary` | boolean | Primary residence flag (One Home policy) |
+| `move_in_date` | date | Date moved into property |
+| `move_out_date` | date | Date moved out (null if active) |
+| `is_active` | boolean | Current active assignment |
+| `sponsor_resident_id` | UUID | Sponsor for secondary roles |
+| `is_live_in` | boolean | For domestic_staff: live-in vs. visiting |
+| `tags` | text[] | Flexible attributes array |
+
+### Contact Verification
+Residents can verify their email and phone via OTP:
+- `verification_tokens` table stores time-limited OTP codes
+- `residents.email_verified_at` / `phone_verified_at` track verification status
+- Verification required for certain app roles (configurable per role)
+
 ### Billing Profiles
 - Attached to house types for automated invoice generation
 - Supports one-time levies and recurring fees
@@ -183,13 +206,53 @@ supabase/
 ## Enums
 
 ### `resident_role`
+Defines the relationship a resident has to a property. Updated in Phase 15 to include contractor role.
+
+**Primary Roles** (can exist independently - relationship holders):
 ```sql
-'owner' | 'tenant' | 'occupier' | 'domestic_staff' | 'household_member'
+'resident_landlord'     -- Owner who resides in the unit
+'non_resident_landlord' -- Non-resident owner (landlord)
+'tenant'                -- Leaseholder who resides in the unit
+'developer'             -- Developer holding unsold inventory
 ```
 
-### `resident_status`
+**Secondary Roles** (must be attached to a primary resident via sponsor):
 ```sql
-'active' | 'inactive' | 'pending' | 'suspended'
+'co_resident'           -- Adult residing in unit not on title/lease
+'household_member'      -- Family dependents (spouse, children)
+'domestic_staff'        -- Employees working/living at the unit
+'caretaker'             -- Assigned to maintain a vacant unit
+'contractor'            -- External service providers (plumbers, electricians, etc.)
+```
+
+**Sponsor Requirement**: `domestic_staff`, `caretaker`, and `contractor` roles require a `sponsor_resident_id` linking them to a primary resident.
+
+**Live-In Flag**: For `domestic_staff` role, `is_live_in` boolean distinguishes:
+- `true` = Live-in staff (resides at property)
+- `false` = Visiting staff (works at property but lives elsewhere)
+
+**Tags/Attributes**: The `tags` text array field allows flexible attributes like `['elderly', 'parking_permit', 'pool_access']` without schema changes.
+
+### `resident_type`
+```sql
+'primary'   -- Primary resident (can have independent roles)
+'secondary' -- Secondary resident (individuals only)
+```
+
+### `entity_type`
+```sql
+'individual' -- Person
+'corporate'  -- Company (can only be non_resident_landlord or developer)
+```
+
+### `account_status`
+```sql
+'active' | 'inactive' | 'suspended' | 'archived'
+```
+
+### `verification_status`
+```sql
+'pending' | 'submitted' | 'verified' | 'rejected'
 ```
 
 ### `payment_status`

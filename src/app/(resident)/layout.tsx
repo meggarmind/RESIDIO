@@ -2,6 +2,7 @@ import { PortalHeader } from '@/components/resident-portal/portal-header';
 import { PortalBottomNav } from '@/components/resident-portal/portal-bottom-nav';
 import { PortalSidebar } from '@/components/resident-portal/portal-sidebar';
 import { PortalLayoutContent } from '@/components/resident-portal/portal-layout-content';
+import { PortalVerificationBanner } from '@/components/resident-portal/portal-verification-banner';
 
 export const metadata = {
   title: 'Resident Portal | Residio',
@@ -45,6 +46,11 @@ export default function ResidentPortalLayout({
       {/* Mobile: Fixed Header (hidden on desktop) */}
       <div className="md:hidden">
         <PortalHeader />
+      </div>
+
+      {/* Verification Banner (shows if contact verification incomplete) */}
+      <div className="md:ml-64">
+        <PortalVerificationBanner />
       </div>
 
       {/* Main Content Area */}

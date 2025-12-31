@@ -17,6 +17,7 @@ import { CrossPropertyPaymentSummary } from '@/components/residents/cross-proper
 import { ResidentSecurityContacts } from '@/components/residents/resident-security-contacts';
 import { PaymentAliases } from '@/components/residents/payment-aliases';
 import { PreferencesForm } from '@/components/notifications/preferences-form';
+import { AdminContactVerification } from '@/components/residents/admin-contact-verification';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell } from 'lucide-react';
 import { toast } from 'sonner';
@@ -229,6 +230,13 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
 
             {/* Wallet Balance */}
             <WalletBalance residentId={id} />
+
+            {/* Contact Verification - Admin */}
+            <AdminContactVerification
+              residentId={id}
+              email={resident.email}
+              phone={resident.phone_primary}
+            />
 
             {/* House Assignments */}
             <LinkedHouses resident={resident} />

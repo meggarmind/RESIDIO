@@ -3,6 +3,18 @@ import { getSettings, getBillingSettings, getCurrentDevelopmentLevyProfileId } f
 import { updateSetting, updateSettings, setCurrentDevelopmentLevyProfileId } from '@/actions/settings/update-setting';
 import { uploadEstateLogo, removeEstateLogo } from '@/actions/settings/upload-estate-logo';
 import { generateRetroactiveLevies } from '@/actions/billing/generate-levies';
+import {
+    getEffectiveSetting,
+    setHierarchicalSetting,
+    removeSettingOverride,
+    getSettingOverrides,
+    getEstateSettingsByCategory,
+    getHouseSettingOverrides,
+    getResidentSettingOverrides,
+    type HierarchicalSettingKey,
+    type SettingLevel,
+    type SettingCategory,
+} from '@/actions/settings/hierarchical-settings';
 import { toast } from 'sonner';
 
 export function useSettings(category?: string) {
@@ -176,5 +188,162 @@ export function useRemoveEstateLogo() {
         onError: (error) => {
             toast.error(error.message || 'Failed to remove logo');
         }
+    });
+}
+
+// ============================================
+// Hierarchical Settings Hooks
+// Three-level cascade: estate -> house -> resident
+// ============================================
+
+/**
+ * Get effective setting value with cascade resolution
+ *
+ * @param key - Setting key to look up
+ * @param houseId - Optional house ID for house/resident level resolution
+ * @param residentId - Optional resident ID for resident level resolution
+ */
+export function useEffectiveSetting<T = unknown>(
+    key: HierarchicalSettingKey,
+    houseId?: string,
+    residentId?: string
+) {
+    return useQuery({
+        queryKey: ['hierarchical-setting', key, houseId, residentId],
+        queryFn: async () => {
+            const result = await getEffectiveSetting(key, houseId, residentId);
+            if (!result.success) throw new Error(result.error || 'Failed to get setting');
+            return result.value as T;
+        }
+    });
+}
+
+/**
+ * Set a hierarchical setting value
+ */
+export function useSetHierarchicalSetting() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({
+            key,
+            value,
+            level,
+            houseId,
+            residentId,
+            description,
+        }: {
+            key: HierarchicalSettingKey;
+            value: unknown;
+            level: SettingLevel;
+            houseId?: string;
+            residentId?: string;
+            description?: string;
+        }) => {
+            const result = await setHierarchicalSetting(key, value, level, houseId, residentId, description);
+            if (!result.success) throw new Error(result.error || 'Failed to set setting');
+            return result.data;
+        },
+        onSuccess: () => {
+            toast.success('Setting updated successfully');
+            queryClient.invalidateQueries({ queryKey: ['hierarchical-setting'] });
+            queryClient.invalidateQueries({ queryKey: ['hierarchical-settings'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to update setting');
+        }
+    });
+}
+
+/**
+ * Remove a setting override at house or resident level
+ */
+export function useRemoveSettingOverride() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({
+            key,
+            level,
+            houseId,
+            residentId,
+        }: {
+            key: HierarchicalSettingKey;
+            level: 'house' | 'resident';
+            houseId?: string;
+            residentId?: string;
+        }) => {
+            const result = await removeSettingOverride(key, level, houseId, residentId);
+            if (!result.success) throw new Error(result.error || 'Failed to remove override');
+            return result;
+        },
+        onSuccess: () => {
+            toast.success('Override removed - now using default');
+            queryClient.invalidateQueries({ queryKey: ['hierarchical-setting'] });
+            queryClient.invalidateQueries({ queryKey: ['hierarchical-settings'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to remove override');
+        }
+    });
+}
+
+/**
+ * Get all overrides for a setting across all levels
+ */
+export function useSettingOverrides(key: HierarchicalSettingKey) {
+    return useQuery({
+        queryKey: ['hierarchical-settings', 'overrides', key],
+        queryFn: async () => {
+            const result = await getSettingOverrides(key);
+            if (!result.success) throw new Error(result.error || 'Failed to get overrides');
+            return result.data;
+        }
+    });
+}
+
+/**
+ * Get all estate-level settings for a category
+ */
+export function useEstateSettings(category: SettingCategory) {
+    return useQuery({
+        queryKey: ['hierarchical-settings', 'estate', category],
+        queryFn: async () => {
+            const result = await getEstateSettingsByCategory(category);
+            if (!result.success) throw new Error(result.error || 'Failed to get settings');
+            return result.data;
+        }
+    });
+}
+
+/**
+ * Get all setting overrides for a specific house
+ */
+export function useHouseSettings(houseId: string | undefined) {
+    return useQuery({
+        queryKey: ['hierarchical-settings', 'house', houseId],
+        queryFn: async () => {
+            if (!houseId) return [];
+            const result = await getHouseSettingOverrides(houseId);
+            if (!result.success) throw new Error(result.error || 'Failed to get house settings');
+            return result.data;
+        },
+        enabled: !!houseId,
+    });
+}
+
+/**
+ * Get all setting overrides for a specific resident
+ */
+export function useResidentSettings(residentId: string | undefined) {
+    return useQuery({
+        queryKey: ['hierarchical-settings', 'resident', residentId],
+        queryFn: async () => {
+            if (!residentId) return [];
+            const result = await getResidentSettingOverrides(residentId);
+            if (!result.success) throw new Error(result.error || 'Failed to get resident settings');
+            return result.data;
+        },
+        enabled: !!residentId,
     });
 }

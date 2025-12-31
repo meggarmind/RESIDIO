@@ -4,7 +4,7 @@ import type { EntityType, ResidentRole, PrimaryResidentRole, SecondaryResidentRo
 // Entity type enum for validation (2 types only)
 const entityTypeEnum = z.enum(['individual', 'corporate']);
 
-// Role enums matching database (renamed in Phase 2)
+// Role enums matching database (renamed in Phase 2, contractor added in Phase 15)
 const residentRoleEnum = z.enum([
   'resident_landlord',
   'non_resident_landlord',
@@ -14,14 +14,15 @@ const residentRoleEnum = z.enum([
   'household_member',
   'domestic_staff',
   'caretaker',
+  'contractor',
 ]);
 
 const primaryRoleEnum = z.enum(['resident_landlord', 'non_resident_landlord', 'tenant', 'developer']);
-const secondaryRoleEnum = z.enum(['co_resident', 'household_member', 'domestic_staff', 'caretaker']);
+const secondaryRoleEnum = z.enum(['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor']);
 const corporateRoleEnum = z.enum(['non_resident_landlord', 'developer']);
 
-// Roles that require a sponsor (domestic_staff and caretaker)
-const sponsorRequiredRoles: ResidentRole[] = ['domestic_staff', 'caretaker'];
+// Roles that require a sponsor (domestic_staff, caretaker, and contractor)
+const sponsorRequiredRoles: ResidentRole[] = ['domestic_staff', 'caretaker', 'contractor'];
 
 // Residency roles (for "One Home" policy) - updated names
 const residencyRoles: ResidentRole[] = ['resident_landlord', 'tenant', 'co_resident'];
@@ -92,7 +93,7 @@ export const houseAssignmentSchema = z.object({
     return true;
   },
   {
-    message: 'Domestic staff and caretakers must have a sponsor',
+    message: 'Domestic staff, caretakers, and contractors must have a sponsor',
     path: ['sponsor_resident_id'],
   }
 );
@@ -153,7 +154,7 @@ export const createResidentSchema = createResidentBaseSchema.refine(
     return true;
   },
   {
-    message: 'Domestic staff and caretakers must have a sponsor',
+    message: 'Domestic staff, caretakers, and contractors must have a sponsor',
     path: ['sponsor_resident_id'],
   }
 );
@@ -185,7 +186,7 @@ export function isPrimaryRole(role: ResidentRole): role is PrimaryResidentRole {
 }
 
 export function isSecondaryRole(role: ResidentRole): role is SecondaryResidentRole {
-  return ['co_resident', 'household_member', 'domestic_staff', 'caretaker'].includes(role);
+  return ['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor'].includes(role);
 }
 
 export function isResidencyRole(role: ResidentRole): boolean {

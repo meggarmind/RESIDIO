@@ -68,7 +68,7 @@ export type EntityType = 'individual' | 'corporate';
 // Phase 3: Resident Management Types
 export type ResidentType = 'primary' | 'secondary';
 
-// Resident roles (renamed in Phase 2 Enhancements)
+// Resident roles (renamed in Phase 2 Enhancements, Contractor added in Phase 15)
 export type ResidentRole =
   | 'resident_landlord' // Owner who resides in the unit (was owner_occupier)
   | 'non_resident_landlord' // Non-resident owner (was landlord)
@@ -77,13 +77,14 @@ export type ResidentRole =
   | 'co_resident' // Adult residing in unit not on title/lease
   | 'household_member' // Family dependents (spouse, children)
   | 'domestic_staff' // Employees working/living at the unit
-  | 'caretaker'; // Assigned to maintain a vacant unit
+  | 'caretaker' // Assigned to maintain a vacant unit
+  | 'contractor'; // External service providers (plumbers, electricians, etc.)
 
 // Primary roles (can exist independently - relationship holders)
 export type PrimaryResidentRole = 'resident_landlord' | 'non_resident_landlord' | 'tenant' | 'developer';
 
 // Secondary roles (must be attached to a primary resident, individuals only)
-export type SecondaryResidentRole = 'co_resident' | 'household_member' | 'domestic_staff' | 'caretaker';
+export type SecondaryResidentRole = 'co_resident' | 'household_member' | 'domestic_staff' | 'caretaker' | 'contractor';
 
 // Corporate-allowed roles (companies can only have these roles)
 export type CorporateRole = 'non_resident_landlord' | 'developer';
@@ -185,7 +186,13 @@ export type ApprovalRequestType =
   | 'house_plots_change'
   | 'bank_account_create'
   | 'bank_account_update'
-  | 'bank_account_delete';
+  | 'bank_account_delete'
+  // Developer/Owner actions requiring tenant/owner-occupier approval (Phase 15)
+  | 'developer_property_access'
+  | 'developer_resident_removal'
+  | 'owner_property_access'
+  | 'owner_resident_modification'
+  | 'owner_security_code_change';
 
 // Labels for approval request types
 export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
@@ -194,6 +201,12 @@ export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> =
   bank_account_create: 'Bank Account Creation',
   bank_account_update: 'Bank Account Update',
   bank_account_delete: 'Bank Account Deletion',
+  // Developer/Owner actions
+  developer_property_access: 'Developer Property Access Request',
+  developer_resident_removal: 'Developer Resident Removal Request',
+  owner_property_access: 'Owner Property Access Request',
+  owner_resident_modification: 'Owner Resident Modification Request',
+  owner_security_code_change: 'Owner Security Code Change Request',
 };
 
 // Phase 8: Audit Logging Types
@@ -245,7 +258,8 @@ export type AuditEntityType =
   | 'notification_history'      // Phase 11: Notifications
   | 'notification_preferences'  // Phase 11: Notifications
   | 'escalation_states'          // Phase 11: Notifications
-  | 'invoice_generation_log';   // Phase 12: Invoice Automation
+  | 'invoice_generation_log'   // Phase 12: Invoice Automation
+  | 'verification_tokens';     // Contact verification
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -296,6 +310,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   notification_preferences: 'Notification Preference', // Phase 11: Notifications
   escalation_states: 'Escalation State',              // Phase 11: Notifications
   invoice_generation_log: 'Invoice Generation',       // Phase 12: Invoice Automation
+  verification_tokens: 'Verification Token',          // Contact verification
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -353,6 +368,7 @@ export const RESIDENT_ROLE_LABELS: Record<ResidentRole, string> = {
   household_member: 'Household Member',
   domestic_staff: 'Domestic Staff',
   caretaker: 'Caretaker',
+  contractor: 'Contractor',
 };
 
 // Resident type labels for UI
@@ -381,6 +397,7 @@ export const SECONDARY_ROLE_OPTIONS = [
   { value: 'household_member' as const, label: 'Household Member' },
   { value: 'domestic_staff' as const, label: 'Domestic Staff' },
   { value: 'caretaker' as const, label: 'Caretaker' },
+  { value: 'contractor' as const, label: 'Contractor' },
 ];
 
 // Entity type labels for UI
@@ -500,6 +517,14 @@ export interface Database {
           emergency_contact_relationship: string | null;
           emergency_contact_resident_id: string | null;
           notes: string | null;
+          // Portal access fields
+          profile_id: string | null;
+          portal_enabled: boolean | null;
+          portal_enabled_at: string | null;
+          portal_enabled_by: string | null;
+          // Contact verification fields
+          email_verified_at: string | null;
+          phone_verified_at: string | null;
           created_at: string;
           updated_at: string;
           created_by: string | null;
@@ -528,14 +553,20 @@ export interface Database {
           move_in_date: string;
           move_out_date: string | null;
           is_active: boolean;
-          // Sponsor fields for secondary roles (domestic_staff, caretaker)
+          // Sponsor fields for secondary roles (domestic_staff, caretaker, contractor)
           sponsor_resident_id: string | null;
+          // Live-in flag for domestic staff (true = lives at property, false = visiting)
+          is_live_in: boolean;
+          // Flexible tags/attributes for the resident-house relationship
+          tags: string[];
           created_at: string;
           updated_at: string;
           created_by: string | null;
         };
         Insert: Omit<Database['public']['Tables']['resident_houses']['Row'], 'id' | 'created_at' | 'updated_at'> & {
           id?: string;
+          is_live_in?: boolean;
+          tags?: string[];
         };
         Update: Partial<Database['public']['Tables']['resident_houses']['Insert']>;
       };
@@ -846,6 +877,24 @@ export interface SystemSetting {
   updated_at: string;
 }
 
+// Hierarchical Settings (Phase 15)
+export type SettingLevel = 'estate' | 'house' | 'resident';
+
+export interface HierarchicalSetting {
+  id: string;
+  setting_key: string;
+  category: string;
+  level: SettingLevel;
+  house_id: string | null;
+  resident_id: string | null;
+  value: unknown;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  updated_by: string | null;
+}
+
 // House Levy History type
 export interface HouseLevyHistory {
   id: string;
@@ -923,7 +972,12 @@ export interface InvoiceWithDetails extends Invoice {
 }
 
 // Approval Request entity types
-export type ApprovalEntityType = 'billing_profile' | 'house' | 'estate_bank_account';
+export type ApprovalEntityType =
+  | 'billing_profile'
+  | 'house'
+  | 'estate_bank_account'
+  | 'resident_houses'  // For developer/owner approval requests
+  | 'security_code';   // For security code approval requests
 
 // Approval Request type (maker-checker workflow)
 export interface ApprovalRequest {
@@ -1575,4 +1629,62 @@ export interface DocumentListParams {
   to_date?: string;
   page?: number;
   limit?: number;
+}
+
+// =====================================================
+// Contact Verification Types
+// =====================================================
+
+// Verification type enum (matches database)
+export type VerificationType = 'email' | 'phone';
+
+// Verification token from database
+export interface VerificationToken {
+  id: string;
+  resident_id: string;
+  token_type: VerificationType;
+  token: string;
+  target_value: string;
+  expires_at: string;
+  used_at: string | null;
+  created_at: string;
+}
+
+// Result of sending a verification code
+export interface SendVerificationResult {
+  success: boolean;
+  message: string;
+  expiresAt?: string;
+}
+
+// Result of verifying a code
+export interface VerifyCodeResult {
+  success: boolean;
+  message: string;
+  verifiedAt?: string;
+}
+
+// Resident verification status (simple format)
+export interface ResidentVerificationStatus {
+  email: string | null;
+  emailVerifiedAt: string | null;
+  phone: string | null;
+  phoneVerifiedAt: string | null;
+  isEmailVerified: boolean;
+  isPhoneVerified: boolean;
+  hasVerifiedContact: boolean;
+}
+
+// Contact verification status (detailed format used by getVerificationStatus)
+export interface ContactVerificationStatus {
+  email: {
+    value: string | null;
+    verified: boolean;
+    verified_at: string | null;
+  };
+  phone: {
+    value: string | null;
+    verified: boolean;
+    verified_at: string | null;
+  };
 }

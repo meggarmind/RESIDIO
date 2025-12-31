@@ -79,13 +79,13 @@ export async function unassignHouse(
 
   // Handle tenant removal with cascade
   if (role === 'tenant') {
-    // Get all secondary residents to cascade remove
+    // Get all secondary residents to cascade remove (includes contractor added in Phase 15)
     const { data: secondaryResidents, error: secondaryError } = await supabase
       .from('resident_houses')
       .select('id, resident_id, resident_role')
       .eq('house_id', houseId)
       .eq('is_active', true)
-      .in('resident_role', ['co_resident', 'household_member', 'domestic_staff', 'caretaker']);
+      .in('resident_role', ['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor']);
 
     if (secondaryError) {
       console.error('[unassignHouse] Error fetching secondary residents:', secondaryError);
@@ -94,7 +94,7 @@ export async function unassignHouse(
 
     cascadeRemovedCount = secondaryResidents?.length || 0;
 
-    // Cascade: Deactivate all secondary residents
+    // Cascade: Deactivate all secondary residents (includes contractor added in Phase 15)
     if (cascadeRemovedCount > 0) {
       const { error: cascadeError } = await supabase
         .from('resident_houses')
@@ -104,7 +104,7 @@ export async function unassignHouse(
         })
         .eq('house_id', houseId)
         .eq('is_active', true)
-        .in('resident_role', ['co_resident', 'household_member', 'domestic_staff', 'caretaker']);
+        .in('resident_role', ['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor']);
 
       if (cascadeError) {
         console.error('[unassignHouse] Error cascading removal:', cascadeError);

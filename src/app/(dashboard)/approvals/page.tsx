@@ -41,6 +41,12 @@ const REQUEST_TYPE_LABELS: Record<string, string> = {
     bank_account_create: 'Bank Account Creation',
     bank_account_update: 'Bank Account Update',
     bank_account_delete: 'Bank Account Deletion',
+    // Developer/Owner actions
+    developer_property_access: 'Developer Property Access',
+    developer_resident_removal: 'Developer Resident Removal',
+    owner_property_access: 'Owner Property Access',
+    owner_resident_modification: 'Owner Resident Modification',
+    owner_security_code_change: 'Owner Security Code Change',
 };
 
 const STATUS_BADGES: Record<ApprovalStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {

@@ -61,13 +61,13 @@ export async function moveOutLandlord(
     };
   }
 
-  // Get count of secondary residents to remove
+  // Get count of secondary residents to remove (includes contractor added in Phase 15)
   const { data: secondaryResidents, error: secondaryError } = await supabase
     .from('resident_houses')
     .select('id, resident_id')
     .eq('house_id', houseId)
     .eq('is_active', true)
-    .in('resident_role', ['co_resident', 'household_member', 'domestic_staff', 'caretaker']);
+    .in('resident_role', ['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor']);
 
   if (secondaryError) {
     console.error('[moveOutLandlord] Error fetching secondary residents:', secondaryError);
@@ -92,7 +92,7 @@ export async function moveOutLandlord(
     return { success: false, error: 'Failed to update resident role' };
   }
 
-  // 2. Deactivate all secondary residents
+  // 2. Deactivate all secondary residents (includes contractor added in Phase 15)
   if (secondaryCount > 0) {
     const { error: cascadeError } = await supabase
       .from('resident_houses')
@@ -102,7 +102,7 @@ export async function moveOutLandlord(
       })
       .eq('house_id', houseId)
       .eq('is_active', true)
-      .in('resident_role', ['co_resident', 'household_member', 'domestic_staff', 'caretaker']);
+      .in('resident_role', ['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor']);
 
     if (cascadeError) {
       console.error('[moveOutLandlord] Error removing secondary residents:', cascadeError);
