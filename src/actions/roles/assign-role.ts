@@ -49,7 +49,7 @@ export async function searchResidentsForRoleAssignment(
   const searchPattern = `%${query}%`;
 
   // Search residents by name or email
-  // Join with profiles to get current role information
+  // Join with resident_houses to get house information (many-to-many relationship)
   const { data: residents, error } = await supabase
     .from('residents')
     .select(`
@@ -59,15 +59,18 @@ export async function searchResidentsForRoleAssignment(
       email,
       phone_primary,
       profile_id,
-      houses!residents_house_id_fkey (
-        house_number,
-        streets (
-          name
+      resident_houses (
+        is_primary,
+        is_active,
+        houses (
+          house_number,
+          streets (
+            name
+          )
         )
       )
     `)
     .or(`first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},email.ilike.${searchPattern}`)
-    .eq('is_active', true)
     .limit(20);
 
   if (error) {
@@ -117,8 +120,20 @@ export async function searchResidentsForRoleAssignment(
 
   // Map results
   const results: ResidentSearchResult[] = (residents || []).map(resident => {
-    // Supabase returns the house relation as an object (many-to-one via house_id FK)
-    const house = resident.houses as unknown as { house_number: string; streets: { name: string } | null } | null;
+    // resident_houses is an array (many-to-many), get the primary or first active house
+    type ResidentHouseJoin = {
+      is_primary: boolean | null;
+      is_active: boolean;
+      houses: { house_number: string; streets: { name: string } | null } | null;
+    };
+
+    const residentHouses = resident.resident_houses as unknown as ResidentHouseJoin[];
+    // Prefer primary house, otherwise use first active house
+    const primaryHouse = residentHouses?.find(rh => rh.is_primary && rh.is_active)
+      || residentHouses?.find(rh => rh.is_active)
+      || residentHouses?.[0];
+
+    const house = primaryHouse?.houses;
     const houseAddress = house
       ? `${house.house_number}${house.streets?.name ? `, ${house.streets.name}` : ''}`
       : null;
