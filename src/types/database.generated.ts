@@ -148,6 +148,170 @@ export type Database = {
           },
         ]
       }
+      announcement_categories: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          slug: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          slug: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          slug?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      announcement_read_receipts: {
+        Row: {
+          announcement_id: string
+          id: string
+          read_at: string | null
+          resident_id: string
+        }
+        Insert: {
+          announcement_id: string
+          id?: string
+          read_at?: string | null
+          resident_id: string
+        }
+        Update: {
+          announcement_id?: string
+          id?: string
+          read_at?: string | null
+          resident_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_read_receipts_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "announcement_read_receipts_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcements: {
+        Row: {
+          attachment_urls: string[] | null
+          category_id: string | null
+          content: string
+          created_at: string | null
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          is_pinned: boolean | null
+          priority: Database["public"]["Enums"]["announcement_priority"] | null
+          published_at: string | null
+          scheduled_for: string | null
+          status: Database["public"]["Enums"]["announcement_status"] | null
+          summary: string | null
+          target_audience: Database["public"]["Enums"]["target_audience"] | null
+          target_houses: string[] | null
+          title: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          attachment_urls?: string[] | null
+          category_id?: string | null
+          content: string
+          created_at?: string | null
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_pinned?: boolean | null
+          priority?: Database["public"]["Enums"]["announcement_priority"] | null
+          published_at?: string | null
+          scheduled_for?: string | null
+          status?: Database["public"]["Enums"]["announcement_status"] | null
+          summary?: string | null
+          target_audience?:
+            | Database["public"]["Enums"]["target_audience"]
+            | null
+          target_houses?: string[] | null
+          title: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          attachment_urls?: string[] | null
+          category_id?: string | null
+          content?: string
+          created_at?: string | null
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_pinned?: boolean | null
+          priority?: Database["public"]["Enums"]["announcement_priority"] | null
+          published_at?: string | null
+          scheduled_for?: string | null
+          status?: Database["public"]["Enums"]["announcement_status"] | null
+          summary?: string | null
+          target_audience?:
+            | Database["public"]["Enums"]["target_audience"]
+            | null
+          target_houses?: string[] | null
+          title?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "announcement_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "announcements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "announcements_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_permissions: {
         Row: {
           category: Database["public"]["Enums"]["permission_category"]
@@ -236,12 +400,17 @@ export type Database = {
       }
       approval_requests: {
         Row: {
+          affected_house_id: string | null
+          affected_resident_id: string | null
           created_at: string
           current_values: Json
           entity_id: string
           entity_type: string
+          expires_at: string | null
           id: string
+          notification_sent_at: string | null
           reason: string | null
+          reminder_sent_at: string | null
           request_type: Database["public"]["Enums"]["approval_request_type"]
           requested_by: string
           requested_changes: Json
@@ -252,12 +421,17 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          affected_house_id?: string | null
+          affected_resident_id?: string | null
           created_at?: string
           current_values: Json
           entity_id: string
           entity_type: string
+          expires_at?: string | null
           id?: string
+          notification_sent_at?: string | null
           reason?: string | null
+          reminder_sent_at?: string | null
           request_type: Database["public"]["Enums"]["approval_request_type"]
           requested_by: string
           requested_changes: Json
@@ -268,12 +442,17 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          affected_house_id?: string | null
+          affected_resident_id?: string | null
           created_at?: string
           current_values?: Json
           entity_id?: string
           entity_type?: string
+          expires_at?: string | null
           id?: string
+          notification_sent_at?: string | null
           reason?: string | null
+          reminder_sent_at?: string | null
           request_type?: Database["public"]["Enums"]["approval_request_type"]
           requested_by?: string
           requested_changes?: Json
@@ -284,6 +463,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "approval_requests_affected_house_id_fkey"
+            columns: ["affected_house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_requests_affected_resident_id_fkey"
+            columns: ["affected_resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "approval_requests_requested_by_fkey"
             columns: ["requested_by"]
@@ -1038,6 +1231,66 @@ export type Database = {
           },
         ]
       }
+      hierarchical_settings: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          house_id: string | null
+          id: string
+          level: Database["public"]["Enums"]["setting_level"]
+          resident_id: string | null
+          setting_key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          house_id?: string | null
+          id?: string
+          level: Database["public"]["Enums"]["setting_level"]
+          resident_id?: string | null
+          setting_key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          house_id?: string | null
+          id?: string
+          level?: Database["public"]["Enums"]["setting_level"]
+          resident_id?: string | null
+          setting_key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hierarchical_settings_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hierarchical_settings_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       house_levy_history: {
         Row: {
           applied_at: string | null
@@ -1302,6 +1555,68 @@ export type Database = {
           },
         ]
       }
+      in_app_notifications: {
+        Row: {
+          action_url: string | null
+          body: string
+          category: string
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string | null
+          expires_at: string | null
+          icon: string | null
+          id: string
+          is_read: boolean | null
+          metadata: Json | null
+          priority: string | null
+          read_at: string | null
+          recipient_id: string
+          title: string
+        }
+        Insert: {
+          action_url?: string | null
+          body: string
+          category: string
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          expires_at?: string | null
+          icon?: string | null
+          id?: string
+          is_read?: boolean | null
+          metadata?: Json | null
+          priority?: string | null
+          read_at?: string | null
+          recipient_id: string
+          title: string
+        }
+        Update: {
+          action_url?: string | null
+          body?: string
+          category?: string
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          expires_at?: string | null
+          icon?: string | null
+          id?: string
+          is_read?: boolean | null
+          metadata?: Json | null
+          priority?: string | null
+          read_at?: string | null
+          recipient_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "in_app_notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_generation_log: {
         Row: {
           created_at: string
@@ -1464,6 +1779,60 @@ export type Database = {
             columns: ["resident_id"]
             isOneToOne: false
             referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_templates: {
+        Row: {
+          category_id: string | null
+          content_template: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          title_template: string
+          updated_at: string | null
+          variables: Json | null
+        }
+        Insert: {
+          category_id?: string | null
+          content_template: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          title_template: string
+          updated_at?: string | null
+          variables?: Json | null
+        }
+        Update: {
+          category_id?: string | null
+          content_template?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          title_template?: string
+          updated_at?: string | null
+          variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_templates_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "announcement_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2038,6 +2407,56 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      report_subscriptions: {
+        Row: {
+          created_at: string | null
+          email_enabled: boolean | null
+          id: string
+          preferred_day_of_month: number | null
+          push_enabled: boolean | null
+          receive_invoice_reminder: boolean | null
+          receive_monthly_summary: boolean | null
+          receive_payment_confirmation: boolean | null
+          receive_quarterly_report: boolean | null
+          resident_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email_enabled?: boolean | null
+          id?: string
+          preferred_day_of_month?: number | null
+          push_enabled?: boolean | null
+          receive_invoice_reminder?: boolean | null
+          receive_monthly_summary?: boolean | null
+          receive_payment_confirmation?: boolean | null
+          receive_quarterly_report?: boolean | null
+          resident_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email_enabled?: boolean | null
+          id?: string
+          preferred_day_of_month?: number | null
+          push_enabled?: boolean | null
+          receive_invoice_reminder?: boolean | null
+          receive_monthly_summary?: boolean | null
+          receive_payment_confirmation?: boolean | null
+          receive_quarterly_report?: boolean | null
+          resident_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_subscriptions_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: true
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       resident_houses: {
         Row: {
@@ -2803,6 +3222,15 @@ export type Database = {
         Returns: string
       }
       generate_resident_code: { Args: never; Returns: string }
+      get_effective_setting: {
+        Args: {
+          p_house_id?: string
+          p_resident_id?: string
+          p_setting_key: string
+        }
+        Returns: Json
+      }
+      get_my_house_ids: { Args: never; Returns: string[] }
       get_my_permissions: {
         Args: never
         Returns: {
@@ -2816,6 +3244,27 @@ export type Database = {
         Returns: Database["public"]["Enums"]["user_role"]
       }
       get_my_role_name: { Args: never; Returns: string }
+      get_primary_occupier: {
+        Args: { p_house_id: string }
+        Returns: {
+          email: string
+          first_name: string
+          last_name: string
+          phone_primary: string
+          resident_id: string
+          resident_role: string
+        }[]
+      }
+      get_setting_overrides: {
+        Args: { p_setting_key: string }
+        Returns: {
+          house_id: string
+          level: Database["public"]["Enums"]["setting_level"]
+          reference_name: string
+          resident_id: string
+          value: Json
+        }[]
+      }
       has_permission: { Args: { p_permission_name: string }; Returns: boolean }
       has_security_permission: {
         Args: { permission_name: string }
@@ -2827,6 +3276,7 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: never; Returns: boolean }
+      process_expired_approvals: { Args: never; Returns: number }
       record_ownership_history: {
         Args: {
           p_created_by?: string
@@ -2841,10 +3291,20 @@ export type Database = {
         }
         Returns: string
       }
+      requires_approval_for_action: {
+        Args: {
+          p_action_type: string
+          p_house_id: string
+          p_requester_resident_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       access_code_type: "permanent" | "one_time"
       account_status: "active" | "inactive" | "suspended" | "archived"
+      announcement_priority: "low" | "normal" | "high" | "emergency"
+      announcement_status: "draft" | "scheduled" | "published" | "archived"
       approval_request_type:
         | "billing_profile_effective_date"
         | "house_plots_change"
@@ -2902,6 +3362,8 @@ export type Database = {
         | "contractor"
       resident_type: "primary" | "secondary"
       security_contact_status: "active" | "suspended" | "expired" | "revoked"
+      setting_level: "estate" | "house" | "resident"
+      target_audience: "all" | "residents" | "owners" | "tenants" | "staff"
       user_role:
         | "chairman"
         | "financial_secretary"
@@ -3039,6 +3501,8 @@ export const Constants = {
     Enums: {
       access_code_type: ["permanent", "one_time"],
       account_status: ["active", "inactive", "suspended", "archived"],
+      announcement_priority: ["low", "normal", "high", "emergency"],
+      announcement_status: ["draft", "scheduled", "published", "archived"],
       approval_request_type: [
         "billing_profile_effective_date",
         "house_plots_change",
@@ -3101,6 +3565,8 @@ export const Constants = {
       ],
       resident_type: ["primary", "secondary"],
       security_contact_status: ["active", "suspended", "expired", "revoked"],
+      setting_level: ["estate", "house", "resident"],
+      target_audience: ["all", "residents", "owners", "tenants", "staff"],
       user_role: [
         "chairman",
         "financial_secretary",

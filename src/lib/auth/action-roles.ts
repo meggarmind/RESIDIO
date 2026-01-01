@@ -106,6 +106,25 @@ export const PERMISSIONS = {
   DOCUMENTS_UPDATE: 'documents.update',
   DOCUMENTS_DELETE: 'documents.delete',
   DOCUMENTS_MANAGE_CATEGORIES: 'documents.manage_categories',
+
+  // Announcements Module (Phase 16)
+  ANNOUNCEMENTS_VIEW: 'announcements.view',
+  ANNOUNCEMENTS_CREATE: 'announcements.create',
+  ANNOUNCEMENTS_UPDATE: 'announcements.update',
+  ANNOUNCEMENTS_DELETE: 'announcements.delete',
+  ANNOUNCEMENTS_PUBLISH: 'announcements.publish',
+  ANNOUNCEMENTS_MANAGE_CATEGORIES: 'announcements.manage_categories',
+  ANNOUNCEMENTS_MANAGE_TEMPLATES: 'announcements.manage_templates',
+  ANNOUNCEMENTS_EMERGENCY_BROADCAST: 'announcements.emergency_broadcast',
+
+  // In-App Notifications Module (Phase 16)
+  NOTIFICATIONS_VIEW: 'notifications.view',
+  NOTIFICATIONS_SEND: 'notifications.send',
+  NOTIFICATIONS_MANAGE: 'notifications.manage',
+
+  // Report Subscriptions Module (Phase 16)
+  REPORT_SUBSCRIPTIONS_VIEW: 'report_subscriptions.view',
+  REPORT_SUBSCRIPTIONS_MANAGE: 'report_subscriptions.manage',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -123,6 +142,9 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/security': [PERMISSIONS.SECURITY_VIEW],
   '/reports': [PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_OCCUPANCY, PERMISSIONS.REPORTS_VIEW_SECURITY],
   '/documents': [PERMISSIONS.DOCUMENTS_VIEW],
+  '/announcements': [PERMISSIONS.ANNOUNCEMENTS_VIEW],
+  '/settings/announcement-categories': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
+  '/settings/message-templates': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES],
   '/approvals': [PERMISSIONS.APPROVALS_VIEW],
   '/settings': [PERMISSIONS.SETTINGS_VIEW],
   '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES],

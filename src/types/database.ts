@@ -28,7 +28,10 @@ export type PermissionCategory =
   | 'imports'
   | 'approvals'
   | 'system'
-  | 'documents';
+  | 'documents'
+  | 'announcements'
+  | 'notifications'
+  | 'report_subscriptions';
 
 // Human-readable labels for new roles
 export const APP_ROLE_LABELS: Record<AppRoleName, string> = {
@@ -259,7 +262,13 @@ export type AuditEntityType =
   | 'notification_preferences'  // Phase 11: Notifications
   | 'escalation_states'          // Phase 11: Notifications
   | 'invoice_generation_log'   // Phase 12: Invoice Automation
-  | 'verification_tokens';     // Contact verification
+  | 'verification_tokens'     // Contact verification
+  | 'announcements'              // Phase 16: Community Communication
+  | 'announcement_categories'    // Phase 16: Community Communication
+  | 'announcement_read_receipts' // Phase 16: Community Communication
+  | 'in_app_notifications'       // Phase 16: Community Communication
+  | 'message_templates'          // Phase 16: Community Communication
+  | 'report_subscriptions';      // Phase 16: Community Communication
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -311,6 +320,12 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   escalation_states: 'Escalation State',              // Phase 11: Notifications
   invoice_generation_log: 'Invoice Generation',       // Phase 12: Invoice Automation
   verification_tokens: 'Verification Token',          // Contact verification
+  announcements: 'Announcement',                       // Phase 16: Community Communication
+  announcement_categories: 'Announcement Category',    // Phase 16: Community Communication
+  announcement_read_receipts: 'Announcement Read Receipt', // Phase 16: Community Communication
+  in_app_notifications: 'In-App Notification',         // Phase 16: Community Communication
+  message_templates: 'Message Template',               // Phase 16: Community Communication
+  report_subscriptions: 'Report Subscription',         // Phase 16: Community Communication
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -1688,4 +1703,234 @@ export interface ContactVerificationStatus {
     verified: boolean;
     verified_at: string | null;
   };
+}
+
+// =====================================================
+// Phase 16: Announcements & Community Communication
+// =====================================================
+
+// Announcement status enum
+export type AnnouncementStatus = 'draft' | 'scheduled' | 'published' | 'archived';
+
+// Announcement priority enum
+export type AnnouncementPriority = 'low' | 'normal' | 'high' | 'emergency';
+
+// Target audience enum
+export type TargetAudience = 'all' | 'residents' | 'owners' | 'tenants' | 'staff';
+
+// In-app notification priority
+export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
+
+// Announcement category labels
+export const ANNOUNCEMENT_CATEGORY_COLORS: Record<string, string> = {
+  blue: 'bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800',
+  orange: 'bg-orange-500/10 text-orange-700 border-orange-200 dark:text-orange-400 dark:border-orange-800',
+  red: 'bg-red-500/10 text-red-700 border-red-200 dark:text-red-400 dark:border-red-800',
+  purple: 'bg-purple-500/10 text-purple-700 border-purple-200 dark:text-purple-400 dark:border-purple-800',
+  green: 'bg-green-500/10 text-green-700 border-green-200 dark:text-green-400 dark:border-green-800',
+};
+
+// Priority colors
+export const ANNOUNCEMENT_PRIORITY_COLORS: Record<AnnouncementPriority, string> = {
+  low: 'bg-gray-500/10 text-gray-700 border-gray-200 dark:text-gray-400 dark:border-gray-700',
+  normal: 'bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800',
+  high: 'bg-orange-500/10 text-orange-700 border-orange-200 dark:text-orange-400 dark:border-orange-800',
+  emergency: 'bg-red-500/10 text-red-700 border-red-200 dark:text-red-400 dark:border-red-800',
+};
+
+// Status colors
+export const ANNOUNCEMENT_STATUS_COLORS: Record<AnnouncementStatus, string> = {
+  draft: 'bg-gray-500/10 text-gray-700 border-gray-200 dark:text-gray-400 dark:border-gray-700',
+  scheduled: 'bg-purple-500/10 text-purple-700 border-purple-200 dark:text-purple-400 dark:border-purple-800',
+  published: 'bg-green-500/10 text-green-700 border-green-200 dark:text-green-400 dark:border-green-800',
+  archived: 'bg-amber-500/10 text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-800',
+};
+
+// Priority labels
+export const ANNOUNCEMENT_PRIORITY_LABELS: Record<AnnouncementPriority, string> = {
+  low: 'Low',
+  normal: 'Normal',
+  high: 'High',
+  emergency: 'Emergency',
+};
+
+// Status labels
+export const ANNOUNCEMENT_STATUS_LABELS: Record<AnnouncementStatus, string> = {
+  draft: 'Draft',
+  scheduled: 'Scheduled',
+  published: 'Published',
+  archived: 'Archived',
+};
+
+// Target audience labels
+export const TARGET_AUDIENCE_LABELS: Record<TargetAudience, string> = {
+  all: 'All Residents',
+  residents: 'All Residents',
+  owners: 'Property Owners',
+  tenants: 'Tenants Only',
+  staff: 'Staff Only',
+};
+
+// Announcement category from database
+export interface AnnouncementCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  icon: string | null;
+  color: string | null;
+  display_order: number | null;
+  is_active: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+// Announcement from database
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  summary: string | null;
+  category_id: string | null;
+  status: AnnouncementStatus | null;
+  priority: AnnouncementPriority | null;
+  target_audience: TargetAudience | null;
+  target_houses: string[] | null;
+  is_pinned: boolean | null;
+  published_at: string | null;
+  scheduled_for: string | null;
+  expires_at: string | null;
+  attachment_urls: string[] | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+// Announcement with relations
+export interface AnnouncementWithRelations extends Announcement {
+  category: AnnouncementCategory | null;
+  creator: {
+    id: string;
+    full_name: string;
+  } | null;
+  updater: {
+    id: string;
+    full_name: string;
+  } | null;
+  read_count?: number;
+  is_read?: boolean;
+}
+
+// Announcement read receipt
+export interface AnnouncementReadReceipt {
+  id: string;
+  announcement_id: string;
+  resident_id: string;
+  read_at: string | null;
+}
+
+// In-app notification from database
+export interface InAppNotification {
+  id: string;
+  recipient_id: string;
+  title: string;
+  body: string;
+  icon: string | null;
+  category: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  action_url: string | null;
+  is_read: boolean;
+  read_at: string | null;
+  priority: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  expires_at: string | null;
+}
+
+// Message template from database
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  category_id: string | null;
+  title_template: string;
+  content_template: string;
+  variables: Array<{
+    name: string;
+    description?: string;
+    required?: boolean;
+  }>;
+  is_active: boolean | null;
+  created_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+// Message template with category relation
+export interface MessageTemplateWithCategory extends MessageTemplate {
+  category: AnnouncementCategory | null;
+}
+
+// Report subscription from database
+export interface ReportSubscription {
+  id: string;
+  resident_id: string;
+  receive_monthly_summary: boolean;
+  receive_quarterly_report: boolean;
+  receive_payment_confirmation: boolean;
+  receive_invoice_reminder: boolean;
+  email_enabled: boolean;
+  push_enabled: boolean;
+  preferred_day_of_month: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+// Announcement create/update input
+export interface AnnouncementInput {
+  title: string;
+  content: string;
+  summary?: string;
+  category_id?: string | null;
+  status?: AnnouncementStatus;
+  priority?: AnnouncementPriority;
+  target_audience?: TargetAudience;
+  target_houses?: string[];
+  is_pinned?: boolean;
+  scheduled_for?: string | null;
+  expires_at?: string | null;
+  attachment_urls?: string[];
+}
+
+// Announcement list filter params
+export interface AnnouncementListParams {
+  status?: AnnouncementStatus;
+  category_id?: string;
+  priority?: AnnouncementPriority;
+  search?: string;
+  is_pinned?: boolean;
+  from_date?: string;
+  to_date?: string;
+  page?: number;
+  limit?: number;
+}
+
+// In-app notification list params
+export interface NotificationListParams {
+  category?: string;
+  is_read?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+// Report subscription update input
+export interface ReportSubscriptionInput {
+  receive_monthly_summary?: boolean;
+  receive_quarterly_report?: boolean;
+  receive_payment_confirmation?: boolean;
+  receive_invoice_reminder?: boolean;
+  email_enabled?: boolean;
+  push_enabled?: boolean;
+  preferred_day_of_month?: number;
 }

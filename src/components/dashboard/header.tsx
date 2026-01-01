@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
+import { NotificationBell } from '@/components/notifications';
 import { Menu, LogOut, User, Home } from 'lucide-react';
 
 interface HeaderProps {
@@ -43,6 +44,8 @@ export function Header({ onMenuClick }: HeaderProps) {
       <div className="flex-1" />
 
       <ThemeSwitcher variant="compact" className="md:hidden" />
+
+      {mounted && <NotificationBell />}
 
       {mounted && (
       <DropdownMenu>

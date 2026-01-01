@@ -7,6 +7,7 @@ import { useResident } from '@/hooks/use-residents';
 import { useResidentIndebtedness, useResidentWallet } from '@/hooks/use-billing';
 import { useResidentSecurityContacts } from '@/hooks/use-security';
 import { useHouseResidentsBatch } from '@/hooks/use-houses';
+import { usePublishedAnnouncements } from '@/hooks/use-announcements';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +50,9 @@ export default function ResidentPortalHomePage() {
   const { data: indebtedness, isLoading: indebtednessLoading } = useResidentIndebtedness(residentId || undefined);
   const { data: wallet, isLoading: walletLoading } = useResidentWallet(residentId || undefined);
   const { data: contactsData, isLoading: contactsLoading } = useResidentSecurityContacts(residentId || undefined);
+
+  // Fetch published announcements for carousel
+  const { data: announcements = [], isLoading: announcementsLoading } = usePublishedAnnouncements({ limit: 5 });
 
   // Get active properties with their house IDs
   const activeResidentHouses = useMemo(() => {
@@ -321,10 +325,8 @@ export default function ResidentPortalHomePage() {
       )}>
         {/* Estate Announcements */}
         <AnnouncementsCarousel
-          announcements={[
-            // Placeholder announcements - will be replaced with real data
-            // when Phase 16 (Announcement System) is implemented
-          ]}
+          announcements={announcements}
+          isLoading={announcementsLoading}
         />
 
         {/* Recent Activity Feed */}

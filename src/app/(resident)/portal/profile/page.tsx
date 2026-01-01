@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useResident } from '@/hooks/use-residents';
 import { useResidentPreferences, useUpdateResidentPreference } from '@/hooks/use-notifications';
+import { useMyReportSubscription, useUpdateMyReportSubscription, useCreateDefaultReportSubscription } from '@/hooks/use-report-subscriptions';
 import { useIsDesktop } from '@/hooks/use-media-query';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -48,6 +49,7 @@ import {
   Users,
   Trash2,
   Loader2,
+  FileBarChart,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -332,6 +334,15 @@ export default function ResidentProfilePage() {
               />
             </CardContent>
           </Card>
+
+          {/* Report Subscriptions */}
+          {residentId && (
+            <ReportSubscriptionsCard
+              residentId={residentId}
+              isDesktop={isDesktop}
+              isExpanded={isExpanded}
+            />
+          )}
         </div>
       </div>
 
@@ -710,5 +721,190 @@ function ProfileSkeleton() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Report Subscriptions Card Component
+function ReportSubscriptionsCard({
+  residentId,
+  isDesktop = false,
+  isExpanded = false,
+}: {
+  residentId: string;
+  isDesktop?: boolean;
+  isExpanded?: boolean;
+}) {
+  const { data: subscription, isLoading } = useMyReportSubscription();
+  const updateSubscription = useUpdateMyReportSubscription();
+  const createDefault = useCreateDefaultReportSubscription();
+
+  // Report subscription options
+  const reportOptions = [
+    {
+      key: 'receive_monthly_summary' as const,
+      label: 'Monthly Summary',
+      description: 'Receive a summary of your account activity each month',
+      icon: Calendar,
+    },
+    {
+      key: 'receive_quarterly_report' as const,
+      label: 'Quarterly Report',
+      description: 'Detailed financial report every quarter',
+      icon: FileBarChart,
+    },
+    {
+      key: 'receive_payment_confirmation' as const,
+      label: 'Payment Confirmations',
+      description: 'Get notified when payments are processed',
+      icon: CreditCard,
+    },
+    {
+      key: 'receive_invoice_reminder' as const,
+      label: 'Invoice Reminders',
+      description: 'Reminders before invoice due dates',
+      icon: Bell,
+    },
+  ];
+
+  const handleToggle = async (
+    key: 'receive_monthly_summary' | 'receive_quarterly_report' | 'receive_payment_confirmation' | 'receive_invoice_reminder',
+    enabled: boolean
+  ) => {
+    try {
+      await updateSubscription.mutateAsync({ [key]: enabled });
+      toast.success(enabled ? 'Report enabled' : 'Report disabled');
+    } catch (error) {
+      toast.error('Failed to update preference');
+    }
+  };
+
+  const handleCreateDefault = async () => {
+    try {
+      await createDefault.mutateAsync(residentId);
+      toast.success('Report preferences created');
+    } catch (error) {
+      toast.error('Failed to create preferences');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-4 w-60" />
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // If no subscription exists, show option to create one
+  if (!subscription) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileBarChart className="h-4 w-4" />
+            Financial Reports
+          </CardTitle>
+          <CardDescription>Subscribe to receive financial reports and summaries</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-6">
+            <FileBarChart className="h-10 w-10 mx-auto mb-3 text-muted-foreground opacity-50" />
+            <p className="text-sm text-muted-foreground mb-4">
+              Set up your report preferences to receive monthly summaries and payment confirmations.
+            </p>
+            <Button onClick={handleCreateDefault} disabled={createDefault.isPending}>
+              {createDefault.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Setting up...
+                </>
+              ) : (
+                'Enable Report Notifications'
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <FileBarChart className="h-4 w-4" />
+          Financial Reports
+        </CardTitle>
+        <CardDescription>Choose which reports and summaries you want to receive</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className={cn(
+          isDesktop ? 'grid gap-3 grid-cols-2' : 'space-y-3',
+          isExpanded && 'xl:grid-cols-4 gap-4'
+        )}>
+          {reportOptions.map(({ key, label, description, icon: Icon }) => {
+            const isEnabled = subscription[key] ?? false;
+
+            return (
+              <div
+                key={key}
+                className="flex items-center justify-between p-3 rounded-lg border"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-muted">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{label}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-1">
+                      {description}
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={isEnabled}
+                  onCheckedChange={(checked) => handleToggle(key, checked)}
+                  disabled={updateSubscription.isPending}
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Delivery preferences */}
+        <div className={cn('mt-4 pt-4 border-t space-y-3', isDesktop && 'flex gap-6 space-y-0')}>
+          <div className="flex items-center justify-between flex-1 p-3 rounded-lg bg-muted/50">
+            <div className="flex items-center gap-3">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Email Delivery</p>
+                <p className="text-xs text-muted-foreground">Receive reports via email</p>
+              </div>
+            </div>
+            <Switch
+              checked={subscription.email_enabled ?? true}
+              onCheckedChange={(checked) => updateSubscription.mutate({ email_enabled: checked })}
+              disabled={updateSubscription.isPending}
+            />
+          </div>
+        </div>
+
+        <p className={cn(
+          'text-xs text-muted-foreground pt-3',
+          isDesktop && 'col-span-full'
+        )}>
+          Reports are sent around day {subscription.preferred_day_of_month || 1} of each month
+        </p>
+      </CardContent>
+    </Card>
   );
 }

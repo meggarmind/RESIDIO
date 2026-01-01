@@ -47,6 +47,18 @@ const sidebarNavItems = [
         href: "/settings/transaction-tags",
     },
     {
+        title: "Document Categories",
+        href: "/settings/document-categories",
+    },
+    {
+        title: "Announcement Categories",
+        href: "/settings/announcement-categories",
+    },
+    {
+        title: "Message Templates",
+        href: "/settings/message-templates",
+    },
+    {
         title: "Audit Logs",
         href: "/settings/audit-logs",
     },

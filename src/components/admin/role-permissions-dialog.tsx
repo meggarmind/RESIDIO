@@ -41,6 +41,10 @@ const CATEGORY_LABELS: Record<string, string> = {
   settings: 'Settings',
   approvals: 'Approvals',
   system: 'System',
+  documents: 'Documents',
+  announcements: 'Announcements',
+  notifications: 'Notifications',
+  report_subscriptions: 'Report Subscriptions',
 };
 
 // Category display order (imports merged into payments)
@@ -54,6 +58,10 @@ const CATEGORY_ORDER: PermissionCategory[] = [
   'settings',
   'approvals',
   'system',
+  'documents',
+  'announcements',
+  'notifications',
+  'report_subscriptions',
 ];
 
 export function RolePermissionsDialog({

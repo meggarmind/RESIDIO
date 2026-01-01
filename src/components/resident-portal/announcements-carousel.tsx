@@ -1,40 +1,47 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Megaphone, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
-import { format } from 'date-fns';
+import { Megaphone, ChevronLeft, ChevronRight, Calendar, ArrowRight, AlertTriangle, Info } from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
+import type { AnnouncementWithRelations, AnnouncementPriority } from '@/types/database';
 
-interface Announcement {
-  id: string;
-  title: string;
-  content: string;
-  type: 'info' | 'warning' | 'success';
-  date: Date;
-}
-
-const typeColors = {
-  info: 'from-blue-500/10 via-sky-500/5 to-transparent border-blue-500/20',
-  warning: 'from-amber-500/10 via-orange-500/5 to-transparent border-amber-500/20',
-  success: 'from-green-500/10 via-emerald-500/5 to-transparent border-green-500/20',
+// Map priority to visual styles (uses 'emergency' not 'urgent')
+const priorityStyles: Record<string, string> = {
+  emergency: 'from-red-500/10 via-red-500/5 to-transparent border-red-500/30',
+  high: 'from-amber-500/10 via-orange-500/5 to-transparent border-amber-500/20',
+  normal: 'from-blue-500/10 via-sky-500/5 to-transparent border-blue-500/20',
+  low: 'from-slate-500/10 via-slate-500/5 to-transparent border-slate-500/20',
 };
 
-const typeBadgeColors = {
-  info: 'bg-blue-500/20 text-blue-700 dark:text-blue-300',
-  warning: 'bg-amber-500/20 text-amber-700 dark:text-amber-300',
-  success: 'bg-green-500/20 text-green-700 dark:text-green-300',
+const priorityBadgeStyles: Record<string, string> = {
+  emergency: 'bg-red-500/20 text-red-700 dark:text-red-300',
+  high: 'bg-amber-500/20 text-amber-700 dark:text-amber-300',
+  normal: 'bg-blue-500/20 text-blue-700 dark:text-blue-300',
+  low: 'bg-slate-500/20 text-slate-700 dark:text-slate-300',
+};
+
+const priorityIcons: Record<string, React.ElementType> = {
+  emergency: AlertTriangle,
+  high: AlertTriangle,
+  normal: Info,
+  low: Info,
 };
 
 interface AnnouncementsCarouselProps {
-  announcements?: Announcement[];
+  announcements?: AnnouncementWithRelations[];
   isLoading?: boolean;
+  showViewAll?: boolean;
 }
 
 export function AnnouncementsCarousel({
   announcements = [],
   isLoading,
+  showViewAll = true,
 }: AnnouncementsCarouselProps) {
   const [currentIndex, setCurrentIndex] = React.useState(0);
 
@@ -79,9 +86,16 @@ export function AnnouncementsCarousel({
   }
 
   const current = announcements[currentIndex];
+  const priority = (current.priority || 'normal') as AnnouncementPriority;
+  const PriorityIcon = priorityIcons[priority] || Info;
+  const publishedDate = current.published_at
+    ? new Date(current.published_at)
+    : current.created_at
+      ? new Date(current.created_at)
+      : new Date();
 
   return (
-    <Card className={`overflow-hidden bg-gradient-to-br ${typeColors[current.type]}`}>
+    <Card className={cn('overflow-hidden bg-gradient-to-br', priorityStyles[priority])}>
       <CardContent className="p-0">
         <div className="p-5">
           <div className="flex items-start justify-between mb-3">
@@ -91,47 +105,76 @@ export function AnnouncementsCarousel({
                 Announcement
               </span>
             </div>
-            <Badge className={`text-xs ${typeBadgeColors[current.type]}`}>
-              {current.type}
-            </Badge>
+            <div className="flex items-center gap-2">
+              {current.is_pinned && (
+                <Badge variant="secondary" className="text-xs">
+                  Pinned
+                </Badge>
+              )}
+              {priority !== 'normal' && (
+                <Badge className={cn('text-xs capitalize', priorityBadgeStyles[priority])}>
+                  <PriorityIcon className="h-3 w-3 mr-1" />
+                  {priority}
+                </Badge>
+              )}
+              {current.category && (
+                <Badge variant="outline" className="text-xs">
+                  {current.category.name}
+                </Badge>
+              )}
+            </div>
           </div>
 
-          <h3 className="font-semibold mb-2">{current.title}</h3>
-          <p className="text-sm text-muted-foreground line-clamp-2">{current.content}</p>
+          <h3 className="font-semibold mb-2 line-clamp-1">{current.title}</h3>
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {current.summary || current.content}
+          </p>
 
           <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Calendar className="h-3.5 w-3.5" />
-              {format(current.date, 'MMM d, yyyy')}
+              <span title={format(publishedDate, 'PPpp')}>
+                {formatDistanceToNow(publishedDate, { addSuffix: true })}
+              </span>
             </div>
 
-            {announcements.length > 1 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">
-                  {currentIndex + 1} / {announcements.length}
-                </span>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={prev}
-                    aria-label="Previous announcement"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={next}
-                    aria-label="Next announcement"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {announcements.length > 1 && (
+                <>
+                  <span className="text-xs text-muted-foreground">
+                    {currentIndex + 1} / {announcements.length}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={prev}
+                      aria-label="Previous announcement"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={next}
+                      aria-label="Next announcement"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
+              {showViewAll && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs" asChild>
+                  <Link href="/portal/announcements">
+                    View all
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </Link>
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </CardContent>
