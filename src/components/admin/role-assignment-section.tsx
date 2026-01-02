@@ -38,6 +38,7 @@ import {
 import { useDebounce } from '@/hooks/use-debounce';
 import { useRolesWithPermissions } from '@/hooks/use-roles';
 import { useAuth } from '@/lib/auth/auth-provider';
+import { useQueryClient } from '@tanstack/react-query';
 import { searchResidentsForRoleAssignment, assignRoleToResident, removeRoleFromResident } from '@/actions/roles/assign-role';
 import {
   Search,
@@ -48,8 +49,10 @@ import {
   Check,
   X,
   AlertTriangle,
+  Link2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { LinkAccountDialog } from './link-account-dialog';
 
 type ResidentSearchResult = {
   id: string;
@@ -67,6 +70,7 @@ type ResidentSearchResult = {
 export function RoleAssignmentSection() {
   const { profile, hasPermission } = useAuth();
   const { data: roles, isLoading: rolesLoading } = useRolesWithPermissions();
+  const queryClient = useQueryClient();
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,6 +87,9 @@ export function RoleAssignmentSection() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showSubstitutionDialog, setShowSubstitutionDialog] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
+
+  // Link account dialog state
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
 
   // Permission checks
   const canManageRoles = hasPermission('system.manage_roles');
@@ -168,6 +175,8 @@ export function RoleAssignmentSection() {
         toast.error(result.error);
       } else {
         toast.success(`Role removed from ${selectedResident.first_name} ${selectedResident.last_name}`);
+        // Refresh current admins list
+        queryClient.invalidateQueries({ queryKey: ['current-admins'] });
         // Update local state
         setSelectedResident({
           ...selectedResident,
@@ -195,6 +204,8 @@ export function RoleAssignmentSection() {
       } else {
         const assignedRole = roles?.find(r => r.id === selectedRoleId);
         toast.success(`${assignedRole?.display_name} role assigned to ${selectedResident.first_name} ${selectedResident.last_name}`);
+        // Refresh current admins list
+        queryClient.invalidateQueries({ queryKey: ['current-admins'] });
         // Update local state
         setSelectedResident({
           ...selectedResident,
@@ -346,9 +357,18 @@ export function RoleAssignmentSection() {
             {!selectedResident.profile_id && (
               <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg">
                 <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                <div className="text-sm text-amber-700 dark:text-amber-400">
+                <div className="flex-1 text-sm text-amber-700 dark:text-amber-400">
                   <p className="font-medium">No Account Linked</p>
-                  <p>This resident does not have a user account. They must register and link their account before a role can be assigned.</p>
+                  <p>This resident does not have a user account. They must register, or an admin can manually link an existing account.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowLinkDialog(true)}
+                    className="mt-2 border-amber-300 hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-950/50"
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Link Existing Account
+                  </Button>
                 </div>
               </div>
             )}
@@ -461,6 +481,21 @@ export function RoleAssignmentSection() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Link Account Dialog */}
+      {selectedResident && (
+        <LinkAccountDialog
+          open={showLinkDialog}
+          onOpenChange={setShowLinkDialog}
+          residentId={selectedResident.id}
+          residentName={`${selectedResident.first_name} ${selectedResident.last_name}`}
+          residentEmail={selectedResident.email}
+          onSuccess={() => {
+            // Re-search to get updated data
+            performSearch(selectedResident.first_name);
+          }}
+        />
+      )}
     </div>
   );
 }

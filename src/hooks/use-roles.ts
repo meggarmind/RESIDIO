@@ -12,6 +12,7 @@ import {
   updateRolePermissions,
   assignRoleToUser,
   getUsersWithRoles,
+  getCurrentAdmins,
 } from '@/actions/roles';
 import type { AppRoleInsert, AppRoleUpdate } from '@/types/database';
 
@@ -19,6 +20,7 @@ import type { AppRoleInsert, AppRoleUpdate } from '@/types/database';
 const ROLES_KEY = ['roles'];
 const PERMISSIONS_KEY = ['permissions'];
 const USERS_WITH_ROLES_KEY = ['users-with-roles'];
+const CURRENT_ADMINS_KEY = ['current-admins'];
 
 /**
  * Fetch all roles with their permissions
@@ -205,6 +207,22 @@ export function useUsersWithRoles() {
     queryKey: USERS_WITH_ROLES_KEY,
     queryFn: async () => {
       const result = await getUsersWithRoles();
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result.data;
+    },
+  });
+}
+
+/**
+ * Fetch current admins (users with non-resident roles)
+ */
+export function useCurrentAdmins() {
+  return useQuery({
+    queryKey: CURRENT_ADMINS_KEY,
+    queryFn: async () => {
+      const result = await getCurrentAdmins();
       if (!result.success) {
         throw new Error(result.error);
       }

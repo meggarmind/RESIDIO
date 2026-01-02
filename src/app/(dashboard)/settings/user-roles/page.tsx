@@ -1,27 +1,11 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserRolesTable } from '@/components/admin/user-roles-table';
+import { redirect } from 'next/navigation';
 
-export default function UserRolesPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">User Role Assignments</h3>
-        <p className="text-sm text-muted-foreground">
-          Assign administrative roles to users. Role assignments determine what features each user
-          can access.
-        </p>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Users & Roles</CardTitle>
-          <CardDescription>
-            Select a role from the dropdown to assign it to a user. Changes take effect immediately.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <UserRolesTable />
-        </CardContent>
-      </Card>
-    </div>
-  );
+/**
+ * Redirect from deprecated User Role Assignments page to Roles & Permissions.
+ * The Role Assignments tab in Roles & Permissions provides the same functionality.
+ *
+ * This permanent redirect ensures bookmarks and external links continue to work.
+ */
+export default function UserRolesRedirect() {
+  redirect('/settings/roles?tab=assignments');
 }

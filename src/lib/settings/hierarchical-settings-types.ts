@@ -60,7 +60,13 @@ export type HierarchicalSettingKey =
   | 'report_retention_days'
   // Portal settings
   | 'portal_session_timeout_minutes'
-  | 'portal_show_payment_history';
+  | 'portal_show_payment_history'
+  // Impersonation settings
+  | 'impersonation_approval_mode'
+  | 'impersonation_approved_admins'
+  | 'impersonation_required_permission'
+  | 'impersonation_session_timeout_hours'
+  | 'impersonation_request_timeout_hours';
 
 /**
  * Setting category
@@ -70,7 +76,8 @@ export type SettingCategory =
   | 'security'
   | 'approvals'
   | 'reports'
-  | 'portal';
+  | 'portal'
+  | 'impersonation';
 
 /**
  * Get setting metadata (description, category) for a key
@@ -162,4 +169,50 @@ export const SETTING_METADATA: Record<HierarchicalSettingKey, {
     category: 'portal',
     type: 'boolean',
   },
+
+  // Impersonation
+  impersonation_approval_mode: {
+    label: 'Approval Mode',
+    description: 'Who can approve impersonation requests: any_admin, specific_admins, or permission_based',
+    category: 'impersonation',
+    type: 'string',
+  },
+  impersonation_approved_admins: {
+    label: 'Approved Admins',
+    description: 'List of admin profile IDs who can approve impersonation requests (for specific_admins mode)',
+    category: 'impersonation',
+    type: 'string', // JSON array stored as string
+  },
+  impersonation_required_permission: {
+    label: 'Required Permission',
+    description: 'Permission name required to approve impersonation requests (for permission_based mode)',
+    category: 'impersonation',
+    type: 'string',
+  },
+  impersonation_session_timeout_hours: {
+    label: 'Session Timeout (hours)',
+    description: 'How long an approved impersonation session remains valid',
+    category: 'impersonation',
+    type: 'number',
+  },
+  impersonation_request_timeout_hours: {
+    label: 'Request Timeout (hours)',
+    description: 'How long before a pending impersonation request expires',
+    category: 'impersonation',
+    type: 'number',
+  },
+};
+
+/**
+ * Impersonation approval modes
+ */
+export type ImpersonationApprovalMode = 'any_admin' | 'specific_admins' | 'permission_based';
+
+/**
+ * Default values for impersonation settings
+ */
+export const IMPERSONATION_DEFAULTS = {
+  approval_mode: 'any_admin' as ImpersonationApprovalMode,
+  session_timeout_hours: 4,
+  request_timeout_hours: 24,
 };

@@ -55,8 +55,9 @@ export function RoleAssignmentRulesEditor() {
 
   const isLoading = rulesLoading || rolesLoading;
 
-  // Filter to only show executive roles (not 'resident')
-  const executiveRoles = roles?.filter((r) => r.name !== 'resident') || [];
+  // Filter to only show executive roles (not 'resident' or 'super_admin')
+  // super_admin is a protected system role that shouldn't appear in assignment rules
+  const executiveRoles = roles?.filter((r) => r.name !== 'resident' && r.name !== 'super_admin') || [];
 
   const getKey = (residentRole: ResidentRole, appRoleId: string) =>
     `${residentRole}-${appRoleId}`;

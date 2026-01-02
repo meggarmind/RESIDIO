@@ -489,6 +489,124 @@ export async function assignRoleToUser(
 }
 
 /**
+ * Get all users with admin roles (excluding base 'resident' role)
+ * Used to display the current admins list
+ */
+export async function getCurrentAdmins(): Promise<{
+  success: boolean;
+  data?: Array<{
+    id: string;
+    profile_id: string;
+    first_name: string;
+    last_name: string;
+    email: string | null;
+    house_address: string | null;
+    role_id: string;
+    role_name: string;
+    role_display_name: string;
+    role_level: number;
+  }>;
+  error?: string;
+}> {
+  const auth = await authorizePermission(PERMISSIONS.SYSTEM_ASSIGN_ROLES);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  // Get profiles with non-resident roles, joined with residents and roles
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(`
+      id,
+      role_id,
+      resident_id,
+      residents:resident_id (
+        id,
+        first_name,
+        last_name,
+        email,
+        resident_houses!resident_houses_resident_id_fkey (
+          is_active,
+          is_primary,
+          houses (
+            house_number,
+            streets (name)
+          )
+        )
+      ),
+      app_roles:role_id (
+        id,
+        name,
+        display_name,
+        level
+      )
+    `)
+    .not('role_id', 'is', null);
+
+  if (error) {
+    console.error('Error fetching current admins:', error);
+    return { success: false, error: error.message };
+  }
+
+  // Filter to only include non-resident roles and map to clean format
+  const admins = (data || [])
+    .filter((profile) => {
+      // app_roles is a single object (not array) due to role_id FK
+      const role = profile.app_roles as unknown as { name: string } | null;
+      return role && role.name !== 'resident';
+    })
+    .map((profile) => {
+      // residents is a single object (not array) due to resident_id FK
+      const resident = profile.residents as unknown as {
+        id: string;
+        first_name: string;
+        last_name: string;
+        email: string | null;
+        resident_houses: Array<{
+          is_active: boolean;
+          is_primary: boolean | null;
+          houses: { house_number: string; streets: { name: string } | null } | null;
+        }>;
+      } | null;
+
+      const role = profile.app_roles as unknown as {
+        id: string;
+        name: string;
+        display_name: string;
+        level: number;
+      };
+
+      // Get primary or first active house
+      const houses = resident?.resident_houses || [];
+      const primaryHouse = houses.find((h) => h.is_primary && h.is_active)
+        || houses.find((h) => h.is_active)
+        || houses[0];
+      const house = primaryHouse?.houses;
+      const houseAddress = house
+        ? `${house.house_number}${house.streets?.name ? `, ${house.streets.name}` : ''}`
+        : null;
+
+      return {
+        id: resident?.id || profile.id,
+        profile_id: profile.id,
+        first_name: resident?.first_name || 'Unknown',
+        last_name: resident?.last_name || 'User',
+        email: resident?.email || null,
+        house_address: houseAddress,
+        role_id: role.id,
+        role_name: role.name,
+        role_display_name: role.display_name,
+        role_level: role.level,
+      };
+    })
+    .sort((a, b) => a.role_level - b.role_level); // Sort by role level (highest first)
+
+  return { success: true, data: admins };
+}
+
+/**
  * Get users with their roles (for role management UI)
  */
 export async function getUsersWithRoles(): Promise<{

@@ -125,6 +125,12 @@ export const PERMISSIONS = {
   // Report Subscriptions Module (Phase 16)
   REPORT_SUBSCRIPTIONS_VIEW: 'report_subscriptions.view',
   REPORT_SUBSCRIPTIONS_MANAGE: 'report_subscriptions.manage',
+
+  // Impersonation Module (Admin Portal View)
+  IMPERSONATION_VIEW_SESSIONS: 'impersonation.view_sessions',
+  IMPERSONATION_START_SESSION: 'impersonation.start_session',
+  IMPERSONATION_APPROVE_REQUESTS: 'impersonation.approve_requests',
+  IMPERSONATION_MANAGE_SETTINGS: 'impersonation.manage_settings',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -148,7 +154,6 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/approvals': [PERMISSIONS.APPROVALS_VIEW],
   '/settings': [PERMISSIONS.SETTINGS_VIEW],
   '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES],
-  '/settings/user-roles': [PERMISSIONS.SYSTEM_ASSIGN_ROLES],
   '/settings/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
   '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
   '/dashboard': [], // All authenticated users

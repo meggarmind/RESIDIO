@@ -3,6 +3,7 @@ import { PortalBottomNav } from '@/components/resident-portal/portal-bottom-nav'
 import { PortalSidebar } from '@/components/resident-portal/portal-sidebar';
 import { PortalLayoutContent } from '@/components/resident-portal/portal-layout-content';
 import { PortalVerificationBanner } from '@/components/resident-portal/portal-verification-banner';
+import { ImpersonationPortalWrapper } from '@/components/resident-portal/impersonation-portal-wrapper';
 
 export const metadata = {
   title: 'Resident Portal | Residio',
@@ -30,47 +31,49 @@ export default function ResidentPortalLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-background">
-      {/* Subtle background pattern for depth */}
-      <div
-        className="fixed inset-0 -z-10 opacity-[0.015] dark:opacity-[0.02]"
-        style={{
-          backgroundImage: `radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)`,
-          backgroundSize: '32px 32px',
-        }}
-      />
+    <ImpersonationPortalWrapper>
+      <div className="min-h-screen bg-background">
+        {/* Subtle background pattern for depth */}
+        <div
+          className="fixed inset-0 -z-10 opacity-[0.015] dark:opacity-[0.02]"
+          style={{
+            backgroundImage: `radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)`,
+            backgroundSize: '32px 32px',
+          }}
+        />
 
-      {/* Desktop: Sidebar (hidden on mobile) */}
-      <PortalSidebar className="hidden md:flex" />
+        {/* Desktop: Sidebar (hidden on mobile) */}
+        <PortalSidebar className="hidden md:flex" />
 
-      {/* Mobile: Fixed Header (hidden on desktop) */}
-      <div className="md:hidden">
-        <PortalHeader />
+        {/* Mobile: Fixed Header (hidden on desktop) */}
+        <div className="md:hidden">
+          <PortalHeader />
+        </div>
+
+        {/* Verification Banner (shows if contact verification incomplete) */}
+        <div className="md:ml-64">
+          <PortalVerificationBanner />
+        </div>
+
+        {/* Main Content Area */}
+        <main
+          className="
+            pt-14 pb-20 min-h-screen
+            md:pt-0 md:pb-0 md:ml-64
+          "
+          style={{
+            paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))',
+          }}
+        >
+          {/* Theme-aware responsive container */}
+          <PortalLayoutContent>{children}</PortalLayoutContent>
+        </main>
+
+        {/* Mobile: Fixed Bottom Navigation (hidden on desktop) */}
+        <div className="md:hidden">
+          <PortalBottomNav />
+        </div>
       </div>
-
-      {/* Verification Banner (shows if contact verification incomplete) */}
-      <div className="md:ml-64">
-        <PortalVerificationBanner />
-      </div>
-
-      {/* Main Content Area */}
-      <main
-        className="
-          pt-14 pb-20 min-h-screen
-          md:pt-0 md:pb-0 md:ml-64
-        "
-        style={{
-          paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))',
-        }}
-      >
-        {/* Theme-aware responsive container */}
-        <PortalLayoutContent>{children}</PortalLayoutContent>
-      </main>
-
-      {/* Mobile: Fixed Bottom Navigation (hidden on desktop) */}
-      <div className="md:hidden">
-        <PortalBottomNav />
-      </div>
-    </div>
+    </ImpersonationPortalWrapper>
   );
 }

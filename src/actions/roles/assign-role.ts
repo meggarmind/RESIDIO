@@ -59,7 +59,7 @@ export async function searchResidentsForRoleAssignment(
       email,
       phone_primary,
       profile_id,
-      resident_houses (
+      resident_houses!resident_houses_resident_id_fkey (
         is_primary,
         is_active,
         houses (

@@ -31,7 +31,8 @@ export type PermissionCategory =
   | 'documents'
   | 'announcements'
   | 'notifications'
-  | 'report_subscriptions';
+  | 'report_subscriptions'
+  | 'impersonation';  // Admin impersonation system
 
 // Human-readable labels for new roles
 export const APP_ROLE_LABELS: Record<AppRoleName, string> = {
@@ -195,7 +196,9 @@ export type ApprovalRequestType =
   | 'developer_resident_removal'
   | 'owner_property_access'
   | 'owner_resident_modification'
-  | 'owner_security_code_change';
+  | 'owner_security_code_change'
+  // Admin impersonation system
+  | 'impersonation_request';
 
 // Labels for approval request types
 export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
@@ -210,6 +213,8 @@ export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> =
   owner_property_access: 'Owner Property Access Request',
   owner_resident_modification: 'Owner Resident Modification Request',
   owner_security_code_change: 'Owner Security Code Change Request',
+  // Admin impersonation
+  impersonation_request: 'Resident Impersonation Request',
 };
 
 // Phase 8: Audit Logging Types
@@ -268,7 +273,8 @@ export type AuditEntityType =
   | 'announcement_read_receipts' // Phase 16: Community Communication
   | 'in_app_notifications'       // Phase 16: Community Communication
   | 'message_templates'          // Phase 16: Community Communication
-  | 'report_subscriptions';      // Phase 16: Community Communication
+  | 'report_subscriptions'       // Phase 16: Community Communication
+  | 'impersonation_sessions';    // Admin impersonation system
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -326,6 +332,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   in_app_notifications: 'In-App Notification',         // Phase 16: Community Communication
   message_templates: 'Message Template',               // Phase 16: Community Communication
   report_subscriptions: 'Report Subscription',         // Phase 16: Community Communication
+  impersonation_sessions: 'Impersonation Session',     // Admin impersonation system
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -992,8 +999,9 @@ export type ApprovalEntityType =
   | 'billing_profile'
   | 'house'
   | 'estate_bank_account'
-  | 'resident_houses'  // For developer/owner approval requests
-  | 'security_code';   // For security code approval requests
+  | 'resident_houses'       // For developer/owner approval requests
+  | 'security_code'         // For security code approval requests
+  | 'impersonation_session';  // For admin impersonation approval requests
 
 // Approval Request type (maker-checker workflow)
 export interface ApprovalRequest {
@@ -1933,4 +1941,92 @@ export interface ReportSubscriptionInput {
   email_enabled?: boolean;
   push_enabled?: boolean;
   preferred_day_of_month?: number;
+}
+
+// =====================================================
+// Admin Impersonation System Types
+// =====================================================
+
+// Session type determines if approval was required
+export type ImpersonationSessionType = 'direct' | 'approved';
+
+// Impersonation session from database
+export interface ImpersonationSession {
+  id: string;
+  admin_profile_id: string;
+  impersonated_resident_id: string;
+  started_at: string;
+  ended_at: string | null;
+  is_active: boolean;
+  session_type: ImpersonationSessionType;
+  approval_request_id: string | null;
+  page_views: Array<{ path: string; timestamp: string }>;
+  created_at: string;
+  updated_at: string;
+}
+
+// Impersonation session with related data for UI
+export interface ImpersonationSessionWithDetails extends ImpersonationSession {
+  admin: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+  resident: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    resident_code: string;
+  };
+  house: {
+    id: string;
+    address: string;
+    short_name: string | null;
+  } | null;
+}
+
+// Impersonation session insert input
+export interface ImpersonationSessionInsert {
+  admin_profile_id: string;
+  impersonated_resident_id: string;
+  session_type?: ImpersonationSessionType;
+  approval_request_id?: string | null;
+}
+
+// Impersonation state stored in session storage
+export interface ImpersonationState {
+  isActive: boolean;
+  sessionId: string | null;
+  impersonatedResidentId: string | null;
+  impersonatedResidentName: string | null;
+  impersonatedHouseAddress: string | null;
+  startedAt: string | null;
+}
+
+// Resident info for impersonation selector
+export interface ResidentForImpersonation {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone_primary: string | null;
+  resident_code: string;
+  avatar_url: string | null;
+  portal_enabled: boolean;
+  house: {
+    id: string;
+    address: string;
+    short_name: string | null;
+    street_name: string;
+  } | null;
+}
+
+// Impersonation approval request data (stored in approval_requests.requested_changes)
+export interface ImpersonationApprovalData {
+  resident_id: string;
+  resident_name: string;
+  resident_code: string;
+  house_address: string | null;
+  reason?: string;
+  [key: string]: unknown; // Index signature for Record compatibility
 }

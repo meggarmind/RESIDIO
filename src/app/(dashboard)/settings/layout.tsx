@@ -11,10 +11,6 @@ const sidebarNavItems = [
         href: "/settings/roles",
     },
     {
-        title: "User Role Assignments",
-        href: "/settings/user-roles",
-    },
-    {
         title: "Billing Profiles",
         href: "/settings/billing",
     },

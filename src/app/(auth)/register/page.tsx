@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
@@ -38,7 +38,10 @@ import {
   X,
   Eye,
   EyeOff,
+  AlertTriangle,
 } from 'lucide-react';
+import { checkEmailAvailability, type EmailAvailabilityResult } from '@/actions/auth/check-email-availability';
+import { useDebouncedCallback } from 'use-debounce';
 import { passwordSchema, PASSWORD_REQUIREMENTS } from '@/lib/validators/password';
 
 // Step definitions
@@ -122,6 +125,10 @@ export default function RegisterPage() {
   const [streets, setStreets] = useState<{ id: string; name: string }[]>([]);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
 
+  // Email availability check state
+  const [emailCheckResult, setEmailCheckResult] = useState<EmailAvailabilityResult | null>(null);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+
   const {
     register,
     handleSubmit,
@@ -139,6 +146,33 @@ export default function RegisterPage() {
 
   const passwordValue = watch('password') || '';
   const occupancyStatus = watch('occupancyStatus');
+  const emailValue = watch('email') || '';
+
+  // Debounced email availability check
+  const debouncedEmailCheck = useDebouncedCallback(async (email: string) => {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailCheckResult(null);
+      return;
+    }
+
+    setIsCheckingEmail(true);
+    try {
+      const result = await checkEmailAvailability(email);
+      setEmailCheckResult(result);
+    } catch {
+      // On error, allow proceeding
+      setEmailCheckResult(null);
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  }, 500);
+
+  // Check email when it changes
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const email = e.target.value;
+    setEmailCheckResult(null); // Reset while typing
+    debouncedEmailCheck(email);
+  };
 
   // Fetch streets when reaching step 5
   const fetchStreets = async () => {
@@ -167,9 +201,21 @@ export default function RegisterPage() {
     const fieldsToValidate = getStepFields(currentStep);
     const isValid = await trigger(fieldsToValidate as (keyof RegistrationFormData)[]);
 
-    if (isValid) {
-      goToStep(currentStep + 1);
+    if (!isValid) return;
+
+    // Block progression from Step 1 if email is unavailable
+    if (currentStep === 1) {
+      if (isCheckingEmail) {
+        // Wait for email check to complete
+        return;
+      }
+      if (emailCheckResult && !emailCheckResult.available) {
+        // Email is not available, don't proceed
+        return;
+      }
     }
+
+    goToStep(currentStep + 1);
   };
 
   const handleBack = () => {
@@ -366,15 +412,74 @@ export default function RegisterPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email Address *</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                {...register('email')}
-                className="h-11"
-              />
+              <div className="relative">
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  {...register('email', {
+                    onChange: handleEmailChange,
+                  })}
+                  className={`h-11 pr-10 ${
+                    emailCheckResult && !emailCheckResult.available
+                      ? 'border-amber-500 focus-visible:ring-amber-500'
+                      : emailCheckResult?.available
+                      ? 'border-green-500 focus-visible:ring-green-500'
+                      : ''
+                  }`}
+                />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {isCheckingEmail && (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  {!isCheckingEmail && emailCheckResult?.available && (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  )}
+                  {!isCheckingEmail && emailCheckResult && !emailCheckResult.available && (
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  )}
+                </div>
+              </div>
               {errors.email && (
                 <p className="text-sm text-destructive">{errors.email.message}</p>
+              )}
+
+              {/* Email availability warning */}
+              {emailCheckResult && !emailCheckResult.available && (
+                <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-sm text-amber-700 dark:text-amber-400 space-y-2">
+                    <p>{emailCheckResult.message}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        asChild
+                        className="border-amber-300 hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-950/50"
+                      >
+                        <Link href="/login">Log In</Link>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        asChild
+                        className="border-amber-300 hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-950/50"
+                      >
+                        <Link href="/login?forgot=true">Forgot Password?</Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Email available confirmation */}
+              {emailCheckResult?.available && emailValue && (
+                <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Email is available
+                </p>
               )}
             </div>
 
