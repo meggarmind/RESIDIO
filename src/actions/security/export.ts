@@ -2,7 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { hasSecurityPermission } from './settings';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, sanitizeSearchInput } from '@/lib/utils';
 import type { SecurityContactFilters } from '@/lib/validators/security-contact';
 
 type ExportSecurityContactsResponse = {
@@ -37,8 +37,9 @@ export async function exportSecurityContactsCSV(
 
   // Apply filters
   if (search) {
+    const sanitized = sanitizeSearchInput(search);
     query = query.or(
-      `full_name.ilike.%${search}%,phone_primary.ilike.%${search}%,id_number.ilike.%${search}%`
+      `full_name.ilike.%${sanitized}%,phone_primary.ilike.%${sanitized}%,id_number.ilike.%${sanitized}%`
     );
   }
 

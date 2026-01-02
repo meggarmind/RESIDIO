@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { sanitizeSearchInput } from '@/lib/utils';
 
 // =====================================================
 // Types
@@ -46,7 +47,7 @@ export async function searchResidentsForRoleAssignment(
   }
 
   const supabase = await createServerSupabaseClient();
-  const searchPattern = `%${query}%`;
+  const searchPattern = `%${sanitizeSearchInput(query)}%`;
 
   // Search residents by name or email
   // Join with resident_houses to get house information (many-to-many relationship)

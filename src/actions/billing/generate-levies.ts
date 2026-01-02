@@ -3,51 +3,13 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { debitWalletForInvoice } from '@/actions/billing/wallet';
-import type { BillableRole, RateSnapshot } from '@/types/database';
+import { createLogger } from '@/lib/logger';
+import { getSystemSetting } from '@/lib/settings/get-system-setting';
+import type { RateSnapshot, BillableRole } from '@/types/database';
+import type { BillingProfileWithItems, LevyGenerationResult } from '@/types/billing';
 
-interface LevyGenerationResult {
-    success: boolean;
-    generated: number;
-    skipped: number;
-    errors: string[];
-}
+const log = createLogger('[Levies]');
 
-interface BillingProfileWithItems {
-    id: string;
-    name: string;
-    target_type: 'house' | 'resident';
-    applicable_roles: BillableRole[] | null;
-    is_one_time: boolean;
-    is_development_levy: boolean;
-    billing_items?: Array<{
-        id: string;
-        name: string;
-        amount: number;
-        frequency: string;
-        is_mandatory: boolean;
-    }>;
-}
-
-/**
- * Gets the system setting value
- */
-async function getSystemSetting(supabase: any, key: string): Promise<any> {
-    const { data } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', key)
-        .single();
-
-    if (data?.value) {
-        if (typeof data.value === 'string') {
-            if (data.value === 'true') return true;
-            if (data.value === 'false') return false;
-            return data.value;
-        }
-        return data.value;
-    }
-    return null;
-}
 
 /**
  * Builds a rate snapshot from a billing profile for audit trail
@@ -110,7 +72,7 @@ export async function generateLeviesForHouse(
         // Check if auto levy generation is enabled
         const autoGenerateLevies = await getSystemSetting(supabase, 'auto_generate_levies');
         if (autoGenerateLevies === false) {
-            console.log('[Levies] Auto levy generation is disabled');
+            log.info('Auto levy generation is disabled');
             return result;
         }
 
@@ -149,7 +111,7 @@ export async function generateLeviesForHouse(
                 .single();
 
             if (!residentLink) {
-                console.log(`[Levies] No primary resident found for house ${houseLabel}`);
+                log.info(`No primary resident found for house ${houseLabel}`);
                 return result;
             }
 
@@ -171,7 +133,7 @@ export async function generateLeviesForHouse(
         }
 
         if (!targetResidentId || !targetResidentRole) {
-            console.log(`[Levies] Cannot determine billable resident for house ${houseLabel}`);
+            log.info(`Cannot determine billable resident for house ${houseLabel}`);
             return result;
         }
 
@@ -192,11 +154,11 @@ export async function generateLeviesForHouse(
         }
 
         if (!oneTimeProfiles || oneTimeProfiles.length === 0) {
-            console.log('[Levies] No one-time billing profiles found');
+            log.info('No one-time billing profiles found');
             return result;
         }
 
-        console.log(`[Levies] Found ${oneTimeProfiles.length} one-time profiles for house ${houseLabel}`);
+        log.info(`Found ${oneTimeProfiles.length} one-time profiles for house ${houseLabel}`);
 
         // Check which profiles apply to this resident's role
         for (const profile of oneTimeProfiles as BillingProfileWithItems[]) {
@@ -207,7 +169,7 @@ export async function generateLeviesForHouse(
 
                 // Development Levy only applies to landlords and developers, NOT tenants
                 if (isDevelopmentLevy && targetResidentRole === 'tenant') {
-                    console.log(`[Levies] Skipping Development Levy for tenant in house ${houseLabel}`);
+                    log.info(`Skipping Development Levy for tenant in house ${houseLabel}`);
                     result.skipped++;
                     continue;
                 }
@@ -314,16 +276,16 @@ export async function generateLeviesForHouse(
                     });
 
                 if (historyError) {
-                    console.error(`[Levies] Failed to record levy history: ${historyError.message}`);
+                    log.error(`Failed to record levy history: ${historyError.message}`);
                 }
 
                 result.generated++;
-                console.log(`[Levies] Generated levy "${profile.name}" for house ${houseLabel}`);
+                log.info(`Generated levy "${profile.name}" for house ${houseLabel}`);
 
                 // Try to auto-debit from wallet
                 const debitResult = await debitWalletForInvoice(targetResidentId, newInvoice.id);
                 if (debitResult.success && debitResult.amountDebited > 0) {
-                    console.log(`[Levies] Auto-debited ₦${debitResult.amountDebited} from wallet for ${invoiceNumber}`);
+                    log.info(`Auto-debited ₦${debitResult.amountDebited} from wallet for ${invoiceNumber}`);
                 }
 
             } catch (profileError: any) {
@@ -372,7 +334,7 @@ export async function generateRetroactiveLevies(): Promise<LevyGenerationResult>
             return result;
         }
 
-        console.log(`[Levies] Processing retroactive levies for ${houses?.length || 0} houses`);
+        log.info(`Processing retroactive levies for ${houses?.length || 0} houses`);
 
         for (const house of houses || []) {
             const houseResult = await generateLeviesForHouse(house.id);
@@ -381,7 +343,7 @@ export async function generateRetroactiveLevies(): Promise<LevyGenerationResult>
             result.errors.push(...houseResult.errors);
         }
 
-        console.log(`[Levies] Retroactive: Generated=${result.generated}, Skipped=${result.skipped}`);
+        log.info(`Retroactive: Generated=${result.generated}, Skipped=${result.skipped}`);
 
     } catch (error: any) {
         result.success = false;

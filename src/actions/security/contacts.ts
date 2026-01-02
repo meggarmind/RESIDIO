@@ -16,6 +16,7 @@ import type {
 import { hasSecurityPermission } from './settings';
 import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
+import { sanitizeSearchInput } from '@/lib/utils';
 
 type SecurityContactResponse = {
   data: SecurityContact | null;
@@ -72,8 +73,9 @@ export async function getSecurityContacts(
 
   // Apply filters
   if (search) {
+    const sanitized = sanitizeSearchInput(search);
     query = query.or(
-      `full_name.ilike.%${search}%,phone_primary.ilike.%${search}%,id_number.ilike.%${search}%`
+      `full_name.ilike.%${sanitized}%,phone_primary.ilike.%${sanitized}%,id_number.ilike.%${sanitized}%`
     );
   }
 

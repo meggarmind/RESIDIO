@@ -24,7 +24,8 @@ export function useSettings(category?: string) {
             const result = await getSettings(category);
             if (result.error) throw new Error(result.error);
             return result.data;
-        }
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes - settings change infrequently
     });
 }
 
@@ -35,7 +36,8 @@ export function useBillingSettings() {
             const result = await getBillingSettings();
             if (result.error) throw new Error(result.error);
             return result.data;
-        }
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes - billing settings rarely change
     });
 }
 

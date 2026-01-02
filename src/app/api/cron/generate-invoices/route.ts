@@ -5,6 +5,9 @@ import {
     getAutoGenerateEnabled,
 } from '@/actions/billing/get-generation-log';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('[Cron]');
 
 // Configure for Vercel
 export const runtime = 'nodejs';
@@ -26,12 +29,12 @@ export async function GET(request: NextRequest) {
     if (authError) return authError;
 
     try {
-        console.log('[Cron] Checking invoice generation conditions');
+        log.info('Checking invoice generation conditions');
 
         // Check if auto-generation is enabled
         const autoGenResult = await getAutoGenerateEnabled();
         if (!autoGenResult.data) {
-            console.log('[Cron] Auto-generation is disabled');
+            log.info('Auto-generation is disabled');
             return NextResponse.json({
                 skipped: true,
                 reason: 'Auto-generation is disabled',
@@ -46,7 +49,7 @@ export async function GET(request: NextRequest) {
         const dayOfMonth = today.getDate();
 
         if (dayOfMonth !== configuredDay) {
-            console.log(`[Cron] Not generation day (today: ${dayOfMonth}, configured: ${configuredDay})`);
+            log.info(`Not generation day (today: ${dayOfMonth}, configured: ${configuredDay})`);
             return NextResponse.json({
                 skipped: true,
                 reason: `Not generation day (today: ${dayOfMonth}, configured: ${configuredDay})`,
@@ -54,10 +57,10 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        console.log('[Cron] Starting automated invoice generation');
+        log.info('Starting automated invoice generation');
         const result = await generateMonthlyInvoices(new Date(), 'cron');
 
-        console.log('[Cron] Invoice generation completed:', {
+        log.info('Invoice generation completed:', {
             generated: result.generated,
             skipped: result.skipped,
             errors: result.errors.length,
@@ -74,7 +77,7 @@ export async function GET(request: NextRequest) {
             timestamp: new Date().toISOString(),
         });
     } catch (error) {
-        console.error('[Cron] Invoice generation error:', error);
+        log.error('Invoice generation error:', error);
         return NextResponse.json(
             { error: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }

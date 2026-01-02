@@ -21,8 +21,9 @@ export function PaymentFilters() {
     const pathname = usePathname();
     const searchParams = useSearchParams();
 
-    // Fetch residents for resident filter
-    const { data: residentsData } = useResidents({ limit: 10000 });
+    // Fetch residents for resident filter - limited for performance
+    // TODO: Consider implementing async search/combobox for large estates
+    const { data: residentsData } = useResidents({ limit: 500 });
     const residents = residentsData?.data || [];
 
     // Get initial values from URL

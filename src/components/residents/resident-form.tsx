@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useHousesWithRoles } from '@/hooks/use-houses';
+import { useHousesWithRoles, useHouseResidents } from '@/hooks/use-houses';
 import { useCreateResident, useUpdateResident, useResidents } from '@/hooks/use-residents';
 import { createResidentBaseSchema, type CreateResidentData, type ResidentFormData, requiresSponsor } from '@/lib/validators/resident';
 import { toast } from 'sonner';
@@ -44,7 +44,8 @@ interface ResidentFormProps {
 export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseState }: ResidentFormProps) {
   const router = useRouter();
   const { data: housesData, isLoading: housesLoading } = useHousesWithRoles({ limit: 100 });
-  const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 1000 }); // Fetch all for picker
+  // Reduced limit - only used for emergency contact picker in linked mode
+  const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 200 });
   const createMutation = useCreateResident();
   const updateMutation = useUpdateResident();
 
@@ -111,6 +112,10 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
   const residentRole = form.watch('resident_role');
   const entityType = form.watch('entity_type');
   const selectedHouseId = form.watch('house_id');
+
+  // Fetch residents for selected house (used for sponsor selection)
+  // This is much more efficient than fetching all 1000 residents
+  const { data: houseResidents } = useHouseResidents(selectedHouseId);
 
   // Role options filtered by resident type and entity type
   const availableRoles = React.useMemo(() => {
@@ -216,21 +221,20 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
   const otherResidents = residentsData?.data.filter(r => r.id !== resident?.id) ?? [];
 
   // Get sponsors (primary residents of selected house) for domestic_staff and caretaker
+  // Uses house-specific query instead of filtering from all residents
   const availableSponsors = React.useMemo(() => {
     if (!selectedHouseId || !residentRole || !requiresSponsor(residentRole as ResidentRole)) {
       return [];
     }
-    // Filter residents who are non_resident_landlord, resident_landlord, or tenant of the selected house
-    return otherResidents.filter(r => {
-      // Check if resident has an active primary role in the selected house
-      const residentWithHouses = r as Resident & { resident_houses?: Array<{ house_id: string; resident_role: ResidentRole; is_active: boolean }> };
-      return residentWithHouses.resident_houses?.some(
-        rh => rh.house_id === selectedHouseId &&
-              rh.is_active &&
-              ['non_resident_landlord', 'resident_landlord', 'tenant'].includes(rh.resident_role)
-      );
-    });
-  }, [selectedHouseId, residentRole, otherResidents]);
+    if (!houseResidents) {
+      return [];
+    }
+    // Filter to only include primary roles that can sponsor (landlords and tenants)
+    return houseResidents.filter(r =>
+      r.id !== resident?.id &&
+      ['non_resident_landlord', 'resident_landlord', 'tenant'].includes(r.resident_role)
+    );
+  }, [selectedHouseId, residentRole, houseResidents, resident?.id]);
 
   // Clear house selection when role changes and house has conflicts
   React.useEffect(() => {

@@ -27,6 +27,7 @@ export function useStreets() {
       if (result.error) throw new Error(result.error);
       return result.data;
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes - reference data changes infrequently
   });
 }
 
@@ -114,6 +115,7 @@ export function useHouseTypes() {
       if (result.error) throw new Error(result.error);
       return result.data;
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes - reference data changes infrequently
   });
 }
 
@@ -175,6 +177,7 @@ export function useTransactionTags(options: UseTransactionTagsOptions = {}) {
       if (result.error) throw new Error(result.error);
       return result.data;
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes - reference data changes infrequently
   });
 }
 

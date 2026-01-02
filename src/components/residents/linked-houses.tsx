@@ -44,7 +44,8 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
     const [sponsorResidentId, setSponsorResidentId] = useState<string>('');
 
     const { data: housesData } = useHousesWithRoles({ limit: 100 });
-    const { data: residentsData } = useResidents({ limit: 1000 });
+    // Reduced limit for performance - used for sponsor selection
+    const { data: residentsData } = useResidents({ limit: 500 });
     const assignMutation = useAssignHouse();
     const unassignMutation = useUnassignHouse();
 

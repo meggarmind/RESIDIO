@@ -33,7 +33,8 @@ export function useBillingProfiles() {
             const result = await getBillingProfiles();
             if (result.error) throw new Error(result.error);
             return result.data;
-        }
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes - billing profiles change infrequently
     });
 }
 
@@ -293,7 +294,8 @@ export function useDevelopmentLevyProfiles() {
             const result = await getDevelopmentLevyProfiles();
             if (result.error) throw new Error(result.error);
             return result.data;
-        }
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes - levy profiles change infrequently
     });
 }
 

@@ -1,8 +1,38 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2025-12-31 (Property Shortnames & Portal UX Enhancements)
+**Last Updated:** 2026-01-02 (Admin Impersonation System & Phase 16 Complete)
 
-## Current Phase: Phase 15 - Document Management ✅ COMPLETE
+## Current Phase: Phase 16 - Community Communication ✅ COMPLETE
+
+### Recent Session Work (2026-01-02):
+
+#### Admin Impersonation System (DEV-74, DEV-75, DEV-76) ✅
+- **Core System**: Admins can view resident portal as any resident in read-only mode
+  - `impersonation_sessions` table with RLS policies
+  - Server actions: start/end/search impersonation
+  - React Query hooks with sessionStorage persistence
+  - ImpersonationBanner component (amber, fixed top)
+  - ResidentImpersonationSelector modal
+- **Approval Workflow**: Non-super admins require approval
+  - `impersonation_enabled` column on profiles
+  - Approval request/approve/deny flow
+  - In-app notifications for approvers
+- **Settings**: Configurable approval modes
+  - Hierarchical settings: approval_mode, timeouts
+  - Support for any_admin, specific_admins, permission_based
+
+#### Phase 16: Community Communication ✅
+- **Announcements System**: Full CRUD with scheduling
+  - Database: 3 migrations (tables, permissions, categories)
+  - Actions: create, update, delete, publish, get
+  - Components: form, table, status badges
+  - Admin page: /announcements
+  - Portal page: /portal/announcements
+- **Message Templates**: Reusable notification templates
+- **In-App Notifications**: Complete notification center
+- **Read Receipts**: Tracking with stats component
+- **Emergency Broadcast**: Priority announcement system
+- **Announcement Categories**: Settings page for management
 
 ### Recent Session Work (2025-12-31):
 
@@ -795,16 +825,16 @@ Central document repository:
 
 ---
 
-## Phase 16: Community Communication
+## Phase 16: Community Communication ✅ COMPLETE
 Enhanced communication tools:
-- [ ] Announcements database table
-- [ ] Community announcements/bulletin board
-- [ ] Scheduled announcements (future publish date)
-- [ ] Message templates library
-- [ ] In-app notification center
-- [ ] Read receipts tracking
-- [ ] Emergency broadcast system
-- [ ] Announcement categories
+- [x] Announcements database table
+- [x] Community announcements/bulletin board
+- [x] Scheduled announcements (future publish date)
+- [x] Message templates library
+- [x] In-app notification center
+- [x] Read receipts tracking
+- [x] Emergency broadcast system
+- [x] Announcement categories
 
 ---
 

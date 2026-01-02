@@ -44,7 +44,8 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
     const router = useRouter();
     const createMutation = useCreatePayment();
     const updateMutation = useUpdatePayment();
-    const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 1000 });
+    // Reduced limit - consider implementing async search for large estates
+    const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 200 });
 
     const isEditing = !!initialData;
     const isLoading = createMutation.isPending || updateMutation.isPending;

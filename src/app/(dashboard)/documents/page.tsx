@@ -39,8 +39,9 @@ function StatCard({
 }
 
 export default function DocumentsPage() {
-  const { data: documentsData, isLoading: docsLoading } = useDocuments({ limit: 1000 });
-  const { data: archivedData, isLoading: archivedLoading } = useDocuments({ is_archived: true, limit: 1000 });
+  // Reduced limits - these queries include count for stats, actual display uses pagination
+  const { data: documentsData, isLoading: docsLoading } = useDocuments({ limit: 100 });
+  const { data: archivedData, isLoading: archivedLoading } = useDocuments({ is_archived: true, limit: 100 });
   const { data: categories, isLoading: catsLoading } = useDocumentCategories();
 
   // Check permissions

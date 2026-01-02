@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Table,
@@ -22,6 +22,75 @@ import {
 } from '@/types/database';
 import { getActionBadgeVariant } from '@/lib/audit/helpers';
 import { AuditDetailDialog } from './audit-detail-dialog';
+
+// Memoized row component to prevent unnecessary re-renders
+const AuditLogRow = memo(function AuditLogRow({
+  log,
+  onViewDetails,
+}: {
+  log: AuditLogWithActor;
+  onViewDetails: (log: AuditLogWithActor) => void;
+}) {
+  return (
+    <TableRow
+      className="cursor-pointer hover:bg-muted/50"
+      onClick={() => onViewDetails(log)}
+    >
+      <TableCell className="whitespace-nowrap">
+        <div className="text-sm">
+          {format(new Date(log.created_at), 'MMM d, yyyy')}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {format(new Date(log.created_at), 'h:mm a')}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="text-sm">{log.actor?.full_name || 'Unknown'}</div>
+        <div className="text-xs text-muted-foreground">
+          {log.actor?.role?.replace('_', ' ')}
+        </div>
+      </TableCell>
+      <TableCell>
+        <Badge variant={getActionBadgeVariant(log.action)}>
+          {AUDIT_ACTION_LABELS[log.action]}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        {log.entity_id && (log.entity_type === 'residents' || log.entity_type === 'houses' || log.entity_type === 'payments' || log.entity_type === 'invoices') ? (
+          <Link
+            href={`/${log.entity_type}/${log.entity_id}`}
+            className="text-sm hover:underline text-primary"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {log.entity_display || 'N/A'}
+          </Link>
+        ) : (
+          <div className="text-sm">{log.entity_display || 'N/A'}</div>
+        )}
+        <div className="text-xs text-muted-foreground">
+          {AUDIT_ENTITY_LABELS[log.entity_type]}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="text-sm text-muted-foreground max-w-[200px] truncate">
+          {log.description || '—'}
+        </div>
+      </TableCell>
+      <TableCell>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewDetails(log);
+          }}
+        >
+          <Eye className="h-4 w-4" />
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 interface AuditLogsTableProps {
   logs: AuditLogWithActor[] | null;
@@ -51,10 +120,11 @@ export function AuditLogsTable({
   const startIndex = (page - 1) * limit + 1;
   const endIndex = Math.min(page * limit, total);
 
-  const handleViewDetails = (log: AuditLogWithActor) => {
+  // Memoized handler to prevent row re-renders
+  const handleViewDetails = useCallback((log: AuditLogWithActor) => {
     setSelectedLog(log);
     setDetailOpen(true);
-  };
+  }, []);
 
   if (isLoading) {
     return (
@@ -124,64 +194,11 @@ export function AuditLogsTable({
           </TableHeader>
           <TableBody>
             {logs.map((log) => (
-              <TableRow
+              <AuditLogRow
                 key={log.id}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleViewDetails(log)}
-              >
-                <TableCell className="whitespace-nowrap">
-                  <div className="text-sm">
-                    {format(new Date(log.created_at), 'MMM d, yyyy')}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {format(new Date(log.created_at), 'h:mm a')}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="text-sm">{log.actor?.full_name || 'Unknown'}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {log.actor?.role?.replace('_', ' ')}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={getActionBadgeVariant(log.action)}>
-                    {AUDIT_ACTION_LABELS[log.action]}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {log.entity_id && (log.entity_type === 'residents' || log.entity_type === 'houses' || log.entity_type === 'payments' || log.entity_type === 'invoices') ? (
-                    <Link
-                      href={`/${log.entity_type}/${log.entity_id}`}
-                      className="text-sm hover:underline text-primary"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {log.entity_display || 'N/A'}
-                    </Link>
-                  ) : (
-                    <div className="text-sm">{log.entity_display || 'N/A'}</div>
-                  )}
-                  <div className="text-xs text-muted-foreground">
-                    {AUDIT_ENTITY_LABELS[log.entity_type]}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="text-sm text-muted-foreground max-w-[200px] truncate">
-                    {log.description || '—'}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleViewDetails(log);
-                    }}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
+                log={log}
+                onViewDetails={handleViewDetails}
+              />
             ))}
           </TableBody>
         </Table>

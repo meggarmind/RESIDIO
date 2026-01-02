@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,12 +11,29 @@ import { useAnalytics } from '@/hooks/use-analytics';
 
 import { AnalyticsHeader } from '@/components/analytics/analytics-header';
 import { KPISummaryCards } from '@/components/analytics/kpi-summary-cards';
-import { RevenueTrendChart } from '@/components/analytics/revenue-trend-chart';
-import { CollectionRateChart } from '@/components/analytics/collection-rate-chart';
 import { OccupancyGauge } from '@/components/analytics/occupancy-gauge';
 import { PaymentComplianceCard } from '@/components/analytics/payment-compliance-card';
-import { PaymentMethodBreakdown } from '@/components/analytics/payment-method-breakdown';
-import { CategoryBreakdownChart } from '@/components/analytics/category-breakdown-chart';
+
+// Lazy load heavy chart components (recharts ~500KB)
+const RevenueTrendChart = dynamic(
+  () => import('@/components/analytics/revenue-trend-chart').then(mod => ({ default: mod.RevenueTrendChart })),
+  { loading: () => <Skeleton className="h-80 w-full" />, ssr: false }
+);
+
+const CollectionRateChart = dynamic(
+  () => import('@/components/analytics/collection-rate-chart').then(mod => ({ default: mod.CollectionRateChart })),
+  { loading: () => <Skeleton className="h-80 w-full" />, ssr: false }
+);
+
+const PaymentMethodBreakdown = dynamic(
+  () => import('@/components/analytics/payment-method-breakdown').then(mod => ({ default: mod.PaymentMethodBreakdown })),
+  { loading: () => <Skeleton className="h-80 w-full" />, ssr: false }
+);
+
+const CategoryBreakdownChart = dynamic(
+  () => import('@/components/analytics/category-breakdown-chart').then(mod => ({ default: mod.CategoryBreakdownChart })),
+  { loading: () => <Skeleton className="h-80 w-full" />, ssr: false }
+);
 
 /**
  * Analytics Page Client Component

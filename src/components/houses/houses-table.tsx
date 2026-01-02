@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -29,6 +29,54 @@ import type { HouseSearchParams } from '@/lib/validators/house';
 import { getPropertyShortname } from '@/lib/utils';
 
 const ALL_VALUE = '_all';
+
+// Type for house data (inferred from API)
+interface HouseData {
+  id: string;
+  house_number: string;
+  is_occupied: boolean;
+  street?: { name: string } | null;
+  house_type?: { name: string } | null;
+  street_id?: string;
+}
+
+// Memoized row component to prevent unnecessary re-renders
+const HouseRow = memo(function HouseRow({ house }: { house: HouseData }) {
+  return (
+    <TableRow>
+      <TableCell>
+        <span className="font-mono text-sm font-semibold bg-muted px-2 py-0.5 rounded">
+          {getPropertyShortname(house)}
+        </span>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <Home className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium">{house.house_number}</span>
+        </div>
+      </TableCell>
+      <TableCell>{house.street?.name}</TableCell>
+      <TableCell>{house.house_type?.name ?? '-'}</TableCell>
+      <TableCell>
+        <OccupancyBadge isOccupied={house.is_occupied} />
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href={`/houses/${house.id}`}>
+              <Eye className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button variant="ghost" size="icon" asChild>
+            <Link href={`/houses/${house.id}?edit=true`}>
+              <Pencil className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 export function HousesTable() {
   const router = useRouter();
@@ -169,46 +217,7 @@ export function HousesTable() {
               </TableRow>
             ) : (
               data?.data.map((house) => (
-                <TableRow key={house.id}>
-                  <TableCell>
-                    <span className="font-mono text-sm font-semibold bg-muted px-2 py-0.5 rounded">
-                      {getPropertyShortname(house)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Home className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{house.house_number}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{house.street?.name}</TableCell>
-                  <TableCell>{house.house_type?.name ?? '-'}</TableCell>
-                  <TableCell>
-                    <OccupancyBadge isOccupied={house.is_occupied} />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        asChild
-                      >
-                        <Link href={`/houses/${house.id}`}>
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        asChild
-                      >
-                        <Link href={`/houses/${house.id}?edit=true`}>
-                          <Pencil className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                <HouseRow key={house.id} house={house} />
               ))
             )}
           </TableBody>

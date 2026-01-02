@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { sanitizeSearchInput } from '@/lib/utils';
 import type {
   ImpersonationSession,
   ImpersonationSessionWithDetails,
@@ -358,7 +359,7 @@ export async function searchResidentsForImpersonation(query: string): Promise<{
   const supabase = await createServerSupabaseClient();
 
   // Search by name, email, phone, or resident code
-  const searchPattern = `%${query}%`;
+  const searchPattern = `%${sanitizeSearchInput(query)}%`;
 
   const { data: residents, error } = await supabase
     .from('residents')

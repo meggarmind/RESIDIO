@@ -2,6 +2,9 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 
 type WalletTransaction = {
     id: string;
@@ -63,6 +66,12 @@ export async function creditWallet(
     referenceId?: string,
     description?: string
 ): Promise<{ success: boolean; newBalance: number; error: string | null }> {
+    // Permission check
+    const auth = await authorizePermission(PERMISSIONS.BILLING_MANAGE_WALLETS);
+    if (!auth.authorized) {
+        return { success: false, newBalance: 0, error: auth.error || 'Unauthorized' };
+    }
+
     const supabase = await createServerSupabaseClient();
 
     // Get or create wallet
@@ -71,6 +80,7 @@ export async function creditWallet(
         return { success: false, newBalance: 0, error: walletError || 'Failed to get wallet' };
     }
 
+    const oldBalance = wallet.balance;
     const newBalance = wallet.balance + amount;
 
     // Update wallet balance
@@ -100,6 +110,16 @@ export async function creditWallet(
         console.error('[Wallet] Failed to log transaction:', txError);
     }
 
+    // Audit log
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'wallets',
+        entityId: wallet.id,
+        entityDisplay: `Wallet credit for resident ${residentId}`,
+        oldValues: { balance: oldBalance },
+        newValues: { balance: newBalance, amount_credited: amount, reference_type: referenceType },
+    });
+
     revalidatePath('/residents');
     return { success: true, newBalance, error: null };
 }
@@ -114,6 +134,12 @@ export async function debitWallet(
     referenceId?: string,
     description?: string
 ): Promise<{ success: boolean; newBalance: number; error: string | null }> {
+    // Permission check
+    const auth = await authorizePermission(PERMISSIONS.BILLING_MANAGE_WALLETS);
+    if (!auth.authorized) {
+        return { success: false, newBalance: 0, error: auth.error || 'Unauthorized' };
+    }
+
     const supabase = await createServerSupabaseClient();
 
     // Get or create wallet
@@ -127,6 +153,7 @@ export async function debitWallet(
         return { success: false, newBalance: wallet.balance, error: 'Insufficient wallet balance' };
     }
 
+    const oldBalance = wallet.balance;
     const newBalance = wallet.balance - amount;
 
     // Update wallet balance
@@ -155,6 +182,16 @@ export async function debitWallet(
     if (txError) {
         console.error('[Wallet] Failed to log transaction:', txError);
     }
+
+    // Audit log
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'wallets',
+        entityId: wallet.id,
+        entityDisplay: `Wallet debit for resident ${residentId}`,
+        oldValues: { balance: oldBalance },
+        newValues: { balance: newBalance, amount_debited: amount, reference_type: referenceType },
+    });
 
     revalidatePath('/residents');
     return { success: true, newBalance, error: null };

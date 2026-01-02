@@ -112,7 +112,8 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
   } | null>(null);
 
   const { data: house, isLoading, error } = useHouse(id);
-  const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 1000 });
+  // Reduced limit for performance - consider async search for large estates
+  const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 500 });
   const deleteMutation = useDeleteHouse();
   const assignMutation = useAssignHouse();
   const unassignMutation = useUnassignHouse();

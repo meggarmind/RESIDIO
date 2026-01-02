@@ -5,7 +5,12 @@ import { revalidatePath } from 'next/cache';
 import { debitWalletForInvoice } from '@/actions/billing/wallet';
 import { sendInvoiceEmail } from '@/actions/email/send-invoice-email';
 import { logAudit } from '@/lib/audit/logger';
-import type { BillableRole, RateSnapshot, InvoiceType } from '@/types/database';
+import { createLogger } from '@/lib/logger';
+import { getSystemSetting } from '@/lib/settings/get-system-setting';
+import type { RateSnapshot, InvoiceType } from '@/types/database';
+import type { BillingProfileWithItems } from '@/types/billing';
+
+const log = createLogger('[Billing]');
 
 export type InvoiceGenerationTrigger = 'manual' | 'cron' | 'api';
 
@@ -41,20 +46,6 @@ interface ResidentHouseLink {
     };
 }
 
-interface BillingProfileWithItems {
-    id: string;
-    name: string;
-    target_type: 'house' | 'resident';
-    applicable_roles: BillableRole[] | null;
-    is_one_time: boolean;
-    billing_items?: Array<{
-        id: string;
-        name: string;
-        amount: number;
-        frequency: string;
-        is_mandatory: boolean;
-    }>;
-}
 
 /**
  * Determines which resident should be billed for a house based on role priority.
@@ -159,28 +150,6 @@ function formatDateLocal(date: Date): string {
     return `${year}-${month}-${day}`;
 }
 
-/**
- * Gets the system setting value
- */
-async function getSystemSetting(supabase: any, key: string): Promise<any> {
-    const { data } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', key)
-        .single();
-
-    if (data?.value) {
-        // Value is stored as JSONB, but simple values are stored as strings
-        if (typeof data.value === 'string') {
-            // Try to parse boolean strings
-            if (data.value === 'true') return true;
-            if (data.value === 'false') return false;
-            return data.value;
-        }
-        return data.value;
-    }
-    return null;
-}
 
 /**
  * Builds a rate snapshot from a billing profile for audit trail
@@ -256,15 +225,15 @@ export async function generateMonthlyInvoices(
     const targetMonth = upToDate.getMonth();
     const targetPeriod = new Date(targetYear, targetMonth, 1);
 
-    console.log(`[Billing] Generating invoices up to: ${targetYear}-${String(targetMonth + 1).padStart(2, '0')} (trigger: ${triggerType})`);
+    log.info(`Generating invoices up to: ${targetYear}-${String(targetMonth + 1).padStart(2, '0')} (trigger: ${triggerType})`);
 
     try {
         // Get system settings
         const billVacantHouses = await getSystemSetting(supabase, 'bill_vacant_houses') === true;
         const dueWindowSetting = await getSystemSetting(supabase, 'invoice_due_window_days');
         const dueWindowDays = parseInt(String(dueWindowSetting).replace(/"/g, '')) || 30;
-        console.log(`[Billing] Bill vacant houses: ${billVacantHouses}`);
-        console.log(`[Billing] Due window days: ${dueWindowDays}`);
+        log.info(`Bill vacant houses: ${billVacantHouses}`);
+        log.info(`Due window days: ${dueWindowDays}`);
 
         // 1. Find all active houses (both occupied and vacant)
         const { data: houses, error: housesError } = await supabase
@@ -285,7 +254,7 @@ export async function generateMonthlyInvoices(
             return result;
         }
 
-        console.log(`[Billing] Found ${houses?.length || 0} active houses`);
+        log.info(`Found ${houses?.length || 0} active houses`);
 
         for (const house of houses || []) {
             const houseLabel = `${house.house_number}`;
@@ -487,12 +456,12 @@ export async function generateMonthlyInvoices(
                     // Try to auto-debit from wallet
                     const debitResult = await debitWalletForInvoice(residentLink.resident_id, newInvoice.id);
                     if (debitResult.success && debitResult.amountDebited > 0) {
-                        console.log(`[Billing] Auto-debited ₦${debitResult.amountDebited} from wallet for ${invoiceNumber}`);
+                        log.info(`Auto-debited ₦${debitResult.amountDebited} from wallet for ${invoiceNumber}`);
                     }
 
                     // Send invoice email (non-blocking)
                     sendInvoiceEmail(newInvoice.id).catch((err) => {
-                        console.error(`[Billing] Failed to send invoice email for ${invoiceNumber}:`, err);
+                        log.error(`Failed to send invoice email for ${invoiceNumber}:`, err);
                     });
 
                     // Move to next month
@@ -516,7 +485,7 @@ export async function generateMonthlyInvoices(
     const durationMs = Date.now() - startTime;
     result.durationMs = durationMs;
 
-    console.log(`[Billing] Complete: Generated=${result.generated}, Skipped=${result.skipped}, Duration=${durationMs}ms`);
+    log.info(`Complete: Generated=${result.generated}, Skipped=${result.skipped}, Duration=${durationMs}ms`);
 
     // Log to invoice_generation_log table
     try {
@@ -537,7 +506,7 @@ export async function generateMonthlyInvoices(
             .single();
 
         if (logError) {
-            console.error('[Billing] Failed to log generation:', logError.message);
+            log.error('Failed to log generation:', logError.message);
         } else if (logEntry) {
             result.logId = logEntry.id;
 
@@ -565,7 +534,7 @@ export async function generateMonthlyInvoices(
             });
         }
     } catch (logError: any) {
-        console.error('[Billing] Failed to log generation:', logError.message);
+        log.error('Failed to log generation:', logError.message);
     }
 
     revalidatePath('/billing');

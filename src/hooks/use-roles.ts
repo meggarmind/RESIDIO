@@ -35,6 +35,7 @@ export function useRolesWithPermissions() {
       }
       return result.data;
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes - roles change infrequently
   });
 }
 
@@ -68,6 +69,7 @@ export function usePermissions() {
       }
       return result.data;
     },
+    staleTime: 10 * 60 * 1000, // 10 minutes - permissions are nearly static
   });
 }
 
@@ -257,6 +259,7 @@ export function useRoleAssignmentRules() {
       }
       return result.data;
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes - assignment rules rarely change
   });
 }
 
