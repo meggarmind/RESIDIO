@@ -294,12 +294,12 @@ npm run db:types         # Generate TypeScript types from cloud schema
 See [docs/setup/project-management.md](docs/setup/project-management.md) for full session procedures.
 
 ### Test Users
+
 | Email | Password | Role |
 |-------|----------|------|
-| admin@residio.test | password123 | admin |
-| chairman@residio.test | password123 | chairman |
-| finance@residio.test | password123 | financial_secretary |
-| security@residio.test | password123 | security_officer |
+| admin@residio.test | password123 | super_admin |
+
+Note: Additional test accounts can be created via registration. The chairman role should be assigned to a real resident account.
 
 ### Key Patterns
 - **Path aliases**: `@/*` maps to `src/*`
@@ -324,3 +324,182 @@ See [docs/api/supabase-integration.md](docs/api/supabase-integration.md) for det
 | `mcp__supabase__generate_typescript_types` | Generate types |
 
 **Note**: This project uses CLOUD Supabase. Do NOT use local CLI commands.
+
+---
+
+## Module Integration Requirements
+
+**CRITICAL**: All server actions that perform write operations (CREATE, UPDATE, DELETE) MUST integrate with:
+
+1. **Roles & Permissions Module** - Authorization checks
+2. **Audit Log Module** - Activity logging
+
+### 1. Permission Integration
+
+Every server action that modifies data must check permissions:
+
+**Required Pattern:**
+
+```typescript
+'use server';
+
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+
+export async function createSomething(input: Input) {
+  // Step 1: Check permission FIRST
+  const auth = await authorizePermission(PERMISSIONS.MODULE_CREATE);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
+  }
+
+  // Step 2: Perform the operation
+  // ... database operations
+}
+```
+
+**Adding New Permissions:**
+
+1. Add constant to `src/lib/auth/action-roles.ts`:
+
+   ```typescript
+   // New Module (Phase X)
+   NEW_MODULE_VIEW: 'new_module.view',
+   NEW_MODULE_CREATE: 'new_module.create',
+   NEW_MODULE_UPDATE: 'new_module.update',
+   NEW_MODULE_DELETE: 'new_module.delete',
+   ```
+
+2. Create migration to add permission category enum:
+
+   ```sql
+   -- Migration: add_new_module_permission_category_enum
+   ALTER TYPE permission_category ADD VALUE IF NOT EXISTS 'new_module';
+   ```
+
+3. Create migration to seed permissions and role assignments:
+
+   ```sql
+   -- Migration: add_new_module_permissions_data
+   INSERT INTO app_permissions (name, display_name, description, category, is_active)
+   VALUES
+     ('new_module.view', 'View New Module', 'Can view new module', 'new_module', true),
+     ('new_module.create', 'Create New Module', 'Can create items', 'new_module', true)
+   ON CONFLICT (name) DO NOTHING;
+
+   -- Assign to roles
+   INSERT INTO role_permissions (role_id, permission_id)
+   SELECT r.id, p.id FROM app_roles r CROSS JOIN app_permissions p
+   WHERE r.name IN ('super_admin', 'chairman') AND p.category = 'new_module'
+   ON CONFLICT DO NOTHING;
+   ```
+
+### 2. Audit Log Integration
+
+Every server action that modifies data must log the activity:
+
+**Required Pattern:**
+
+```typescript
+import { logAudit } from '@/lib/audit/logger';
+import { getChangedValues } from '@/lib/audit/helpers';
+
+export async function updateSomething(id: string, input: Input) {
+  const auth = await authorizePermission(PERMISSIONS.MODULE_UPDATE);
+  if (!auth.authorized) return { error: 'Unauthorized' };
+
+  // Get old values for comparison
+  const { data: oldRecord } = await supabase.from('table').select('*').eq('id', id).single();
+
+  // Perform update
+  const { data, error } = await supabase.from('table').update(input).eq('id', id).select().single();
+
+  if (!error && data) {
+    const changes = getChangedValues(oldRecord, data);
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'table_name',        // Must be in AuditEntityType
+      entityId: id,
+      entityDisplay: data.name,        // Human-readable identifier
+      oldValues: changes.old,
+      newValues: changes.new,
+    });
+  }
+
+  return { data, error };
+}
+```
+
+**Adding New Entity Types:**
+
+Add to `src/types/database.ts` in the `AuditEntityType` type:
+
+```typescript
+export type AuditEntityType =
+  | 'existing_types'
+  | 'new_entity_type';  // Add new entity
+```
+
+**Audit Actions Available:**
+
+- `CREATE` / `UPDATE` / `DELETE` - Basic CRUD
+- `VERIFY` / `APPROVE` / `REJECT` - Workflow actions
+- `ASSIGN` / `UNASSIGN` - Role/relationship changes
+- `ACTIVATE` / `DEACTIVATE` - Status changes
+- `GENERATE` / `ALLOCATE` - Financial operations
+
+### 3. Integration Checklist
+
+Before marking a feature complete, verify:
+
+- [ ] All write actions have `authorizePermission()` check
+- [ ] Permission constants added to `src/lib/auth/action-roles.ts`
+- [ ] Permission category enum migration created
+- [ ] Permissions seeded in database with role assignments
+- [ ] All write actions call `logAudit()` after success
+- [ ] Entity type added to `AuditEntityType` if new
+- [ ] Route added to `ROUTE_PERMISSIONS` if new page
+
+### Known Integration Gaps
+
+The following modules are missing permission checks and/or audit logging:
+
+#### CRITICAL Priority (Core Business Operations)
+
+| Module | File | Missing Permission | Missing Audit |
+|--------|------|-------------------|---------------|
+| Residents | `create-resident.ts` | Yes | Yes |
+| Residents | `delete-resident.ts` | Yes | Yes |
+| Residents | `add-household-member.ts` | Yes | Yes |
+| Residents | `assign-house.ts` | Yes | Yes |
+| Residents | `unassign-house.ts` | Yes | Yes |
+| Residents | `transfer-ownership.ts` | Yes | Yes |
+| Billing | `generate-invoices.ts` | Yes | No |
+| Billing | `generate-levies.ts` | Yes | Yes |
+| Billing | `wallet.ts` | Yes | Yes |
+| Payments | `create-payment.ts` | Yes | No |
+| Payments | `create-split-payment.ts` | Yes | Yes |
+| Payments | `bulk-update-payments.ts` | Yes | Yes |
+
+#### HIGH Priority
+
+| Module | File | Missing Permission | Missing Audit |
+|--------|------|-------------------|---------------|
+| Houses | `create-house.ts` | Yes | Yes |
+| Houses | `property-transition.ts` | Yes | Yes |
+| Documents | `upload-document.ts` | Yes | Yes |
+| Documents | `update-document.ts` | Yes | Yes |
+| Documents | `delete-document.ts` | Yes | Yes |
+| Security | `categories.ts` | Yes | Yes |
+| Security | `settings.ts` | Yes | Yes |
+| Settings | `update-setting.ts` | Yes | Yes |
+
+#### MEDIUM Priority
+
+| Module | File | Missing Permission | Missing Audit |
+|--------|------|-------------------|---------------|
+| References | `create-street.ts` | Yes | Yes |
+| References | `create-house-type.ts` | Yes | Yes |
+| Imports | All files | Yes | No |
+| Notifications | All files | Yes | No |
+| Email | All send operations | Yes | No |
