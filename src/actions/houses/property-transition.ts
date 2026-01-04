@@ -4,6 +4,9 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 
 /**
  * Types for property transition workflow
@@ -228,6 +231,12 @@ export async function executeDeveloperToOwner(
     return { success: false, error: 'Unauthorized' };
   }
 
+  // Permission check
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_UPDATE);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
   const today = transitionDate || new Date().toISOString().split('T')[0];
   const stats = { staff_removed: 0, staff_transferred: 0, staff_extended: 0 };
 
@@ -440,6 +449,19 @@ export async function executeDeveloperToOwner(
     console.error('[executeDeveloperToOwner] History error:', historyError);
   }
 
+  // Audit log
+  const developerName = `${devResident?.first_name || ''} ${devResident?.last_name || ''}`.trim();
+  const newOwnerName = `${newOwner.first_name} ${newOwner.last_name}`;
+  await logAudit({
+    action: 'TRANSFER',
+    entityType: 'houses',
+    entityId: houseId,
+    entityDisplay: `Developer to Owner: ${developerName} → ${newOwnerName}`,
+    oldValues: { owner_id: developerAssignment.resident_id, owner_role: 'developer' },
+    newValues: { owner_id: newOwnerId, owner_role: newOwnerRole, transition_date: today, staff_actions: stats },
+    description: notes || `Property sold from developer to ${RESIDENT_ROLE_LABELS[newOwnerRole]}`,
+  });
+
   // Revalidate paths
   revalidatePath('/houses');
   revalidatePath(`/houses/${houseId}`);
@@ -478,6 +500,12 @@ export async function executeLandlordToTenant(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return { success: false, error: 'Unauthorized' };
+  }
+
+  // Permission check
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_UPDATE);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
   }
 
   const today = leaseStartDate || new Date().toISOString().split('T')[0];
@@ -653,6 +681,18 @@ export async function executeLandlordToTenant(
   } catch (historyError) {
     console.error('[executeLandlordToTenant] History error:', historyError);
   }
+
+  // Audit log
+  const tenantName = `${tenant.first_name} ${tenant.last_name}`;
+  await logAudit({
+    action: 'ASSIGN',
+    entityType: 'houses',
+    entityId: houseId,
+    entityDisplay: `Lease to Tenant: ${tenantName}`,
+    oldValues: { landlord_id: landlordAssignment.resident_id, has_tenant: false },
+    newValues: { tenant_id: tenantId, tenant_name: tenantName, lease_start: today, staff_actions: stats },
+    description: notes || `Property leased to tenant ${tenantName}`,
+  });
 
   // Revalidate paths
   revalidatePath('/houses');

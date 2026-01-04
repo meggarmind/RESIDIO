@@ -3,149 +3,80 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/lib/auth/auth-provider';
-import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { Home, CreditCard, Shield, User, LayoutDashboard, FileText, LogOut } from 'lucide-react';
-import { ThemeSwitcher } from '@/components/ui/theme-switcher';
-import { LayoutThemeSwitcher } from '@/components/ui/layout-theme-switcher';
-import { PortalSearch } from './portal-search';
-
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ElementType;
-}
-
-const navItems: NavItem[] = [
-  { href: '/portal', label: 'Home', icon: Home },
-  { href: '/portal/invoices', label: 'Payments', icon: CreditCard },
-  { href: '/portal/security-contacts', label: 'Security Contacts', icon: Shield },
-  { href: '/portal/documents', label: 'Documents', icon: FileText },
-  { href: '/portal/profile', label: 'Profile', icon: User },
-];
+import {
+  Home,
+  Building,
+  UserPlus,
+  Wallet,
+  Receipt,
+  Shield,
+  FileText,
+  Megaphone,
+  User,
+  Hexagon
+} from 'lucide-react';
 
 interface PortalSidebarProps {
   className?: string;
 }
 
-/**
- * Portal Sidebar Component
- *
- * Desktop sidebar for the resident portal with:
- * - Estate branding
- * - Portal navigation items
- * - Admin Dashboard link (if user has permissions)
- * - Theme switcher
- * - User info
- */
 export function PortalSidebar({ className }: PortalSidebarProps) {
   const pathname = usePathname();
-  const { profile, signOut, hasAnyPermission } = useAuth();
 
-  // Check if user has admin dashboard access (any admin permission indicates dashboard access)
-  const hasAdminAccess = hasAnyPermission([PERMISSIONS.RESIDENTS_VIEW]);
-
-  // Check if a nav item is active
-  const isActive = (href: string) => {
-    if (href === '/portal') {
-      return pathname === '/portal';
-    }
-    return pathname.startsWith(href);
-  };
+  const navItems = [
+    { href: '/portal', label: 'Dashboard', icon: Home },
+    { href: '/portal/properties', label: 'My Properties', icon: Building },
+    { href: '/portal/visitors', label: 'Visitors', icon: UserPlus },
+    { href: '/portal/wallet', label: 'Wallet', icon: Wallet },
+    { href: '/portal/invoices', label: 'Invoices', icon: Receipt },
+    { href: '/portal/security-contacts', label: 'Security Contacts', icon: Shield },
+    { href: '/portal/documents', label: 'Documents', icon: FileText },
+    { href: '/portal/announcements', label: 'Announcements', icon: Megaphone },
+    { href: '/portal/profile', label: 'Profile', icon: User },
+  ];
 
   return (
-    <aside className={cn('fixed left-0 top-0 h-full w-64 flex flex-col border-r bg-card', className)}>
-      {/* Logo / Branding */}
-      <div className="p-6 pb-4">
-        <Link href="/portal" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <svg
-              viewBox="0 0 24 24"
-              className="w-5 h-5 text-primary"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-          </div>
-          <span className="text-xl font-bold">Residio</span>
-        </Link>
-      </div>
-
-      {/* Search */}
-      <div className="px-4 pb-4">
-        <PortalSearch variant="button" />
+    <aside className={cn(
+      "w-[180px] bg-bill-sidebar border-r border-border fixed inset-y-0 left-0 z-30 flex flex-col py-6 px-4 transition-colors duration-300 hidden md:flex",
+      className
+    )}>
+      {/* Logo Section */}
+      <div className="flex items-center gap-2 mb-8 px-2">
+        <Hexagon className="h-6 w-6 text-bill-text fill-current" />
+        <span className="text-2xl font-bold text-bill-text tracking-tight">Bill</span>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 pb-4">
-        <ul className="space-y-1">
-          {navItems.map((item) => {
-            const active = isActive(item.href);
-            const Icon = item.icon;
+      <nav className="flex-1 space-y-1">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = item.href === '/portal'
+            ? pathname === '/portal'
+            : pathname.startsWith(item.href);
 
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                isActive
+                  ? "bg-bill-text text-bill-card shadow-sm" // Active: Dark bg (text color), Light text (card color) 
+                  : "text-bill-text-secondary hover:bg-bill-secondary hover:text-bill-text"
+              )}
+            >
+              <Icon className={cn("h-[18px] w-[18px]", isActive ? "text-current" : "text-bill-text-secondary group-hover:text-bill-text")} />
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* Footer */}
-      <div className="border-t p-4 space-y-3">
-        {/* Theme Controls */}
-        <div className="flex items-center gap-2 px-3">
-          <ThemeSwitcher />
-          <LayoutThemeSwitcher />
-        </div>
-
-        {/* Admin Dashboard link - only shown if user has admin permissions */}
-        {hasAdminAccess && (
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-          >
-            <LayoutDashboard className="h-4 w-4" />
-            <span>Admin Dashboard</span>
-          </Link>
-        )}
-
-        {/* User info */}
-        <div className="flex items-center gap-3 px-3 py-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-            {profile?.full_name?.charAt(0) || '?'}
-          </div>
-          <div className="flex-1 truncate">
-            <p className="text-sm font-medium truncate">{profile?.full_name}</p>
-            <p className="text-xs text-muted-foreground">Resident</p>
-          </div>
-        </div>
-
-        {/* Sign Out button */}
-        <button
-          onClick={signOut}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
-        >
-          <LogOut className="h-4 w-4" />
-          <span>Sign out</span>
-        </button>
+      <div className="mt-auto px-2">
+        <p className="text-[11px] text-bill-text-secondary">
+          © 2023 All Rights Reserved.
+        </p>
       </div>
     </aside>
   );

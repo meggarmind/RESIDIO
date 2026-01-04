@@ -3,6 +3,9 @@
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 
 type UnassignHouseResponse = {
   success: boolean;
@@ -31,6 +34,12 @@ export async function unassignHouse(
   moveOutDate?: string,
   notes?: string
 ): Promise<UnassignHouseResponse> {
+  // Permission check
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
   const supabase = await createServerSupabaseClient();
   const adminClient = createAdminClient();
 
@@ -174,6 +183,27 @@ export async function unassignHouse(
     console.error('[unassignHouse] Error recording history:', historyError);
     // Don't fail for history errors
   }
+
+  // Audit log
+  await logAudit({
+    action: 'UNASSIGN',
+    entityType: 'resident_houses',
+    entityId: assignment.id,
+    entityDisplay: `Resident unassigned from house`,
+    oldValues: {
+      resident_id: residentId,
+      house_id: houseId,
+      resident_role: role,
+      is_active: true,
+    },
+    newValues: {
+      is_active: false,
+      move_out_date: today,
+    },
+    description: role === 'tenant' && cascadeRemovedCount > 0
+      ? `Tenant unassigned, cascade removed ${cascadeRemovedCount} secondary resident(s)`
+      : `${role} unassigned from house`,
+  });
 
   revalidatePath('/residents');
   revalidatePath(`/residents/${residentId}`);

@@ -153,6 +153,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/message-templates': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES],
   '/approvals': [PERMISSIONS.APPROVALS_VIEW],
   '/settings': [PERMISSIONS.SETTINGS_VIEW],
+  '/settings/appearance': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES],
   '/settings/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
   '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],

@@ -1,14 +1,10 @@
-import { PortalHeader } from '@/components/resident-portal/portal-header';
+'use client';
+
+import { PortalTopBar } from '@/components/resident-portal/portal-topbar';
 import { PortalBottomNav } from '@/components/resident-portal/portal-bottom-nav';
 import { PortalSidebar } from '@/components/resident-portal/portal-sidebar';
-import { PortalLayoutContent } from '@/components/resident-portal/portal-layout-content';
-import { PortalVerificationBanner } from '@/components/resident-portal/portal-verification-banner';
-import { ImpersonationPortalWrapper } from '@/components/resident-portal/impersonation-portal-wrapper';
-
-export const metadata = {
-  title: 'Resident Portal | Residio',
-  description: 'Access your resident portal to view invoices, payments, and manage security contacts',
-};
+import { VisualThemeProvider } from '@/contexts/visual-theme-context';
+import { useEffectiveTheme } from '@/hooks/use-theme-preferences';
 
 /**
  * Resident Portal Layout
@@ -25,55 +21,42 @@ export const metadata = {
  * - Full-width content area (max-w-4xl)
  * - No bottom navigation
  */
+
+function PortalContent({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-bill-bg font-sans text-bill-text transition-colors duration-300">
+      {/* Desktop Sidebar */}
+      <PortalSidebar className="hidden md:flex" />
+
+      {/* Main Content Wrapper */}
+      <div className="md:pl-[180px] flex flex-col min-h-screen">
+        {/* Top Bar */}
+        <PortalTopBar />
+
+        {/* Page Content */}
+        <main className="flex-1 p-6 overflow-x-hidden">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {children}
+          </div>
+        </main>
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <PortalBottomNav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-bill-card" />
+    </div>
+  );
+}
+
 export default function ResidentPortalLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { data: effectiveTheme } = useEffectiveTheme('resident-portal');
+
   return (
-    <ImpersonationPortalWrapper>
-      <div className="min-h-screen bg-background">
-        {/* Subtle background pattern for depth */}
-        <div
-          className="fixed inset-0 -z-10 opacity-[0.015] dark:opacity-[0.02]"
-          style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)`,
-            backgroundSize: '32px 32px',
-          }}
-        />
-
-        {/* Desktop: Sidebar (hidden on mobile) */}
-        <PortalSidebar className="hidden md:flex" />
-
-        {/* Mobile: Fixed Header (hidden on desktop) */}
-        <div className="md:hidden">
-          <PortalHeader />
-        </div>
-
-        {/* Verification Banner (shows if contact verification incomplete) */}
-        <div className="md:ml-64">
-          <PortalVerificationBanner />
-        </div>
-
-        {/* Main Content Area */}
-        <main
-          className="
-            pt-14 pb-20 min-h-screen
-            md:pt-0 md:pb-0 md:ml-64
-          "
-          style={{
-            paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))',
-          }}
-        >
-          {/* Theme-aware responsive container */}
-          <PortalLayoutContent>{children}</PortalLayoutContent>
-        </main>
-
-        {/* Mobile: Fixed Bottom Navigation (hidden on desktop) */}
-        <div className="md:hidden">
-          <PortalBottomNav />
-        </div>
-      </div>
-    </ImpersonationPortalWrapper>
+    <VisualThemeProvider context="resident-portal" initialThemeId={effectiveTheme || 'nahid'}>
+      <PortalContent>{children}</PortalContent>
+    </VisualThemeProvider>
   );
 }

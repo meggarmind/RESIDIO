@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache';
 import { debitWalletForInvoice } from '@/actions/billing/wallet';
 import { sendInvoiceEmail } from '@/actions/email/send-invoice-email';
 import { logAudit } from '@/lib/audit/logger';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { createLogger } from '@/lib/logger';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import type { RateSnapshot, InvoiceType } from '@/types/database';
@@ -201,16 +203,21 @@ export async function generateMonthlyInvoices(
 ): Promise<GenerateInvoicesResult> {
     const startTime = Date.now();
 
+    // Permission check for manual triggers (cron/api use service role)
+    if (triggerType === 'manual') {
+        const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
+        if (!auth.authorized) {
+            return { success: false, generated: 0, skipped: 0, skipReasons: [], errors: [auth.error || 'Unauthorized'] };
+        }
+    }
+
     // Use admin client for cron/api triggers to bypass RLS, server client for manual
     const supabase = triggerType === 'manual'
         ? await createServerSupabaseClient()
         : createAdminClient();
 
-    // Check auth (for manual triggers, cron uses service role)
+    // Get user for audit logging (available for manual triggers)
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user && triggerType === 'manual') {
-        return { success: false, generated: 0, skipped: 0, skipReasons: [], errors: ['Unauthorized'] };
-    }
 
     const result: GenerateInvoicesResult = {
         success: true,

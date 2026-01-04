@@ -1,6 +1,9 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 
 type DeleteDocumentResponse = {
   success: boolean;
@@ -20,10 +23,16 @@ export async function deleteDocument(id: string): Promise<DeleteDocumentResponse
     return { success: false, error: 'Not authenticated' };
   }
 
-  // Get the document to find the file path
+  // Permission check
+  const auth = await authorizePermission(PERMISSIONS.DOCUMENTS_DELETE);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
+  // Get the document to find the file path (include title for audit log)
   const { data: document, error: docError } = await supabase
     .from('documents')
-    .select('id, file_path, parent_document_id')
+    .select('id, title, file_path, file_name, parent_document_id, version')
     .eq('id', id)
     .single();
 
@@ -81,6 +90,23 @@ export async function deleteDocument(id: string): Promise<DeleteDocumentResponse
     return { success: false, error: deleteError.message };
   }
 
+  // Audit log
+  const versionsDeleted = documentIdsToDelete.length - 1;
+  await logAudit({
+    action: 'DELETE',
+    entityType: 'documents',
+    entityId: id,
+    entityDisplay: document.title,
+    oldValues: {
+      title: document.title,
+      file_name: document.file_name,
+      versions_deleted: versionsDeleted > 0 ? versionsDeleted : undefined,
+    },
+    description: versionsDeleted > 0
+      ? `Deleted document "${document.title}" and ${versionsDeleted} version(s)`
+      : `Deleted document: ${document.title}`,
+  });
+
   return { success: true, error: null };
 }
 
@@ -97,10 +123,16 @@ export async function deleteDocumentVersion(id: string): Promise<DeleteDocumentR
     return { success: false, error: 'Not authenticated' };
   }
 
-  // Get the document
+  // Permission check
+  const auth = await authorizePermission(PERMISSIONS.DOCUMENTS_DELETE);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
+  // Get the document (include title and version for audit log)
   const { data: document, error: docError } = await supabase
     .from('documents')
-    .select('id, file_path, parent_document_id')
+    .select('id, title, file_path, file_name, parent_document_id, version')
     .eq('id', id)
     .single();
 
@@ -144,6 +176,21 @@ export async function deleteDocumentVersion(id: string): Promise<DeleteDocumentR
     console.error('Document version delete error:', deleteError);
     return { success: false, error: deleteError.message };
   }
+
+  // Audit log
+  await logAudit({
+    action: 'DELETE',
+    entityType: 'documents',
+    entityId: id,
+    entityDisplay: `${document.title} (v${document.version})`,
+    oldValues: {
+      title: document.title,
+      file_name: document.file_name,
+      version: document.version,
+      parent_document_id: document.parent_document_id,
+    },
+    description: `Deleted version ${document.version} of: ${document.title}`,
+  });
 
   return { success: true, error: null };
 }

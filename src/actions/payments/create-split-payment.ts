@@ -6,6 +6,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createPayment } from './create-payment'
 import { logAudit } from '@/lib/audit/logger'
+import { authorizePermission } from '@/lib/auth/authorize'
+import { PERMISSIONS } from '@/lib/auth/action-roles'
 import type { PaymentRecord } from '@/types/database'
 
 type CreateSplitPaymentResult = {
@@ -18,15 +20,13 @@ type CreateSplitPaymentResult = {
 export async function createSplitPayment(
     data: SplitPaymentFormData
 ): Promise<CreateSplitPaymentResult> {
-    const supabase = await createServerSupabaseClient()
-
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-        return { error: 'Unauthorized' }
+    // Permission check at entry point (createPayment also checks, but defense-in-depth)
+    const auth = await authorizePermission(PERMISSIONS.PAYMENTS_CREATE)
+    if (!auth.authorized) {
+        return { error: auth.error || 'Unauthorized' }
     }
+
+    const supabase = await createServerSupabaseClient()
 
     const result = splitPaymentSchema.safeParse(data)
 

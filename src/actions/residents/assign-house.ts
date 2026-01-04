@@ -7,6 +7,9 @@ import type { HouseAssignmentData } from '@/lib/validators/resident';
 import { isPrimaryRole, requiresSponsor, isResidencyRole, isValidCorporateRole } from '@/lib/validators/resident';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { generateLeviesForHouse } from '@/actions/billing/generate-levies';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 
 type AssignHouseResponse = {
   data: ResidentHouse | null;
@@ -14,6 +17,12 @@ type AssignHouseResponse = {
 }
 
 export async function assignHouse(residentId: string, formData: HouseAssignmentData): Promise<AssignHouseResponse> {
+  // Permission check
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
+  }
+
   const supabase = await createServerSupabaseClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -437,6 +446,21 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
       // Don't fail for levy errors
     }
   }
+
+  // Audit log
+  await logAudit({
+    action: 'ASSIGN',
+    entityType: 'resident_houses',
+    entityId: data.id,
+    entityDisplay: `${resident.first_name} ${resident.last_name} → House`,
+    newValues: {
+      resident_id: residentId,
+      house_id: formData.house_id,
+      resident_role: formData.resident_role,
+      move_in_date: formData.move_in_date || new Date().toISOString().split('T')[0],
+    },
+    description: `Assigned ${roleLabel} to house`,
+  });
 
   revalidatePath('/residents');
   revalidatePath(`/residents/${residentId}`);

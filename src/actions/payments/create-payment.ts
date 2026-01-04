@@ -5,6 +5,8 @@ import { paymentFormSchema } from '@/lib/validators/payment'
 import { z } from 'zod'
 import { creditWallet, allocateWalletToInvoices } from '@/actions/billing/wallet'
 import { logAudit } from '@/lib/audit/logger'
+import { authorizePermission } from '@/lib/auth/authorize'
+import { PERMISSIONS } from '@/lib/auth/action-roles'
 import type { PaymentRecord } from '@/types/database'
 
 // Extended schema to include import tracking fields and house association
@@ -24,15 +26,13 @@ type CreatePaymentResult = {
 }
 
 export async function createPayment(data: CreatePaymentInput): Promise<CreatePaymentResult> {
-    const supabase = await createServerSupabaseClient()
-
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-        return { error: 'Unauthorized' }
+    // Permission check
+    const auth = await authorizePermission(PERMISSIONS.PAYMENTS_CREATE)
+    if (!auth.authorized) {
+        return { error: auth.error || 'Unauthorized' }
     }
+
+    const supabase = await createServerSupabaseClient()
 
     const result = extendedPaymentSchema.safeParse(data)
 

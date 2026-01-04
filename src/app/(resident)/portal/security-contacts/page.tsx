@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/lib/auth/auth-provider';
@@ -18,6 +19,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { AvatarCircle } from '@/components/ui/avatar-circle';
+import { AnimatedCounter } from '@/components/ui/animated-counter';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -74,6 +79,40 @@ import { format } from 'date-fns';
 import { z } from 'zod';
 import { useLayoutTheme } from '@/contexts/layout-theme-context';
 import type { SecurityContactWithDetails, SecurityContactStatus } from '@/types/database';
+
+// Spring physics for smooth, professional animations
+const spring = {
+  type: 'spring' as const,
+  stiffness: 300,
+  damping: 30,
+  mass: 1,
+};
+
+// Card animation variants for stats cards
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: (custom: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      ...spring,
+      delay: custom * 0.1, // 100ms stagger between cards
+    },
+  }),
+};
+
+// Contact card animation variants
+const contactCardVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: (custom: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      ...spring,
+      delay: custom * 0.05, // 50ms stagger between contact cards
+    },
+  }),
+};
 
 // Simplified schema for resident portal
 const portalContactSchema = z.object({
@@ -152,32 +191,51 @@ export default function ResidentSecurityContactsPage() {
         'grid grid-cols-2 gap-3',
         isExpanded && 'lg:grid-cols-4 gap-4'
       )}>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-500/10">
-                <Shield className="h-4 w-4 text-emerald-600" />
+        <motion.div
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          custom={0}
+        >
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10">
+                  <Shield className="h-4 w-4 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">
+                    <AnimatedCounter value={activeContacts.length} />
+                  </p>
+                  <p className="text-xs text-muted-foreground">Active</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold">{activeContacts.length}</p>
-                <p className="text-xs text-muted-foreground">Active</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          custom={1}
+        >
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-blue-500/10">
+                  <User className="h-4 w-4 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">
+                    <AnimatedCounter value={contacts.length} />
+                  </p>
+                  <p className="text-xs text-muted-foreground">Total</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <User className="h-4 w-4 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{contacts.length}</p>
-                <p className="text-xs text-muted-foreground">Total</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       {/* Contacts List - Grid on desktop, stack on mobile */}
@@ -200,13 +258,14 @@ export default function ResidentSecurityContactsPage() {
             : 'space-y-3',
           isExpanded && 'xl:grid-cols-4 gap-4'
         )}>
-          {contacts.map((contact) => (
+          {contacts.map((contact, index) => (
             <ContactCard
               key={contact.id}
               contact={contact}
               onClick={() => setSelectedContact(contact)}
               isDesktop={isDesktop}
               isExpanded={isExpanded}
+              index={index}
               onEdit={() => {
                 setEditingContact(contact);
               }}
@@ -266,6 +325,7 @@ function ContactCard({
   onClick,
   isDesktop,
   isExpanded,
+  index,
   onEdit,
   onDelete,
 }: {
@@ -273,11 +333,19 @@ function ContactCard({
   onClick: () => void;
   isDesktop: boolean;
   isExpanded: boolean;
+  index: number;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const config = statusConfig[contact.status];
-  const StatusIcon = config.icon;
+
+  // Map status to StatusBadge variant
+  const getStatusVariant = (status: SecurityContactStatus): 'success' | 'error' | 'warning' | 'neutral' => {
+    if (status === 'active') return 'success';
+    if (status === 'revoked') return 'error';
+    if (status === 'suspended') return 'warning';
+    return 'neutral';
+  };
 
   // Category color mapping for visual distinction
   const categoryColors: Record<string, string> = {
@@ -290,91 +358,96 @@ function ContactCard({
   const categoryColor = categoryColors[contact.category?.name || ''] || 'bg-muted text-muted-foreground';
 
   return (
-    <Card
-      className={cn(
-        'cursor-pointer transition-all active:scale-[0.99]',
-        isDesktop
-          ? 'hover:shadow-lg hover:border-primary/30 group'
-          : 'hover:border-primary/30'
-      )}
-      onClick={onClick}
+    <motion.div
+      variants={contactCardVariants}
+      initial="hidden"
+      animate="visible"
+      custom={index}
     >
-      <CardContent className={cn('p-4', isDesktop && 'pb-3')}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Avatar */}
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <span className="text-sm font-medium text-primary">
-                {contact.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-              </span>
-            </div>
+      <Card
+        className={cn(
+          'cursor-pointer transition-all active:scale-[0.99]',
+          isDesktop
+            ? 'hover:shadow-lg hover:border-primary/30 group'
+            : 'hover:border-primary/30'
+        )}
+        onClick={onClick}
+      >
+        <CardContent className={cn('p-4', isDesktop && 'pb-3')}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {/* Avatar */}
+              <AvatarCircle
+                name={contact.full_name}
+                size="md"
+              />
 
-            {/* Info */}
-            <div className="min-w-0">
-              <p className="font-medium truncate">{contact.full_name}</p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                {contact.phone_primary && (
-                  <span className="flex items-center gap-1">
-                    <Phone className="h-3 w-3" />
-                    {contact.phone_primary}
-                  </span>
-                )}
+              {/* Info */}
+              <div className="min-w-0">
+                <p className="font-medium truncate">{contact.full_name}</p>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                  {contact.phone_primary && (
+                    <span className="flex items-center gap-1">
+                      <Phone className="h-3 w-3" />
+                      {contact.phone_primary}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Status Badge */}
+            <StatusBadge variant={getStatusVariant(contact.status)} className="shrink-0">
+              {config.label}
+            </StatusBadge>
           </div>
 
-          {/* Status Badge */}
-          <Badge className={cn('text-[10px] shrink-0', config.color)}>
-            <StatusIcon className="h-3 w-3 mr-1" />
-            {config.label}
-          </Badge>
-        </div>
+          {/* Category Badge & Desktop Actions */}
+          <div className={cn(
+            'flex items-center justify-between mt-3',
+            isDesktop ? 'pt-3 border-t' : ''
+          )}>
+            <Badge variant="outline" className={cn('text-[10px]', categoryColor)}>
+              {contact.category?.name || 'Contact'}
+            </Badge>
 
-        {/* Category Badge & Desktop Actions */}
-        <div className={cn(
-          'flex items-center justify-between mt-3',
-          isDesktop ? 'pt-3 border-t' : ''
-        )}>
-          <Badge variant="outline" className={cn('text-[10px]', categoryColor)}>
-            {contact.category?.name || 'Contact'}
-          </Badge>
-
-          {isDesktop ? (
-            /* Desktop: Hover actions (always visible when expanded) */
-            <div className={cn(
-              'flex items-center gap-1 transition-opacity',
-              isExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-            )}>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit();
-                }}
-              >
-                <Edit2 className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                }}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ) : (
-            /* Mobile: Arrow indicator */
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          )}
-        </div>
-      </CardContent>
-    </Card>
+            {isDesktop ? (
+              /* Desktop: Hover actions (always visible when expanded) */
+              <div className={cn(
+                'flex items-center gap-1 transition-opacity',
+                isExpanded ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              )}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit();
+                  }}
+                >
+                  <Edit2 className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              /* Mobile: Arrow indicator */
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
@@ -855,20 +928,20 @@ function SecurityContactsSkeleton() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-4 w-32" />
+          <ShimmerSkeleton className="h-8 w-48" />
+          <ShimmerSkeleton className="h-4 w-32" />
         </div>
-        <Skeleton className="h-9 w-20" />
+        <ShimmerSkeleton className="h-9 w-20" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Skeleton className="h-20 w-full rounded-xl" />
-        <Skeleton className="h-20 w-full rounded-xl" />
+        <ShimmerSkeleton className="h-20 w-full rounded-xl" />
+        <ShimmerSkeleton className="h-20 w-full rounded-xl" />
       </div>
 
-      <div className="space-y-3">
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-xl" />
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        {[...Array(6)].map((_, i) => (
+          <ShimmerSkeleton key={i} className="h-32 w-full rounded-xl" />
         ))}
       </div>
     </div>

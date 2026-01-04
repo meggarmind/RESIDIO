@@ -28,7 +28,11 @@ const navItems: NavItem[] = [
  * - Haptic-ready touch targets (44px minimum)
  * - Glass-morphism effect
  */
-export function PortalBottomNav() {
+interface PortalBottomNavProps {
+  className?: string;
+}
+
+export function PortalBottomNav({ className }: PortalBottomNavProps) {
   const pathname = usePathname();
 
   // Check if a nav item is active
@@ -41,7 +45,10 @@ export function PortalBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 h-16 bg-background/80 backdrop-blur-xl border-t border-border/40"
+      className={cn(
+        "fixed bottom-0 left-0 right-0 z-50 h-16 bg-background/80 backdrop-blur-xl border-t border-border/40",
+        className
+      )}
       role="navigation"
       aria-label="Main navigation"
     >

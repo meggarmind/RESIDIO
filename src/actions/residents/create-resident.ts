@@ -8,6 +8,9 @@ import { requiresSponsor, isValidCorporateRole } from '@/lib/validators/resident
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { sendWelcomeEmail } from '@/actions/email/send-welcome-email';
 import { sendEmailVerification, sendPhoneVerification } from '@/actions/verification/send-verification';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 
 type CreateResidentResponse = {
   data: Resident | null;
@@ -15,6 +18,12 @@ type CreateResidentResponse = {
 }
 
 export async function createResident(formData: CreateResidentData): Promise<CreateResidentResponse> {
+  // Permission check
+  const auth = await authorizePermission(PERMISSIONS.RESIDENTS_CREATE);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
+  }
+
   const supabase = await createServerSupabaseClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -159,6 +168,26 @@ export async function createResident(formData: CreateResidentData): Promise<Crea
 
   // Wait for all notifications to complete (or fail gracefully)
   await Promise.allSettled(notifications);
+
+  // Audit log
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'residents',
+    entityId: resident.id,
+    entityDisplay: `${resident.first_name} ${resident.last_name} (${resident.resident_code})`,
+    newValues: {
+      name: `${resident.first_name} ${resident.last_name}`,
+      resident_type: formData.resident_type,
+      entity_type: formData.entity_type || 'individual',
+      email: formData.email || null,
+      phone: formData.phone_primary,
+      house_id: formData.house_id || null,
+      resident_role: formData.resident_role || null,
+    },
+    description: formData.house_id
+      ? `Created resident with house assignment`
+      : `Created resident`,
+  });
 
   revalidatePath('/residents');
   revalidatePath('/houses');

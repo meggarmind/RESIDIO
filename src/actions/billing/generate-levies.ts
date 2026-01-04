@@ -5,6 +5,9 @@ import { revalidatePath } from 'next/cache';
 import { debitWalletForInvoice } from '@/actions/billing/wallet';
 import { createLogger } from '@/lib/logger';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 import type { RateSnapshot, BillableRole } from '@/types/database';
 import type { BillingProfileWithItems, LevyGenerationResult } from '@/types/billing';
 
@@ -54,11 +57,23 @@ export async function generateLeviesForHouse(
     houseId: string,
     residentId?: string
 ): Promise<LevyGenerationResult> {
+    // Permission check
+    const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
+    if (!auth.authorized) {
+        return { success: false, generated: 0, skipped: 0, errors: [auth.error || 'Unauthorized'] };
+    }
+
     const supabase = await createServerSupabaseClient();
 
     const { data: { user } } = await supabase.auth.getUser();
+
     if (!user) {
-        return { success: false, generated: 0, skipped: 0, errors: ['Unauthorized'] };
+        return {
+            success: false,
+            generated: 0,
+            skipped: 0,
+            errors: ['User not authenticated'],
+        };
     }
 
     const result: LevyGenerationResult = {
@@ -282,6 +297,23 @@ export async function generateLeviesForHouse(
                 result.generated++;
                 log.info(`Generated levy "${profile.name}" for house ${houseLabel}`);
 
+                // Audit log for levy generation
+                await logAudit({
+                    action: 'GENERATE',
+                    entityType: 'invoices',
+                    entityId: newInvoice.id,
+                    entityDisplay: `Levy "${profile.name}" for ${houseLabel}`,
+                    newValues: {
+                        invoice_number: invoiceNumber,
+                        amount: totalAmount,
+                        billing_profile: profile.name,
+                        is_development_levy: isDevelopmentLevy,
+                        house_id: houseId,
+                        resident_id: targetResidentId,
+                    },
+                    description: `Generated one-time levy: ${profile.name}`,
+                });
+
                 // Try to auto-debit from wallet
                 const debitResult = await debitWalletForInvoice(targetResidentId, newInvoice.id);
                 if (debitResult.success && debitResult.amountDebited > 0) {
@@ -307,12 +339,13 @@ export async function generateLeviesForHouse(
  * This is an admin action to backfill levies for houses created before certain profiles existed.
  */
 export async function generateRetroactiveLevies(): Promise<LevyGenerationResult> {
-    const supabase = await createServerSupabaseClient();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        return { success: false, generated: 0, skipped: 0, errors: ['Unauthorized'] };
+    // Permission check
+    const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
+    if (!auth.authorized) {
+        return { success: false, generated: 0, skipped: 0, errors: [auth.error || 'Unauthorized'] };
     }
+
+    const supabase = await createServerSupabaseClient();
 
     const result: LevyGenerationResult = {
         success: true,
@@ -344,6 +377,23 @@ export async function generateRetroactiveLevies(): Promise<LevyGenerationResult>
         }
 
         log.info(`Retroactive: Generated=${result.generated}, Skipped=${result.skipped}`);
+
+        // Audit log for bulk operation
+        if (result.generated > 0) {
+            await logAudit({
+                action: 'GENERATE',
+                entityType: 'invoices',
+                entityId: 'retroactive-levy-batch',
+                entityDisplay: `Retroactive Levies - ${result.generated} generated`,
+                newValues: {
+                    houses_processed: houses?.length || 0,
+                    generated_count: result.generated,
+                    skipped_count: result.skipped,
+                    error_count: result.errors.length,
+                },
+                description: `Retroactive levy generation: ${result.generated} levies across ${houses?.length || 0} houses`,
+            });
+        }
 
     } catch (error: any) {
         result.success = false;

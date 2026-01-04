@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/types/database.generated';
+import type { Database } from '@/types/database';
 
 /**
  * Gets a system setting value from the database
@@ -17,7 +17,7 @@ export async function getSystemSetting<T = unknown>(
     .from('system_settings')
     .select('value')
     .eq('key', key)
-    .single();
+    .single() as { data: { value: any } | null };
 
   if (data?.value) {
     // Value is stored as JSONB, but simple values are stored as strings
@@ -47,7 +47,7 @@ export async function getSystemSettings(
   const { data } = await supabase
     .from('system_settings')
     .select('key, value')
-    .in('key', keys);
+    .in('key', keys) as { data: Array<{ key: string; value: any }> | null };
 
   const result = new Map<string, unknown>();
 

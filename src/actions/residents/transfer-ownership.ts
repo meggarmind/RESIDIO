@@ -4,6 +4,9 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 
 type TransferOwnershipResponse = {
   success: boolean;
@@ -39,6 +42,12 @@ export async function transferOwnership(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return { success: false, error: 'Unauthorized' };
+  }
+
+  // Permission check
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_UPDATE);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
   }
 
   if (!houseId || !currentOwnerId || !newOwnerId) {
@@ -213,6 +222,17 @@ export async function transferOwnership(
     console.error('[transferOwnership] Error recording history:', historyError);
     // Don't fail the operation for history errors
   }
+
+  // Audit log
+  await logAudit({
+    action: 'TRANSFER',
+    entityType: 'houses',
+    entityId: houseId,
+    entityDisplay: `Ownership transfer: ${currentOwnerName} → ${newOwnerName}`,
+    oldValues: { owner_id: currentOwnerId, owner_name: currentOwnerName, owner_role: currentRole },
+    newValues: { owner_id: newOwnerId, owner_name: newOwnerName, owner_role: newOwnerRole, transfer_date: today },
+    description: transferNotes || `Property ownership transferred from ${currentOwnerName} to ${newOwnerName}`,
+  });
 
   revalidatePath('/houses');
   revalidatePath(`/houses/${houseId}`);

@@ -7,6 +7,9 @@ import {
   DOCUMENT_FILE_EXTENSIONS,
 } from '@/types/database';
 import type { DocumentWithRelations } from '@/types/database';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 
 type UploadDocumentResponse = {
   data: DocumentWithRelations | null;
@@ -60,6 +63,12 @@ export async function uploadDocument(formData: FormData): Promise<UploadDocument
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return { data: null, error: 'Not authenticated' };
+  }
+
+  // Permission check
+  const auth = await authorizePermission(PERMISSIONS.DOCUMENTS_UPLOAD);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
   }
 
   // Extract form data
@@ -129,11 +138,28 @@ export async function uploadDocument(formData: FormData): Promise<UploadDocument
     return { data: null, error: `Failed to create document record: ${insertError.message}` };
   }
 
-  // Log the upload action
+  // Log the upload action (access log)
   await supabase.from('document_access_logs').insert({
     document_id: document.id,
     accessed_by: user.id,
     action: 'upload',
+  });
+
+  // Audit log
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'documents',
+    entityId: document.id,
+    entityDisplay: document.title,
+    newValues: {
+      title: document.title,
+      file_name: document.file_name,
+      file_type: document.file_type,
+      file_size_bytes: document.file_size_bytes,
+      category_id: categoryId,
+      version: 1,
+    },
+    description: `Uploaded document: ${document.title}`,
   });
 
   return { data: document as DocumentWithRelations, error: null };
@@ -152,6 +178,12 @@ export async function uploadDocumentVersion(
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     return { data: null, error: 'Not authenticated' };
+  }
+
+  // Permission check
+  const auth = await authorizePermission(PERMISSIONS.DOCUMENTS_UPLOAD);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
   }
 
   // Get the parent document
@@ -240,11 +272,28 @@ export async function uploadDocumentVersion(
     return { data: null, error: `Failed to create document version: ${insertError.message}` };
   }
 
-  // Log the upload action
+  // Log the upload action (access log)
   await supabase.from('document_access_logs').insert({
     document_id: document.id,
     accessed_by: user.id,
     action: 'upload',
+  });
+
+  // Audit log
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'documents',
+    entityId: document.id,
+    entityDisplay: `${document.title} (v${nextVersion})`,
+    newValues: {
+      title: document.title,
+      file_name: document.file_name,
+      file_type: fileType,
+      file_size_bytes: document.file_size_bytes,
+      parent_document_id: parentDocumentId,
+      version: nextVersion,
+    },
+    description: `Uploaded new version (v${nextVersion}) of: ${parentDoc.title}`,
   });
 
   return { data: document as DocumentWithRelations, error: null };

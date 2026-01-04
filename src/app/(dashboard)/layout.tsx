@@ -4,12 +4,10 @@ import { useState } from 'react';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { Header } from '@/components/dashboard/header';
 import { MobileNav } from '@/components/dashboard/mobile-nav';
+import { VisualThemeProvider } from '@/contexts/visual-theme-context';
+import { useEffectiveTheme } from '@/hooks/use-theme-preferences';
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function DashboardContent({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
@@ -28,5 +26,19 @@ export default function DashboardLayout({
         </main>
       </div>
     </div>
+  );
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { data: effectiveTheme } = useEffectiveTheme('admin-dashboard');
+
+  return (
+    <VisualThemeProvider context="admin-dashboard" initialThemeId={effectiveTheme || 'nahid'}>
+      <DashboardContent>{children}</DashboardContent>
+    </VisualThemeProvider>
   );
 }

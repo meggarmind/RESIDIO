@@ -229,10 +229,12 @@ export type AuditAction =
   | 'UNASSIGN'
   | 'ACTIVATE'
   | 'DEACTIVATE'
-  | 'GENERATE'    // For invoice/levy generation
-  | 'ALLOCATE'    // For wallet allocations
-  | 'LOGIN'       // Future: auth events
-  | 'LOGOUT';     // Future: auth events
+  | 'GENERATE'     // For invoice/levy generation
+  | 'ALLOCATE'     // For wallet allocations
+  | 'TRANSFER'     // For ownership transfers (Phase 16)
+  | 'BULK_UPDATE'  // For bulk operations (Phase 16)
+  | 'LOGIN'        // Future: auth events
+  | 'LOGOUT';      // Future: auth events
 
 // Auditable entity types (extensible - add new entities here for future modules)
 export type AuditEntityType =
@@ -274,7 +276,9 @@ export type AuditEntityType =
   | 'in_app_notifications'       // Phase 16: Community Communication
   | 'message_templates'          // Phase 16: Community Communication
   | 'report_subscriptions'       // Phase 16: Community Communication
-  | 'impersonation_sessions';    // Admin impersonation system
+  | 'impersonation_sessions'     // Admin impersonation system
+  | 'documents'                   // Phase 15: Document Management
+  | 'document_categories';        // Phase 15: Document Management
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -289,6 +293,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   DEACTIVATE: 'Deactivated',
   GENERATE: 'Generated',
   ALLOCATE: 'Allocated',
+  TRANSFER: 'Transferred',
+  BULK_UPDATE: 'Bulk Updated',
   LOGIN: 'Logged In',
   LOGOUT: 'Logged Out',
 };
@@ -333,6 +339,8 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   message_templates: 'Message Template',               // Phase 16: Community Communication
   report_subscriptions: 'Report Subscription',         // Phase 16: Community Communication
   impersonation_sessions: 'Impersonation Session',     // Admin impersonation system
+  documents: 'Document',                                // Phase 15: Document Management
+  document_categories: 'Document Category',             // Phase 15: Document Management
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -438,11 +446,31 @@ export interface Database {
           email: string;
           full_name: string;
           role: UserRole;
+          dashboard_theme_override: string | null; // Personal theme preference for Admin Dashboard
+          portal_theme_override: string | null; // Personal theme preference for Resident Portal
           created_at: string;
           updated_at: string;
         };
         Insert: Omit<Database['public']['Tables']['profiles']['Row'], 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
+      };
+
+      // System Configuration
+      system_settings: {
+        Row: {
+          id: string;
+          category: string;
+          key: string;
+          value: any; // JSONB type - can be string, number, boolean, object, or array
+          description: string | null;
+          is_public: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['system_settings']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+        };
+        Update: Partial<Database['public']['Tables']['system_settings']['Insert']>;
       };
 
       // Phase 3: Streets

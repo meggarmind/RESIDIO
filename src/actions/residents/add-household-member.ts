@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { Resident, ResidentRole } from '@/types/database';
 import { z } from 'zod';
+import { logAudit } from '@/lib/audit/logger';
 
 /**
  * Secondary/household roles that primary residents can add
@@ -157,6 +158,22 @@ export async function addHouseholdMember(
     // });
   }
 
+  // Audit log (portal action by primary resident)
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'residents',
+    entityId: newResident.id,
+    entityDisplay: `${newResident.first_name} ${newResident.last_name} (${newResident.resident_code})`,
+    newValues: {
+      name: `${first_name} ${last_name}`,
+      resident_role,
+      house_id,
+      relationship: relationship || null,
+      added_by_primary_resident: profile.resident_id,
+    },
+    description: `Household member added via portal by primary resident`,
+  });
+
   // Revalidate relevant paths
   revalidatePath('/portal/profile');
   revalidatePath('/residents');
@@ -280,6 +297,13 @@ export async function removeHouseholdMember(
     return { success: false, error: 'Only primary residents can remove household members' };
   }
 
+  // Get resident info for audit log before deactivation
+  const { data: residentInfo } = await supabase
+    .from('resident_houses')
+    .select('resident:residents(id, first_name, last_name, resident_code)')
+    .eq('id', residentHouseId)
+    .single();
+
   // Deactivate the house assignment (soft delete)
   const { error: updateError } = await supabase
     .from('resident_houses')
@@ -292,6 +316,30 @@ export async function removeHouseholdMember(
 
   if (updateError) {
     return { success: false, error: updateError.message };
+  }
+
+  // Audit log (portal action by primary resident)
+  // Handle Supabase returning array or single object for nested select
+  const residentRaw = residentInfo?.resident;
+  const residentData = Array.isArray(residentRaw) ? residentRaw[0] : residentRaw;
+  if (residentData) {
+    await logAudit({
+      action: 'DELETE',
+      entityType: 'resident_houses',
+      entityId: residentHouseId,
+      entityDisplay: `${residentData.first_name} ${residentData.last_name} (${residentData.resident_code})`,
+      oldValues: {
+        resident_id: residentData.id,
+        house_id: targetRecord.house_id,
+        resident_role: targetRecord.resident_role,
+        is_active: true,
+      },
+      newValues: {
+        is_active: false,
+        move_out_date: new Date().toISOString().split('T')[0],
+      },
+      description: `Household member removed via portal by primary resident`,
+    });
   }
 
   revalidatePath('/portal/profile');

@@ -2,6 +2,9 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { DocumentWithRelations, DocumentUpdateInput } from '@/types/database';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 
 type UpdateDocumentResponse = {
   data: DocumentWithRelations | null;
@@ -23,6 +26,19 @@ export async function updateDocument(
   if (authError || !user) {
     return { data: null, error: 'Not authenticated' };
   }
+
+  // Permission check
+  const auth = await authorizePermission(PERMISSIONS.DOCUMENTS_UPDATE);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
+  }
+
+  // Get old values for audit comparison
+  const { data: oldDoc } = await supabase
+    .from('documents')
+    .select('title, description, category_id, is_archived')
+    .eq('id', id)
+    .single();
 
   // Build update object with only defined values
   const updateData: Record<string, unknown> = {};
@@ -55,11 +71,24 @@ export async function updateDocument(
     return { data: null, error: error.message };
   }
 
-  // Log the update action
+  // Log the update action (access log)
   await supabase.from('document_access_logs').insert({
     document_id: id,
     accessed_by: user.id,
     action: 'update',
+  });
+
+  // Audit log
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'documents',
+    entityId: id,
+    entityDisplay: data.title,
+    oldValues: oldDoc || {},
+    newValues: updateData,
+    description: input.is_archived !== undefined
+      ? (input.is_archived ? `Archived document: ${data.title}` : `Restored document: ${data.title}`)
+      : `Updated document: ${data.title}`,
   });
 
   // Transform resident data

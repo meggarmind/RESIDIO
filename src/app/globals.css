@@ -47,6 +47,20 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Nahid Theme Colors */
+  --color-bill-bg: var(--bg-primary);
+  --color-bill-secondary: var(--bg-secondary);
+  --color-bill-card: var(--bg-card);
+  --color-bill-sidebar: var(--bg-sidebar);
+  --color-bill-text: var(--text-primary);
+  --color-bill-text-secondary: var(--text-secondary);
+  --color-bill-mint: var(--bill-mint);
+  --color-bill-lavender: var(--bill-lavender);
+  --color-bill-coral: var(--bill-coral);
+  --color-bill-teal: var(--bill-teal);
+  --color-bill-orange: var(--bill-orange);
+  --color-bill-success: var(--bill-success);
 }
 
 :root {
@@ -62,61 +76,6 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --success: oklch(0.6 0.2 145);
-  --success-foreground: oklch(1 0 0);
-  --warning: oklch(0.75 0.15 85);
-  --warning-foreground: oklch(0.2 0 0);
-  --info: oklch(0.6 0.15 250);
-  --info-foreground: oklch(1 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --success: oklch(0.7 0.2 145);
-  --success-foreground: oklch(0.1 0 0);
-  --warning: oklch(0.8 0.15 85);
-  --warning-foreground: oklch(0.1 0 0);
-  --info: oklch(0.7 0.15 250);
-  --info-foreground: oklch(0.1 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
@@ -128,12 +87,53 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Nahid Theme - Light Mode */
+  --bg-primary: #F8F9FA;
+  --bg-secondary: #F3F4F6;
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #FFFFFF;
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --bill-mint: #86EFAC;
+  --bill-lavender: #C4B5FD;
+  --bill-coral: #FDA4AF;
+  --bill-teal: #5EEAD4;
+  --bill-orange: #FDBA74;
+  --bill-success: #22C55E;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+
+  /* Nahid Theme - Dark Mode */
+  --bg-primary: #0F172A;
+  --bg-secondary: #374151;
+  --bg-card: #1E293B;
+  --bg-sidebar: #111827;
+  --text-primary: #F9FAFB;
+  --text-secondary: #9CA3AF;
+  /* Accent colors remain same but can be adjusted if needed */
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -141,11 +141,27 @@
 
 /* Custom animations for micro-interactions */
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-4px); }
-  40% { transform: translateX(4px); }
-  60% { transform: translateX(-4px); }
-  80% { transform: translateX(4px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-4px);
+  }
+
+  40% {
+    transform: translateX(4px);
+  }
+
+  60% {
+    transform: translateX(-4px);
+  }
+
+  80% {
+    transform: translateX(4px);
+  }
 }
 
 @keyframes fade-in-up {
@@ -153,6 +169,7 @@
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -164,9 +181,20 @@
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
   }
 }
 
@@ -181,6 +209,10 @@
 
 .animate-scale-in {
   animation: scale-in 0.2s ease-out;
+}
+
+.shimmer-animation {
+  animation: shimmer 2s infinite;
 }
 
 /* Interactive card hover effect */
@@ -202,24 +234,38 @@
 
 /* Layout Theme Variables - Compact (default/mobile) */
 :root {
-  --layout-container-max: 72rem;       /* 1152px - max-w-6xl */
-  --layout-grid-gap: 0.75rem;          /* gap-3 */
-  --layout-card-padding: 1rem;         /* p-4 */
-  --layout-section-gap: 1.5rem;        /* space-y-6 */
-  --layout-icon-size: 1rem;            /* h-4 w-4 */
-  --layout-title-size: 1.5rem;         /* text-2xl */
-  --layout-heading-size: 1.125rem;     /* text-lg */
+  --layout-container-max: 72rem;
+  /* 1152px - max-w-6xl */
+  --layout-grid-gap: 0.75rem;
+  /* gap-3 */
+  --layout-card-padding: 1rem;
+  /* p-4 */
+  --layout-section-gap: 1.5rem;
+  /* space-y-6 */
+  --layout-icon-size: 1rem;
+  /* h-4 w-4 */
+  --layout-title-size: 1.5rem;
+  /* text-2xl */
+  --layout-heading-size: 1.125rem;
+  /* text-lg */
 }
 
 /* Layout Theme Variables - Expanded (desktop) */
 .layout-expanded {
-  --layout-container-max: 100rem;      /* 1600px */
-  --layout-grid-gap: 1.5rem;           /* gap-6 */
-  --layout-card-padding: 1.5rem;       /* p-6 */
-  --layout-section-gap: 2rem;          /* space-y-8 */
-  --layout-icon-size: 1.25rem;         /* h-5 w-5 */
-  --layout-title-size: 2.25rem;        /* text-4xl */
-  --layout-heading-size: 1.25rem;      /* text-xl */
+  --layout-container-max: 100rem;
+  /* 1600px */
+  --layout-grid-gap: 1.5rem;
+  /* gap-6 */
+  --layout-card-padding: 1.5rem;
+  /* p-6 */
+  --layout-section-gap: 2rem;
+  /* space-y-8 */
+  --layout-icon-size: 1.25rem;
+  /* h-5 w-5 */
+  --layout-title-size: 2.25rem;
+  /* text-4xl */
+  --layout-heading-size: 1.25rem;
+  /* text-xl */
 }
 
 /* Utility classes that respond to layout theme */
@@ -237,7 +283,7 @@
   padding: var(--layout-card-padding);
 }
 
-.layout-section-gap > * + * {
+.layout-section-gap>*+* {
   margin-top: var(--layout-section-gap);
 }
 

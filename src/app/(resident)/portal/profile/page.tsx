@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useResident } from '@/hooks/use-residents';
 import { useResidentPreferences, useUpdateResidentPreference } from '@/hooks/use-notifications';
@@ -10,7 +11,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
+import { AvatarCircle } from '@/components/ui/avatar-circle';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -50,6 +52,7 @@ import {
   Trash2,
   Loader2,
   FileBarChart,
+  Palette,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -59,6 +62,29 @@ import { HouseholdMemberForm } from '@/components/resident-portal/household-memb
 import { ContactVerificationCard } from '@/components/resident-portal/contact-verification-card';
 import { getHouseholdMembers, removeHouseholdMember } from '@/actions/residents/add-household-member';
 import type { ResidentWithHouses, HouseWithStreet, ResidentRole } from '@/types/database';
+import { VisualThemeSelector } from '@/components/settings/visual-theme-selector';
+import { useEffectiveTheme, useUserThemeOverride, useSetUserThemeOverride } from '@/hooks/use-theme-preferences';
+
+// Spring physics for smooth, professional animations
+const spring = {
+  type: 'spring' as const,
+  stiffness: 300,
+  damping: 30,
+  mass: 1,
+};
+
+// Card animation variants
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: (custom: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      ...spring,
+      delay: custom * 0.1, // 100ms stagger between cards
+    },
+  }),
+};
 
 // Type for resident houses with joined house data
 type ResidentHouseWithDetails = {
@@ -168,99 +194,115 @@ export default function ResidentProfilePage() {
           isDesktop && 'w-1/3 shrink-0'
         )}>
           {/* Resident Info Card */}
-          <Card>
-            <CardContent className={cn('p-4', isDesktop && 'p-6')}>
-              <div className={cn(
-                'flex items-start gap-4',
-                isDesktop && 'flex-col items-center text-center'
-              )}>
-                {/* Avatar */}
+          <motion.div
+            variants={cardVariants}
+            initial="hidden"
+            animate="visible"
+            custom={0}
+          >
+            <Card>
+              <CardContent className={cn('p-4', isDesktop && 'p-6')}>
                 <div className={cn(
-                  'rounded-full bg-primary/10 flex items-center justify-center shrink-0',
-                  isDesktop ? 'w-24 h-24' : 'w-16 h-16',
-                  isExpanded && 'xl:w-32 xl:h-32'
+                  'flex items-start gap-4',
+                  isDesktop && 'flex-col items-center text-center'
                 )}>
-                  <span className={cn(
-                    'font-semibold text-primary',
-                    isDesktop ? 'text-3xl' : 'text-xl'
-                  )}>
-                    {resident.first_name?.[0]}{resident.last_name?.[0]}
-                  </span>
-                </div>
+                  {/* Avatar using AvatarCircle */}
+                  <AvatarCircle
+                    name={`${resident.first_name} ${resident.last_name}`}
+                    size={isDesktop ? (isExpanded ? 'xl' : 'lg') : 'md'}
+                    className="shrink-0"
+                  />
 
-                {/* Info */}
-                <div className={cn('flex-1 min-w-0', isDesktop && 'w-full')}>
-                  <h2 className={cn(
-                    'font-semibold truncate',
-                    isDesktop ? 'text-xl' : 'text-lg'
-                  )}>
-                    {resident.first_name} {resident.last_name}
-                  </h2>
-                  <div className={cn(
-                    'flex items-center gap-2 mt-1',
-                    isDesktop && 'justify-center'
-                  )}>
-                    <Badge variant="secondary" className="font-mono">
-                      {resident.resident_code}
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={copyCode}
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                  <div className={cn(
-                    'flex items-center gap-1 mt-2 text-xs text-muted-foreground',
-                    isDesktop && 'justify-center'
-                  )}>
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                    <span>Verified Resident</span>
+                  {/* Info */}
+                  <div className={cn('flex-1 min-w-0', isDesktop && 'w-full')}>
+                    <h2 className={cn(
+                      'font-semibold truncate',
+                      isDesktop ? 'text-xl' : 'text-lg'
+                    )}>
+                      {resident.first_name} {resident.last_name}
+                    </h2>
+                    <div className={cn(
+                      'flex items-center gap-2 mt-1',
+                      isDesktop && 'justify-center'
+                    )}>
+                      <Badge variant="secondary" className="font-mono">
+                        {resident.resident_code}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={copyCode}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <div className={cn(
+                      'flex items-center gap-1 mt-2 text-xs text-muted-foreground',
+                      isDesktop && 'justify-center'
+                    )}>
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>Verified Resident</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
 
           {/* Contact Info */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Contact Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {resident.email && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Email</p>
-                    <p className="text-sm font-medium truncate">{resident.email}</p>
+          <motion.div
+            variants={cardVariants}
+            initial="hidden"
+            animate="visible"
+            custom={1}
+          >
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Contact Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {resident.email && (
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-bill-mint/10 border border-bill-mint/30">
+                    <div className="p-2 rounded-lg bg-bill-mint/20">
+                      <Mail className="h-4 w-4 text-bill-mint shrink-0" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">Email</p>
+                      <p className="text-sm font-medium truncate">{resident.email}</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {resident.phone_primary && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Phone</p>
-                    <p className="text-sm font-medium">{resident.phone_primary}</p>
+                {resident.phone_primary && (
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-bill-lavender/10 border border-bill-lavender/30">
+                    <div className="p-2 rounded-lg bg-bill-lavender/20">
+                      <Phone className="h-4 w-4 text-bill-lavender shrink-0" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">Phone</p>
+                      <p className="text-sm font-medium">{resident.phone_primary}</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {resident.phone_secondary && (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                  <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Alternative Phone</p>
-                    <p className="text-sm font-medium">{resident.phone_secondary}</p>
+                {resident.phone_secondary && (
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-bill-teal/10 border border-bill-teal/30">
+                    <div className="p-2 rounded-lg bg-bill-teal/20">
+                      <Phone className="h-4 w-4 text-bill-teal shrink-0" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs text-muted-foreground">Alternative Phone</p>
+                      <p className="text-sm font-medium">{resident.phone_secondary}</p>
+                    </div>
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
 
           {/* Contact Verification */}
           {residentId && (
@@ -295,12 +337,20 @@ export default function ResidentProfilePage() {
                   No properties linked
                 </div>
               ) : (
-                activeProperties.map((property) => (
-                  <PropertyCard
+                activeProperties.map((property, index) => (
+                  <motion.div
                     key={property.id}
-                    property={property}
-                    onClick={() => setSelectedProperty(property)}
-                  />
+                    variants={cardVariants}
+                    initial="hidden"
+                    animate="visible"
+                    custom={index}
+                    whileHover={{ y: -2 }}
+                  >
+                    <PropertyCard
+                      property={property}
+                      onClick={() => setSelectedProperty(property)}
+                    />
+                  </motion.div>
                 ))
               )}
             </CardContent>
@@ -343,6 +393,12 @@ export default function ResidentProfilePage() {
               isExpanded={isExpanded}
             />
           )}
+
+          {/* Theme Preferences */}
+          <ThemePreferencesCard
+            isDesktop={isDesktop}
+            isExpanded={isExpanded}
+          />
         </div>
       </div>
 
@@ -527,77 +583,83 @@ function HouseholdMembersCard({
       )}>
         {isLoading ? (
           <div className={cn(isDesktop ? 'col-span-full grid gap-2 grid-cols-2' : 'space-y-2', isExpanded && 'grid-cols-3')}>
-            <Skeleton className="h-14 w-full" />
-            <Skeleton className="h-14 w-full" />
+            <ShimmerSkeleton className="h-14 w-full rounded-lg" />
+            <ShimmerSkeleton className="h-14 w-full rounded-lg" />
           </div>
         ) : members.length === 0 ? (
-          <div className="py-6 text-center text-muted-foreground text-sm col-span-full">
-            <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p>No household members added</p>
+          <div className="py-8 text-center text-muted-foreground text-sm col-span-full">
+            <Users className="h-10 w-10 mx-auto mb-3 opacity-50" />
+            <p className="font-medium">No household members added</p>
             <p className="text-xs mt-1">Add family members, contractors, or staff</p>
           </div>
         ) : (
-          members.map((member) => (
-            <div
+          members.map((member, index) => (
+            <motion.div
               key={member.id}
-              className="flex items-center gap-3 p-3 rounded-lg border"
+              variants={cardVariants}
+              initial="hidden"
+              animate="visible"
+              custom={index}
             >
-              <div className="p-2 rounded-full bg-muted">
-                <User className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">
-                  {member.resident?.first_name} {member.resident?.last_name}
-                </p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <Badge
-                    variant="outline"
-                    className={cn("text-[10px]", roleColors[member.resident_role])}
-                  >
-                    {roleLabels[member.resident_role] || member.resident_role}
-                  </Badge>
-                  {member.resident?.phone_primary && (
-                    <span className="text-xs text-muted-foreground">
-                      {member.resident.phone_primary}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    disabled={removeMutation.isPending}
-                  >
-                    {removeMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Remove household member?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will remove {member.resident?.first_name} {member.resident?.last_name} from your household.
-                      They will no longer have access tied to your property.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => removeMutation.mutate(member.id)}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              <div className="flex items-center gap-3 p-3 rounded-lg border">
+                <AvatarCircle
+                  name={`${member.resident?.first_name} ${member.resident?.last_name}`}
+                  size="sm"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">
+                    {member.resident?.first_name} {member.resident?.last_name}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <Badge
+                      variant="outline"
+                      className={cn("text-[10px]", roleColors[member.resident_role])}
                     >
-                      Remove
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+                      {roleLabels[member.resident_role] || member.resident_role}
+                    </Badge>
+                    {member.resident?.phone_primary && (
+                      <span className="text-xs text-muted-foreground">
+                        {member.resident.phone_primary}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      disabled={removeMutation.isPending}
+                    >
+                      {removeMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove household member?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will remove {member.resident?.first_name} {member.resident?.last_name} from your household.
+                        They will no longer have access tied to your property.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => removeMutation.mutate(member.id)}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Remove
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </motion.div>
           ))
         )}
       </CardContent>
@@ -680,6 +742,9 @@ function NotificationPreferences({
               checked={isEnabled}
               onCheckedChange={(checked) => handleToggle(key, checked)}
               disabled={updatePreference.isPending}
+              className={cn(
+                isEnabled && 'data-[state=checked]:bg-bill-success'
+              )}
             />
           </div>
         );
@@ -702,22 +767,22 @@ function ProfileSkeleton() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-4 w-48" />
+        <ShimmerSkeleton className="h-8 w-32" />
+        <ShimmerSkeleton className="h-4 w-48" />
       </div>
 
       <div className={cn(isDesktop && 'flex gap-6')}>
         {/* Left column skeleton */}
         <div className={cn('space-y-6', isDesktop && 'w-1/3 shrink-0')}>
-          <Skeleton className={cn('w-full rounded-xl', isDesktop ? 'h-48' : 'h-28')} />
-          <Skeleton className="h-40 w-full rounded-xl" />
+          <ShimmerSkeleton className={cn('w-full rounded-xl', isDesktop ? 'h-48' : 'h-28')} />
+          <ShimmerSkeleton className="h-40 w-full rounded-xl" />
         </div>
 
         {/* Right column skeleton */}
         <div className={cn('space-y-6', isDesktop ? 'flex-1' : 'mt-6')}>
-          <Skeleton className="h-32 w-full rounded-xl" />
-          <Skeleton className="h-32 w-full rounded-xl" />
-          <Skeleton className="h-40 w-full rounded-xl" />
+          <ShimmerSkeleton className="h-32 w-full rounded-xl" />
+          <ShimmerSkeleton className="h-32 w-full rounded-xl" />
+          <ShimmerSkeleton className="h-40 w-full rounded-xl" />
         </div>
       </div>
     </div>
@@ -791,13 +856,13 @@ function ReportSubscriptionsCard({
     return (
       <Card>
         <CardHeader className="pb-2">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="h-4 w-60" />
+          <ShimmerSkeleton className="h-5 w-40" />
+          <ShimmerSkeleton className="h-4 w-60" />
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
+            <ShimmerSkeleton className="h-16 w-full rounded-lg" />
+            <ShimmerSkeleton className="h-16 w-full rounded-lg" />
           </div>
         </CardContent>
       </Card>
@@ -874,6 +939,9 @@ function ReportSubscriptionsCard({
                   checked={isEnabled}
                   onCheckedChange={(checked) => handleToggle(key, checked)}
                   disabled={updateSubscription.isPending}
+                  className={cn(
+                    isEnabled && 'data-[state=checked]:bg-bill-success'
+                  )}
                 />
               </div>
             );
@@ -894,6 +962,9 @@ function ReportSubscriptionsCard({
               checked={subscription.email_enabled ?? true}
               onCheckedChange={(checked) => updateSubscription.mutate({ email_enabled: checked })}
               disabled={updateSubscription.isPending}
+              className={cn(
+                (subscription.email_enabled ?? true) && 'data-[state=checked]:bg-bill-success'
+              )}
             />
           </div>
         </div>
@@ -904,6 +975,82 @@ function ReportSubscriptionsCard({
         )}>
           Reports are sent around day {subscription.preferred_day_of_month || 1} of each month
         </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Theme Preferences Card Component
+function ThemePreferencesCard({
+  isDesktop = false,
+  isExpanded = false,
+}: {
+  isDesktop?: boolean;
+  isExpanded?: boolean;
+}) {
+  const { data: effectiveTheme, isLoading: effectiveLoading } = useEffectiveTheme('resident-portal');
+  const { data: userOverride, isLoading: overrideLoading } = useUserThemeOverride('resident-portal');
+  const setThemeOverride = useSetUserThemeOverride('resident-portal');
+
+  const isLoading = effectiveLoading || overrideLoading;
+
+  // Current theme selection (empty string means "use estate default")
+  const currentTheme = userOverride || '';
+
+  const handleThemeChange = (themeId: string) => {
+    // Empty string means reset to estate default (null in database)
+    const valueToSet = themeId === '' ? null : themeId;
+    setThemeOverride.mutate(valueToSet);
+  };
+
+  if (isLoading) {
+    return (
+      <Card className={cn(
+        'bg-bill-card border-bill-border',
+        isDesktop && 'col-span-full'
+      )}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5" />
+            Appearance Preferences
+          </CardTitle>
+          <CardDescription>Customize your portal's visual appearance</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ShimmerSkeleton className="h-48 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className={cn(
+      'bg-bill-card border-bill-border',
+      isDesktop && 'col-span-full'
+    )}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Palette className="h-5 w-5" />
+          Appearance Preferences
+        </CardTitle>
+        <CardDescription>
+          Customize your portal's visual appearance. {userOverride ? 'You are using a custom theme.' : 'You are using the estate default theme.'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <VisualThemeSelector
+          value={currentTheme}
+          onChange={handleThemeChange}
+          context="resident-portal"
+          allowDefault={true}
+          disabled={setThemeOverride.isPending}
+        />
+
+        {effectiveTheme && (
+          <p className="text-xs text-muted-foreground mt-4">
+            Current theme: <span className="font-medium capitalize">{effectiveTheme}</span>
+          </p>
+        )}
       </CardContent>
     </Card>
   );

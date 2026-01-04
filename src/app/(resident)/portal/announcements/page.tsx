@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { formatDistanceToNow, format } from 'date-fns';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -35,12 +36,33 @@ import {
 import { cn } from '@/lib/utils';
 import type { AnnouncementWithRelations, AnnouncementPriority } from '@/types/database';
 
+// Spring physics for smooth, professional animations
+const spring = {
+  type: 'spring' as const,
+  stiffness: 300,
+  damping: 30,
+  mass: 1,
+};
+
+// Card animation variants
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: (custom: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      ...spring,
+      delay: custom * 0.05, // 50ms stagger between cards
+    },
+  }),
+};
+
 // Map priority to visual styles (uses 'emergency' not 'urgent')
 const priorityStyles: Record<string, string> = {
-  emergency: 'border-l-4 border-l-red-500',
-  high: 'border-l-4 border-l-amber-500',
-  normal: '',
-  low: 'opacity-90',
+  emergency: 'border-l-4 border-l-red-500 bg-red-50/50 dark:bg-red-900/10',
+  high: 'border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-900/10',
+  normal: 'border-l-2 border-border',
+  low: 'border-l border-border opacity-90',
 };
 
 const priorityBadgeStyles: Record<string, string> = {
@@ -48,6 +70,15 @@ const priorityBadgeStyles: Record<string, string> = {
   high: 'bg-amber-500/20 text-amber-700 dark:text-amber-300',
   normal: 'bg-blue-500/20 text-blue-700 dark:text-blue-300',
   low: 'bg-slate-500/20 text-slate-700 dark:text-slate-300',
+};
+
+// Category badge colors using design guide colors
+const categoryColors: Record<string, string> = {
+  General: 'bg-bill-mint/20 text-bill-mint border-bill-mint/30',
+  Maintenance: 'bg-bill-orange/20 text-bill-orange border-bill-orange/30',
+  Events: 'bg-bill-lavender/20 text-bill-lavender border-bill-lavender/30',
+  Security: 'bg-bill-coral/20 text-bill-coral border-bill-coral/30',
+  Financial: 'bg-bill-teal/20 text-bill-teal border-bill-teal/30',
 };
 
 interface AnnouncementCardProps {
@@ -76,8 +107,22 @@ function AnnouncementCard({ announcement, onRead }: AnnouncementCardProps) {
     setExpanded(!expanded);
   };
 
+  const getCategoryColor = (categoryName: string) => {
+    return categoryColors[categoryName] || 'bg-bill-mint/20 text-bill-mint border-bill-mint/30';
+  };
+
   return (
-    <Card className={cn('transition-all hover:shadow-md', priorityStyles[priority])}>
+    <Card className={cn('transition-all hover:shadow-md relative', priorityStyles[priority])}>
+      {/* Unread indicator */}
+      {!hasRead && (
+        <div className="absolute top-4 right-4">
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-bill-mint opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-bill-mint" />
+          </span>
+        </div>
+      )}
+
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           <div
@@ -121,21 +166,41 @@ function AnnouncementCard({ announcement, onRead }: AnnouncementCardProps) {
                   </Badge>
                 )}
                 {announcement.category && (
-                  <Badge variant="outline" className="text-xs">
+                  <Badge
+                    variant="outline"
+                    className={cn('text-xs border', getCategoryColor(announcement.category.name))}
+                  >
                     {announcement.category.name}
                   </Badge>
                 )}
               </div>
             </div>
 
-            <p
-              className={cn(
-                'text-sm text-muted-foreground',
-                !expanded && 'line-clamp-2'
+            <AnimatePresence mode="wait">
+              {expanded ? (
+                <motion.p
+                  key="expanded"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="text-sm text-muted-foreground"
+                >
+                  {announcement.content}
+                </motion.p>
+              ) : (
+                <motion.p
+                  key="collapsed"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-sm text-muted-foreground line-clamp-2"
+                >
+                  {announcement.summary || announcement.content}
+                </motion.p>
               )}
-            >
-              {expanded ? announcement.content : (announcement.summary || announcement.content)}
-            </p>
+            </AnimatePresence>
 
             <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/50">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -248,18 +313,7 @@ export default function PortalAnnouncementsPage() {
       {isLoading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardContent className="p-4">
-                <div className="flex gap-3">
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-5 w-2/3" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-3 w-24" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <ShimmerSkeleton key={i} className="h-32 rounded-2xl" />
           ))}
         </div>
       ) : sortedAnnouncements.length === 0 ? (
@@ -276,8 +330,16 @@ export default function PortalAnnouncementsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {sortedAnnouncements.map((announcement) => (
-            <AnnouncementCard key={announcement.id} announcement={announcement} />
+          {sortedAnnouncements.map((announcement, index) => (
+            <motion.div
+              key={announcement.id}
+              variants={cardVariants}
+              initial="hidden"
+              animate="visible"
+              custom={index}
+            >
+              <AnnouncementCard announcement={announcement} />
+            </motion.div>
           ))}
         </div>
       )}

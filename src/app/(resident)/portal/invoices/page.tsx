@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useInvoices, useResidentIndebtedness, useResidentWallet } from '@/hooks/use-billing';
 import { useIsDesktop } from '@/hooks/use-media-query';
@@ -8,6 +9,9 @@ import { FeatureRestrictionGate } from '@/components/resident-portal/feature-res
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { AnimatedCounter } from '@/components/ui/animated-counter';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -44,6 +48,40 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useLayoutTheme } from '@/contexts/layout-theme-context';
 import type { InvoiceWithDetails, InvoiceStatus } from '@/types/database';
+
+// Spring physics for smooth, professional animations
+const spring = {
+  type: 'spring' as const,
+  stiffness: 300,
+  damping: 30,
+  mass: 1,
+};
+
+// Card animation variants for summary cards
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: (custom: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      ...spring,
+      delay: custom * 0.1, // 100ms stagger between cards
+    },
+  }),
+};
+
+// Row animation variants for invoice rows
+const rowVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: (custom: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      ...spring,
+      delay: custom * 0.05, // 50ms stagger between rows
+    },
+  }),
+};
 
 // Status configuration
 const statusConfig: Record<InvoiceStatus, { icon: React.ElementType; label: string; color: string }> = {
@@ -120,27 +158,47 @@ export default function ResidentInvoicesPage() {
         'grid grid-cols-2 gap-3',
         isExpanded && 'lg:grid-cols-4 gap-4'
       )}>
-        <Card className="bg-gradient-to-br from-red-500/10 to-orange-500/5 border-red-500/20">
-          <CardContent className="p-4">
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Outstanding</p>
-              <p className="text-xl font-bold text-red-600 dark:text-red-400">
-                {formatCurrency(indebtedness?.totalUnpaid || 0)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <motion.div
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          custom={0}
+        >
+          <Card className="bg-gradient-to-br from-red-500/10 to-orange-500/5 border-red-500/20">
+            <CardContent className="p-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Outstanding</p>
+                <p className="text-xl font-bold text-red-600 dark:text-red-400">
+                  <AnimatedCounter
+                    value={indebtedness?.totalUnpaid || 0}
+                    formatter={formatCurrency}
+                  />
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        <Card className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border-emerald-500/20">
-          <CardContent className="p-4">
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Wallet Balance</p>
-              <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                {formatCurrency(wallet?.balance || 0)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <motion.div
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          custom={1}
+        >
+          <Card className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border-emerald-500/20">
+            <CardContent className="p-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Wallet Balance</p>
+                <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                  <AnimatedCounter
+                    value={wallet?.balance || 0}
+                    formatter={formatCurrency}
+                  />
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       {/* Filter Tabs */}
@@ -157,33 +215,44 @@ export default function ResidentInvoicesPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value={activeTab} className="mt-4">
-          {filteredInvoices.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="py-8 text-center">
-                <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-                <p className="text-muted-foreground">No invoices found</p>
-              </CardContent>
-            </Card>
-          ) : isDesktop ? (
-            /* Desktop: Table Layout */
-            <InvoiceTable
-              invoices={filteredInvoices}
-              onSelect={setSelectedInvoice}
-            />
-          ) : (
-            /* Mobile: Card Layout */
-            <div className="space-y-3">
-              {filteredInvoices.map((invoice) => (
-                <InvoiceCard
-                  key={invoice.id}
-                  invoice={invoice}
-                  onClick={() => setSelectedInvoice(invoice)}
+        <AnimatePresence mode="wait">
+          <TabsContent value={activeTab} className="mt-4" asChild>
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              {filteredInvoices.length === 0 ? (
+                <Card className="border-dashed">
+                  <CardContent className="py-8 text-center">
+                    <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+                    <p className="text-muted-foreground">No invoices found</p>
+                  </CardContent>
+                </Card>
+              ) : isDesktop ? (
+                /* Desktop: Table Layout */
+                <InvoiceTable
+                  invoices={filteredInvoices}
+                  onSelect={setSelectedInvoice}
                 />
-              ))}
-            </div>
-          )}
-        </TabsContent>
+              ) : (
+                /* Mobile: Card Layout */
+                <div className="space-y-3">
+                  {filteredInvoices.map((invoice, index) => (
+                    <InvoiceCard
+                      key={invoice.id}
+                      invoice={invoice}
+                      onClick={() => setSelectedInvoice(invoice)}
+                      index={index}
+                    />
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </TabsContent>
+        </AnimatePresence>
       </Tabs>
 
         {/* Invoice Detail Sheet */}
@@ -201,60 +270,77 @@ export default function ResidentInvoicesPage() {
 function InvoiceCard({
   invoice,
   onClick,
+  index,
 }: {
   invoice: InvoiceWithDetails;
   onClick: () => void;
+  index: number;
 }) {
   const config = statusConfig[invoice.status];
   const StatusIcon = config.icon;
   const remaining = (invoice.amount_due || 0) - (invoice.amount_paid || 0);
 
-  return (
-    <Card
-      className="cursor-pointer hover:border-primary/30 transition-colors active:scale-[0.99]"
-      onClick={onClick}
-    >
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Status Icon */}
-            <div className={cn('p-2 rounded-lg shrink-0', config.color)}>
-              <StatusIcon className="h-4 w-4" />
-            </div>
+  // Map status to StatusBadge variant
+  const getStatusVariant = (status: InvoiceStatus): 'success' | 'error' | 'warning' | 'neutral' => {
+    if (status === 'paid') return 'success';
+    if (status === 'overdue') return 'error';
+    if (status === 'unpaid' || status === 'partially_paid') return 'warning';
+    return 'neutral';
+  };
 
-            {/* Invoice Info */}
-            <div className="min-w-0">
-              <p className="font-medium truncate">{invoice.invoice_number}</p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{invoice.billing_profile?.name || 'Invoice'}</span>
-                {invoice.due_date && (
-                  <>
-                    <span className="text-muted-foreground/30">•</span>
-                    <span>Due {format(new Date(invoice.due_date), 'MMM d, yyyy')}</span>
-                  </>
-                )}
+  return (
+    <motion.div
+      variants={rowVariants}
+      initial="hidden"
+      animate="visible"
+      custom={index}
+    >
+      <Card
+        className="cursor-pointer hover:border-primary/30 transition-colors active:scale-[0.99]"
+        onClick={onClick}
+      >
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {/* Status Icon */}
+              <div className={cn('p-2 rounded-lg shrink-0', config.color)}>
+                <StatusIcon className="h-4 w-4" />
+              </div>
+
+              {/* Invoice Info */}
+              <div className="min-w-0">
+                <p className="font-medium truncate">{invoice.invoice_number}</p>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{invoice.billing_profile?.name || 'Invoice'}</span>
+                  {invoice.due_date && (
+                    <>
+                      <span className="text-muted-foreground/30">•</span>
+                      <span>Due {format(new Date(invoice.due_date), 'MMM d, yyyy')}</span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Amount & Arrow */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="text-right">
-              <p className={cn(
-                'font-semibold',
-                remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
-              )}>
-                {formatCurrency(remaining > 0 ? remaining : invoice.amount_due || 0)}
-              </p>
-              <Badge variant="secondary" className="text-[10px]">
-                {config.label}
-              </Badge>
+            {/* Amount & Arrow */}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="text-right">
+                <p className={cn(
+                  'font-semibold',
+                  remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
+                )}>
+                  {formatCurrency(remaining > 0 ? remaining : invoice.amount_due || 0)}
+                </p>
+                <StatusBadge variant={getStatusVariant(invoice.status)}>
+                  {config.label}
+                </StatusBadge>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
@@ -266,6 +352,14 @@ function InvoiceTable({
   invoices: InvoiceWithDetails[];
   onSelect: (invoice: InvoiceWithDetails) => void;
 }) {
+  // Map status to StatusBadge variant
+  const getStatusVariant = (status: InvoiceStatus): 'success' | 'error' | 'warning' | 'neutral' => {
+    if (status === 'paid') return 'success';
+    if (status === 'overdue') return 'error';
+    if (status === 'unpaid' || status === 'partially_paid') return 'warning';
+    return 'neutral';
+  };
+
   return (
     <Card>
       <Table>
@@ -282,16 +376,19 @@ function InvoiceTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {invoices.map((invoice) => {
+          {invoices.map((invoice, index) => {
             const config = statusConfig[invoice.status];
-            const StatusIcon = config.icon;
             const remaining = (invoice.amount_due || 0) - (invoice.amount_paid || 0);
 
             return (
-              <TableRow
+              <motion.tr
                 key={invoice.id}
-                className="cursor-pointer hover:bg-muted/50"
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
                 onClick={() => onSelect(invoice)}
+                variants={rowVariants}
+                initial="hidden"
+                animate="visible"
+                custom={index}
               >
                 <TableCell className="font-medium">
                   {invoice.invoice_number}
@@ -331,18 +428,14 @@ function InvoiceTable({
                   {formatCurrency(invoice.amount_paid || 0)}
                 </TableCell>
                 <TableCell>
-                  <Badge
-                    variant="secondary"
-                    className={cn('gap-1', config.color)}
-                  >
-                    <StatusIcon className="h-3 w-3" />
+                  <StatusBadge variant={getStatusVariant(invoice.status)}>
                     {config.label}
-                  </Badge>
+                  </StatusBadge>
                 </TableCell>
                 <TableCell>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </TableCell>
-              </TableRow>
+              </motion.tr>
             );
           })}
         </TableBody>
@@ -558,20 +651,20 @@ function InvoicesSkeleton() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-4 w-48" />
+        <ShimmerSkeleton className="h-8 w-32" />
+        <ShimmerSkeleton className="h-4 w-48" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <Skeleton className="h-20 w-full rounded-xl" />
-        <Skeleton className="h-20 w-full rounded-xl" />
+        <ShimmerSkeleton className="h-20 w-full rounded-xl" />
+        <ShimmerSkeleton className="h-20 w-full rounded-xl" />
       </div>
 
-      <Skeleton className="h-10 w-full" />
+      <ShimmerSkeleton className="h-10 w-full" />
 
       <div className="space-y-3">
         {[...Array(4)].map((_, i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          <ShimmerSkeleton key={i} className="h-20 w-full rounded-xl" />
         ))}
       </div>
     </div>

@@ -5,6 +5,9 @@ import { revalidatePath } from 'next/cache';
 import type { House } from '@/types/database';
 import type { HouseFormData } from '@/lib/validators/house';
 import { generateLeviesForHouse } from '@/actions/billing/generate-levies';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 
 type CreateHouseResponse = {
   data: House | null;
@@ -17,6 +20,12 @@ export async function createHouse(formData: HouseFormData): Promise<CreateHouseR
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return { data: null, error: 'Unauthorized' };
+  }
+
+  // Permission check
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_CREATE);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
   }
 
   const { data, error } = await supabase
@@ -73,6 +82,23 @@ export async function createHouse(formData: HouseFormData): Promise<CreateHouseR
     console.error('[createHouse] Error generating levies:', levyError);
     // Don't fail the house creation for levy errors
   }
+
+  // Audit log
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'houses',
+    entityId: data.id,
+    entityDisplay: `${data.house_number}${data.short_name ? ` (${data.short_name})` : ''}`,
+    newValues: {
+      house_number: data.house_number,
+      street_id: formData.street_id,
+      house_type_id: formData.house_type_id,
+      short_name: formData.short_name,
+      billing_profile_id: formData.billing_profile_id,
+      number_of_plots: formData.number_of_plots,
+    },
+    description: `Created house ${data.house_number}`,
+  });
 
   revalidatePath('/houses');
   return { data, error: null };

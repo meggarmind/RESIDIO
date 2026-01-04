@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache';
 import type { SecurityRolePermissions, UserRole } from '@/types/database';
 import { DEFAULT_SECURITY_PERMISSIONS, SECURITY_PERMISSION_LABELS } from '@/types/database';
 import { logAudit } from '@/lib/audit/logger';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 type SecuritySettingsResponse = {
   data: {
@@ -96,15 +98,10 @@ export async function updateSecurityRolePermissions(
     return { success: false, error: 'Unauthorized' };
   }
 
-  // Get current user's role - only admin can modify permissions
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || profile.role !== 'admin') {
-    return { success: false, error: 'Only administrators can modify security permissions' };
+  // Permission check (migrated from legacy role check)
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_SECURITY);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Only administrators can modify security permissions' };
   }
 
   // Get old value for audit
@@ -153,15 +150,10 @@ export async function updateSecuritySetting(
     return { success: false, error: 'Unauthorized' };
   }
 
-  // Get current user's role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || profile.role !== 'admin') {
-    return { success: false, error: 'Only administrators can modify security settings' };
+  // Permission check (migrated from legacy role check)
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_SECURITY);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Only administrators can modify security settings' };
   }
 
   // Ensure the key is a security setting
@@ -221,15 +213,10 @@ export async function resetSecuritySettingsToDefault(): Promise<UpdateSecuritySe
     return { success: false, error: 'Unauthorized' };
   }
 
-  // Get current user's role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || profile.role !== 'admin') {
-    return { success: false, error: 'Only administrators can reset security settings' };
+  // Permission check (migrated from legacy role check)
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_SECURITY);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Only administrators can reset security settings' };
   }
 
   const defaults = {

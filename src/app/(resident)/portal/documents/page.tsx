@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -33,6 +35,52 @@ import { cn } from '@/lib/utils';
 import type { DocumentWithRelations, DocumentListParams } from '@/types/database';
 
 const ALL_VALUE = '_all';
+
+// Spring physics for smooth, professional animations
+const spring = {
+  type: 'spring' as const,
+  stiffness: 300,
+  damping: 30,
+  mass: 1,
+};
+
+// Card animation variants
+const cardVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: (custom: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      ...spring,
+      delay: custom * 0.05, // 50ms stagger
+    },
+  }),
+};
+
+// Row animation variants for table
+const rowVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: (custom: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      ...spring,
+      delay: custom * 0.05,
+    },
+  }),
+};
+
+// File type color mapping (using design guide colors)
+const fileTypeColors: Record<string, string> = {
+  'application/pdf': 'border-l-bill-coral',
+  'spreadsheet': 'border-l-bill-mint',
+  'excel': 'border-l-bill-mint',
+  'csv': 'border-l-bill-mint',
+  'word': 'border-l-bill-lavender',
+  'document': 'border-l-bill-lavender',
+  'image': 'border-l-bill-teal',
+  'default': 'border-l-bill-orange',
+};
 
 export default function ResidentDocumentsPage() {
   const [params, setParams] = useState<Omit<DocumentListParams, 'is_archived' | 'uploaded_by'>>({
@@ -187,13 +235,13 @@ export default function ResidentDocumentsPage() {
             isDesktop ? (
               <div className="space-y-2">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <Skeleton key={i} className="h-14 w-full" />
+                  <ShimmerSkeleton key={i} className="h-14 w-full rounded-lg" />
                 ))}
               </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2">
                 {[1, 2, 3, 4].map((i) => (
-                  <Skeleton key={i} className="h-40 w-full" />
+                  <ShimmerSkeleton key={i} className="h-40 w-full rounded-2xl" />
                 ))}
               </div>
             )
@@ -217,12 +265,13 @@ export default function ResidentDocumentsPage() {
               'grid gap-4 sm:grid-cols-2',
               isExpanded && 'lg:grid-cols-3'
             )}>
-              {documents.map((doc) => (
+              {documents.map((doc, index) => (
                 <DocumentCard
                   key={doc.id}
                   document={doc}
                   onView={handleView}
                   onDownload={handleDownload}
+                  index={index}
                 />
               ))}
             </div>
@@ -284,10 +333,12 @@ function DocumentCard({
   document,
   onView,
   onDownload,
+  index,
 }: {
   document: DocumentWithRelations;
   onView: (doc: DocumentWithRelations) => void;
   onDownload: (doc: DocumentWithRelations) => void;
+  index: number;
 }) {
   const formatFileSize = (bytes: number | null): string => {
     if (!bytes) return 'Unknown size';
@@ -296,48 +347,74 @@ function DocumentCard({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  // Get file type color class
+  const getFileTypeColor = (mimeType: string | null): string => {
+    if (!mimeType) return fileTypeColors.default;
+    if (mimeType === 'application/pdf') return fileTypeColors['application/pdf'];
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType === 'text/csv') {
+      return fileTypeColors.spreadsheet;
+    }
+    if (mimeType.includes('word') || mimeType.includes('document')) {
+      return fileTypeColors.word;
+    }
+    if (mimeType.startsWith('image/')) {
+      return fileTypeColors.image;
+    }
+    return fileTypeColors.default;
+  };
+
   return (
-    <Card className="hover:shadow-md transition-shadow group">
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <div className="p-3 rounded-lg bg-muted group-hover:bg-primary/10 transition-colors">
-            <FileText className="h-6 w-6 text-muted-foreground group-hover:text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-medium truncate" title={document.title}>
-              {document.title}
-            </h3>
-            <div className="flex items-center gap-2 mt-1">
-              <FileTypeBadge mimeType={document.mime_type} />
-              <span className="text-xs text-muted-foreground">
-                {formatFileSize(document.file_size_bytes)}
-              </span>
+    <motion.div
+      variants={cardVariants}
+      initial="hidden"
+      animate="visible"
+      custom={index}
+    >
+      <Card className={cn(
+        "relative hover:shadow-md transition-shadow group border-l-4",
+        getFileTypeColor(document.mime_type)
+      )}>
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="p-3 rounded-lg bg-muted group-hover:bg-primary/10 transition-colors">
+              <FileText className="h-6 w-6 text-muted-foreground group-hover:text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-medium truncate" title={document.title}>
+                {document.title}
+              </h3>
+              <div className="flex items-center gap-2 mt-1">
+                <FileTypeBadge mimeType={document.mime_type} />
+                <span className="text-xs text-muted-foreground">
+                  {formatFileSize(document.file_size_bytes)}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {document.description && (
-          <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
-            {document.description}
-          </p>
-        )}
+          {document.description && (
+            <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
+              {document.description}
+            </p>
+          )}
 
-        <div className="mt-3 pt-3 border-t">
-          <CategoryBadge category={document.category} />
-        </div>
+          <div className="mt-3 pt-3 border-t">
+            <CategoryBadge category={document.category} />
+          </div>
 
-        <div className="flex gap-2 mt-4">
-          <Button variant="outline" size="sm" className="flex-1" onClick={() => onView(document)}>
-            <Eye className="h-4 w-4 mr-2" />
-            View
-          </Button>
-          <Button size="sm" className="flex-1" onClick={() => onDownload(document)}>
-            <Download className="h-4 w-4 mr-2" />
-            Download
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="flex gap-2 mt-4">
+            <Button variant="outline" size="sm" className="flex-1" onClick={() => onView(document)}>
+              <Eye className="h-4 w-4 mr-2" />
+              View
+            </Button>
+            <Button size="sm" className="flex-1" onClick={() => onDownload(document)}>
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
@@ -439,8 +516,15 @@ function DocumentTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {documents.map((doc) => (
-            <TableRow key={doc.id} className="group">
+          {documents.map((doc, index) => (
+            <motion.tr
+              key={doc.id}
+              className="group hover:bg-muted/50 transition-colors"
+              variants={rowVariants}
+              initial="hidden"
+              animate="visible"
+              custom={index}
+            >
               <TableCell>
                 <div className="p-1.5 rounded bg-muted/50 w-fit">
                   {getFileIcon(doc.mime_type)}
@@ -498,7 +582,7 @@ function DocumentTable({
                   </Button>
                 </div>
               </TableCell>
-            </TableRow>
+            </motion.tr>
           ))}
         </TableBody>
       </Table>
