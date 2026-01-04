@@ -1,8 +1,18 @@
+'use client';
+
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Home, Search } from 'lucide-react';
 
 export default function NotFound() {
+  const pathname = usePathname();
+
+  // Determine context-appropriate redirect
+  const isPortalContext = pathname?.startsWith('/portal');
+  const redirectPath = isPortalContext ? '/portal' : '/dashboard';
+  const redirectLabel = isPortalContext ? 'Portal Dashboard' : 'Dashboard';
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 p-8">
       <div className="text-center">
@@ -14,17 +24,19 @@ export default function NotFound() {
       </div>
       <div className="flex gap-3">
         <Button asChild>
-          <Link href="/dashboard">
+          <Link href={redirectPath}>
             <Home className="h-4 w-4 mr-2" />
-            Go to Dashboard
+            {redirectLabel}
           </Link>
         </Button>
-        <Button variant="outline" asChild>
-          <Link href="/residents">
-            <Search className="h-4 w-4 mr-2" />
-            Find Residents
-          </Link>
-        </Button>
+        {!isPortalContext && (
+          <Button variant="outline" asChild>
+            <Link href="/residents">
+              <Search className="h-4 w-4 mr-2" />
+              Find Residents
+            </Link>
+          </Button>
+        )}
       </div>
     </div>
   );
