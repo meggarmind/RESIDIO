@@ -2,8 +2,9 @@
 
 import { Home, Building2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ProgressRing } from '@/components/ui/progress-ring';
+import { AnimatedCounter } from '@/components/ui/animated-counter';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { cn } from '@/lib/utils';
 import type { OccupancyData } from '@/types/analytics';
 
@@ -40,14 +41,29 @@ export function OccupancyGauge({ data, isLoading }: OccupancyGaugeProps) {
     );
   }
 
-  const getProgressColor = (percentage: number) => {
-    if (percentage >= 80) return 'bg-emerald-500';
-    if (percentage >= 50) return 'bg-amber-500';
-    return 'bg-red-500';
+  const getColors = () => {
+    if (data.percentage >= 80) {
+      return {
+        color: 'hsl(142.1 76.2% 36.3%)', // emerald-600
+        gradientColor: 'hsl(142.1 70.6% 45.3%)', // emerald-500
+      };
+    }
+    if (data.percentage >= 50) {
+      return {
+        color: 'hsl(24.6 95% 53.1%)', // orange-500
+        gradientColor: 'hsl(37.7 92.1% 50.2%)', // amber-500
+      };
+    }
+    return {
+      color: 'hsl(0 84.2% 60.2%)', // red-500
+      gradientColor: 'hsl(0 72.2% 50.6%)', // red-600
+    };
   };
 
+  const { color, gradientColor } = getColors();
+
   return (
-    <Card>
+    <Card className="animate-fade-in-up">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <Building2 className="h-4 w-4 text-violet-600" />
@@ -60,43 +76,43 @@ export function OccupancyGauge({ data, isLoading }: OccupancyGaugeProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Large Percentage Display */}
-        <div className="text-center">
-          <span
-            className={cn(
-              'text-4xl font-bold',
-              data.percentage >= 80
-                ? 'text-emerald-600'
-                : data.percentage >= 50
-                ? 'text-amber-600'
-                : 'text-red-600'
-            )}
-          >
-            {data.percentage}%
-          </span>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="space-y-2">
-          <Progress
+        {/* Progress Ring */}
+        <div className="flex justify-center">
+          <ProgressRing
             value={data.percentage}
-            className="h-3"
-            // Note: Progress component styling is via Tailwind
+            size={140}
+            strokeWidth={12}
+            duration={1200}
+            color={color}
+            gradientColor={gradientColor}
+            showValue
           />
         </div>
 
         {/* Stats Row */}
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="space-y-0.5">
-            <p className="text-lg font-semibold text-emerald-600">{data.occupied}</p>
+            <AnimatedCounter
+              value={data.occupied}
+              className="text-lg font-semibold text-emerald-600"
+              duration={800}
+            />
             <p className="text-[10px] text-muted-foreground">Occupied</p>
           </div>
           <div className="space-y-0.5">
-            <p className="text-lg font-semibold text-amber-600">{data.vacant}</p>
+            <AnimatedCounter
+              value={data.vacant}
+              className="text-lg font-semibold text-amber-600"
+              duration={800}
+            />
             <p className="text-[10px] text-muted-foreground">Vacant</p>
           </div>
           <div className="space-y-0.5">
-            <p className="text-lg font-semibold">{data.total}</p>
+            <AnimatedCounter
+              value={data.total}
+              className="text-lg font-semibold"
+              duration={800}
+            />
             <p className="text-[10px] text-muted-foreground">Total</p>
           </div>
         </div>
@@ -110,23 +126,22 @@ function GaugeSkeleton() {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
-          <Skeleton className="h-4 w-4" />
+          <ShimmerSkeleton width={16} height={16} speed="fast" />
           <div className="space-y-1">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-3 w-32" />
+            <ShimmerSkeleton width={112} height={16} speed="fast" />
+            <ShimmerSkeleton width={128} height={12} speed="fast" />
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="text-center">
-          <Skeleton className="h-10 w-20 mx-auto" />
+        <div className="flex justify-center">
+          <ShimmerSkeleton width={140} height={140} rounded="full" speed="normal" />
         </div>
-        <Skeleton className="h-3 w-full" />
         <div className="grid grid-cols-3 gap-2">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="space-y-1">
-              <Skeleton className="h-6 w-8 mx-auto" />
-              <Skeleton className="h-2 w-12 mx-auto" />
+              <ShimmerSkeleton width={32} height={24} className="mx-auto" speed="fast" />
+              <ShimmerSkeleton width={48} height={8} className="mx-auto" speed="fast" />
             </div>
           ))}
         </div>

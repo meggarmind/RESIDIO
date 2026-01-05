@@ -2,7 +2,9 @@
 
 import { CheckCircle2, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { AnimatedCounter } from '@/components/ui/animated-counter';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { cn } from '@/lib/utils';
 import type { PaymentComplianceData } from '@/types/analytics';
 
@@ -43,7 +45,7 @@ export function PaymentComplianceCard({ data, isLoading }: PaymentComplianceCard
   const latePercentage = data.total > 0 ? (data.late / data.total) * 100 : 0;
 
   return (
-    <Card>
+    <Card className="animate-fade-in-up">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-teal-600" />
@@ -58,7 +60,9 @@ export function PaymentComplianceCard({ data, isLoading }: PaymentComplianceCard
       <CardContent className="space-y-4">
         {/* Compliance Rate */}
         <div className="text-center">
-          <span
+          <AnimatedCounter
+            value={data.percentage}
+            suffix="%"
             className={cn(
               'text-4xl font-bold',
               data.percentage >= 80
@@ -67,39 +71,46 @@ export function PaymentComplianceCard({ data, isLoading }: PaymentComplianceCard
                 ? 'text-amber-600'
                 : 'text-red-600'
             )}
-          >
-            {data.percentage}%
-          </span>
+            duration={1000}
+          />
           <p className="text-xs text-muted-foreground mt-1">on-time rate</p>
         </div>
 
-        {/* Stacked Bar */}
+        {/* Stacked Bar with animation */}
         <div className="h-6 w-full rounded-full overflow-hidden flex bg-muted">
           {data.onTime > 0 && (
             <div
-              className="bg-emerald-500 h-full transition-all"
+              className="bg-emerald-500 h-full transition-all duration-1000 ease-out"
               style={{ width: `${onTimePercentage}%` }}
             />
           )}
           {data.late > 0 && (
             <div
-              className="bg-amber-500 h-full transition-all"
+              className="bg-amber-500 h-full transition-all duration-1000 ease-out"
               style={{ width: `${latePercentage}%` }}
             />
           )}
         </div>
 
-        {/* Legend */}
+        {/* Legend with AnimatedCounter */}
         <div className="flex justify-between text-sm">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-emerald-500" />
+            <div className="w-3 h-3 rounded-full bg-emerald-500 shrink-0" />
             <span className="text-muted-foreground">On-time</span>
-            <span className="font-medium">{data.onTime}</span>
+            <AnimatedCounter
+              value={data.onTime}
+              className="font-medium"
+              duration={600}
+            />
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-amber-500" />
+            <div className="w-3 h-3 rounded-full bg-amber-500 shrink-0" />
             <span className="text-muted-foreground">Late</span>
-            <span className="font-medium">{data.late}</span>
+            <AnimatedCounter
+              value={data.late}
+              className="font-medium"
+              duration={600}
+            />
           </div>
         </div>
       </CardContent>
@@ -112,22 +123,22 @@ function CardSkeleton() {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
-          <Skeleton className="h-4 w-4" />
+          <ShimmerSkeleton width={16} height={16} speed="fast" />
           <div className="space-y-1">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-3 w-28" />
+            <ShimmerSkeleton width={128} height={16} speed="fast" />
+            <ShimmerSkeleton width={112} height={12} speed="fast" />
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="text-center">
-          <Skeleton className="h-10 w-16 mx-auto" />
-          <Skeleton className="h-2 w-16 mx-auto mt-2" />
+        <div className="text-center space-y-2">
+          <ShimmerSkeleton width={64} height={40} className="mx-auto" speed="normal" />
+          <ShimmerSkeleton width={64} height={8} className="mx-auto" speed="fast" />
         </div>
-        <Skeleton className="h-6 w-full rounded-full" />
+        <ShimmerSkeleton height={24} className="w-full rounded-full" speed="normal" />
         <div className="flex justify-between">
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="h-4 w-16" />
+          <ShimmerSkeleton width={80} height={16} speed="fast" />
+          <ShimmerSkeleton width={64} height={16} speed="fast" />
         </div>
       </CardContent>
     </Card>

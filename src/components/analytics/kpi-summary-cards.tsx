@@ -2,7 +2,8 @@
 
 import { TrendingUp, TrendingDown, DollarSign, Percent, Home, Target } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { AnimatedCounter } from '@/components/ui/animated-counter';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { formatCurrency, cn } from '@/lib/utils';
 import type { KPIData } from '@/types/analytics';
 
@@ -59,20 +60,36 @@ export function KPISummaryCards({ kpis, isLoading }: KPISummaryCardsProps) {
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {cards.map((card) => (
-        <Card key={card.title}>
+      {cards.map((card, index) => (
+        <Card key={card.title} className="animate-fade-in-up" style={{ animationDelay: `${index * 50}ms` }}>
           <CardContent className="p-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
+            <div className="flex items-start justify-between group">
+              <div className="space-y-1 flex-1">
                 <p className="text-xs text-muted-foreground">{card.title}</p>
-                <p className={cn('text-xl font-bold', card.color)}>
-                  {card.value}
-                </p>
+                {card.title.includes('Rate') ? (
+                  <AnimatedCounter
+                    value={parseFloat(card.value.replace('%', ''))}
+                    suffix="%"
+                    className={cn('text-xl font-bold', card.color)}
+                    duration={800}
+                  />
+                ) : (
+                  <AnimatedCounter
+                    value={parseFloat(card.value.replace(/[₦,]/g, ''))}
+                    prefix="₦"
+                    formatNumber
+                    className={cn('text-xl font-bold', card.color)}
+                    duration={800}
+                  />
+                )}
                 <p className="text-[10px] text-muted-foreground/80">
                   {card.description}
                 </p>
               </div>
-              <div className={cn('p-2 rounded-lg', card.bgColor)}>
+              <div className={cn(
+                'p-2 rounded-lg transition-transform duration-200 group-hover:scale-110',
+                card.bgColor
+              )}>
                 <card.icon className={cn('h-4 w-4', card.color)} />
               </div>
             </div>
@@ -90,12 +107,12 @@ function KPISkeleton() {
         <Card key={i}>
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-6 w-24" />
-                <Skeleton className="h-2 w-16" />
+              <div className="space-y-2 flex-1">
+                <ShimmerSkeleton width={80} height={12} speed="fast" />
+                <ShimmerSkeleton width={96} height={24} speed="normal" />
+                <ShimmerSkeleton width={64} height={8} speed="fast" />
               </div>
-              <Skeleton className="h-8 w-8 rounded-lg" />
+              <ShimmerSkeleton width={32} height={32} rounded="lg" speed="fast" />
             </div>
           </CardContent>
         </Card>
