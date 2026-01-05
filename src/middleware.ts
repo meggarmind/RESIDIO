@@ -127,12 +127,15 @@ export async function middleware(request: NextRequest) {
 
     // Portal route checks
     if (pathname.startsWith('/portal')) {
+      const isImpersonationRequest = request.nextUrl.searchParams.has('impersonate');
+
       // Only residents (users with resident_id) can access portal
+      // EXCEPT: Allow admins attempting impersonation (with ?impersonate=true)
       // Note: Admins who are also residents CAN access portal
-      if (!isResidentUser) {
+      if (!isResidentUser && !isImpersonationRequest) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
       }
-      // Resident accessing portal - allow through
+      // Resident accessing portal OR admin attempting impersonation - allow through
       return response;
     }
 
