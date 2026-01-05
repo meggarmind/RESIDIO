@@ -15,7 +15,7 @@ import { WalletTopUpDialog } from '@/components/resident-portal/wallet-topup-dia
 import { VisitorAccessDialog } from '@/components/resident-portal/visitor-access-dialog';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Shield, CreditCard } from 'lucide-react';
+import { Shield, CreditCard, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // Spring physics for smooth, professional animations
@@ -43,19 +43,29 @@ export default function ResidentPortalHomePage() {
   const { residentId } = useAuth();
   const router = useRouter();
 
+  // Guard: If no residentId, render minimal loader
+  // This allows ImpersonationPortalWrapper to show selector dialog
+  if (!residentId) {
+    return (
+      <div className="flex items-center justify-center min-h-[80vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   // Dialog state
   const [topUpDialogOpen, setTopUpDialogOpen] = useState(false);
   const [visitorDialogOpen, setVisitorDialogOpen] = useState(false);
 
-  // Fetch Resident Data
-  const { data: resident, isLoading: residentLoading } = useResident(residentId || undefined);
-  const { data: indebtedness, isLoading: indebtednessLoading } = useResidentIndebtedness(residentId || undefined);
-  const { data: wallet, isLoading: walletLoading } = useResidentWallet(residentId || undefined);
-  const { data: contactsData, isLoading: contactsLoading } = useResidentSecurityContacts(residentId || undefined);
+  // Fetch Resident Data - Now safe: residentId exists
+  const { data: resident, isLoading: residentLoading } = useResident(residentId);
+  const { data: indebtedness, isLoading: indebtednessLoading } = useResidentIndebtedness(residentId);
+  const { data: wallet, isLoading: walletLoading } = useResidentWallet(residentId);
+  const { data: contactsData, isLoading: contactsLoading } = useResidentSecurityContacts(residentId);
 
   // Fetch Invoices (for recent transactions table)
   const { data: invoicesData } = useInvoices({
-    residentId: residentId || undefined,
+    residentId: residentId,
     limit: 5
   });
 
