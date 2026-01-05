@@ -52,7 +52,7 @@ const spring = {
 };
 
 export default function NotificationsPage() {
-  const { user, loading: authLoading, resident } = useAuth();
+  const { user, isLoading: authLoading, residentId } = useAuth();
   const router = useRouter();
 
   const [filters, setFilters] = useState({
@@ -79,7 +79,7 @@ export default function NotificationsPage() {
     return <NotificationsPageSkeleton />;
   }
 
-  if (!user || !resident) {
+  if (!user || !residentId) {
     router.push('/login');
     return null;
   }
@@ -126,7 +126,7 @@ export default function NotificationsPage() {
             {unreadCount ? (
               <span className="font-medium text-bill-primary">{unreadCount} unread</span>
             ) : (
-              'You're all caught up!'
+              "You're all caught up!"
             )}
           </p>
         </div>

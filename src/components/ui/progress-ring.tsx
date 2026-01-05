@@ -32,8 +32,8 @@ export function ProgressRing({
 }: ProgressRingProps) {
   const [progress, setProgress] = useState(0);
   const circleRef = useRef<SVGCircleElement>(null);
-  const rafRef = useRef<number>();
-  const startTimeRef = useRef<number>();
+  const rafRef = useRef<number | undefined>(undefined);
+  const startTimeRef = useRef<number | undefined>(undefined);
   const gradientIdRef = useRef<string>('');
 
   const clampedValue = Math.min(Math.max(value, 0), 100);

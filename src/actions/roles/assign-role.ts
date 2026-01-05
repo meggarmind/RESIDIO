@@ -229,14 +229,28 @@ export async function assignRoleToResident(
   // Get old role for audit
   const { data: oldProfile } = await supabase
     .from('profiles')
-    .select('role_id')
+    .select('role_id, role')
     .eq('id', resident.profile_id)
     .single();
 
-  // Update the profile's role
+  // Map app_role name to legacy role for backwards compatibility
+  // The legacy 'role' field is still used by some components during migration
+  const legacyRoleMap: Record<string, string | null> = {
+    super_admin: 'admin',
+    chairman: 'chairman',
+    financial_officer: 'financial_secretary',
+    security_officer: 'security_officer',
+    // Other roles (vice_chairman, secretary, project_manager, resident) don't have legacy equivalents
+  };
+  const legacyRole = legacyRoleMap[role.name] || null;
+
+  // Update the profile's role (both new RBAC role_id and legacy role field)
   const { error: updateError } = await supabase
     .from('profiles')
-    .update({ role_id: roleId })
+    .update({
+      role_id: roleId,
+      role: legacyRole,  // Sync legacy field for backwards compatibility
+    })
     .eq('id', resident.profile_id);
 
   if (updateError) {
@@ -250,8 +264,8 @@ export async function assignRoleToResident(
     entityType: 'profiles',
     entityId: resident.profile_id,
     entityDisplay: `${resident.first_name} ${resident.last_name}`,
-    oldValues: { role_id: oldProfile?.role_id },
-    newValues: { role_id: roleId, role_name: role.display_name },
+    oldValues: { role_id: oldProfile?.role_id, role: oldProfile?.role },
+    newValues: { role_id: roleId, role: legacyRole, role_name: role.display_name },
   });
 
   return { success: true };
@@ -295,7 +309,7 @@ export async function removeRoleFromResident(
   // Get current role for permission check
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role_id')
+    .select('role_id, role')
     .eq('id', resident.profile_id)
     .single();
 
@@ -328,9 +342,13 @@ export async function removeRoleFromResident(
   }
 
   // Update the profile to have the base resident role
+  // Also clear the legacy role field since 'resident' has no legacy equivalent
   const { error: updateError } = await supabase
     .from('profiles')
-    .update({ role_id: residentRole.id })
+    .update({
+      role_id: residentRole.id,
+      role: null,  // Clear legacy field when removing admin role
+    })
     .eq('id', resident.profile_id);
 
   if (updateError) {
@@ -344,8 +362,8 @@ export async function removeRoleFromResident(
     entityType: 'profiles',
     entityId: resident.profile_id,
     entityDisplay: `${resident.first_name} ${resident.last_name}`,
-    oldValues: { role_id: profile?.role_id },
-    newValues: { role_id: residentRole.id, role_name: 'Resident' },
+    oldValues: { role_id: profile?.role_id, role: profile?.role },
+    newValues: { role_id: residentRole.id, role: null, role_name: 'Resident' },
   });
 
   return { success: true };

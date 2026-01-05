@@ -281,11 +281,11 @@ function InvoiceCard({
   const remaining = (invoice.amount_due || 0) - (invoice.amount_paid || 0);
 
   // Map status to StatusBadge variant
-  const getStatusVariant = (status: InvoiceStatus): 'success' | 'error' | 'warning' | 'neutral' => {
+  const getStatusVariant = (status: InvoiceStatus): 'success' | 'error' | 'warning' | 'info' => {
     if (status === 'paid') return 'success';
     if (status === 'overdue') return 'error';
     if (status === 'unpaid' || status === 'partially_paid') return 'warning';
-    return 'neutral';
+    return 'info';
   };
 
   return (
@@ -353,11 +353,11 @@ function InvoiceTable({
   onSelect: (invoice: InvoiceWithDetails) => void;
 }) {
   // Map status to StatusBadge variant
-  const getStatusVariant = (status: InvoiceStatus): 'success' | 'error' | 'warning' | 'neutral' => {
+  const getStatusVariant = (status: InvoiceStatus): 'success' | 'error' | 'warning' | 'info' => {
     if (status === 'paid') return 'success';
     if (status === 'overdue') return 'error';
     if (status === 'unpaid' || status === 'partially_paid') return 'warning';
-    return 'neutral';
+    return 'info';
   };
 
   return (

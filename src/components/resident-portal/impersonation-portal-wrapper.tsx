@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useImpersonation } from '@/hooks/use-impersonation';
 import { ImpersonationBanner } from './impersonation-banner';
@@ -17,17 +17,23 @@ interface ImpersonationPortalWrapperProps {
  *
  * Wraps the portal content to handle impersonation state:
  * 1. Shows the impersonation banner when an admin is impersonating
- * 2. Shows the resident selector when a super admin accesses the portal
+ * 2. Shows the resident selector when URL has ?impersonate=true
  * 3. Logs page views during impersonation for audit
+ *
+ * Entry points for impersonation:
+ * - /portal?impersonate=true - Opens selector dialog
+ * - Portal header "View as..." button
+ * - Dashboard sidebar "View as Resident" link
  */
 export function ImpersonationPortalWrapper({ children }: ImpersonationPortalWrapperProps) {
   const pathname = usePathname();
-  const { profile, isLoading: authLoading, isResident } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { isLoading: authLoading } = useAuth();
   const {
     isImpersonating,
     impersonationState,
     canImpersonate,
-    isSuperAdmin,
     isLoading: impersonationLoading,
     logPageView,
   } = useImpersonation();
@@ -35,21 +41,20 @@ export function ImpersonationPortalWrapper({ children }: ImpersonationPortalWrap
   const [showSelector, setShowSelector] = useState(false);
   const [hasCheckedAccess, setHasCheckedAccess] = useState(false);
 
-  // Determine if user is an admin (has a role but not necessarily a resident)
-  const isAdmin = profile?.role_id != null;
-  const isAdminWithoutResident = isAdmin && !isResident;
+  // Check for impersonate mode via URL parameter
+  const impersonateMode = searchParams.get('impersonate') === 'true';
 
-  // Check if admin needs to select a resident to impersonate
+  // Check if we should show the selector based on URL param
   useEffect(() => {
     if (authLoading || impersonationLoading) return;
 
-    // If admin without resident access and can impersonate, show selector
-    if (isAdminWithoutResident && canImpersonate && !isImpersonating) {
+    // If URL has ?impersonate=true and admin can impersonate and not already impersonating
+    if (impersonateMode && canImpersonate && !isImpersonating) {
       setShowSelector(true);
     }
 
     setHasCheckedAccess(true);
-  }, [authLoading, impersonationLoading, isAdminWithoutResident, canImpersonate, isImpersonating]);
+  }, [authLoading, impersonationLoading, impersonateMode, canImpersonate, isImpersonating]);
 
   // Log page views during impersonation
   useEffect(() => {
@@ -57,6 +62,26 @@ export function ImpersonationPortalWrapper({ children }: ImpersonationPortalWrap
       logPageView(pathname);
     }
   }, [pathname, isImpersonating, impersonationState?.sessionId, logPageView]);
+
+  // Handle successful impersonation selection
+  const handleSuccess = () => {
+    setShowSelector(false);
+    // Remove the ?impersonate=true param from URL
+    if (impersonateMode) {
+      router.replace('/portal');
+    }
+  };
+
+  // Handle selector close without selection
+  const handleClose = (open: boolean) => {
+    if (!open && !isImpersonating) {
+      // If they close without selecting and came via URL param, redirect to dashboard
+      if (impersonateMode) {
+        router.push('/dashboard');
+      }
+    }
+    setShowSelector(open);
+  };
 
   // Show loading while checking access
   if (authLoading || impersonationLoading || !hasCheckedAccess) {
@@ -67,49 +92,20 @@ export function ImpersonationPortalWrapper({ children }: ImpersonationPortalWrap
     );
   }
 
-  // If admin needs to select a resident (no active impersonation and no resident link)
-  if (isAdminWithoutResident && !isImpersonating && canImpersonate) {
-    return (
-      <>
-        <ResidentImpersonationSelector
-          open={showSelector}
-          onOpenChange={(open) => {
-            if (!open) {
-              // If they close without selecting, redirect to dashboard
-              window.location.href = '/dashboard';
-            }
-          }}
-          onSuccess={() => {
-            setShowSelector(false);
-            // The page will refresh with impersonation active
-          }}
-        />
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center p-8">
-            <h2 className="text-xl font-semibold mb-2">Select a Resident</h2>
-            <p className="text-muted-foreground">
-              Please select a resident to view the portal as.
-            </p>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  // If admin without resident access and cannot impersonate
-  if (isAdminWithoutResident && !isImpersonating && !canImpersonate) {
+  // If impersonate mode requested but user cannot impersonate
+  if (impersonateMode && !canImpersonate && !isImpersonating) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center p-8">
-          <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+          <h2 className="text-xl font-semibold mb-2">Impersonation Not Available</h2>
           <p className="text-muted-foreground mb-4">
-            You do not have a linked resident account or impersonation permission.
+            You do not have permission to impersonate residents.
           </p>
           <a
-            href="/dashboard"
+            href="/portal"
             className="text-primary hover:underline"
           >
-            Return to Dashboard
+            View Your Portal
           </a>
         </div>
       </div>
@@ -125,13 +121,12 @@ export function ImpersonationPortalWrapper({ children }: ImpersonationPortalWrap
         />
       )}
 
-      {/* Resident selector dialog (for switching residents) */}
-      {isImpersonating && (
-        <ResidentImpersonationSelector
-          open={showSelector}
-          onOpenChange={setShowSelector}
-        />
-      )}
+      {/* Resident selector dialog */}
+      <ResidentImpersonationSelector
+        open={showSelector}
+        onOpenChange={handleClose}
+        onSuccess={handleSuccess}
+      />
 
       {/* Portal content */}
       {children}

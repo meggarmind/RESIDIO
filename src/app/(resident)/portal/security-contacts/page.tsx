@@ -340,11 +340,11 @@ function ContactCard({
   const config = statusConfig[contact.status];
 
   // Map status to StatusBadge variant
-  const getStatusVariant = (status: SecurityContactStatus): 'success' | 'error' | 'warning' | 'neutral' => {
+  const getStatusVariant = (status: SecurityContactStatus): 'success' | 'error' | 'warning' | 'info' => {
     if (status === 'active') return 'success';
     if (status === 'revoked') return 'error';
     if (status === 'suspended') return 'warning';
-    return 'neutral';
+    return 'info';
   };
 
   // Category color mapping for visual distinction

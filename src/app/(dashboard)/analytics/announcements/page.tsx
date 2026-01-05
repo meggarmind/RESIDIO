@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { checkPermission } from '@/lib/auth/check-permission';
+import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { AnnouncementAnalyticsClient } from './analytics-client';
 
@@ -11,19 +10,13 @@ import { AnnouncementAnalyticsClient } from './analytics-client';
  * Requires ANNOUNCEMENTS_VIEW permission.
  */
 export default async function AnnouncementAnalyticsPage() {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Check permission (also handles auth check)
+  const auth = await authorizePermission(PERMISSIONS.ANNOUNCEMENTS_VIEW);
 
-  // Redirect unauthenticated users
-  if (!user) {
-    redirect('/login');
-  }
-
-  // Check permission
-  const hasPermission = await checkPermission(PERMISSIONS.ANNOUNCEMENTS_VIEW);
-  if (!hasPermission) {
+  if (!auth.authorized) {
+    if (!auth.userId) {
+      redirect('/login');
+    }
     redirect('/dashboard?error=unauthorized');
   }
 

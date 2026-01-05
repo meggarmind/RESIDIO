@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart, FilePlus, BarChart3, User, FileText, Megaphone } from 'lucide-react';
+import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart, FilePlus, BarChart3, User, UserSearch, FileText, Megaphone } from 'lucide-react';
 import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
@@ -124,7 +124,7 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
-  const { profile, isLoading, hasAnyPermission, residentId } = useAuth();
+  const { profile, isLoading, hasAnyPermission, hasPermission, residentId } = useAuth();
   const { data: pendingCount } = usePendingApprovalsCount();
 
   const filteredNavItems = navItems.filter((item) => {
@@ -216,6 +216,16 @@ export function Sidebar({ className }: SidebarProps) {
             className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
           >
             <User className="h-4 w-4" />
+            <span>My Portal</span>
+          </Link>
+        )}
+        {/* Impersonate Resident link - only for admins with impersonation permission */}
+        {hasPermission(PERMISSIONS.IMPERSONATION_START_SESSION) && (
+          <Link
+            href="/portal?impersonate=true"
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          >
+            <UserSearch className="h-4 w-4" />
             <span>View as Resident</span>
           </Link>
         )}

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-import { Search, Bell, Sun, Moon, Monitor, LogOut, Shield } from 'lucide-react';
+import { Search, Bell, Sun, Moon, Monitor, LogOut, Shield, Users } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -18,12 +18,16 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useResident } from '@/hooks/use-residents';
+import { useImpersonation } from '@/hooks/use-impersonation';
+import { useRouter } from 'next/navigation';
 
 export function PortalTopBar({ title }: { title?: string }) {
     const { theme, setTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
+    const router = useRouter();
     const { residentId, signOut, profile, hasPermission } = useAuth();
     const { data: resident } = useResident(residentId || undefined);
+    const { canImpersonate, isImpersonating } = useImpersonation();
 
     useEffect(() => {
         setMounted(true);
@@ -71,6 +75,19 @@ export function PortalTopBar({ title }: { title?: string }) {
                         <Monitor className="h-4 w-4" />
                     </button>
                 </div>
+
+                {/* View as Resident - Only for admins who can impersonate */}
+                {canImpersonate && !isImpersonating && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => router.push('/portal?impersonate=true')}
+                        className="text-bill-text-secondary hover:text-bill-text hover:bg-bill-secondary gap-2"
+                    >
+                        <Users className="h-4 w-4" />
+                        <span className="hidden md:inline">View as...</span>
+                    </Button>
+                )}
 
                 {/* Notification */}
                 <Button variant="ghost" size="icon" className="text-bill-text-secondary hover:text-bill-text hover:bg-bill-secondary rounded-full">

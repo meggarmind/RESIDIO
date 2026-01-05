@@ -11,6 +11,8 @@ interface AnimatedCounterProps {
   prefix?: string;
   suffix?: string;
   formatNumber?: boolean;
+  /** Custom formatter function. If provided, overrides prefix/suffix/decimals/formatNumber */
+  formatter?: (value: number) => string;
 }
 
 /**
@@ -35,10 +37,11 @@ export function AnimatedCounter({
   prefix = '',
   suffix = '',
   formatNumber = false,
+  formatter,
 }: AnimatedCounterProps) {
   const [displayValue, setDisplayValue] = useState(0);
-  const rafRef = useRef<number>();
-  const startTimeRef = useRef<number>();
+  const rafRef = useRef<number | undefined>(undefined);
+  const startTimeRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     // Reset animation when value changes
@@ -87,9 +90,7 @@ export function AnimatedCounter({
 
   return (
     <span className={cn('font-variant-numeric tabular-nums', className)}>
-      {prefix}
-      {formatValue(displayValue)}
-      {suffix}
+      {formatter ? formatter(displayValue) : `${prefix}${formatValue(displayValue)}${suffix}`}
     </span>
   );
 }

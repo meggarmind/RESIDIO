@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useDateRange } from '@/hooks/use-date-range';
 import { useAnnouncementAnalytics } from '@/hooks/use-announcement-analytics';
 import { DateRangeFilter } from '@/components/analytics/date-range-filter';
+import type { AnalyticsPreset, AnalyticsDateRange } from '@/types/analytics';
 
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
@@ -219,9 +220,9 @@ function MetricCard({ title, value, icon: Icon, iconColor, iconBg, isLoading }: 
 }
 
 interface AnnouncementAnalyticsHeaderProps {
-  preset: string;
-  dateRange: { startDate: string; endDate: string };
-  onPresetChange: (preset: string) => void;
+  preset: AnalyticsPreset;
+  dateRange: AnalyticsDateRange;
+  onPresetChange: (preset: AnalyticsPreset) => void;
   onCustomRangeChange: (startDate: string, endDate: string) => void;
   onRefresh: () => void;
   isRefreshing: boolean;
