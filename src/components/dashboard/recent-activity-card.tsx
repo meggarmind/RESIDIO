@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import {
@@ -71,8 +71,11 @@ function ActivityListItem({ activity }: { activity: RecentActivityItem }) {
     const timeAgo = formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true });
 
     return (
-        <div className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors group">
-            <div className={cn('p-1.5 rounded-lg shrink-0 mt-0.5', config.bgColor)}>
+        <div className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-all duration-200 group">
+            <div className={cn(
+                'p-1.5 rounded-lg shrink-0 mt-0.5 transition-transform duration-200 group-hover:scale-110',
+                config.bgColor
+            )}>
                 <Icon className={cn('h-3.5 w-3.5', config.color)} />
             </div>
             <div className="flex-1 min-w-0">
@@ -110,16 +113,16 @@ function RecentActivitySkeleton() {
     return (
         <Card>
             <CardHeader className="pb-3">
-                <Skeleton className="h-5 w-32" />
+                <ShimmerSkeleton width={128} height={20} speed="fast" />
             </CardHeader>
             <CardContent>
                 <div className="space-y-2">
                     {[...Array(5)].map((_, i) => (
                         <div key={i} className="flex items-start gap-3 p-2.5">
-                            <Skeleton className="h-7 w-7 rounded-lg" />
+                            <ShimmerSkeleton width={28} height={28} rounded="lg" speed="fast" />
                             <div className="flex-1 space-y-1.5">
-                                <Skeleton className="h-4 w-full" />
-                                <Skeleton className="h-3 w-2/3" />
+                                <ShimmerSkeleton height={16} className="w-full" speed="normal" />
+                                <ShimmerSkeleton height={12} className="w-2/3" speed="normal" />
                             </div>
                         </div>
                     ))}
@@ -135,7 +138,7 @@ export function RecentActivityCard({ activities, isLoading }: RecentActivityCard
     }
 
     return (
-        <Card className="flex flex-col h-full">
+        <Card className="flex flex-col h-full animate-fade-in-up">
             <CardHeader className="pb-3 shrink-0">
                 <CardTitle className="flex items-center justify-between text-base font-semibold">
                     <div className="flex items-center gap-2">

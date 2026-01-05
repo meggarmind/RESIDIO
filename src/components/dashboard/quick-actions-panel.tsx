@@ -111,12 +111,12 @@ function QuickActionButton({ action }: { action: QuickAction }) {
         <Link href={action.href} className="group">
             <div className={cn(
                 'flex items-center gap-3 p-3 rounded-lg border transition-all duration-200',
-                'hover:shadow-sm hover:translate-y-[-1px]',
+                'hover:shadow-md hover:translate-y-[-2px]',
                 styles.bg,
                 styles.border
             )}>
                 <div className={cn(
-                    'p-2 rounded-lg shrink-0',
+                    'p-2 rounded-lg shrink-0 transition-transform duration-200 group-hover:scale-110',
                     styles.bg
                 )}>
                     <Icon className={cn('h-4 w-4', styles.icon)} />
@@ -132,7 +132,7 @@ function QuickActionButton({ action }: { action: QuickAction }) {
 
 export function QuickActionsPanel() {
     return (
-        <Card>
+        <Card className="animate-fade-in-up">
             <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base font-semibold">
                     <Zap className="h-5 w-5 text-amber-500" />

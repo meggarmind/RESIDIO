@@ -1,7 +1,8 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { AnimatedCounter } from '@/components/ui/animated-counter';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { PieChart, ChevronRight } from 'lucide-react';
 import type { InvoiceStatusDistribution } from '@/actions/dashboard/get-enhanced-dashboard-stats';
 import { cn } from '@/lib/utils';
@@ -108,7 +109,11 @@ function DonutChart({ distribution }: { distribution: InvoiceStatusDistribution 
             </svg>
             {/* Center content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold tabular-nums">{total}</span>
+                <AnimatedCounter
+                    value={total}
+                    className="text-2xl font-bold tabular-nums"
+                    duration={800}
+                />
                 <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                     Invoices
                 </span>
@@ -123,16 +128,24 @@ function LegendItem({ label, value, total, bgColor }: {
     total: number;
     bgColor: string;
 }) {
-    const percentage = total > 0 ? ((value / total) * 100).toFixed(0) : 0;
+    const percentage = total > 0 ? ((value / total) * 100) : 0;
 
     return (
-        <div className="flex items-center gap-2">
-            <div className={cn('w-2.5 h-2.5 rounded-sm shrink-0', bgColor)} />
+        <div className="flex items-center gap-2 group hover:bg-muted/30 rounded-md px-2 py-1.5 -mx-2 transition-colors">
+            <div className={cn('w-2.5 h-2.5 rounded-sm shrink-0 transition-transform group-hover:scale-125', bgColor)} />
             <span className="text-xs text-muted-foreground flex-1">{label}</span>
-            <span className="text-xs font-medium tabular-nums">{value}</span>
-            <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">
-                {percentage}%
-            </span>
+            <AnimatedCounter
+                value={value}
+                className="text-xs font-medium tabular-nums"
+                duration={600}
+            />
+            <AnimatedCounter
+                value={percentage}
+                decimals={0}
+                suffix="%"
+                className="text-[10px] text-muted-foreground tabular-nums w-8 text-right"
+                duration={600}
+            />
         </div>
     );
 }
@@ -141,14 +154,14 @@ function InvoiceDistributionSkeleton() {
     return (
         <Card>
             <CardHeader className="pb-3">
-                <Skeleton className="h-5 w-36" />
+                <ShimmerSkeleton width={144} height={20} speed="fast" />
             </CardHeader>
             <CardContent>
                 <div className="flex items-center gap-6">
-                    <Skeleton className="w-[120px] h-[120px] rounded-full" />
+                    <ShimmerSkeleton width={120} height={120} rounded="full" speed="normal" />
                     <div className="flex-1 space-y-3">
                         {[...Array(4)].map((_, i) => (
-                            <Skeleton key={i} className="h-4 w-full" />
+                            <ShimmerSkeleton key={i} height={16} className="w-full" speed="fast" />
                         ))}
                     </div>
                 </div>
@@ -165,7 +178,7 @@ export function InvoiceDistributionCard({ distribution, isLoading }: InvoiceDist
     const total = Object.values(distribution).reduce((sum, val) => sum + val, 0) - distribution.void;
 
     return (
-        <Card>
+        <Card className="animate-fade-in-up">
             <CardHeader className="pb-3">
                 <CardTitle className="flex items-center justify-between text-base font-semibold">
                     <div className="flex items-center gap-2">

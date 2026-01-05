@@ -1,8 +1,9 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { AnimatedCounter } from '@/components/ui/animated-counter';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -36,7 +37,11 @@ function AlertBadge({ count, label, variant }: { count: number; label: string; v
             'flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors',
             count > 0 ? variantStyles[variant] : variantStyles.muted
         )}>
-            <span className="text-xl font-bold tabular-nums">{count}</span>
+            <AnimatedCounter
+                value={count}
+                className="text-xl font-bold tabular-nums"
+                duration={600}
+            />
             <span className="text-xs">{label}</span>
         </div>
     );
@@ -61,9 +66,9 @@ function ExpiringCodeItem({ code, contactName, residentName, validUntil }: {
                     {residentName} • <span className="font-mono">{code}</span>
                 </p>
             </div>
-            <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 shrink-0">
+            <StatusBadge variant="warning" size="sm">
                 {expiresIn}
-            </Badge>
+            </StatusBadge>
         </div>
     );
 }
@@ -72,17 +77,17 @@ function SecurityAlertsSkeleton() {
     return (
         <Card>
             <CardHeader className="pb-3">
-                <Skeleton className="h-5 w-32" />
+                <ShimmerSkeleton width={128} height={20} speed="fast" />
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="flex gap-2">
                     {[...Array(3)].map((_, i) => (
-                        <Skeleton key={i} className="h-12 flex-1 rounded-lg" />
+                        <ShimmerSkeleton key={i} height={48} className="flex-1 rounded-lg" speed="fast" />
                     ))}
                 </div>
                 <div className="space-y-2">
                     {[...Array(3)].map((_, i) => (
-                        <Skeleton key={i} className="h-12 w-full rounded-md" />
+                        <ShimmerSkeleton key={i} height={48} className="w-full rounded-md" speed="normal" />
                     ))}
                 </div>
             </CardContent>
@@ -106,7 +111,7 @@ export function SecurityAlertsCard({ securityAlerts, isLoading }: SecurityAlerts
     const hasAlerts = expiringCodesCount > 0 || expiredCodesCount > 0 || suspendedContactsCount > 0 || recentFlaggedEntries > 0;
 
     return (
-        <Card className="overflow-hidden relative">
+        <Card className="overflow-hidden relative animate-fade-in-up">
             {/* Alert indicator stripe */}
             {hasAlerts && (
                 <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 via-red-500 to-amber-500" />
