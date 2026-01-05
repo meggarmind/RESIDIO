@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import { Layers } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import type { CategoryData } from '@/types/analytics';
 
 interface CategoryBreakdownChartProps {
@@ -101,7 +101,7 @@ export function CategoryBreakdownChart({ data, isLoading }: CategoryBreakdownCha
   const displayData = data.slice(0, 5);
 
   return (
-    <Card>
+    <Card className="animate-fade-in-up">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-blue-600" />
@@ -176,10 +176,10 @@ function ChartSkeleton() {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
-          <Skeleton className="h-4 w-4" />
+          <ShimmerSkeleton width={16} height={16} speed="fast" />
           <div className="space-y-1">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-3 w-28" />
+            <ShimmerSkeleton width={128} height={16} speed="fast" />
+            <ShimmerSkeleton width={112} height={12} speed="fast" />
           </div>
         </div>
       </CardHeader>
@@ -187,8 +187,8 @@ function ChartSkeleton() {
         <div className="space-y-3">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="flex items-center gap-3">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-6 flex-1 rounded" />
+              <ShimmerSkeleton width={80} height={16} speed="fast" />
+              <ShimmerSkeleton height={24} className="flex-1" speed="normal" />
             </div>
           ))}
         </div>

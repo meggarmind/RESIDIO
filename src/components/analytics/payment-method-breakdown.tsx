@@ -3,7 +3,7 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { CreditCard } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import type { CategoryData } from '@/types/analytics';
 
 interface PaymentMethodBreakdownProps {
@@ -95,7 +95,7 @@ export function PaymentMethodBreakdown({ data, isLoading }: PaymentMethodBreakdo
   };
 
   return (
-    <Card>
+    <Card className="animate-fade-in-up">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <CreditCard className="h-4 w-4 text-amber-600" />
@@ -143,16 +143,16 @@ function ChartSkeleton() {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
-          <Skeleton className="h-4 w-4" />
+          <ShimmerSkeleton width={16} height={16} speed="fast" />
           <div className="space-y-1">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-3 w-28" />
+            <ShimmerSkeleton width={128} height={16} speed="fast" />
+            <ShimmerSkeleton width={112} height={12} speed="fast" />
           </div>
         </div>
       </CardHeader>
       <CardContent>
         <div className="h-[200px] flex items-center justify-center">
-          <Skeleton className="w-36 h-36 rounded-full" />
+          <ShimmerSkeleton width={144} height={144} rounded="full" speed="normal" />
         </div>
       </CardContent>
     </Card>

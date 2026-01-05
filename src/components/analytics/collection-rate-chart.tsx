@@ -11,7 +11,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { Target } from 'lucide-react';
 import type { TimeSeriesDataPoint } from '@/types/analytics';
 
@@ -50,7 +50,7 @@ export function CollectionRateChart({ data, isLoading }: CollectionRateChartProp
   }
 
   return (
-    <Card>
+    <Card className="animate-fade-in-up">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
           <Target className="h-4 w-4 text-blue-600" />
@@ -137,15 +137,15 @@ function ChartSkeleton() {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
-          <Skeleton className="h-4 w-4" />
+          <ShimmerSkeleton width={16} height={16} speed="fast" />
           <div className="space-y-1">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-3 w-40" />
+            <ShimmerSkeleton width={112} height={16} speed="fast" />
+            <ShimmerSkeleton width={160} height={12} speed="fast" />
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <Skeleton className="h-[250px] w-full" />
+        <ShimmerSkeleton height={250} className="w-full" speed="normal" />
       </CardContent>
     </Card>
   );
