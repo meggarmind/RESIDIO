@@ -25,7 +25,7 @@ export function PortalTopBar({ title }: { title?: string }) {
     const { theme, setTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
     const router = useRouter();
-    const { residentId, signOut, profile, hasPermission } = useAuth();
+    const { residentId, signOut, profile, hasPermission, isSigningOut } = useAuth();
     const { data: resident } = useResident(residentId || undefined);
     const { canImpersonate, isImpersonating } = useImpersonation();
 
@@ -137,11 +137,12 @@ export function PortalTopBar({ title }: { title?: string }) {
                         )}
 
                         <DropdownMenuItem
-                            onClick={signOut}
+                            onSelect={signOut}
+                            disabled={isSigningOut}
                             className="text-destructive hover:bg-bill-secondary cursor-pointer"
                         >
                             <LogOut className="mr-2 h-4 w-4" />
-                            Sign out
+                            {isSigningOut ? 'Signing out...' : 'Sign out'}
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>

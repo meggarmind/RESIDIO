@@ -25,6 +25,7 @@ interface AuthContextType {
   profile: Profile | null;
   session: Session | null;
   isLoading: boolean;
+  isSigningOut: boolean;
   signOut: () => Promise<void>;
   // New RBAC helpers
   hasPermission: (permission: string) => boolean;
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const isInitialized = useRef(false);
 
   // Memoize the Supabase client to prevent recreation on re-renders
@@ -148,12 +150,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    setSession(null);
-    // Force full page reload to clear all client state and redirect to login
-    window.location.href = '/login';
+    setIsSigningOut(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        console.error('Sign out error:', error);
+        // Show user-friendly error message
+        alert('Failed to sign out. Please try again.');
+        setIsSigningOut(false);
+        return;
+      }
+
+      // Clear local state
+      setUser(null);
+      setProfile(null);
+      setSession(null);
+
+      // Force full page reload to clear all client state and redirect to login
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Unexpected sign out error:', error);
+      // Fallback: still redirect to login to prevent user from being stuck
+      window.location.href = '/login';
+    }
+    // Note: Don't reset isSigningOut after redirect (component unmounts)
   };
 
   // Permission check helpers
@@ -186,6 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       session,
       isLoading,
+      isSigningOut,
       signOut,
       hasPermission,
       hasAnyPermission,

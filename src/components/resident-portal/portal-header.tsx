@@ -26,7 +26,7 @@ import { PortalSearch } from './portal-search';
  * - Avatar dropdown on the right with sign out
  */
 export function PortalHeader() {
-  const { profile, signOut, hasAnyPermission } = useAuth();
+  const { profile, signOut, hasAnyPermission, isSigningOut } = useAuth();
 
   // Check if user has admin dashboard access (any admin permission indicates dashboard access)
   const hasAdminAccess = hasAnyPermission([PERMISSIONS.RESIDENTS_VIEW]);
@@ -122,11 +122,12 @@ export function PortalHeader() {
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={signOut}
+              onSelect={signOut}
+              disabled={isSigningOut}
               className="text-destructive focus:text-destructive cursor-pointer"
             >
               <LogOut className="mr-2 h-4 w-4" />
-              <span>Sign out</span>
+              <span>{isSigningOut ? 'Signing out...' : 'Sign out'}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

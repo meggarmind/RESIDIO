@@ -22,7 +22,7 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const { profile, signOut, residentId } = useAuth();
+  const { profile, signOut, residentId, isSigningOut } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -84,9 +84,13 @@ export function Header({ onMenuClick }: HeaderProps) {
             </>
           )}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={signOut} className="text-destructive">
+          <DropdownMenuItem
+            onSelect={signOut}
+            disabled={isSigningOut}
+            className="text-destructive cursor-pointer"
+          >
             <LogOut className="mr-2 h-4 w-4" />
-            Sign out
+            {isSigningOut ? 'Signing out...' : 'Sign out'}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
