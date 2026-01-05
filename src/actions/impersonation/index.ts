@@ -28,11 +28,12 @@ export async function canImpersonate(): Promise<{
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
+    console.log('[canImpersonate] No user found');
     return { canImpersonate: false, requiresApproval: false, isSuperAdmin: false, impersonationEnabled: false };
   }
 
   // Get profile with role info
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select(`
       id,
@@ -45,7 +46,15 @@ export async function canImpersonate(): Promise<{
     .eq('id', user.id)
     .single();
 
+  console.log('[canImpersonate] Profile query result:', {
+    profile,
+    profileError,
+    userId: user.id,
+    userEmail: user.email
+  });
+
   if (!profile) {
+    console.log('[canImpersonate] No profile found');
     return { canImpersonate: false, requiresApproval: false, isSuperAdmin: false, impersonationEnabled: false };
   }
 
@@ -53,16 +62,26 @@ export async function canImpersonate(): Promise<{
   const isSuperAdmin = roleName === 'super_admin';
   const impersonationEnabled = profile.impersonation_enabled || false;
 
+  console.log('[canImpersonate] Role check:', {
+    roleName,
+    isSuperAdmin,
+    impersonationEnabled,
+    roleId: profile.role_id
+  });
+
   // Super admins can always impersonate without approval
   if (isSuperAdmin) {
+    console.log('[canImpersonate] Super admin detected - granting access');
     return { canImpersonate: true, requiresApproval: false, isSuperAdmin: true, impersonationEnabled: true };
   }
 
   // Other admins need impersonation_enabled and require approval
   if (impersonationEnabled) {
+    console.log('[canImpersonate] Regular admin with impersonation enabled');
     return { canImpersonate: true, requiresApproval: true, isSuperAdmin: false, impersonationEnabled: true };
   }
 
+  console.log('[canImpersonate] No permission - not super_admin and impersonation not enabled');
   return { canImpersonate: false, requiresApproval: false, isSuperAdmin: false, impersonationEnabled: false };
 }
 
