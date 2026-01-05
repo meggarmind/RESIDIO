@@ -223,8 +223,9 @@ export function Sidebar({ className }: SidebarProps) {
         {/* Impersonate Resident link - only for admins with impersonation permission */}
         {hasPermission(PERMISSIONS.IMPERSONATION_START_SESSION) && (
           <button
+            type="button"
             onClick={() => router.push('/portal?impersonate=true')}
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-full text-left"
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-full text-left cursor-pointer"
           >
             <UserSearch className="h-4 w-4" />
             <span>View as Resident</span>
