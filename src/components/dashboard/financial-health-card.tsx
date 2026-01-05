@@ -2,7 +2,10 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ProgressRing } from '@/components/ui/progress-ring';
+import { AnimatedCounter } from '@/components/ui/animated-counter';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { TrendingUp, TrendingDown, Wallet, AlertTriangle, ArrowUpRight, ArrowDownRight, CircleDollarSign } from 'lucide-react';
 import type { FinancialHealthMetrics } from '@/actions/dashboard/get-enhanced-dashboard-stats';
 import { cn } from '@/lib/utils';
@@ -16,80 +19,49 @@ function formatCurrency(amount: number): string {
     return `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-// SVG Progress Arc Component
-function CollectionRateArc({ rate, size = 140 }: { rate: number; size?: number }) {
-    const strokeWidth = 12;
-    const radius = (size - strokeWidth) / 2;
-    const circumference = 2 * Math.PI * radius;
+// Enhanced Collection Rate Progress Ring
+function CollectionRateRing({ rate, size = 140 }: { rate: number; size?: number }) {
     const clampedRate = Math.min(Math.max(rate, 0), 100);
-    const strokeDashoffset = circumference - (clampedRate / 100) * circumference;
 
-    // Color based on rate
-    const getColor = () => {
-        if (clampedRate >= 80) return { stroke: '#10b981', bg: 'rgba(16, 185, 129, 0.1)' };
-        if (clampedRate >= 60) return { stroke: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' };
-        return { stroke: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' };
+    // Color and gradient based on rate
+    const getColors = () => {
+        if (clampedRate >= 80) {
+            return {
+                color: 'hsl(142.1 76.2% 36.3%)', // emerald-600
+                gradientColor: 'hsl(142.1 70.6% 45.3%)', // emerald-500
+            };
+        }
+        if (clampedRate >= 60) {
+            return {
+                color: 'hsl(24.6 95% 53.1%)', // orange-500
+                gradientColor: 'hsl(37.7 92.1% 50.2%)', // amber-500
+            };
+        }
+        return {
+            color: 'hsl(0 84.2% 60.2%)', // red-500
+            gradientColor: 'hsl(0 72.2% 50.6%)', // red-600
+        };
     };
 
-    const colors = getColor();
+    const { color, gradientColor } = getColors();
 
     return (
-        <div className="relative" style={{ width: size, height: size }}>
-            <svg
-                width={size}
-                height={size}
-                viewBox={`0 0 ${size} ${size}`}
-                className="transform -rotate-90"
-            >
-                {/* Background arc */}
-                <circle
-                    cx={size / 2}
-                    cy={size / 2}
-                    r={radius}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={strokeWidth}
-                    className="text-muted/20"
-                />
-                {/* Foreground arc with gradient */}
-                <circle
-                    cx={size / 2}
-                    cy={size / 2}
-                    r={radius}
-                    fill="none"
-                    stroke={colors.stroke}
-                    strokeWidth={strokeWidth}
-                    strokeLinecap="round"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={strokeDashoffset}
-                    className="transition-all duration-1000 ease-out"
-                    style={{
-                        filter: 'drop-shadow(0 0 6px ' + colors.stroke + '40)',
-                    }}
-                />
-            </svg>
-            {/* Center content */}
-            <div
-                className="absolute inset-0 flex flex-col items-center justify-center"
-                style={{ backgroundColor: colors.bg, borderRadius: '50%', margin: strokeWidth / 2 }}
-            >
-                <span
-                    className="text-3xl font-bold tabular-nums"
-                    style={{ color: colors.stroke }}
-                >
-                    {clampedRate.toFixed(0)}%
-                </span>
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                    Collection
-                </span>
-            </div>
-        </div>
+        <ProgressRing
+            value={clampedRate}
+            size={size}
+            strokeWidth={12}
+            duration={1200}
+            color={color}
+            gradientColor={gradientColor}
+            label="Collection"
+        />
     );
 }
 
 function MetricItem({
     label,
     value,
+    numericValue,
     icon: Icon,
     trend,
     trendValue,
@@ -98,6 +70,7 @@ function MetricItem({
 }: {
     label: string;
     value: string;
+    numericValue?: number;
     icon: React.ElementType;
     trend?: 'up' | 'down' | 'neutral';
     trendValue?: string;
@@ -126,38 +99,44 @@ function MetricItem({
     };
 
     return (
-        <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+        <div className="group flex items-start gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-all duration-200 hover:shadow-sm">
             <div className={cn(
-                'p-2 rounded-lg shrink-0',
+                'p-2 rounded-lg shrink-0 transition-all duration-200 group-hover:scale-110',
                 iconBgStyles[variant]
             )}>
                 <Icon className={cn('h-4 w-4', iconColorStyles[variant])} />
             </div>
             <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                    <span className={cn('text-lg font-semibold tabular-nums truncate', variantStyles[variant])}>
-                        {value}
-                    </span>
+                    {numericValue !== undefined ? (
+                        <AnimatedCounter
+                            value={numericValue}
+                            prefix="₦"
+                            formatNumber
+                            className={cn('text-lg font-semibold', variantStyles[variant])}
+                            duration={800}
+                        />
+                    ) : (
+                        <span className={cn('text-lg font-semibold tabular-nums truncate', variantStyles[variant])}>
+                            {value}
+                        </span>
+                    )}
                     {badge && (
-                        <Badge variant={badge.variant} className="text-[10px] px-1.5 py-0">
+                        <StatusBadge variant={badge.variant === 'destructive' ? 'error' : 'info'} size="sm">
                             {badge.label}
-                        </Badge>
+                        </StatusBadge>
                     )}
                 </div>
                 <div className="flex items-center gap-1.5">
                     <span className="text-xs text-muted-foreground">{label}</span>
                     {trend && trendValue && (
-                        <span className={cn(
-                            'flex items-center text-[10px] font-medium',
-                            trend === 'up' ? 'text-emerald-500' : trend === 'down' ? 'text-red-500' : 'text-muted-foreground'
-                        )}>
-                            {trend === 'up' ? (
-                                <ArrowUpRight className="h-3 w-3" />
-                            ) : trend === 'down' ? (
-                                <ArrowDownRight className="h-3 w-3" />
-                            ) : null}
+                        <StatusBadge
+                            variant={trend === 'up' ? 'up' : trend === 'down' ? 'down' : 'info'}
+                            size="sm"
+                            showIcon
+                        >
                             {trendValue}
-                        </span>
+                        </StatusBadge>
                     )}
                 </div>
             </div>
@@ -169,22 +148,23 @@ function FinancialHealthSkeleton() {
     return (
         <Card className="overflow-hidden">
             <CardHeader className="pb-2">
-                <Skeleton className="h-5 w-36" />
+                <ShimmerSkeleton width={144} height={20} speed="fast" />
             </CardHeader>
             <CardContent>
                 <div className="flex flex-col lg:flex-row gap-6">
-                    {/* Arc skeleton */}
-                    <div className="flex justify-center lg:justify-start">
-                        <Skeleton className="h-[140px] w-[140px] rounded-full" />
+                    {/* Progress ring skeleton */}
+                    <div className="flex flex-col items-center gap-2">
+                        <ShimmerSkeleton width={140} height={140} rounded="full" speed="normal" />
+                        <ShimmerSkeleton width={120} height={12} speed="fast" />
                     </div>
                     {/* Metrics skeleton */}
-                    <div className="flex-1 grid gap-3">
+                    <div className="flex-1 grid gap-2 sm:grid-cols-2">
                         {[...Array(4)].map((_, i) => (
                             <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-                                <Skeleton className="h-8 w-8 rounded-lg" />
+                                <ShimmerSkeleton width={32} height={32} rounded="lg" speed="fast" />
                                 <div className="flex-1 space-y-1.5">
-                                    <Skeleton className="h-5 w-24" />
-                                    <Skeleton className="h-3 w-16" />
+                                    <ShimmerSkeleton width={96} height={20} speed="fast" />
+                                    <ShimmerSkeleton width={64} height={12} speed="fast" />
                                 </div>
                             </div>
                         ))}
@@ -214,7 +194,7 @@ export function FinancialHealthCard({ financialHealth, isLoading }: FinancialHea
     const revenueTrend = revenueChange > 0 ? 'up' : revenueChange < 0 ? 'down' : 'neutral';
 
     return (
-        <Card className="overflow-hidden relative">
+        <Card className="overflow-hidden relative animate-fade-in-up">
             {/* Subtle gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/[0.02] via-transparent to-amber-500/[0.02] pointer-events-none" />
 
@@ -227,13 +207,18 @@ export function FinancialHealthCard({ financialHealth, isLoading }: FinancialHea
 
             <CardContent className="relative">
                 <div className="flex flex-col lg:flex-row gap-6">
-                    {/* Collection Rate Arc - Hero Element */}
+                    {/* Collection Rate Ring - Hero Element */}
                     <div className="flex flex-col items-center gap-2 lg:pr-6 lg:border-r border-border/50">
-                        <CollectionRateArc rate={collectionRate} />
+                        <CollectionRateRing rate={collectionRate} />
                         <div className="text-center">
-                            <p className="text-xs text-muted-foreground">
-                                {formatCurrency(financialHealth.totalCollected)} collected
-                            </p>
+                            <AnimatedCounter
+                                value={financialHealth.totalCollected}
+                                prefix="₦"
+                                formatNumber
+                                className="text-xs text-muted-foreground"
+                                duration={1000}
+                            />
+                            <span className="text-xs text-muted-foreground"> collected</span>
                         </div>
                     </div>
 
@@ -242,6 +227,7 @@ export function FinancialHealthCard({ financialHealth, isLoading }: FinancialHea
                         <MetricItem
                             label="Outstanding Balance"
                             value={formatCurrency(totalOutstanding)}
+                            numericValue={totalOutstanding}
                             icon={AlertTriangle}
                             variant={totalOutstanding > 0 ? 'danger' : 'success'}
                         />
@@ -249,6 +235,7 @@ export function FinancialHealthCard({ financialHealth, isLoading }: FinancialHea
                         <MetricItem
                             label="Monthly Revenue"
                             value={formatCurrency(monthlyRevenue)}
+                            numericValue={monthlyRevenue}
                             icon={TrendingUp}
                             variant={revenueChange >= 0 ? 'success' : 'warning'}
                             trend={revenueTrend}
@@ -258,6 +245,7 @@ export function FinancialHealthCard({ financialHealth, isLoading }: FinancialHea
                         <MetricItem
                             label="Overdue Amount"
                             value={formatCurrency(overdueAmount)}
+                            numericValue={overdueAmount}
                             icon={TrendingDown}
                             variant={overdueAmount > 0 ? 'warning' : 'default'}
                             badge={overdueCount > 0 ? {
@@ -269,6 +257,7 @@ export function FinancialHealthCard({ financialHealth, isLoading }: FinancialHea
                         <MetricItem
                             label="Wallet Credits"
                             value={formatCurrency(totalWalletBalance)}
+                            numericValue={totalWalletBalance}
                             icon={Wallet}
                             variant={totalWalletBalance > 0 ? 'success' : 'default'}
                         />

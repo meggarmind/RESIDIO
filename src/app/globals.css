@@ -215,6 +215,47 @@
   animation: shimmer 2s infinite;
 }
 
+/* Shimmer skeleton effect */
+.shimmer::before,
+.shimmer-slow::before,
+.shimmer-fast::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+}
+
+.dark .shimmer::before,
+.dark .shimmer-slow::before,
+.dark .shimmer-fast::before {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+}
+
+.shimmer::before {
+  animation: shimmer 2s infinite;
+}
+
+.shimmer-slow::before {
+  animation: shimmer 3s infinite;
+}
+
+.shimmer-fast::before {
+  animation: shimmer 1.5s infinite;
+}
+
 /* Interactive card hover effect */
 .card-interactive {
   @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5;

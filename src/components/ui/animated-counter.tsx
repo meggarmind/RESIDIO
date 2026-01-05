@@ -1,126 +1,95 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { useMotionValue, useSpring, motion } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface AnimatedCounterProps {
-  /**
-   * The target value to count up to
-   */
   value: number;
-  /**
-   * Optional starting value (defaults to 0)
-   */
-  from?: number;
-  /**
-   * Animation duration in seconds (defaults to 1)
-   */
   duration?: number;
-  /**
-   * Number of decimal places to display (defaults to 0)
-   */
-  decimals?: number;
-  /**
-   * Optional prefix (e.g., "$", "₦")
-   */
-  prefix?: string;
-  /**
-   * Optional suffix (e.g., "%", "K", "M")
-   */
-  suffix?: string;
-  /**
-   * Optional custom formatter function
-   */
-  formatter?: (value: number) => string;
-  /**
-   * Additional CSS classes
-   */
   className?: string;
-  /**
-   * Delay before animation starts in seconds (defaults to 0)
-   */
-  delay?: number;
+  decimals?: number;
+  prefix?: string;
+  suffix?: string;
+  formatNumber?: boolean;
 }
 
 /**
  * AnimatedCounter Component
  *
- * A reusable component that animates numbers with a smooth count-up effect.
- * Uses framer-motion for spring-based animations that feel natural and responsive.
+ * Animates counting from 0 to target value on mount or value change.
+ * Uses requestAnimationFrame for smooth 60fps animation.
  *
  * @example
- * ```tsx
- * // Currency counter
- * <AnimatedCounter value={1500.50} decimals={2} prefix="₦" />
+ * <AnimatedCounter value={1234} formatNumber prefix="$" />
+ * // Outputs: $1,234
  *
- * // Percentage
- * <AnimatedCounter value={75} suffix="%" />
- *
- * // Custom formatter
- * <AnimatedCounter
- *   value={1000000}
- *   formatter={(val) => formatCurrency(val)}
- * />
- * ```
+ * @example
+ * <AnimatedCounter value={85.5} decimals={1} suffix="%" />
+ * // Outputs: 85.5%
  */
 export function AnimatedCounter({
   value,
-  from = 0,
-  duration = 1,
+  duration = 1000,
+  className,
   decimals = 0,
   prefix = '',
   suffix = '',
-  formatter,
-  className,
-  delay = 0,
+  formatNumber = false,
 }: AnimatedCounterProps) {
-  const motionValue = useMotionValue(from);
-  const springValue = useSpring(motionValue, {
-    damping: 60,
-    stiffness: 100,
-    duration: duration * 1000,
-  });
-  const displayRef = useRef<HTMLSpanElement>(null);
+  const [displayValue, setDisplayValue] = useState(0);
+  const rafRef = useRef<number>();
+  const startTimeRef = useRef<number>();
 
   useEffect(() => {
-    // Apply delay before starting animation
-    const timer = setTimeout(() => {
-      motionValue.set(value);
-    }, delay * 1000);
+    // Reset animation when value changes
+    setDisplayValue(0);
+    startTimeRef.current = undefined;
 
-    return () => clearTimeout(timer);
-  }, [value, delay, motionValue]);
-
-  useEffect(() => {
-    const unsubscribe = springValue.on('change', (latest) => {
-      if (displayRef.current) {
-        let displayValue: string;
-
-        if (formatter) {
-          // Use custom formatter
-          displayValue = formatter(latest);
-        } else {
-          // Default formatting with decimals
-          displayValue = latest.toFixed(decimals);
-        }
-
-        displayRef.current.textContent = `${prefix}${displayValue}${suffix}`;
+    const animate = (timestamp: number) => {
+      if (!startTimeRef.current) {
+        startTimeRef.current = timestamp;
       }
-    });
 
-    return () => unsubscribe();
-  }, [springValue, decimals, prefix, suffix, formatter]);
+      const progress = Math.min((timestamp - startTimeRef.current) / duration, 1);
+
+      // Easing function: easeOutQuart for smooth deceleration
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+
+      const currentValue = value * easeOutQuart;
+      setDisplayValue(currentValue);
+
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(animate);
+      }
+    };
+
+    rafRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, [value, duration]);
+
+  const formatValue = (num: number): string => {
+    const fixed = num.toFixed(decimals);
+
+    if (formatNumber) {
+      // Add thousand separators
+      const parts = fixed.split('.');
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      return parts.join('.');
+    }
+
+    return fixed;
+  };
 
   return (
-    <motion.span
-      ref={displayRef}
-      className={cn('tabular-nums', className)}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-    >
-      {prefix}{from.toFixed(decimals)}{suffix}
-    </motion.span>
+    <span className={cn('font-variant-numeric tabular-nums', className)}>
+      {prefix}
+      {formatValue(displayValue)}
+      {suffix}
+    </span>
   );
 }

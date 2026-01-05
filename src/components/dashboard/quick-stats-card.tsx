@@ -1,7 +1,8 @@
 'use client';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { AnimatedCounter } from '@/components/ui/animated-counter';
+import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import {
     Home,
     Users,
@@ -59,9 +60,10 @@ function StatItem({ label, value, subLabel, subValue, icon: Icon, color }: StatI
     const styles = colorStyles[color];
 
     return (
-        <div className="flex items-center gap-3 p-3">
+        <div className="group flex items-center gap-3 p-3 transition-all duration-200 hover:bg-accent/50">
             <div className={cn(
-                'p-2.5 rounded-xl shrink-0 ring-1',
+                'p-2.5 rounded-xl shrink-0 ring-1 transition-all duration-200',
+                'group-hover:scale-110 group-hover:ring-2',
                 styles.bg,
                 styles.ring
             )}>
@@ -69,11 +71,20 @@ function StatItem({ label, value, subLabel, subValue, icon: Icon, color }: StatI
             </div>
             <div className="min-w-0">
                 <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold tabular-nums">{value}</span>
+                    <AnimatedCounter
+                        value={value}
+                        className="text-2xl font-bold"
+                        duration={800}
+                    />
                     {subValue !== undefined && (
-                        <span className="text-sm text-muted-foreground">
-                            / {subValue}
-                        </span>
+                        <>
+                            <span className="text-sm text-muted-foreground">/</span>
+                            <AnimatedCounter
+                                value={subValue}
+                                className="text-sm text-muted-foreground"
+                                duration={800}
+                            />
+                        </>
                     )}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">
@@ -94,10 +105,10 @@ function QuickStatsSkeleton() {
                 <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border">
                     {[...Array(4)].map((_, i) => (
                         <div key={i} className="flex items-center gap-3 p-3">
-                            <Skeleton className="h-11 w-11 rounded-xl" />
-                            <div className="space-y-1.5">
-                                <Skeleton className="h-6 w-12" />
-                                <Skeleton className="h-3 w-20" />
+                            <ShimmerSkeleton width={44} height={44} rounded="lg" speed="fast" />
+                            <div className="space-y-1.5 flex-1">
+                                <ShimmerSkeleton width={48} height={24} speed="fast" />
+                                <ShimmerSkeleton width={80} height={12} speed="fast" />
                             </div>
                         </div>
                     ))}
@@ -124,7 +135,7 @@ export function QuickStatsCard({ quickStats, isLoading }: QuickStatsCardProps) {
     } = quickStats;
 
     return (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden animate-fade-in-up">
             <CardContent className="p-0">
                 <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border/50">
                     <StatItem
