@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart, FilePlus, BarChart3, User, UserSearch, FileText, Megaphone } from 'lucide-react';
@@ -124,6 +124,7 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { profile, isLoading, hasAnyPermission, hasPermission, residentId } = useAuth();
   const { data: pendingCount } = usePendingApprovalsCount();
 
@@ -221,13 +222,13 @@ export function Sidebar({ className }: SidebarProps) {
         )}
         {/* Impersonate Resident link - only for admins with impersonation permission */}
         {hasPermission(PERMISSIONS.IMPERSONATION_START_SESSION) && (
-          <Link
-            href="/portal?impersonate=true"
-            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          <button
+            onClick={() => router.push('/portal?impersonate=true')}
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-full text-left"
           >
             <UserSearch className="h-4 w-4" />
             <span>View as Resident</span>
-          </Link>
+          </button>
         )}
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium">

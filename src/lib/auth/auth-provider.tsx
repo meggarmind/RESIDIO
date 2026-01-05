@@ -156,10 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error('Sign out error:', error);
-        // Show user-friendly error message
-        alert('Failed to sign out. Please try again.');
-        setIsSigningOut(false);
-        return;
+        // Continue with cleanup even if server-side signout fails
       }
 
       // Clear local state
