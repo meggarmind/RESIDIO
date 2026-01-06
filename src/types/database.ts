@@ -278,7 +278,8 @@ export type AuditEntityType =
   | 'report_subscriptions'       // Phase 16: Community Communication
   | 'impersonation_sessions'     // Admin impersonation system
   | 'documents'                   // Phase 15: Document Management
-  | 'document_categories';        // Phase 15: Document Management
+  | 'document_categories'         // Phase 15: Document Management
+  | 'entity_notes';               // Notes Module
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -341,6 +342,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   impersonation_sessions: 'Impersonation Session',     // Admin impersonation system
   documents: 'Document',                                // Phase 15: Document Management
   document_categories: 'Document Category',             // Phase 15: Document Management
+  entity_notes: 'Note',                                 // Notes Module
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -2057,4 +2059,136 @@ export interface ImpersonationApprovalData {
   house_address: string | null;
   reason?: string;
   [key: string]: unknown; // Index signature for Record compatibility
+}
+
+// =====================================================
+// Notes Module Types
+// =====================================================
+
+// Note entity type (polymorphic - can link to resident or house)
+export type NoteEntityType = 'resident' | 'house';
+
+// Note categories for organization
+export type NoteCategory =
+  | 'general'
+  | 'agreement'
+  | 'complaint'
+  | 'reminder'
+  | 'financial'
+  | 'security'
+  | 'maintenance'
+  | 'legal';
+
+// Category display labels
+export const NOTE_CATEGORY_LABELS: Record<NoteCategory, string> = {
+  general: 'General',
+  agreement: 'Agreement',
+  complaint: 'Complaint',
+  reminder: 'Reminder',
+  financial: 'Financial',
+  security: 'Security',
+  maintenance: 'Maintenance',
+  legal: 'Legal',
+};
+
+// Category colors for badges
+export const NOTE_CATEGORY_COLORS: Record<NoteCategory, string> = {
+  general: 'bg-gray-500/10 text-gray-700 border-gray-200 dark:text-gray-400 dark:border-gray-700',
+  agreement: 'bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800',
+  complaint: 'bg-red-500/10 text-red-700 border-red-200 dark:text-red-400 dark:border-red-800',
+  reminder: 'bg-yellow-500/10 text-yellow-700 border-yellow-200 dark:text-yellow-400 dark:border-yellow-800',
+  financial: 'bg-green-500/10 text-green-700 border-green-200 dark:text-green-400 dark:border-green-800',
+  security: 'bg-purple-500/10 text-purple-700 border-purple-200 dark:text-purple-400 dark:border-purple-800',
+  maintenance: 'bg-orange-500/10 text-orange-700 border-orange-200 dark:text-orange-400 dark:border-orange-800',
+  legal: 'bg-indigo-500/10 text-indigo-700 border-indigo-200 dark:text-indigo-400 dark:border-indigo-800',
+};
+
+// Category icons (Lucide icon names)
+export const NOTE_CATEGORY_ICONS: Record<NoteCategory, string> = {
+  general: 'StickyNote',
+  agreement: 'FileSignature',
+  complaint: 'AlertTriangle',
+  reminder: 'Bell',
+  financial: 'DollarSign',
+  security: 'Shield',
+  maintenance: 'Wrench',
+  legal: 'Scale',
+};
+
+// Base entity note type (from database)
+export interface EntityNote {
+  id: string;
+  entity_type: NoteEntityType;
+  entity_id: string;
+  title: string | null;
+  content: string;
+  category: NoteCategory;
+  is_confidential: boolean;
+  confidential_roles: string[] | null;
+  document_id: string | null;
+  version: number;
+  parent_note_id: string | null;
+  is_current: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Note with related data (for display)
+export interface EntityNoteWithRelations extends EntityNote {
+  created_by_profile: {
+    id: string;
+    full_name: string;
+  } | null;
+  document: {
+    id: string;
+    title: string;
+    file_type: string | null;
+  } | null;
+  version_count?: number;
+}
+
+// Note version (for history view)
+export interface NoteVersion {
+  id: string;
+  version: number;
+  title: string | null;
+  content: string;
+  created_by_profile: {
+    id: string;
+    full_name: string;
+  } | null;
+  created_at: string;
+}
+
+// Input for creating a new note
+export interface CreateNoteInput {
+  entity_type: NoteEntityType;
+  entity_id: string;
+  title?: string;
+  content: string;
+  category?: NoteCategory;
+  is_confidential?: boolean;
+  confidential_roles?: string[];
+  document_id?: string | null;
+}
+
+// Input for updating an existing note (creates new version)
+export interface UpdateNoteInput {
+  title?: string;
+  content: string;
+  category?: NoteCategory;
+  is_confidential?: boolean;
+  confidential_roles?: string[];
+  document_id?: string | null;
+}
+
+// List params for filtering notes
+export interface NoteListParams {
+  entity_type: NoteEntityType;
+  entity_id: string;
+  category?: NoteCategory;
+  include_history?: boolean;
+  page?: number;
+  limit?: number;
 }

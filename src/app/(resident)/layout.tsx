@@ -1,6 +1,5 @@
 'use client';
 
-import { Suspense } from 'react';
 import { PortalTopBar } from '@/components/resident-portal/portal-topbar';
 import { PortalBottomNav } from '@/components/resident-portal/portal-bottom-nav';
 import { PortalSidebar } from '@/components/resident-portal/portal-sidebar';
@@ -58,11 +57,9 @@ export default function ResidentPortalLayout({
 
   return (
     <VisualThemeProvider context="resident-portal" initialThemeId={effectiveTheme || 'nahid'}>
-      <Suspense fallback={<PortalContent>{children}</PortalContent>}>
-        <ImpersonationPortalWrapper>
-          <PortalContent>{children}</PortalContent>
-        </ImpersonationPortalWrapper>
-      </Suspense>
+      <ImpersonationPortalWrapper>
+        <PortalContent>{children}</PortalContent>
+      </ImpersonationPortalWrapper>
     </VisualThemeProvider>
   );
 }

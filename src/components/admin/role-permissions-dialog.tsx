@@ -20,7 +20,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Loader2, ChevronDown, ChevronRight, Shield } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Loader2, ChevronDown, ChevronRight, Shield, Search, X } from 'lucide-react';
 import type { AppRoleWithPermissions, AppPermission, PermissionCategory } from '@/types/database';
 
 interface RolePermissionsDialogProps {
@@ -45,6 +46,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   announcements: 'Announcements',
   notifications: 'Notifications',
   report_subscriptions: 'Report Subscriptions',
+  impersonation: 'Impersonation',
 };
 
 // Category display order (imports merged into payments)
@@ -57,6 +59,7 @@ const CATEGORY_ORDER: PermissionCategory[] = [
   'reports',
   'settings',
   'approvals',
+  'impersonation',
   'system',
   'documents',
   'announcements',
@@ -74,6 +77,9 @@ export function RolePermissionsDialog({
 
   // Selected permission IDs (local state)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Track which categories are expanded
   const [expandedCategories, setExpandedCategories] = useState<Set<PermissionCategory>>(
@@ -107,7 +113,37 @@ export function RolePermissionsDialog({
     return grouped;
   }, [allPermissions]);
 
-  // Calculate category selection states
+  // Filter permissions based on search query
+  const filteredPermissionsByCategory = useMemo(() => {
+    if (!searchQuery.trim()) return permissionsByCategory;
+
+    const query = searchQuery.toLowerCase().trim();
+    const filtered = new Map<PermissionCategory, AppPermission[]>();
+
+    for (const [category, perms] of permissionsByCategory) {
+      const matchingPerms = perms.filter(
+        (p) =>
+          p.display_name.toLowerCase().includes(query) ||
+          p.name.toLowerCase().includes(query) ||
+          (p.description && p.description.toLowerCase().includes(query))
+      );
+      if (matchingPerms.length > 0) {
+        filtered.set(category, matchingPerms);
+      }
+    }
+
+    return filtered;
+  }, [permissionsByCategory, searchQuery]);
+
+  // Auto-expand categories when searching
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      // Expand all categories that have matching permissions
+      setExpandedCategories(new Set(filteredPermissionsByCategory.keys()));
+    }
+  }, [searchQuery, filteredPermissionsByCategory]);
+
+  // Calculate category selection states (based on ALL permissions, not filtered)
   const categoryStates = useMemo(() => {
     const states = new Map<PermissionCategory, 'all' | 'some' | 'none'>();
 
@@ -129,6 +165,18 @@ export function RolePermissionsDialog({
 
     return states;
   }, [permissionsByCategory, selectedIds]);
+
+  // Calculate filtered selection counts for display
+  const filteredCategoryCounts = useMemo(() => {
+    const counts = new Map<PermissionCategory, { selected: number; total: number }>();
+
+    for (const [category, perms] of filteredPermissionsByCategory) {
+      const selectedCount = perms.filter((p) => selectedIds.has(p.id)).length;
+      counts.set(category, { selected: selectedCount, total: perms.length });
+    }
+
+    return counts;
+  }, [filteredPermissionsByCategory, selectedIds]);
 
   const togglePermission = (permissionId: string) => {
     setSelectedIds((prev) => {
@@ -206,6 +254,27 @@ export function RolePermissionsDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {/* Search input */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search permissions..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 pr-9"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+              onClick={() => setSearchQuery('')}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
         {permissionsLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin" />
@@ -213,13 +282,30 @@ export function RolePermissionsDialog({
         ) : (
           <ScrollArea className="h-[50vh] -mx-6 px-6">
             <div className="space-y-2 py-4">
+              {/* No results message */}
+              {searchQuery && filteredPermissionsByCategory.size === 0 && (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Search className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    No permissions found matching &quot;{searchQuery}&quot;
+                  </p>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    onClick={() => setSearchQuery('')}
+                    className="mt-1"
+                  >
+                    Clear search
+                  </Button>
+                </div>
+              )}
               {CATEGORY_ORDER.map((category) => {
-                const perms = permissionsByCategory.get(category) || [];
+                const perms = filteredPermissionsByCategory.get(category) || [];
                 if (perms.length === 0) return null;
 
                 const state = categoryStates.get(category);
                 const isExpanded = expandedCategories.has(category);
-                const selectedCount = perms.filter((p) => selectedIds.has(p.id)).length;
+                const counts = filteredCategoryCounts.get(category) || { selected: 0, total: 0 };
 
                 return (
                   <Collapsible
@@ -255,7 +341,7 @@ export function RolePermissionsDialog({
                         </div>
                       </div>
                       <Badge variant="secondary" className="text-xs">
-                        {selectedCount} / {perms.length}
+                        {counts.selected} / {counts.total}
                       </Badge>
                     </div>
 

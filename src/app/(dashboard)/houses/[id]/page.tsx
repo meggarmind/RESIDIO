@@ -40,11 +40,14 @@ import { HousePaymentStatus } from '@/components/houses/house-payment-status';
 import { OccupancyBadge, AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { useHouse, useDeleteHouse, useOwnershipHistory } from '@/hooks/use-houses';
 import { useResidents, useAssignHouse, useUnassignHouse, useMoveOutLandlord, useUpdateResidentHouse, useSwapResidentRoles, useTransferOwnership, useRemoveOwnership } from '@/hooks/use-residents';
-import { Home, Pencil, Trash2, Users, ArrowLeft, Plus, Link2, Loader2, DoorOpen, AlertTriangle, SquarePen, ArrowUp, ArrowRightLeft, History, Calendar, UserMinus } from 'lucide-react';
+import { Home, Pencil, Trash2, Users, ArrowLeft, Plus, Link2, Loader2, DoorOpen, AlertTriangle, SquarePen, ArrowUp, ArrowRightLeft, History, Calendar, UserMinus, StickyNote } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ResidentRole, ResidentHouse, Resident } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } from '@/types/database';
 import { requiresSponsor } from '@/lib/validators/resident';
+import { NotesTimeline } from '@/components/notes';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 // House state for Add New form context
 type HouseState = 'empty' | 'has_tenant' | 'has_resident_landlord' | 'has_non_resident_landlord';

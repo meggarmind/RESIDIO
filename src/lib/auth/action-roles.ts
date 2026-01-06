@@ -131,6 +131,13 @@ export const PERMISSIONS = {
   IMPERSONATION_START_SESSION: 'impersonation.start_session',
   IMPERSONATION_APPROVE_REQUESTS: 'impersonation.approve_requests',
   IMPERSONATION_MANAGE_SETTINGS: 'impersonation.manage_settings',
+
+  // Notes Module
+  NOTES_VIEW: 'notes.view',
+  NOTES_CREATE: 'notes.create',
+  NOTES_UPDATE: 'notes.update',
+  NOTES_DELETE: 'notes.delete',
+  NOTES_VIEW_CONFIDENTIAL: 'notes.view_confidential',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];

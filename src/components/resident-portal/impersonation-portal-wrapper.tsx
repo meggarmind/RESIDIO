@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useImpersonation } from '@/hooks/use-impersonation';
@@ -13,19 +13,9 @@ interface ImpersonationPortalWrapperProps {
 }
 
 /**
- * Impersonation Portal Wrapper
- *
- * Wraps the portal content to handle impersonation state:
- * 1. Shows the impersonation banner when an admin is impersonating
- * 2. Shows the resident selector when URL has ?impersonate=true
- * 3. Logs page views during impersonation for audit
- *
- * Entry points for impersonation:
- * - /portal?impersonate=true - Opens selector dialog
- * - Portal header "View as..." button
- * - Dashboard sidebar "View as Resident" link
+ * Inner component that uses useSearchParams (requires Suspense boundary)
  */
-export function ImpersonationPortalWrapper({ children }: ImpersonationPortalWrapperProps) {
+function ImpersonationPortalWrapperInner({ children }: ImpersonationPortalWrapperProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -131,5 +121,30 @@ export function ImpersonationPortalWrapper({ children }: ImpersonationPortalWrap
       {/* Portal content */}
       {children}
     </>
+  );
+}
+
+/**
+ * Impersonation Portal Wrapper
+ *
+ * Wraps the portal content to handle impersonation state:
+ * 1. Shows the impersonation banner when an admin is impersonating
+ * 2. Shows the resident selector when URL has ?impersonate=true
+ * 3. Logs page views during impersonation for audit
+ *
+ * Entry points for impersonation:
+ * - /portal?impersonate=true - Opens selector dialog
+ * - Portal header "View as..." button
+ * - Dashboard sidebar "View as Resident" link
+ *
+ * Note: Uses Suspense internally because useSearchParams requires it
+ */
+export function ImpersonationPortalWrapper({ children }: ImpersonationPortalWrapperProps) {
+  return (
+    <Suspense fallback={<>{children}</>}>
+      <ImpersonationPortalWrapperInner>
+        {children}
+      </ImpersonationPortalWrapperInner>
+    </Suspense>
   );
 }

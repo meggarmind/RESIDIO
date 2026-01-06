@@ -20,8 +20,11 @@ import { ResidentSecurityContacts } from '@/components/residents/resident-securi
 import { PaymentAliases } from '@/components/residents/payment-aliases';
 import { PreferencesForm } from '@/components/notifications/preferences-form';
 import { AdminContactVerification } from '@/components/residents/admin-contact-verification';
+import { NotesTimeline } from '@/components/notes';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell } from 'lucide-react';
+import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell, StickyNote } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ResidentDetailPageProps {
@@ -38,6 +41,13 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const { data: verificationStatus } = useVerificationStatus(id);
   const deleteMutation = useDeleteResident();
   const verifyMutation = useVerifyResident();
+
+  // Notes permissions
+  const { hasPermission } = useAuth();
+  const canViewNotes = hasPermission(PERMISSIONS.NOTES_VIEW);
+  const canCreateNotes = hasPermission(PERMISSIONS.NOTES_CREATE);
+  const canEditNotes = hasPermission(PERMISSIONS.NOTES_UPDATE);
+  const canDeleteNotes = hasPermission(PERMISSIONS.NOTES_DELETE);
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to archive this resident?')) return;
@@ -183,6 +193,12 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
             <Bell className="h-4 w-4 mr-1" />
             Notifications
           </TabsTrigger>
+          {canViewNotes && (
+            <TabsTrigger value="notes">
+              <StickyNote className="h-4 w-4 mr-1" />
+              Notes
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 mt-6">
@@ -353,6 +369,18 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         <TabsContent value="notifications" className="mt-6">
           <PreferencesForm residentId={id} />
         </TabsContent>
+
+        {canViewNotes && (
+          <TabsContent value="notes" className="mt-6">
+            <NotesTimeline
+              entityType="resident"
+              entityId={id}
+              canCreate={canCreateNotes}
+              canEdit={canEditNotes}
+              canDelete={canDeleteNotes}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
