@@ -67,21 +67,20 @@ export async function getNoteHistory(noteId: string): Promise<GetNoteHistoryResp
   }
 
   // Transform to NoteVersion format
-  const history: NoteVersion[] = (versions || []).map((v) => ({
-    id: v.id,
-    version: v.version,
-    title: v.title,
-    content: v.content,
-    category: v.category,
-    is_confidential: v.is_confidential,
-    confidential_roles: v.confidential_roles,
-    document_id: v.document_id,
-    is_current: v.is_current,
-    created_at: v.created_at,
-    created_by: v.created_by,
-    creator: v.creator as { id: string; full_name: string } | null,
-    document: v.document as { id: string; title: string; file_name: string; file_type: string | null } | null,
-  }));
+  // Note: creator is returned as array from Supabase join, take first element
+  const history: NoteVersion[] = (versions || []).map((v) => {
+    const creatorData = Array.isArray(v.creator) ? v.creator[0] : v.creator;
+    return {
+      id: v.id,
+      version: v.version,
+      title: v.title,
+      content: v.content,
+      category: v.category,
+      is_current: v.is_current,
+      created_at: v.created_at,
+      created_by_profile: creatorData as { id: string; full_name: string } | null,
+    };
+  });
 
   return { data: history, error: null };
 }
@@ -152,20 +151,16 @@ export async function compareNoteVersions(
 
   const toNoteVersion = (v: typeof versions[number] | undefined): NoteVersion | null => {
     if (!v) return null;
+    const creatorData = Array.isArray(v.creator) ? v.creator[0] : v.creator;
     return {
       id: v.id,
       version: v.version,
       title: v.title,
       content: v.content,
       category: v.category,
-      is_confidential: v.is_confidential,
-      confidential_roles: v.confidential_roles,
-      document_id: v.document_id,
       is_current: v.is_current,
       created_at: v.created_at,
-      created_by: v.created_by,
-      creator: v.creator as { id: string; full_name: string } | null,
-      document: v.document as { id: string; title: string; file_name: string; file_type: string | null } | null,
+      created_by_profile: creatorData as { id: string; full_name: string } | null,
     };
   };
 

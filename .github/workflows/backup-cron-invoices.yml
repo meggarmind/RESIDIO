@@ -1,0 +1,106 @@
+# Backup Cron - Invoice Generation
+# This workflow acts as a safety net in case Vercel cron fails.
+# It runs daily and checks if invoice generation is needed for the current month.
+# If Vercel cron failed to generate invoices, this will trigger generation.
+#
+# SECURITY NOTE: This workflow only uses repository secrets (APP_URL, CRON_SECRET)
+# and does not process any untrusted user input.
+
+name: Backup Cron - Invoice Generation
+
+on:
+  schedule:
+    # Run at 7 AM UTC daily (1 hour after Vercel cron at 6 AM)
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    # Allow manual trigger for testing
+
+env:
+  APP_URL: ${{ secrets.APP_URL }}
+  CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+jobs:
+  check-and-generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check if secrets are configured
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::Required secrets APP_URL and CRON_SECRET are not configured"
+            echo "Please configure these secrets in your repository settings:"
+            echo "  - APP_URL: Your deployed application URL (e.g., https://residio.vercel.app)"
+            echo "  - CRON_SECRET: The same CRON_SECRET configured in Vercel"
+            exit 1
+          fi
+          echo "Secrets configured correctly"
+
+      - name: Check cron health status
+        id: health-check
+        run: |
+          echo "Checking cron health at ${APP_URL}/api/health/cron-status"
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" "${APP_URL}/api/health/cron-status" || echo "error")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::warning::Health check failed with HTTP $HTTP_CODE"
+            echo "needs_generation=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Parse invoice generation status using jq
+          INVOICE_STATUS=$(echo "$BODY" | jq -r '.jobs[] | select(.name == "invoice-generation") | .status' 2>/dev/null || echo "unknown")
+
+          echo "Invoice generation status: $INVOICE_STATUS"
+          echo "invoice_status=$INVOICE_STATUS" >> "$GITHUB_OUTPUT"
+
+          # Check if generation is needed
+          if [ "$INVOICE_STATUS" = "critical" ]; then
+            echo "::warning::Invoice generation is OVERDUE - will trigger backup generation"
+            echo "needs_generation=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Invoice generation status is healthy or waiting"
+            echo "needs_generation=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger backup invoice generation
+        if: steps.health-check.outputs.needs_generation == 'true'
+        run: |
+          echo "Triggering backup invoice generation..."
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_URL}/api/cron/generate-invoices" || echo "error")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "Response: $BODY"
+          echo "HTTP Code: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "::notice::Backup invoice generation completed successfully"
+
+            # Extract stats if available
+            GENERATED=$(echo "$BODY" | jq -r '.generated // "unknown"' 2>/dev/null)
+            SKIPPED=$(echo "$BODY" | jq -r '.skipped // "unknown"' 2>/dev/null)
+            ERRORS=$(echo "$BODY" | jq -r '.errors // "unknown"' 2>/dev/null)
+
+            echo "Generated: $GENERATED, Skipped: $SKIPPED, Errors: $ERRORS"
+          else
+            echo "::error::Backup invoice generation failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Log status
+        if: always()
+        run: |
+          echo "=== Backup Cron Summary ==="
+          echo "Date: $(date -u)"
+          echo "Invoice Status: ${{ steps.health-check.outputs.invoice_status }}"
+          echo "Generation Needed: ${{ steps.health-check.outputs.needs_generation }}"
+          echo "=========================="

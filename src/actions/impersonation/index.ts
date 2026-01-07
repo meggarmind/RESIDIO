@@ -16,7 +16,12 @@ import type {
 // =====================================================
 
 /**
- * Check if current user can impersonate (is super_admin or has permission)
+ * Check if current user can impersonate residents.
+ *
+ * Uses RBAC permission system (impersonation.start_session) instead of
+ * hardcoded super_admin check, allowing any role to be granted impersonation.
+ *
+ * Falls back to legacy impersonation_enabled flag for approval-based flow.
  */
 export async function canImpersonate(): Promise<{
   canImpersonate: boolean;
@@ -24,64 +29,40 @@ export async function canImpersonate(): Promise<{
   isSuperAdmin: boolean;
   impersonationEnabled: boolean;
 }> {
+  // Check for impersonation.start_session permission via RBAC
+  const auth = await authorizePermission(PERMISSIONS.IMPERSONATION_START_SESSION);
+
+  if (auth.authorized) {
+    // User has the permission - check if super_admin for approval bypass
+    const isSuperAdmin = auth.roleName === 'super_admin';
+    return {
+      canImpersonate: true,
+      requiresApproval: false, // Permission holders don't need approval
+      isSuperAdmin,
+      impersonationEnabled: true,
+    };
+  }
+
+  // Fallback: Check legacy impersonation_enabled flag (requires approval)
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    console.log('[canImpersonate] No user found');
     return { canImpersonate: false, requiresApproval: false, isSuperAdmin: false, impersonationEnabled: false };
   }
 
-  // Get profile with role info
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile } = await supabase
     .from('profiles')
-    .select(`
-      id,
-      impersonation_enabled,
-      role_id,
-      app_roles!inner (
-        name
-      )
-    `)
+    .select('impersonation_enabled')
     .eq('id', user.id)
     .single();
 
-  console.log('[canImpersonate] Profile query result:', {
-    profile,
-    profileError,
-    userId: user.id,
-    userEmail: user.email
-  });
+  const impersonationEnabled = profile?.impersonation_enabled || false;
 
-  if (!profile) {
-    console.log('[canImpersonate] No profile found');
-    return { canImpersonate: false, requiresApproval: false, isSuperAdmin: false, impersonationEnabled: false };
-  }
-
-  const roleName = (profile.app_roles as unknown as { name: string })?.name;
-  const isSuperAdmin = roleName === 'super_admin';
-  const impersonationEnabled = profile.impersonation_enabled || false;
-
-  console.log('[canImpersonate] Role check:', {
-    roleName,
-    isSuperAdmin,
-    impersonationEnabled,
-    roleId: profile.role_id
-  });
-
-  // Super admins can always impersonate without approval
-  if (isSuperAdmin) {
-    console.log('[canImpersonate] Super admin detected - granting access');
-    return { canImpersonate: true, requiresApproval: false, isSuperAdmin: true, impersonationEnabled: true };
-  }
-
-  // Other admins need impersonation_enabled and require approval
   if (impersonationEnabled) {
-    console.log('[canImpersonate] Regular admin with impersonation enabled');
     return { canImpersonate: true, requiresApproval: true, isSuperAdmin: false, impersonationEnabled: true };
   }
 
-  console.log('[canImpersonate] No permission - not super_admin and impersonation not enabled');
   return { canImpersonate: false, requiresApproval: false, isSuperAdmin: false, impersonationEnabled: false };
 }
 
@@ -120,11 +101,14 @@ export async function startImpersonationSession(residentId: string): Promise<{
       first_name,
       last_name,
       resident_code,
-      resident_houses!resident_houses_resident_id_fkey (
+      resident_houses!resident_id (
         house:houses (
           id,
-          address,
-          short_name
+          house_number,
+          short_name,
+          street:streets (
+            name
+          )
         )
       )
     `)
@@ -171,7 +155,12 @@ export async function startImpersonationSession(residentId: string): Promise<{
   });
 
   // Build response with details
-  const residentHouse = (resident.resident_houses as unknown as Array<{ house: { id: string; address: string; short_name: string | null } }>)?.[0]?.house;
+  const residentHouse = (resident.resident_houses as unknown as Array<{ house: { id: string; house_number: string; short_name: string | null; street: { name: string } | null } }>)?.[0]?.house;
+
+  // Compute address from house_number + street name
+  const computedAddress = residentHouse
+    ? `${residentHouse.house_number}${residentHouse.street?.name ? `, ${residentHouse.street.name}` : ''}`
+    : '';
 
   const sessionWithDetails: ImpersonationSessionWithDetails = {
     ...session,
@@ -188,7 +177,7 @@ export async function startImpersonationSession(residentId: string): Promise<{
     },
     house: residentHouse ? {
       id: residentHouse.id,
-      address: residentHouse.address,
+      address: computedAddress,
       short_name: residentHouse.short_name,
     } : null,
   };
@@ -267,6 +256,8 @@ export async function endImpersonationSession(sessionId: string): Promise<{
 
 /**
  * Get the current active impersonation session for the logged-in admin
+ *
+ * Uses separate queries to avoid PostgREST embedded resource FK hint issues.
  */
 export async function getActiveImpersonation(): Promise<{
   success: boolean;
@@ -280,52 +271,70 @@ export async function getActiveImpersonation(): Promise<{
     return { success: false, error: 'Not authenticated' };
   }
 
-  const { data: session, error } = await supabase
+  // Step 1: Get the active session (simple query, no joins)
+  const { data: session, error: sessionError } = await supabase
     .from('impersonation_sessions')
-    .select(`
-      *,
-      profiles!inner (
-        id,
-        full_name,
-        email
-      ),
-      residents!inner (
-        id,
-        first_name,
-        last_name,
-        resident_code,
-        resident_houses!resident_houses_resident_id_fkey (
-          house:houses (
-            id,
-            address,
-            short_name
-          )
-        )
-      )
-    `)
+    .select('*')
     .eq('admin_profile_id', user.id)
     .eq('is_active', true)
     .maybeSingle();
 
-  if (error) {
-    return { success: false, error: error.message };
+  if (sessionError) {
+    return { success: false, error: sessionError.message };
   }
 
   if (!session) {
     return { success: true, data: null };
   }
 
-  // Transform response
-  const adminProfile = session.profiles as unknown as { id: string; full_name: string; email: string };
-  const resident = session.residents as unknown as {
-    id: string;
-    first_name: string;
-    last_name: string;
-    resident_code: string;
-    resident_houses: Array<{ house: { id: string; address: string; short_name: string | null } }>;
-  };
+  // Step 2: Fetch related data in parallel
+  const [adminResult, residentResult] = await Promise.all([
+    // Get admin profile
+    supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .eq('id', session.admin_profile_id)
+      .single(),
+    // Get resident with house info
+    supabase
+      .from('residents')
+      .select(`
+        id,
+        first_name,
+        last_name,
+        resident_code,
+        resident_houses!resident_id (
+          house:houses (
+            id,
+            house_number,
+            short_name,
+            street:streets (
+              name
+            )
+          )
+        )
+      `)
+      .eq('id', session.impersonated_resident_id)
+      .single(),
+  ]);
 
-  const residentHouse = resident.resident_houses?.[0]?.house;
+  const adminProfile = adminResult.data;
+  const resident = residentResult.data;
+
+  if (!adminProfile || !resident) {
+    return { success: false, error: 'Failed to load session details' };
+  }
+
+  // Transform response
+  const residentHouses = resident.resident_houses as unknown as Array<{
+    house: { id: string; house_number: string; short_name: string | null; street: { name: string } | null };
+  }>;
+  const residentHouse = residentHouses?.[0]?.house;
+
+  // Compute address from house_number + street name
+  const computedAddress = residentHouse
+    ? `${residentHouse.house_number}${residentHouse.street?.name ? `, ${residentHouse.street.name}` : ''}`
+    : '';
 
   const sessionWithDetails: ImpersonationSessionWithDetails = {
     id: session.id,
@@ -352,7 +361,7 @@ export async function getActiveImpersonation(): Promise<{
     },
     house: residentHouse ? {
       id: residentHouse.id,
-      address: residentHouse.address,
+      address: computedAddress,
       short_name: residentHouse.short_name,
     } : null,
   };
@@ -375,6 +384,7 @@ export async function searchResidentsForImpersonation(query: string): Promise<{
     return { success: false, error: 'You do not have permission to impersonate residents' };
   }
 
+  // Use server client - RLS now works with RBAC roles via updated get_my_role()
   const supabase = await createServerSupabaseClient();
 
   // Search by name, email, phone, or resident code
@@ -389,12 +399,12 @@ export async function searchResidentsForImpersonation(query: string): Promise<{
       email,
       phone_primary,
       resident_code,
-      avatar_url,
+      photo_url,
       portal_enabled,
-      resident_houses!resident_houses_resident_id_fkey (
+      resident_houses!resident_id (
         house:houses (
           id,
-          address,
+          house_number,
           short_name,
           street:streets (
             name
@@ -414,11 +424,16 @@ export async function searchResidentsForImpersonation(query: string): Promise<{
     const houseData = (r.resident_houses as unknown as Array<{
       house: {
         id: string;
-        address: string;
+        house_number: string;
         short_name: string | null;
         street: { name: string };
       };
     }>)?.[0]?.house;
+
+    // Compute address from house_number + street name
+    const computedAddress = houseData
+      ? `${houseData.house_number}${houseData.street?.name ? `, ${houseData.street.name}` : ''}`
+      : '';
 
     return {
       id: r.id,
@@ -427,11 +442,11 @@ export async function searchResidentsForImpersonation(query: string): Promise<{
       email: r.email,
       phone_primary: r.phone_primary,
       resident_code: r.resident_code,
-      avatar_url: r.avatar_url,
+      avatar_url: r.photo_url,
       portal_enabled: r.portal_enabled || false,
       house: houseData ? {
         id: houseData.id,
-        address: houseData.address,
+        address: computedAddress,
         short_name: houseData.short_name,
         street_name: houseData.street?.name || '',
       } : null,
@@ -448,40 +463,48 @@ export async function logImpersonationPageView(sessionId: string, path: string):
   success: boolean;
   error?: string;
 }> {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return { success: false, error: 'Not authenticated' };
+    if (!user) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    // Get current session - use maybeSingle to handle case when session not found
+    const { data: session, error: sessionError } = await supabase
+      .from('impersonation_sessions')
+      .select('id, admin_profile_id, page_views')
+      .eq('id', sessionId)
+      .eq('admin_profile_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (sessionError || !session) {
+      return { success: false, error: sessionError?.message || 'Active session not found' };
+    }
+
+    // Add page view
+    const currentViews = (session.page_views || []) as Array<{ path: string; timestamp: string }>;
+    const newViews = [...currentViews, { path, timestamp: new Date().toISOString() }];
+
+    const { error: updateError } = await supabase
+      .from('impersonation_sessions')
+      .update({ page_views: newViews })
+      .eq('id', sessionId);
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('[logImpersonationPageView] Unexpected error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'An unexpected error occurred',
+    };
   }
-
-  // Get current session
-  const { data: session, error: sessionError } = await supabase
-    .from('impersonation_sessions')
-    .select('id, admin_profile_id, page_views')
-    .eq('id', sessionId)
-    .eq('admin_profile_id', user.id)
-    .eq('is_active', true)
-    .single();
-
-  if (sessionError || !session) {
-    return { success: false, error: 'Active session not found' };
-  }
-
-  // Add page view
-  const currentViews = (session.page_views || []) as Array<{ path: string; timestamp: string }>;
-  const newViews = [...currentViews, { path, timestamp: new Date().toISOString() }];
-
-  const { error: updateError } = await supabase
-    .from('impersonation_sessions')
-    .update({ page_views: newViews })
-    .eq('id', sessionId);
-
-  if (updateError) {
-    return { success: false, error: updateError.message };
-  }
-
-  return { success: true };
 }
 
 /**
@@ -506,25 +529,29 @@ export async function getImpersonationHistory(params: {
   const supabase = await createServerSupabaseClient();
   const { adminId, residentId, limit = 50, offset = 0 } = params;
 
+  // Use explicit FK hints for PostgREST embedded resources
   let query = supabase
     .from('impersonation_sessions')
     .select(`
       *,
-      profiles!inner (
+      profiles:profiles!impersonation_sessions_admin_profile_id_fkey (
         id,
         full_name,
         email
       ),
-      residents!inner (
+      residents:residents!impersonation_sessions_impersonated_resident_id_fkey (
         id,
         first_name,
         last_name,
         resident_code,
-        resident_houses!resident_houses_resident_id_fkey (
+        resident_houses!resident_id (
           house:houses (
             id,
-            address,
-            short_name
+            house_number,
+            short_name,
+            street:streets (
+              name
+            )
           )
         )
       )
@@ -554,10 +581,15 @@ export async function getImpersonationHistory(params: {
       first_name: string;
       last_name: string;
       resident_code: string;
-      resident_houses: Array<{ house: { id: string; address: string; short_name: string | null } }>;
+      resident_houses: Array<{ house: { id: string; house_number: string; short_name: string | null; street: { name: string } | null } }>;
     };
 
     const residentHouse = resident.resident_houses?.[0]?.house;
+
+    // Compute address from house_number + street name
+    const computedAddress = residentHouse
+      ? `${residentHouse.house_number}${residentHouse.street?.name ? `, ${residentHouse.street.name}` : ''}`
+      : '';
 
     return {
       id: session.id,
@@ -584,7 +616,7 @@ export async function getImpersonationHistory(params: {
       },
       house: residentHouse ? {
         id: residentHouse.id,
-        address: residentHouse.address,
+        address: computedAddress,
         short_name: residentHouse.short_name,
       } : null,
     };

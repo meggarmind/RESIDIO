@@ -116,23 +116,29 @@ export default function LoginPage() {
       return;
     }
 
-    // Get user profile to determine role-based routing
+    // Get user profile with role in a single query (PERFORMANCE: eliminates 2nd query)
     if (authData.user) {
-      const { data: profile } = await supabase
+      // Using nested select to join profiles + app_roles in one roundtrip
+      const { data: profileWithRole } = await supabase
         .from('profiles')
-        .select('role_id, resident_id')
+        .select(`
+          role_id,
+          resident_id,
+          app_roles!profiles_role_id_fkey (name)
+        `)
         .eq('id', authData.user.id)
         .single();
 
-      // Get role information
+      // Extract role name from joined result
+      // app_roles can be an array or single object depending on the relation type
+      const appRoles = profileWithRole?.app_roles;
       let roleName: string | null = null;
-      if (profile?.role_id) {
-        const { data: role } = await supabase
-          .from('app_roles')
-          .select('name')
-          .eq('id', profile.role_id)
-          .single();
-        roleName = role?.name || null;
+      if (appRoles) {
+        if (Array.isArray(appRoles)) {
+          roleName = appRoles[0]?.name || null;
+        } else if (typeof appRoles === 'object' && 'name' in appRoles) {
+          roleName = (appRoles as { name: string }).name;
+        }
       }
 
       // Role-based routing
@@ -141,7 +147,7 @@ export default function LoginPage() {
 
       if (roleName && adminRoles.includes(roleName)) {
         router.push('/dashboard');
-      } else if (roleName === 'resident' || profile?.resident_id) {
+      } else if (roleName === 'resident' || profileWithRole?.resident_id) {
         router.push('/portal');
       } else {
         // No role assigned yet - could be a pending account claim

@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 
 interface AnimatedCounterProps {
   value: number;
+  /** Animation duration in ms. Default: 500ms (PERFORMANCE: reduced from 1000ms) */
   duration?: number;
   className?: string;
   decimals?: number;
@@ -13,6 +14,14 @@ interface AnimatedCounterProps {
   formatNumber?: boolean;
   /** Custom formatter function. If provided, overrides prefix/suffix/decimals/formatNumber */
   formatter?: (value: number) => string;
+  /** Skip animation and show final value immediately */
+  skipAnimation?: boolean;
+}
+
+// Check for reduced motion preference (cached for performance)
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
 /**
@@ -20,6 +29,11 @@ interface AnimatedCounterProps {
  *
  * Animates counting from 0 to target value on mount or value change.
  * Uses requestAnimationFrame for smooth 60fps animation.
+ *
+ * PERFORMANCE OPTIMIZATIONS:
+ * - Default duration reduced from 1000ms to 500ms for faster perceived load
+ * - Respects prefers-reduced-motion for accessibility and performance
+ * - skipAnimation prop for programmatic control
  *
  * @example
  * <AnimatedCounter value={1234} formatNumber prefix="$" />
@@ -31,19 +45,26 @@ interface AnimatedCounterProps {
  */
 export function AnimatedCounter({
   value,
-  duration = 1000,
+  duration = 500, // PERFORMANCE: Reduced from 1000ms
   className,
   decimals = 0,
   prefix = '',
   suffix = '',
   formatNumber = false,
   formatter,
+  skipAnimation = false,
 }: AnimatedCounterProps) {
   const [displayValue, setDisplayValue] = useState(0);
   const rafRef = useRef<number | undefined>(undefined);
   const startTimeRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
+    // PERFORMANCE: Skip animation if user prefers reduced motion or skipAnimation is set
+    if (skipAnimation || prefersReducedMotion()) {
+      setDisplayValue(value);
+      return;
+    }
+
     // Reset animation when value changes
     setDisplayValue(0);
     startTimeRef.current = undefined;
@@ -73,7 +94,7 @@ export function AnimatedCounter({
         cancelAnimationFrame(rafRef.current);
       }
     };
-  }, [value, duration]);
+  }, [value, duration, skipAnimation]);
 
   const formatValue = (num: number): string => {
     const fixed = num.toFixed(decimals);

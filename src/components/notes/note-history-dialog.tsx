@@ -196,7 +196,7 @@ export function NoteHistoryDialog({
 
                     <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
                       <span>
-                        by <span className="font-medium">{version.creator?.full_name || 'Unknown'}</span>
+                        by <span className="font-medium">{version.created_by_profile?.full_name || 'Unknown'}</span>
                       </span>
                       <span>{format(new Date(version.created_at), 'PPp')}</span>
                     </div>

@@ -38,6 +38,44 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// PERFORMANCE: Session storage caching for faster initial loads
+const PROFILE_CACHE_KEY = 'residio_profile_cache';
+const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCachedProfile(): Profile | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = sessionStorage.getItem(PROFILE_CACHE_KEY);
+    if (cached) {
+      const { profile, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < PROFILE_CACHE_TTL) {
+        return profile;
+      }
+      // Cache expired, remove it
+      sessionStorage.removeItem(PROFILE_CACHE_KEY);
+    }
+  } catch {
+    // Ignore parsing errors
+  }
+  return null;
+}
+
+function setCachedProfile(profile: Profile | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (profile) {
+      sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({
+        profile,
+        timestamp: Date.now()
+      }));
+    } else {
+      sessionStorage.removeItem(PROFILE_CACHE_KEY);
+    }
+  } catch {
+    // Ignore storage errors (e.g., quota exceeded)
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -58,17 +96,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // PERFORMANCE: Use cached profile for instant UI while fetching fresh data
+      const cachedProfile = getCachedProfile();
+      if (cachedProfile) {
+        setProfile(cachedProfile);
+      }
+
       const { data: { session: initialSession } } = await supabase.auth.getSession();
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
 
-      if (initialSession?.user) {
+      isInitialized.current = true;
+
+      // Release loading state early if we have cached profile (optimistic UI)
+      if (cachedProfile && initialSession?.user) {
+        setIsLoading(false);
+        // Fetch fresh profile in background (non-blocking)
+        fetchProfile(initialSession.user.id);
+      } else if (initialSession?.user) {
+        // No cache - must wait for profile before releasing loading state
         // eslint-disable-next-line react-hooks/immutability
         await fetchProfile(initialSession.user.id);
+        setIsLoading(false);
+      } else {
+        // No user - clear any stale cache
+        setCachedProfile(null);
+        setIsLoading(false);
       }
-
-      isInitialized.current = true;
-      setIsLoading(false);
     };
 
     getInitialSession();
@@ -136,7 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .filter((name): name is string => name != null);
     }
 
-    setProfile({
+    const newProfile: Profile = {
       id: profileData.id,
       email: profileData.email,
       full_name: profileData.full_name,
@@ -146,7 +200,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role_display_name: appRole?.display_name || null,
       permissions,
       resident_id: profileData.resident_id,
-    });
+    };
+
+    setProfile(newProfile);
+    // PERFORMANCE: Cache profile for faster subsequent page loads
+    setCachedProfile(newProfile);
   }, [supabase]);
 
   const signOut = async () => {
@@ -159,10 +217,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Continue with cleanup even if server-side signout fails
       }
 
-      // Clear local state
+      // Clear local state and cache
       setUser(null);
       setProfile(null);
       setSession(null);
+      setCachedProfile(null); // Clear cached profile on sign out
 
       // Force full page reload to clear all client state and redirect to login
       window.location.href = '/login';

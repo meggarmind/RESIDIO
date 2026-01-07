@@ -58,26 +58,31 @@ function setStoredImpersonationState(state: ImpersonationState | null): void {
 
 /**
  * Check if current user can impersonate
+ * @param options.enabled - Set to false to skip this query (PERFORMANCE: for non-admin users)
  */
-export function useCanImpersonate() {
+export function useCanImpersonate(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: IMPERSONATION_STATUS_KEY,
     queryFn: canImpersonate,
     staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: options?.enabled !== false, // Default to true
   });
 }
 
 /**
  * Get the active impersonation session
+ * @param options.enabled - Set to false to skip this query (PERFORMANCE: for non-admin users)
  */
-export function useActiveImpersonation() {
+export function useActiveImpersonation(options?: { enabled?: boolean }) {
   const [localState, setLocalState] = useState<ImpersonationState | null>(null);
+  const isEnabled = options?.enabled !== false;
 
   // Initialize from session storage on mount
   useEffect(() => {
+    if (!isEnabled) return;
     const stored = getStoredImpersonationState();
     setLocalState(stored);
-  }, []);
+  }, [isEnabled]);
 
   const query = useQuery({
     queryKey: ACTIVE_IMPERSONATION_KEY,
@@ -89,6 +94,7 @@ export function useActiveImpersonation() {
       return result.data;
     },
     staleTime: 30 * 1000, // 30 seconds
+    enabled: isEnabled,
   });
 
   // Sync query result to local state and session storage
@@ -104,16 +110,24 @@ export function useActiveImpersonation() {
       };
       setLocalState(newState);
       setStoredImpersonationState(newState);
-    } else if (query.data === null) {
+    } else if (query.isSuccess && !query.data) {
+      // Query completed successfully with no active session - clear storage
+      setLocalState(null);
+      setStoredImpersonationState(null);
+    } else if (query.isError) {
+      // Query failed - clear storage to prevent stale state
       setLocalState(null);
       setStoredImpersonationState(null);
     }
-  }, [query.data]);
+  }, [query.data, query.isSuccess, query.isError]);
 
   return {
     ...query,
     impersonationState: localState,
-    isImpersonating: localState?.isActive ?? false,
+    // Only truly impersonating if query confirms OR still loading with storage data
+    isImpersonating: query.isLoading
+      ? (localState?.isActive ?? false)  // Trust storage while loading (for fast UI)
+      : (query.data != null),            // Only trust query result once loaded
   };
 }
 
@@ -271,10 +285,12 @@ export function useImpersonationHistory(params: {
 /**
  * Combined hook for impersonation management
  * Provides a complete interface for managing impersonation state
+ * @param options.skip - Set to true to skip all impersonation queries (PERFORMANCE: for non-admin users)
  */
-export function useImpersonation() {
-  const canImpersonateQuery = useCanImpersonate();
-  const activeQuery = useActiveImpersonation();
+export function useImpersonation(options?: { skip?: boolean }) {
+  const isEnabled = !options?.skip;
+  const canImpersonateQuery = useCanImpersonate({ enabled: isEnabled });
+  const activeQuery = useActiveImpersonation({ enabled: isEnabled });
   const startMutation = useStartImpersonation();
   const endMutation = useEndImpersonation();
   const searchHook = useSearchResidentsForImpersonation();
@@ -285,9 +301,20 @@ export function useImpersonation() {
   }, [startMutation]);
 
   const endImpersonation = useCallback(async () => {
-    if (activeQuery.impersonationState?.sessionId) {
-      return endMutation.mutateAsync(activeQuery.impersonationState.sessionId);
+    // Try query state first, fall back to session storage
+    let sessionId = activeQuery.impersonationState?.sessionId;
+
+    if (!sessionId) {
+      // Fallback to session storage if React Query state is stale
+      const stored = getStoredImpersonationState();
+      sessionId = stored?.sessionId;
     }
+
+    if (!sessionId) {
+      throw new Error('No active impersonation session found');
+    }
+
+    return endMutation.mutateAsync(sessionId);
   }, [endMutation, activeQuery.impersonationState?.sessionId]);
 
   const logPageView = useCallback(async (path: string) => {

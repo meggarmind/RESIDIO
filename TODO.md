@@ -1,8 +1,27 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2026-01-02 (Admin Impersonation System & Phase 16 Complete)
+**Last Updated:** 2026-01-07 (Impersonation Bug Fixes)
 
 ## Current Phase: Phase 16 - Community Communication ✅ COMPLETE
+
+### Recent Session Work (2026-01-07):
+
+#### Admin Impersonation Bug Fixes ✅
+- **Exit Button Not Responding**: Fixed multiple issues preventing exit from impersonation:
+  - Removed `disabled={isEnding}` from Exit buttons (users must always be able to exit)
+  - Added session storage fallback when React Query state is stale
+  - Added 5-second timeout that force-exits and ends DB session
+  - Timeout now calls `endImpersonationSession()` server action before redirecting
+- **Stale Session Storage**: Fixed synchronization bug between storage and DB:
+  - Storage now clears when `query.isSuccess && !query.data` (no active session in DB)
+  - Storage now clears on `query.isError` (query failed)
+  - `isImpersonating` only trusts query result after loading completes
+- **Zombie Sessions**: Cleaned up stuck active sessions in database
+- **Files Modified**:
+  - `src/hooks/use-impersonation.ts` - Storage sync fixes, session storage fallback
+  - `src/components/resident-portal/impersonation-banner.tsx` - Timeout with server action
+
+**Note**: Needs more testing with additional portal-enabled residents. See memory for enhancement ideas.
 
 ### Recent Session Work (2026-01-02):
 

@@ -5,6 +5,7 @@ import { Eye, RefreshCw, LogOut, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useImpersonation } from '@/hooks/use-impersonation';
+import { endImpersonationSession } from '@/actions/impersonation';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,7 +43,44 @@ export function ImpersonationBanner({
   if (!impersonationState?.isActive) return null;
 
   const handleExit = async () => {
-    await endImpersonation();
+    // Force exit after timeout - user should NEVER be stuck
+    const forceExitTimeout = setTimeout(async () => {
+      // Try to end session in DB before redirecting
+      const stored = sessionStorage.getItem('residio_impersonation');
+      if (stored) {
+        try {
+          const state = JSON.parse(stored);
+          if (state.sessionId) {
+            await endImpersonationSession(state.sessionId);
+          }
+        } catch {
+          // Ignore errors - we're forcing exit anyway
+        }
+      }
+      sessionStorage.removeItem('residio_impersonation');
+      window.location.href = '/dashboard';
+    }, 5000); // 5 second timeout
+
+    try {
+      await endImpersonation();
+      clearTimeout(forceExitTimeout);
+    } catch {
+      clearTimeout(forceExitTimeout);
+      // Fallback: Direct server action call with session storage
+      const stored = sessionStorage.getItem('residio_impersonation');
+      if (stored) {
+        try {
+          const state = JSON.parse(stored);
+          if (state.sessionId) {
+            await endImpersonationSession(state.sessionId);
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      }
+      // Always clear storage on exit attempt
+      sessionStorage.removeItem('residio_impersonation');
+    }
     setShowExitDialog(false);
     // Redirect to admin dashboard
     window.location.href = '/dashboard';
@@ -99,7 +137,6 @@ export function ImpersonationBanner({
                 size="sm"
                 onClick={() => setShowExitDialog(true)}
                 className="text-amber-950 dark:text-amber-50 hover:bg-amber-400/30 dark:hover:bg-amber-500/30"
-                disabled={isEnding}
               >
                 {isEnding ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -138,7 +175,7 @@ export function ImpersonationBanner({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleExit} disabled={isEnding}>
+            <AlertDialogAction onClick={handleExit}>
               {isEnding ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />

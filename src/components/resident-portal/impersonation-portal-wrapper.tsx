@@ -19,14 +19,18 @@ function ImpersonationPortalWrapperInner({ children }: ImpersonationPortalWrappe
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { isLoading: authLoading } = useAuth();
+  const { isLoading: authLoading, profile } = useAuth();
+
+  // PERFORMANCE: Skip impersonation queries entirely for pure residents (no admin role)
+  // This saves ~100-150ms for regular users who can never impersonate
+  const hasAdminRole = profile?.role_id != null;
   const {
     isImpersonating,
     impersonationState,
     canImpersonate,
     isLoading: impersonationLoading,
     logPageView,
-  } = useImpersonation();
+  } = useImpersonation({ skip: !hasAdminRole });
 
   const [showSelector, setShowSelector] = useState(false);
   const [hasCheckedAccess, setHasCheckedAccess] = useState(false);

@@ -165,7 +165,7 @@ export function NoteCard({
           <span>
             by{' '}
             <span className="font-medium">
-              {note.creator?.full_name || 'Unknown'}
+              {note.created_by_profile?.full_name || 'Unknown'}
             </span>
           </span>
           <TooltipProvider>

@@ -4,6 +4,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import { debitWalletForInvoice } from '@/actions/billing/wallet';
 import { sendInvoiceEmail } from '@/actions/email/send-invoice-email';
+import { sendInvoiceGenerationAlert } from '@/actions/email/send-admin-alert';
 import { logAudit } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -542,6 +543,17 @@ export async function generateMonthlyInvoices(
         }
     } catch (logError: any) {
         log.error('Failed to log generation:', logError.message);
+    }
+
+    // Send admin alert if there were errors (non-blocking)
+    if (result.errors.length > 0) {
+        sendInvoiceGenerationAlert(
+            result.generated,
+            result.skipped,
+            result.errors.length,
+            result.errors,
+            triggerType
+        ).catch(err => log.error('Failed to send admin alert:', err));
     }
 
     revalidatePath('/billing');

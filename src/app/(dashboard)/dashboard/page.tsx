@@ -14,6 +14,7 @@ import { QuickActionsPanel } from '@/components/dashboard/quick-actions-panel';
 import { QuickStatsCard } from '@/components/dashboard/quick-stats-card';
 import { InvoiceDistributionCard } from '@/components/dashboard/invoice-distribution-card';
 import { RecentActivityCard } from '@/components/dashboard/recent-activity-card';
+import { CronHealthCard } from '@/components/dashboard/cron-health-card';
 
 function ErrorHandler() {
     const searchParams = useSearchParams();
@@ -114,6 +115,11 @@ export default function DashboardPage() {
 
             {/* Quick Actions */}
             <QuickActionsPanel />
+
+            {/* System Health (Admin only) */}
+            {profile?.role_name === 'super_admin' && (
+                <CronHealthCard />
+            )}
 
             {/* Invoice Distribution & Recent Activity */}
             <div className="grid gap-6 lg:grid-cols-2">

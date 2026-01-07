@@ -66,46 +66,62 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
 
-  // Check maintenance mode (skip for exempt routes)
-  const isExemptRoute = maintenanceExemptRoutes.some(route => pathname.startsWith(route));
-  if (!isExemptRoute) {
-    // Check if maintenance mode is enabled
-    const { data: maintenanceSetting } = await supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', 'maintenance_mode')
-      .single();
-
-    const isMaintenanceMode = maintenanceSetting?.value === true;
-
-    if (isMaintenanceMode) {
-      // If user is logged in, check if they're an admin
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single();
-
-        // Non-admin users get redirected to maintenance page
-        if (!profile || profile.role !== 'admin') {
-          return NextResponse.redirect(new URL('/maintenance', request.url));
-        }
-        // Admin users can continue
-      } else {
-        // Non-authenticated users during maintenance go to maintenance page
-        // (unless they're going to login)
-        return NextResponse.redirect(new URL('/maintenance', request.url));
-      }
-    }
-  }
-
   // Check if route requires authentication
   // Sort routes by specificity (longer paths first) to match more specific routes first
   const sortedRoutes = Object.keys(routePermissionConfig).sort((a, b) => b.length - a.length);
   const protectedRoute = sortedRoutes.find(route =>
     pathname.startsWith(route)
   );
+  const isExemptRoute = maintenanceExemptRoutes.some(route => pathname.startsWith(route));
+
+  // PERFORMANCE OPTIMIZATION: Fetch profile + maintenance setting in parallel
+  // This eliminates 2-3 duplicate profile queries that were happening sequentially
+  let profile: { role_id: string | null; resident_id: string | null; role: string | null } | null = null;
+  let isMaintenanceMode = false;
+
+  if (user) {
+    // Parallel fetch: profile + maintenance setting (only if user is authenticated)
+    const [profileResult, maintenanceResult] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('role_id, resident_id, role')
+        .eq('id', user.id)
+        .single(),
+      isExemptRoute
+        ? Promise.resolve({ data: null })
+        : supabase
+            .from('system_settings')
+            .select('value')
+            .eq('key', 'maintenance_mode')
+            .single(),
+    ]);
+
+    profile = profileResult.data;
+    isMaintenanceMode = maintenanceResult.data?.value === true;
+  } else if (!isExemptRoute) {
+    // Unauthenticated user on non-exempt route - check maintenance mode
+    const { data: maintenanceSetting } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'maintenance_mode')
+      .single();
+
+    isMaintenanceMode = maintenanceSetting?.value === true;
+  }
+
+  // Handle maintenance mode
+  if (!isExemptRoute && isMaintenanceMode) {
+    if (user) {
+      // Non-admin users get redirected to maintenance page
+      if (!profile || profile.role !== 'admin') {
+        return NextResponse.redirect(new URL('/maintenance', request.url));
+      }
+      // Admin users can continue
+    } else {
+      // Non-authenticated users during maintenance go to maintenance page
+      return NextResponse.redirect(new URL('/maintenance', request.url));
+    }
+  }
 
   if (protectedRoute) {
     // Redirect to login if not authenticated
@@ -115,12 +131,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    // Fetch profile once for all checks
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role_id, resident_id')
-      .eq('id', user.id)
-      .single();
+    // Use profile already fetched above (no duplicate query!)
 
     const isResidentUser = profile?.resident_id != null;
     const hasAdminRole = profile?.role_id != null;
@@ -184,18 +195,11 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect logged-in users away from login page
-  // Note: For login page, we still need to fetch profile since we skip the protected route check
-  if (pathname === '/login' && user) {
-    // Fetch profile to determine redirect destination
-    const { data: loginProfile } = await supabase
-      .from('profiles')
-      .select('resident_id, role_id')
-      .eq('id', user.id)
-      .single();
-
+  // PERFORMANCE: Reuse profile already fetched at top (no duplicate query!)
+  if (pathname === '/login' && user && profile) {
     // Admin users go to dashboard, pure residents go to portal
-    const hasAdminRole = loginProfile?.role_id != null;
-    const isResident = loginProfile?.resident_id != null;
+    const hasAdminRole = profile.role_id != null;
+    const isResident = profile.resident_id != null;
     const redirectPath = (hasAdminRole || !isResident) ? '/dashboard' : '/portal';
     return NextResponse.redirect(new URL(redirectPath, request.url));
   }

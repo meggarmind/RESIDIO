@@ -8,6 +8,7 @@ export type EmailType =
   | 'invoice_generated'
   | 'welcome'
   | 'notification'
+  | 'admin_alert'
   | 'test';
 
 export interface EmailRecipient {

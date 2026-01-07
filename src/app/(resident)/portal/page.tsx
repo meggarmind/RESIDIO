@@ -1,13 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useResident } from '@/hooks/use-residents';
 import { useInvoices, useResidentIndebtedness, useResidentWallet } from '@/hooks/use-billing';
 import { useResidentSecurityContacts } from '@/hooks/use-security';
-import { useHouseResidentsBatch } from '@/hooks/use-houses';
 import { usePublishedAnnouncements } from '@/hooks/use-announcements';
 import { NahidStatsCards } from '@/components/resident-portal/dashboard/nahid-stats-cards';
 import { NahidInvoicesTable } from '@/components/resident-portal/dashboard/nahid-invoices-table';
@@ -39,38 +38,55 @@ const sectionVariants = {
   }),
 };
 
-export default function ResidentPortalHomePage() {
+/**
+ * Inner component that uses useSearchParams (requires Suspense boundary)
+ */
+function ResidentPortalHomePageInner() {
   const { residentId } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  // Guard: If no residentId, render minimal loader
-  // This allows ImpersonationPortalWrapper to show selector dialog
+  // Dialog state - must be declared before any conditional returns (Rules of Hooks)
+  const [topUpDialogOpen, setTopUpDialogOpen] = useState(false);
+  const [visitorDialogOpen, setVisitorDialogOpen] = useState(false);
+
+  // Check if we're in impersonation mode (admin selecting a resident)
+  const impersonateMode = searchParams.get('impersonate') === 'true';
+
+  // Fetch Resident Data - hooks must be called unconditionally
+  // Pass null to skip fetching when no residentId
+  const { data: resident, isLoading: residentLoading } = useResident(residentId || '');
+  const { data: indebtedness, isLoading: indebtednessLoading } = useResidentIndebtedness(residentId || '');
+  const { data: wallet, isLoading: walletLoading } = useResidentWallet(residentId || '');
+  const { data: contactsData, isLoading: contactsLoading } = useResidentSecurityContacts(residentId || '');
+
+  // Fetch Invoices (for recent transactions table)
+  const { data: invoicesData } = useInvoices({
+    residentId: residentId || '',
+    limit: 5
+  });
+
+  // Fetch Announcements
+  const { data: announcements = [], isLoading: announcementsLoading } = usePublishedAnnouncements({ limit: 5 });
+
+  // Guard: If no residentId
   if (!residentId) {
+    if (impersonateMode) {
+      // Admin is selecting a resident - show helpful placeholder
+      // The selector dialog is rendered by ImpersonationPortalWrapper
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[80vh] text-center">
+          <p className="text-muted-foreground">Select a resident to view their portal</p>
+        </div>
+      );
+    }
+    // Regular case - waiting for auth to load
     return (
       <div className="flex items-center justify-center min-h-[80vh]">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
-
-  // Dialog state
-  const [topUpDialogOpen, setTopUpDialogOpen] = useState(false);
-  const [visitorDialogOpen, setVisitorDialogOpen] = useState(false);
-
-  // Fetch Resident Data - Now safe: residentId exists
-  const { data: resident, isLoading: residentLoading } = useResident(residentId);
-  const { data: indebtedness, isLoading: indebtednessLoading } = useResidentIndebtedness(residentId);
-  const { data: wallet, isLoading: walletLoading } = useResidentWallet(residentId);
-  const { data: contactsData, isLoading: contactsLoading } = useResidentSecurityContacts(residentId);
-
-  // Fetch Invoices (for recent transactions table)
-  const { data: invoicesData } = useInvoices({
-    residentId: residentId,
-    limit: 5
-  });
-
-  // Fetch Announcements
-  const { data: announcements = [], isLoading: announcementsLoading } = usePublishedAnnouncements({ limit: 5 });
 
   // Compute Properties Count
   const propertyCount = useMemo(() => {
@@ -220,5 +236,19 @@ function DashboardSkeleton() {
       </div>
       <Skeleton className="h-96 w-full rounded-[24px]" />
     </div>
+  );
+}
+
+/**
+ * Resident Portal Home Page
+ *
+ * Wraps inner component with Suspense boundary for useSearchParams.
+ * Shows skeleton loader during Suspense fallback.
+ */
+export default function ResidentPortalHomePage() {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <ResidentPortalHomePageInner />
+    </Suspense>
   );
 }

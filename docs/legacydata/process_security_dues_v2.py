@@ -105,7 +105,7 @@ def process_spreadsheet(file_path):
     """Process the Excel spreadsheet and extract payment data."""
 
     print(f"Loading spreadsheet: {file_path}")
-    wb = openpyxl.load_workbook(file_path, data_only=False)
+    wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb.active
 
     houses = {}

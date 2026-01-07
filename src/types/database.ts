@@ -2154,6 +2154,8 @@ export interface NoteVersion {
   version: number;
   title: string | null;
   content: string;
+  category: NoteCategory;
+  is_current: boolean;
   created_by_profile: {
     id: string;
     full_name: string;
@@ -2188,6 +2190,7 @@ export interface NoteListParams {
   entity_type: NoteEntityType;
   entity_id: string;
   category?: NoteCategory;
+  is_confidential?: boolean;
   include_history?: boolean;
   page?: number;
   limit?: number;

@@ -122,7 +122,7 @@ export function NoteDetailDialog({
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <User className="h-4 w-4" />
-              <span>{note.creator?.full_name || 'Unknown'}</span>
+              <span>{note.created_by_profile?.full_name || 'Unknown'}</span>
             </div>
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
