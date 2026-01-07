@@ -207,6 +207,61 @@ export async function GET() {
             : 'No pending announcements',
     });
 
+    // 5. Email Import - Check recent email imports
+    const { data: recentEmailImport } = await supabase
+        .from('email_imports')
+        .select('created_at, status, emails_fetched, transactions_extracted, transactions_auto_processed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    // Check Gmail connection status
+    const { data: gmailConnection } = await supabase
+        .from('gmail_oauth_credentials')
+        .select('is_active, last_sync_at, last_sync_status')
+        .eq('is_active', true)
+        .single();
+
+    const lastEmailImportRun = recentEmailImport?.created_at ? new Date(recentEmailImport.created_at) : null;
+    const emailImportHoursAgo = lastEmailImportRun
+        ? (now.getTime() - lastEmailImportRun.getTime()) / 3600000
+        : Infinity;
+
+    let emailImportStatus: 'healthy' | 'warning' | 'critical' | 'unknown' = 'unknown';
+    let emailImportMessage = 'No email imports yet';
+
+    if (!gmailConnection?.is_active) {
+        emailImportStatus = 'warning';
+        emailImportMessage = 'Gmail not connected';
+    } else if (lastEmailImportRun) {
+        if (emailImportHoursAgo < 2) {
+            emailImportStatus = 'healthy';
+            emailImportMessage = recentEmailImport
+                ? `Last: ${recentEmailImport.emails_fetched || 0} emails, ${recentEmailImport.transactions_auto_processed || 0} auto-processed`
+                : 'Running normally';
+        } else if (emailImportHoursAgo < 4) {
+            emailImportStatus = 'warning';
+            emailImportMessage = `Last run ${getRelativeTime(lastEmailImportRun)}`;
+        } else {
+            emailImportStatus = 'critical';
+            emailImportMessage = `OVERDUE: Last run ${getRelativeTime(lastEmailImportRun)}`;
+        }
+    } else if (gmailConnection?.is_active) {
+        emailImportStatus = 'healthy';
+        emailImportMessage = 'Gmail connected, awaiting first import';
+    }
+
+    jobs.push({
+        name: 'email-import',
+        description: 'Gmail Email Import (Bank Statements)',
+        schedule: 'Hourly',
+        lastRun: lastEmailImportRun?.toISOString() || null,
+        lastRunRelative: lastEmailImportRun ? getRelativeTime(lastEmailImportRun) : 'never',
+        expectedFrequency: 'hourly',
+        status: emailImportStatus,
+        message: emailImportMessage,
+    });
+
     // Determine overall health
     const hassCritical = jobs.some(j => j.status === 'critical');
     const hasWarning = jobs.some(j => j.status === 'warning');

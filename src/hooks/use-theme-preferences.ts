@@ -71,7 +71,7 @@ export function useSetUserThemeOverride(context: ThemeContext) {
 }
 
 /**
- * Get the effective theme (override → estate default → nahid)
+ * Get the effective theme (override → estate default → default)
  */
 export function useEffectiveTheme(context: ThemeContext) {
   return useQuery({

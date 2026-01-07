@@ -1,14 +1,14 @@
 import type { VisualTheme } from './types';
 
 /**
- * Nahid Theme - Default Theme
+ * Default Theme
  *
- * This represents the current application styling.
- * Extracted from globals.css for version-controlled theme management.
+ * Preserves the current application styling that was previously known as "Nahid".
+ * This is the foundational theme that maintains the existing UI appearance.
  */
-export const nahidTheme: VisualTheme = {
-  id: 'nahid',
-  name: 'Nahid',
+export const defaultTheme: VisualTheme = {
+  id: 'default',
+  name: 'Default',
   description: 'Clean and modern design with mint green accents',
 
   light: {

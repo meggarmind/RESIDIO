@@ -1,6 +1,6 @@
 import type { VisualTheme } from './types';
-import { nahidTheme } from './nahid';
-import { paierTheme } from './paier';
+import { defaultTheme } from './default';
+import { modernTheme } from './modern';
 
 /**
  * Theme Registry
@@ -10,8 +10,8 @@ import { paierTheme } from './paier';
  */
 
 export const THEME_REGISTRY: Record<string, VisualTheme> = {
-  nahid: nahidTheme,
-  paier: paierTheme,
+  default: defaultTheme,
+  modern: modernTheme,
 };
 
 /**
@@ -29,10 +29,10 @@ export function getThemeById(id: string): VisualTheme | undefined {
 }
 
 /**
- * Get the default theme (Nahid)
+ * Get the default theme
  */
 export function getDefaultTheme(): VisualTheme {
-  return nahidTheme;
+  return defaultTheme;
 }
 
 /**

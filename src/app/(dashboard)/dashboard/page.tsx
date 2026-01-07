@@ -4,10 +4,11 @@ import { Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useEnhancedDashboardStats } from '@/hooks/use-dashboard';
+import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
-// Dashboard Components
+// Default Theme Dashboard Components
 import { FinancialHealthCard } from '@/components/dashboard/financial-health-card';
 import { SecurityAlertsCard } from '@/components/dashboard/security-alerts-card';
 import { QuickActionsPanel } from '@/components/dashboard/quick-actions-panel';
@@ -15,6 +16,13 @@ import { QuickStatsCard } from '@/components/dashboard/quick-stats-card';
 import { InvoiceDistributionCard } from '@/components/dashboard/invoice-distribution-card';
 import { RecentActivityCard } from '@/components/dashboard/recent-activity-card';
 import { CronHealthCard } from '@/components/dashboard/cron-health-card';
+
+// Modern Theme Dashboard Components
+import { ModernGreeting } from '@/components/dashboard/modern-greeting';
+import { ModernStatsCards } from '@/components/dashboard/modern-stats-cards';
+import { ModernFinancialHealth } from '@/components/dashboard/modern-financial-health';
+import { ModernPendingPayments } from '@/components/dashboard/modern-pending-payments';
+import { ModernRecentActivity } from '@/components/dashboard/modern-recent-activity';
 
 function ErrorHandler() {
     const searchParams = useSearchParams();
@@ -78,6 +86,7 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
     const { profile, isLoading: authLoading } = useAuth();
     const { data: stats, isLoading: statsLoading } = useEnhancedDashboardStats();
+    const { themeId } = useVisualTheme();
 
     if (authLoading) {
         return <DashboardSkeleton />;
@@ -85,6 +94,7 @@ export default function DashboardPage() {
 
     const firstName = profile?.full_name?.split(' ')[0] || 'there';
     const isLoading = statsLoading;
+    const isModernTheme = themeId === 'modern';
 
     return (
         <div className="space-y-6">
@@ -92,26 +102,52 @@ export default function DashboardPage() {
                 <ErrorHandler />
             </Suspense>
 
-            {/* Welcome Header */}
-            <WelcomeHeader name={firstName} />
+            {/* Welcome Header - Conditional rendering based on theme */}
+            {isModernTheme ? (
+                <ModernGreeting name={firstName} />
+            ) : (
+                <WelcomeHeader name={firstName} />
+            )}
 
-            {/* Quick Stats Row */}
-            <QuickStatsCard
-                quickStats={stats?.quickStats ?? null}
-                isLoading={isLoading}
-            />
-
-            {/* Financial Health & Security Alerts */}
-            <div className="grid gap-6 lg:grid-cols-2">
-                <FinancialHealthCard
+            {/* Stats Row - Conditional rendering based on theme */}
+            {isModernTheme ? (
+                <ModernStatsCards
                     financialHealth={stats?.financialHealth ?? null}
+                    quickStats={stats?.quickStats ?? null}
+                    unpaidCount={stats?.invoiceDistribution?.unpaid ?? 0}
                     isLoading={isLoading}
                 />
-                <SecurityAlertsCard
-                    securityAlerts={stats?.securityAlerts ?? null}
+            ) : (
+                <QuickStatsCard
+                    quickStats={stats?.quickStats ?? null}
                     isLoading={isLoading}
                 />
-            </div>
+            )}
+
+            {/* Financial Health & Secondary Card - Conditional rendering based on theme */}
+            {isModernTheme ? (
+                <div className="grid gap-6 lg:grid-cols-2">
+                    <ModernFinancialHealth
+                        financialHealth={stats?.financialHealth ?? null}
+                        isLoading={isLoading}
+                    />
+                    <ModernPendingPayments
+                        distribution={stats?.invoiceDistribution ?? null}
+                        isLoading={isLoading}
+                    />
+                </div>
+            ) : (
+                <div className="grid gap-6 lg:grid-cols-2">
+                    <FinancialHealthCard
+                        financialHealth={stats?.financialHealth ?? null}
+                        isLoading={isLoading}
+                    />
+                    <SecurityAlertsCard
+                        securityAlerts={stats?.securityAlerts ?? null}
+                        isLoading={isLoading}
+                    />
+                </div>
+            )}
 
             {/* Quick Actions */}
             <QuickActionsPanel />
@@ -121,17 +157,24 @@ export default function DashboardPage() {
                 <CronHealthCard />
             )}
 
-            {/* Invoice Distribution & Recent Activity */}
-            <div className="grid gap-6 lg:grid-cols-2">
-                <InvoiceDistributionCard
-                    distribution={stats?.invoiceDistribution ?? null}
-                    isLoading={isLoading}
-                />
-                <RecentActivityCard
+            {/* Invoice Distribution & Recent Activity - Conditional rendering based on theme */}
+            {isModernTheme ? (
+                <ModernRecentActivity
                     activities={stats?.recentActivity ?? null}
                     isLoading={isLoading}
                 />
-            </div>
+            ) : (
+                <div className="grid gap-6 lg:grid-cols-2">
+                    <InvoiceDistributionCard
+                        distribution={stats?.invoiceDistribution ?? null}
+                        isLoading={isLoading}
+                    />
+                    <RecentActivityCard
+                        activities={stats?.recentActivity ?? null}
+                        isLoading={isLoading}
+                    />
+                </div>
+            )}
 
             {/* Last Updated */}
             {stats?.lastUpdated && (

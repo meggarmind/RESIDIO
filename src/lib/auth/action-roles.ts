@@ -138,6 +138,13 @@ export const PERMISSIONS = {
   NOTES_UPDATE: 'notes.update',
   NOTES_DELETE: 'notes.delete',
   NOTES_VIEW_CONFIDENTIAL: 'notes.view_confidential',
+
+  // Email Imports Module (Phase 17: Gmail Bank Statement Integration)
+  EMAIL_IMPORTS_VIEW: 'email_imports.view',
+  EMAIL_IMPORTS_CONFIGURE: 'email_imports.configure',
+  EMAIL_IMPORTS_TRIGGER: 'email_imports.trigger',
+  EMAIL_IMPORTS_PROCESS: 'email_imports.process',
+  EMAIL_IMPORTS_MANAGE_PASSWORDS: 'email_imports.manage_passwords',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -164,6 +171,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES],
   '/settings/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
   '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
+  '/settings/email-integration': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
+  '/payments/email-imports': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/dashboard': [], // All authenticated users
 };
 

@@ -48,7 +48,7 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* Nahid Theme Colors */
+  /* Theme Colors - Dynamically set by VisualThemeProvider */
   --color-bill-bg: var(--bg-primary);
   --color-bill-secondary: var(--bg-secondary);
   --color-bill-card: var(--bg-card);
@@ -88,7 +88,7 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 
-  /* Nahid Theme - Light Mode */
+  /* Default Theme Fallback - Light Mode */
   --bg-primary: #F8F9FA;
   --bg-secondary: #F3F4F6;
   --bg-card: #FFFFFF;
@@ -119,7 +119,7 @@
   --input: oklch(0.269 0 0);
   --ring: oklch(0.439 0 0);
 
-  /* Nahid Theme - Dark Mode */
+  /* Default Theme Fallback - Dark Mode */
   --bg-primary: #0F172A;
   --bg-secondary: #374151;
   --bg-card: #1E293B;

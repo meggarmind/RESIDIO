@@ -32,7 +32,8 @@ export type PermissionCategory =
   | 'announcements'
   | 'notifications'
   | 'report_subscriptions'
-  | 'impersonation';  // Admin impersonation system
+  | 'impersonation'  // Admin impersonation system
+  | 'email_imports'; // Gmail bank statement integration
 
 // Human-readable labels for new roles
 export const APP_ROLE_LABELS: Record<AppRoleName, string> = {
@@ -279,7 +280,12 @@ export type AuditEntityType =
   | 'impersonation_sessions'     // Admin impersonation system
   | 'documents'                   // Phase 15: Document Management
   | 'document_categories'         // Phase 15: Document Management
-  | 'entity_notes';               // Notes Module
+  | 'entity_notes'               // Notes Module
+  | 'gmail_oauth_credentials'     // Phase 17: Email Import
+  | 'email_imports'               // Phase 17: Email Import
+  | 'email_messages'              // Phase 17: Email Import
+  | 'email_transactions'          // Phase 17: Email Import
+  | 'estate_bank_account_passwords'; // Phase 17: Email Import
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -2195,3 +2201,274 @@ export interface NoteListParams {
   page?: number;
   limit?: number;
 }
+
+// ============================================================
+// Phase 17: Email Import Types (Gmail Bank Statement Integration)
+// ============================================================
+
+// Email import status (workflow states)
+export type EmailImportStatus =
+  | 'pending'
+  | 'fetching'
+  | 'parsing'
+  | 'matching'
+  | 'processing'
+  | 'completed'
+  | 'failed';
+
+export const EMAIL_IMPORT_STATUS_LABELS: Record<EmailImportStatus, string> = {
+  pending: 'Pending',
+  fetching: 'Fetching Emails',
+  parsing: 'Parsing Emails',
+  matching: 'Matching Residents',
+  processing: 'Processing Transactions',
+  completed: 'Completed',
+  failed: 'Failed',
+};
+
+// Email import trigger types
+export type EmailImportTrigger = 'manual' | 'cron';
+
+// Email message classification
+export type EmailMessageType = 'transaction_alert' | 'statement_attachment' | 'unknown';
+
+export const EMAIL_MESSAGE_TYPE_LABELS: Record<EmailMessageType, string> = {
+  transaction_alert: 'Transaction Alert',
+  statement_attachment: 'Statement PDF',
+  unknown: 'Unknown',
+};
+
+// Email message processing status
+export type EmailProcessingStatus = 'pending' | 'parsed' | 'skipped' | 'error';
+
+// Email transaction status (workflow states)
+export type EmailTransactionStatus =
+  | 'pending'           // Awaiting matching
+  | 'matched'           // Matched to resident
+  | 'auto_processed'    // High-confidence auto-processed
+  | 'queued_for_review' // Queued for admin review
+  | 'processed'         // Manually processed
+  | 'skipped'           // Skipped
+  | 'error';            // Error
+
+export const EMAIL_TRANSACTION_STATUS_LABELS: Record<EmailTransactionStatus, string> = {
+  pending: 'Pending',
+  matched: 'Matched',
+  auto_processed: 'Auto-Processed',
+  queued_for_review: 'Needs Review',
+  processed: 'Processed',
+  skipped: 'Skipped',
+  error: 'Error',
+};
+
+// Gmail OAuth sync status
+export type GmailSyncStatus = 'success' | 'error' | 'partial';
+
+// ============================================================
+// Email Import Interfaces
+// ============================================================
+
+// Gmail OAuth credentials
+export interface GmailOAuthCredentials {
+  id: string;
+  email_address: string;
+  access_token_encrypted: string;
+  refresh_token_encrypted: string;
+  token_expiry: string;
+  scopes: string[];
+  is_active: boolean;
+  last_sync_at: string | null;
+  last_sync_status: GmailSyncStatus | null;
+  last_sync_message: string | null;
+  last_sync_emails_count: number;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+// Estate bank account password (for PDF decryption)
+export interface EstateBankAccountPassword {
+  id: string;
+  bank_account_id: string;
+  password_encrypted: string;
+  created_at: string;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+// Email import session
+export interface EmailImport {
+  id: string;
+  source_email: string;
+  bank_name: string;
+  trigger_type: EmailImportTrigger;
+  emails_fetched: number;
+  emails_parsed: number;
+  emails_skipped: number;
+  emails_errored: number;
+  transactions_extracted: number;
+  transactions_matched: number;
+  transactions_auto_processed: number;
+  transactions_queued: number;
+  transactions_skipped: number;
+  transactions_errored: number;
+  status: EmailImportStatus;
+  error_message: string | null;
+  import_summary: Record<string, unknown> | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  created_by: string | null;
+}
+
+// Email import with creator profile
+export interface EmailImportWithDetails extends EmailImport {
+  created_by_profile: {
+    id: string;
+    full_name: string;
+    email: string;
+  } | null;
+}
+
+// Email message (individual email)
+export interface EmailMessage {
+  id: string;
+  email_import_id: string;
+  gmail_message_id: string;
+  gmail_thread_id: string | null;
+  subject: string | null;
+  from_address: string | null;
+  to_address: string | null;
+  received_at: string | null;
+  email_type: EmailMessageType;
+  raw_content_path: string | null;
+  attachments: EmailAttachment[];
+  processing_status: EmailProcessingStatus;
+  processing_error: string | null;
+  transactions_extracted: number;
+  processed_at: string | null;
+  created_at: string;
+}
+
+// Email attachment metadata
+export interface EmailAttachment {
+  name: string;
+  path: string;
+  size: number;
+  mimeType: string;
+}
+
+// Email transaction (extracted from email)
+export interface EmailTransaction {
+  id: string;
+  email_message_id: string;
+  email_import_id: string;
+  transaction_date: string | null;
+  description: string | null;
+  amount: number | null;
+  transaction_type: 'credit' | 'debit' | null;
+  reference: string | null;
+  bank_account_last4: string | null;
+  raw_extracted_data: Record<string, unknown> | null;
+  matched_resident_id: string | null;
+  match_confidence: MatchConfidence | null;
+  match_method: MatchMethod | null;
+  match_details: Record<string, unknown> | null;
+  status: EmailTransactionStatus;
+  payment_id: string | null;
+  skip_reason: string | null;
+  error_message: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  matched_at: string | null;
+  processed_at: string | null;
+  created_at: string;
+}
+
+// Email transaction with resident details
+export interface EmailTransactionWithResident extends EmailTransaction {
+  matched_resident: {
+    id: string;
+    first_name: string;
+    last_name: string;
+    resident_code: string;
+    phone_primary: string | null;
+    entity_type: EntityType;
+    company_name: string | null;
+  } | null;
+  email_message: {
+    id: string;
+    subject: string | null;
+    from_address: string | null;
+    received_at: string | null;
+    email_type: EmailMessageType;
+  } | null;
+  reviewed_by_profile: {
+    id: string;
+    full_name: string;
+  } | null;
+}
+
+// Gmail connection status (for UI)
+export interface GmailConnectionStatus {
+  connected: boolean;
+  email: string | null;
+  lastSyncAt: string | null;
+  lastSyncStatus: GmailSyncStatus | null;
+  lastSyncMessage: string | null;
+  lastSyncEmailsCount: number | null;
+}
+
+// Parsed transaction from email (before database insert)
+export interface ParsedEmailTransaction {
+  transactionDate: Date | null;
+  description: string | null;
+  amount: number | null;
+  transactionType: 'credit' | 'debit' | null;
+  reference: string | null;
+  bankAccountLast4: string | null;
+  rawExtractedData: Record<string, unknown>;
+}
+
+// Email fetch options
+export interface FetchEmailsOptions {
+  trigger?: EmailImportTrigger;
+  maxEmails?: number;
+  sinceDays?: number;
+}
+
+// Email fetch result
+export interface FetchEmailsResult {
+  success: boolean;
+  importId: string | null;
+  emailsFetched: number;
+  emailsSkipped: number;
+  emailsErrored: number;
+  error?: string | null;
+}
+
+// Process email transactions options
+export interface ProcessEmailTransactionsOptions {
+  autoProcessHighConfidence?: boolean;
+  skipDuplicates?: boolean;
+  duplicateToleranceDays?: number;
+}
+
+// Process email transactions result
+export interface ProcessEmailTransactionsResult {
+  success: boolean;
+  autoProcessed: number;
+  queuedForReview: number;
+  skipped: number;
+  errored: number;
+  error?: string;
+}
+
+// Add to AuditEntityType
+export type EmailImportAuditEntityType =
+  | 'gmail_oauth_credentials'
+  | 'email_imports'
+  | 'email_messages'
+  | 'email_transactions'
+  | 'estate_bank_account_passwords';

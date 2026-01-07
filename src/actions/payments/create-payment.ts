@@ -14,6 +14,9 @@ const extendedPaymentSchema = paymentFormSchema.extend({
     import_id: z.string().uuid().optional(),
     import_row_id: z.string().uuid().optional(),
     split_payment_group_id: z.string().uuid().optional().nullable(),
+    // Email import tracking (Phase 17)
+    email_import_id: z.string().uuid().optional(),
+    email_transaction_id: z.string().uuid().optional(),
 })
 
 type CreatePaymentInput = z.infer<typeof extendedPaymentSchema>
@@ -55,6 +58,8 @@ export async function createPayment(data: CreatePaymentInput): Promise<CreatePay
         period_end: result.data.period_end?.toISOString(),
         import_id: result.data.import_id,
         import_row_id: result.data.import_row_id,
+        email_import_id: result.data.email_import_id,
+        email_transaction_id: result.data.email_transaction_id,
     }).select().single()
 
     if (error) {

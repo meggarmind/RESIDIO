@@ -117,3 +117,24 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
     error: error?.message ?? null,
   };
 }
+
+/**
+ * Get all active residents (simple list for dropdowns)
+ */
+export async function getActiveResidents(): Promise<{
+  data: Array<{ id: string; first_name: string; last_name: string; resident_code: string }>;
+  error: string | null;
+}> {
+  const supabase = await createServerSupabaseClient();
+
+  const { data, error } = await supabase
+    .from('residents')
+    .select('id, first_name, last_name, resident_code')
+    .eq('is_active', true)
+    .order('first_name');
+
+  return {
+    data: data || [],
+    error: error?.message ?? null,
+  };
+}

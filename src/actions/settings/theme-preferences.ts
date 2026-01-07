@@ -22,7 +22,7 @@ export async function getEstateDefaultTheme(context: 'admin-dashboard' | 'reside
 
   if (error) {
     console.error('Failed to fetch estate theme:', error);
-    return { data: 'nahid', error: null }; // Fallback to default
+    return { data: 'default', error: null }; // Fallback to default theme
   }
 
   return { data: data.value as string, error: null };
