@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, CreditCard, Shield, User, FileText } from 'lucide-react';
+import { Home, Receipt, Wallet, Shield, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -11,11 +11,19 @@ interface NavItem {
   icon: React.ElementType;
 }
 
+/**
+ * Navigation items ordered by usage frequency:
+ * 1. Home - Entry point
+ * 2. Bills - Primary action (check/pay invoices)
+ * 3. Wallet - Payment balance
+ * 4. Contacts - Security contacts
+ * 5. Profile - Settings (least frequent)
+ */
 const navItems: NavItem[] = [
   { href: '/portal', label: 'Home', icon: Home },
-  { href: '/portal/invoices', label: 'Payments', icon: CreditCard },
+  { href: '/portal/invoices', label: 'Bills', icon: Receipt },
+  { href: '/portal/wallet', label: 'Wallet', icon: Wallet },
   { href: '/portal/security-contacts', label: 'Contacts', icon: Shield },
-  { href: '/portal/documents', label: 'Docs', icon: FileText },
   { href: '/portal/profile', label: 'Profile', icon: User },
 ];
 

@@ -124,16 +124,16 @@ const DocumentRow = memo(function DocumentRow({
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="icon" onClick={() => onView(document)}>
+          <Button variant="ghost" size="icon" onClick={() => onView(document)} aria-label="View document">
             <Eye className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => onDownload(document)}>
+          <Button variant="ghost" size="icon" onClick={() => onDownload(document)} aria-label="Download document">
             <Download className="h-4 w-4" />
           </Button>
           {(canEdit || canDelete) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" aria-label="More options">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

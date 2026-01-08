@@ -239,96 +239,98 @@ interface InvoiceReceiptPDFProps {
  * Uses @react-pdf/renderer for server-side PDF generation.
  */
 export function InvoiceReceiptPDF({ invoice, estateName = 'Residio Estate' }: InvoiceReceiptPDFProps) {
-  const isPaid = invoice.status === 'paid';
-  const receiptNumber = `RCP-${invoice.invoice_number?.replace('INV-', '') || invoice.id.slice(0, 8).toUpperCase()}`;
-  const amountDue = invoice.amount_due || 0;
-  const amountPaid = invoice.amount_paid || 0;
-  const remaining = amountDue - amountPaid;
+  const isPartial = invoice.status === 'partially_paid';
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {/* Watermark */}
+        {isPaid && (
+          <View fixed style={{
+            position: 'absolute',
+            top: 400,
+            left: 150,
+            transform: 'rotate(-45deg)',
+            opacity: 0.1,
+          }}>
+            <Text style={{
+              fontSize: 120,
+              color: '#166534',
+              fontFamily: 'Helvetica-Bold',
+            }}>PAID</Text>
+          </View>
+        )}
+
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.estateName}>{estateName}</Text>
-          <Text style={styles.documentTitle}>
-            {isPaid ? 'Payment Receipt' : 'Invoice'}
-          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View>
+              <Text style={styles.estateName}>{estateName}</Text>
+              <Text style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
+                Official Management Receipt
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={[styles.documentTitle, { fontSize: 16, color: '#000', fontFamily: 'Helvetica-Bold' }]}>
+                {isPaid ? 'PAYMENT RECEIPT' : isPartial ? 'INVOICE (PARTIAL)' : 'INVOICE'}
+              </Text>
+              <Text style={{ fontSize: 10, color: '#666', marginTop: 4 }}>
+                #{receiptNumber}
+              </Text>
+            </View>
+          </View>
         </View>
 
-        {/* Receipt Info */}
+        {/* Receipt Info / Meta */}
         <View style={styles.infoRow}>
           <View style={styles.infoBlock}>
-            <Text style={styles.infoLabel}>Receipt No:</Text>
-            <Text style={styles.infoValue}>{receiptNumber}</Text>
+            <Text style={styles.sectionTitle}>Bill To</Text>
+            <View style={styles.billToBox}>
+              <Text style={styles.billToName}>
+                {invoice.resident?.first_name} {invoice.resident?.last_name}
+              </Text>
+              <Text style={styles.billToDetail}>
+                CODE: {invoice.resident?.resident_code}
+              </Text>
+              {invoice.house && (
+                <Text style={styles.billToDetail}>
+                  {invoice.house.short_name || invoice.house.house_number}, {invoice.house.street?.name}
+                </Text>
+              )}
+            </View>
           </View>
           <View style={[styles.infoBlock, { alignItems: 'flex-end' }]}>
-            <Text style={styles.infoLabel}>Date:</Text>
-            <Text style={styles.infoValue}>
-              {invoice.created_at ? format(new Date(invoice.created_at), 'MMMM d, yyyy') : 'N/A'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Status Badge */}
-        <View style={[
-          styles.statusBadge,
-          isPaid ? styles.statusPaid : styles.statusUnpaid,
-          { marginBottom: 20 }
-        ]}>
-          <Text style={[
-            styles.statusText,
-            isPaid ? styles.statusTextPaid : styles.statusTextUnpaid
-          ]}>
-            {isPaid ? 'PAID' : invoice.status?.toUpperCase() || 'UNPAID'}
-          </Text>
-        </View>
-
-        {/* Bill To */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Bill To</Text>
-          <View style={styles.billToBox}>
-            <Text style={styles.billToName}>
-              {invoice.resident?.first_name} {invoice.resident?.last_name}
-            </Text>
-            <Text style={styles.billToDetail}>
-              Resident Code: {invoice.resident?.resident_code}
-            </Text>
-            {invoice.house && (
-              <Text style={styles.billToDetail}>
-                Property: {invoice.house.short_name || invoice.house.house_number}
-                {invoice.house.street?.name && ` • ${invoice.house.house_number} ${invoice.house.street.name}`}
+            <Text style={styles.sectionTitle}>Details</Text>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.infoLabel}>Date Issued</Text>
+              <Text style={[styles.infoValue, { marginBottom: 8 }]}>
+                {invoice.created_at ? format(new Date(invoice.created_at), 'MMM d, yyyy') : '-'}
               </Text>
-            )}
-            {invoice.resident?.email && (
-              <Text style={styles.billToDetail}>
-                Email: {invoice.resident.email}
-              </Text>
-            )}
-          </View>
-        </View>
 
-        {/* Invoice Details */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Invoice Details</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-            <Text style={styles.billToDetail}>
-              Invoice Number: {invoice.invoice_number}
-            </Text>
-            <Text style={styles.billToDetail}>
-              Billing Profile: {invoice.billing_profile?.name || 'N/A'}
-            </Text>
+              <Text style={styles.infoLabel}>Due Date</Text>
+              <Text style={[styles.infoValue, { marginBottom: 8 }]}>
+                {invoice.due_date ? format(new Date(invoice.due_date), 'MMM d, yyyy') : '-'}
+              </Text>
+
+              <Text style={styles.infoLabel}>Status</Text>
+              <View style={[
+                styles.statusBadge,
+                isPaid ? styles.statusPaid : styles.statusUnpaid
+              ]}>
+                <Text style={[
+                  styles.statusText,
+                  isPaid ? styles.statusTextPaid : styles.statusTextUnpaid
+                ]}>
+                  {isPaid ? 'PAID' : invoice.status?.replace('_', ' ').toUpperCase()}
+                </Text>
+              </View>
+            </View>
           </View>
-          {invoice.due_date && (
-            <Text style={styles.billToDetail}>
-              Due Date: {format(new Date(invoice.due_date), 'MMMM d, yyyy')}
-            </Text>
-          )}
         </View>
 
         {/* Line Items Table */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Items</Text>
+          <Text style={styles.sectionTitle}>Payment Details</Text>
           <View style={styles.table}>
             {/* Table Header */}
             <View style={styles.tableHeader}>
@@ -370,53 +372,50 @@ export function InvoiceReceiptPDF({ invoice, estateName = 'Residio Estate' }: In
           {/* Totals */}
           <View style={styles.totalsSection}>
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Subtotal:</Text>
+              <Text style={styles.totalLabel}>Total Amount:</Text>
               <Text style={styles.totalValue}>{formatCurrency(amountDue)}</Text>
             </View>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Amount Paid:</Text>
-              <Text style={[styles.totalValue, { color: '#166534' }]}>
+              <Text style={[styles.totalValue, { color: '#166534', fontFamily: 'Helvetica-Bold' }]}>
                 {formatCurrency(amountPaid)}
               </Text>
             </View>
             {remaining > 0 && (
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Balance Due:</Text>
-                <Text style={[styles.totalValue, { color: '#dc2626' }]}>
+                <Text style={[styles.totalValue, { color: '#dc2626', fontFamily: 'Helvetica-Bold' }]}>
                   {formatCurrency(remaining)}
                 </Text>
               </View>
             )}
+
+            {/* Grand Total Display */}
             <View style={[styles.totalRow, styles.totalRowGrand]}>
-              <Text style={[styles.totalLabel, styles.totalLabelGrand]}>
-                {isPaid ? 'Total Paid:' : 'Total Due:'}
-              </Text>
-              <Text style={[styles.totalValue, styles.totalValueGrand]}>
-                {formatCurrency(isPaid ? amountPaid : amountDue)}
-              </Text>
+              {/* Use a clear visual indicator of the final status */}
             </View>
           </View>
         </View>
 
-        {/* Payment Confirmation (for paid invoices) */}
-        {isPaid && (
-          <View style={styles.paymentConfirmation}>
-            <Text style={styles.paymentConfirmationTitle}>Payment Confirmed</Text>
-            <Text style={styles.paymentConfirmationText}>
-              This invoice has been fully paid. Thank you for your payment.
-            </Text>
-          </View>
-        )}
-
         {/* Footer */}
         <View style={styles.footer}>
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>
-              Generated: {format(new Date(), 'MMM d, yyyy HH:mm')}
-            </Text>
-            <Text style={styles.footerText}>
-              Thank you for your payment
-            </Text>
+            <View>
+              <Text style={[styles.footerText, { fontFamily: 'Helvetica-Bold', marginBottom: 2 }]}>
+                {estateName}
+              </Text>
+              <Text style={styles.footerText}>
+                Powered by Residio
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.footerText}>
+                Generated: {format(new Date(), 'MMM d, yyyy HH:mm')}
+              </Text>
+              <Text style={styles.footerText}>
+                Page 1 of 1
+              </Text>
+            </View>
           </View>
         </View>
       </Page>

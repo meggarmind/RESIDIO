@@ -298,10 +298,11 @@ export async function allocateWalletToInvoices(
     if (priorityHouseId) {
         const { data: priorityInvoices, error: priorityError } = await supabase
             .from('invoices')
-            .select('id, amount_due, amount_paid, invoice_number')
+            .select('id, amount_due, amount_paid, invoice_number, invoice_type, correction_type')
             .eq('resident_id', residentId)
             .eq('house_id', priorityHouseId)
             .in('status', ['unpaid', 'partially_paid'])
+            .gte('amount_due', 0) // Exclude credit notes (negative amounts)
             .order('due_date', { ascending: true });
 
         if (!priorityError && priorityInvoices && priorityInvoices.length > 0) {
@@ -325,9 +326,10 @@ export async function allocateWalletToInvoices(
     // Get all remaining unpaid invoices (excluding priority house if provided)
     let query = supabase
         .from('invoices')
-        .select('id, amount_due, amount_paid')
+        .select('id, amount_due, amount_paid, invoice_type, correction_type')
         .eq('resident_id', residentId)
-        .in('status', ['unpaid', 'partially_paid']);
+        .in('status', ['unpaid', 'partially_paid'])
+        .gte('amount_due', 0); // Exclude credit notes (negative amounts)
 
     // Exclude priority house invoices (already processed)
     if (priorityHouseId) {

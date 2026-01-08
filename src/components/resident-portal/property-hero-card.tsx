@@ -64,16 +64,17 @@ export function PropertyHeroCard({
 
   return (
     <Card
+      variant="featured"
+      interactive
       className={cn(
-        'relative overflow-hidden cursor-pointer transition-all duration-200',
-        'hover:shadow-md hover:-translate-y-0.5',
+        'relative overflow-hidden',
         'active:translate-y-0 active:shadow-sm',
         occupancyGradient,
         className
       )}
       onClick={onClick}
     >
-      <CardContent className="p-4">
+      <CardContent>
         {/* Primary Badge */}
         {isPrimary && (
           <Badge

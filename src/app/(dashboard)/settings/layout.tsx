@@ -67,6 +67,14 @@ const sidebarNavItems = [
         href: "/settings/audit-logs",
     },
     {
+        title: "Notification Queue",
+        href: "/settings/notification-queue",
+    },
+    {
+        title: "Cron Status",
+        href: "/settings/cron-status",
+    },
+    {
         title: "System",
         href: "/settings/system",
     },

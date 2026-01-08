@@ -45,7 +45,7 @@ export function DocumentCard({
   };
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card variant="compact" interactive>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-3 min-w-0">
@@ -69,7 +69,7 @@ export function DocumentCard({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Document options">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>

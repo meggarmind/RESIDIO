@@ -100,8 +100,8 @@ function StatItem({ label, value, subLabel, subValue, icon: Icon, color }: StatI
 
 function QuickStatsSkeleton() {
     return (
-        <Card>
-            <CardContent className="p-0">
+        <Card variant="list">
+            <CardContent>
                 <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border">
                     {[...Array(4)].map((_, i) => (
                         <div key={i} className="flex items-center gap-3 p-3">
@@ -135,8 +135,8 @@ export function QuickStatsCard({ quickStats, isLoading }: QuickStatsCardProps) {
     } = quickStats;
 
     return (
-        <Card className="overflow-hidden animate-fade-in-up">
-            <CardContent className="p-0">
+        <Card variant="list" className="overflow-hidden animate-fade-in-up">
+            <CardContent>
                 <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border/50">
                     <StatItem
                         label="Properties"

@@ -1,16 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useResidentWallet, useWalletTransactions } from '@/hooks/use-billing';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WalletTopUpDialog } from '@/components/resident-portal/wallet-topup-dialog';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
-import { Wallet as WalletIcon, Plus, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { Wallet as WalletIcon, Plus, ArrowUpRight, ArrowDownRight, Search, X } from 'lucide-react';
+import { formatCurrency, cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
 // Spring physics for smooth animations
@@ -39,15 +41,39 @@ export default function WalletPage() {
   const { data: wallet, isLoading: walletLoading } = useResidentWallet(residentId || undefined);
   const { data: transactions, isLoading: transactionsLoading } = useWalletTransactions(residentId || undefined);
   const [topUpDialogOpen, setTopUpDialogOpen] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<'all' | 'credit' | 'debit'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const isLoading = walletLoading || transactionsLoading;
+
+  const walletBalance = wallet?.balance || 0;
+  const walletTransactions = transactions || [];
+
+  // Filter transactions based on type and search
+  const filteredTransactions = useMemo(() => {
+    return walletTransactions.filter((t) => {
+      // Type filter
+      if (typeFilter !== 'all' && t.type !== typeFilter) {
+        return false;
+      }
+      // Search filter (by description)
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const description = (t.description || '').toLowerCase();
+        const type = t.type === 'credit' ? 'top up' : 'payment';
+        return description.includes(query) || type.includes(query);
+      }
+      return true;
+    });
+  }, [walletTransactions, typeFilter, searchQuery]);
+
+  // Count by type for filter badges
+  const creditCount = walletTransactions.filter(t => t.type === 'credit').length;
+  const debitCount = walletTransactions.filter(t => t.type === 'debit').length;
 
   if (isLoading) {
     return <WalletSkeleton />;
   }
-
-  const walletBalance = wallet?.balance || 0;
-  const walletTransactions = transactions || [];
 
   return (
     <div className="space-y-8 pb-10">
@@ -108,8 +134,49 @@ export default function WalletPage() {
         custom={1}
       >
         <Card>
-          <CardHeader>
+          <CardHeader className="space-y-4">
             <CardTitle>Transaction History</CardTitle>
+
+            {/* Filters */}
+            {walletTransactions.length > 0 && (
+              <div className="flex flex-col sm:flex-row gap-3">
+                {/* Type Filter Tabs */}
+                <Tabs value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)} className="w-full sm:w-auto">
+                  <TabsList className="grid w-full sm:w-auto grid-cols-3">
+                    <TabsTrigger value="all" className="text-xs sm:text-sm">
+                      All ({walletTransactions.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="credit" className="text-xs sm:text-sm">
+                      Credits ({creditCount})
+                    </TabsTrigger>
+                    <TabsTrigger value="debit" className="text-xs sm:text-sm">
+                      Debits ({debitCount})
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                {/* Search Input */}
+                <div className="relative flex-1 sm:max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search transactions..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 pr-9"
+                  />
+                  {searchQuery && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                      onClick={() => setSearchQuery('')}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             {walletTransactions.length === 0 ? (
@@ -120,9 +187,29 @@ export default function WalletPage() {
                   Your wallet transactions will appear here
                 </p>
               </div>
+            ) : filteredTransactions.length === 0 ? (
+              <div className="py-12 text-center">
+                <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-bill-text mb-2">No Results Found</h3>
+                <p className="text-sm text-bill-text-secondary">
+                  Try adjusting your search or filters
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setTypeFilter('all');
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              </div>
             ) : (
               <div className="space-y-4">
-                {walletTransactions.map((transaction, index) => (
+                <AnimatePresence mode="popLayout">
+                {filteredTransactions.map((transaction, index) => (
                   <motion.div
                     key={transaction.id}
                     className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
@@ -172,6 +259,7 @@ export default function WalletPage() {
                     </div>
                   </motion.div>
                 ))}
+                </AnimatePresence>
               </div>
             )}
           </CardContent>

@@ -1,10 +1,81 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2026-01-08 (Dynamic Logo & Contact Consolidation)
+**Last Updated:** 2026-01-08 (UI/UX Review Phase 2)
 
 ## Current Phase: Phase 16 - Community Communication ✅ COMPLETE
 
-### Recent Session Work (2026-01-08):
+### Recent Session Work (2026-01-08): UI/UX Review Phase 2
+
+#### Card Variant System (UI/UX Phase 2) ✅
+Created standardized card variants using class-variance-authority (cva):
+
+**Problem Solved:**
+- Inconsistent card padding across application (p-4 vs p-6 vs p-0)
+- Mixed shadow usage patterns
+- No semantic variants for different card types
+
+**Solution Implemented:**
+- Added `variant` prop to Card component with 5 variants:
+  - `default`: Standard py-6 for forms/settings
+  - `stat`: Compact py-4 for KPI/metric cards
+  - `list`: No padding (py-0) for scrollable lists
+  - `featured`: Compact py-4 for hero/featured content
+  - `compact`: Minimal py-3 for dense grids
+- Uses cva pattern for type-safe variants
+- Exported `cardVariants` for advanced use cases
+
+**Files Modified:**
+- `src/components/ui/card.tsx` - Added variant system with cva
+- `src/components/analytics/kpi-summary-cards.tsx` - Using `variant="stat"`
+- `src/components/dashboard/quick-stats-card.tsx` - Using `variant="list"`
+- `src/components/dashboard/recent-activity-card.tsx` - Using `variant="list"`
+- `src/components/resident-portal/property-hero-card.tsx` - Using `variant="featured"` + `interactive`
+- `src/components/documents/document-card.tsx` - Using `variant="compact"` + `interactive`
+
+---
+
+#### Navigation Improvements (UI/UX Phase 1) ✅
+Comprehensive navigation review and improvements based on frontend-developer agent analysis:
+
+**Portal Mobile Navigation:**
+- Added missing Wallet link to bottom navigation
+- Reordered by usage frequency: Home → Bills → Wallet → Contacts → Profile
+- Changed icon from CreditCard to Receipt for Bills
+- File: `src/components/resident-portal/portal-bottom-nav.tsx`
+
+**Portal Sidebar:**
+- Reordered items by usage frequency: Dashboard → Invoices → Wallet → Properties → Security Contacts → Visitors → Documents → Announcements → Profile
+- Added JSDoc comments explaining ordering rationale
+- File: `src/components/resident-portal/portal-sidebar.tsx`
+
+**Admin Navigation Section Groupings:**
+- Added `NavSection` interface for grouping related items
+- Created section-based navigation structure:
+  - Core: Dashboard, Analytics
+  - People & Property: Residents, Houses
+  - Financial: Payments, Billing
+  - Operations: Security, Reports, Documents, Announcements, Approvals
+  - System: Settings
+- Added `useSectionedNavigation()` hook for permission-filtered sections
+- Both sidebars now render with visual section headers
+- Files: `src/config/navigation.ts`, `src/hooks/use-navigation.ts`, `src/components/dashboard/sidebar.tsx`, `src/components/dashboard/modern-sidebar.tsx`
+
+#### UI/UX Review Plan (Multi-Session)
+Full 5-phase improvement plan created from frontend-developer agent review:
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| Phase 1 | Navigation & Structure | ✅ Complete |
+| Phase 2 | Card Component System | ✅ Complete |
+| Phase 3 | Payment Flow Enhancement | ⏳ Pending |
+| Phase 4 | Page Improvements | ⏳ Pending |
+| Phase 5 | Accessibility & Polish | ⏳ Pending |
+
+Plan file: `.claude/plans/structured-honking-brooks.md`
+
+---
+
+### Earlier Session Work (2026-01-08):
 
 #### Dynamic Estate Logo Display (DEV-81) ✅
 Implemented dynamic logo display across all sidebars:

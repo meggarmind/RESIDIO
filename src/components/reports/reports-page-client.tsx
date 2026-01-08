@@ -268,6 +268,7 @@ export function ReportsPageClient() {
             <ReportViewer
                 report={selectedReport}
                 onBack={handleBackFromViewer}
+                onSelectVersion={setSelectedReport}
                 estateName="Residio Estate"
             />
         );

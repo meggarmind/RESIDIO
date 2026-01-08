@@ -61,8 +61,8 @@ export function KPISummaryCards({ kpis, isLoading }: KPISummaryCardsProps) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {cards.map((card, index) => (
-        <Card key={card.title} className="animate-fade-in-up" style={{ animationDelay: `${index * 50}ms` }}>
-          <CardContent className="p-4">
+        <Card key={card.title} variant="stat" className="animate-fade-in-up" style={{ animationDelay: `${index * 50}ms` }}>
+          <CardContent>
             <div className="flex items-start justify-between group">
               <div className="space-y-1 flex-1">
                 <p className="text-xs text-muted-foreground">{card.title}</p>
@@ -104,8 +104,8 @@ function KPISkeleton() {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {[...Array(4)].map((_, i) => (
-        <Card key={i}>
-          <CardContent className="p-4">
+        <Card key={i} variant="stat">
+          <CardContent>
             <div className="flex items-start justify-between">
               <div className="space-y-2 flex-1">
                 <ShimmerSkeleton width={80} height={12} speed="fast" />

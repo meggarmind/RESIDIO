@@ -30,6 +30,8 @@ import {
 import { useSettings, useUpdateSetting } from '@/hooks/use-settings';
 import { useTestEmail, useSendPaymentReminders } from '@/hooks/use-email';
 import { getEmailStatus } from '@/actions/email/get-email-status';
+import { updateEmailDebugMode } from '@/actions/settings/update-email-debug-mode';
+import { toast } from 'sonner';
 
 export default function EmailSettingsPage() {
   const { data: settings, isLoading } = useSettings('email');
@@ -59,6 +61,19 @@ export default function EmailSettingsPage() {
 
   const handleToggle = (key: string, currentValue: boolean) => {
     updateSetting.mutate({ key, value: !currentValue });
+  };
+
+  const handleDebugModeToggle = async () => {
+    const currentDebugMode = settingsMap.email_debug_mode === 'true' || settingsMap.email_debug_mode === true;
+    const result = await updateEmailDebugMode(!currentDebugMode);
+
+    if (result.success) {
+      toast.success(`Email debug mode ${!currentDebugMode ? 'enabled' : 'disabled'}`);
+      // Refresh settings to show updated value
+      updateSetting.mutate({ key: 'email_debug_mode', value: !currentDebugMode });
+    } else {
+      toast.error(result.error || 'Failed to update debug mode');
+    }
   };
 
   const handleTestEmail = () => {
@@ -148,6 +163,60 @@ export default function EmailSettingsPage() {
               disabled={updateSetting.isPending || !isEmailConfigured}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Debug Mode */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <TestTube className="h-4 w-4" />
+            Email Debug Mode
+          </CardTitle>
+          <CardDescription>
+            Test email functionality without sending to actual recipients
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Debug Mode Toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="email_debug_mode">Enable Debug Mode</Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Emails will be logged but NOT sent to residents
+              </p>
+            </div>
+            <Switch
+              id="email_debug_mode"
+              checked={
+                settingsMap.email_debug_mode === 'true' || settingsMap.email_debug_mode === true
+              }
+              onCheckedChange={handleDebugModeToggle}
+              disabled={updateSetting.isPending}
+            />
+          </div>
+
+          {/* Warning Banner when Debug Mode is Active */}
+          {(settingsMap.email_debug_mode === 'true' || settingsMap.email_debug_mode === true) && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Debug Mode Active:</strong> All emails are being logged to the database but
+                are NOT being sent to recipients. Remember to disable this in production.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Debug Mode Info */}
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              When debug mode is enabled, emails are saved to the email logs with status
+              "DEBUG_MODE" and include the original recipient in metadata. This is useful for
+              testing email templates and notifications during development without spamming
+              residents.
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
 

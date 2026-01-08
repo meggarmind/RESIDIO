@@ -327,6 +327,78 @@ See [docs/api/supabase-integration.md](docs/api/supabase-integration.md) for det
 
 ---
 
+## MCP Testing Tools
+
+Two MCP servers provide AI-powered testing capabilities for this project:
+
+### Playwright MCP (Browser Automation)
+
+Browser automation for visual testing and E2E test execution.
+
+| Tool | Purpose |
+|------|---------|
+| `browser_navigate` | Navigate to URLs |
+| `browser_snapshot` | Capture accessibility tree snapshot |
+| `browser_click` | Click elements |
+| `browser_fill` | Fill form inputs |
+| `browser_hover` | Hover over elements |
+| `browser_press_key` | Press keyboard keys |
+
+**Usage Examples:**
+```
+"Navigate to http://localhost:3000 and take a snapshot"
+"Click the login button and fill the email field with admin@residio.test"
+"Take a snapshot of the dashboard after login"
+```
+
+### AI Testing MCP (Test Generation & Analysis)
+
+AI-powered test generation, execution, and analysis.
+
+| Tool | Purpose |
+|------|---------|
+| `analyze_codebase` | Scan project, identify testable components |
+| `generate_unit_tests` | Create unit tests for functions/components |
+| `generate_integration_tests` | Create API endpoint tests |
+| `run_tests` | Execute tests with framework auto-detection |
+| `analyze_test_results` | AI insights on test failures |
+| `suggest_fixes` | Generate solutions for failing tests |
+| `setup_testing_framework` | Initialize testing in new projects |
+
+**Usage Examples:**
+```
+"Analyze the codebase and identify testable components"
+"Generate unit tests for src/actions/residents/ using Vitest"
+"Run all tests in the e2e/ directory and analyze any failures"
+"Suggest fixes for these test failures: [paste output]"
+```
+
+### Existing Playwright Test Infrastructure
+
+The project has existing Playwright E2E tests:
+
+| Directory | Description |
+|-----------|-------------|
+| `e2e/` | Test spec files |
+| `e2e/fixtures.ts` | Test utilities and login helpers |
+| `playwright.config.ts` | Playwright configuration |
+
+**Test Commands:**
+```bash
+npm run test:e2e          # Run tests headless
+npm run test:e2e:ui       # Interactive UI mode
+npm run test:e2e:headed   # Run with visible browser
+```
+
+### MCP Server Locations
+
+| Server | Location |
+|--------|----------|
+| Playwright MCP | `npx @playwright/mcp@latest` (npm) |
+| AI Testing MCP | `~/tools/mcp-servers/ai-testing-mcp/dist/index.js` |
+
+---
+
 ## Module Integration Requirements
 
 **CRITICAL**: All server actions that perform write operations (CREATE, UPDATE, DELETE) MUST integrate with:

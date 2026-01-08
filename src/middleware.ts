@@ -111,14 +111,23 @@ export async function middleware(request: NextRequest) {
 
   // Handle maintenance mode
   if (!isExemptRoute && isMaintenanceMode) {
-    if (user) {
-      // Non-admin users get redirected to maintenance page
-      if (!profile || profile.role !== 'admin') {
+    if (user && profile?.role_id) {
+      // Check if user is super_admin (can bypass maintenance mode)
+      const { data: roleData } = await supabase
+        .from('app_roles')
+        .select('name')
+        .eq('id', profile.role_id)
+        .single();
+
+      const isSuperAdmin = roleData?.name === 'super_admin';
+
+      // Non-super_admin users get redirected to maintenance page
+      if (!isSuperAdmin) {
         return NextResponse.redirect(new URL('/maintenance', request.url));
       }
-      // Admin users can continue
+      // Super admin users can continue
     } else {
-      // Non-authenticated users during maintenance go to maintenance page
+      // Non-authenticated users or users without roles during maintenance go to maintenance page
       return NextResponse.redirect(new URL('/maintenance', request.url));
     }
   }

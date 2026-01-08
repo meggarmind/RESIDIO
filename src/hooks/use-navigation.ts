@@ -16,8 +16,10 @@ import { useMemo } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import {
   ADMIN_NAV_ITEMS,
+  ADMIN_NAV_SECTIONS,
   MOBILE_NAV_IDS,
   type NavItem,
+  type NavSection,
 } from '@/config/navigation';
 
 export interface UseNavigationOptions {
@@ -30,6 +32,13 @@ export interface UseNavigationOptions {
 export interface UseNavigationResult {
   /** Filtered navigation items based on user permissions */
   navItems: NavItem[];
+  /** Whether auth data is still loading */
+  isLoading: boolean;
+}
+
+export interface UseSectionedNavigationResult {
+  /** Filtered navigation sections with permission-filtered items */
+  sections: NavSection[];
   /** Whether auth data is still loading */
   isLoading: boolean;
 }
@@ -114,5 +123,59 @@ export function useMobileNavigation(): UseNavigationResult {
   });
 }
 
-// Re-export NavItem type for component usage
-export type { NavItem } from '@/config/navigation';
+/**
+ * Hook for getting permission-filtered admin navigation with section groupings
+ *
+ * Returns navigation organized into sections (Core, Financial, Operations, etc.)
+ * with permission-based filtering applied to each item.
+ *
+ * @example
+ * const { sections } = useSectionedNavigation();
+ * sections.map(section => (
+ *   <div key={section.id}>
+ *     {section.label && <h3>{section.label}</h3>}
+ *     {section.items.map(item => <NavLink key={item.id} {...item} />)}
+ *   </div>
+ * ))
+ */
+export function useSectionedNavigation(): UseSectionedNavigationResult {
+  const { isLoading, hasAnyPermission } = useAuth();
+
+  const sections = useMemo(() => {
+    const filterItem = (item: NavItem): NavItem | null => {
+      // Check permissions (skip during loading for optimistic UI)
+      if (item.permissions && !isLoading) {
+        if (!hasAnyPermission(item.permissions)) {
+          return null;
+        }
+      }
+
+      // Filter children recursively
+      if (item.children) {
+        const filteredChildren = item.children
+          .map(filterItem)
+          .filter((child): child is NavItem => child !== null);
+
+        return {
+          ...item,
+          children: filteredChildren.length > 0 ? filteredChildren : undefined,
+        };
+      }
+
+      return item;
+    };
+
+    // Filter items within each section, remove empty sections
+    return ADMIN_NAV_SECTIONS.map(section => ({
+      ...section,
+      items: section.items
+        .map(filterItem)
+        .filter((item): item is NavItem => item !== null),
+    })).filter(section => section.items.length > 0);
+  }, [isLoading, hasAnyPermission]);
+
+  return { sections, isLoading };
+}
+
+// Re-export types for component usage
+export type { NavItem, NavSection } from '@/config/navigation';

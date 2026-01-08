@@ -25,13 +25,25 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
   const pathname = usePathname();
   const { logoUrl } = useEstateLogo();
 
+  /**
+   * Navigation items ordered by usage frequency:
+   * 1. Dashboard - Entry point
+   * 2. Invoices - Primary action (check/pay bills)
+   * 3. Wallet - Payment balance
+   * 4. Properties - View owned properties
+   * 5. Security Contacts - Manage access codes
+   * 6. Visitors - Manage visitor access
+   * 7. Documents - Less frequent
+   * 8. Announcements - Informational
+   * 9. Profile - Settings (least frequent)
+   */
   const navItems = [
     { href: '/portal', label: 'Dashboard', icon: Home },
-    { href: '/portal/properties', label: 'My Properties', icon: Building },
-    { href: '/portal/visitors', label: 'Visitors', icon: UserPlus },
-    { href: '/portal/wallet', label: 'Wallet', icon: Wallet },
     { href: '/portal/invoices', label: 'Invoices', icon: Receipt },
+    { href: '/portal/wallet', label: 'Wallet', icon: Wallet },
+    { href: '/portal/properties', label: 'My Properties', icon: Building },
     { href: '/portal/security-contacts', label: 'Security Contacts', icon: Shield },
+    { href: '/portal/visitors', label: 'Visitors', icon: UserPlus },
     { href: '/portal/documents', label: 'Documents', icon: FileText },
     { href: '/portal/announcements', label: 'Announcements', icon: Megaphone },
     { href: '/portal/profile', label: 'Profile', icon: User },

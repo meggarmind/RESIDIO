@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-import { Search, Bell, Sun, Moon, Monitor, LogOut, Shield, Users } from 'lucide-react';
+import { Search, Bell, Sun, Moon, Monitor, LogOut, Shield, Users, LayoutDashboard } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -89,8 +89,28 @@ export function PortalTopBar({ title }: { title?: string }) {
                     </Button>
                 )}
 
+                {/* Return to Admin Dashboard - Only for admins, not during impersonation */}
+                {canImpersonate && !isImpersonating && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                        className="gap-2 border-border"
+                    >
+                        <Link href="/dashboard">
+                            <LayoutDashboard className="h-4 w-4" />
+                            <span className="hidden sm:inline">Admin</span>
+                        </Link>
+                    </Button>
+                )}
+
                 {/* Notification */}
-                <Button variant="ghost" size="icon" className="text-bill-text-secondary hover:text-bill-text hover:bg-bill-secondary rounded-full">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-bill-text-secondary hover:text-bill-text hover:bg-bill-secondary rounded-full"
+                    aria-label="Notifications"
+                >
                     <Bell className="h-[18px] w-[18px]" />
                 </Button>
 

@@ -15,6 +15,7 @@ import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { AvatarCircle } from '@/components/ui/avatar-circle';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   ResponsiveSheet,
   ResponsiveSheetHeader,
@@ -142,6 +143,7 @@ export default function ResidentProfilePage() {
   const { data: resident, isLoading: residentLoading } = useResident(residentId || undefined);
   const { data: preferences, isLoading: preferencesLoading } = useResidentPreferences(residentId || '');
   const [selectedProperty, setSelectedProperty] = useState<ResidentHouseWithDetails | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('properties');
   const isDesktop = useIsDesktop();
   const { isExpanded } = useLayoutTheme();
 
@@ -240,6 +242,7 @@ export default function ResidentProfilePage() {
                         size="icon"
                         className="h-6 w-6"
                         onClick={copyCode}
+                        aria-label="Copy resident code"
                       >
                         <Copy className="h-3.5 w-3.5" />
                       </Button>
@@ -348,89 +351,113 @@ export default function ResidentProfilePage() {
 
         {/* Right Column (Desktop) / Continue stacked (Mobile) */}
         <div className={cn(
-          'space-y-6',
           isDesktop ? 'flex-1' : 'mt-6'
         )}>
-          {/* Properties */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Home className="h-4 w-4" />
-                My Properties
-              </CardTitle>
-              <CardDescription>Properties you are linked to</CardDescription>
-            </CardHeader>
-            <CardContent className={cn(
-              isDesktop ? 'grid gap-3 grid-cols-1 lg:grid-cols-2' : 'space-y-2',
-              isExpanded && 'xl:grid-cols-3'
-            )}>
-              {activeProperties.length === 0 ? (
-                <div className="py-4 text-center text-muted-foreground text-sm col-span-full">
-                  No properties linked
-                </div>
-              ) : (
-                activeProperties.map((property, index) => (
-                  <motion.div
-                    key={property.id}
-                    variants={cardVariants}
-                    initial="hidden"
-                    animate="visible"
-                    custom={index}
-                    whileHover={{ y: -2 }}
-                  >
-                    <PropertyCard
-                      property={property}
-                      onClick={() => setSelectedProperty(property)}
-                    />
-                  </motion.div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Household Members - Only show if user is primary resident */}
-          {primaryProperty && (
-            <HouseholdMembersCard
-              houseId={primaryProperty.house_id}
-              houseName={`${primaryProperty.house?.house_number}, ${primaryProperty.house?.street?.name}`}
-              isDesktop={isDesktop}
-              isExpanded={isExpanded}
-            />
-          )}
-
-          {/* Notification Preferences */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Bell className="h-4 w-4" />
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-3 mb-6">
+              <TabsTrigger value="properties" className="gap-2">
+                <Home className="h-4 w-4 hidden sm:inline" />
+                Properties
+              </TabsTrigger>
+              <TabsTrigger value="notifications" className="gap-2">
+                <Bell className="h-4 w-4 hidden sm:inline" />
                 Notifications
-              </CardTitle>
-              <CardDescription>Manage how you receive updates</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <NotificationPreferences
-                residentId={residentId || ''}
-                preferences={preferences || []}
+              </TabsTrigger>
+              <TabsTrigger value="appearance" className="gap-2">
+                <Palette className="h-4 w-4 hidden sm:inline" />
+                Appearance
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Properties Tab */}
+            <TabsContent value="properties" className="space-y-6 mt-0">
+              {/* Properties */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    My Properties
+                  </CardTitle>
+                  <CardDescription>Properties you are linked to</CardDescription>
+                </CardHeader>
+                <CardContent className={cn(
+                  isDesktop ? 'grid gap-3 grid-cols-1 lg:grid-cols-2' : 'space-y-2',
+                  isExpanded && 'xl:grid-cols-3'
+                )}>
+                  {activeProperties.length === 0 ? (
+                    <div className="py-4 text-center text-muted-foreground text-sm col-span-full">
+                      No properties linked
+                    </div>
+                  ) : (
+                    activeProperties.map((property, index) => (
+                      <motion.div
+                        key={property.id}
+                        variants={cardVariants}
+                        initial="hidden"
+                        animate="visible"
+                        custom={index}
+                        whileHover={{ y: -2 }}
+                      >
+                        <PropertyCard
+                          property={property}
+                          onClick={() => setSelectedProperty(property)}
+                        />
+                      </motion.div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Household Members - Only show if user is primary resident */}
+              {primaryProperty && (
+                <HouseholdMembersCard
+                  houseId={primaryProperty.house_id}
+                  houseName={`${primaryProperty.house?.house_number}, ${primaryProperty.house?.street?.name}`}
+                  isDesktop={isDesktop}
+                  isExpanded={isExpanded}
+                />
+              )}
+            </TabsContent>
+
+            {/* Notifications Tab */}
+            <TabsContent value="notifications" className="space-y-6 mt-0">
+              {/* Notification Preferences */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    Notification Preferences
+                  </CardTitle>
+                  <CardDescription>Manage how you receive updates</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <NotificationPreferences
+                    residentId={residentId || ''}
+                    preferences={preferences || []}
+                    isDesktop={isDesktop}
+                    isExpanded={isExpanded}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Report Subscriptions */}
+              {residentId && (
+                <ReportSubscriptionsCard
+                  residentId={residentId}
+                  isDesktop={isDesktop}
+                  isExpanded={isExpanded}
+                />
+              )}
+            </TabsContent>
+
+            {/* Appearance Tab */}
+            <TabsContent value="appearance" className="space-y-6 mt-0">
+              <ThemePreferencesCard
                 isDesktop={isDesktop}
                 isExpanded={isExpanded}
               />
-            </CardContent>
-          </Card>
-
-          {/* Report Subscriptions */}
-          {residentId && (
-            <ReportSubscriptionsCard
-              residentId={residentId}
-              isDesktop={isDesktop}
-              isExpanded={isExpanded}
-            />
-          )}
-
-          {/* Theme Preferences */}
-          <ThemePreferencesCard
-            isDesktop={isDesktop}
-            isExpanded={isExpanded}
-          />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
 
@@ -454,10 +481,21 @@ function PropertyCard({
 }) {
   const house = property.house;
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   return (
     <div
-      className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:border-primary/30 transition-colors"
+      className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:border-primary/30 transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`View property at ${house?.house_number}, ${house?.street?.name}`}
     >
       <div className="p-2 rounded-lg bg-blue-500/10 shrink-0">
         <Building2 className="h-4 w-4 text-blue-600" />

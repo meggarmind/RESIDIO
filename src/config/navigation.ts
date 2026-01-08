@@ -53,6 +53,18 @@ export interface NavItem {
 }
 
 /**
+ * Navigation section for grouping related items
+ */
+export interface NavSection {
+  /** Section identifier */
+  id: string;
+  /** Section header label (null = no header, just visual separator) */
+  label: string | null;
+  /** Items in this section */
+  items: NavItem[];
+}
+
+/**
  * Admin Dashboard Navigation Items
  *
  * Single source of truth for all sidebar/navigation components.
@@ -61,131 +73,186 @@ export interface NavItem {
  * - ModernSidebar (modern theme)
  * - MobileNav (mobile navigation)
  */
-export const ADMIN_NAV_ITEMS: NavItem[] = [
+// Individual nav items (used for building sections)
+const NAV_DASHBOARD: NavItem = {
+  id: 'dashboard',
+  title: 'Dashboard',
+  href: '/dashboard',
+  icon: Home,
+};
+
+const NAV_ANALYTICS: NavItem = {
+  id: 'analytics',
+  title: 'Analytics',
+  href: '/analytics',
+  icon: BarChart3,
+  permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+};
+
+const NAV_RESIDENTS: NavItem = {
+  id: 'residents',
+  title: 'Residents',
+  href: '/residents',
+  icon: Users,
+  permissions: [PERMISSIONS.RESIDENTS_VIEW],
+};
+
+const NAV_HOUSES: NavItem = {
+  id: 'houses',
+  title: 'Houses',
+  href: '/houses',
+  icon: Building2,
+  permissions: [PERMISSIONS.HOUSES_VIEW],
+};
+
+const NAV_PAYMENTS: NavItem = {
+  id: 'payments',
+  title: 'Payments',
+  href: '/payments',
+  icon: CreditCard,
+  permissions: [PERMISSIONS.PAYMENTS_VIEW],
+  children: [
+    {
+      id: 'payments-import',
+      title: 'Import Statement',
+      href: '/payments/import',
+      icon: Upload,
+      permissions: [PERMISSIONS.IMPORTS_CREATE],
+    },
+    {
+      id: 'payments-email-imports',
+      title: 'Email Imports',
+      href: '/payments/email-imports',
+      icon: Mail,
+      permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW],
+    },
+  ],
+};
+
+const NAV_BILLING: NavItem = {
+  id: 'billing',
+  title: 'Billing',
+  href: '/billing',
+  icon: Receipt,
+  permissions: [PERMISSIONS.BILLING_VIEW],
+};
+
+const NAV_SECURITY: NavItem = {
+  id: 'security',
+  title: 'Security',
+  href: '/security',
+  icon: Shield,
+  permissions: [PERMISSIONS.SECURITY_VIEW],
+};
+
+const NAV_REPORTS: NavItem = {
+  id: 'reports',
+  title: 'Reports',
+  href: '/reports',
+  icon: FileBarChart,
+  permissions: [
+    PERMISSIONS.REPORTS_VIEW_FINANCIAL,
+    PERMISSIONS.REPORTS_VIEW_OCCUPANCY,
+    PERMISSIONS.REPORTS_VIEW_SECURITY,
+  ],
+  children: [
+    {
+      id: 'reports-generate',
+      title: 'Generate Reports',
+      href: '/reports',
+      icon: FilePlus,
+      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    },
+    {
+      id: 'reports-financial-overview',
+      title: 'Financial Overview',
+      href: '/reports/financial-overview',
+      icon: FileBarChart,
+      permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    },
+  ],
+};
+
+const NAV_DOCUMENTS: NavItem = {
+  id: 'documents',
+  title: 'Documents',
+  href: '/documents',
+  icon: FileText,
+  permissions: [PERMISSIONS.DOCUMENTS_VIEW],
+};
+
+const NAV_ANNOUNCEMENTS: NavItem = {
+  id: 'announcements',
+  title: 'Announcements',
+  href: '/announcements',
+  icon: Megaphone,
+  permissions: [PERMISSIONS.ANNOUNCEMENTS_VIEW],
+  mobileLabel: 'News',
+};
+
+const NAV_APPROVALS: NavItem = {
+  id: 'approvals',
+  title: 'Approvals',
+  href: '/approvals',
+  icon: ClipboardCheck,
+  permissions: [PERMISSIONS.APPROVALS_VIEW],
+  showBadge: true,
+  badgeType: 'approvals',
+};
+
+const NAV_SETTINGS: NavItem = {
+  id: 'settings',
+  title: 'Settings',
+  href: '/settings',
+  icon: Settings,
+  permissions: [PERMISSIONS.SETTINGS_VIEW],
+};
+
+/**
+ * Admin Dashboard Navigation Sections
+ *
+ * Grouped navigation for better visual organization:
+ * - Core: Dashboard, Analytics (entry points)
+ * - People & Property: Residents, Houses
+ * - Financial: Payments, Billing
+ * - Operations: Security, Reports, Documents, Announcements, Approvals
+ * - System: Settings
+ */
+export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
-    id: 'dashboard',
-    title: 'Dashboard',
-    href: '/dashboard',
-    icon: Home,
-    // No permissions = visible to all authenticated users
+    id: 'core',
+    label: null, // No header for first section
+    items: [NAV_DASHBOARD, NAV_ANALYTICS],
   },
   {
-    id: 'analytics',
-    title: 'Analytics',
-    href: '/analytics',
-    icon: BarChart3,
-    permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
+    id: 'people-property',
+    label: 'People & Property',
+    items: [NAV_RESIDENTS, NAV_HOUSES],
   },
   {
-    id: 'residents',
-    title: 'Residents',
-    href: '/residents',
-    icon: Users,
-    permissions: [PERMISSIONS.RESIDENTS_VIEW],
+    id: 'financial',
+    label: 'Financial',
+    items: [NAV_PAYMENTS, NAV_BILLING],
   },
   {
-    id: 'houses',
-    title: 'Houses',
-    href: '/houses',
-    icon: Building2,
-    permissions: [PERMISSIONS.HOUSES_VIEW],
+    id: 'operations',
+    label: 'Operations',
+    items: [NAV_SECURITY, NAV_REPORTS, NAV_DOCUMENTS, NAV_ANNOUNCEMENTS, NAV_APPROVALS],
   },
   {
-    id: 'payments',
-    title: 'Payments',
-    href: '/payments',
-    icon: CreditCard,
-    permissions: [PERMISSIONS.PAYMENTS_VIEW],
-    children: [
-      {
-        id: 'payments-import',
-        title: 'Import Statement',
-        href: '/payments/import',
-        icon: Upload,
-        permissions: [PERMISSIONS.IMPORTS_CREATE],
-      },
-      {
-        id: 'payments-email-imports',
-        title: 'Email Imports',
-        href: '/payments/email-imports',
-        icon: Mail,
-        permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW],
-      },
-    ],
-  },
-  {
-    id: 'billing',
-    title: 'Billing',
-    href: '/billing',
-    icon: Receipt,
-    permissions: [PERMISSIONS.BILLING_VIEW],
-  },
-  {
-    id: 'security',
-    title: 'Security',
-    href: '/security',
-    icon: Shield,
-    permissions: [PERMISSIONS.SECURITY_VIEW],
-  },
-  {
-    id: 'reports',
-    title: 'Reports',
-    href: '/reports',
-    icon: FileBarChart,
-    permissions: [
-      PERMISSIONS.REPORTS_VIEW_FINANCIAL,
-      PERMISSIONS.REPORTS_VIEW_OCCUPANCY,
-      PERMISSIONS.REPORTS_VIEW_SECURITY,
-    ],
-    children: [
-      {
-        id: 'reports-generate',
-        title: 'Generate Reports',
-        href: '/reports',
-        icon: FilePlus,
-        permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
-      },
-      {
-        id: 'reports-financial-overview',
-        title: 'Financial Overview',
-        href: '/reports/financial-overview',
-        icon: FileBarChart,
-        permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
-      },
-    ],
-  },
-  {
-    id: 'documents',
-    title: 'Documents',
-    href: '/documents',
-    icon: FileText,
-    permissions: [PERMISSIONS.DOCUMENTS_VIEW],
-  },
-  {
-    id: 'announcements',
-    title: 'Announcements',
-    href: '/announcements',
-    icon: Megaphone,
-    permissions: [PERMISSIONS.ANNOUNCEMENTS_VIEW],
-    mobileLabel: 'News',
-  },
-  {
-    id: 'approvals',
-    title: 'Approvals',
-    href: '/approvals',
-    icon: ClipboardCheck,
-    permissions: [PERMISSIONS.APPROVALS_VIEW],
-    showBadge: true,
-    badgeType: 'approvals',
-  },
-  {
-    id: 'settings',
-    title: 'Settings',
-    href: '/settings',
-    icon: Settings,
-    permissions: [PERMISSIONS.SETTINGS_VIEW],
+    id: 'system',
+    label: 'System',
+    items: [NAV_SETTINGS],
   },
 ];
+
+/**
+ * Admin Dashboard Navigation Items (flat list)
+ *
+ * Maintained for backwards compatibility.
+ * Prefer using ADMIN_NAV_SECTIONS for new implementations.
+ */
+export const ADMIN_NAV_ITEMS: NavItem[] = ADMIN_NAV_SECTIONS.flatMap(section => section.items);
 
 /**
  * IDs for mobile navigation subset

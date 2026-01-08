@@ -9,7 +9,7 @@ import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { useNavigation } from '@/hooks/use-navigation';
+import { useSectionedNavigation } from '@/hooks/use-navigation';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
 
 interface SidebarProps {
@@ -20,7 +20,7 @@ export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, hasPermission, residentId } = useAuth();
-  const { navItems: filteredNavItems } = useNavigation();
+  const { sections } = useSectionedNavigation();
   const { data: pendingCount } = usePendingApprovalsCount();
   const { logoUrl } = useEstateLogo();
 
@@ -44,59 +44,73 @@ export function Sidebar({ className }: SidebarProps) {
           )}
         </Link>
       </div>
-      <nav className="flex-1 px-4 pb-4">
-        <ul className="space-y-1">
-          {filteredNavItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const showBadgeCount = item.showBadge && pendingCount && pendingCount > 0;
+      <nav className="flex-1 px-4 pb-4 space-y-4">
+        {sections.map((section, sectionIndex) => (
+          <div key={section.id}>
+            {/* Section header */}
+            {section.label && (
+              <h3 className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {section.label}
+              </h3>
+            )}
+            {/* Section separator (except for first section) */}
+            {!section.label && sectionIndex > 0 && (
+              <div className="h-px bg-border my-2" />
+            )}
+            <ul className="space-y-1">
+              {section.items.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const showBadgeCount = item.showBadge && pendingCount && pendingCount > 0;
 
-            return (
-              <li key={item.id}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span className="flex-1">{item.title}</span>
-                  {showBadgeCount && (
-                    <Badge variant="destructive" className="h-5 min-w-[20px] px-1.5 text-xs">
-                      {pendingCount}
-                    </Badge>
-                  )}
-                </Link>
-                {/* Render nested children with indent */}
-                {item.children && item.children.length > 0 && (
-                  <ul className="mt-1 space-y-1">
-                    {item.children.map((child) => {
-                      const isChildActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
-                      return (
-                        <li key={child.id}>
-                          <Link
-                            href={child.href}
-                            className={cn(
-                              'flex items-center gap-3 rounded-lg px-3 py-2 pl-9 text-sm font-medium transition-colors',
-                              isChildActive
-                                ? 'bg-primary text-primary-foreground'
-                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                            )}
-                          >
-                            <child.icon className="h-4 w-4" />
-                            <span className="flex-1">{child.title}</span>
-                          </Link>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+                return (
+                  <li key={item.id}>
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                        isActive
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                      )}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span className="flex-1">{item.title}</span>
+                      {showBadgeCount && (
+                        <Badge variant="destructive" className="h-5 min-w-[20px] px-1.5 text-xs">
+                          {pendingCount}
+                        </Badge>
+                      )}
+                    </Link>
+                    {/* Render nested children with indent */}
+                    {item.children && item.children.length > 0 && (
+                      <ul className="mt-1 space-y-1">
+                        {item.children.map((child) => {
+                          const isChildActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
+                          return (
+                            <li key={child.id}>
+                              <Link
+                                href={child.href}
+                                className={cn(
+                                  'flex items-center gap-3 rounded-lg px-3 py-2 pl-9 text-sm font-medium transition-colors',
+                                  isChildActive
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                                )}
+                              >
+                                <child.icon className="h-4 w-4" />
+                                <span className="flex-1">{child.title}</span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
       <div className="border-t p-4 space-y-3">
         <ThemeSwitcher />

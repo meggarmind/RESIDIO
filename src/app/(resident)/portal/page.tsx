@@ -10,6 +10,7 @@ import { useResidentSecurityContacts } from '@/hooks/use-security';
 import { usePublishedAnnouncements } from '@/hooks/use-announcements';
 import { NahidStatsCards } from '@/components/resident-portal/dashboard/nahid-stats-cards';
 import { NahidInvoicesTable } from '@/components/resident-portal/dashboard/nahid-invoices-table';
+import { ResidentAnalyticsCharts } from '@/components/resident-portal/dashboard/resident-analytics-charts';
 import { WalletTopUpDialog } from '@/components/resident-portal/wallet-topup-dialog';
 import { VisitorAccessDialog } from '@/components/resident-portal/visitor-access-dialog';
 import { Button } from '@/components/ui/button';
@@ -64,6 +65,12 @@ function ResidentPortalHomePageInner() {
   const { data: invoicesData } = useInvoices({
     residentId: residentId || '',
     limit: 5
+  });
+
+  // Fetch Invoices for Analytics (last 50 to cover recent months)
+  const { data: analyticsData } = useInvoices({
+    residentId: residentId || '',
+    limit: 50
   });
 
   // Fetch Announcements
@@ -151,7 +158,10 @@ function ResidentPortalHomePageInner() {
             animate="visible"
             custom={2}
           >
-            {/* Placeholder for Analytics/Charts if needed */}
+            {/* Analytics/Charts */}
+            <div className="h-[350px]">
+              <ResidentAnalyticsCharts invoices={analyticsData?.data || []} />
+            </div>
 
             {/* Transactions Table */}
             <NahidInvoicesTable invoices={invoices} />
@@ -177,7 +187,9 @@ function ResidentPortalHomePageInner() {
                   <p className="text-sm text-bill-text-secondary line-clamp-3 mb-4">
                     {latestAnnouncement.content}
                   </p>
-                  <Button variant="outline" size="sm" className="w-full">Read More</Button>
+                  <Link href="/portal/announcements" className="w-full block">
+                    <Button variant="outline" size="sm" className="w-full">Read More</Button>
+                  </Link>
                 </div>
               ) : (
                 <p className="text-sm text-bill-text-secondary">No recent updates.</p>

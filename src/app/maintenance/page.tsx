@@ -1,88 +1,132 @@
-import { Wrench, AlertTriangle } from 'lucide-react';
+'use client';
+
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Settings, RefreshCw } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
-async function getMaintenanceMessage(): Promise<string> {
-  const supabase = await createServerSupabaseClient();
+export default function MaintenancePage() {
+  const router = useRouter();
+  const [message, setMessage] = useState('System is currently undergoing maintenance. Please check back shortly.');
+  const [checking, setChecking] = useState(false);
+  const [countdown, setCountdown] = useState(60);
 
-  const { data } = await supabase
-    .from('system_settings')
-    .select('value')
-    .eq('key', 'maintenance_message')
-    .single();
+  const checkStatus = async () => {
+    setChecking(true);
 
-  if (data?.value) {
-    // Handle both string and JSON values
-    const value = data.value;
-    if (typeof value === 'string') {
-      return value.replace(/^"|"$/g, ''); // Remove surrounding quotes if present
+    try {
+      // Fetch maintenance_mode setting via public API endpoint
+      const response = await fetch('/api/settings/maintenance-mode', {
+        cache: 'no-store',
+      });
+      const data = await response.json();
+
+      if (data.maintenance_mode === false) {
+        // Maintenance mode disabled, redirect to home
+        router.push('/');
+      } else {
+        // Still in maintenance, update message
+        setMessage(data.message || 'System is currently undergoing maintenance.');
+        // Reset countdown
+        setCountdown(60);
+      }
+    } catch (error) {
+      console.error('Failed to check maintenance status:', error);
+      setMessage('System is currently undergoing maintenance. Unable to check status.');
     }
-    return String(value);
-  }
 
-  return 'The system is currently under maintenance. Please try again later.';
-}
+    setChecking(false);
+  };
 
-async function checkMaintenanceMode(): Promise<boolean> {
-  const supabase = await createServerSupabaseClient();
+  useEffect(() => {
+    // Initial check
+    checkStatus();
 
-  const { data } = await supabase
-    .from('system_settings')
-    .select('value')
-    .eq('key', 'maintenance_mode')
-    .single();
+    // Auto-refresh countdown
+    const countdownInterval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          checkStatus();
+          return 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-  return data?.value === true;
-}
-
-export default async function MaintenancePage() {
-  // Check if maintenance mode is actually enabled
-  const isMaintenanceMode = await checkMaintenanceMode();
-
-  // If maintenance is not enabled, redirect to dashboard
-  if (!isMaintenanceMode) {
-    redirect('/dashboard');
-  }
-
-  const message = await getMaintenanceMessage();
+    return () => {
+      clearInterval(countdownInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted/20 p-4">
-      <Card className="max-w-lg w-full shadow-lg">
-        <CardHeader className="text-center pb-2">
-          <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-            <Wrench className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-muted/50 via-background to-muted/30 p-4">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="text-center space-y-4">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 ring-8 ring-primary/5">
+            <Settings className="h-10 w-10 text-primary animate-spin-slow" />
           </div>
-          <CardTitle className="text-2xl">Under Maintenance</CardTitle>
-          <CardDescription>
-            We&apos;re working to improve your experience
-          </CardDescription>
+          <div>
+            <CardTitle className="text-2xl font-bold">System Maintenance</CardTitle>
+            <CardDescription className="mt-2 text-base">{message}</CardDescription>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-amber-800 dark:text-amber-200">
-                {message}
-              </p>
-            </div>
+
+        <CardContent className="space-y-4 text-center">
+          {/* Manual refresh button */}
+          <Button
+            onClick={checkStatus}
+            disabled={checking}
+            variant="outline"
+            className="w-full"
+            size="lg"
+          >
+            {checking ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Checking...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Check Status Now
+              </>
+            )}
+          </Button>
+
+          {/* Auto-refresh info */}
+          <div className="pt-4 border-t">
+            <p className="text-sm text-muted-foreground">
+              Automatically checking in <span className="font-mono font-semibold">{countdown}s</span>
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              This page will reload when maintenance is complete
+            </p>
           </div>
 
-          <div className="text-center text-sm text-muted-foreground">
-            <p>If you need immediate assistance, please contact the estate administration.</p>
-          </div>
-
-          <div className="flex justify-center pt-2">
-            <a
-              href="/login"
-              className="text-sm text-primary hover:underline"
-            >
-              Return to Login
-            </a>
+          {/* Additional info */}
+          <div className="pt-4 border-t text-xs text-muted-foreground space-y-1">
+            <p>If you believe you should have access during maintenance,</p>
+            <p>please contact your system administrator.</p>
           </div>
         </CardContent>
       </Card>
+
+      {/* Background decoration */}
+      <style jsx global>{\`
+        @keyframes spin-slow {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 3s linear infinite;
+        }
+      \`}</style>
     </div>
   );
 }

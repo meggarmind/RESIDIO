@@ -94,12 +94,37 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
     return { success: false, error: 'Email notifications are disabled' };
   }
 
+  const recipients = Array.isArray(options.to) ? options.to : [options.to];
+
+  // Check if debug mode is enabled (log only, don't send)
+  const debugMode = await getSettingValue('email_debug_mode');
+  if (debugMode === 'true' || debugMode === true) {
+    // Log to email_logs with DEBUG_MODE status
+    for (const recipient of recipients) {
+      await logEmail({
+        recipientEmail: recipient.email,
+        recipientName: recipient.name,
+        residentId: recipient.residentId,
+        emailType: options.emailType,
+        subject: options.subject,
+        status: 'DEBUG_MODE',
+        metadata: {
+          ...options.metadata,
+          original_recipient: recipient.email,
+          debug_mode: true,
+          would_have_sent_at: new Date().toISOString(),
+        },
+      });
+    }
+
+    // Return success without actually sending
+    return { success: true, resendId: 'debug-mode-skip' };
+  }
+
   // Check if Resend is configured
   if (!isEmailConfigured() || !resend) {
     return { success: false, error: 'Email service not configured (missing RESEND_API_KEY)' };
   }
-
-  const recipients = Array.isArray(options.to) ? options.to : [options.to];
 
   // Get sender name from settings
   const fromName = (await getSettingValue('email_from_name')) || 'Residio Estate';

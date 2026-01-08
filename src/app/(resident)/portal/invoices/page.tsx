@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useInvoices, useResidentIndebtedness, useResidentWallet } from '@/hooks/use-billing';
 import { useIsDesktop } from '@/hooks/use-media-query';
@@ -21,7 +22,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   ResponsiveSheet,
   ResponsiveSheetHeader,
@@ -29,6 +34,16 @@ import {
   ResponsiveSheetDescription,
   ResponsiveSheetBody,
 } from '@/components/ui/responsive-sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import {
   CreditCard,
   FileText,
@@ -47,6 +62,8 @@ import { formatCurrency, cn, getPropertyShortname } from '@/lib/utils';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useLayoutTheme } from '@/contexts/layout-theme-context';
+import { payInvoiceWithWallet } from '@/actions/billing/pay-invoice-with-wallet';
+import { disputeInvoice } from '@/actions/billing/dispute-invoice';
 import type { InvoiceWithDetails, InvoiceStatus } from '@/types/database';
 
 // Spring physics for smooth, professional animations
@@ -103,6 +120,7 @@ const statusConfig: Record<InvoiceStatus, { icon: React.ElementType; label: stri
  */
 export default function ResidentInvoicesPage() {
   const { residentId } = useAuth();
+  const queryClient = useQueryClient();
   const isDesktop = useIsDesktop();
   const { isExpanded } = useLayoutTheme();
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -153,113 +171,121 @@ export default function ResidentInvoicesPage() {
           )}>View your invoices and payment history</p>
         </div>
 
-      {/* Summary Cards */}
-      <div className={cn(
-        'grid grid-cols-2 gap-3',
-        isExpanded && 'lg:grid-cols-4 gap-4'
-      )}>
-        <motion.div
-          variants={cardVariants}
-          initial="hidden"
-          animate="visible"
-          custom={0}
-        >
-          <Card className="bg-gradient-to-br from-red-500/10 to-orange-500/5 border-red-500/20">
-            <CardContent className="p-4">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Outstanding</p>
-                <p className="text-xl font-bold text-red-600 dark:text-red-400">
-                  <AnimatedCounter
-                    value={indebtedness?.totalUnpaid || 0}
-                    formatter={formatCurrency}
-                  />
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          variants={cardVariants}
-          initial="hidden"
-          animate="visible"
-          custom={1}
-        >
-          <Card className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border-emerald-500/20">
-            <CardContent className="p-4">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Wallet Balance</p>
-                <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                  <AnimatedCounter
-                    value={wallet?.balance || 0}
-                    formatter={formatCurrency}
-                  />
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      {/* Filter Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="all" className="text-xs sm:text-sm">
-            All ({invoices.length})
-          </TabsTrigger>
-          <TabsTrigger value="unpaid" className="text-xs sm:text-sm">
-            Unpaid ({unpaidCount})
-          </TabsTrigger>
-          <TabsTrigger value="paid" className="text-xs sm:text-sm">
-            Paid ({paidCount})
-          </TabsTrigger>
-        </TabsList>
-
-        <AnimatePresence mode="wait">
-          <TabsContent value={activeTab} className="mt-4" asChild>
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              {filteredInvoices.length === 0 ? (
-                <Card className="border-dashed">
-                  <CardContent className="py-8 text-center">
-                    <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-                    <p className="text-muted-foreground">No invoices found</p>
-                  </CardContent>
-                </Card>
-              ) : isDesktop ? (
-                /* Desktop: Table Layout */
-                <InvoiceTable
-                  invoices={filteredInvoices}
-                  onSelect={setSelectedInvoice}
-                />
-              ) : (
-                /* Mobile: Card Layout */
-                <div className="space-y-3">
-                  {filteredInvoices.map((invoice, index) => (
-                    <InvoiceCard
-                      key={invoice.id}
-                      invoice={invoice}
-                      onClick={() => setSelectedInvoice(invoice)}
-                      index={index}
+        {/* Summary Cards */}
+        <div className={cn(
+          'grid grid-cols-2 gap-3',
+          isExpanded && 'lg:grid-cols-4 gap-4'
+        )}>
+          <motion.div
+            variants={cardVariants}
+            initial="hidden"
+            animate="visible"
+            custom={0}
+          >
+            <Card className="bg-gradient-to-br from-red-500/10 to-orange-500/5 border-red-500/20">
+              <CardContent className="p-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Outstanding</p>
+                  <p className="text-xl font-bold text-red-600 dark:text-red-400">
+                    <AnimatedCounter
+                      value={indebtedness?.totalUnpaid || 0}
+                      formatter={formatCurrency}
                     />
-                  ))}
+                  </p>
                 </div>
-              )}
-            </motion.div>
-          </TabsContent>
-        </AnimatePresence>
-      </Tabs>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div
+            variants={cardVariants}
+            initial="hidden"
+            animate="visible"
+            custom={1}
+          >
+            <Card className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border-emerald-500/20">
+              <CardContent className="p-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Wallet Balance</p>
+                  <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                    <AnimatedCounter
+                      value={wallet?.balance || 0}
+                      formatter={formatCurrency}
+                    />
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+
+        {/* Filter Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="all" className="text-xs sm:text-sm">
+              All ({invoices.length})
+            </TabsTrigger>
+            <TabsTrigger value="unpaid" className="text-xs sm:text-sm">
+              Unpaid ({unpaidCount})
+            </TabsTrigger>
+            <TabsTrigger value="paid" className="text-xs sm:text-sm">
+              Paid ({paidCount})
+            </TabsTrigger>
+          </TabsList>
+
+          <AnimatePresence mode="wait">
+            <TabsContent value={activeTab} className="mt-4" asChild>
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                {filteredInvoices.length === 0 ? (
+                  <Card className="border-dashed">
+                    <CardContent className="py-8 text-center">
+                      <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+                      <p className="text-muted-foreground">No invoices found</p>
+                    </CardContent>
+                  </Card>
+                ) : isDesktop ? (
+                  /* Desktop: Table Layout */
+                  <InvoiceTable
+                    invoices={filteredInvoices}
+                    onSelect={setSelectedInvoice}
+                  />
+                ) : (
+                  /* Mobile: Card Layout */
+                  <div className="space-y-3">
+                    {filteredInvoices.map((invoice, index) => (
+                      <InvoiceCard
+                        key={invoice.id}
+                        invoice={invoice}
+                        onClick={() => setSelectedInvoice(invoice)}
+                        index={index}
+                      />
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            </TabsContent>
+          </AnimatePresence>
+        </Tabs>
 
         {/* Invoice Detail Sheet */}
         <InvoiceDetailSheet
           invoice={selectedInvoice}
           open={!!selectedInvoice}
           onOpenChange={(open) => !open && setSelectedInvoice(null)}
+          walletBalance={wallet?.balance || 0}
+          onPaymentSuccess={() => {
+            // Invalidate all related queries to refresh data
+            queryClient.invalidateQueries({ queryKey: ['invoices'] });
+            queryClient.invalidateQueries({ queryKey: ['resident-wallet', residentId] });
+            queryClient.invalidateQueries({ queryKey: ['wallet-transactions', residentId] });
+            queryClient.invalidateQueries({ queryKey: ['resident-indebtedness', residentId] });
+          }}
         />
       </div>
     </FeatureRestrictionGate>
@@ -288,6 +314,13 @@ function InvoiceCard({
     return 'info';
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   return (
     <motion.div
       variants={rowVariants}
@@ -296,8 +329,12 @@ function InvoiceCard({
       custom={index}
     >
       <Card
-        className="cursor-pointer hover:border-primary/30 transition-colors active:scale-[0.99]"
+        className="cursor-pointer hover:border-primary/30 transition-colors active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         onClick={onClick}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-label={`Invoice ${invoice.invoice_number}, ${config.label}`}
       >
         <CardContent className="p-4">
           <div className="flex items-center justify-between gap-3">
@@ -449,12 +486,21 @@ function InvoiceDetailSheet({
   invoice,
   open,
   onOpenChange,
+  walletBalance,
+  onPaymentSuccess,
 }: {
   invoice: InvoiceWithDetails | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  walletBalance: number;
+  onPaymentSuccess: () => void;
 }) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isPayingWithWallet, setIsPayingWithWallet] = useState(false);
+  const [enteredAmount, setEnteredAmount] = useState<string>('');
+  const [isDisputing, setIsDisputing] = useState(false);
+  const [disputeOpen, setDisputeOpen] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
 
   if (!invoice) return null;
 
@@ -462,6 +508,9 @@ function InvoiceDetailSheet({
   const StatusIcon = config.icon;
   const remaining = (invoice.amount_due || 0) - (invoice.amount_paid || 0);
   const isPaid = invoice.status === 'paid';
+
+  // Max amount user can pay (limited by wallet and debt)
+  const maxPayable = Math.max(0, Math.min(walletBalance, remaining));
 
   // Download receipt handler
   const handleDownloadReceipt = async () => {
@@ -504,6 +553,117 @@ function InvoiceDetailSheet({
       setIsDownloading(false);
     }
   };
+
+  // Pay with wallet handler
+  const handlePayWithWallet = async () => {
+    const amountToPay = parseFloat(enteredAmount);
+
+    if (isNaN(amountToPay) || amountToPay <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+
+    if (amountToPay > maxPayable) {
+      toast.error(`Amount cannot exceed wallet balance (${formatCurrency(walletBalance)}) or remaining due (${formatCurrency(remaining)})`);
+      return;
+    }
+
+    setIsPayingWithWallet(true);
+    try {
+      const result = await payInvoiceWithWallet(invoice.id, amountToPay);
+
+      if (result.success) {
+        const message = result.invoiceFullyPaid
+          ? `Invoice paid in full! ₦${result.amountPaid.toLocaleString()} debited from wallet.`
+          : `Partial payment of ₦${result.amountPaid.toLocaleString()} applied. Remaining: ₦${(remaining - result.amountPaid).toLocaleString()}`;
+        toast.success(message);
+        onPaymentSuccess();
+        onOpenChange(false);
+      } else {
+        toast.error(result.error || 'Payment failed');
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+      toast.error('Failed to process payment');
+    } finally {
+      setIsPayingWithWallet(false);
+    }
+  };
+
+  // Dispute Handler
+  const handleDispute = async () => {
+    if (!disputeReason.trim()) {
+      toast.error('Please provide a reason for the dispute');
+      return;
+    }
+    setIsDisputing(true);
+    try {
+      const result = await disputeInvoice(invoice.id, disputeReason);
+      if (result.success) {
+        toast.success('Dispute submitted successfully. We will review it shortly.');
+        setDisputeOpen(false);
+        setDisputeReason('');
+      } else {
+        toast.error(result.error || 'Failed to submit dispute');
+      }
+    } catch (error) {
+      console.error('Dispute error:', error);
+      toast.error('Something went wrong');
+    } finally {
+      setIsDisputing(false);
+    }
+  };
+
+  // Set default amount when opening
+  // We use a key trick or effect. Effect is better here.
+  // Although we can't use useEffect trivially with conditional return above... 
+  // actually we returned null early, so hooks order is violated if we add useEffect after.
+  // FIX: Move hooks to top. But waiting for re-render is fine.
+  // Instead of useEffect, let's just use a "init" state or similar, 
+  // OR just assume if empty, we set it.
+  // Actually, better to just default it in a useEffect that watches `invoice?.id`.
+  // BUT hooks must be at top. I'll fix the early return.
+
+  return (
+    <InvoiceDetailSheetContent
+      invoice={invoice}
+      open={open}
+      onOpenChange={onOpenChange}
+      walletBalance={walletBalance}
+      onPaymentSuccess={onPaymentSuccess}
+      isPaid={isPaid}
+      maxPayable={maxPayable}
+      remaining={remaining}
+      config={config}
+      StatusIcon={StatusIcon}
+      handleDownloadReceipt={handleDownloadReceipt}
+      handlePayWithWallet={handlePayWithWallet}
+      isDownloading={isDownloading}
+      isPayingWithWallet={isPayingWithWallet}
+      enteredAmount={enteredAmount}
+      setEnteredAmount={setEnteredAmount}
+      isDisputing={isDisputing}
+      disputeOpen={disputeOpen}
+      setDisputeOpen={setDisputeOpen}
+      disputeReason={disputeReason}
+      setDisputeReason={setDisputeReason}
+      handleDispute={handleDispute}
+    />
+  );
+}
+
+function InvoiceDetailSheetContent({
+  invoice, open, onOpenChange, walletBalance, onPaymentSuccess, isPaid, maxPayable, remaining, config, StatusIcon, handleDownloadReceipt, handlePayWithWallet, isDownloading, isPayingWithWallet, enteredAmount, setEnteredAmount,
+  isDisputing, disputeOpen, setDisputeOpen, disputeReason, setDisputeReason, handleDispute
+}: any) {
+
+  useEffect(() => {
+    if (open && invoice) {
+      const rem = (invoice.amount_due || 0) - (invoice.amount_paid || 0);
+      const max = Math.max(0, Math.min(walletBalance, rem));
+      setEnteredAmount(max > 0 ? max.toString() : '');
+    }
+  }, [open, invoice, walletBalance]);
 
   return (
     <ResponsiveSheet
@@ -610,7 +770,7 @@ function InvoiceDetailSheet({
               <h3 className="text-sm font-medium text-muted-foreground">Line Items</h3>
               <Card>
                 <CardContent className="p-0 divide-y">
-                  {invoice.invoice_items.map((item) => (
+                  {invoice.invoice_items.map((item: any) => (
                     <div key={item.id} className="p-3 flex justify-between items-center">
                       <p className="text-sm">{item.description}</p>
                       <p className="font-medium">{formatCurrency(item.amount || 0)}</p>
@@ -620,6 +780,79 @@ function InvoiceDetailSheet({
               </Card>
             </div>
           )}
+
+          {/* Pay with Wallet Button */}
+          {maxPayable > 0 && walletBalance > 0 ? (
+            <Card className="bg-emerald-500/5 border-emerald-500/20">
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="h-4 w-4 text-emerald-600" />
+                    <span className="text-sm font-medium">Pay with Wallet</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    Balance: {formatCurrency(walletBalance)}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs">Payment Amount (₦)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      max={maxPayable}
+                      value={enteredAmount}
+                      onChange={(e) => setEnteredAmount(e.target.value)}
+                      className="h-9"
+                      placeholder={maxPayable.toString()}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      onClick={() => setEnteredAmount(maxPayable.toString())}
+                    >
+                      Max
+                    </Button>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full gap-2"
+                  onClick={handlePayWithWallet}
+                  disabled={isPayingWithWallet || !enteredAmount || parseFloat(enteredAmount) <= 0}
+                >
+                  {isPayingWithWallet ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Wallet className="h-4 w-4" />
+                      Pay Now
+                    </>
+                  )}
+                </Button>
+
+                {enteredAmount && parseFloat(enteredAmount) < remaining && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Remaining after payment: {formatCurrency(remaining - (parseFloat(enteredAmount) || 0))}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          ) : !isPaid && walletBalance <= 0 ? (
+            <Card className="bg-muted/50 border-dashed">
+              <CardContent className="p-4 text-center">
+                <p className="text-sm font-medium text-muted-foreground">Insufficient Wallet Balance</p>
+                <Button variant="link" className="h-auto p-0 text-xs mt-1">
+                  Top up wallet to pay
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
 
           {/* Download Receipt Button */}
           <Button
@@ -640,6 +873,48 @@ function InvoiceDetailSheet({
               </>
             )}
           </Button>
+
+          {/* Dispute Button */}
+          {!isPaid && (
+            <div className="pt-2">
+              <Button
+                variant="ghost"
+                className="w-full text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+                onClick={() => setDisputeOpen(true)}
+              >
+                Dispute Invoice
+              </Button>
+            </div>
+          )}
+
+          <Dialog open={disputeOpen} onOpenChange={setDisputeOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Dispute Invoice</DialogTitle>
+                <DialogDescription>
+                  Describe the issue with this invoice. The management will review your dispute.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <Textarea
+                  placeholder="Reason for dispute..."
+                  value={disputeReason}
+                  onChange={(e) => setDisputeReason(e.target.value)}
+                  className="min-h-[100px]"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDisputeOpen(false)}>Cancel</Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDispute}
+                  disabled={isDisputing || !disputeReason.trim()}
+                >
+                  {isDisputing ? 'Submitting...' : 'Submit Dispute'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </ResponsiveSheetBody>
     </ResponsiveSheet>

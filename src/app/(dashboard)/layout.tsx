@@ -6,6 +6,7 @@ import { ModernSidebar } from '@/components/dashboard/modern-sidebar';
 import { Header } from '@/components/dashboard/header';
 import { ModernHeader } from '@/components/dashboard/modern-header';
 import { MobileNav } from '@/components/dashboard/mobile-nav';
+import { AdminBreadcrumb } from '@/components/dashboard/admin-breadcrumb';
 import { VisualThemeProvider, useVisualTheme } from '@/contexts/visual-theme-context';
 import { useEffectiveTheme } from '@/hooks/use-theme-preferences';
 
@@ -34,6 +35,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           <Header onMenuClick={() => setMobileNavOpen(true)} />
         )}
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          <AdminBreadcrumb />
           {children}
         </main>
       </div>

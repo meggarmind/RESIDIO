@@ -13,6 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, Loader2, Save, Server, Clock, Database, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSystemSettings, useUpdateSettings, useUpdateSetting } from '@/hooks/use-settings';
+import { updateMaintenanceMode } from '@/actions/settings/update-maintenance-mode';
 
 // Helper to convert settings array to key-value object
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
@@ -46,11 +47,22 @@ export default function SystemSettingsPage() {
     }
   }, [systemSettings]);
 
-  const handleMaintenanceModeToggle = () => {
+  const handleMaintenanceModeToggle = async () => {
     const newValue = !maintenanceMode;
     setMaintenanceMode(newValue);
-    // Immediately save maintenance mode changes
-    updateSetting.mutate({ key: 'maintenance_mode', value: newValue });
+
+    // Use the proper server action with permission checks and audit logging
+    const result = await updateMaintenanceMode(newValue, maintenanceMessage);
+
+    if (result.success) {
+      toast.success(`Maintenance mode ${newValue ? 'enabled' : 'disabled'}`);
+      // Refresh settings to show updated value
+      updateSetting.mutate({ key: 'maintenance_mode', value: newValue });
+    } else {
+      // Revert on error
+      setMaintenanceMode(!newValue);
+      toast.error(result.error || 'Failed to update maintenance mode');
+    }
   };
 
   const handleSaveSettings = () => {

@@ -3,13 +3,18 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getInvoiceById } from '@/actions/billing/get-invoices';
+import { getParentInvoice } from '@/actions/billing/get-invoice-corrections';
 import type { InvoiceWithDetails } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { InvoiceCorrectionDialog } from '@/components/billing/invoice-correction-dialog';
+import { InvoiceCorrectionTimeline } from '@/components/billing/invoice-correction-timeline';
 import { formatCurrency } from '@/lib/utils';
-import { ArrowLeft, Printer, Loader2 } from 'lucide-react';
+import { ArrowLeft, Printer, Loader2, FileEdit, AlertCircle } from 'lucide-react';
+import { useAuth } from '@/lib/auth/auth-provider';
 import Link from 'next/link';
 
 const statusColors: Record<string, string> = {
@@ -22,9 +27,14 @@ const statusColors: Record<string, string> = {
 export default function InvoiceDetailPage() {
     const params = useParams();
     const router = useRouter();
+    const { user, hasPermission } = useAuth();
     const [invoice, setInvoice] = useState<InvoiceWithDetails | null>(null);
+    const [parentInvoice, setParentInvoice] = useState<InvoiceWithDetails | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false);
+
+    const canCreateCorrections = hasPermission('billing.create_invoice');
 
     useEffect(() => {
         async function fetchInvoice() {
@@ -35,14 +45,33 @@ export default function InvoiceDetailPage() {
 
             if (result.error) {
                 setError(result.error);
-            } else {
-                setInvoice(result.data);
+                setIsLoading(false);
+                return;
             }
+
+            setInvoice(result.data);
+
+            // If this is a correction, fetch parent invoice
+            if (result.data?.is_correction && result.data?.parent_invoice_id) {
+                const parentResult = await getParentInvoice(params.id as string);
+                if (parentResult.data) {
+                    setParentInvoice(parentResult.data);
+                }
+            }
+
             setIsLoading(false);
         }
 
         fetchInvoice();
     }, [params.id]);
+
+    const refetchInvoice = async () => {
+        if (!params.id) return;
+        const result = await getInvoiceById(params.id as string);
+        if (result.data) {
+            setInvoice(result.data);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -66,7 +95,7 @@ export default function InvoiceDetailPage() {
     const totalItems = invoice.invoice_items?.reduce((sum, item) => sum + item.amount, 0) || 0;
 
     return (
-        <div className="p-6 max-w-3xl mx-auto space-y-6">
+        <div className="p-6 max-w-6xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
                 <Button variant="ghost" asChild>
                     <Link href="/billing">
@@ -74,24 +103,67 @@ export default function InvoiceDetailPage() {
                         Back to Invoices
                     </Link>
                 </Button>
-                <Button variant="outline" onClick={() => window.print()}>
-                    <Printer className="mr-2 h-4 w-4" />
-                    Print
-                </Button>
+                <div className="flex gap-2">
+                    {canCreateCorrections && invoice.status !== 'void' && (
+                        <Button variant="outline" onClick={() => setCorrectionDialogOpen(true)}>
+                            <FileEdit className="mr-2 h-4 w-4" />
+                            Create Correction
+                        </Button>
+                    )}
+                    <Button variant="outline" onClick={() => window.print()}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Print
+                    </Button>
+                </div>
             </div>
 
-            <Card className="print:shadow-none">
-                <CardHeader className="flex flex-row items-start justify-between">
-                    <div>
-                        <CardTitle className="text-2xl">Invoice</CardTitle>
-                        <CardDescription className="font-mono text-lg">
-                            {invoice.invoice_number}
-                        </CardDescription>
+            {/* Correction Badge (if this is a correction invoice) */}
+            {invoice.is_correction && (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                    <div className="flex items-start">
+                        <AlertCircle className="h-5 w-5 text-yellow-400 mr-2 mt-0.5" />
+                        <div>
+                            <h4 className="font-semibold text-yellow-800">
+                                {invoice.correction_type === 'credit_note' ? 'Credit Note' : 'Debit Note'}
+                            </h4>
+                            <p className="text-sm text-yellow-700 mt-1">
+                                This is a correction invoice.
+                                {parentInvoice && (
+                                    <>
+                                        {' '}Original invoice:{' '}
+                                        <Link
+                                            href={`/billing/${parentInvoice.id}`}
+                                            className="underline font-medium"
+                                        >
+                                            {parentInvoice.invoice_number}
+                                        </Link>
+                                    </>
+                                )}
+                            </p>
+                        </div>
                     </div>
-                    <Badge className={statusColors[invoice.status] || ''} variant="outline">
-                        {invoice.status.toUpperCase()}
-                    </Badge>
-                </CardHeader>
+                </div>
+            )}
+
+            <Tabs defaultValue="details" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="details">Invoice Details</TabsTrigger>
+                    <TabsTrigger value="corrections">Correction History</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="details" className="mt-6">
+                    <Card className="print:shadow-none">
+                        <CardHeader className="flex flex-row items-start justify-between">
+                            <div>
+                                <CardTitle className="text-2xl">Invoice</CardTitle>
+                                <CardDescription className="font-mono text-lg">
+                                    {invoice.invoice_number}
+                                </CardDescription>
+                            </div>
+                            <Badge className={statusColors[invoice.status] || ''} variant="outline">
+                                {invoice.status.toUpperCase()}
+                            </Badge>
+                        </CardHeader>
 
                 <CardContent className="space-y-6">
                     {/* Bill To Section */}
@@ -181,6 +253,37 @@ export default function InvoiceDetailPage() {
                     )}
                 </CardContent>
             </Card>
+                </TabsContent>
+
+                <TabsContent value="corrections" className="mt-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Correction History</CardTitle>
+                            <CardDescription>
+                                View all corrections (credit/debit notes) made to this invoice
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <InvoiceCorrectionTimeline
+                                invoiceId={invoice.id}
+                                originalInvoiceNumber={invoice.invoice_number}
+                                originalAmount={invoice.amount_due}
+                                originalCreatedAt={invoice.created_at}
+                            />
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
+
+            {/* Correction Dialog */}
+            {canCreateCorrections && (
+                <InvoiceCorrectionDialog
+                    invoice={invoice}
+                    open={correctionDialogOpen}
+                    onOpenChange={setCorrectionDialogOpen}
+                    onSuccess={refetchInvoice}
+                />
+            )}
         </div>
     );
 }

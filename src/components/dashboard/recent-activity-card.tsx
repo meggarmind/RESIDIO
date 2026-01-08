@@ -111,7 +111,7 @@ function ActivityListItem({ activity }: { activity: RecentActivityItem }) {
 
 function RecentActivitySkeleton() {
     return (
-        <Card>
+        <Card variant="list">
             <CardHeader className="pb-3">
                 <ShimmerSkeleton width={128} height={20} speed="fast" />
             </CardHeader>
@@ -138,7 +138,7 @@ export function RecentActivityCard({ activities, isLoading }: RecentActivityCard
     }
 
     return (
-        <Card className="flex flex-col h-full animate-fade-in-up">
+        <Card variant="list" className="flex flex-col h-full animate-fade-in-up">
             <CardHeader className="pb-3 shrink-0">
                 <CardTitle className="flex items-center justify-between text-base font-semibold">
                     <div className="flex items-center gap-2">

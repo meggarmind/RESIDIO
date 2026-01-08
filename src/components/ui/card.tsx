@@ -1,17 +1,47 @@
 import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
-interface CardProps extends React.ComponentProps<"div"> {
+/**
+ * Card Variant System
+ *
+ * Provides consistent card styling across the application:
+ *
+ * - default: Standard padding (py-6) for forms, settings, detail sections
+ * - stat: Compact padding (py-4) for KPI cards, metrics displays
+ * - list: No padding (py-0) for cards containing scrollable lists
+ * - featured: Compact padding with gradient support for hero/featured content
+ * - compact: Minimal padding (py-3) for dense grid layouts
+ */
+const cardVariants = cva(
+  "bg-card text-card-foreground flex flex-col rounded-xl border shadow-sm",
+  {
+    variants: {
+      variant: {
+        default: "gap-6 py-6",
+        stat: "gap-3 py-4",
+        list: "gap-0 py-0",
+        featured: "gap-3 py-4",
+        compact: "gap-2 py-3",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  }
+)
+
+interface CardProps extends React.ComponentProps<"div">, VariantProps<typeof cardVariants> {
   interactive?: boolean
 }
 
-function Card({ className, interactive = false, ...props }: CardProps) {
+function Card({ className, variant, interactive = false, ...props }: CardProps) {
   return (
     <div
       data-slot="card"
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        cardVariants({ variant }),
         interactive && "transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer",
         className
       )}
@@ -94,4 +124,5 @@ export {
   CardAction,
   CardDescription,
   CardContent,
+  cardVariants,
 }
