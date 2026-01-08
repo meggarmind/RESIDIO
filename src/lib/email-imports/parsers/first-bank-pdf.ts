@@ -11,7 +11,6 @@
  * - Footer: Summary totals
  */
 
-import { PDFDocument } from 'pdf-lib';
 import type { ParsedEmailTransaction } from '@/types/database';
 import { parseFirstBankAmount, parseFirstBankDate } from '@/lib/parsers/bank-formats/firstbank';
 import { getPasswordByAccountLast4 } from '@/actions/email-imports/bank-passwords';
@@ -22,45 +21,91 @@ import { getPasswordByAccountLast4 } from '@/actions/email-imports/bank-password
 
 /**
  * Attempt to decrypt a password-protected PDF.
- * Uses pdf-lib to try decryption with the provided password.
+ * Uses qpdf CLI tool for decryption (more reliable than pdf-lib).
  *
  * Note: pdf-lib has limited support for encrypted PDFs.
- * For complex encryption, we may need qpdf CLI as a fallback.
+ * qpdf is used as the primary decryption method.
+ *
+ * Install qpdf: sudo apt-get install qpdf (Ubuntu/Debian)
  */
 export async function decryptPdf(
   pdfBuffer: Buffer,
   password: string
 ): Promise<Buffer> {
-  try {
-    // Try to load with password
-    const pdfDoc = await PDFDocument.load(pdfBuffer, {
-      password,
-      ignoreEncryption: false,
-    });
+  const { execFile } = await import('child_process');
+  const { promisify } = await import('util');
+  const { writeFileSync, readFileSync, unlinkSync } = await import('fs');
+  const { tmpdir } = await import('os');
+  const { join } = await import('path');
+  const { randomUUID } = await import('crypto');
 
-    // Save decrypted PDF
-    const decryptedBytes = await pdfDoc.save();
-    return Buffer.from(decryptedBytes);
+  const execFileAsync = promisify(execFile);
+  const tempId = randomUUID();
+  const inputPath = join(tmpdir(), `encrypted-${tempId}.pdf`);
+  const outputPath = join(tmpdir(), `decrypted-${tempId}.pdf`);
+
+  try {
+    // Write encrypted PDF to temp file
+    writeFileSync(inputPath, pdfBuffer);
+
+    // Use qpdf to decrypt with execFile (safe from shell injection)
+    // qpdf --decrypt --password=<password> input.pdf output.pdf
+    await execFileAsync('qpdf', [
+      '--decrypt',
+      `--password=${password}`,
+      inputPath,
+      outputPath,
+    ]);
+
+    // Read decrypted PDF
+    const decryptedBuffer = readFileSync(outputPath);
+
+    return decryptedBuffer;
   } catch (error) {
-    // If pdf-lib fails, throw to indicate need for manual decryption
-    throw new Error(
-      `Failed to decrypt PDF: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
+    const message = error instanceof Error ? error.message : 'Unknown error';
+
+    // Check if qpdf is not installed
+    if (message.includes('ENOENT') || message.includes('not found')) {
+      throw new Error('qpdf is not installed. Please install it: sudo apt-get install qpdf');
+    }
+
+    // Check for wrong password
+    if (message.includes('invalid password') || message.includes('password')) {
+      throw new Error('Invalid PDF password');
+    }
+
+    throw new Error(`Failed to decrypt PDF: ${message}`);
+  } finally {
+    // Clean up temp files
+    try {
+      unlinkSync(inputPath);
+    } catch {
+      // Ignore cleanup errors
+    }
+    try {
+      unlinkSync(outputPath);
+    } catch {
+      // Ignore cleanup errors
+    }
   }
 }
 
 /**
- * Check if PDF is encrypted
+ * Check if PDF is encrypted using pdf-parse
  */
 export async function isPdfEncrypted(pdfBuffer: Buffer): Promise<boolean> {
   try {
-    await PDFDocument.load(pdfBuffer);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require('pdf-parse');
+    // Try to parse - if it fails with encryption error, PDF is encrypted
+    await pdfParse(pdfBuffer);
     return false;
   } catch (error) {
     // Check if the error is about encryption
     const errorMessage = error instanceof Error ? error.message : '';
     return errorMessage.toLowerCase().includes('encrypted') ||
-           errorMessage.toLowerCase().includes('password');
+           errorMessage.toLowerCase().includes('password') ||
+           errorMessage.toLowerCase().includes('secure');
   }
 }
 
@@ -73,8 +118,9 @@ export async function isPdfEncrypted(pdfBuffer: Buffer): Promise<boolean> {
  */
 export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
   try {
-    // Dynamic import for pdf-parse (ESM compatibility)
-    const pdfParse = (await import('pdf-parse')).default || (await import('pdf-parse'));
+    // Use require for pdf-parse (CommonJS package with ESM compatibility issues)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require('pdf-parse');
     const data = await pdfParse(pdfBuffer);
     return data.text;
   } catch (error) {

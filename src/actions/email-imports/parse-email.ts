@@ -183,7 +183,8 @@ export async function parseEmailMessage(
         // First, try to get text without password (might fail if encrypted)
         let accountLast4: string | null = null;
         try {
-          const pdfParse = (await import('pdf-parse')).default || (await import('pdf-parse'));
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          const pdfParse = require('pdf-parse');
           const textData = await pdfParse(pdfBuffer);
           accountLast4 = extractAccountNumber(textData.text);
         } catch {

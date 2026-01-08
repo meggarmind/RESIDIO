@@ -4,119 +4,12 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { Home, Users, CreditCard, Shield, Settings, Building2, Receipt, ClipboardCheck, Upload, FileBarChart, FilePlus, BarChart3, User, UserSearch, FileText, Megaphone } from 'lucide-react';
+import { User, UserSearch } from 'lucide-react';
 import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-
-interface NavItem {
-  title: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  permissions?: string[]; // New: required permissions (user needs at least one)
-  roles?: string[]; // Legacy: kept for backwards compat
-  showBadge?: boolean;
-  children?: NavItem[]; // Nested navigation items
-}
-
-const navItems: NavItem[] = [
-  {
-    title: 'Dashboard',
-    href: '/dashboard',
-    icon: Home,
-    // All authenticated users
-  },
-  {
-    title: 'Analytics',
-    href: '/analytics',
-    icon: BarChart3,
-    permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
-  },
-  {
-    title: 'Residents',
-    href: '/residents',
-    icon: Users,
-    permissions: [PERMISSIONS.RESIDENTS_VIEW],
-  },
-  {
-    title: 'Houses',
-    href: '/houses',
-    icon: Building2,
-    permissions: [PERMISSIONS.HOUSES_VIEW],
-  },
-  {
-    title: 'Payments',
-    href: '/payments',
-    icon: CreditCard,
-    permissions: [PERMISSIONS.PAYMENTS_VIEW],
-    children: [
-      {
-        title: 'Import Statement',
-        href: '/payments/import',
-        icon: Upload,
-        permissions: [PERMISSIONS.IMPORTS_CREATE],
-      },
-    ],
-  },
-  {
-    title: 'Billing',
-    href: '/billing',
-    icon: Receipt,
-    permissions: [PERMISSIONS.BILLING_VIEW],
-  },
-  {
-    title: 'Security',
-    href: '/security',
-    icon: Shield,
-    permissions: [PERMISSIONS.SECURITY_VIEW],
-  },
-  {
-    title: 'Reports',
-    href: '/reports',
-    icon: FileBarChart,
-    permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_OCCUPANCY, PERMISSIONS.REPORTS_VIEW_SECURITY],
-    children: [
-      {
-        title: 'Generate Reports',
-        href: '/reports',
-        icon: FilePlus,
-        permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
-      },
-      {
-        title: 'Financial Overview',
-        href: '/reports/financial-overview',
-        icon: FileBarChart,
-        permissions: [PERMISSIONS.REPORTS_VIEW_FINANCIAL],
-      },
-    ],
-  },
-  {
-    title: 'Documents',
-    href: '/documents',
-    icon: FileText,
-    permissions: [PERMISSIONS.DOCUMENTS_VIEW],
-  },
-  {
-    title: 'Announcements',
-    href: '/announcements',
-    icon: Megaphone,
-    permissions: [PERMISSIONS.ANNOUNCEMENTS_VIEW],
-  },
-  {
-    title: 'Approvals',
-    href: '/approvals',
-    icon: ClipboardCheck,
-    permissions: [PERMISSIONS.APPROVALS_VIEW],
-    showBadge: true,
-  },
-  {
-    title: 'Settings',
-    href: '/settings',
-    icon: Settings,
-    permissions: [PERMISSIONS.SETTINGS_VIEW],
-  },
-];
+import { useNavigation } from '@/hooks/use-navigation';
 
 interface SidebarProps {
   className?: string;
@@ -125,17 +18,9 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { profile, isLoading, hasAnyPermission, hasPermission, residentId } = useAuth();
+  const { profile, hasPermission, residentId } = useAuth();
+  const { navItems: filteredNavItems } = useNavigation();
   const { data: pendingCount } = usePendingApprovalsCount();
-
-  const filteredNavItems = navItems.filter((item) => {
-    // No permissions required = visible to all
-    if (!item.permissions) return true;
-    // While loading, show items that the user might have access to (will be filtered properly once loaded)
-    if (isLoading) return true;
-    // Check if user has any of the required permissions
-    return hasAnyPermission(item.permissions);
-  });
 
   return (
     <aside className={cn('flex flex-col w-64 border-r bg-card', className)}>
@@ -153,15 +38,8 @@ export function Sidebar({ className }: SidebarProps) {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
             const showBadgeCount = item.showBadge && pendingCount && pendingCount > 0;
 
-            // Filter children based on permissions
-            const filteredChildren = item.children?.filter((child) => {
-              if (!child.permissions) return true;
-              if (isLoading) return true;
-              return hasAnyPermission(child.permissions);
-            });
-
             return (
-              <li key={item.href}>
+              <li key={item.id}>
                 <Link
                   href={item.href}
                   className={cn(
@@ -180,12 +58,12 @@ export function Sidebar({ className }: SidebarProps) {
                   )}
                 </Link>
                 {/* Render nested children with indent */}
-                {filteredChildren && filteredChildren.length > 0 && (
+                {item.children && item.children.length > 0 && (
                   <ul className="mt-1 space-y-1">
-                    {filteredChildren.map((child) => {
+                    {item.children.map((child) => {
                       const isChildActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
                       return (
-                        <li key={child.href}>
+                        <li key={child.id}>
                           <Link
                             href={child.href}
                             className={cn(

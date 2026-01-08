@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,36 @@ import {
 } from '@/hooks/use-gmail-connection';
 import { BankPasswordsSection } from './bank-passwords-section';
 
+// Wrapper component to handle Suspense for useSearchParams
 export default function EmailIntegrationPage() {
+  return (
+    <Suspense fallback={<EmailIntegrationSkeleton />}>
+      <EmailIntegrationContent />
+    </Suspense>
+  );
+}
+
+function EmailIntegrationSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-96 mt-2" />
+      </div>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-4 w-64" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-24 w-full" />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function EmailIntegrationContent() {
   const searchParams = useSearchParams();
   const { data: connectionStatus, isLoading, refetch } = useGmailConnectionStatus();
   const connectMutation = useConnectGmail();

@@ -189,13 +189,13 @@ export default function EmailImportDetailPage() {
     setIsSkipDialogOpen(false);
   };
 
-  const formatCurrency = (amount: number | string | null) => {
-    if (amount === null) return '-';
+  const formatCurrency = (amount: number | string | null | undefined) => {
+    if (amount === null || amount === undefined) return '-';
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
     return `₦${num.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
   };
 
-  const formatDate = (date: string | null) => {
+  const formatDate = (date: string | null | undefined) => {
     if (!date) return '-';
     return new Date(date).toLocaleDateString();
   };

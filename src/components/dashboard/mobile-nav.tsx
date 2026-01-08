@@ -10,62 +10,25 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { Home, Users, CreditCard, Shield, Settings } from 'lucide-react';
-
-interface NavItem {
-  title: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  roles?: string[];
-}
-
-const navItems: NavItem[] = [
-  {
-    title: 'Dashboard',
-    href: '/dashboard',
-    icon: Home,
-  },
-  {
-    title: 'Residents',
-    href: '/residents',
-    icon: Users,
-    roles: ['admin', 'chairman', 'financial_secretary'],
-  },
-  {
-    title: 'Payments',
-    href: '/payments',
-    icon: CreditCard,
-    roles: ['admin', 'chairman', 'financial_secretary'],
-  },
-  {
-    title: 'Security',
-    href: '/security',
-    icon: Shield,
-    roles: ['admin', 'chairman', 'security_officer'],
-  },
-  {
-    title: 'Settings',
-    href: '/settings',
-    icon: Settings,
-    roles: ['admin'],
-  },
-];
+import { useMobileNavigation } from '@/hooks/use-navigation';
 
 interface MobileNavProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * Mobile Navigation Component
+ *
+ * Displays a simplified navigation menu for mobile devices.
+ * Uses shared navigation config with permission-based filtering.
+ *
+ * Shows subset: Dashboard, Residents, Payments, Security, Settings
+ */
 export function MobileNav({ open, onOpenChange }: MobileNavProps) {
   const pathname = usePathname();
-  const { profile, isLoading } = useAuth();
-
-  const filteredNavItems = navItems.filter((item) => {
-    if (!item.roles) return true;
-    // While loading, show items that the user might have access to (will be filtered properly once loaded)
-    if (isLoading) return true;
-    return profile?.role && item.roles.includes(profile.role);
-  });
+  const { profile } = useAuth();
+  const { navItems: filteredNavItems } = useMobileNavigation();
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -83,7 +46,7 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
             {filteredNavItems.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
-                <li key={item.href}>
+                <li key={item.id}>
                   <Link
                     href={item.href}
                     onClick={() => onOpenChange(false)}

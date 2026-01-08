@@ -27,6 +27,10 @@ const sidebarNavItems = [
         href: "/settings/email",
     },
     {
+        title: "Email Integration",
+        href: "/settings/email-integration",
+    },
+    {
         title: "Notifications",
         href: "/settings/notifications",
     },

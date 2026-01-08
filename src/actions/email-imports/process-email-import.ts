@@ -33,10 +33,10 @@ async function loadMatchingData() {
     .select('id, first_name, last_name, resident_code, phone, email')
     .eq('is_active', true);
 
-  // Load payment aliases
+  // Load payment aliases (select all fields needed by createMatcher)
   const { data: aliases } = await adminClient
     .from('resident_payment_aliases')
-    .select('id, alias_name, resident_id')
+    .select('id, alias_name, resident_id, notes, is_active, created_at, created_by')
     .eq('is_active', true);
 
   // Load houses with resident assignments
@@ -52,7 +52,19 @@ async function loadMatchingData() {
     `)
     .eq('resident_houses.is_active', true);
 
-  return { residents: residents || [], aliases: aliases || [], houses: houses || [] };
+  return {
+    residents: residents || [],
+    aliases: (aliases || []) as Array<{
+      id: string;
+      alias_name: string;
+      resident_id: string;
+      notes: string | null;
+      is_active: boolean;
+      created_at: string;
+      created_by: string | null;
+    }>,
+    houses: houses || []
+  };
 }
 
 // ============================================================

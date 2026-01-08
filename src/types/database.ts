@@ -349,6 +349,11 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   documents: 'Document',                                // Phase 15: Document Management
   document_categories: 'Document Category',             // Phase 15: Document Management
   entity_notes: 'Note',                                 // Notes Module
+  gmail_oauth_credentials: 'Gmail Connection',          // Email Import System
+  email_imports: 'Email Import',                        // Email Import System
+  email_messages: 'Email Message',                      // Email Import System
+  email_transactions: 'Email Transaction',              // Email Import System
+  estate_bank_account_passwords: 'Bank Account Password', // Email Import System
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -2428,7 +2433,7 @@ export interface ParsedEmailTransaction {
   transactionType: 'credit' | 'debit' | null;
   reference: string | null;
   bankAccountLast4: string | null;
-  rawExtractedData: Record<string, unknown>;
+  rawExtractedData?: Record<string, unknown>;
 }
 
 // Email fetch options

@@ -17,7 +17,7 @@ export interface ShimmerSkeletonProps {
    * Border radius
    * @default 'md'
    */
-  rounded?: 'none' | 'sm' | 'md' | 'lg' | 'full';
+  rounded?: 'none' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
   /**
    * Variant type
    * @default 'default'
@@ -39,6 +39,7 @@ const roundedMap = {
   sm: 'rounded-sm',
   md: 'rounded-md',
   lg: 'rounded-lg',
+  xl: 'rounded-xl',
   full: 'rounded-full',
 };
 
