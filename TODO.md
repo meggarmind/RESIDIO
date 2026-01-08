@@ -1,8 +1,60 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2026-01-07 (Impersonation Bug Fixes)
+**Last Updated:** 2026-01-08 (Navigation Extraction & Gmail Integration)
 
 ## Current Phase: Phase 16 - Community Communication ✅ COMPLETE
+
+### Recent Session Work (2026-01-08):
+
+#### Navigation Extraction from Themes ✅
+Decoupled navigation links from theme-specific components so themes only affect visual presentation:
+
+**Problem Solved:**
+- Navigation items were duplicated across 3 files with inconsistencies
+- Modern sidebar was missing "Email Imports" link (bug)
+- Mobile nav used outdated role-based filtering instead of permissions
+
+**Solution Implemented:**
+- Created `src/config/navigation.ts` - Single source of truth for all 12 nav items
+- Created `src/hooks/use-navigation.ts` - Shared hook for permission-filtered navigation
+- Updated `sidebar.tsx`, `modern-sidebar.tsx`, `mobile-nav.tsx` to use shared config
+- Mobile nav now uses permission-based filtering (security upgrade)
+
+**Files Created:**
+- `src/config/navigation.ts` - NavItem type + ADMIN_NAV_ITEMS array
+- `src/hooks/use-navigation.ts` - useNavigation() and useMobileNavigation() hooks
+
+**Files Modified:**
+- `src/components/dashboard/sidebar.tsx` - Removed 113 lines of duplicated config
+- `src/components/dashboard/modern-sidebar.tsx` - Removed 96 lines, fixed Email Imports bug
+- `src/components/dashboard/mobile-nav.tsx` - Upgraded to permission-based filtering
+
+#### Gmail Email Integration (Phase 8 Enhancement) ✅
+Bank statement import via Gmail integration:
+
+- **PDF Decryption Fix**: Replaced pdf-lib with qpdf CLI (more reliable for encrypted PDFs)
+- **Security**: Use execFile instead of exec to prevent command injection
+- **Email Imports Navigation**: Added to sidebar under Payments
+- **Email Integration Settings**: New settings page for Gmail OAuth configuration
+- **Type Fixes**: Updated email import interfaces for TypeScript compliance
+
+#### Modern Theme Implementation ✅
+Implemented dual-theme system with Default and Modern visual themes:
+
+- **Visual Theme Provider**: `src/contexts/visual-theme-context.tsx`
+- **Theme Definitions**: `src/lib/themes/default.ts`, `src/lib/themes/modern.ts`
+- **Theme Registry**: `src/lib/themes/registry.ts`
+- **Estate-wide and User Override**: Hierarchical theme resolution
+- **CSS Variable Injection**: Dynamic theming without page reloads
+- **Theme Selector**: `src/components/settings/visual-theme-selector.tsx`
+- **Database**: Theme preferences in profiles table
+
+**Modern Theme Features:**
+- Dark navy sidebar (#1E293B)
+- Blue-teal accent colors (#0EA5E9)
+- Generous spacing (1.5rem-2rem)
+- Larger border radius (12px)
+- Enhanced shadows
 
 ### Recent Session Work (2026-01-07):
 
@@ -874,18 +926,24 @@ Data migration from existing system:
 
 Ideas for future phases (not yet scheduled):
 
-### Admin-Created Theme System
-Full-fledged theme system supporting multiple admin-created themes:
-- [ ] Database table for themes (name, colors, typography, spacing config)
-- [ ] Theme editor UI for admins (color pickers, live preview)
-- [ ] Theme assignment (estate-wide default, user preference)
+### Admin-Created Theme System (Foundation Complete ✅)
+The visual theme system foundation is now implemented:
+- [x] Theme definitions in code (default, modern themes)
+- [x] Theme registry pattern for extensibility
+- [x] CSS variable injection from theme definitions
+- [x] Estate-wide default + user override preference hierarchy
+- [x] Theme selector component with live preview
+- [x] Navigation extracted to theme-independent configuration
+
+**Remaining for full admin control:**
+- [ ] Database table for admin-created themes
+- [ ] Theme editor UI (color pickers, live preview)
 - [ ] Export/import themes as JSON
-- [ ] Built-in theme presets (light, dark, high contrast, etc.)
-- [ ] CSS variable injection from database-stored themes
+- [ ] Additional built-in presets (high contrast, colorblind-friendly)
 - [ ] Theme scheduling (seasonal themes, events)
 
-> **Context**: Current layout theme system (compact/expanded) provides the foundation.
-> This extends it to full visual theming with admin control over colors, fonts, etc.
+> **Context**: Foundation implemented in 2026-01-08 session. Themes are now purely visual
+> (colors, spacing, shadows) while navigation/functionality remains independent.
 
 ---
 

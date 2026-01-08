@@ -16,6 +16,7 @@ import { LogOut, ChevronDown, LayoutDashboard } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import { LayoutThemeSwitcher } from '@/components/ui/layout-theme-switcher';
 import { PortalSearch } from './portal-search';
+import { useEstateLogo } from '@/hooks/use-estate-logo';
 
 /**
  * Portal Header Component
@@ -27,6 +28,7 @@ import { PortalSearch } from './portal-search';
  */
 export function PortalHeader() {
   const { profile, signOut, hasAnyPermission, isSigningOut } = useAuth();
+  const { logoUrl } = useEstateLogo();
 
   // Check if user has admin dashboard access (any admin permission indicates dashboard access)
   const hasAdminAccess = hasAnyPermission([PERMISSIONS.RESIDENTS_VIEW]);
@@ -51,23 +53,35 @@ export function PortalHeader() {
       <div className="relative h-full px-4 flex items-center justify-between max-w-lg mx-auto">
         {/* Logo / Branding */}
         <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <svg
-              viewBox="0 0 24 24"
-              className="w-5 h-5 text-primary"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-          </div>
-          <span className="text-sm font-semibold text-foreground/80 hidden sm:block">
-            Residio
-          </span>
+          {logoUrl ? (
+            /* Dynamic estate logo */
+            <img
+              src={logoUrl}
+              alt="Estate Logo"
+              className="h-8 w-auto max-w-[120px] object-contain"
+            />
+          ) : (
+            /* Fallback: Default Residio branding */
+            <>
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="w-5 h-5 text-primary"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+              </div>
+              <span className="text-sm font-semibold text-foreground/80 hidden sm:block">
+                Residio
+              </span>
+            </>
+          )}
         </div>
 
         {/* Center: Resident Name */}

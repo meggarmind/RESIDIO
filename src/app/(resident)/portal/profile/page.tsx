@@ -59,7 +59,11 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useLayoutTheme } from '@/contexts/layout-theme-context';
 import { HouseholdMemberForm } from '@/components/resident-portal/household-member-form';
-import { ContactVerificationCard } from '@/components/resident-portal/contact-verification-card';
+import {
+  useContactVerification,
+  VerificationBadge,
+  OTPVerificationDialog,
+} from '@/components/resident-portal/contact-verification-card';
 import { getHouseholdMembers, removeHouseholdMember } from '@/actions/residents/add-household-member';
 import type { ResidentWithHouses, HouseWithStreet, ResidentRole } from '@/types/database';
 import { VisualThemeSelector } from '@/components/settings/visual-theme-selector';
@@ -140,6 +144,9 @@ export default function ResidentProfilePage() {
   const [selectedProperty, setSelectedProperty] = useState<ResidentHouseWithDetails | null>(null);
   const isDesktop = useIsDesktop();
   const { isExpanded } = useLayoutTheme();
+
+  // Contact verification hook
+  const verification = useContactVerification({ residentId: residentId || '' });
 
   const isLoading = residentLoading || preferencesLoading;
 
@@ -250,7 +257,7 @@ export default function ResidentProfilePage() {
             </Card>
           </motion.div>
 
-          {/* Contact Info */}
+          {/* Contact Info (Consolidated with Verification) */}
           <motion.div
             variants={cardVariants}
             initial="hidden"
@@ -263,36 +270,55 @@ export default function ResidentProfilePage() {
                   <Mail className="h-4 w-4" />
                   Contact Information
                 </CardTitle>
+                <CardDescription>Your contact details and verification status</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {resident.email && (
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-bill-mint/10 border border-bill-mint/30">
-                    <div className="p-2 rounded-lg bg-bill-mint/20">
-                      <Mail className="h-4 w-4 text-bill-mint shrink-0" />
+                {/* Email with verification */}
+                <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-bill-mint/10 border border-bill-mint/30">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="p-2 rounded-lg bg-bill-mint/20 shrink-0">
+                      <Mail className="h-4 w-4 text-bill-mint" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs text-muted-foreground">Email</p>
-                      <p className="text-sm font-medium truncate">{resident.email}</p>
+                      <p className="text-sm font-medium truncate">{resident.email || 'Not set'}</p>
                     </div>
                   </div>
-                )}
+                  {residentId && (
+                    <VerificationBadge
+                      verified={verification.emailVerified}
+                      onVerify={() => verification.handleSendVerification('email')}
+                      isLoading={verification.isSendingEmail}
+                      hasValue={!!resident.email}
+                    />
+                  )}
+                </div>
 
-                {resident.phone_primary && (
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-bill-lavender/10 border border-bill-lavender/30">
-                    <div className="p-2 rounded-lg bg-bill-lavender/20">
-                      <Phone className="h-4 w-4 text-bill-lavender shrink-0" />
+                {/* Phone with verification */}
+                <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-bill-lavender/10 border border-bill-lavender/30">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="p-2 rounded-lg bg-bill-lavender/20 shrink-0">
+                      <Phone className="h-4 w-4 text-bill-lavender" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs text-muted-foreground">Phone</p>
-                      <p className="text-sm font-medium">{resident.phone_primary}</p>
+                      <p className="text-sm font-medium">{resident.phone_primary || 'Not set'}</p>
                     </div>
                   </div>
-                )}
+                  {residentId && resident.phone_primary && (
+                    <VerificationBadge
+                      verified={verification.phoneVerified}
+                      onVerify={() => verification.handleSendVerification('phone')}
+                      isLoading={verification.isSendingPhone}
+                    />
+                  )}
+                </div>
 
+                {/* Alternative Phone (no verification needed) */}
                 {resident.phone_secondary && (
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-bill-teal/10 border border-bill-teal/30">
-                    <div className="p-2 rounded-lg bg-bill-teal/20">
-                      <Phone className="h-4 w-4 text-bill-teal shrink-0" />
+                    <div className="p-2 rounded-lg bg-bill-teal/20 shrink-0">
+                      <Phone className="h-4 w-4 text-bill-teal" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs text-muted-foreground">Alternative Phone</p>
@@ -304,14 +330,20 @@ export default function ResidentProfilePage() {
             </Card>
           </motion.div>
 
-          {/* Contact Verification */}
-          {residentId && (
-            <ContactVerificationCard
-              residentId={residentId}
-              email={resident.email}
-              phone={resident.phone_primary}
-            />
-          )}
+          {/* OTP Verification Dialog */}
+          <OTPVerificationDialog
+            open={verification.otpDialogOpen}
+            onOpenChange={verification.setOtpDialogOpen}
+            otpValue={verification.otpValue}
+            onOtpChange={verification.setOtpValue}
+            verificationType={verification.activeVerificationType}
+            expiresAt={verification.expiresAt}
+            getTimeRemaining={verification.getTimeRemaining}
+            onResend={verification.handleResendCode}
+            onVerify={verification.handleVerifyCode}
+            isResending={verification.isSendingEmail || verification.isSendingPhone}
+            isVerifying={verification.isVerifyingEmail || verification.isVerifyingPhone}
+          />
         </div>
 
         {/* Right Column (Desktop) / Continue stacked (Mobile) */}

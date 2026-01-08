@@ -15,6 +15,7 @@ import {
   User,
   Hexagon
 } from 'lucide-react';
+import { useEstateLogo } from '@/hooks/use-estate-logo';
 
 interface PortalSidebarProps {
   className?: string;
@@ -22,6 +23,7 @@ interface PortalSidebarProps {
 
 export function PortalSidebar({ className }: PortalSidebarProps) {
   const pathname = usePathname();
+  const { logoUrl } = useEstateLogo();
 
   const navItems = [
     { href: '/portal', label: 'Dashboard', icon: Home },
@@ -42,8 +44,20 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
     )}>
       {/* Logo Section */}
       <div className="flex items-center gap-2 mb-8 px-2">
-        <Hexagon className="h-6 w-6 text-bill-text fill-current" />
-        <span className="text-2xl font-bold text-bill-text tracking-tight">Bill</span>
+        {logoUrl ? (
+          /* Dynamic estate logo */
+          <img
+            src={logoUrl}
+            alt="Estate Logo"
+            className="h-8 w-auto max-w-[140px] object-contain"
+          />
+        ) : (
+          /* Fallback: Default Bill branding */
+          <>
+            <Hexagon className="h-6 w-6 text-bill-text fill-current" />
+            <span className="text-2xl font-bold text-bill-text tracking-tight">Bill</span>
+          </>
+        )}
       </div>
 
       {/* Navigation */}

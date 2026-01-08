@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { useNavigation } from '@/hooks/use-navigation';
+import { useEstateLogo } from '@/hooks/use-estate-logo';
 
 interface ModernSidebarProps {
   className?: string;
@@ -32,6 +33,7 @@ export function ModernSidebar({ className }: ModernSidebarProps) {
   const { profile, hasPermission, residentId } = useAuth();
   const { navItems: filteredNavItems } = useNavigation();
   const { data: pendingCount } = usePendingApprovalsCount();
+  const { logoUrl } = useEstateLogo();
 
   return (
     <aside
@@ -45,10 +47,20 @@ export function ModernSidebar({ className }: ModernSidebarProps) {
       {/* Logo Section */}
       <div className="p-8">
         <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0EA5E9] text-white shadow-lg">
-            <span className="text-lg font-bold">R</span>
-          </div>
-          <span className="text-2xl font-bold">Residio</span>
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt="Estate Logo"
+              className="h-10 w-auto max-w-[180px] object-contain"
+            />
+          ) : (
+            <>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0EA5E9] text-white shadow-lg">
+                <span className="text-lg font-bold">R</span>
+              </div>
+              <span className="text-2xl font-bold">Residio</span>
+            </>
+          )}
         </Link>
       </div>
 

@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { useNavigation } from '@/hooks/use-navigation';
+import { useEstateLogo } from '@/hooks/use-estate-logo';
 
 interface SidebarProps {
   className?: string;
@@ -21,15 +22,26 @@ export function Sidebar({ className }: SidebarProps) {
   const { profile, hasPermission, residentId } = useAuth();
   const { navItems: filteredNavItems } = useNavigation();
   const { data: pendingCount } = usePendingApprovalsCount();
+  const { logoUrl } = useEstateLogo();
 
   return (
     <aside className={cn('flex flex-col w-64 border-r bg-card', className)}>
       <div className="p-6">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            R
-          </div>
-          <span className="text-xl font-bold">Residio</span>
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt="Estate Logo"
+              className="h-8 w-auto max-w-[140px] object-contain"
+            />
+          ) : (
+            <>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                R
+              </div>
+              <span className="text-xl font-bold">Residio</span>
+            </>
+          )}
         </Link>
       </div>
       <nav className="flex-1 px-4 pb-4">
