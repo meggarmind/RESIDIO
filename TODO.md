@@ -1,10 +1,50 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2026-01-08 (Navigation Extraction & Gmail Integration)
+**Last Updated:** 2026-01-08 (Dynamic Logo & Contact Consolidation)
 
 ## Current Phase: Phase 16 - Community Communication ✅ COMPLETE
 
 ### Recent Session Work (2026-01-08):
+
+#### Dynamic Estate Logo Display (DEV-81) ✅
+Implemented dynamic logo display across all sidebars:
+
+**Problem Solved:**
+- All 4 sidebars (admin default, admin modern, portal header, portal sidebar) showed static hardcoded branding
+- Estate admins couldn't customize branding with their own logo
+
+**Solution Implemented:**
+- Created `src/hooks/use-estate-logo.ts` - Hook to fetch logo from system settings
+- Updated all 4 sidebar components to conditionally render uploaded logo or fallback branding
+- Logo stored in `estate_logo_url` key in system_settings (upload already existed)
+
+**Files Created:**
+- `src/hooks/use-estate-logo.ts` - Hook with fallback handling
+
+**Files Modified:**
+- `src/components/dashboard/sidebar.tsx` - Dynamic logo with fallback
+- `src/components/dashboard/modern-sidebar.tsx` - Dynamic logo with fallback
+- `src/components/resident-portal/portal-header.tsx` - Dynamic logo with fallback
+- `src/components/resident-portal/portal-sidebar.tsx` - Dynamic logo with fallback
+
+#### Contact Information Consolidation (DEV-85) ✅
+Consolidated duplicate contact sections on profile page:
+
+**Problem Solved:**
+- Profile page had two separate cards: "Contact Information" and "Contact Verification"
+- Redundant display of contact details with confusing UX
+
+**Solution Implemented:**
+- Refactored `ContactVerificationCard` to export reusable components:
+  - `useContactVerification` hook - All verification state and handlers
+  - `OTPVerificationDialog` - Standalone dialog component
+  - `VerificationBadge` - Inline badge/button for verification status
+- Updated profile page to show single consolidated contact card with inline verification badges
+- Reduced left column from 3 cards to 2 cards
+
+**Files Modified:**
+- `src/components/resident-portal/contact-verification-card.tsx` - Extracted hook, dialog, badge
+- `src/app/(resident)/portal/profile/page.tsx` - Consolidated contact section
 
 #### Navigation Extraction from Themes ✅
 Decoupled navigation links from theme-specific components so themes only affect visual presentation:
