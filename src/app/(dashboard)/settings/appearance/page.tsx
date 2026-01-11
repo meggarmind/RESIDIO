@@ -23,8 +23,8 @@ export default function AppearanceSettingsPage() {
   const setPortalTheme = useSetEstateDefaultTheme('resident-portal');
 
   // Local state for form
-  const [selectedDashboardTheme, setSelectedDashboardTheme] = useState('nahid');
-  const [selectedPortalTheme, setSelectedPortalTheme] = useState('nahid');
+  const [selectedDashboardTheme, setSelectedDashboardTheme] = useState('default');
+  const [selectedPortalTheme, setSelectedPortalTheme] = useState('default');
   const [isDirty, setIsDirty] = useState(false);
 
   const isLoading = dashboardLoading || portalLoading;

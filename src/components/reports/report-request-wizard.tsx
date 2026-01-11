@@ -37,6 +37,7 @@ import {
     TableProperties,
     ArrowUpDown,
     Sparkles,
+    Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -108,6 +109,12 @@ const reportTypeConfig: Record<ReportType, {
         gradient: 'from-purple-500/10 to-violet-500/5',
         iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
         borderHover: 'hover:border-purple-500/50',
+    },
+    debtors_report: {
+        icon: Users,
+        gradient: 'from-red-500/10 to-rose-500/5',
+        iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
+        borderHover: 'hover:border-red-500/50',
     },
 };
 

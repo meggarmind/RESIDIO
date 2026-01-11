@@ -1,0 +1,15 @@
+{
+  "id": "bank-reconciliation",
+  "category": "Finance",
+  "title": "Bank Reconciliation Tool",
+  "description": "Match imported bank transactions with recorded payments and expenses. Identify discrepancies and generate reconciliation reports.",
+  "status": "backlog",
+  "priority": 2,
+  "complexity": "complex",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.225Z",
+  "updatedAt": "2026-01-11T12:17:27.892Z",
+  "branchName": "master",
+  "descriptionHistory": [],
+  "startedAt": "2026-01-11T12:16:43.324Z"
+}

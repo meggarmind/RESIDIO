@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef } from 'react';
-import type { FinancialOverviewData, CollectionReportData, InvoiceAgingData, TransactionLogData, ReportData } from '@/actions/reports/report-engine';
+import type { FinancialOverviewData, CollectionReportData, InvoiceAgingData, TransactionLogData, DebtorsReportData, ReportData } from '@/actions/reports/report-engine';
 
 // ============================================================
 // Utility Functions
@@ -774,6 +774,279 @@ function TransactionLogModern({ data }: { data: TransactionLogData }) {
 }
 
 // ============================================================
+// Debtors Report Template
+// ============================================================
+
+function DebtorsReportModern({ data }: { data: DebtorsReportData }) {
+  const bracketColors = [
+    { bg: colors.success, label: 'Current' },
+    { bg: colors.warning, label: '31-60 Days' },
+    { bg: '#f97316', label: '61-90 Days' },
+    { bg: colors.danger, label: 'Over 90 Days' },
+  ];
+
+  return (
+    <>
+      {/* Summary Cards */}
+      <div style={{
+        display: 'flex',
+        gap: '16px',
+        flexWrap: 'wrap',
+        marginBottom: '32px',
+      }}>
+        <StatCard
+          label="Total Debtors"
+          value={data.summary.totalDebtors.toString()}
+          subValue={`Avg: ${formatCurrency(data.summary.averageDebt)}`}
+          color="primary"
+        />
+        <StatCard
+          label="Total Outstanding"
+          value={formatCurrency(data.summary.totalOutstanding)}
+          color="danger"
+        />
+        <StatCard
+          label="Over 90 Days"
+          value={formatCurrency(data.summary.over90Days)}
+          subValue={`${((data.summary.over90Days / data.summary.totalOutstanding) * 100 || 0).toFixed(1)}% of total`}
+          color="danger"
+        />
+        <StatCard
+          label="Avg Days Overdue"
+          value={Math.round(data.summary.averageDaysOverdue).toString()}
+          subValue="days"
+          color="warning"
+        />
+      </div>
+
+      {/* Aging Distribution */}
+      <DataCard title="Aging Distribution">
+        <div style={{ display: 'grid', gap: '16px', maxWidth: '500px' }}>
+          {data.byAgingBracket.map((bracket, idx) => (
+            <div key={bracket.bracket}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '3px',
+                    backgroundColor: bracketColors[idx]?.bg || colors.slate[400],
+                  }} />
+                  <span style={{
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: colors.slate[700],
+                  }}>
+                    {bracket.bracket}
+                  </span>
+                  <span style={{
+                    fontSize: '12px',
+                    color: colors.slate[400],
+                    backgroundColor: colors.slate[100],
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                  }}>
+                    {bracket.debtorCount} debtors
+                  </span>
+                </div>
+                <span style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: colors.slate[700],
+                }}>
+                  {formatCurrency(bracket.totalAmount)}
+                </span>
+              </div>
+              <ProgressBar
+                value={bracket.percentage}
+                color={bracketColors[idx]?.bg || colors.slate[400]}
+                showPercentage={false}
+              />
+            </div>
+          ))}
+        </div>
+      </DataCard>
+
+      {/* Detailed Debtors List */}
+      <DataCard
+        title="Debtors List (For Follow-up)"
+        headerAction={
+          <span style={{
+            fontSize: '12px',
+            fontWeight: '500',
+            color: colors.slate[500],
+          }}>
+            Sorted by outstanding amount
+          </span>
+        }
+      >
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={modernTableHeader}>Debtor</th>
+                <th style={modernTableHeader}>Contact</th>
+                <th style={modernTableHeader}>Property</th>
+                <th style={{ ...modernTableHeader, textAlign: 'center' }}>Invoices</th>
+                <th style={{ ...modernTableHeader, textAlign: 'right' }}>Days</th>
+                <th style={{ ...modernTableHeader, textAlign: 'right' }}>Outstanding</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.debtors.map((debtor, idx) => (
+                <tr key={debtor.residentId} style={{
+                  backgroundColor: idx % 2 === 0 ? '#fff' : colors.slate[50],
+                }}>
+                  <td style={modernTableCell}>
+                    <div style={{ fontWeight: '500' }}>{debtor.residentName}</div>
+                    <div style={{ fontSize: '12px', color: colors.slate[400] }}>{debtor.residentCode}</div>
+                  </td>
+                  <td style={modernTableCell}>
+                    {debtor.phonePrimary && (
+                      <div style={{ fontSize: '13px' }}>
+                        <span style={{ marginRight: '4px' }}>📞</span>
+                        {debtor.phonePrimary}
+                      </div>
+                    )}
+                    {debtor.phoneSecondary && (
+                      <div style={{ fontSize: '12px', color: colors.slate[500] }}>
+                        <span style={{ marginRight: '4px' }}>📱</span>
+                        {debtor.phoneSecondary}
+                      </div>
+                    )}
+                    {debtor.email && (
+                      <div style={{ fontSize: '12px', color: colors.slate[500] }}>
+                        <span style={{ marginRight: '4px' }}>✉️</span>
+                        {debtor.email}
+                      </div>
+                    )}
+                    {!debtor.phonePrimary && !debtor.email && (
+                      <span style={{ fontSize: '12px', color: colors.slate[400], fontStyle: 'italic' }}>
+                        No contact info
+                      </span>
+                    )}
+                  </td>
+                  <td style={modernTableCell}>
+                    <div>{debtor.houseNumber}</div>
+                    <div style={{ fontSize: '12px', color: colors.slate[400] }}>{debtor.streetName}</div>
+                  </td>
+                  <td style={{ ...modernTableCell, textAlign: 'center' }}>
+                    <span style={{
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      backgroundColor: colors.slate[100],
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                    }}>
+                      {debtor.invoiceCount}
+                    </span>
+                  </td>
+                  <td style={{
+                    ...modernTableCell,
+                    textAlign: 'right',
+                    color: debtor.daysOverdue > 90 ? colors.danger :
+                           debtor.daysOverdue > 60 ? '#f97316' :
+                           debtor.daysOverdue > 30 ? colors.warning : colors.slate[600],
+                    fontWeight: debtor.daysOverdue > 60 ? '600' : '400',
+                  }}>
+                    {debtor.daysOverdue}
+                  </td>
+                  <td style={{
+                    ...modernTableCell,
+                    textAlign: 'right',
+                  }}>
+                    <div style={{
+                      fontWeight: '600',
+                      color: colors.danger,
+                      fontSize: '14px',
+                    }}>
+                      {formatCurrency(debtor.totalOutstanding)}
+                    </div>
+                    {/* Mini aging breakdown */}
+                    <div style={{
+                      display: 'flex',
+                      gap: '4px',
+                      justifyContent: 'flex-end',
+                      marginTop: '4px',
+                    }}>
+                      {debtor.current > 0 && (
+                        <span style={{
+                          fontSize: '10px',
+                          backgroundColor: `${colors.success}20`,
+                          color: colors.success,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                        }}>
+                          0-30: {formatCurrency(debtor.current)}
+                        </span>
+                      )}
+                      {debtor.days31to60 > 0 && (
+                        <span style={{
+                          fontSize: '10px',
+                          backgroundColor: `${colors.warning}20`,
+                          color: colors.warning,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                        }}>
+                          31-60: {formatCurrency(debtor.days31to60)}
+                        </span>
+                      )}
+                      {debtor.days61to90 > 0 && (
+                        <span style={{
+                          fontSize: '10px',
+                          backgroundColor: '#f9731620',
+                          color: '#f97316',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                        }}>
+                          61-90: {formatCurrency(debtor.days61to90)}
+                        </span>
+                      )}
+                      {debtor.over90Days > 0 && (
+                        <span style={{
+                          fontSize: '10px',
+                          backgroundColor: `${colors.danger}20`,
+                          color: colors.danger,
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                        }}>
+                          90+: {formatCurrency(debtor.over90Days)}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ backgroundColor: colors.slate[100] }}>
+                <td style={{ ...modernTableCell, fontWeight: '600' }} colSpan={3}>
+                  TOTAL ({data.summary.totalDebtors} debtors)
+                </td>
+                <td style={{ ...modernTableCell, textAlign: 'center', fontWeight: '600' }}>
+                  {data.debtors.reduce((sum, d) => sum + d.invoiceCount, 0)}
+                </td>
+                <td style={{ ...modernTableCell, textAlign: 'right', fontWeight: '600' }}>
+                  {Math.round(data.summary.averageDaysOverdue)}
+                </td>
+                <td style={{ ...modernTableCell, textAlign: 'right', fontWeight: '700', color: colors.danger }}>
+                  {formatCurrency(data.summary.totalOutstanding)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </DataCard>
+    </>
+  );
+}
+
+// ============================================================
 // Shared Styles
 // ============================================================
 
@@ -893,6 +1166,9 @@ export const ModernTemplate = forwardRef<HTMLDivElement, ModernTemplateProps>(
           )}
           {report.type === 'transaction_log' && (
             <TransactionLogModern data={report.data} />
+          )}
+          {report.type === 'debtors_report' && (
+            <DebtorsReportModern data={report.data} />
           )}
         </main>
 

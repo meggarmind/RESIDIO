@@ -1,0 +1,14 @@
+{
+  "category": "enhancement",
+  "description": "Create a persistent notification area showing progress of long-running operations like bulk imports, report generation, or SMS campaigns. Allow users to navigate away and return to check status without blocking their workflow.\n\n**Rationale:** Bulk operations can take minutes to complete. A progress tracker lets users multitask while monitoring job status, preventing them from abandoning operations or wondering if something failed.",
+  "title": "Background Job Progress Tracker",
+  "status": "backlog",
+  "id": "feature-1768119219752-du49lm3ga",
+  "descriptionHistory": [
+    {
+      "description": "Create a persistent notification area showing progress of long-running operations like bulk imports, report generation, or SMS campaigns. Allow users to navigate away and return to check status without blocking their workflow.\n\n**Rationale:** Bulk operations can take minutes to complete. A progress tracker lets users multitask while monitoring job status, preventing them from abandoning operations or wondering if something failed.",
+      "timestamp": "2026-01-11T08:13:39.755Z",
+      "source": "initial"
+    }
+  ]
+}

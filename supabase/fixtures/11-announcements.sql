@@ -37,7 +37,6 @@ INSERT INTO announcements (
   published_at,
   expires_at,
   created_by,
-  estate_id,
   created_at,
   updated_at
 )
@@ -47,12 +46,11 @@ SELECT
   content,
   (SELECT id FROM announcement_categories WHERE name = category_name LIMIT 1),
   status::announcement_status,
-  priority,
+  priority::announcement_priority,
   is_pinned,
   published_at,
   expires_at,
   created_by,
-  estate_id,
   created_at,
   updated_at
 FROM (VALUES
@@ -60,7 +58,7 @@ FROM (VALUES
 
   -- ANN-001: Published - All residents - General notice
   (
-    'pp000001-0001-0001-0001-000000000001'::uuid,
+    'ae000001-0001-0001-0001-000000000001'::uuid,
     'Welcome to the New Residio Portal',
     'We are pleased to announce the launch of our new resident portal! This platform will help streamline communication, payments, and access management for all residents.
 
@@ -77,15 +75,14 @@ Please log in with your registered email to access all features.',
     false,
     NOW() - INTERVAL '30 days',
     NOW() + INTERVAL '60 days',
-    'aa000001-0001-0001-0001-000000000001'::uuid,  -- Super Admin
-    'ee000001-0001-0001-0001-000000000001'::uuid,
+    NULL::uuid,  -- No auth user in fixtures
     NOW() - INTERVAL '30 days',
     NOW() - INTERVAL '30 days'
   ),
 
   -- ANN-002: Published - Pinned - Security Alert (HIGH PRIORITY)
   (
-    'pp000001-0001-0001-0001-000000000002'::uuid,
+    'ae000001-0001-0001-0001-000000000002'::uuid,
     'SECURITY ALERT: Gate Access Protocol Update',
     '**IMPORTANT SECURITY UPDATE**
 
@@ -101,19 +98,18 @@ Security personnel will deny entry to unregistered visitors.
 Contact the security office for assistance: security@residio.test',
     'Security',
     'published',
-    'urgent',
+    'high',
     true,  -- Pinned
     NOW() - INTERVAL '15 days',
     NOW() + INTERVAL '90 days',
-    'aa000001-0001-0001-0001-000000000001'::uuid,
-    'ee000001-0001-0001-0001-000000000001'::uuid,
+    NULL::uuid,
     NOW() - INTERVAL '15 days',
     NOW() - INTERVAL '15 days'
   ),
 
   -- ANN-003: Published - Finance - Monthly dues reminder
   (
-    'pp000001-0001-0001-0001-000000000003'::uuid,
+    'ae000001-0001-0001-0001-000000000003'::uuid,
     'January 2026 Service Charge Due',
     'This is a reminder that January 2026 service charges are now due.
 
@@ -135,15 +131,14 @@ Late payments will attract a 5% surcharge after the due date.',
     false,
     NOW() - INTERVAL '7 days',
     NOW() + INTERVAL '30 days',
-    'aa000001-0001-0001-0001-000000000001'::uuid,
-    'ee000001-0001-0001-0001-000000000001'::uuid,
+    NULL::uuid,
     NOW() - INTERVAL '7 days',
     NOW() - INTERVAL '7 days'
   ),
 
   -- ANN-004: Published - Maintenance - Water supply notice
   (
-    'pp000001-0001-0001-0001-000000000004'::uuid,
+    'ae000001-0001-0001-0001-000000000004'::uuid,
     'Scheduled Water Supply Interruption',
     'Please be informed that there will be a scheduled water supply interruption for maintenance purposes.
 
@@ -161,15 +156,14 @@ For emergencies, contact the maintenance team: maintenance@residio.test',
     false,
     NOW() - INTERVAL '3 days',
     NOW() + INTERVAL '5 days',
-    'aa000001-0001-0001-0001-000000000001'::uuid,
-    'ee000001-0001-0001-0001-000000000001'::uuid,
+    NULL::uuid,
     NOW() - INTERVAL '3 days',
     NOW() - INTERVAL '3 days'
   ),
 
   -- ANN-005: Published - Events - Community event
   (
-    'pp000001-0001-0001-0001-000000000005'::uuid,
+    'ae000001-0001-0001-0001-000000000005'::uuid,
     'Annual General Meeting - Save the Date',
     'Dear Residents,
 
@@ -194,15 +188,14 @@ Attendance is mandatory for all property owners. Proxies must be submitted 48 ho
     false,
     NOW() - INTERVAL '10 days',
     NOW() + INTERVAL '45 days',
-    'aa000001-0001-0001-0001-000000000001'::uuid,
-    'ee000001-0001-0001-0001-000000000001'::uuid,
+    NULL::uuid,
     NOW() - INTERVAL '10 days',
     NOW() - INTERVAL '10 days'
   ),
 
   -- ANN-006: Published - General - Holiday schedule
   (
-    'pp000001-0001-0001-0001-000000000006'::uuid,
+    'ae000001-0001-0001-0001-000000000006'::uuid,
     'Estate Office Holiday Schedule',
     'Please note the following holiday schedule for the estate office:
 
@@ -224,8 +217,7 @@ The gate remains operational 24/7 during the holiday period.',
     false,
     NOW() - INTERVAL '20 days',
     NOW() + INTERVAL '10 days',
-    'aa000001-0001-0001-0001-000000000001'::uuid,
-    'ee000001-0001-0001-0001-000000000001'::uuid,
+    NULL::uuid,
     NOW() - INTERVAL '20 days',
     NOW() - INTERVAL '20 days'
   ),
@@ -234,7 +226,7 @@ The gate remains operational 24/7 during the holiday period.',
 
   -- ANN-007: Draft - Maintenance
   (
-    'pp000001-0001-0001-0001-000000000007'::uuid,
+    'ae000001-0001-0001-0001-000000000007'::uuid,
     '[DRAFT] Road Resurfacing Project',
     'The estate management is planning a comprehensive road resurfacing project.
 
@@ -255,15 +247,14 @@ The gate remains operational 24/7 during the holiday period.',
     false,
     NULL,
     NULL,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
-    'ee000001-0001-0001-0001-000000000001'::uuid,
+    NULL::uuid,
     NOW() - INTERVAL '5 days',
     NOW() - INTERVAL '2 days'
   ),
 
   -- ANN-008: Draft - Finance
   (
-    'pp000001-0001-0001-0001-000000000008'::uuid,
+    'ae000001-0001-0001-0001-000000000008'::uuid,
     '[DRAFT] 2026 Budget Proposal',
     'Draft budget proposal for resident review.
 
@@ -283,8 +274,7 @@ Total: ₦30,000,000
     false,
     NULL,
     NULL,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
-    'ee000001-0001-0001-0001-000000000001'::uuid,
+    NULL::uuid,
     NOW() - INTERVAL '8 days',
     NOW() - INTERVAL '1 day'
   ),
@@ -293,7 +283,7 @@ Total: ₦30,000,000
 
   -- ANN-009: Scheduled - Events - Valentine Event
   (
-    'pp000001-0001-0001-0001-000000000009'::uuid,
+    'ae000001-0001-0001-0001-000000000009'::uuid,
     'Valentine Community Dinner',
     'Join us for a special Valentine community dinner!
 
@@ -318,15 +308,14 @@ Total: ₦30,000,000
     false,
     NOW() + INTERVAL '7 days',  -- Scheduled to publish in 7 days
     NOW() + INTERVAL '45 days',
-    'aa000001-0001-0001-0001-000000000001'::uuid,
-    'ee000001-0001-0001-0001-000000000001'::uuid,
+    NULL::uuid,
     NOW() - INTERVAL '2 days',
     NOW() - INTERVAL '2 days'
   ),
 
   -- ANN-010: Scheduled - Security - New security protocol
   (
-    'pp000001-0001-0001-0001-000000000010'::uuid,
+    'ae000001-0001-0001-0001-000000000010'::uuid,
     'Enhanced Security Measures - February 2026',
     'Starting February 1, 2026, enhanced security measures will be implemented.
 
@@ -347,8 +336,7 @@ More details will be shared at the AGM.',
     false,
     NOW() + INTERVAL '14 days',  -- Scheduled to publish in 14 days
     NOW() + INTERVAL '60 days',
-    'aa000001-0001-0001-0001-000000000001'::uuid,
-    'ee000001-0001-0001-0001-000000000001'::uuid,
+    NULL::uuid,
     NOW() - INTERVAL '1 day',
     NOW() - INTERVAL '1 day'
   ),
@@ -357,7 +345,7 @@ More details will be shared at the AGM.',
 
   -- ANN-011: Archived - Events - Past event
   (
-    'pp000001-0001-0001-0001-000000000011'::uuid,
+    'ae000001-0001-0001-0001-000000000011'::uuid,
     'Christmas Carol Night 2025',
     'Thank you to everyone who attended the Christmas Carol Night!
 
@@ -375,15 +363,14 @@ Wishing everyone a Merry Christmas and Happy New Year!',
     false,
     NOW() - INTERVAL '45 days',
     NOW() - INTERVAL '15 days',  -- Already expired
-    'aa000001-0001-0001-0001-000000000001'::uuid,
-    'ee000001-0001-0001-0001-000000000001'::uuid,
+    NULL::uuid,
     NOW() - INTERVAL '50 days',
     NOW() - INTERVAL '15 days'
   ),
 
   -- ANN-012: Archived - Finance - Old dues notice
   (
-    'pp000001-0001-0001-0001-000000000012'::uuid,
+    'ae000001-0001-0001-0001-000000000012'::uuid,
     'December 2025 Service Charge Due',
     'This is a reminder that December 2025 service charges are now due.
 
@@ -396,12 +383,11 @@ Payment can be made via bank transfer or at the estate office.',
     false,
     NOW() - INTERVAL '60 days',
     NOW() - INTERVAL '30 days',
-    'aa000001-0001-0001-0001-000000000001'::uuid,
-    'ee000001-0001-0001-0001-000000000001'::uuid,
+    NULL::uuid,
     NOW() - INTERVAL '65 days',
     NOW() - INTERVAL '30 days'
   )
-) AS t(id, title, content, category_name, status, priority, is_pinned, published_at, expires_at, created_by, estate_id, created_at, updated_at)
+) AS t(id, title, content, category_name, status, priority, is_pinned, published_at, expires_at, created_by, created_at, updated_at)
 ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,
   content = EXCLUDED.content,
@@ -419,29 +405,6 @@ ON CONFLICT (id) DO UPDATE SET
 -- ============================================================================
 -- Some announcements target specific audiences
 
-INSERT INTO announcement_targets (
-  id,
-  announcement_id,
-  target_type,
-  target_value,
-  created_at
-)
-VALUES
-  -- ANN-004 targets Oak Avenue and Palm Close (water supply)
-  ('qq000001-0001-0001-0001-000000000001'::uuid, 'pp000001-0001-0001-0001-000000000004'::uuid, 'street', 'Oak Avenue', NOW()),
-  ('qq000001-0001-0001-0001-000000000002'::uuid, 'pp000001-0001-0001-0001-000000000004'::uuid, 'street', 'Palm Close', NOW()),
-
-  -- ANN-005 targets owners only (AGM)
-  ('qq000001-0001-0001-0001-000000000003'::uuid, 'pp000001-0001-0001-0001-000000000005'::uuid, 'role', 'resident_landlord', NOW()),
-  ('qq000001-0001-0001-0001-000000000004'::uuid, 'pp000001-0001-0001-0001-000000000005'::uuid, 'role', 'non_resident_landlord', NOW()),
-
-  -- ANN-007 targets specific streets for road work (draft)
-  ('qq000001-0001-0001-0001-000000000005'::uuid, 'pp000001-0001-0001-0001-000000000007'::uuid, 'street', 'Oak Avenue', NOW()),
-  ('qq000001-0001-0001-0001-000000000006'::uuid, 'pp000001-0001-0001-0001-000000000007'::uuid, 'street', 'Palm Close', NOW()),
-  ('qq000001-0001-0001-0001-000000000007'::uuid, 'pp000001-0001-0001-0001-000000000007'::uuid, 'street', 'Cedar Lane', NOW())
-ON CONFLICT (id) DO UPDATE SET
-  target_type = EXCLUDED.target_type,
-  target_value = EXCLUDED.target_value;
 
 
 -- ============================================================================
@@ -457,30 +420,30 @@ INSERT INTO announcement_read_receipts (
 )
 VALUES
   -- ANN-001: Welcome announcement - high read rate
-  ('rr000001-0001-0001-0001-000000000001'::uuid, 'pp000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, NOW() - INTERVAL '29 days'),
-  ('rr000001-0001-0001-0001-000000000002'::uuid, 'pp000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, NOW() - INTERVAL '28 days'),
-  ('rr000001-0001-0001-0001-000000000003'::uuid, 'pp000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, NOW() - INTERVAL '28 days'),
-  ('rr000001-0001-0001-0001-000000000004'::uuid, 'pp000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000005'::uuid, NOW() - INTERVAL '27 days'),
-  ('rr000001-0001-0001-0001-000000000005'::uuid, 'pp000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000006'::uuid, NOW() - INTERVAL '27 days'),
+  ('ba000001-0001-0001-0001-000000000001'::uuid, 'ae000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, NOW() - INTERVAL '29 days'),
+  ('ba000001-0001-0001-0001-000000000002'::uuid, 'ae000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, NOW() - INTERVAL '28 days'),
+  ('ba000001-0001-0001-0001-000000000003'::uuid, 'ae000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, NOW() - INTERVAL '28 days'),
+  ('ba000001-0001-0001-0001-000000000004'::uuid, 'ae000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000005'::uuid, NOW() - INTERVAL '27 days'),
+  ('ba000001-0001-0001-0001-000000000005'::uuid, 'ae000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000006'::uuid, NOW() - INTERVAL '27 days'),
 
   -- ANN-002: Security alert - very high read rate (pinned/urgent)
-  ('rr000001-0001-0001-0001-000000000011'::uuid, 'pp000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, NOW() - INTERVAL '14 days'),
-  ('rr000001-0001-0001-0001-000000000012'::uuid, 'pp000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, NOW() - INTERVAL '14 days'),
-  ('rr000001-0001-0001-0001-000000000013'::uuid, 'pp000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, NOW() - INTERVAL '13 days'),
-  ('rr000001-0001-0001-0001-000000000014'::uuid, 'pp000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000005'::uuid, NOW() - INTERVAL '13 days'),
-  ('rr000001-0001-0001-0001-000000000015'::uuid, 'pp000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000006'::uuid, NOW() - INTERVAL '13 days'),
-  ('rr000001-0001-0001-0001-000000000016'::uuid, 'pp000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000007'::uuid, NOW() - INTERVAL '12 days'),
-  ('rr000001-0001-0001-0001-000000000017'::uuid, 'pp000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000008'::uuid, NOW() - INTERVAL '12 days'),
+  ('ba000001-0001-0001-0001-000000000011'::uuid, 'ae000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, NOW() - INTERVAL '14 days'),
+  ('ba000001-0001-0001-0001-000000000012'::uuid, 'ae000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, NOW() - INTERVAL '14 days'),
+  ('ba000001-0001-0001-0001-000000000013'::uuid, 'ae000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, NOW() - INTERVAL '13 days'),
+  ('ba000001-0001-0001-0001-000000000014'::uuid, 'ae000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000005'::uuid, NOW() - INTERVAL '13 days'),
+  ('ba000001-0001-0001-0001-000000000015'::uuid, 'ae000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000006'::uuid, NOW() - INTERVAL '13 days'),
+  ('ba000001-0001-0001-0001-000000000016'::uuid, 'ae000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000007'::uuid, NOW() - INTERVAL '12 days'),
+  ('ba000001-0001-0001-0001-000000000017'::uuid, 'ae000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000008'::uuid, NOW() - INTERVAL '12 days'),
 
   -- ANN-003: Finance notice - moderate read rate
-  ('rr000001-0001-0001-0001-000000000021'::uuid, 'pp000001-0001-0001-0001-000000000003'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, NOW() - INTERVAL '6 days'),
-  ('rr000001-0001-0001-0001-000000000022'::uuid, 'pp000001-0001-0001-0001-000000000003'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, NOW() - INTERVAL '5 days'),
-  ('rr000001-0001-0001-0001-000000000023'::uuid, 'pp000001-0001-0001-0001-000000000003'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, NOW() - INTERVAL '4 days'),
+  ('ba000001-0001-0001-0001-000000000021'::uuid, 'ae000001-0001-0001-0001-000000000003'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, NOW() - INTERVAL '6 days'),
+  ('ba000001-0001-0001-0001-000000000022'::uuid, 'ae000001-0001-0001-0001-000000000003'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, NOW() - INTERVAL '5 days'),
+  ('ba000001-0001-0001-0001-000000000023'::uuid, 'ae000001-0001-0001-0001-000000000003'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, NOW() - INTERVAL '4 days'),
 
   -- ANN-005: AGM notice - owners reading
-  ('rr000001-0001-0001-0001-000000000031'::uuid, 'pp000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, NOW() - INTERVAL '9 days'),
-  ('rr000001-0001-0001-0001-000000000032'::uuid, 'pp000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, NOW() - INTERVAL '8 days'),
-  ('rr000001-0001-0001-0001-000000000033'::uuid, 'pp000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000010'::uuid, NOW() - INTERVAL '7 days')
+  ('ba000001-0001-0001-0001-000000000031'::uuid, 'ae000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, NOW() - INTERVAL '9 days'),
+  ('ba000001-0001-0001-0001-000000000032'::uuid, 'ae000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, NOW() - INTERVAL '8 days'),
+  ('ba000001-0001-0001-0001-000000000033'::uuid, 'ae000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000010'::uuid, NOW() - INTERVAL '7 days')
 ON CONFLICT (id) DO UPDATE SET
   read_at = EXCLUDED.read_at;
 
@@ -491,21 +454,19 @@ ON CONFLICT (id) DO UPDATE SET
 DO $$
 DECLARE
   v_announcements INT;
-  v_targets INT;
   v_receipts INT;
   v_published INT;
   v_draft INT;
   v_scheduled INT;
   v_archived INT;
 BEGIN
-  SELECT COUNT(*) INTO v_announcements FROM announcements WHERE id LIKE 'pp000001%';
-  SELECT COUNT(*) INTO v_targets FROM announcement_targets WHERE id LIKE 'qq000001%';
-  SELECT COUNT(*) INTO v_receipts FROM announcement_read_receipts WHERE id LIKE 'rr000001%';
+  SELECT COUNT(*) INTO v_announcements FROM announcements WHERE id::text LIKE 'ae000001%';
+  SELECT COUNT(*) INTO v_receipts FROM announcement_read_receipts WHERE id::text LIKE 'ba000001%';
 
-  SELECT COUNT(*) INTO v_published FROM announcements WHERE id LIKE 'pp000001%' AND status = 'published';
-  SELECT COUNT(*) INTO v_draft FROM announcements WHERE id LIKE 'pp000001%' AND status = 'draft';
-  SELECT COUNT(*) INTO v_scheduled FROM announcements WHERE id LIKE 'pp000001%' AND status = 'scheduled';
-  SELECT COUNT(*) INTO v_archived FROM announcements WHERE id LIKE 'pp000001%' AND status = 'archived';
+  SELECT COUNT(*) INTO v_published FROM announcements WHERE id::text LIKE 'ae000001%' AND status = 'published';
+  SELECT COUNT(*) INTO v_draft FROM announcements WHERE id::text LIKE 'ae000001%' AND status = 'draft';
+  SELECT COUNT(*) INTO v_scheduled FROM announcements WHERE id::text LIKE 'ae000001%' AND status = 'scheduled';
+  SELECT COUNT(*) INTO v_archived FROM announcements WHERE id::text LIKE 'ae000001%' AND status = 'archived';
 
   RAISE NOTICE '';
   RAISE NOTICE '=== Announcements Fixture Verification ===';
@@ -514,7 +475,6 @@ BEGIN
   RAISE NOTICE '  - Draft: % (target: 2)', v_draft;
   RAISE NOTICE '  - Scheduled: % (target: 2)', v_scheduled;
   RAISE NOTICE '  - Archived: % (target: 2)', v_archived;
-  RAISE NOTICE 'Announcement Targets: %', v_targets;
   RAISE NOTICE 'Read Receipts: %', v_receipts;
   RAISE NOTICE '==========================================';
 END $$;

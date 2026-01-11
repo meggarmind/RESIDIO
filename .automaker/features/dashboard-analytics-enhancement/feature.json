@@ -1,0 +1,21 @@
+{
+  "id": "dashboard-analytics-enhancement",
+  "category": "Analytics",
+  "title": "Enhanced Dashboard Analytics",
+  "description": "Add advanced KPIs including collection rate trends, occupancy analytics, payment method distribution, and revenue forecasting. Interactive charts with drill-down capabilities. Built on the revamped dashboard design system for visual consistency.",
+  "status": "backlog",
+  "priority": 2,
+  "complexity": "moderate",
+  "dependencies": [
+    "admin-dashboard-revamp"
+  ],
+  "createdAt": "2026-01-11T08:08:09.162Z",
+  "updatedAt": "2026-01-11T08:08:09.162Z",
+  "descriptionHistory": [
+    {
+      "description": "Add advanced KPIs including collection rate trends, occupancy analytics, payment method distribution, and revenue forecasting. Interactive charts with drill-down capabilities. Built on the revamped dashboard design system for visual consistency.",
+      "timestamp": "2026-01-11T08:17:59.627Z",
+      "source": "edit"
+    }
+  ]
+}

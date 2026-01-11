@@ -1,0 +1,12 @@
+{
+  "id": "move-in-out-checklist",
+  "category": "Core",
+  "title": "Move-In/Move-Out Process",
+  "description": "Manage move-in and move-out procedures with checklists, clearance requirements, deposit tracking, and handover documentation.",
+  "status": "backlog",
+  "priority": 3,
+  "complexity": "moderate",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.243Z",
+  "updatedAt": "2026-01-11T08:08:09.243Z"
+}

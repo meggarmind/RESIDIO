@@ -79,7 +79,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
   if (entityType === 'corporate' && !isValidCorporateRole(role)) {
     return {
       data: null,
-      error: 'Corporate entities can only be Non-Resident Landlord or Developer',
+      error: 'Corporate entities can only be Property Owner or Developer',
     };
   }
 
@@ -97,10 +97,10 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
 
     if (existingResidentLandlord) {
       const residentData = existingResidentLandlord.resident as unknown as { first_name: string; last_name: string } | null;
-      const landlordName = residentData ? `${residentData.first_name} ${residentData.last_name}` : 'a Resident Landlord';
+      const landlordName = residentData ? `${residentData.first_name} ${residentData.last_name}` : 'an Owner-Occupier';
       return {
         data: null,
-        error: `This house has a Resident Landlord (${landlordName}). Only secondary residents (Co-Resident, Household Member, Domestic Staff, Caretaker) can be linked.`,
+        error: `This house has an Owner-Occupier (${landlordName}). Only secondary residents (Occupant, Family Member, Domestic Staff, Caretaker) can be linked.`,
       };
     }
 
@@ -117,7 +117,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
 
       if (existingTenant) {
         const residentData = existingTenant.resident as unknown as { first_name: string; last_name: string } | null;
-        const tenantName = residentData ? `${residentData.first_name} ${residentData.last_name}` : 'a Tenant';
+        const tenantName = residentData ? `${residentData.first_name} ${residentData.last_name}` : 'a Renter';
         return {
           data: null,
           error: `This house has a Tenant (${tenantName}). Cannot add another ${roleLabel} - only secondary residents can be linked.`,
@@ -148,7 +148,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
     if (!sponsorAssignment) {
       return {
         data: null,
-        error: 'Sponsor must be a Resident Landlord, Non-Resident Landlord, or Tenant of the same house.',
+        error: 'Sponsor must be an Owner-Occupier, Property Owner, or Renter of the same house.',
       };
     }
   }
@@ -227,7 +227,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
               : 'another resident';
             return {
               data: null,
-              error: `This house already has a Tenant (${existingName}). Cannot have both Resident Landlord and Tenant in the same unit.`,
+              error: `This house already has a Renter (${existingName}). Cannot have both Owner-Occupier and Renter in the same unit.`,
             };
           }
         }
@@ -253,12 +253,12 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
           if (existingOccupant.resident_role === 'tenant') {
             return {
               data: null,
-              error: `This house already has a Tenant (${existingName}). Please unassign them first.`,
+              error: `This house already has a Renter (${existingName}). Please unassign them first.`,
             };
           } else {
             return {
               data: null,
-              error: `This house already has a ${existingRoleLabel} (${existingName}). Cannot have both Resident Landlord and Tenant in the same unit.`,
+              error: `This house already has a ${existingRoleLabel} (${existingName}). Cannot have both Owner-Occupier and Renter in the same unit.`,
             };
           }
         }
@@ -296,7 +296,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
               event_type: eventType,
               event_date: eventDate,
               is_current: true,
-              notes: role === 'tenant' ? 'Tenant moved in' : 'Ownership assignment',
+              notes: role === 'tenant' ? 'Renter moved in' : 'Ownership assignment',
               created_by: user.id,
             });
         } catch (historyError) {
@@ -356,7 +356,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
           : 'another resident';
         return {
           data: null,
-          error: `This house already has a Tenant (${existingName}). Cannot have both Resident Landlord and Tenant in the same unit.`,
+          error: `This house already has a Renter (${existingName}). Cannot have both Owner-Occupier and Renter in the same unit.`,
         };
       }
     }
@@ -382,12 +382,12 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
       if (existingOccupant.resident_role === 'tenant') {
         return {
           data: null,
-          error: `This house already has a Tenant (${existingName}). Please unassign them first.`,
+          error: `This house already has a Renter (${existingName}). Please unassign them first.`,
         };
       } else {
         return {
           data: null,
-          error: `This house already has a ${existingRoleLabel} (${existingName}). Cannot have both Resident Landlord and Tenant in the same unit.`,
+          error: `This house already has a ${existingRoleLabel} (${existingName}). Cannot have both Owner-Occupier and Renter in the same unit.`,
         };
       }
     }

@@ -13,7 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InvoiceCorrectionDialog } from '@/components/billing/invoice-correction-dialog';
 import { InvoiceCorrectionTimeline } from '@/components/billing/invoice-correction-timeline';
 import { formatCurrency } from '@/lib/utils';
-import { ArrowLeft, Printer, Loader2, FileEdit, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Printer, Loader2, FileEdit, AlertCircle, ScrollText } from 'lucide-react';
+import { StatementGeneratorDialog } from '@/components/billing/statement-generator-dialog';
 import { useAuth } from '@/lib/auth/auth-provider';
 import Link from 'next/link';
 
@@ -54,8 +55,8 @@ export default function InvoiceDetailPage() {
             // If this is a correction, fetch parent invoice
             if (result.data?.is_correction && result.data?.parent_invoice_id) {
                 const parentResult = await getParentInvoice(params.id as string);
-                if (parentResult.data) {
-                    setParentInvoice(parentResult.data);
+                if (parentResult.data && parentResult.data.resident) {
+                    setParentInvoice(parentResult.data as import('@/types/database').InvoiceWithDetails);
                 }
             }
 
@@ -104,6 +105,25 @@ export default function InvoiceDetailPage() {
                     </Link>
                 </Button>
                 <div className="flex gap-2">
+                    {invoice.resident?.id && (
+                        <StatementGeneratorDialog
+                            residentId={invoice.resident.id}
+                            residentName={`${invoice.resident.first_name} ${invoice.resident.last_name}`}
+                            houses={invoice.house ? [{
+                                id: invoice.house.id,
+                                house_number: invoice.house.house_number,
+                                short_name: invoice.house.short_name,
+                                street: invoice.house.street,
+                            }] : []}
+                            defaultHouseId={invoice.house?.id}
+                            trigger={
+                                <Button variant="outline">
+                                    <ScrollText className="mr-2 h-4 w-4" />
+                                    Account Statement
+                                </Button>
+                            }
+                        />
+                    )}
                     {canCreateCorrections && invoice.status !== 'void' && (
                         <Button variant="outline" onClick={() => setCorrectionDialogOpen(true)}>
                             <FileEdit className="mr-2 h-4 w-4" />

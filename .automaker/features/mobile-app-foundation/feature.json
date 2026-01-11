@@ -1,0 +1,12 @@
+{
+  "id": "mobile-app-foundation",
+  "category": "Mobile",
+  "title": "React Native Mobile App Setup",
+  "description": "Initialize React Native project with navigation, authentication, and API integration. Setup development environment for iOS and Android builds.",
+  "status": "backlog",
+  "priority": 2,
+  "complexity": "complex",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.165Z",
+  "updatedAt": "2026-01-11T08:08:09.165Z"
+}

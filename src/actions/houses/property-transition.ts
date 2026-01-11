@@ -270,7 +270,7 @@ export async function executeDeveloperToOwner(
 
   // Corporate entities cannot be resident_landlord
   if (newOwner.entity_type === 'corporate' && newOwnerRole === 'resident_landlord') {
-    return { success: false, error: 'Corporate entities cannot be Resident Landlords' };
+    return { success: false, error: 'Corporate entities cannot be Owner-Occupiers' };
   }
 
   // Check if new owner already has an active assignment
@@ -521,7 +521,7 @@ export async function executeLandlordToTenant(
     .single();
 
   if (landlordError || !landlordAssignment) {
-    return { success: false, error: 'No active Non-Resident Landlord found at this property' };
+    return { success: false, error: 'No active Property Owner found at this property' };
   }
 
   // Verify tenant exists

@@ -8,14 +8,14 @@ import { ResidentAvatarCluster } from './resident-avatar-cluster';
 import type { ResidentSummary } from '@/actions/houses/get-house-residents';
 import type { ResidentRole, HouseWithStreet } from '@/types/database';
 
-// Role labels for display
+// Role labels for display (synced with RESIDENT_ROLE_LABELS in database.ts)
 const roleLabels: Record<ResidentRole, string> = {
-  resident_landlord: 'Landlord',
-  non_resident_landlord: 'Non-Resident Landlord',
-  tenant: 'Tenant',
+  resident_landlord: 'Owner-Occupier',
+  non_resident_landlord: 'Property Owner',
+  tenant: 'Renter',
   developer: 'Developer',
-  co_resident: 'Co-Resident',
-  household_member: 'Household Member',
+  co_resident: 'Occupant',
+  household_member: 'Family Member',
   domestic_staff: 'Domestic Staff',
   caretaker: 'Caretaker',
   contractor: 'Contractor',

@@ -73,7 +73,7 @@ export async function createResident(formData: CreateResidentData): Promise<Crea
       await supabase.from('residents').delete().eq('id', resident.id);
       return {
         data: null,
-        error: 'Corporate entities can only be Non-Resident Landlord or Developer',
+        error: 'Corporate entities can only be Property Owner or Developer',
       };
     }
 
@@ -113,7 +113,7 @@ export async function createResident(formData: CreateResidentData): Promise<Crea
         } else {
           return {
             data: null,
-            error: `This house already has an ${existingRoleLabel} (${existingName}). Cannot have both Resident Landlord and Tenant in the same unit.`,
+            error: `This house already has an ${existingRoleLabel} (${existingName}). Cannot have both Owner-Occupier and Renter in the same unit.`,
           };
         }
       }

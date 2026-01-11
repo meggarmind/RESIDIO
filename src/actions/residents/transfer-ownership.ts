@@ -59,7 +59,7 @@ export async function transferOwnership(
   }
 
   if (newOwnerRole !== 'non_resident_landlord' && newOwnerRole !== 'developer') {
-    return { success: false, error: 'New owner role must be Non-Resident Landlord or Developer' };
+    return { success: false, error: 'New owner role must be Property Owner or Developer' };
   }
 
   const today = transferDate || new Date().toISOString().split('T')[0];
@@ -98,7 +98,7 @@ export async function transferOwnership(
 
   // Verify corporate entities can only be non_resident_landlord or developer
   if (newOwner.entity_type === 'corporate' && newOwnerRole !== 'non_resident_landlord' && newOwnerRole !== 'developer') {
-    return { success: false, error: 'Corporate entities can only be Non-Resident Landlord or Developer' };
+    return { success: false, error: 'Corporate entities can only be Property Owner or Developer' };
   }
 
   // Check if new owner already has an assignment at this house

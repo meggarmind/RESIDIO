@@ -1,0 +1,12 @@
+{
+  "id": "invoice-dispute-resolution",
+  "category": "Billing",
+  "title": "Invoice Dispute Management",
+  "description": "Allow residents to dispute invoices with reason selection and supporting documents. Track dispute resolution workflow and maintain dispute history.",
+  "status": "backlog",
+  "priority": 2,
+  "complexity": "moderate",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.246Z",
+  "updatedAt": "2026-01-11T08:08:09.246Z"
+}

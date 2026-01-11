@@ -154,4 +154,209 @@ test.describe('Phase 3: Resident & House Management', () => {
             }
         });
     });
+
+    test.describe('House Resident Management', () => {
+        test('TC3.11: House detail page shows linked residents', async ({ page }) => {
+            await page.goto('/houses');
+
+            // Wait for houses table to load
+            await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
+
+            // Click on first house row to view details
+            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await firstHouseRow.count() > 0) {
+                await firstHouseRow.click();
+
+                // Should navigate to house detail page
+                await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
+
+                // Check for Residents section
+                const residentsSection = page.locator('text=/Linked Residents|Current Residents|Residents/i');
+                await expect(residentsSection.first()).toBeVisible({ timeout: 10000 });
+            }
+        });
+
+        test('TC3.12: Remove button visible for secondary residents (occupants/family)', async ({ page }) => {
+            await page.goto('/houses');
+
+            // Wait for houses table to load
+            await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
+
+            // Click on first house row
+            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await firstHouseRow.count() > 0) {
+                await firstHouseRow.click();
+                await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
+
+                // Look for remove/trash button in residents list
+                // This button should be visible for secondary roles (co_resident, household_member, etc.)
+                const removeButtons = page.locator('[data-testid="remove-resident-button"], button:has(svg[class*="lucide-trash"])');
+
+                // If remove buttons exist, at least one should be visible for secondary residents
+                // Note: This may not find buttons if house has no secondary residents
+                if (await removeButtons.count() > 0) {
+                    await expect(removeButtons.first()).toBeVisible();
+                }
+            }
+        });
+
+        test('TC3.13: Remove resident confirmation dialog appears', async ({ page }) => {
+            await page.goto('/houses');
+
+            // Wait for houses table to load
+            await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
+
+            // Click on first house row
+            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await firstHouseRow.count() > 0) {
+                await firstHouseRow.click();
+                await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
+
+                // Find remove button for secondary resident
+                const removeButton = page.locator('[data-testid="remove-resident-button"], button:has(svg[class*="lucide-trash"])').first();
+
+                if (await removeButton.count() > 0 && await removeButton.isVisible()) {
+                    await removeButton.click();
+
+                    // Confirmation dialog should appear
+                    const dialog = page.locator('[role="alertdialog"], [role="dialog"]');
+                    await expect(dialog).toBeVisible({ timeout: 5000 });
+
+                    // Dialog should have confirm/cancel buttons
+                    const confirmText = page.locator('text=/Remove|Confirm|Yes/i');
+                    const cancelText = page.locator('text=/Cancel|No|Keep/i');
+
+                    await expect(confirmText.first()).toBeVisible();
+                    await expect(cancelText.first()).toBeVisible();
+
+                    // Close dialog by clicking cancel
+                    await cancelText.first().click();
+                }
+            }
+        });
+
+        test('TC3.14: Cancel removal keeps resident in list', async ({ page }) => {
+            await page.goto('/houses');
+
+            // Wait for houses table to load
+            await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
+
+            // Click on first house row
+            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await firstHouseRow.count() > 0) {
+                await firstHouseRow.click();
+                await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
+
+                // Count residents before
+                const residentItems = page.locator('[data-testid="resident-card"], [class*="resident"]');
+                const countBefore = await residentItems.count();
+
+                // Find remove button
+                const removeButton = page.locator('[data-testid="remove-resident-button"], button:has(svg[class*="lucide-trash"])').first();
+
+                if (await removeButton.count() > 0 && await removeButton.isVisible()) {
+                    await removeButton.click();
+
+                    // Click cancel in dialog
+                    const cancelButton = page.locator('button:has-text("Cancel"), button:has-text("No")').first();
+                    if (await cancelButton.isVisible()) {
+                        await cancelButton.click();
+                    }
+
+                    // Wait for dialog to close
+                    await page.waitForTimeout(500);
+
+                    // Count should remain the same
+                    const countAfter = await residentItems.count();
+                    expect(countAfter).toBe(countBefore);
+                }
+            }
+        });
+
+        test('TC3.15: Move Out button visible for tenants', async ({ page }) => {
+            await page.goto('/houses');
+
+            // Wait for houses table to load
+            await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
+
+            // Click on first house row
+            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await firstHouseRow.count() > 0) {
+                await firstHouseRow.click();
+                await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
+
+                // Look for tenant with Move Out button
+                // The tenant role should have a "Move Out" button
+                const moveOutButtons = page.locator('button:has-text("Move Out")');
+
+                // If move out buttons exist (house has tenant or resident_landlord)
+                if (await moveOutButtons.count() > 0) {
+                    await expect(moveOutButtons.first()).toBeVisible();
+                }
+            }
+        });
+
+        test('TC3.16: Move Out wizard opens for tenant', async ({ page }) => {
+            await page.goto('/houses');
+
+            // Wait for houses table to load
+            await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
+
+            // Click on first house row
+            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await firstHouseRow.count() > 0) {
+                await firstHouseRow.click();
+                await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
+
+                // Find Move Out button (for tenant - opens wizard)
+                const moveOutButton = page.locator('button:has-text("Move Out")').first();
+
+                if (await moveOutButton.count() > 0 && await moveOutButton.isVisible()) {
+                    await moveOutButton.click();
+
+                    // Check if a dialog/wizard opened
+                    // It could be either the simple move-out dialog (for landlord) or the wizard (for tenant)
+                    const dialog = page.locator('[role="dialog"], [role="alertdialog"]');
+                    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+                }
+            }
+        });
+
+        test('TC3.17: Move Out wizard shows destination options', async ({ page }) => {
+            await page.goto('/houses');
+
+            // Wait for houses table to load
+            await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
+
+            // Click on first house row
+            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await firstHouseRow.count() > 0) {
+                await firstHouseRow.click();
+                await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
+
+                // Find Move Out button
+                const moveOutButton = page.locator('button:has-text("Move Out")').first();
+
+                if (await moveOutButton.count() > 0 && await moveOutButton.isVisible()) {
+                    await moveOutButton.click();
+
+                    // Check for wizard-specific content (step indicators, destination options)
+                    // Look for the destination selection radio buttons
+                    const leavingOption = page.locator('text=/Leaving the Estate|leaving/i');
+                    const withinOption = page.locator('text=/Moving Within|within/i');
+
+                    // If these are present, we're in the Move Out Wizard
+                    if (await leavingOption.count() > 0) {
+                        await expect(leavingOption.first()).toBeVisible({ timeout: 3000 });
+                    }
+
+                    // Close the dialog
+                    const cancelButton = page.locator('button:has-text("Cancel")').first();
+                    if (await cancelButton.isVisible()) {
+                        await cancelButton.click();
+                    }
+                }
+            }
+        });
+    });
 });

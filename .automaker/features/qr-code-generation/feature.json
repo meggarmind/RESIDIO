@@ -1,0 +1,12 @@
+{
+  "id": "qr-code-generation",
+  "category": "Security",
+  "title": "QR Code Access System",
+  "description": "Generate QR codes for security contacts and visitors that can be scanned at gates. Include expiry dates, usage limits, and real-time validation.",
+  "status": "backlog",
+  "priority": 2,
+  "complexity": "moderate",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.179Z",
+  "updatedAt": "2026-01-11T08:08:09.179Z"
+}

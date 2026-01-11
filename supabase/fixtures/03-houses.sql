@@ -36,9 +36,8 @@ INSERT INTO public.houses (id, house_number, short_name, street_id, house_type_i
   ('cc000001-0001-0001-0001-000000000008', '7', 'OAK-7', '11111111-0001-0001-0001-000000000001', '22222222-0002-0002-0002-000000000001', 1, true, NOW() - INTERVAL '18 months'),
   ('cc000001-0001-0001-0001-000000000009', '8', 'OAK-8', '11111111-0001-0001-0001-000000000001', '22222222-0002-0002-0002-000000000001', 1, true, NOW() - INTERVAL '1 year'),
   ('cc000001-0001-0001-0001-000000000010', '9', 'OAK-9', '11111111-0001-0001-0001-000000000001', '22222222-0002-0002-0002-000000000001', 1, true, NOW() - INTERVAL '1 year')
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (short_name) DO UPDATE SET
   house_number = EXCLUDED.house_number,
-  short_name = EXCLUDED.short_name,
   street_id = EXCLUDED.street_id,
   house_type_id = EXCLUDED.house_type_id;
 
@@ -61,10 +60,11 @@ INSERT INTO public.houses (id, house_number, short_name, street_id, house_type_i
   ('cc000001-0001-0001-0001-000000000017', '7', 'PALM-7', '11111111-0001-0001-0001-000000000002', '22222222-0002-0002-0002-000000000003', 1, true, NOW() - INTERVAL '1 year'),
 
   -- Multi-resident house (5+ people)
-  ('cc000001-0001-0001-0001-000000000018', '10', 'PALM-10', '11111111-0001-0001-0001-000000000002', '22222222-0002-0002-0002-000000000003', 1, true, NOW() - INTERVAL '2 years')
-ON CONFLICT (id) DO UPDATE SET
+  ('cc000001-0001-0001-0001-000000000018', '8', 'PALM-8', '11111111-0001-0001-0001-000000000002', '22222222-0002-0002-0002-000000000003', 1, true, NOW() - INTERVAL '2 years')
+ON CONFLICT (short_name) DO UPDATE SET
   house_number = EXCLUDED.house_number,
-  short_name = EXCLUDED.short_name;
+  street_id = EXCLUDED.street_id,
+  house_type_id = EXCLUDED.house_type_id;
 
 -- ============================================================================
 -- CEDAR LANE HOUSES (5 houses)
@@ -81,9 +81,10 @@ INSERT INTO public.houses (id, house_number, short_name, street_id, house_type_i
 
   -- Commercial unit
   ('cc000001-0001-0001-0001-000000000023', '5', 'CED-5', '11111111-0001-0001-0001-000000000003', '22222222-0002-0002-0002-000000000004', 1, true, NOW() - INTERVAL '1 year')
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (short_name) DO UPDATE SET
   house_number = EXCLUDED.house_number,
-  short_name = EXCLUDED.short_name;
+  street_id = EXCLUDED.street_id,
+  house_type_id = EXCLUDED.house_type_id;
 
 -- ============================================================================
 -- MAPLE DRIVE HOUSES (3 houses)
@@ -94,9 +95,10 @@ INSERT INTO public.houses (id, house_number, short_name, street_id, house_type_i
   ('cc000001-0001-0001-0001-000000000024', '1', 'MAP-1', '11111111-0001-0001-0001-000000000004', '22222222-0002-0002-0002-000000000001', 1, true, NOW() - INTERVAL '6 months'),
   ('cc000001-0001-0001-0001-000000000025', '2', 'MAP-2', '11111111-0001-0001-0001-000000000004', '22222222-0002-0002-0002-000000000001', 1, true, NOW() - INTERVAL '6 months'),
   ('cc000001-0001-0001-0001-000000000026', '3', 'MAP-3', '11111111-0001-0001-0001-000000000004', '22222222-0002-0002-0002-000000000002', 1, true, NOW() - INTERVAL '3 months')
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (short_name) DO UPDATE SET
   house_number = EXCLUDED.house_number,
-  short_name = EXCLUDED.short_name;
+  street_id = EXCLUDED.street_id,
+  house_type_id = EXCLUDED.house_type_id;
 
 -- ============================================================================
 -- BAOBAB STREET HOUSES (2 houses)
@@ -106,14 +108,15 @@ INSERT INTO public.houses (id, house_number, short_name, street_id, house_type_i
   -- Vacant houses
   ('cc000001-0001-0001-0001-000000000027', '1', 'BAO-1', '11111111-0001-0001-0001-000000000005', '22222222-0002-0002-0002-000000000001', 1, true, NOW() - INTERVAL '1 year'),
   ('cc000001-0001-0001-0001-000000000028', '2', 'BAO-2', '11111111-0001-0001-0001-000000000005', '22222222-0002-0002-0002-000000000001', 1, true, NOW() - INTERVAL '1 year')
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (short_name) DO UPDATE SET
   house_number = EXCLUDED.house_number,
-  short_name = EXCLUDED.short_name;
+  street_id = EXCLUDED.street_id,
+  house_type_id = EXCLUDED.house_type_id;
 
 -- ============================================================================
 -- OWNERSHIP HISTORY (for CED-1 with 3+ transfers)
 -- ============================================================================
-INSERT INTO public.ownership_history (id, house_id, previous_owner_id, new_owner_id, transfer_type, transfer_date, notes) VALUES
+INSERT INTO public.house_ownership_history (id, house_id, previous_owner_id, new_owner_id, transfer_type, transfer_date, notes) VALUES
   -- CED-1 transfers: Original owner (RES016) → RES017 → RES018 → Current (RES007)
   ('dd000001-0001-0001-0001-000000000001', 'cc000001-0001-0001-0001-000000000019', NULL, 'aa000001-0001-0001-0001-000000000016', 'new_construction', NOW() - INTERVAL '3 years', 'Original purchase from developer'),
   ('dd000001-0001-0001-0001-000000000002', 'cc000001-0001-0001-0001-000000000019', 'aa000001-0001-0001-0001-000000000016', 'aa000001-0001-0001-0001-000000000017', 'sale', NOW() - INTERVAL '2 years', 'Sale to second owner'),
@@ -140,7 +143,7 @@ BEGIN
   SELECT COUNT(*) INTO v_cedar FROM houses WHERE short_name LIKE 'CED-%';
   SELECT COUNT(*) INTO v_maple FROM houses WHERE short_name LIKE 'MAP-%';
   SELECT COUNT(*) INTO v_baobab FROM houses WHERE short_name LIKE 'BAO-%';
-  SELECT COUNT(*) INTO v_history FROM ownership_history;
+  SELECT COUNT(*) INTO v_history FROM house_ownership_history;
 
   RAISE NOTICE 'Houses Created:';
   RAISE NOTICE '  Total Houses: %', v_total;

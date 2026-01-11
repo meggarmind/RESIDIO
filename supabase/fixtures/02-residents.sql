@@ -78,58 +78,58 @@ ON CONFLICT (id) DO UPDATE SET
 -- ============================================================================
 -- HOUSEHOLD MEMBERS (10 total) - Family members (sponsored)
 -- RES033-RES042
+-- Note: Sponsorship relationships are tracked in resident_houses.sponsor_resident_id
 -- ============================================================================
-INSERT INTO public.residents (id, resident_code, first_name, last_name, email, phone_primary, resident_type, verification_status, account_status, entity_type, sponsor_id) VALUES
+INSERT INTO public.residents (id, resident_code, first_name, last_name, email, phone_primary, resident_type, verification_status, account_status, entity_type) VALUES
   -- Household members for RES009 (Chukwuemeka Igwe)
-  ('aa000001-0001-0001-0001-000000000033', 'RES033', 'Adaora', 'Igwe', 'adaora.igwe@email.com', '+2348012345033', 'family_member', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000009'),
-  ('aa000001-0001-0001-0001-000000000034', 'RES034', 'Kenechukwu', 'Igwe', NULL, '+2348012345034', 'family_member', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000009'),
+  ('aa000001-0001-0001-0001-000000000033', 'RES033', 'Adaora', 'Igwe', 'adaora.igwe@email.com', '+2348012345033', 'secondary', 'verified', 'active', 'individual'),
+  ('aa000001-0001-0001-0001-000000000034', 'RES034', 'Kenechukwu', 'Igwe', NULL, '+2348012345034', 'secondary', 'verified', 'active', 'individual'),
 
   -- Household members for RES010 (Adaeze Obi)
-  ('aa000001-0001-0001-0001-000000000035', 'RES035', 'Obiora', 'Obi', 'obiora.obi@email.com', '+2348012345035', 'family_member', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000010'),
-  ('aa000001-0001-0001-0001-000000000036', 'RES036', 'Adanna', 'Obi', NULL, '+2348012345036', 'family_member', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000010'),
+  ('aa000001-0001-0001-0001-000000000035', 'RES035', 'Obiora', 'Obi', 'obiora.obi@email.com', '+2348012345035', 'secondary', 'verified', 'active', 'individual'),
+  ('aa000001-0001-0001-0001-000000000036', 'RES036', 'Adanna', 'Obi', NULL, '+2348012345036', 'secondary', 'verified', 'active', 'individual'),
 
   -- Household members for RES011 (Olumide Akinola)
-  ('aa000001-0001-0001-0001-000000000037', 'RES037', 'Yinka', 'Akinola', 'yinka.akinola@email.com', '+2348012345037', 'family_member', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000011'),
-  ('aa000001-0001-0001-0001-000000000038', 'RES038', 'Tolu', 'Akinola', NULL, '+2348012345038', 'family_member', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000011'),
-  ('aa000001-0001-0001-0001-000000000039', 'RES039', 'Sade', 'Akinola', NULL, '+2348012345039', 'family_member', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000011'),
+  ('aa000001-0001-0001-0001-000000000037', 'RES037', 'Yinka', 'Akinola', 'yinka.akinola@email.com', '+2348012345037', 'secondary', 'verified', 'active', 'individual'),
+  ('aa000001-0001-0001-0001-000000000038', 'RES038', 'Tolu', 'Akinola', NULL, '+2348012345038', 'secondary', 'verified', 'active', 'individual'),
+  ('aa000001-0001-0001-0001-000000000039', 'RES039', 'Sade', 'Akinola', NULL, '+2348012345039', 'secondary', 'verified', 'active', 'individual'),
 
   -- Household members for RES012 (Blessing Udo)
-  ('aa000001-0001-0001-0001-000000000040', 'RES040', 'Emmanuel', 'Udo', 'emmanuel.udo@email.com', '+2348012345040', 'family_member', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000012'),
-  ('aa000001-0001-0001-0001-000000000041', 'RES041', 'Grace', 'Udo', NULL, '+2348012345041', 'family_member', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000012'),
-  ('aa000001-0001-0001-0001-000000000042', 'RES042', 'David', 'Udo', NULL, '+2348012345042', 'family_member', 'pending', 'active', 'individual', 'aa000001-0001-0001-0001-000000000012')
+  ('aa000001-0001-0001-0001-000000000040', 'RES040', 'Emmanuel', 'Udo', 'emmanuel.udo@email.com', '+2348012345040', 'secondary', 'verified', 'active', 'individual'),
+  ('aa000001-0001-0001-0001-000000000041', 'RES041', 'Grace', 'Udo', NULL, '+2348012345041', 'secondary', 'verified', 'active', 'individual'),
+  ('aa000001-0001-0001-0001-000000000042', 'RES042', 'David', 'Udo', NULL, '+2348012345042', 'secondary', 'pending', 'active', 'individual')
 ON CONFLICT (id) DO UPDATE SET
   first_name = EXCLUDED.first_name,
-  last_name = EXCLUDED.last_name,
-  sponsor_id = EXCLUDED.sponsor_id;
+  last_name = EXCLUDED.last_name;
 
 -- ============================================================================
 -- DOMESTIC STAFF (8 total) - Staff members (sponsored)
 -- RES043-RES050
+-- Note: Sponsorship relationships are tracked in resident_houses.sponsor_resident_id
 -- ============================================================================
-INSERT INTO public.residents (id, resident_code, first_name, last_name, email, phone_primary, resident_type, verification_status, account_status, entity_type, sponsor_id) VALUES
+INSERT INTO public.residents (id, resident_code, first_name, last_name, email, phone_primary, resident_type, verification_status, account_status, entity_type) VALUES
   -- Live-in staff for RES001
-  ('aa000001-0001-0001-0001-000000000043', 'RES043', 'Patience', 'Akpan', NULL, '+2348012345043', 'domestic_staff', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000001'),
+  ('aa000001-0001-0001-0001-000000000043', 'RES043', 'Patience', 'Akpan', NULL, '+2348012345043', 'secondary', 'verified', 'active', 'individual'),
 
   -- Live-in staff for RES003
-  ('aa000001-0001-0001-0001-000000000044', 'RES044', 'Sunday', 'Okon', NULL, '+2348012345044', 'domestic_staff', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000003'),
+  ('aa000001-0001-0001-0001-000000000044', 'RES044', 'Sunday', 'Okon', NULL, '+2348012345044', 'secondary', 'verified', 'active', 'individual'),
 
   -- Visiting staff for RES005
-  ('aa000001-0001-0001-0001-000000000045', 'RES045', 'Mary', 'Edet', NULL, '+2348012345045', 'domestic_staff', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000005'),
+  ('aa000001-0001-0001-0001-000000000045', 'RES045', 'Mary', 'Edet', NULL, '+2348012345045', 'secondary', 'verified', 'active', 'individual'),
 
   -- Staff for RES009
-  ('aa000001-0001-0001-0001-000000000046', 'RES046', 'John', 'Bassey', NULL, '+2348012345046', 'domestic_staff', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000009'),
-  ('aa000001-0001-0001-0001-000000000047', 'RES047', 'Grace', 'Effiong', NULL, '+2348012345047', 'domestic_staff', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000009'),
+  ('aa000001-0001-0001-0001-000000000046', 'RES046', 'John', 'Bassey', NULL, '+2348012345046', 'secondary', 'verified', 'active', 'individual'),
+  ('aa000001-0001-0001-0001-000000000047', 'RES047', 'Grace', 'Effiong', NULL, '+2348012345047', 'secondary', 'verified', 'active', 'individual'),
 
   -- Staff for tenants
-  ('aa000001-0001-0001-0001-000000000048', 'RES048', 'Peter', 'Udo', NULL, '+2348012345048', 'domestic_staff', 'verified', 'active', 'individual', 'aa000001-0001-0001-0001-000000000021'),
-  ('aa000001-0001-0001-0001-000000000049', 'RES049', 'Rebecca', 'Inyang', NULL, '+2348012345049', 'domestic_staff', 'pending', 'active', 'individual', 'aa000001-0001-0001-0001-000000000024'),
+  ('aa000001-0001-0001-0001-000000000048', 'RES048', 'Peter', 'Udo', NULL, '+2348012345048', 'secondary', 'verified', 'active', 'individual'),
+  ('aa000001-0001-0001-0001-000000000049', 'RES049', 'Rebecca', 'Inyang', NULL, '+2348012345049', 'secondary', 'pending', 'active', 'individual'),
 
   -- Inactive staff
-  ('aa000001-0001-0001-0001-000000000050', 'RES050', 'James', 'Offiong', NULL, '+2348012345050', 'domestic_staff', 'verified', 'inactive', 'individual', 'aa000001-0001-0001-0001-000000000003')
+  ('aa000001-0001-0001-0001-000000000050', 'RES050', 'James', 'Offiong', NULL, '+2348012345050', 'secondary', 'verified', 'inactive', 'individual')
 ON CONFLICT (id) DO UPDATE SET
   first_name = EXCLUDED.first_name,
-  last_name = EXCLUDED.last_name,
-  sponsor_id = EXCLUDED.sponsor_id;
+  last_name = EXCLUDED.last_name;
 
 -- ============================================================================
 -- CORPORATE ENTITIES (3 total) - Companies
@@ -159,7 +159,7 @@ ON CONFLICT (id) DO UPDATE SET
 -- ============================================================================
 -- PAYMENT ALIASES (for matching tests)
 -- ============================================================================
-INSERT INTO public.payment_aliases (id, resident_id, alias_name) VALUES
+INSERT INTO public.resident_payment_aliases (id, resident_id, alias_name) VALUES
   -- RES001 aliases
   ('bb000001-0001-0001-0001-000000000001', 'aa000001-0001-0001-0001-000000000001', 'SEUN ADEYEMI'),
   ('bb000001-0001-0001-0001-000000000002', 'aa000001-0001-0001-0001-000000000001', 'O. ADEYEMI'),
@@ -205,7 +205,7 @@ BEGIN
   SELECT COUNT(*) INTO v_household FROM residents WHERE resident_code BETWEEN 'RES033' AND 'RES042';
   SELECT COUNT(*) INTO v_staff FROM residents WHERE resident_code BETWEEN 'RES043' AND 'RES050';
   SELECT COUNT(*) INTO v_corporate FROM residents WHERE entity_type = 'corporate' AND resident_code LIKE 'RES0%';
-  SELECT COUNT(*) INTO v_aliases FROM payment_aliases;
+  SELECT COUNT(*) INTO v_aliases FROM resident_payment_aliases;
 
   RAISE NOTICE 'Residents Created:';
   RAISE NOTICE '  Total Fixture Residents: %', v_total;

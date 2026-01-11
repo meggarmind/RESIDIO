@@ -1,0 +1,12 @@
+{
+  "id": "payment-receipt-customization",
+  "category": "Finance",
+  "title": "Customizable Receipt Templates",
+  "description": "Create multiple receipt template designs with custom branding, layouts, and fields. Allow estates to select preferred template per receipt type.",
+  "status": "backlog",
+  "priority": 3,
+  "complexity": "simple",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.248Z",
+  "updatedAt": "2026-01-11T08:08:09.248Z"
+}

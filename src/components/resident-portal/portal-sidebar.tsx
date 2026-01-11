@@ -16,26 +16,38 @@ import {
   Hexagon
 } from 'lucide-react';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface PortalSidebarProps {
   className?: string;
 }
 
+/**
+ * Portal Sidebar - Modern Design System
+ *
+ * Icon-only navigation sidebar (80px width) following the portal-modern design system.
+ *
+ * Design Specifications:
+ * - Width: 80px (var(--sidebar-width))
+ * - Icon size: 24px (var(--icon-md))
+ * - Nav item size: 48x48px
+ * - Border radius: 8px (var(--radius-md))
+ * - Active state: Primary color background + white icon
+ * - Hover state: Light gray background
+ * - Vertical flex layout with center alignment
+ * - Logo at top: 48x48px icon box
+ *
+ * Accessibility:
+ * - Tooltips show labels on hover
+ * - aria-label for screen readers
+ * - aria-current for active page
+ */
 export function PortalSidebar({ className }: PortalSidebarProps) {
   const pathname = usePathname();
   const { logoUrl } = useEstateLogo();
 
   /**
-   * Navigation items ordered by usage frequency:
-   * 1. Dashboard - Entry point
-   * 2. Invoices - Primary action (check/pay bills)
-   * 3. Wallet - Payment balance
-   * 4. Properties - View owned properties
-   * 5. Security Contacts - Manage access codes
-   * 6. Visitors - Manage visitor access
-   * 7. Documents - Less frequent
-   * 8. Announcements - Informational
-   * 9. Profile - Settings (least frequent)
+   * Navigation items ordered by usage frequency
    */
   const navItems = [
     { href: '/portal', label: 'Dashboard', icon: Home },
@@ -50,59 +62,123 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
   ];
 
   return (
-    <aside className={cn(
-      "w-[180px] bg-bill-sidebar border-r border-border fixed inset-y-0 left-0 z-30 flex flex-col py-6 px-4 transition-colors duration-300 hidden md:flex",
-      className
-    )}>
-      {/* Logo Section */}
-      <div className="flex items-center gap-2 mb-8 px-2">
+    <aside
+      className={cn(
+        "fixed inset-y-0 left-0 z-30 flex flex-col items-center transition-colors duration-300 hidden md:flex",
+        className
+      )}
+      style={{
+        width: 'var(--sidebar-width)', // 80px
+        background: 'var(--color-bg-card)',
+        borderRight: '1px solid var(--color-bg-input)',
+        padding: 'var(--space-4) var(--space-3)', // 16px 12px
+      }}
+    >
+      {/* Logo/Brand Section */}
+      <div
+        className="flex items-center justify-center mb-8 flex-shrink-0"
+        style={{
+          width: '48px',
+          height: '48px',
+        }}
+      >
         {logoUrl ? (
           /* Dynamic estate logo */
           <img
             src={logoUrl}
             alt="Estate Logo"
-            className="h-8 w-auto max-w-[140px] object-contain"
+            className="h-10 w-10 object-contain rounded-lg"
           />
         ) : (
-          /* Fallback: Default Bill branding */
-          <>
-            <Hexagon className="h-6 w-6 text-bill-text fill-current" />
-            <span className="text-2xl font-bold text-bill-text tracking-tight">Bill</span>
-          </>
+          /* Fallback: Icon */
+          <div
+            className="flex items-center justify-center rounded-lg"
+            style={{
+              width: '48px',
+              height: '48px',
+              background: 'var(--color-primary)',
+            }}
+          >
+            <Hexagon
+              className="text-white"
+              style={{
+                width: 'var(--icon-md)',
+                height: 'var(--icon-md)',
+              }}
+            />
+          </div>
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 space-y-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = item.href === '/portal'
-            ? pathname === '/portal'
-            : pathname.startsWith(item.href);
+      {/* Navigation Items */}
+      <TooltipProvider delayDuration={0}>
+        <nav className="flex-1 w-full flex flex-col items-center gap-2">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = item.href === '/portal'
+              ? pathname === '/portal'
+              : pathname.startsWith(item.href);
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                isActive
-                  ? "bg-bill-text text-bill-card shadow-sm" // Active: Dark bg (text color), Light text (card color) 
-                  : "text-bill-text-secondary hover:bg-bill-secondary hover:text-bill-text"
-              )}
-            >
-              <Icon className={cn("h-[18px] w-[18px]", isActive ? "text-current" : "text-bill-text-secondary group-hover:text-bill-text")} />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
+            return (
+              <Tooltip key={item.href}>
+                <TooltipTrigger asChild>
+                  <Link
+                    href={item.href}
+                    aria-label={item.label}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={cn(
+                      "flex items-center justify-center transition-all duration-150 hover:scale-105",
+                      isActive
+                        ? "shadow-md"
+                        : ""
+                    )}
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: 'var(--radius-md)', // 8px
+                      background: isActive ? 'var(--color-primary)' : 'transparent',
+                      color: isActive ? '#FFFFFF' : 'var(--color-text-muted)',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = 'var(--color-bg-input)';
+                        e.currentTarget.style.color = 'var(--color-text-secondary)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = 'var(--color-text-muted)';
+                      }
+                    }}
+                  >
+                    <Icon
+                      style={{
+                        width: 'var(--icon-md)', // 24px
+                        height: 'var(--icon-md)',
+                      }}
+                    />
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="ml-2">
+                  <p style={{ fontSize: 'var(--text-sm)' }}>{item.label}</p>
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </nav>
+      </TooltipProvider>
 
-      {/* Footer */}
-      <div className="mt-auto px-2">
-        <p className="text-[11px] text-bill-text-secondary">
-          © 2023 All Rights Reserved.
-        </p>
+      {/* Settings/Profile at Bottom */}
+      <div className="mt-auto w-full flex flex-col items-center">
+        {/* Divider */}
+        <div
+          className="w-full mb-4"
+          style={{
+            height: '1px',
+            background: 'var(--color-bg-input)',
+          }}
+        />
       </div>
     </aside>
   );

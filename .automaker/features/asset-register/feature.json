@@ -1,0 +1,12 @@
+{
+  "id": "asset-register",
+  "category": "Core",
+  "title": "Estate Asset Register",
+  "description": "Track estate-owned assets (vehicles, equipment, furniture) with purchase details, depreciation, maintenance schedules, and disposal records.",
+  "status": "backlog",
+  "priority": 3,
+  "complexity": "moderate",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.200Z",
+  "updatedAt": "2026-01-11T08:08:09.200Z"
+}

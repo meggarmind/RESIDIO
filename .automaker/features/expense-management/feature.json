@@ -1,0 +1,12 @@
+{
+  "id": "expense-management",
+  "category": "Finance",
+  "title": "Expense Tracking & Approval",
+  "description": "Record estate expenses with categories, receipts, approvals, and budget allocation. Generate expense reports and track spending against budget.",
+  "status": "backlog",
+  "priority": 2,
+  "complexity": "moderate",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.217Z",
+  "updatedAt": "2026-01-11T08:08:09.217Z"
+}

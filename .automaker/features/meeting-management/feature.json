@@ -1,0 +1,12 @@
+{
+  "id": "meeting-management",
+  "category": "Core",
+  "title": "Meeting & Minutes Management",
+  "description": "Schedule and manage EXCO/BOT meetings with agenda creation, attendance tracking, minutes recording, and action item follow-up.",
+  "status": "backlog",
+  "priority": 3,
+  "complexity": "moderate",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.209Z",
+  "updatedAt": "2026-01-11T08:08:09.209Z"
+}

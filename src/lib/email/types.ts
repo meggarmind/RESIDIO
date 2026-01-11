@@ -9,6 +9,7 @@ export type EmailType =
   | 'welcome'
   | 'notification'
   | 'admin_alert'
+  | 'emergency_broadcast'
   | 'test';
 
 export interface EmailRecipient {
@@ -38,7 +39,7 @@ export interface EmailLogEntry {
   emailType: EmailType;
   subject: string;
   resendId?: string;
-  status: 'pending' | 'sent' | 'failed';
+  status: 'pending' | 'sent' | 'failed' | 'debug';
   errorMessage?: string;
   metadata?: Record<string, unknown>;
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -12,25 +13,47 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, ChevronDown, LayoutDashboard } from 'lucide-react';
+import { LogOut, ChevronDown, LayoutDashboard, Search } from 'lucide-react';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
-import { LayoutThemeSwitcher } from '@/components/ui/layout-theme-switcher';
-import { PortalSearch } from './portal-search';
-import { useEstateLogo } from '@/hooks/use-estate-logo';
+import { Button } from '@/components/ui/button';
+import { NotificationBell } from '@/components/notifications/notification-bell';
+import { InvoiceStatusIndicator } from './invoice-status-indicator';
+import { QuickActionsMenu } from './quick-actions-menu';
 
 /**
- * Portal Header Component
+ * Portal Header - Modern Design System
  *
- * A refined, mobile-first header with:
- * - Estate branding on the left
- * - Resident name (truncated) in center
- * - Avatar dropdown on the right with sign out
+ * Clean, minimalist header (64px height) following the portal-modern design system.
+ *
+ * Layout Structure:
+ * Desktop:
+ * - Left: Greeting ("Hello {Name}, Good Morning")
+ * - Center: Search bar (pill-shaped, 400px max-width)
+ * - Right: Icon buttons (Mail, Bell) + Avatar dropdown
+ *
+ * Mobile:
+ * - Left: Greeting (name only, truncated)
+ * - Right: Search icon + Avatar dropdown
+ *
+ * Design Specifications:
+ * - Height: 64px (var(--header-height))
+ * - Background: White card (var(--color-bg-card))
+ * - Border bottom: 1px subtle gray
+ * - Search bar: Pill-shaped, light gray background
+ * - Icons: 20px size
+ * - Avatar: 40px with 2px white ring
+ *
+ * Features:
+ * - Time-based greeting (Morning/Afternoon/Evening)
+ * - Global search (hidden on mobile, icon button)
+ * - Notification indicators
+ * - Admin access link (if applicable)
+ * - Theme switcher in dropdown
  */
 export function PortalHeader() {
   const { profile, signOut, hasAnyPermission, isSigningOut } = useAuth();
-  const { logoUrl } = useEstateLogo();
 
-  // Check if user has admin dashboard access (any admin permission indicates dashboard access)
+  // Check if user has admin dashboard access
   const hasAdminAccess = hasAnyPermission([PERMISSIONS.RESIDENTS_VIEW]);
 
   // Get initials for avatar fallback
@@ -45,106 +68,211 @@ export function PortalHeader() {
 
   const initials = profile?.full_name ? getInitials(profile.full_name) : 'R';
 
+  // Get first name for greeting
+  const firstName = profile?.full_name?.split(' ')[0] || 'Resident';
+
+  // Time-based greeting
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  }, []);
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-background/80 backdrop-blur-xl border-b border-border/40">
-      {/* Subtle gradient overlay for depth */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background to-transparent opacity-50 pointer-events-none" />
-
-      <div className="relative h-full px-4 flex items-center justify-between max-w-lg mx-auto">
-        {/* Logo / Branding */}
-        <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
-          {logoUrl ? (
-            /* Dynamic estate logo */
-            <img
-              src={logoUrl}
-              alt="Estate Logo"
-              className="h-8 w-auto max-w-[120px] object-contain"
-            />
-          ) : (
-            /* Fallback: Default Residio branding */
-            <>
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <svg
-                  viewBox="0 0 24 24"
-                  className="w-5 h-5 text-primary"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                  <polyline points="9 22 9 12 15 12 15 22" />
-                </svg>
-              </div>
-              <span className="text-sm font-semibold text-foreground/80 hidden sm:block">
-                Residio
-              </span>
-            </>
-          )}
-        </div>
-
-        {/* Center: Resident Name */}
-        <div className="absolute left-1/2 -translate-x-1/2 max-w-[40%]">
-          <span className="text-sm font-medium text-foreground truncate block text-center">
-            {profile?.full_name || 'Resident'}
-          </span>
-        </div>
-
-        {/* Right: Search + Layout Theme + Color Theme + Avatar Dropdown */}
-        <div className="flex items-center gap-1">
-          <PortalSearch variant="input" />
-          <LayoutThemeSwitcher />
-          <ThemeSwitcher variant="compact" />
-          <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="flex items-center gap-1.5 p-1 -m-1 rounded-full
-                         hover:bg-accent/50 active:scale-95
-                         transition-all duration-150 ease-out
-                         focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-2"
-              style={{ minWidth: '44px', minHeight: '44px' }}
-            >
-              <Avatar className="h-8 w-8 ring-2 ring-background shadow-sm">
-                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <ChevronDown className="h-3 w-3 text-muted-foreground hidden sm:block" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-56 animate-in slide-in-from-top-1 fade-in-0 duration-200"
+    <header
+      className="sticky top-0 z-40 w-full transition-colors duration-300"
+      style={{
+        height: 'var(--header-height)', // 64px
+        background: 'var(--color-bg-card)',
+        borderBottom: '1px solid var(--color-bg-input)',
+      }}
+    >
+      <div className="h-full px-6 flex items-center justify-between gap-4">
+        {/* Left: Greeting */}
+        <div className="flex-shrink-0 min-w-0">
+          <h1
+            className="font-semibold truncate"
+            style={{
+              fontSize: 'var(--text-xl)', // 20px
+              color: 'var(--color-text-primary)',
+              lineHeight: 'var(--leading-xl)',
+            }}
           >
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{profile?.full_name}</p>
-                <p className="text-xs leading-none text-muted-foreground">{profile?.email}</p>
-              </div>
-            </DropdownMenuLabel>
-            {hasAdminAccess && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard">
-                    <LayoutDashboard className="mr-2 h-4 w-4" />
-                    Admin Dashboard
-                  </Link>
-                </DropdownMenuItem>
-              </>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={signOut}
-              disabled={isSigningOut}
-              className="text-destructive focus:text-destructive cursor-pointer"
+            <span className="hidden md:inline">Hello {firstName}, </span>
+            <span
+              className="hidden lg:inline"
+              style={{
+                color: 'var(--color-text-secondary)',
+                fontWeight: 'var(--font-normal)',
+              }}
             >
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>{isSigningOut ? 'Signing out...' : 'Sign out'}</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              {greeting}
+            </span>
+            <span className="md:hidden">Hi {firstName}</span>
+          </h1>
+        </div>
+
+        {/* Center: Search Bar (Desktop only) */}
+        <div className="hidden md:flex flex-1 max-w-md mx-auto">
+          <div className="search-input-wrapper w-full">
+            <Search className="search-icon" />
+            <input
+              type="search"
+              placeholder="Quick Search..."
+              className="search-input"
+              style={{
+                fontSize: 'var(--text-sm)',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Right: Actions & Avatar */}
+        <div className="flex items-center gap-2">
+          {/* Search Icon (Mobile only) */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: 'var(--radius-md)',
+            }}
+          >
+            <Search
+              style={{
+                width: 'var(--icon-sm)',
+                height: 'var(--icon-sm)',
+                color: 'var(--color-text-muted)',
+              }}
+            />
+          </Button>
+
+          {/* Quick Actions Menu (Desktop only) */}
+          <QuickActionsMenu />
+
+          {/* Invoice Status Indicator (Desktop only) */}
+          <InvoiceStatusIndicator />
+
+          {/* Notification Bell */}
+          <NotificationBell />
+
+          {/* Divider (Desktop only) */}
+          <div
+            className="hidden lg:block h-6 w-px mx-2"
+            style={{
+              background: 'var(--color-bg-input)',
+            }}
+          />
+
+          {/* Theme Switcher (Desktop only) */}
+          <div className="hidden lg:block">
+            <ThemeSwitcher variant="compact" />
+          </div>
+
+          {/* Avatar Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="flex items-center gap-2 transition-all duration-150 hover:opacity-80"
+                style={{
+                  minWidth: '44px',
+                  minHeight: '44px',
+                  borderRadius: 'var(--radius-full)',
+                }}
+              >
+                <Avatar
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    border: '2px solid var(--color-bg-card)',
+                    boxShadow: 'var(--shadow-sm)',
+                  }}
+                >
+                  <AvatarFallback
+                    style={{
+                      background: 'var(--color-primary)',
+                      color: '#FFFFFF',
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 'var(--font-semibold)',
+                    }}
+                  >
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <ChevronDown
+                  className="hidden md:block"
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    color: 'var(--color-text-muted)',
+                  }}
+                />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-56"
+              style={{
+                borderRadius: 'var(--radius-lg)',
+                boxShadow: 'var(--shadow-xl)',
+              }}
+            >
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p
+                    style={{
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 'var(--font-medium)',
+                      color: 'var(--color-text-primary)',
+                    }}
+                  >
+                    {profile?.full_name}
+                  </p>
+                  <p
+                    style={{
+                      fontSize: 'var(--text-xs)',
+                      color: 'var(--color-text-muted)',
+                    }}
+                  >
+                    {profile?.email}
+                  </p>
+                </div>
+              </DropdownMenuLabel>
+
+              {/* Theme Switcher (Mobile) */}
+              <div className="lg:hidden px-2 py-1.5">
+                <ThemeSwitcher variant="compact" />
+              </div>
+
+              {hasAdminAccess && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard" className="cursor-pointer">
+                      <LayoutDashboard className="mr-2 h-4 w-4" />
+                      Admin Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                </>
+              )}
+
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={signOut}
+                disabled={isSigningOut}
+                className="cursor-pointer"
+                style={{
+                  color: 'var(--color-error)',
+                }}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>{isSigningOut ? 'Signing out...' : 'Sign out'}</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

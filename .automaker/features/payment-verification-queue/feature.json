@@ -1,0 +1,12 @@
+{
+  "id": "payment-verification-queue",
+  "category": "Payment",
+  "title": "Payment Verification Queue",
+  "description": "Queue for verifying imported payments before final posting. Include bulk approval, rejection reasons, and audit trail.",
+  "status": "backlog",
+  "priority": 2,
+  "complexity": "moderate",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.240Z",
+  "updatedAt": "2026-01-11T08:08:09.240Z"
+}

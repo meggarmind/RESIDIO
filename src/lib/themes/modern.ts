@@ -17,26 +17,59 @@ export const modernTheme: VisualTheme = {
       secondary: '#E5E7EB',
       card: '#FFFFFF',         // White cards
       sidebar: '#1E293B',      // Dark navy/slate sidebar
+      elevated: '#FFFFFF',
+      hover: '#F3F4F6',
+      active: '#E5E7EB',
     },
     text: {
       primary: '#111827',
       secondary: '#6B7280',
       muted: '#9CA3AF',
+      disabled: '#D1D5DB',
+      onAccent: '#FFFFFF',
     },
     accent: {
       primary: '#0EA5E9',      // Blue-teal
       secondary: '#14B8A6',    // Teal variant
       tertiary: '#06B6D4',     // Cyan
+      hover: '#0284C7',
+      active: '#0369A1',
     },
     status: {
       success: '#10B981',      // Green
+      successSubtle: '#D1FAE5',
       warning: '#F59E0B',      // Amber
+      warningSubtle: '#FEF3C7',
       error: '#EF4444',        // Red
+      errorSubtle: '#FEE2E2',
       info: '#3B82F6',         // Blue
+      infoSubtle: '#DBEAFE',
     },
     border: {
       default: '#E5E7EB',
       subtle: '#F3F4F6',
+      focus: '#0EA5E9',
+      hover: '#D1D5DB',
+    },
+    interactive: {
+      default: '#F9FAFB',
+      hover: '#F3F4F6',
+      active: '#E5E7EB',
+      disabled: '#F9FAFB',
+      focus: '#0EA5E9',
+    },
+    input: {
+      bg: '#FFFFFF',
+      border: '#D1D5DB',
+      borderHover: '#9CA3AF',
+      borderFocus: '#0EA5E9',
+      placeholder: '#9CA3AF',
+      bgDisabled: '#F9FAFB',
+    },
+    overlay: {
+      backdrop: 'rgba(30, 41, 59, 0.5)',
+      tooltip: '#1E293B',
+      popover: '#FFFFFF',
     },
   },
 
@@ -46,26 +79,59 @@ export const modernTheme: VisualTheme = {
       secondary: '#1E293B',
       card: '#1E293B',
       sidebar: '#0F172A',      // Darker sidebar in dark mode
+      elevated: '#1E293B',
+      hover: '#334155',
+      active: '#475569',
     },
     text: {
       primary: '#F9FAFB',
       secondary: '#9CA3AF',
       muted: '#6B7280',
+      disabled: '#4B5563',
+      onAccent: '#FFFFFF',
     },
     accent: {
       primary: '#0EA5E9',      // Blue-teal (consistent)
       secondary: '#14B8A6',    // Teal variant
       tertiary: '#06B6D4',     // Cyan
+      hover: '#0284C7',
+      active: '#0369A1',
     },
     status: {
       success: '#10B981',
+      successSubtle: '#064E3B',
       warning: '#F59E0B',
+      warningSubtle: '#78350F',
       error: '#EF4444',
+      errorSubtle: '#7F1D1D',
       info: '#3B82F6',
+      infoSubtle: '#1E3A8A',
     },
     border: {
       default: '#374151',
       subtle: '#1E293B',
+      focus: '#0EA5E9',
+      hover: '#4B5563',
+    },
+    interactive: {
+      default: '#1E293B',
+      hover: '#334155',
+      active: '#475569',
+      disabled: '#1E293B',
+      focus: '#0EA5E9',
+    },
+    input: {
+      bg: '#1E293B',
+      border: '#4B5563',
+      borderHover: '#6B7280',
+      borderFocus: '#0EA5E9',
+      placeholder: '#6B7280',
+      bgDisabled: '#1E293B',
+    },
+    overlay: {
+      backdrop: 'rgba(15, 23, 42, 0.75)',
+      tooltip: '#1E293B',
+      popover: '#1E293B',
     },
   },
 

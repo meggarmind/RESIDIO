@@ -113,8 +113,8 @@ export default function MaintenancePage() {
         </CardContent>
       </Card>
 
-      {/* Background decoration */}
-      <style jsx global>{\`
+      {/* Background decoration - inline styles for animation */}
+      <style>{`
         @keyframes spin-slow {
           from {
             transform: rotate(0deg);
@@ -126,7 +126,7 @@ export default function MaintenancePage() {
         .animate-spin-slow {
           animation: spin-slow 3s linear infinite;
         }
-      \`}</style>
+      `}</style>
     </div>
   );
 }

@@ -1,0 +1,12 @@
+{
+  "id": "bulk-invoice-adjustments",
+  "category": "Billing",
+  "title": "Bulk Invoice Operations",
+  "description": "Apply bulk adjustments, discounts, or reversals to multiple invoices simultaneously with approval workflows. Include bulk export and printing.",
+  "status": "backlog",
+  "priority": 2,
+  "complexity": "moderate",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.237Z",
+  "updatedAt": "2026-01-11T08:08:09.237Z"
+}

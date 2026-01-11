@@ -104,15 +104,15 @@ type ResidentHouseWithDetails = {
   house: HouseWithStreet;
 };
 
-// Role display labels
+// Role display labels (synced with RESIDENT_ROLE_LABELS in database.ts)
 const roleLabels: Record<string, string> = {
-  resident_landlord: 'Owner (Resident)',
-  non_resident_landlord: 'Owner (Non-Resident)',
-  tenant: 'Tenant',
+  resident_landlord: 'Owner-Occupier',
+  non_resident_landlord: 'Property Owner',
+  tenant: 'Renter',
   developer: 'Developer',
-  co_resident: 'Co-Resident',
-  household_member: 'Household Member',
-  domestic_staff: 'Staff',
+  co_resident: 'Occupant',
+  household_member: 'Family Member',
+  domestic_staff: 'Domestic Staff',
   caretaker: 'Caretaker',
   contractor: 'Contractor',
 };

@@ -1,0 +1,12 @@
+{
+  "id": "api-key-management",
+  "category": "API",
+  "title": "Public API & Key Management",
+  "description": "Expose REST API for third-party integrations with API key authentication, rate limiting, and usage tracking. Include developer documentation.",
+  "status": "backlog",
+  "priority": 3,
+  "complexity": "complex",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.255Z",
+  "updatedAt": "2026-01-11T08:08:09.255Z"
+}

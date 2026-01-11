@@ -1,0 +1,12 @@
+{
+  "id": "voting-polls",
+  "category": "Core",
+  "title": "Community Voting & Polls",
+  "description": "Create and manage polls for community decisions with configurable voting periods, eligibility rules (property-based), and result analytics.",
+  "status": "backlog",
+  "priority": 3,
+  "complexity": "moderate",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.212Z",
+  "updatedAt": "2026-01-11T08:08:09.212Z"
+}

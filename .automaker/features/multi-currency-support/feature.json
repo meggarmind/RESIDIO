@@ -1,0 +1,12 @@
+{
+  "id": "multi-currency-support",
+  "category": "Finance",
+  "title": "Multi-Currency Support",
+  "description": "Support for payments in USD, GBP, EUR with automatic conversion to NGN at configurable exchange rates. Track exchange rate history and gains/losses.",
+  "status": "backlog",
+  "priority": 3,
+  "complexity": "complex",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.227Z",
+  "updatedAt": "2026-01-11T08:08:09.227Z"
+}

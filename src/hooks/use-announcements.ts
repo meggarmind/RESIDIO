@@ -39,6 +39,11 @@ import {
   sendEmergencyBroadcast,
   type EmergencyBroadcastInput,
 } from '@/actions/announcements/emergency-broadcast';
+import {
+  sendMultiChannelEmergencyBroadcast,
+  getEmergencyContactDirectory,
+  type MultiChannelEmergencyInput,
+} from '@/actions/announcements/send-multi-channel-emergency';
 import type { AnnouncementListParams, AnnouncementInput } from '@/types/database';
 
 // =====================================================
@@ -565,7 +570,7 @@ export function useDeleteMessageTemplate() {
 // =====================================================
 
 /**
- * Send an emergency broadcast to all residents
+ * Send an emergency broadcast to all residents (in-app only)
  * Creates an announcement and sends notifications immediately
  */
 export function useSendEmergencyBroadcast() {
@@ -582,5 +587,41 @@ export function useSendEmergencyBroadcast() {
       queryClient.invalidateQueries({ queryKey: ['publishedAnnouncements'] });
       queryClient.invalidateQueries({ queryKey: ['inAppNotifications'] });
     },
+  });
+}
+
+/**
+ * Send a multi-channel emergency broadcast to all residents
+ * Creates an announcement and sends via selected channels (in-app, email, SMS, WhatsApp)
+ */
+export function useSendMultiChannelEmergencyBroadcast() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: MultiChannelEmergencyInput) => {
+      const result = await sendMultiChannelEmergencyBroadcast(data);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      queryClient.invalidateQueries({ queryKey: ['publishedAnnouncements'] });
+      queryClient.invalidateQueries({ queryKey: ['inAppNotifications'] });
+    },
+  });
+}
+
+/**
+ * Fetch emergency contact directory
+ */
+export function useEmergencyContactDirectory() {
+  return useQuery({
+    queryKey: ['emergencyContactDirectory'],
+    queryFn: async () => {
+      const result = await getEmergencyContactDirectory();
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 }

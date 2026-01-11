@@ -1,0 +1,12 @@
+{
+  "id": "payment-plans",
+  "category": "Payment",
+  "title": "Installment Payment Plans",
+  "description": "Allow residents to request and manage payment plans for outstanding invoices. Include plan approval workflows, automatic installment generation, and progress tracking.",
+  "status": "backlog",
+  "priority": 2,
+  "complexity": "complex",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.152Z",
+  "updatedAt": "2026-01-11T08:08:09.152Z"
+}

@@ -52,21 +52,27 @@ export default function NotificationQueuePage() {
   const [stats, setStats] = useState<any>(null);
   const [queue, setQueue] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ channel: '', category: '' });
+  const [filters, setFilters] = useState<{ channel: string; category: string }>({ channel: 'all', category: 'all' });
   const [deleting, setDeleting] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
+    const channelFilter = filters.channel !== 'all' ? filters.channel : undefined;
+    const categoryFilter = filters.category !== 'all' ? filters.category : undefined;
     const [statsResult, queueResult] = await Promise.all([
       getQueueStats(),
-      getQueuedNotifications({ ...filters, limit: 50 }),
+      getQueuedNotifications({
+        channel: channelFilter as 'email' | 'sms' | 'whatsapp' | undefined,
+        category: categoryFilter,
+        limit: 50
+      }),
     ]);
 
     if (statsResult.data) setStats(statsResult.data);
     if (queueResult.data) setQueue(queueResult.data);
-    if (statsResult.error) toast.error(statsResult.error);
-    if (queueResult.error) toast.error(queueResult.error);
+    if (statsResult.error) toast.error(String(statsResult.error));
+    if (queueResult.error) toast.error(String(queueResult.error));
 
     setLoading(false);
   };
@@ -90,9 +96,11 @@ export default function NotificationQueuePage() {
 
   const handleClearQueue = async () => {
     setClearing(true);
+    const channelFilter = filters.channel !== 'all' ? filters.channel : undefined;
+    const categoryFilter = filters.category !== 'all' ? filters.category : undefined;
     const result = await clearQueue(
-      filters.channel || filters.category
-        ? { channel: filters.channel || undefined, category: filters.category || undefined }
+      channelFilter || categoryFilter
+        ? { channel: channelFilter, category: categoryFilter }
         : undefined
     );
 
@@ -202,7 +210,7 @@ export default function NotificationQueuePage() {
                   <SelectValue placeholder="All Channels" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Channels</SelectItem>
+                  <SelectItem value="all">All Channels</SelectItem>
                   <SelectItem value="email">Email</SelectItem>
                   <SelectItem value="sms">SMS</SelectItem>
                   <SelectItem value="whatsapp">WhatsApp</SelectItem>
@@ -217,7 +225,7 @@ export default function NotificationQueuePage() {
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Categories</SelectItem>
+                  <SelectItem value="all">All Categories</SelectItem>
                   <SelectItem value="billing">Billing</SelectItem>
                   <SelectItem value="security">Security</SelectItem>
                   <SelectItem value="general">General</SelectItem>
@@ -242,14 +250,14 @@ export default function NotificationQueuePage() {
                       <AlertDialogTitle>Clear Notification Queue?</AlertDialogTitle>
                       <AlertDialogDescription>
                         This will delete{' '}
-                        {filters.channel || filters.category ? 'filtered' : 'all'} notifications
+                        {filters.channel !== 'all' || filters.category !== 'all' ? 'filtered' : 'all'} notifications
                         from the queue. This action cannot be undone.
-                        {filters.channel && (
+                        {filters.channel !== 'all' && (
                           <span className="block mt-2 font-medium">
                             Channel filter: {filters.channel}
                           </span>
                         )}
-                        {filters.category && (
+                        {filters.category !== 'all' && (
                           <span className="block mt-2 font-medium">
                             Category filter: {filters.category}
                           </span>

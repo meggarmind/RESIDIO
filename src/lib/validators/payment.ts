@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const paymentStatusEnum = z.enum(['pending', 'paid', 'overdue', 'failed']);
-export const paymentMethodEnum = z.enum(['cash', 'bank_transfer', 'pos', 'cheque']);
+export const paymentMethodEnum = z.enum(['cash', 'bank_transfer', 'pos', 'cheque', 'online']);
 
 export const paymentFormSchema = z.object({
     resident_id: z.string().uuid('Resident is required'),

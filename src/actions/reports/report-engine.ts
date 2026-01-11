@@ -110,11 +110,52 @@ export interface TransactionLogData {
   }[];
 }
 
+export interface DebtorInfo {
+  residentId: string;
+  residentName: string;
+  residentCode: string;
+  email: string | null;
+  phonePrimary: string | null;
+  phoneSecondary: string | null;
+  houseNumber: string;
+  streetName: string;
+  totalOutstanding: number;
+  invoiceCount: number;
+  oldestDueDate: string;
+  daysOverdue: number;
+  // Aging breakdown for this debtor
+  current: number;       // 0-30 days
+  days31to60: number;
+  days61to90: number;
+  over90Days: number;
+}
+
+export interface DebtorsReportData {
+  summary: {
+    totalDebtors: number;
+    totalOutstanding: number;
+    current: number;       // 0-30 days
+    days31to60: number;
+    days61to90: number;
+    over90Days: number;
+    averageDebt: number;
+    averageDaysOverdue: number;
+  };
+  byAgingBracket: {
+    bracket: string;
+    debtorCount: number;
+    totalAmount: number;
+    percentage: number;
+  }[];
+  debtors: DebtorInfo[];
+}
+
 export type ReportData =
   | { type: 'financial_overview'; data: FinancialOverviewData }
   | { type: 'collection_report'; data: CollectionReportData }
   | { type: 'invoice_aging'; data: InvoiceAgingData }
-  | { type: 'transaction_log'; data: TransactionLogData };
+  | { type: 'transaction_log'; data: TransactionLogData }
+  | { type: 'debtors_report'; data: DebtorsReportData };
 
 export interface GenerateReportResult {
   success: boolean;
@@ -635,6 +676,205 @@ async function generateTransactionLog(
 }
 
 // ============================================================
+// Debtors Report
+// ============================================================
+
+async function generateDebtorsReport(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>
+): Promise<DebtorsReportData> {
+  const today = new Date();
+
+  // Get all unpaid/partially paid/overdue invoices with resident contact info
+  const { data: invoices, error } = await supabase
+    .from('invoices')
+    .select(`
+      id,
+      invoice_number,
+      amount_due,
+      amount_paid,
+      status,
+      due_date,
+      resident:residents (
+        id,
+        first_name,
+        last_name,
+        resident_code,
+        email,
+        phone_primary,
+        phone_secondary
+      ),
+      house:houses (
+        house_number,
+        street:streets (name)
+      )
+    `)
+    .in('status', ['unpaid', 'partially_paid', 'overdue']);
+
+  if (error) {
+    console.error('Error fetching invoices for debtors report:', error);
+    throw new Error(error.message);
+  }
+
+  // Define aging brackets
+  const brackets = [
+    { name: 'Current (0-30 days)', min: 0, max: 30 },
+    { name: '31-60 days', min: 31, max: 60 },
+    { name: '61-90 days', min: 61, max: 90 },
+    { name: 'Over 90 days', min: 91, max: Infinity },
+  ];
+
+  // Aggregate by resident (debtor)
+  const debtorMap = new Map<string, {
+    residentId: string;
+    residentName: string;
+    residentCode: string;
+    email: string | null;
+    phonePrimary: string | null;
+    phoneSecondary: string | null;
+    houseNumber: string;
+    streetName: string;
+    totalOutstanding: number;
+    invoiceCount: number;
+    oldestDueDate: string;
+    maxDaysOverdue: number;
+    current: number;
+    days31to60: number;
+    days61to90: number;
+    over90Days: number;
+  }>();
+
+  for (const invoice of invoices || []) {
+    const amountDue = Number(invoice.amount_due) || 0;
+    const amountPaid = Number(invoice.amount_paid) || 0;
+    const outstanding = amountDue - amountPaid;
+
+    if (outstanding <= 0) continue;
+
+    const resident = invoice.resident as unknown as {
+      id: string;
+      first_name: string;
+      last_name: string;
+      resident_code: string;
+      email: string | null;
+      phone_primary: string | null;
+      phone_secondary: string | null;
+    } | null;
+
+    if (!resident) continue;
+
+    const house = invoice.house as unknown as {
+      house_number: string;
+      street: { name: string } | null;
+    } | null;
+
+    const dueDate = new Date(invoice.due_date);
+    const daysOverdue = Math.max(0, Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
+
+    // Determine which aging bucket this invoice belongs to
+    let agingBucket: 'current' | 'days31to60' | 'days61to90' | 'over90Days' = 'current';
+    if (daysOverdue > 90) {
+      agingBucket = 'over90Days';
+    } else if (daysOverdue > 60) {
+      agingBucket = 'days61to90';
+    } else if (daysOverdue > 30) {
+      agingBucket = 'days31to60';
+    }
+
+    const existing = debtorMap.get(resident.id);
+    if (existing) {
+      existing.totalOutstanding += outstanding;
+      existing.invoiceCount += 1;
+      existing[agingBucket] += outstanding;
+      if (invoice.due_date < existing.oldestDueDate) {
+        existing.oldestDueDate = invoice.due_date;
+      }
+      if (daysOverdue > existing.maxDaysOverdue) {
+        existing.maxDaysOverdue = daysOverdue;
+      }
+    } else {
+      debtorMap.set(resident.id, {
+        residentId: resident.id,
+        residentName: `${resident.first_name} ${resident.last_name}`,
+        residentCode: resident.resident_code,
+        email: resident.email,
+        phonePrimary: resident.phone_primary,
+        phoneSecondary: resident.phone_secondary,
+        houseNumber: house?.house_number || 'N/A',
+        streetName: house?.street?.name || 'N/A',
+        totalOutstanding: outstanding,
+        invoiceCount: 1,
+        oldestDueDate: invoice.due_date,
+        maxDaysOverdue: daysOverdue,
+        current: agingBucket === 'current' ? outstanding : 0,
+        days31to60: agingBucket === 'days31to60' ? outstanding : 0,
+        days61to90: agingBucket === 'days61to90' ? outstanding : 0,
+        over90Days: agingBucket === 'over90Days' ? outstanding : 0,
+      });
+    }
+  }
+
+  // Convert to array and sort by total outstanding (highest first)
+  const debtors: DebtorInfo[] = Array.from(debtorMap.values())
+    .map((d) => ({
+      residentId: d.residentId,
+      residentName: d.residentName,
+      residentCode: d.residentCode,
+      email: d.email,
+      phonePrimary: d.phonePrimary,
+      phoneSecondary: d.phoneSecondary,
+      houseNumber: d.houseNumber,
+      streetName: d.streetName,
+      totalOutstanding: d.totalOutstanding,
+      invoiceCount: d.invoiceCount,
+      oldestDueDate: d.oldestDueDate,
+      daysOverdue: d.maxDaysOverdue,
+      current: d.current,
+      days31to60: d.days31to60,
+      days61to90: d.days61to90,
+      over90Days: d.over90Days,
+    }))
+    .sort((a, b) => b.totalOutstanding - a.totalOutstanding);
+
+  // Calculate totals
+  const totalOutstanding = debtors.reduce((sum, d) => sum + d.totalOutstanding, 0);
+  const totalCurrent = debtors.reduce((sum, d) => sum + d.current, 0);
+  const totalDays31to60 = debtors.reduce((sum, d) => sum + d.days31to60, 0);
+  const totalDays61to90 = debtors.reduce((sum, d) => sum + d.days61to90, 0);
+  const totalOver90Days = debtors.reduce((sum, d) => sum + d.over90Days, 0);
+  const totalDaysOverdue = debtors.reduce((sum, d) => sum + d.daysOverdue, 0);
+
+  // Build aging bracket summary
+  const bracketData = [
+    { name: 'Current (0-30 days)', total: totalCurrent, count: debtors.filter(d => d.current > 0).length },
+    { name: '31-60 days', total: totalDays31to60, count: debtors.filter(d => d.days31to60 > 0).length },
+    { name: '61-90 days', total: totalDays61to90, count: debtors.filter(d => d.days61to90 > 0).length },
+    { name: 'Over 90 days', total: totalOver90Days, count: debtors.filter(d => d.over90Days > 0).length },
+  ];
+
+  const byAgingBracket = bracketData.map((b) => ({
+    bracket: b.name,
+    debtorCount: b.count,
+    totalAmount: b.total,
+    percentage: totalOutstanding > 0 ? (b.total / totalOutstanding) * 100 : 0,
+  }));
+
+  return {
+    summary: {
+      totalDebtors: debtors.length,
+      totalOutstanding,
+      current: totalCurrent,
+      days31to60: totalDays31to60,
+      days61to90: totalDays61to90,
+      over90Days: totalOver90Days,
+      averageDebt: debtors.length > 0 ? totalOutstanding / debtors.length : 0,
+      averageDaysOverdue: debtors.length > 0 ? totalDaysOverdue / debtors.length : 0,
+    },
+    byAgingBracket,
+    debtors,
+  };
+}
+
+// ============================================================
 // Main Report Generation Function
 // ============================================================
 
@@ -691,6 +931,11 @@ export async function generateReport(
           params.transactionType || 'all'
         );
         return { success: true, report: { type: 'transaction_log', data } };
+      }
+
+      case 'debtors_report': {
+        const data = await generateDebtorsReport(supabase);
+        return { success: true, report: { type: 'debtors_report', data } };
       }
 
       default:

@@ -1,0 +1,551 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project_specification>
+  <project_name>Residio</project_name>
+
+  <overview>
+    Residio is a comprehensive residential estate access management and payment system designed specifically for Nigerian residential estates. It provides a unified digital platform that automates resident access control, security contact management, payment tracking, and billing operations through a modern web application. The system serves three primary user groups: estate administrators (EXCO members, BOT members, and management staff), residents (property owners, landlords, tenants, and occupants), and security personnel (gate and estate security officers).
+
+The platform addresses key challenges faced by Nigerian residential estates including manual paper-based record keeping, inefficient billing and payment tracking, lack of financial transparency, security access coordination difficulties, and limited self-service options for residents. Key business rules include strict data isolation (residents only see their own data), multi-property support with aggregated views, Nigerian Naira (₦) currency formatting, comprehensive audit trails, mobile-first design, and maker-checker approval workflows for sensitive operations.
+  </overview>
+
+  <technology_stack>
+    <technology>Next.js 16.0.7 (App Router)</technology>
+    <technology>React 19.2.0</technology>
+    <technology>TypeScript 5.x</technology>
+    <technology>Tailwind CSS v4</technology>
+    <technology>shadcn/ui (new-york style)</technology>
+    <technology>TanStack React Query v5.90</technology>
+    <technology>React Hook Form v7.68</technology>
+    <technology>Zod v4.1 (validation)</technology>
+    <technology>Supabase (PostgreSQL backend)</technology>
+    <technology>Supabase Auth with Row-Level Security (RLS)</technology>
+    <technology>Next.js Server Actions</technology>
+    <technology>@supabase/ssr v0.8.0</technology>
+    <technology>@supabase/supabase-js v2.86</technology>
+    <technology>Radix UI Primitives (dialog, dropdown, tabs, etc.)</technology>
+    <technology>Lucide React (icons)</technology>
+    <technology>date-fns v4.1 (date utilities)</technology>
+    <technology>Recharts v2.15 (charts/analytics)</technology>
+    <technology>Resend v6.6 (transactional emails)</technology>
+    <technology>@react-email/components (email templates)</technology>
+    <technology>@react-pdf/renderer v4.3 (PDF generation)</technology>
+    <technology>pdf-lib v1.17 (PDF manipulation)</technology>
+    <technology>react-pdf v10.3 (PDF viewing)</technology>
+    <technology>xlsx v0.18 (Excel import/export)</technology>
+    <technology>papaparse v5.5 (CSV parsing)</technology>
+    <technology>fuse.js v7.1 (fuzzy search)</technology>
+    <technology>framer-motion v12.23 (animations)</technology>
+    <technology>next-themes v0.4 (dark mode)</technology>
+    <technology>sonner v2.0 (toast notifications)</technology>
+    <technology>cmdk v1.1 (command palette)</technology>
+    <technology>react-day-picker v9.12 (calendar)</technology>
+    <technology>react-dropzone v14.3 (file uploads)</technology>
+    <technology>googleapis v169 (Gmail integration)</technology>
+    <technology>Vitest v4.0 (unit testing)</technology>
+    <technology>Playwright v1.57 (E2E testing)</technology>
+    <technology>ESLint v9</technology>
+    <technology>Supabase CLI (local development)</technology>
+    <technology>Termii SMS integration</technology>
+  </technology_stack>
+
+  <core_capabilities>
+    <capability>Authentication &amp; Session Management with Supabase Auth</capability>
+    <capability>Role-Based Access Control (RBAC) with 8 configurable admin roles and granular permissions</capability>
+    <capability>Row-Level Security (RLS) enforced at database level for data isolation</capability>
+    <capability>Dual Portal System (Admin Dashboard and Resident Portal)</capability>
+    <capability>Resident Management with full CRUD operations and auto-generated 6-digit codes</capability>
+    <capability>Property/House Management with street and house type reference data</capability>
+    <capability>Multi-property support per resident with role-based assignments</capability>
+    <capability>House Ownership History tracking with 7 event types</capability>
+    <capability>Billing Profile System with flexible rate configurations</capability>
+    <capability>Invoice Generation with pro-rata calculations and rate snapshots</capability>
+    <capability>Wallet System with auto-creation per resident and FIFO payment allocation</capability>
+    <capability>Multiple Payment Types (service charges, development levies, special assessments)</capability>
+    <capability>Bank Statement Import (CSV/XLSX) with intelligent resident matching</capability>
+    <capability>Gmail Email Import for automated bank statement processing</capability>
+    <capability>Security Contact Registry with categories and access code generation</capability>
+    <capability>Visitor Pre-authorization and Check-in/Check-out logging</capability>
+    <capability>Access Code Verification at entry points</capability>
+    <capability>Immutable Audit Logging (12 action types, 30+ entity types)</capability>
+    <capability>Maker-Checker Approval Workflows for sensitive operations</capability>
+    <capability>Notification System with templates, schedules, and queuing</capability>
+    <capability>Email Notifications via Resend with customizable templates</capability>
+    <capability>SMS Notifications via Termii integration</capability>
+    <capability>In-App Notification Center</capability>
+    <capability>Announcement System with categories, scheduling, and read receipts</capability>
+    <capability>Document Management with versioning and access logging</capability>
+    <capability>Financial Reports and Analytics with charts</capability>
+    <capability>Printable Receipts and Statements (PDF generation)</capability>
+    <capability>Contact Verification (email and phone OTP)</capability>
+    <capability>Admin Impersonation System for troubleshooting</capability>
+    <capability>Notes Module for resident and house records</capability>
+    <capability>Visual Theme System with multiple theme options</capability>
+    <capability>Hierarchical Settings (estate, house, resident levels)</capability>
+    <capability>Cron Jobs for automated invoice generation, reminders, and report generation</capability>
+    <capability>Maintenance Mode support</capability>
+  </core_capabilities>
+
+  <implemented_features>
+    <feature>
+      <name>Authentication System</name>
+      <description>Complete Supabase Auth integration with email/password authentication, session management, password reset flows, and secure callback handling. Includes separate auth layouts for login, registration, and password recovery.</description>
+      <file_locations>
+        <location>src/app/(auth)/login/page.tsx</location>
+        <location>src/app/(auth)/register/page.tsx</location>
+        <location>src/app/(auth)/forgot-password/page.tsx</location>
+        <location>src/app/(auth)/reset-password/page.tsx</location>
+        <location>src/app/auth/callback/route.ts</location>
+        <location>src/lib/supabase/server.ts</location>
+        <location>src/lib/supabase/client.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Role-Based Access Control (RBAC)</name>
+      <description>Comprehensive permission-based authorization system with 8 admin roles (super_admin, chairman, vice_chairman, financial_officer, security_officer, secretary, project_manager, resident), permission categories, and granular access control. Supports both legacy role-based and new permission-based authorization.</description>
+      <file_locations>
+        <location>src/lib/auth/authorize.ts</location>
+        <location>src/lib/auth/action-roles.ts</location>
+        <location>src/actions/roles/index.ts</location>
+        <location>src/actions/roles/assignment-rules.ts</location>
+        <location>src/app/(dashboard)/settings/roles/page.tsx</location>
+        <location>src/types/database.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Admin Dashboard</name>
+      <description>Full-featured admin dashboard with responsive sidebar navigation, header, mobile navigation, breadcrumbs, and visual theme support. Includes settings navigation and multiple layout themes (default, modern).</description>
+      <file_locations>
+        <location>src/app/(dashboard)/layout.tsx</location>
+        <location>src/app/(dashboard)/dashboard/page.tsx</location>
+        <location>src/components/dashboard/sidebar.tsx</location>
+        <location>src/components/dashboard/modern-sidebar.tsx</location>
+        <location>src/components/dashboard/header.tsx</location>
+        <location>src/components/dashboard/mobile-nav.tsx</location>
+        <location>src/components/dashboard/admin-breadcrumb.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Resident Portal</name>
+      <description>Self-service resident portal with property management, bill viewing, payment history, security contact management, visitor registration, document access, announcements, wallet management, and notification preferences.</description>
+      <file_locations>
+        <location>src/app/(resident)/layout.tsx</location>
+        <location>src/app/(resident)/portal/page.tsx</location>
+        <location>src/app/(resident)/portal/properties/page.tsx</location>
+        <location>src/app/(resident)/portal/invoices/page.tsx</location>
+        <location>src/app/(resident)/portal/wallet/page.tsx</location>
+        <location>src/app/(resident)/portal/security-contacts/page.tsx</location>
+        <location>src/app/(resident)/portal/visitors/page.tsx</location>
+        <location>src/app/(resident)/portal/documents/page.tsx</location>
+        <location>src/app/(resident)/portal/announcements/page.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Resident Management</name>
+      <description>Complete CRUD operations for residents with auto-generated 6-digit codes, support for individual and corporate entities, multiple resident roles (landlord, tenant, co-resident, household member, domestic staff, caretaker, contractor), verification status tracking, emergency contact management, and portal access provisioning.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/residents/page.tsx</location>
+        <location>src/app/(dashboard)/residents/new/page.tsx</location>
+        <location>src/app/(dashboard)/residents/[id]/page.tsx</location>
+        <location>src/actions/residents/get-resident.ts</location>
+        <location>src/actions/residents/update-resident.ts</location>
+        <location>src/components/residents/residents-table.tsx</location>
+        <location>src/lib/validators/resident.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>House/Property Management</name>
+      <description>Full CRUD for properties with street associations, house type classifications, occupancy tracking, billing profile assignments, plot-based development levy calculations, and ownership history tracking with 7 event types.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/houses/page.tsx</location>
+        <location>src/app/(dashboard)/houses/new/page.tsx</location>
+        <location>src/app/(dashboard)/houses/[id]/page.tsx</location>
+        <location>src/actions/houses/get-houses.ts</location>
+        <location>src/actions/houses/get-house.ts</location>
+        <location>src/actions/houses/update-house.ts</location>
+        <location>src/actions/houses/get-ownership-history.ts</location>
+        <location>src/components/houses/house-form.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Billing &amp; Invoicing System</name>
+      <description>Flexible billing profile system with multiple frequency options (monthly, yearly, one-off), target types (house or resident-based), applicable role restrictions, development levy support, and effective date management with approval workflows for retroactive changes.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/billing/page.tsx</location>
+        <location>src/app/(dashboard)/settings/billing/page.tsx</location>
+        <location>src/actions/billing/profiles.ts</location>
+        <location>src/actions/billing/get-invoices.ts</location>
+        <location>src/components/billing/billing-profile-form.tsx</location>
+        <location>src/lib/validators/billing.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Payment Processing</name>
+      <description>Payment recording with resident and house associations, wallet integration, FIFO allocation to invoices, payment status tracking, bank statement import support, and payment history views.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/payments/page.tsx</location>
+        <location>src/app/(dashboard)/payments/new/page.tsx</location>
+        <location>src/app/(dashboard)/payments/[id]/page.tsx</location>
+        <location>src/actions/payments/get-payments.ts</location>
+        <location>src/actions/payments/get-payment.ts</location>
+        <location>src/components/payments/payment-table.tsx</location>
+        <location>src/components/residents/resident-payments.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Wallet System</name>
+      <description>Auto-created wallets per resident with balance tracking, transaction history, FIFO payment allocation to invoices, and admin adjustment capabilities.</description>
+      <file_locations>
+        <location>src/hooks/use-wallet.ts</location>
+        <location>src/components/residents/wallet-balance.tsx</location>
+        <location>src/components/residents/wallet-transactions.tsx</location>
+        <location>src/components/residents/wallet-adjustment-dialog.tsx</location>
+        <location>src/app/(resident)/portal/wallet/page.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Bank Statement Import</name>
+      <description>CSV and XLSX bank statement parsing with intelligent resident matching using payment aliases, phone numbers, and fuzzy name matching. Includes column mapping, preview, and batch processing with approval workflows.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/payments/import/page.tsx</location>
+        <location>src/components/imports/statement-upload.tsx</location>
+        <location>src/components/imports/column-mapper.tsx</location>
+        <location>src/components/imports/import-preview.tsx</location>
+        <location>src/components/imports/manual-match-dialog.tsx</location>
+        <location>src/lib/parsers/csv-parser.ts</location>
+        <location>src/lib/parsers/xlsx-parser.ts</location>
+        <location>src/lib/matching/resident-matcher.ts</location>
+        <location>src/actions/imports/process-import.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Gmail Email Import</name>
+      <description>Automated bank statement import from Gmail with OAuth authentication, email parsing for transaction alerts and PDF statements, resident matching, and batch processing for high-volume transaction handling.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/payments/email-imports/page.tsx</location>
+        <location>src/app/(dashboard)/settings/email-integration/page.tsx</location>
+        <location>src/app/api/auth/gmail-callback/route.ts</location>
+        <location>src/app/api/cron/fetch-emails/route.ts</location>
+        <location>src/lib/email-imports/gmail-client.ts</location>
+        <location>src/lib/email-imports/parsers/first-bank-alert.ts</location>
+        <location>src/lib/email-imports/parsers/first-bank-pdf.ts</location>
+        <location>src/hooks/use-gmail-connection.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Security Contact Management</name>
+      <description>Complete security contact registry with configurable categories, contact registration, access code generation (permanent and one-time), check-in/check-out logging, code verification at entry points, and contact suspension/revocation.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/security/page.tsx</location>
+        <location>src/app/(dashboard)/security/contacts/page.tsx</location>
+        <location>src/app/(dashboard)/security/contacts/new/page.tsx</location>
+        <location>src/app/(dashboard)/security/contacts/[id]/page.tsx</location>
+        <location>src/app/(dashboard)/security/verify/page.tsx</location>
+        <location>src/app/(dashboard)/security/logs/page.tsx</location>
+        <location>src/actions/security/index.ts</location>
+        <location>src/components/security/security-contact-form.tsx</location>
+        <location>src/components/security/code-verification.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Audit Logging System</name>
+      <description>Immutable audit logging with 12 action types and 30+ entity types, complete change tracking with old/new value diffs, user attribution, filterable audit viewer, and export capabilities.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/settings/audit-logs/page.tsx</location>
+        <location>src/lib/audit/logger.ts</location>
+        <location>src/lib/audit/helpers.ts</location>
+        <location>src/actions/audit/get-audit-logs.ts</location>
+        <location>src/components/audit/audit-filters.tsx</location>
+        <location>src/components/audit/audit-detail-dialog.tsx</location>
+        <location>src/components/audit/audit-export-button.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Approval Workflows</name>
+      <description>Maker-checker approval system for sensitive operations including billing profile changes, house plot modifications, bank account management, and admin impersonation requests.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/approvals/page.tsx</location>
+        <location>src/actions/approvals/index.ts</location>
+        <location>src/hooks/use-approvals.ts</location>
+        <location>src/lib/validators/approval.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Notification System</name>
+      <description>Comprehensive notification system with customizable templates, scheduling, queuing, escalation, and deduplication. Supports email (via Resend), SMS (via Termii), and in-app notifications with preference management.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/settings/notifications/page.tsx</location>
+        <location>src/app/(dashboard)/settings/notifications/templates/page.tsx</location>
+        <location>src/app/(dashboard)/settings/notifications/schedules/page.tsx</location>
+        <location>src/app/(dashboard)/notifications/page.tsx</location>
+        <location>src/actions/notifications/templates.ts</location>
+        <location>src/actions/notifications/schedules.ts</location>
+        <location>src/actions/notifications/queue.ts</location>
+        <location>src/lib/notifications/send.ts</location>
+        <location>src/lib/notifications/templates.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Announcement System</name>
+      <description>Community announcement system with categories, priority levels, scheduling, audience targeting, read receipts, pinned announcements, and analytics.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/announcements/page.tsx</location>
+        <location>src/app/(dashboard)/announcements/new/page.tsx</location>
+        <location>src/app/(dashboard)/announcements/[id]/page.tsx</location>
+        <location>src/app/(resident)/portal/announcements/page.tsx</location>
+        <location>src/actions/announcements/create-announcement.ts</location>
+        <location>src/actions/announcements/get-announcements.ts</location>
+        <location>src/hooks/use-announcements.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Document Management</name>
+      <description>Document upload and management with categories, versioning, access logging, resident and house associations, and role-based access control for resident-accessible documents.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/documents/page.tsx</location>
+        <location>src/app/(dashboard)/documents/[id]/page.tsx</location>
+        <location>src/app/(resident)/portal/documents/page.tsx</location>
+        <location>src/actions/documents/get-documents.ts</location>
+        <location>src/actions/documents/download-document.ts</location>
+        <location>src/components/documents/document-upload-form.tsx</location>
+        <location>src/components/documents/document-preview.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Financial Reports &amp; Analytics</name>
+      <description>Financial overview reports with collection statistics, payment trends, and analytics dashboards using Recharts. Includes report scheduling, history tracking, and PDF export capabilities.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/reports/page.tsx</location>
+        <location>src/app/(dashboard)/reports/financial-overview/page.tsx</location>
+        <location>src/app/(dashboard)/analytics/page.tsx</location>
+        <location>src/actions/reports/get-financial-overview.ts</location>
+        <location>src/actions/reports/report-engine.ts</location>
+        <location>src/components/reports/financial-overview.tsx</location>
+        <location>src/components/analytics/analytics-header.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>PDF Receipt Generation</name>
+      <description>Dynamic PDF generation for payment receipts with customizable templates (traditional and modern styles), estate logo support, and downloadable statements.</description>
+      <file_locations>
+        <location>src/app/api/receipts/[id]/route.ts</location>
+        <location>src/components/reports/templates/traditional-template.tsx</location>
+        <location>src/components/reports/templates/modern-template.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Contact Verification</name>
+      <description>Email and phone verification system with OTP codes, verification token management, and verification status tracking per resident.</description>
+      <file_locations>
+        <location>src/actions/verification/send-verification.ts</location>
+        <location>src/actions/verification/verify-contact.ts</location>
+        <location>src/hooks/use-verification.ts</location>
+        <location>src/components/residents/contact-verification-badge.tsx</location>
+        <location>src/components/resident-portal/portal-verification-banner.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Reference Data Management</name>
+      <description>CRUD operations for streets, house types, bank accounts, and transaction tags with duplication support and active status management.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/settings/streets/page.tsx</location>
+        <location>src/app/(dashboard)/settings/house-types/page.tsx</location>
+        <location>src/app/(dashboard)/settings/bank-accounts/page.tsx</location>
+        <location>src/app/(dashboard)/settings/transaction-tags/page.tsx</location>
+        <location>src/actions/reference/get-streets.ts</location>
+        <location>src/actions/reference/get-house-types.ts</location>
+        <location>src/components/admin/streets-list.tsx</location>
+        <location>src/components/admin/house-types-list.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Visual Theme System</name>
+      <description>Multiple visual themes (default, modern, elegant-luxury, midnight-bloom, sunset, supabase) with context-aware theming for admin dashboard and resident portal, plus dark mode support.</description>
+      <file_locations>
+        <location>src/contexts/visual-theme-context.tsx</location>
+        <location>src/hooks/use-theme-preferences.ts</location>
+        <location>src/lib/themes/registry.ts</location>
+        <location>src/lib/themes/default.ts</location>
+        <location>src/lib/themes/modern.ts</location>
+        <location>src/app/(dashboard)/settings/appearance/page.tsx</location>
+        <location>src/components/ui/theme-switcher.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Admin Impersonation</name>
+      <description>Secure admin impersonation system allowing administrators to view the resident portal as specific residents for troubleshooting, with session tracking and approval workflows for non-direct access.</description>
+      <file_locations>
+        <location>src/hooks/use-impersonation.ts</location>
+        <location>src/actions/impersonation/index.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Notes Module</name>
+      <description>Structured note-taking for residents and houses with categories (general, agreement, complaint, reminder, financial, security, maintenance, legal), confidentiality settings, document attachments, and version history.</description>
+      <file_locations>
+        <location>src/hooks/use-notes.ts</location>
+        <location>src/actions/notes/index.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Cron Job System</name>
+      <description>Automated scheduled tasks for invoice generation, payment reminders, notification processing, report generation, and announcement publishing.</description>
+      <file_locations>
+        <location>src/app/api/cron/generate-invoices/route.ts</location>
+        <location>src/app/api/cron/payment-reminders/route.ts</location>
+        <location>src/app/api/cron/process-notifications/route.ts</location>
+        <location>src/app/api/cron/generate-reports/route.ts</location>
+        <location>src/app/api/cron/publish-announcements/route.ts</location>
+        <location>src/app/(dashboard)/settings/cron-status/page.tsx</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>System Settings</name>
+      <description>Hierarchical settings system with estate, house, and resident level configurations, maintenance mode support, and system monitoring.</description>
+      <file_locations>
+        <location>src/app/(dashboard)/settings/page.tsx</location>
+        <location>src/app/(dashboard)/settings/system/page.tsx</location>
+        <location>src/actions/settings/get-settings.ts</location>
+        <location>src/actions/settings/hierarchical-settings.ts</location>
+        <location>src/lib/settings/get-system-setting.ts</location>
+      </file_locations>
+    </feature>
+  </implemented_features>
+
+  <additional_requirements>
+    <requirement>Node.js 18+ runtime environment</requirement>
+    <requirement>PostgreSQL database via Supabase (major version 17)</requirement>
+    <requirement>Supabase CLI for local development (supabase:start, supabase:stop, supabase:reset)</requirement>
+    <requirement>Environment variables for Supabase URL, anon key, and service role key</requirement>
+    <requirement>Resend API key for transactional email delivery</requirement>
+    <requirement>Termii API credentials for SMS notifications</requirement>
+    <requirement>Google OAuth credentials for Gmail integration (bank statement import)</requirement>
+    <requirement>Storage bucket configuration for documents, logos, and attachments (50MiB file size limit)</requirement>
+    <requirement>Vercel-compatible deployment (recommended platform)</requirement>
+    <requirement>Mobile-first responsive design requirement</requirement>
+    <requirement>All monetary values must display with Nigerian Naira (₦) symbol</requirement>
+    <requirement>Strict data isolation: residents only see their own data</requirement>
+    <requirement>Audit trails required for all significant operations</requirement>
+    <requirement>Maker-checker approval workflow for sensitive financial transactions</requirement>
+  </additional_requirements>
+
+  <development_guidelines>
+    <guideline>Use Next.js App Router with Server Components by default, Client Components only when necessary</guideline>
+    <guideline>Implement Server Actions for all data mutations (use &apos;use server&apos; directive)</guideline>
+    <guideline>Apply Zod validation on all form inputs and server action parameters</guideline>
+    <guideline>Use TanStack Query for client-side data fetching and caching</guideline>
+    <guideline>Follow shadcn/ui patterns for UI components with Tailwind CSS styling</guideline>
+    <guideline>Enforce TypeScript strict mode with comprehensive type definitions</guideline>
+    <guideline>Implement Row-Level Security (RLS) policies at the database level for all tables</guideline>
+    <guideline>Use the authorizePermission() function for permission checks in server actions</guideline>
+    <guideline>Log all significant operations using the logAudit() function</guideline>
+    <guideline>Use revalidatePath() after mutations to update cached data</guideline>
+    <guideline>Follow mobile-first design approach, enhance for desktop</guideline>
+    <guideline>Use the createServerSupabaseClient() for authenticated database operations</guideline>
+    <guideline>Use createAdminClient() only for operations requiring elevated privileges</guideline>
+    <guideline>Prefix all API route files with &apos;route.ts&apos; in the app/api directory</guideline>
+    <guideline>Use Vitest for unit tests and Playwright for E2E tests</guideline>
+    <guideline>Run &apos;npm run db:types&apos; after database schema changes to regenerate types</guideline>
+    <guideline>Migrations should be ordered chronologically with descriptive names</guideline>
+    <guideline>Use the existing component patterns from src/components/ui for consistency</guideline>
+    <guideline>Implement proper error boundaries at route and global levels</guideline>
+    <guideline>Format currency values using the Nigerian Naira symbol (₦)</guideline>
+  </development_guidelines>
+
+  <implementation_roadmap>
+    <phase>
+      <name>Phase 1-2: Foundation &amp; Authentication</name>
+      <status>completed</status>
+      <description>Core infrastructure setup including Next.js project scaffolding, Supabase integration, authentication system with Supabase Auth, profile management, and initial RBAC framework.</description>
+    </phase>
+    <phase>
+      <name>Phase 3: Resident &amp; House Management</name>
+      <status>completed</status>
+      <description>Complete CRUD operations for residents and houses, auto-generated resident codes, reference data management (streets, house types), and resident-house linking system.</description>
+    </phase>
+    <phase>
+      <name>Phase 4-5: Billing &amp; Payment System</name>
+      <status>completed</status>
+      <description>Billing profile configuration, invoice generation with pro-rata calculations, payment recording, wallet system with FIFO allocation, and payment history tracking.</description>
+    </phase>
+    <phase>
+      <name>Phase 6: Security Contact Management</name>
+      <status>completed</status>
+      <description>Security contact registry with categories, access code generation (permanent and one-time), visitor registration, check-in/check-out logging, and code verification.</description>
+    </phase>
+    <phase>
+      <name>Phase 7: Bank Statement Import</name>
+      <status>completed</status>
+      <description>CSV and XLSX bank statement parsing, intelligent resident matching using aliases and fuzzy search, column mapping, preview and approval workflows.</description>
+    </phase>
+    <phase>
+      <name>Phase 8: Audit Logging</name>
+      <status>completed</status>
+      <description>Immutable audit log system with 12 action types and comprehensive entity coverage, change tracking with old/new value diffs, and filterable audit viewer.</description>
+    </phase>
+    <phase>
+      <name>Phase 9: Approval Workflows</name>
+      <status>completed</status>
+      <description>Maker-checker approval system for sensitive operations including billing profile changes, bank account management, and house plot modifications.</description>
+    </phase>
+    <phase>
+      <name>Phase 10: New RBAC System</name>
+      <status>completed</status>
+      <description>Comprehensive permission-based authorization replacing legacy role system, 8 configurable admin roles, granular permissions across 15+ categories, and role assignment rules.</description>
+    </phase>
+    <phase>
+      <name>Phase 11: Notification System</name>
+      <status>completed</status>
+      <description>Multi-channel notification system with email (Resend), SMS (Termii), and in-app delivery, customizable templates, scheduling, queuing, escalation, and preference management.</description>
+    </phase>
+    <phase>
+      <name>Phase 12: Invoice Automation</name>
+      <status>completed</status>
+      <description>Automated invoice generation via cron jobs, generation logging, overdue detection, late fee application, and payment reminder scheduling.</description>
+    </phase>
+    <phase>
+      <name>Phase 13: Reports &amp; Analytics</name>
+      <status>completed</status>
+      <description>Financial overview reports, analytics dashboards with Recharts, report scheduling, history tracking, and PDF generation with customizable templates.</description>
+    </phase>
+    <phase>
+      <name>Phase 14: Resident Portal</name>
+      <status>completed</status>
+      <description>Self-service resident portal with property management, bill viewing, security contacts, visitor registration, document access, wallet management, and announcements.</description>
+    </phase>
+    <phase>
+      <name>Phase 15: Document Management</name>
+      <status>completed</status>
+      <description>Document upload and management with categories, versioning, access logging, resident/house associations, and role-based visibility for resident portal.</description>
+    </phase>
+    <phase>
+      <name>Phase 16: Community Communication</name>
+      <status>completed</status>
+      <description>Announcement system with categories, scheduling, audience targeting, read receipts, in-app notifications, message templates, and report subscriptions.</description>
+    </phase>
+    <phase>
+      <name>Phase 17: Email Import Integration</name>
+      <status>completed</status>
+      <description>Gmail OAuth integration for automated bank statement import, email parsing for transaction alerts and PDF statements, and batch transaction processing.</description>
+    </phase>
+    <phase>
+      <name>Phase 18: Visual Themes &amp; Polish</name>
+      <status>completed</status>
+      <description>Multiple visual theme options, context-aware theming for admin and resident portals, notes module, admin impersonation, and system monitoring.</description>
+    </phase>
+    <phase>
+      <name>Future: Mobile App</name>
+      <status>pending</status>
+      <description>Native mobile application for iOS and Android with push notifications, security code verification at gates, and offline capability.</description>
+    </phase>
+    <phase>
+      <name>Future: Payment Gateway Integration</name>
+      <status>pending</status>
+      <description>Integration with Nigerian payment gateways (Paystack, Flutterwave) for online payment processing and automatic reconciliation.</description>
+    </phase>
+    <phase>
+      <name>Future: Smart Gate Integration</name>
+      <status>pending</status>
+      <description>Integration with smart gate systems for automated access control using generated security codes and resident verification.</description>
+    </phase>
+  </implementation_roadmap>
+</project_specification>

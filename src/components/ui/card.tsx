@@ -13,17 +13,21 @@ import { cn } from "@/lib/utils"
  * - list: No padding (py-0) for cards containing scrollable lists
  * - featured: Compact padding with gradient support for hero/featured content
  * - compact: Minimal padding (py-3) for dense grid layouts
+ * - glass: Glass morphism effect with blur backdrop
+ * - elevated: Extra shadow for floating elements
  */
 const cardVariants = cva(
-  "bg-card text-card-foreground flex flex-col rounded-xl border shadow-sm",
+  "bg-card text-card-foreground flex flex-col rounded-xl border",
   {
     variants: {
       variant: {
-        default: "gap-6 py-6",
-        stat: "gap-3 py-4",
-        list: "gap-0 py-0",
-        featured: "gap-3 py-4",
-        compact: "gap-2 py-3",
+        default: "gap-6 py-6 shadow-soft",
+        stat: "gap-3 py-4 shadow-soft",
+        list: "gap-0 py-0 shadow-soft",
+        featured: "gap-3 py-4 shadow-soft",
+        compact: "gap-2 py-3 shadow-soft",
+        glass: "gap-4 py-5 glass",
+        elevated: "gap-6 py-6 shadow-elevated",
       },
     },
     defaultVariants: {
@@ -33,16 +37,20 @@ const cardVariants = cva(
 )
 
 interface CardProps extends React.ComponentProps<"div">, VariantProps<typeof cardVariants> {
-  interactive?: boolean
+  interactive?: boolean;
+  gradient?: boolean;
+  animate?: boolean;
 }
 
-function Card({ className, variant, interactive = false, ...props }: CardProps) {
+function Card({ className, variant, interactive = false, gradient = false, animate = false, ...props }: CardProps) {
   return (
     <div
       data-slot="card"
       className={cn(
         cardVariants({ variant }),
-        interactive && "transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 cursor-pointer",
+        interactive && "card-hover-modern cursor-pointer",
+        gradient && "gradient-border",
+        animate && "animate-slide-up",
         className
       )}
       {...props}

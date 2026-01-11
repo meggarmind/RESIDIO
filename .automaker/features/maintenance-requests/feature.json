@@ -1,0 +1,12 @@
+{
+  "id": "maintenance-requests",
+  "category": "Core",
+  "title": "Maintenance Request Management",
+  "description": "Allow residents to submit maintenance requests with photos and descriptions. Track request status, assign to contractors, and manage resolution workflows.",
+  "status": "backlog",
+  "priority": 2,
+  "complexity": "moderate",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.185Z",
+  "updatedAt": "2026-01-11T08:08:09.185Z"
+}

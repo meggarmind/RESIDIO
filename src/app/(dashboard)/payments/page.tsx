@@ -2,51 +2,28 @@
 
 import { PaymentTable } from '@/components/payments/payment-table';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PaymentFilters } from '@/components/payments/payment-filters';
 import { Pagination } from '@/components/ui/simple-pagination';
-import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import { Plus, CreditCard, AlertCircle, Clock } from 'lucide-react';
+import { Plus, CreditCard, AlertCircle, Clock, CheckCircle } from 'lucide-react';
 import { PaymentSearchParams } from '@/lib/validators/payment';
 import { formatCurrency } from '@/lib/utils';
 import { usePayments, usePaymentStats } from '@/hooks/use-payments';
-
-function StatCard({
-  title,
-  value,
-  icon: Icon,
-  isLoading,
-  description,
-}: {
-  title: string;
-  value: number | string;
-  icon: React.ElementType;
-  isLoading: boolean;
-  description: string;
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <Skeleton className="h-8 w-24" />
-        ) : (
-          <div className="text-2xl font-bold">{value}</div>
-        )}
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </CardContent>
-    </Card>
-  );
-}
+import {
+  EnhancedStatCard,
+  EnhancedTableCard,
+  EnhancedPageHeader,
+} from '@/components/dashboard/enhanced-stat-card';
+import { ModernPaymentsEmptyState } from '@/components/dashboard/modern-empty-state';
+import { useVisualTheme } from '@/contexts/visual-theme-context';
+import { cn } from '@/lib/utils';
 
 function PaymentsContent() {
   const searchParams = useSearchParams();
+  const { themeId } = useVisualTheme();
+  const isModern = themeId === 'modern';
 
   // Parse URL params
   const page = Number(searchParams.get('page')) || 1;
@@ -78,65 +55,88 @@ function PaymentsContent() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Payments</h1>
-        <Button asChild>
-          <Link href="/payments/new">
-            <Plus className="mr-2 h-4 w-4" /> Record Payment
-          </Link>
-        </Button>
-      </div>
+      <EnhancedPageHeader
+        title="Payments"
+        description="Track and manage all payment transactions"
+        icon={CreditCard}
+        actions={
+          <Button
+            asChild
+            className={cn(
+              isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
+            )}
+          >
+            <Link href="/payments/new">
+              <Plus className="mr-2 h-4 w-4" /> Record Payment
+            </Link>
+          </Button>
+        }
+      />
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <EnhancedStatCard
           title="Total Collected"
           value={formatCurrency(stats.total_collected)}
           icon={CreditCard}
           isLoading={statsLoading}
           description="Lifetime revenue"
+          accentColor="success"
         />
-        <StatCard
+        <EnhancedStatCard
+          title="Completed"
+          value={stats.pending_count > 0 ? `${Math.max(0, (paymentsResult?.count || 0) - stats.pending_count)}` : '0'}
+          icon={CheckCircle}
+          isLoading={statsLoading}
+          description="Successful transactions"
+          accentColor="success"
+        />
+        <EnhancedStatCard
           title="Pending"
           value={stats.pending_count}
           icon={Clock}
           isLoading={statsLoading}
           description="Awaiting payment"
+          accentColor={stats.pending_count > 0 ? 'warning' : 'default'}
         />
-        <StatCard
+        <EnhancedStatCard
           title="Overdue"
           value={stats.overdue_count}
           icon={AlertCircle}
           isLoading={statsLoading}
           description="Requires attention"
-        />
-        <StatCard
-          title="Failed"
-          value={stats.failed_count}
-          icon={AlertCircle}
-          isLoading={statsLoading}
-          description="Transaction errors"
+          accentColor={stats.overdue_count > 0 ? 'danger' : 'default'}
         />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <PaymentFilters />
+      <EnhancedTableCard
+        title="Recent Transactions"
+        description="View and manage payment records"
+      >
+        <PaymentFilters />
 
-          {paymentsResult?.error ? (
-            <div className="text-red-500 py-4">Error: {paymentsResult.error}</div>
-          ) : paymentsLoading ? (
-            <div className="py-8 text-center text-muted-foreground">Loading payments...</div>
-          ) : (
-            <>
-              <PaymentTable data={payments} />
-              <Pagination currentPage={page} totalCount={totalCount} pageSize={limit} />
-            </>
-          )}
-        </CardContent>
-      </Card>
+        {paymentsResult?.error ? (
+          <div className={cn(
+            'text-red-500 py-4',
+            isModern && 'bg-red-50 dark:bg-red-900/20 rounded-xl p-4'
+          )}>
+            Error: {paymentsResult.error}
+          </div>
+        ) : paymentsLoading ? (
+          <div className={cn(
+            'py-8 text-center text-muted-foreground',
+            isModern && 'bg-gray-50 dark:bg-[#0F172A] rounded-xl'
+          )}>
+            Loading payments...
+          </div>
+        ) : payments.length === 0 ? (
+          <ModernPaymentsEmptyState />
+        ) : (
+          <>
+            <PaymentTable data={payments} />
+            <Pagination currentPage={page} totalCount={totalCount} pageSize={limit} />
+          </>
+        )}
+      </EnhancedTableCard>
     </div>
   );
 }

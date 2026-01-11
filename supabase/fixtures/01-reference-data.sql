@@ -52,39 +52,39 @@ INSERT INTO public.document_categories (id, name, description, is_resident_acces
   ('44444444-0004-0004-0004-000000000003', 'Meeting Minutes', 'AGM and board meeting minutes', true),
   ('44444444-0004-0004-0004-000000000004', 'Legal Documents', 'Contracts and legal agreements', false),
   ('44444444-0004-0004-0004-000000000005', 'Forms & Templates', 'Application forms and templates', true)
-ON CONFLICT (id) DO UPDATE SET
-  name = EXCLUDED.name,
+ON CONFLICT (name) DO UPDATE SET
   description = EXCLUDED.description,
   is_resident_accessible = EXCLUDED.is_resident_accessible;
 
 -- ============================================================================
 -- ANNOUNCEMENT CATEGORIES (4 total)
 -- ============================================================================
-INSERT INTO public.announcement_categories (id, name, description, color, icon) VALUES
-  ('55555555-0005-0005-0005-000000000001', 'General Notice', 'General estate announcements', '#3B82F6', 'megaphone'),
-  ('55555555-0005-0005-0005-000000000002', 'Financial', 'Billing and payment notices', '#10B981', 'banknotes'),
-  ('55555555-0005-0005-0005-000000000003', 'Security Alert', 'Security-related announcements', '#EF4444', 'shield-alert'),
-  ('55555555-0005-0005-0005-000000000004', 'Maintenance', 'Maintenance and facility updates', '#F59E0B', 'wrench')
-ON CONFLICT (id) DO UPDATE SET
+INSERT INTO public.announcement_categories (id, name, slug, description, color, icon, display_order) VALUES
+  ('55555555-0005-0005-0005-000000000001', 'General Notice', 'general-notice', 'General estate announcements', '#3B82F6', 'megaphone', 10),
+  ('55555555-0005-0005-0005-000000000002', 'Financial', 'financial', 'Billing and payment notices', '#10B981', 'banknotes', 11),
+  ('55555555-0005-0005-0005-000000000003', 'Security Alert', 'security-alert', 'Security-related announcements', '#EF4444', 'shield-alert', 12),
+  ('55555555-0005-0005-0005-000000000004', 'Estate Updates', 'estate-updates', 'General estate maintenance and updates', '#F59E0B', 'wrench', 13)
+ON CONFLICT (slug) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
   color = EXCLUDED.color,
-  icon = EXCLUDED.icon;
+  icon = EXCLUDED.icon,
+  display_order = EXCLUDED.display_order;
 
 -- ============================================================================
 -- TRANSACTION TAGS (8 total)
 -- ============================================================================
-INSERT INTO public.transaction_tags (id, name, description, color, keywords) VALUES
-  ('66666666-0006-0006-0006-000000000001', 'Service Charge', 'Monthly service charge payments', '#3B82F6', ARRAY['service charge', 'monthly dues', 'estate levy']),
-  ('66666666-0006-0006-0006-000000000002', 'Security Levy', 'Security and surveillance fees', '#EF4444', ARRAY['security', 'guard', 'surveillance']),
-  ('66666666-0006-0006-0006-000000000003', 'Development Levy', 'Infrastructure development contributions', '#8B5CF6', ARRAY['development', 'infrastructure', 'capital']),
-  ('66666666-0006-0006-0006-000000000004', 'Water Bill', 'Water supply payments', '#06B6D4', ARRAY['water', 'borehole', 'supply']),
-  ('66666666-0006-0006-0006-000000000005', 'Electricity', 'Power-related payments', '#F59E0B', ARRAY['electricity', 'power', 'transformer', 'nepa']),
-  ('66666666-0006-0006-0006-000000000006', 'Sanitation', 'Waste management fees', '#10B981', ARRAY['sanitation', 'waste', 'refuse', 'garbage']),
-  ('66666666-0006-0006-0006-000000000007', 'Late Fee', 'Penalties for late payment', '#DC2626', ARRAY['late fee', 'penalty', 'interest']),
-  ('66666666-0006-0006-0006-000000000008', 'Miscellaneous', 'Other uncategorized payments', '#6B7280', ARRAY['misc', 'other', 'sundry'])
-ON CONFLICT (id) DO UPDATE SET
-  name = EXCLUDED.name,
+INSERT INTO public.transaction_tags (id, name, transaction_type, description, color, keywords) VALUES
+  ('66666666-0006-0006-0006-000000000001', 'Service Charge', 'debit', 'Monthly service charge payments', '#3B82F6', ARRAY['service charge', 'monthly dues', 'estate levy']),
+  ('66666666-0006-0006-0006-000000000002', 'Security Levy', 'debit', 'Security and surveillance fees', '#EF4444', ARRAY['security', 'guard', 'surveillance']),
+  ('66666666-0006-0006-0006-000000000003', 'Development Levy', 'debit', 'Infrastructure development contributions', '#8B5CF6', ARRAY['development', 'infrastructure', 'capital']),
+  ('66666666-0006-0006-0006-000000000004', 'Water Bill', 'debit', 'Water supply payments', '#06B6D4', ARRAY['water', 'borehole', 'supply']),
+  ('66666666-0006-0006-0006-000000000005', 'Electricity', 'debit', 'Power-related payments', '#F59E0B', ARRAY['electricity', 'power', 'transformer', 'nepa']),
+  ('66666666-0006-0006-0006-000000000006', 'Sanitation', 'debit', 'Waste management fees', '#10B981', ARRAY['sanitation', 'waste', 'refuse', 'garbage']),
+  ('66666666-0006-0006-0006-000000000007', 'Late Fee', 'debit', 'Penalties for late payment', '#DC2626', ARRAY['late fee', 'penalty', 'interest']),
+  ('66666666-0006-0006-0006-000000000008', 'Miscellaneous', 'debit', 'Other uncategorized payments', '#6B7280', ARRAY['misc', 'other', 'sundry'])
+ON CONFLICT (name) DO UPDATE SET
+  transaction_type = EXCLUDED.transaction_type,
   description = EXCLUDED.description,
   color = EXCLUDED.color,
   keywords = EXCLUDED.keywords;

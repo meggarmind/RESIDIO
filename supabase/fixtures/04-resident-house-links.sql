@@ -7,39 +7,39 @@
 -- LANDLORD ASSIGNMENTS (Owner-occupiers)
 -- Primary residents living in their properties
 -- ============================================================================
-INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_home, move_in_date) VALUES
+INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_live_in, move_in_date) VALUES
   -- Oak Avenue landlords
-  ('ee000001-0001-0001-0001-000000000001', 'aa000001-0001-0001-0001-000000000001', 'cc000001-0001-0001-0001-000000000001', 'landlord', true, true, NOW() - INTERVAL '2 years'),
-  ('ee000001-0001-0001-0001-000000000002', 'aa000001-0001-0001-0001-000000000002', 'cc000001-0001-0001-0001-000000000002', 'landlord', true, true, NOW() - INTERVAL '2 years'),
-  ('ee000001-0001-0001-0001-000000000003', 'aa000001-0001-0001-0001-000000000003', 'cc000001-0001-0001-0001-000000000003', 'landlord', true, true, NOW() - INTERVAL '2 years'),
-  ('ee000001-0001-0001-0001-000000000004', 'aa000001-0001-0001-0001-000000000004', 'cc000001-0001-0001-0001-000000000004', 'landlord', true, true, NOW() - INTERVAL '2 years'),
-  ('ee000001-0001-0001-0001-000000000005', 'aa000001-0001-0001-0001-000000000005', 'cc000001-0001-0001-0001-000000000005', 'landlord', true, true, NOW() - INTERVAL '2 years'),
+  ('ee000001-0001-0001-0001-000000000001', 'aa000001-0001-0001-0001-000000000001', 'cc000001-0001-0001-0001-000000000001', 'resident_landlord', true, true, NOW() - INTERVAL '2 years'),
+  ('ee000001-0001-0001-0001-000000000002', 'aa000001-0001-0001-0001-000000000002', 'cc000001-0001-0001-0001-000000000002', 'resident_landlord', true, true, NOW() - INTERVAL '2 years'),
+  ('ee000001-0001-0001-0001-000000000003', 'aa000001-0001-0001-0001-000000000003', 'cc000001-0001-0001-0001-000000000003', 'resident_landlord', true, true, NOW() - INTERVAL '2 years'),
+  ('ee000001-0001-0001-0001-000000000004', 'aa000001-0001-0001-0001-000000000004', 'cc000001-0001-0001-0001-000000000004', 'resident_landlord', true, true, NOW() - INTERVAL '2 years'),
+  ('ee000001-0001-0001-0001-000000000005', 'aa000001-0001-0001-0001-000000000005', 'cc000001-0001-0001-0001-000000000005', 'resident_landlord', true, true, NOW() - INTERVAL '2 years'),
 
   -- Palm Close landlords
-  ('ee000001-0001-0001-0001-000000000011', 'aa000001-0001-0001-0001-000000000009', 'cc000001-0001-0001-0001-000000000011', 'landlord', true, true, NOW() - INTERVAL '2 years'),
-  ('ee000001-0001-0001-0001-000000000012', 'aa000001-0001-0001-0001-000000000010', 'cc000001-0001-0001-0001-000000000012', 'landlord', true, true, NOW() - INTERVAL '2 years'),
-  ('ee000001-0001-0001-0001-000000000013', 'aa000001-0001-0001-0001-000000000011', 'cc000001-0001-0001-0001-000000000017', 'landlord', true, true, NOW() - INTERVAL '1 year'),
-  ('ee000001-0001-0001-0001-000000000014', 'aa000001-0001-0001-0001-000000000012', 'cc000001-0001-0001-0001-000000000018', 'landlord', true, true, NOW() - INTERVAL '2 years'),
+  ('ee000001-0001-0001-0001-000000000011', 'aa000001-0001-0001-0001-000000000009', 'cc000001-0001-0001-0001-000000000011', 'resident_landlord', true, true, NOW() - INTERVAL '2 years'),
+  ('ee000001-0001-0001-0001-000000000012', 'aa000001-0001-0001-0001-000000000010', 'cc000001-0001-0001-0001-000000000012', 'resident_landlord', true, true, NOW() - INTERVAL '2 years'),
+  ('ee000001-0001-0001-0001-000000000013', 'aa000001-0001-0001-0001-000000000011', 'cc000001-0001-0001-0001-000000000017', 'resident_landlord', true, true, NOW() - INTERVAL '1 year'),
+  ('ee000001-0001-0001-0001-000000000014', 'aa000001-0001-0001-0001-000000000012', 'cc000001-0001-0001-0001-000000000018', 'resident_landlord', true, true, NOW() - INTERVAL '2 years'),
 
   -- Cedar Lane landlords
-  ('ee000001-0001-0001-0001-000000000019', 'aa000001-0001-0001-0001-000000000007', 'cc000001-0001-0001-0001-000000000019', 'landlord', true, true, NOW() - INTERVAL '3 months'),
-  ('ee000001-0001-0001-0001-000000000020', 'aa000001-0001-0001-0001-000000000008', 'cc000001-0001-0001-0001-000000000020', 'landlord', true, true, NOW() - INTERVAL '18 months')
+  ('ee000001-0001-0001-0001-000000000019', 'aa000001-0001-0001-0001-000000000007', 'cc000001-0001-0001-0001-000000000019', 'resident_landlord', true, true, NOW() - INTERVAL '3 months'),
+  ('ee000001-0001-0001-0001-000000000020', 'aa000001-0001-0001-0001-000000000008', 'cc000001-0001-0001-0001-000000000020', 'resident_landlord', true, true, NOW() - INTERVAL '18 months')
 ON CONFLICT (resident_id, house_id) DO UPDATE SET
   resident_role = EXCLUDED.resident_role,
   is_primary = EXCLUDED.is_primary,
-  is_home = EXCLUDED.is_home;
+  is_live_in = EXCLUDED.is_live_in;
 
 -- ============================================================================
 -- MULTIPLE PROPERTY LANDLORDS
 -- Landlords owning multiple properties (owner of one, landlord of others)
 -- ============================================================================
-INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_home, move_in_date) VALUES
+INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_live_in, move_in_date) VALUES
   -- RES006 owns OAK-6 and OAK-7
-  ('ee000001-0001-0001-0001-000000000006', 'aa000001-0001-0001-0001-000000000006', 'cc000001-0001-0001-0001-000000000007', 'landlord', true, true, NOW() - INTERVAL '18 months'),
-  ('ee000001-0001-0001-0001-000000000007', 'aa000001-0001-0001-0001-000000000006', 'cc000001-0001-0001-0001-000000000008', 'landlord', false, false, NOW() - INTERVAL '18 months'),
+  ('ee000001-0001-0001-0001-000000000006', 'aa000001-0001-0001-0001-000000000006', 'cc000001-0001-0001-0001-000000000007', 'resident_landlord', true, true, NOW() - INTERVAL '18 months'),
+  ('ee000001-0001-0001-0001-000000000007', 'aa000001-0001-0001-0001-000000000006', 'cc000001-0001-0001-0001-000000000008', 'non_resident_landlord', false, false, NOW() - INTERVAL '18 months'),
 
   -- RES007 owns CED-1 and CED-3
-  ('ee000001-0001-0001-0001-000000000021', 'aa000001-0001-0001-0001-000000000007', 'cc000001-0001-0001-0001-000000000021', 'landlord', false, false, NOW() - INTERVAL '2 years')
+  ('ee000001-0001-0001-0001-000000000021', 'aa000001-0001-0001-0001-000000000007', 'cc000001-0001-0001-0001-000000000021', 'non_resident_landlord', false, false, NOW() - INTERVAL '2 years')
 ON CONFLICT (resident_id, house_id) DO UPDATE SET
   resident_role = EXCLUDED.resident_role;
 
@@ -47,13 +47,13 @@ ON CONFLICT (resident_id, house_id) DO UPDATE SET
 -- NON-RESIDENT LANDLORD ASSIGNMENTS (Absentee owners)
 -- Own properties but don't live there
 -- ============================================================================
-INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_home, move_in_date) VALUES
+INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_live_in, move_in_date) VALUES
   -- Non-resident landlords
-  ('ee000001-0001-0001-0001-000000000031', 'aa000001-0001-0001-0001-000000000016', 'cc000001-0001-0001-0001-000000000013', 'landlord', true, false, NOW() - INTERVAL '2 years'),
-  ('ee000001-0001-0001-0001-000000000032', 'aa000001-0001-0001-0001-000000000017', 'cc000001-0001-0001-0001-000000000014', 'landlord', true, false, NOW() - INTERVAL '2 years'),
-  ('ee000001-0001-0001-0001-000000000033', 'aa000001-0001-0001-0001-000000000018', 'cc000001-0001-0001-0001-000000000006', 'landlord', true, false, NOW() - INTERVAL '18 months'),
-  ('ee000001-0001-0001-0001-000000000034', 'aa000001-0001-0001-0001-000000000019', 'cc000001-0001-0001-0001-000000000009', 'landlord', true, false, NOW() - INTERVAL '1 year'),
-  ('ee000001-0001-0001-0001-000000000035', 'aa000001-0001-0001-0001-000000000020', 'cc000001-0001-0001-0001-000000000010', 'landlord', true, false, NOW() - INTERVAL '1 year')
+  ('ee000001-0001-0001-0001-000000000031', 'aa000001-0001-0001-0001-000000000016', 'cc000001-0001-0001-0001-000000000013', 'non_resident_landlord', true, false, NOW() - INTERVAL '2 years'),
+  ('ee000001-0001-0001-0001-000000000032', 'aa000001-0001-0001-0001-000000000017', 'cc000001-0001-0001-0001-000000000014', 'non_resident_landlord', true, false, NOW() - INTERVAL '2 years'),
+  ('ee000001-0001-0001-0001-000000000033', 'aa000001-0001-0001-0001-000000000018', 'cc000001-0001-0001-0001-000000000006', 'non_resident_landlord', true, false, NOW() - INTERVAL '18 months'),
+  ('ee000001-0001-0001-0001-000000000034', 'aa000001-0001-0001-0001-000000000019', 'cc000001-0001-0001-0001-000000000009', 'non_resident_landlord', true, false, NOW() - INTERVAL '1 year'),
+  ('ee000001-0001-0001-0001-000000000035', 'aa000001-0001-0001-0001-000000000020', 'cc000001-0001-0001-0001-000000000010', 'non_resident_landlord', true, false, NOW() - INTERVAL '1 year')
 ON CONFLICT (resident_id, house_id) DO UPDATE SET
   resident_role = EXCLUDED.resident_role;
 
@@ -61,7 +61,7 @@ ON CONFLICT (resident_id, house_id) DO UPDATE SET
 -- TENANT ASSIGNMENTS (Renters)
 -- Tenants in properties owned by non-resident landlords
 -- ============================================================================
-INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_home, move_in_date) VALUES
+INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_live_in, move_in_date) VALUES
   -- Tenants in Palm Close
   ('ee000001-0001-0001-0001-000000000041', 'aa000001-0001-0001-0001-000000000021', 'cc000001-0001-0001-0001-000000000013', 'tenant', true, true, NOW() - INTERVAL '18 months'),
   ('ee000001-0001-0001-0001-000000000042', 'aa000001-0001-0001-0001-000000000022', 'cc000001-0001-0001-0001-000000000014', 'tenant', true, true, NOW() - INTERVAL '1 year'),
@@ -86,7 +86,7 @@ ON CONFLICT (resident_id, house_id) DO UPDATE SET
 -- HOUSEHOLD MEMBER ASSIGNMENTS
 -- Family members living with landlords
 -- ============================================================================
-INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_home, move_in_date) VALUES
+INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_live_in, move_in_date) VALUES
   -- Household members for RES009 at PALM-1
   ('ee000001-0001-0001-0001-000000000061', 'aa000001-0001-0001-0001-000000000033', 'cc000001-0001-0001-0001-000000000011', 'household_member', false, true, NOW() - INTERVAL '2 years'),
   ('ee000001-0001-0001-0001-000000000062', 'aa000001-0001-0001-0001-000000000034', 'cc000001-0001-0001-0001-000000000011', 'household_member', false, true, NOW() - INTERVAL '2 years'),
@@ -111,42 +111,43 @@ ON CONFLICT (resident_id, house_id) DO UPDATE SET
 -- DOMESTIC STAFF ASSIGNMENTS
 -- Staff members at various properties
 -- ============================================================================
-INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_home, move_in_date) VALUES
+INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_live_in, sponsor_resident_id, move_in_date) VALUES
   -- Staff for RES001 at OAK-1
-  ('ee000001-0001-0001-0001-000000000071', 'aa000001-0001-0001-0001-000000000043', 'cc000001-0001-0001-0001-000000000001', 'domestic_staff', false, true, NOW() - INTERVAL '18 months'),
+  ('ee000001-0001-0001-0001-000000000071', 'aa000001-0001-0001-0001-000000000043', 'cc000001-0001-0001-0001-000000000001', 'domestic_staff', false, true, 'aa000001-0001-0001-0001-000000000001', NOW() - INTERVAL '18 months'),
 
   -- Staff for RES003 at OAK-3
-  ('ee000001-0001-0001-0001-000000000072', 'aa000001-0001-0001-0001-000000000044', 'cc000001-0001-0001-0001-000000000003', 'domestic_staff', false, true, NOW() - INTERVAL '1 year'),
+  ('ee000001-0001-0001-0001-000000000072', 'aa000001-0001-0001-0001-000000000044', 'cc000001-0001-0001-0001-000000000003', 'domestic_staff', false, true, 'aa000001-0001-0001-0001-000000000003', NOW() - INTERVAL '1 year'),
 
   -- Staff for RES005 at OAK-5A
-  ('ee000001-0001-0001-0001-000000000073', 'aa000001-0001-0001-0001-000000000045', 'cc000001-0001-0001-0001-000000000005', 'domestic_staff', false, false, NOW() - INTERVAL '6 months'),
+  ('ee000001-0001-0001-0001-000000000073', 'aa000001-0001-0001-0001-000000000045', 'cc000001-0001-0001-0001-000000000005', 'domestic_staff', false, false, 'aa000001-0001-0001-0001-000000000005', NOW() - INTERVAL '6 months'),
 
   -- Staff for RES009 at PALM-1
-  ('ee000001-0001-0001-0001-000000000074', 'aa000001-0001-0001-0001-000000000046', 'cc000001-0001-0001-0001-000000000011', 'domestic_staff', false, true, NOW() - INTERVAL '2 years'),
-  ('ee000001-0001-0001-0001-000000000075', 'aa000001-0001-0001-0001-000000000047', 'cc000001-0001-0001-0001-000000000011', 'domestic_staff', false, true, NOW() - INTERVAL '18 months'),
+  ('ee000001-0001-0001-0001-000000000074', 'aa000001-0001-0001-0001-000000000046', 'cc000001-0001-0001-0001-000000000011', 'domestic_staff', false, true, 'aa000001-0001-0001-0001-000000000009', NOW() - INTERVAL '2 years'),
+  ('ee000001-0001-0001-0001-000000000075', 'aa000001-0001-0001-0001-000000000047', 'cc000001-0001-0001-0001-000000000011', 'domestic_staff', false, true, 'aa000001-0001-0001-0001-000000000009', NOW() - INTERVAL '18 months'),
 
   -- Staff for tenants
-  ('ee000001-0001-0001-0001-000000000076', 'aa000001-0001-0001-0001-000000000048', 'cc000001-0001-0001-0001-000000000013', 'domestic_staff', false, false, NOW() - INTERVAL '1 year'),
-  ('ee000001-0001-0001-0001-000000000077', 'aa000001-0001-0001-0001-000000000049', 'cc000001-0001-0001-0001-000000000016', 'domestic_staff', false, false, NOW() - INTERVAL '6 months')
+  ('ee000001-0001-0001-0001-000000000076', 'aa000001-0001-0001-0001-000000000048', 'cc000001-0001-0001-0001-000000000013', 'domestic_staff', false, false, 'aa000001-0001-0001-0001-000000000021', NOW() - INTERVAL '1 year'),
+  ('ee000001-0001-0001-0001-000000000077', 'aa000001-0001-0001-0001-000000000049', 'cc000001-0001-0001-0001-000000000016', 'domestic_staff', false, false, 'aa000001-0001-0001-0001-000000000024', NOW() - INTERVAL '6 months')
 ON CONFLICT (resident_id, house_id) DO UPDATE SET
-  resident_role = EXCLUDED.resident_role;
+  resident_role = EXCLUDED.resident_role,
+  sponsor_resident_id = EXCLUDED.sponsor_resident_id;
 
 -- ============================================================================
 -- CORPORATE/DEVELOPER ASSIGNMENTS
 -- Companies owning properties
 -- ============================================================================
-INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_home, move_in_date) VALUES
+INSERT INTO public.resident_houses (id, resident_id, house_id, resident_role, is_primary, is_live_in, move_in_date) VALUES
   -- Corporate owner
-  ('ee000001-0001-0001-0001-000000000081', 'aa000001-0001-0001-0001-000000000051', 'cc000001-0001-0001-0001-000000000004', 'landlord', true, false, NOW() - INTERVAL '2 years'),
-  ('ee000001-0001-0001-0001-000000000082', 'aa000001-0001-0001-0001-000000000052', 'cc000001-0001-0001-0001-000000000022', 'landlord', true, false, NOW() - INTERVAL '18 months'),
+  ('ee000001-0001-0001-0001-000000000081', 'aa000001-0001-0001-0001-000000000051', 'cc000001-0001-0001-0001-000000000004', 'developer', true, false, NOW() - INTERVAL '2 years'),
+  ('ee000001-0001-0001-0001-000000000082', 'aa000001-0001-0001-0001-000000000052', 'cc000001-0001-0001-0001-000000000022', 'developer', true, false, NOW() - INTERVAL '18 months'),
 
   -- Developer with unsold units
-  ('ee000001-0001-0001-0001-000000000083', 'aa000001-0001-0001-0001-000000000054', 'cc000001-0001-0001-0001-000000000027', 'landlord', true, false, NOW() - INTERVAL '1 year'),
-  ('ee000001-0001-0001-0001-000000000084', 'aa000001-0001-0001-0001-000000000054', 'cc000001-0001-0001-0001-000000000028', 'landlord', false, false, NOW() - INTERVAL '1 year'),
+  ('ee000001-0001-0001-0001-000000000083', 'aa000001-0001-0001-0001-000000000054', 'cc000001-0001-0001-0001-000000000027', 'developer', true, false, NOW() - INTERVAL '1 year'),
+  ('ee000001-0001-0001-0001-000000000084', 'aa000001-0001-0001-0001-000000000054', 'cc000001-0001-0001-0001-000000000028', 'developer', false, false, NOW() - INTERVAL '1 year'),
 
   -- Maple Drive developer
-  ('ee000001-0001-0001-0001-000000000085', 'aa000001-0001-0001-0001-000000000055', 'cc000001-0001-0001-0001-000000000025', 'landlord', true, false, NOW() - INTERVAL '6 months'),
-  ('ee000001-0001-0001-0001-000000000086', 'aa000001-0001-0001-0001-000000000055', 'cc000001-0001-0001-0001-000000000026', 'landlord', false, false, NOW() - INTERVAL '3 months')
+  ('ee000001-0001-0001-0001-000000000085', 'aa000001-0001-0001-0001-000000000055', 'cc000001-0001-0001-0001-000000000025', 'developer', true, false, NOW() - INTERVAL '6 months'),
+  ('ee000001-0001-0001-0001-000000000086', 'aa000001-0001-0001-0001-000000000055', 'cc000001-0001-0001-0001-000000000026', 'developer', false, false, NOW() - INTERVAL '3 months')
 ON CONFLICT (resident_id, house_id) DO UPDATE SET
   resident_role = EXCLUDED.resident_role;
 
@@ -162,12 +163,12 @@ DECLARE
   v_staff INT;
   v_multi_property INT;
 BEGIN
-  SELECT COUNT(*) INTO v_total FROM resident_houses WHERE id LIKE 'ee000001-%';
-  SELECT COUNT(*) INTO v_landlords FROM resident_houses WHERE resident_role = 'landlord' AND id LIKE 'ee000001-%';
-  SELECT COUNT(*) INTO v_tenants FROM resident_houses WHERE resident_role = 'tenant' AND id LIKE 'ee000001-%';
-  SELECT COUNT(*) INTO v_household FROM resident_houses WHERE resident_role = 'household_member' AND id LIKE 'ee000001-%';
-  SELECT COUNT(*) INTO v_staff FROM resident_houses WHERE resident_role = 'domestic_staff' AND id LIKE 'ee000001-%';
-  SELECT COUNT(*) INTO v_multi_property FROM (SELECT resident_id FROM resident_houses WHERE id LIKE 'ee000001-%' GROUP BY resident_id HAVING COUNT(*) > 1) sq;
+  SELECT COUNT(*) INTO v_total FROM resident_houses WHERE id::text LIKE 'ee000001-%';
+  SELECT COUNT(*) INTO v_landlords FROM resident_houses WHERE resident_role IN ('resident_landlord', 'non_resident_landlord', 'developer') AND id::text LIKE 'ee000001-%';
+  SELECT COUNT(*) INTO v_tenants FROM resident_houses WHERE resident_role = 'tenant' AND id::text LIKE 'ee000001-%';
+  SELECT COUNT(*) INTO v_household FROM resident_houses WHERE resident_role = 'household_member' AND id::text LIKE 'ee000001-%';
+  SELECT COUNT(*) INTO v_staff FROM resident_houses WHERE resident_role = 'domestic_staff' AND id::text LIKE 'ee000001-%';
+  SELECT COUNT(*) INTO v_multi_property FROM (SELECT resident_id FROM resident_houses WHERE id::text LIKE 'ee000001-%' GROUP BY resident_id HAVING COUNT(*) > 1) sq;
 
   RAISE NOTICE 'Resident-House Links Created:';
   RAISE NOTICE '  Total Links: %', v_total;

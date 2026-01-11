@@ -301,7 +301,15 @@ export function useDevelopmentLevyProfiles() {
 
 // Overdue Invoices Hooks
 import { checkOverdueInvoices, getOverdueStats } from '@/actions/billing/check-overdue-invoices';
-import { applyLateFees } from '@/actions/billing/apply-late-fees';
+import { applyLateFees, getLateFeeHistory, getLateFeeSettings } from '@/actions/billing/apply-late-fees';
+import {
+    getLateFeeWaivers,
+    getPendingWaiverCount,
+    requestLateFeeWaiver,
+    approveLateFeeWaiver,
+    rejectLateFeeWaiver,
+} from '@/actions/billing/late-fee-waivers';
+import type { LateFeeWaiverType, LateFeeWaiverStatus } from '@/types/database';
 
 export function useOverdueStats() {
     return useQuery({
@@ -467,6 +475,122 @@ export function useUpdateAutoGenerateEnabled() {
         },
         onError: (error) => {
             toast.error(error.message || 'Failed to update auto-generation setting');
+        },
+    });
+}
+
+// Late Fee Waiver Hooks
+export function useLateFeeWaivers(params: {
+    status?: LateFeeWaiverStatus | 'all';
+    residentId?: string;
+    invoiceId?: string;
+    page?: number;
+    limit?: number;
+} = {}) {
+    return useQuery({
+        queryKey: ['late-fee-waivers', params],
+        queryFn: async () => {
+            const result = await getLateFeeWaivers(params);
+            if (result.error) throw new Error(result.error);
+            return { data: result.data, total: result.total };
+        },
+    });
+}
+
+export function usePendingWaiverCount() {
+    return useQuery({
+        queryKey: ['pending-waiver-count'],
+        queryFn: async () => {
+            const result = await getPendingWaiverCount();
+            if (result.error) throw new Error(result.error);
+            return result.count;
+        },
+        refetchInterval: 60000, // Refresh every minute
+    });
+}
+
+export function useRequestLateFeeWaiver() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (params: {
+            invoiceId: string;
+            reason: string;
+            waiverType: LateFeeWaiverType;
+            waiverAmount?: number;
+        }) => {
+            const result = await requestLateFeeWaiver(params);
+            if (!result.success) throw new Error(result.error || 'Failed to request waiver');
+            return result;
+        },
+        onSuccess: () => {
+            toast.success('Late fee waiver request submitted');
+            queryClient.invalidateQueries({ queryKey: ['late-fee-waivers'] });
+            queryClient.invalidateQueries({ queryKey: ['pending-waiver-count'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to request waiver');
+        },
+    });
+}
+
+export function useApproveLateFeeWaiver() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ waiverId, notes }: { waiverId: string; notes?: string }) => {
+            const result = await approveLateFeeWaiver(waiverId, notes);
+            if (!result.success) throw new Error(result.error || 'Failed to approve waiver');
+            return result;
+        },
+        onSuccess: () => {
+            toast.success('Late fee waiver approved');
+            queryClient.invalidateQueries({ queryKey: ['late-fee-waivers'] });
+            queryClient.invalidateQueries({ queryKey: ['pending-waiver-count'] });
+            queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to approve waiver');
+        },
+    });
+}
+
+export function useRejectLateFeeWaiver() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ waiverId, notes }: { waiverId: string; notes?: string }) => {
+            const result = await rejectLateFeeWaiver(waiverId, notes);
+            if (!result.success) throw new Error(result.error || 'Failed to reject waiver');
+            return result;
+        },
+        onSuccess: () => {
+            toast.success('Late fee waiver rejected');
+            queryClient.invalidateQueries({ queryKey: ['late-fee-waivers'] });
+            queryClient.invalidateQueries({ queryKey: ['pending-waiver-count'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to reject waiver');
+        },
+    });
+}
+
+export function useLateFeeHistory(page: number = 1, limit: number = 10) {
+    return useQuery({
+        queryKey: ['late-fee-history', page, limit],
+        queryFn: async () => {
+            const result = await getLateFeeHistory({ page, limit });
+            if (result.error) throw new Error(result.error);
+            return { data: result.data, total: result.total };
+        },
+    });
+}
+
+export function useLateFeeSettings() {
+    return useQuery({
+        queryKey: ['late-fee-settings'],
+        queryFn: async () => {
+            return await getLateFeeSettings();
         },
     });
 }

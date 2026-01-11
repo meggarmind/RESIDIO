@@ -47,7 +47,7 @@ export async function disputeInvoice(invoiceId: string, reason: string) {
             entityType: 'invoices',
             entityId: invoiceId,
             entityDisplay: `Dispute filed for ${invoice.invoice_number}`,
-            oldValues: null,
+            oldValues: undefined,
             newValues: { dispute_reason: reason },
             description: `Resident filed a dispute: ${reason}`,
         });

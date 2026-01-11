@@ -1,0 +1,14 @@
+{
+  "category": "enhancement",
+  "description": "Add real-time field validation with inline error messages that appear as users type or on blur. Include helpful suggestions (e.g., 'Phone number must be 11 digits') and positive confirmation for valid fields.\n\n**Rationale:** Users shouldn't have to submit a form to discover errors. Immediate validation reduces frustration, speeds up form completion, and decreases submission failures by catching issues early.",
+  "title": "Form Validation with Inline Error Messages",
+  "status": "backlog",
+  "id": "feature-1768119212876-d4bik2dsx",
+  "descriptionHistory": [
+    {
+      "description": "Add real-time field validation with inline error messages that appear as users type or on blur. Include helpful suggestions (e.g., 'Phone number must be 11 digits') and positive confirmation for valid fields.\n\n**Rationale:** Users shouldn't have to submit a form to discover errors. Immediate validation reduces frustration, speeds up form completion, and decreases submission failures by catching issues early.",
+      "timestamp": "2026-01-11T08:13:32.880Z",
+      "source": "initial"
+    }
+  ]
+}

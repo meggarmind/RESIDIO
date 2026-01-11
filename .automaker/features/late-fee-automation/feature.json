@@ -1,0 +1,15 @@
+{
+  "id": "late-fee-automation",
+  "category": "Billing",
+  "title": "Automated Late Fee Application",
+  "description": "Automatically calculate and apply late fees based on configurable rules (percentage or flat rate). Support for grace periods and late fee waivers with approval workflows.",
+  "status": "verified",
+  "priority": 1,
+  "complexity": "moderate",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.147Z",
+  "updatedAt": "2026-01-11T09:46:41.251Z",
+  "branchName": "master",
+  "descriptionHistory": [],
+  "startedAt": "2026-01-11T09:12:30.547Z"
+}

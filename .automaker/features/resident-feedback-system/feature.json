@@ -1,0 +1,12 @@
+{
+  "id": "resident-feedback-system",
+  "category": "Core",
+  "title": "Resident Feedback & Suggestions",
+  "description": "Submit feedback, suggestions, and complaints with categorization, priority assignment, and response tracking. Include satisfaction ratings and analytics.",
+  "status": "backlog",
+  "priority": 2,
+  "complexity": "moderate",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.230Z",
+  "updatedAt": "2026-01-11T08:08:09.230Z"
+}

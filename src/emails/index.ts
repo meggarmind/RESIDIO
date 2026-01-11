@@ -8,3 +8,11 @@ export { PaymentReceiptEmail } from './payment-receipt';
 export { InvoiceGeneratedEmail } from './invoice-generated';
 export { WelcomeResidentEmail } from './welcome-resident';
 export { TestEmail } from './test-email';
+
+// Escalated payment reminder exports
+export {
+  PaymentReminderEscalatedEmail,
+  getEscalatedReminderSubject,
+  determineEscalationLevel,
+  type ReminderEscalationLevel,
+} from './payment-reminder-escalated';

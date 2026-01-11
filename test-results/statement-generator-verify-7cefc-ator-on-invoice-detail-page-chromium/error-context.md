@@ -1,0 +1,558 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - link "Estate Logo" [ref=e5] [cursor=pointer]:
+        - /url: /dashboard
+        - img "Estate Logo" [ref=e6]
+      - navigation [ref=e7]:
+        - list [ref=e9]:
+          - listitem [ref=e10]:
+            - link "Dashboard" [ref=e11] [cursor=pointer]:
+              - /url: /dashboard
+              - generic [ref=e12]:
+                - img [ref=e13]
+                - generic [ref=e16]: Dashboard
+          - listitem [ref=e17]:
+            - link "Analytics" [ref=e18] [cursor=pointer]:
+              - /url: /analytics
+              - generic [ref=e19]:
+                - img [ref=e20]
+                - generic [ref=e22]: Analytics
+        - generic [ref=e23]:
+          - heading "People & Property" [level=3] [ref=e24]
+          - list [ref=e25]:
+            - listitem [ref=e26]:
+              - link "Residents" [ref=e27] [cursor=pointer]:
+                - /url: /residents
+                - generic [ref=e28]:
+                  - img [ref=e29]
+                  - generic [ref=e34]: Residents
+            - listitem [ref=e35]:
+              - link "Houses" [ref=e36] [cursor=pointer]:
+                - /url: /houses
+                - generic [ref=e37]:
+                  - img [ref=e38]
+                  - generic [ref=e42]: Houses
+        - generic [ref=e43]:
+          - heading "Financial" [level=3] [ref=e44]
+          - list [ref=e45]:
+            - listitem [ref=e46]:
+              - button "Payments" [ref=e47] [cursor=pointer]:
+                - generic [ref=e48]:
+                  - img [ref=e49]
+                  - generic [ref=e51]: Payments
+                  - img [ref=e52]
+              - list [ref=e54]:
+                - listitem [ref=e55]:
+                  - link "Import Statement" [ref=e56] [cursor=pointer]:
+                    - /url: /payments/import
+                    - img [ref=e57]
+                    - generic [ref=e60]: Import Statement
+                - listitem [ref=e61]:
+                  - link "Email Imports" [ref=e62] [cursor=pointer]:
+                    - /url: /payments/email-imports
+                    - img [ref=e63]
+                    - generic [ref=e66]: Email Imports
+            - listitem [ref=e67]:
+              - link "Billing" [ref=e68] [cursor=pointer]:
+                - /url: /billing
+                - generic [ref=e69]:
+                  - img [ref=e70]
+                  - generic [ref=e73]: Billing
+        - generic [ref=e74]:
+          - heading "Operations" [level=3] [ref=e75]
+          - list [ref=e76]:
+            - listitem [ref=e77]:
+              - link "Security" [ref=e78] [cursor=pointer]:
+                - /url: /security
+                - generic [ref=e79]:
+                  - img [ref=e80]
+                  - generic [ref=e82]: Security
+            - listitem [ref=e83]:
+              - button "Reports" [ref=e84] [cursor=pointer]:
+                - generic [ref=e85]:
+                  - img [ref=e86]
+                  - generic [ref=e89]: Reports
+                  - img [ref=e90]
+              - list [ref=e92]:
+                - listitem [ref=e93]:
+                  - link "Generate Reports" [ref=e94] [cursor=pointer]:
+                    - /url: /reports
+                    - img [ref=e95]
+                    - generic [ref=e98]: Generate Reports
+                - listitem [ref=e99]:
+                  - link "Financial Overview" [ref=e100] [cursor=pointer]:
+                    - /url: /reports/financial-overview
+                    - img [ref=e101]
+                    - generic [ref=e104]: Financial Overview
+            - listitem [ref=e105]:
+              - link "Documents" [ref=e106] [cursor=pointer]:
+                - /url: /documents
+                - generic [ref=e107]:
+                  - img [ref=e108]
+                  - generic [ref=e111]: Documents
+            - listitem [ref=e112]:
+              - link "Announcements" [ref=e113] [cursor=pointer]:
+                - /url: /announcements
+                - generic [ref=e114]:
+                  - img [ref=e115]
+                  - generic [ref=e118]: Announcements
+            - listitem [ref=e119]:
+              - link "Approvals 0" [ref=e120] [cursor=pointer]:
+                - /url: /approvals
+                - generic [ref=e121]:
+                  - img [ref=e122]
+                  - generic [ref=e126]: Approvals
+                  - text: "0"
+        - generic [ref=e127]:
+          - heading "System" [level=3] [ref=e128]
+          - list [ref=e129]:
+            - listitem [ref=e130]:
+              - link "Settings" [ref=e131] [cursor=pointer]:
+                - /url: /settings
+                - generic [ref=e132]:
+                  - img [ref=e133]
+                  - generic [ref=e136]: Settings
+      - generic [ref=e137]:
+        - button "Light" [ref=e138]:
+          - img
+          - generic [ref=e139]: Light
+        - button "View as Resident" [ref=e140] [cursor=pointer]:
+          - img [ref=e141]
+          - generic [ref=e146]: View as Resident
+        - generic [ref=e147]:
+          - generic [ref=e148]: S
+          - generic [ref=e149]:
+            - paragraph [ref=e150]: Super Administrator
+            - paragraph [ref=e151]: Super Administrator
+        - button "Collapse sidebar" [ref=e152] [cursor=pointer]:
+          - img [ref=e153]
+          - generic [ref=e155]: Collapse
+    - generic [ref=e156]:
+      - banner [ref=e157]:
+        - heading "Billing" [level=1] [ref=e159]
+        - button "Quick Search... ⌘ K" [ref=e160] [cursor=pointer]:
+          - img [ref=e161]
+          - generic [ref=e164]: Quick Search...
+          - generic:
+            - generic: ⌘
+            - text: K
+        - generic [ref=e165]:
+          - link "Add Resident" [ref=e166] [cursor=pointer]:
+            - /url: /residents?action=create
+            - img
+            - text: Add Resident
+          - button "Notifications" [ref=e167]:
+            - img
+            - generic [ref=e168]: Notifications
+          - button "S" [ref=e169]:
+            - generic [ref=e171]: S
+      - main [ref=e172]:
+        - navigation "Breadcrumb" [ref=e173]:
+          - list [ref=e174]:
+            - listitem [ref=e175]:
+              - link "Dashboard" [ref=e176] [cursor=pointer]:
+                - /url: /dashboard
+                - img [ref=e177]
+                - text: Dashboard
+            - listitem [ref=e180]:
+              - img [ref=e181]
+              - generic [ref=e183]: Billing
+        - generic [ref=e184]:
+          - generic [ref=e185]:
+            - generic [ref=e186]:
+              - img [ref=e188]
+              - generic [ref=e191]:
+                - heading "Billing & Invoices" [level=1] [ref=e192]
+                - paragraph [ref=e193]: Manage monthly invoices and billing runs
+            - generic [ref=e195]:
+              - button "Refresh" [ref=e196]:
+                - img
+                - text: Refresh
+              - button "Check Overdue" [ref=e197]:
+                - img
+                - text: Check Overdue
+              - button "Generate Invoices" [ref=e198]:
+                - img
+                - text: Generate Invoices
+          - generic [ref=e199]:
+            - generic [ref=e200]:
+              - generic [ref=e202]:
+                - generic [ref=e203]: Total Invoices
+                - img [ref=e205]
+              - generic [ref=e208]:
+                - generic [ref=e209]: "207"
+                - paragraph [ref=e210]: All time invoices
+            - generic [ref=e211]:
+              - generic [ref=e213]:
+                - generic [ref=e214]: Paid
+                - img [ref=e216]
+              - generic [ref=e219]:
+                - generic [ref=e220]: "0"
+                - paragraph [ref=e221]: Completed payments
+            - generic [ref=e222]:
+              - generic [ref=e224]:
+                - generic [ref=e225]: Unpaid
+                - img [ref=e227]
+              - generic [ref=e230]:
+                - generic [ref=e231]: "17"
+                - paragraph [ref=e232]: Pending invoices
+            - generic [ref=e233]:
+              - generic [ref=e235]:
+                - generic [ref=e236]: Total Value
+                - img [ref=e238]
+              - generic [ref=e241]:
+                - generic [ref=e242]: ₦528,000.00
+                - paragraph [ref=e243]: Current page total
+          - generic [ref=e245]:
+            - img [ref=e247]
+            - generic [ref=e249]:
+              - paragraph [ref=e250]: 63 overdue invoices totaling ₦1,265,822.58
+              - paragraph [ref=e251]: Click 'Check Overdue' to view details and send reminders.
+            - button "View Unpaid" [ref=e253]
+          - generic [ref=e256]:
+            - generic [ref=e257]:
+              - generic [ref=e258]: Search Invoice
+              - generic [ref=e259]:
+                - img [ref=e260]
+                - textbox "Invoice number..." [ref=e263]
+            - generic [ref=e264]:
+              - generic [ref=e265]: Resident
+              - combobox [ref=e266]:
+                - generic: All residents
+                - img
+            - generic [ref=e267]:
+              - generic [ref=e268]: Status
+              - combobox [ref=e269]:
+                - generic: All statuses
+                - img
+            - generic [ref=e270]:
+              - generic [ref=e271]: Type
+              - combobox [ref=e272]:
+                - generic: All types
+                - img
+            - generic [ref=e273]:
+              - generic [ref=e274]: Per Page
+              - combobox [ref=e275]:
+                - generic: "20"
+                - img
+          - generic [ref=e276]:
+            - generic [ref=e278]:
+              - generic [ref=e279]: Invoices
+              - paragraph [ref=e280]: All billing records
+            - table [ref=e284]:
+              - rowgroup [ref=e285]:
+                - 'row "Invoice # Resident House Period Due Date Amount Type Status" [ref=e286]':
+                  - 'columnheader "Invoice #" [ref=e287]'
+                  - columnheader "Resident" [ref=e288]
+                  - columnheader "House" [ref=e289]
+                  - columnheader "Period" [ref=e290]
+                  - columnheader "Due Date" [ref=e291]
+                  - columnheader "Amount" [ref=e292]
+                  - columnheader "Type" [ref=e293]
+                  - columnheader "Status" [ref=e294]
+                  - columnheader [ref=e295]
+              - rowgroup [ref=e296]:
+                - row "INV-202601-1 Ada Okonkwo 1, Crescent Close Jan 2026 31/01/2026 ₦78,000.00 Service Charge unpaid View" [ref=e297] [cursor=pointer]:
+                  - cell "INV-202601-1" [ref=e298]
+                  - cell "Ada Okonkwo" [ref=e299]
+                  - cell "1, Crescent Close" [ref=e300]
+                  - cell "Jan 2026" [ref=e301]
+                  - cell "31/01/2026" [ref=e302]
+                  - cell "₦78,000.00" [ref=e303]
+                  - cell "Service Charge" [ref=e304]:
+                    - generic [ref=e305]: Service Charge
+                  - cell "unpaid" [ref=e306]:
+                    - generic [ref=e307]: unpaid
+                  - cell "View" [ref=e308]:
+                    - link "View" [active] [ref=e309]:
+                      - /url: /billing/a5c985a1-134d-4a68-b2f8-8999b583b903
+                - row "INV-202601-14 Blessing Adeleke 14, Palm Avenue Jan 2026 31/01/2026 ₦62,500.00 Service Charge unpaid View" [ref=e310] [cursor=pointer]:
+                  - cell "INV-202601-14" [ref=e311]
+                  - cell "Blessing Adeleke" [ref=e312]
+                  - cell "14, Palm Avenue" [ref=e313]
+                  - cell "Jan 2026" [ref=e314]
+                  - cell "31/01/2026" [ref=e315]
+                  - cell "₦62,500.00" [ref=e316]
+                  - cell "Service Charge" [ref=e317]:
+                    - generic [ref=e318]: Service Charge
+                  - cell "unpaid" [ref=e319]:
+                    - generic [ref=e320]: unpaid
+                  - cell "View" [ref=e321]:
+                    - link "View" [ref=e322]:
+                      - /url: /billing/6ea2cf29-1c72-4a87-a922-1bee6c56158f
+                - row "INV-202601-A1 Funmi Adeyemi A1, Garden View Jan 2026 31/01/2026 ₦39,500.00 Service Charge unpaid View" [ref=e323] [cursor=pointer]:
+                  - cell "INV-202601-A1" [ref=e324]
+                  - cell "Funmi Adeyemi" [ref=e325]
+                  - cell "A1, Garden View" [ref=e326]
+                  - cell "Jan 2026" [ref=e327]
+                  - cell "31/01/2026" [ref=e328]
+                  - cell "₦39,500.00" [ref=e329]
+                  - cell "Service Charge" [ref=e330]:
+                    - generic [ref=e331]: Service Charge
+                  - cell "unpaid" [ref=e332]:
+                    - generic [ref=e333]: unpaid
+                  - cell "View" [ref=e334]:
+                    - link "View" [ref=e335]:
+                      - /url: /billing/bfb6bc66-af49-4300-8216-cbf615717e65
+                - row "INV-202601-103 Feyijimi Adewole 103, Sunrise Lane Jan 2026 31/01/2026 ₦48,000.00 Service Charge unpaid View" [ref=e336] [cursor=pointer]:
+                  - cell "INV-202601-103" [ref=e337]
+                  - cell "Feyijimi Adewole" [ref=e338]
+                  - cell "103, Sunrise Lane" [ref=e339]
+                  - cell "Jan 2026" [ref=e340]
+                  - cell "31/01/2026" [ref=e341]
+                  - cell "₦48,000.00" [ref=e342]
+                  - cell "Service Charge" [ref=e343]:
+                    - generic [ref=e344]: Service Charge
+                  - cell "unpaid" [ref=e345]:
+                    - generic [ref=e346]: unpaid
+                  - cell "View" [ref=e347]:
+                    - link "View" [ref=e348]:
+                      - /url: /billing/23e6bca3-2d36-495f-9a57-5d573f5ee590
+                - row "INV-2026-01-0022 Blessing Udo 8, Palm Close Jan 2026 15/02/2026 ₦25,000.00 Service Charge unpaid View" [ref=e349] [cursor=pointer]:
+                  - cell "INV-2026-01-0022" [ref=e350]
+                  - cell "Blessing Udo" [ref=e351]
+                  - cell "8, Palm Close" [ref=e352]
+                  - cell "Jan 2026" [ref=e353]
+                  - cell "15/02/2026" [ref=e354]
+                  - cell "₦25,000.00" [ref=e355]
+                  - cell "Service Charge" [ref=e356]:
+                    - generic [ref=e357]: Service Charge
+                  - cell "unpaid" [ref=e358]:
+                    - generic [ref=e359]: unpaid
+                  - cell "View" [ref=e360]:
+                    - link "View" [ref=e361]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000077
+                - row "INV-2026-01-0004 Ngozi Eze 4, Oak Avenue Jan 2026 15/02/2026 ₦15,000.00 Service Charge unpaid View" [ref=e362] [cursor=pointer]:
+                  - cell "INV-2026-01-0004" [ref=e363]
+                  - cell "Ngozi Eze" [ref=e364]
+                  - cell "4, Oak Avenue" [ref=e365]
+                  - cell "Jan 2026" [ref=e366]
+                  - cell "15/02/2026" [ref=e367]
+                  - cell "₦15,000.00" [ref=e368]
+                  - cell "Service Charge" [ref=e369]:
+                    - generic [ref=e370]: Service Charge
+                  - cell "unpaid" [ref=e371]:
+                    - generic [ref=e372]: unpaid
+                  - cell "View" [ref=e373]:
+                    - link "View" [ref=e374]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000069
+                - row "INV-2026-01-0025 Adaobi Nnamdi 8, Oak Avenue Jan 2026 15/02/2026 ₦15,000.00 Service Charge unpaid View" [ref=e375] [cursor=pointer]:
+                  - cell "INV-2026-01-0025" [ref=e376]
+                  - cell "Adaobi Nnamdi" [ref=e377]
+                  - cell "8, Oak Avenue" [ref=e378]
+                  - cell "Jan 2026" [ref=e379]
+                  - cell "15/02/2026" [ref=e380]
+                  - cell "₦15,000.00" [ref=e381]
+                  - cell "Service Charge" [ref=e382]:
+                    - generic [ref=e383]: Service Charge
+                  - cell "unpaid" [ref=e384]:
+                    - generic [ref=e385]: unpaid
+                  - cell "View" [ref=e386]:
+                    - link "View" [ref=e387]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000080
+                - row "INV-2026-01-0008 Amaka Okoro 2, Cedar Lane Jan 2026 15/02/2026 ₦25,000.00 Service Charge unpaid View" [ref=e388] [cursor=pointer]:
+                  - cell "INV-2026-01-0008" [ref=e389]
+                  - cell "Amaka Okoro" [ref=e390]
+                  - cell "2, Cedar Lane" [ref=e391]
+                  - cell "Jan 2026" [ref=e392]
+                  - cell "15/02/2026" [ref=e393]
+                  - cell "₦25,000.00" [ref=e394]
+                  - cell "Service Charge" [ref=e395]:
+                    - generic [ref=e396]: Service Charge
+                  - cell "unpaid" [ref=e397]:
+                    - generic [ref=e398]: unpaid
+                  - cell "View" [ref=e399]:
+                    - link "View" [ref=e400]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000073
+                - row "INV-2026-01-0020 Adaeze Obi 2, Palm Close Jan 2026 15/02/2026 ₦15,000.00 Service Charge unpaid View" [ref=e401] [cursor=pointer]:
+                  - cell "INV-2026-01-0020" [ref=e402]
+                  - cell "Adaeze Obi" [ref=e403]
+                  - cell "2, Palm Close" [ref=e404]
+                  - cell "Jan 2026" [ref=e405]
+                  - cell "15/02/2026" [ref=e406]
+                  - cell "₦15,000.00" [ref=e407]
+                  - cell "Service Charge" [ref=e408]:
+                    - generic [ref=e409]: Service Charge
+                  - cell "unpaid" [ref=e410]:
+                    - generic [ref=e411]: unpaid
+                  - cell "View" [ref=e412]:
+                    - link "View" [ref=e413]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000075
+                - row "INV-2026-01-0011 Ifeanyi Chukwu 4, Palm Close Jan 2026 15/02/2026 ₦15,000.00 Service Charge partially_paid View" [ref=e414] [cursor=pointer]:
+                  - cell "INV-2026-01-0011" [ref=e415]
+                  - cell "Ifeanyi Chukwu" [ref=e416]
+                  - cell "4, Palm Close" [ref=e417]
+                  - cell "Jan 2026" [ref=e418]
+                  - cell "15/02/2026" [ref=e419]
+                  - cell "₦15,000.00" [ref=e420]
+                  - cell "Service Charge" [ref=e421]:
+                    - generic [ref=e422]: Service Charge
+                  - cell "partially_paid" [ref=e423]:
+                    - generic [ref=e424]: partially_paid
+                  - cell "View" [ref=e425]:
+                    - link "View" [ref=e426]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000064
+                - row "INV-2026-01-0021 Olumide Akinola 7, Palm Close Jan 2026 15/02/2026 ₦25,000.00 Service Charge unpaid View" [ref=e427] [cursor=pointer]:
+                  - cell "INV-2026-01-0021" [ref=e428]
+                  - cell "Olumide Akinola" [ref=e429]
+                  - cell "7, Palm Close" [ref=e430]
+                  - cell "Jan 2026" [ref=e431]
+                  - cell "15/02/2026" [ref=e432]
+                  - cell "₦25,000.00" [ref=e433]
+                  - cell "Service Charge" [ref=e434]:
+                    - generic [ref=e435]: Service Charge
+                  - cell "unpaid" [ref=e436]:
+                    - generic [ref=e437]: unpaid
+                  - cell "View" [ref=e438]:
+                    - link "View" [ref=e439]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000076
+                - row "INV-2026-01-0005 Ibrahim Mohammed 5A, Oak Avenue Jan 2026 15/02/2026 ₦25,000.00 Service Charge unpaid View" [ref=e440] [cursor=pointer]:
+                  - cell "INV-2026-01-0005" [ref=e441]
+                  - cell "Ibrahim Mohammed" [ref=e442]
+                  - cell "5A, Oak Avenue" [ref=e443]
+                  - cell "Jan 2026" [ref=e444]
+                  - cell "15/02/2026" [ref=e445]
+                  - cell "₦25,000.00" [ref=e446]
+                  - cell "Service Charge" [ref=e447]:
+                    - generic [ref=e448]: Service Charge
+                  - cell "unpaid" [ref=e449]:
+                    - generic [ref=e450]: unpaid
+                  - cell "View" [ref=e451]:
+                    - link "View" [ref=e452]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000070
+                - row "INV-2026-01-0002 Chidinma Okonkwo 2, Oak Avenue Jan 2026 15/02/2026 ₦15,000.00 Service Charge unpaid View" [ref=e453] [cursor=pointer]:
+                  - cell "INV-2026-01-0002" [ref=e454]
+                  - cell "Chidinma Okonkwo" [ref=e455]
+                  - cell "2, Oak Avenue" [ref=e456]
+                  - cell "Jan 2026" [ref=e457]
+                  - cell "15/02/2026" [ref=e458]
+                  - cell "₦15,000.00" [ref=e459]
+                  - cell "Service Charge" [ref=e460]:
+                    - generic [ref=e461]: Service Charge
+                  - cell "unpaid" [ref=e462]:
+                    - generic [ref=e463]: unpaid
+                  - cell "View" [ref=e464]:
+                    - link "View" [ref=e465]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000067
+                - row "INV-2026-01-0003 Babatunde Williams 3, Oak Avenue Jan 2026 15/02/2026 ₦15,000.00 Service Charge unpaid View" [ref=e466] [cursor=pointer]:
+                  - cell "INV-2026-01-0003" [ref=e467]
+                  - cell "Babatunde Williams" [ref=e468]
+                  - cell "3, Oak Avenue" [ref=e469]
+                  - cell "Jan 2026" [ref=e470]
+                  - cell "15/02/2026" [ref=e471]
+                  - cell "₦15,000.00" [ref=e472]
+                  - cell "Service Charge" [ref=e473]:
+                    - generic [ref=e474]: Service Charge
+                  - cell "unpaid" [ref=e475]:
+                    - generic [ref=e476]: unpaid
+                  - cell "View" [ref=e477]:
+                    - link "View" [ref=e478]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000068
+                - row "INV-2026-01-0012 Bolaji Oladipo 5, Palm Close Jan 2026 15/02/2026 ₦25,000.00 Service Charge partially_paid View" [ref=e479] [cursor=pointer]:
+                  - cell "INV-2026-01-0012" [ref=e480]
+                  - cell "Bolaji Oladipo" [ref=e481]
+                  - cell "5, Palm Close" [ref=e482]
+                  - cell "Jan 2026" [ref=e483]
+                  - cell "15/02/2026" [ref=e484]
+                  - cell "₦25,000.00" [ref=e485]
+                  - cell "Service Charge" [ref=e486]:
+                    - generic [ref=e487]: Service Charge
+                  - cell "partially_paid" [ref=e488]:
+                    - generic [ref=e489]: partially_paid
+                  - cell "View" [ref=e490]:
+                    - link "View" [ref=e491]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000065
+                - row "INV-2026-01-0006 Funmilayo Ogundimu 6, Oak Avenue Jan 2026 15/02/2026 ₦15,000.00 Service Charge unpaid View" [ref=e492] [cursor=pointer]:
+                  - cell "INV-2026-01-0006" [ref=e493]
+                  - cell "Funmilayo Ogundimu" [ref=e494]
+                  - cell "6, Oak Avenue" [ref=e495]
+                  - cell "Jan 2026" [ref=e496]
+                  - cell "15/02/2026" [ref=e497]
+                  - cell "₦15,000.00" [ref=e498]
+                  - cell "Service Charge" [ref=e499]:
+                    - generic [ref=e500]: Service Charge
+                  - cell "unpaid" [ref=e501]:
+                    - generic [ref=e502]: unpaid
+                  - cell "View" [ref=e503]:
+                    - link "View" [ref=e504]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000071
+                - row "INV-2026-01-0007 Emeka Nwankwo 1, Cedar Lane Jan 2026 15/02/2026 ₦25,000.00 Service Charge unpaid View" [ref=e505] [cursor=pointer]:
+                  - cell "INV-2026-01-0007" [ref=e506]
+                  - cell "Emeka Nwankwo" [ref=e507]
+                  - cell "1, Cedar Lane" [ref=e508]
+                  - cell "Jan 2026" [ref=e509]
+                  - cell "15/02/2026" [ref=e510]
+                  - cell "₦25,000.00" [ref=e511]
+                  - cell "Service Charge" [ref=e512]:
+                    - generic [ref=e513]: Service Charge
+                  - cell "unpaid" [ref=e514]:
+                    - generic [ref=e515]: unpaid
+                  - cell "View" [ref=e516]:
+                    - link "View" [ref=e517]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000072
+                - row "INV-2026-01-0001 Oluwaseun Adeyemi 1, Oak Avenue Jan 2026 15/02/2026 ₦15,000.00 Service Charge unpaid View" [ref=e518] [cursor=pointer]:
+                  - cell "INV-2026-01-0001" [ref=e519]
+                  - cell "Oluwaseun Adeyemi" [ref=e520]
+                  - cell "1, Oak Avenue" [ref=e521]
+                  - cell "Jan 2026" [ref=e522]
+                  - cell "15/02/2026" [ref=e523]
+                  - cell "₦15,000.00" [ref=e524]
+                  - cell "Service Charge" [ref=e525]:
+                    - generic [ref=e526]: Service Charge
+                  - cell "unpaid" [ref=e527]:
+                    - generic [ref=e528]: unpaid
+                  - cell "View" [ref=e529]:
+                    - link "View" [ref=e530]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000066
+                - row "INV-2026-01-0010 Temitope Adegoke 3, Palm Close Jan 2026 15/02/2026 ₦15,000.00 Service Charge partially_paid View" [ref=e531] [cursor=pointer]:
+                  - cell "INV-2026-01-0010" [ref=e532]
+                  - cell "Temitope Adegoke" [ref=e533]
+                  - cell "3, Palm Close" [ref=e534]
+                  - cell "Jan 2026" [ref=e535]
+                  - cell "15/02/2026" [ref=e536]
+                  - cell "₦15,000.00" [ref=e537]
+                  - cell "Service Charge" [ref=e538]:
+                    - generic [ref=e539]: Service Charge
+                  - cell "partially_paid" [ref=e540]:
+                    - generic [ref=e541]: partially_paid
+                  - cell "View" [ref=e542]:
+                    - link "View" [ref=e543]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000063
+                - row "INV-2026-01-0009 Chukwuemeka Igwe 1, Palm Close Jan 2026 15/02/2026 ₦15,000.00 Service Charge unpaid View" [ref=e544] [cursor=pointer]:
+                  - cell "INV-2026-01-0009" [ref=e545]
+                  - cell "Chukwuemeka Igwe" [ref=e546]
+                  - cell "1, Palm Close" [ref=e547]
+                  - cell "Jan 2026" [ref=e548]
+                  - cell "15/02/2026" [ref=e549]
+                  - cell "₦15,000.00" [ref=e550]
+                  - cell "Service Charge" [ref=e551]:
+                    - generic [ref=e552]: Service Charge
+                  - cell "unpaid" [ref=e553]:
+                    - generic [ref=e554]: unpaid
+                  - cell "View" [ref=e555]:
+                    - link "View" [ref=e556]:
+                      - /url: /billing/ee000001-0001-0001-0001-000000000074
+          - generic [ref=e557]:
+            - generic [ref=e558]: Showing 1 to 20 of 207 invoices
+            - generic [ref=e559]:
+              - button "Previous" [disabled]:
+                - img
+                - text: Previous
+              - generic [ref=e560]:
+                - button "1" [ref=e561]
+                - button "2" [ref=e562]
+                - button "3" [ref=e563]
+                - button "4" [ref=e564]
+                - button "5" [ref=e565]
+              - button "Next" [ref=e566]:
+                - text: Next
+                - img
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e572] [cursor=pointer]:
+    - img [ref=e573]
+  - alert [ref=e576]
+```

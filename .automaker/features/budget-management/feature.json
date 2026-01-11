@@ -1,0 +1,12 @@
+{
+  "id": "budget-management",
+  "category": "Finance",
+  "title": "Annual Budget Planning",
+  "description": "Create and manage annual budgets with line items, variance tracking, and comparison reports. Support for budget versions and approval workflows.",
+  "status": "backlog",
+  "priority": 2,
+  "complexity": "complex",
+  "dependencies": [],
+  "createdAt": "2026-01-11T08:08:09.214Z",
+  "updatedAt": "2026-01-11T08:08:09.214Z"
+}
