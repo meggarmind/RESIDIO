@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useResident } from '@/hooks/use-residents';
@@ -69,6 +69,7 @@ import { getHouseholdMembers, removeHouseholdMember } from '@/actions/residents/
 import type { ResidentWithHouses, HouseWithStreet, ResidentRole } from '@/types/database';
 import { VisualThemeSelector } from '@/components/settings/visual-theme-selector';
 import { useEffectiveTheme, useUserThemeOverride, useSetUserThemeOverride } from '@/hooks/use-theme-preferences';
+import { getThemeById } from '@/lib/themes/registry';
 
 // Spring physics for smooth, professional animations
 const spring = {
@@ -1062,15 +1063,35 @@ function ThemePreferencesCard({
   const { data: userOverride, isLoading: overrideLoading } = useUserThemeOverride('resident-portal');
   const setThemeOverride = useSetUserThemeOverride('resident-portal');
 
+  // ADD: Local optimistic state for immediate UI feedback
+  const [optimisticTheme, setOptimisticTheme] = useState<string | null>(null);
+
+  // Sync optimistic state when query data updates
+  useEffect(() => {
+    if (userOverride !== undefined) {
+      setOptimisticTheme(null); // Clear optimistic state when real data arrives
+    }
+  }, [userOverride]);
+
   const isLoading = effectiveLoading || overrideLoading;
 
-  // Current theme selection (empty string means "use estate default")
-  const currentTheme = userOverride || '';
+  // Use optimistic value if exists, otherwise query data
+  const currentTheme = optimisticTheme ?? (userOverride || '');
 
   const handleThemeChange = (themeId: string) => {
     // Empty string means reset to estate default (null in database)
     const valueToSet = themeId === '' ? null : themeId;
-    setThemeOverride.mutate(valueToSet);
+
+    // Set optimistic value immediately for instant UI update
+    setOptimisticTheme(valueToSet);
+
+    // Trigger mutation
+    setThemeOverride.mutate(valueToSet, {
+      onError: () => {
+        // Rollback optimistic state on error
+        setOptimisticTheme(null);
+      }
+    });
   };
 
   if (isLoading) {
@@ -1117,9 +1138,14 @@ function ThemePreferencesCard({
         />
 
         {effectiveTheme && (
-          <p className="text-xs text-muted-foreground mt-4">
-            Current theme: <span className="font-medium capitalize">{effectiveTheme}</span>
-          </p>
+          <div className="flex items-center justify-between text-xs text-muted-foreground mt-4">
+            <span>Current theme:</span>
+            <span className="font-medium">
+              {currentTheme === '' || currentTheme === null
+                ? 'Estate Default'
+                : getThemeById(currentTheme)?.name || currentTheme}
+            </span>
+          </div>
         )}
       </CardContent>
     </Card>

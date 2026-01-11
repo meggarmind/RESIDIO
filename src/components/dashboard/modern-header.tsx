@@ -71,11 +71,13 @@ export function ModernHeader({ onMenuClick }: ModernHeaderProps) {
 
   return (
     <>
-      <header className={cn(
-        'sticky top-0 z-40 flex h-20 items-center gap-4 border-b px-4 md:px-6',
-        // Modern theme: white background with subtle border
-        'bg-white dark:bg-[#1E293B] border-gray-200 dark:border-[#334155]'
-      )}>
+      <header
+        className="sticky top-0 z-40 flex h-20 items-center gap-4 border-b px-4 md:px-6"
+        style={{
+          backgroundColor: 'var(--bg-card)',
+          borderColor: 'var(--border-default)',
+        }}
+      >
         {/* Mobile Menu Button */}
         <Button
           variant="ghost"
@@ -89,7 +91,7 @@ export function ModernHeader({ onMenuClick }: ModernHeaderProps) {
 
         {/* Page Title - Desktop Only */}
         <div className="hidden md:block min-w-[120px]">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
             {getPageTitle(pathname)}
           </h1>
         </div>
@@ -98,17 +100,30 @@ export function ModernHeader({ onMenuClick }: ModernHeaderProps) {
         <button
           type="button"
           onClick={() => setSearchOpen(true)}
-          className={cn(
-            'hidden md:flex items-center gap-3 w-full max-w-md',
-            'rounded-xl border bg-gray-50 py-2.5 px-4 text-sm',
-            'border-gray-200 hover:border-gray-300 hover:bg-gray-100',
-            'dark:bg-[#0F172A] dark:border-[#334155] dark:hover:border-[#475569]',
-            'transition-colors cursor-pointer text-left'
-          )}
+          className="hidden md:flex items-center gap-3 w-full max-w-md rounded-xl border py-2.5 px-4 text-sm transition-colors cursor-pointer text-left"
+          style={{
+            backgroundColor: 'var(--bg-secondary)',
+            borderColor: 'var(--border-default)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
+            e.currentTarget.style.borderColor = 'var(--border-hover)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+            e.currentTarget.style.borderColor = 'var(--border-default)';
+          }}
         >
-          <Search className="h-5 w-5 text-gray-400" />
-          <span className="text-gray-400 flex-1">Quick Search...</span>
-          <kbd className="pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-1 rounded border bg-white dark:bg-[#1E293B] px-1.5 font-mono text-[10px] font-medium text-gray-400">
+          <Search className="h-5 w-5" style={{ color: 'var(--text-muted)' }} />
+          <span className="flex-1" style={{ color: 'var(--text-muted)' }}>Quick Search...</span>
+          <kbd
+            className="pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium"
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--border-subtle)',
+              color: 'var(--text-muted)',
+            }}
+          >
             <span className="text-xs">⌘</span>K
           </kbd>
         </button>
@@ -132,11 +147,17 @@ export function ModernHeader({ onMenuClick }: ModernHeaderProps) {
           {/* Primary Action - Add Resident (Desktop Only) */}
           <Button
             asChild
-            className={cn(
-              'hidden md:flex gap-2 rounded-xl font-medium shadow-sm',
-              // Modern theme: blue-teal primary button
-              'bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
-            )}
+            className="hidden md:flex gap-2 rounded-xl font-medium shadow-sm"
+            style={{
+              backgroundColor: 'var(--accent-primary)',
+              color: 'var(--text-on-accent)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--accent-hover)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--accent-primary)';
+            }}
           >
             <Link href="/residents?action=create">
               <UserPlus className="h-4 w-4" />
@@ -148,10 +169,17 @@ export function ModernHeader({ onMenuClick }: ModernHeaderProps) {
           <Button
             asChild
             size="icon"
-            className={cn(
-              'md:hidden rounded-xl',
-              'bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
-            )}
+            className="md:hidden rounded-xl"
+            style={{
+              backgroundColor: 'var(--accent-primary)',
+              color: 'var(--text-on-accent)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--accent-hover)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--accent-primary)';
+            }}
           >
             <Link href="/residents?action=create">
               <UserPlus className="h-4 w-4" />
@@ -168,11 +196,13 @@ export function ModernHeader({ onMenuClick }: ModernHeaderProps) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                   <Avatar className="h-10 w-10">
-                    <AvatarFallback className={cn(
-                      'font-semibold',
-                      // Modern theme: blue-teal avatar background
-                      'bg-[#0EA5E9] text-white'
-                    )}>
+                    <AvatarFallback
+                      className="font-semibold"
+                      style={{
+                        backgroundColor: 'var(--accent-primary)',
+                        color: 'var(--text-on-accent)',
+                      }}
+                    >
                       {profile?.full_name?.charAt(0) || '?'}
                     </AvatarFallback>
                   </Avatar>
