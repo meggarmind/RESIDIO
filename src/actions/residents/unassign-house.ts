@@ -73,7 +73,7 @@ export async function unassignHouse(
   if (role === 'resident_landlord') {
     return {
       success: false,
-      error: 'Owner-Occupiers cannot be removed. Use "Move Out" to convert to Property Owner.'
+      error: 'Resident Landlords cannot be removed. Use "Move Out" to convert to Non-Resident Landlord.'
     };
   }
 

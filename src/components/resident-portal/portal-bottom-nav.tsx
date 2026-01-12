@@ -28,32 +28,19 @@ const navItems: NavItem[] = [
 ];
 
 /**
- * Portal Bottom Navigation - Modern Design System
+ * Portal Bottom Navigation
  *
- * Touch-optimized mobile navigation bar (64px height) following the portal-modern design system.
- *
- * Design Specifications:
- * - Height: 64px (var(--bottom-nav-height))
- * - Background: White card (var(--color-bg-card))
- * - Border top: 1px subtle gray
- * - 5 navigation items with icons and labels
- * - Icon size: 24px (var(--icon-md))
- * - Active state: Primary color icon + label
- * - Inactive state: Muted gray
- * - Touch targets: 44x44px minimum
- * - Safe area insets for iOS
- *
- * Accessibility:
- * - aria-current for active page
- * - Touch-friendly targets (44px)
- * - Focus visible ring
+ * A refined, touch-optimized bottom navigation bar with:
+ * - 4 navigation items with icons and labels
+ * - Active state with subtle animation
+ * - Haptic-ready touch targets (44px minimum)
+ * - Glass-morphism effect
  */
 interface PortalBottomNavProps {
   className?: string;
-  style?: React.CSSProperties;
 }
 
-export function PortalBottomNav({ className, style }: PortalBottomNavProps) {
+export function PortalBottomNav({ className }: PortalBottomNavProps) {
   const pathname = usePathname();
 
   // Check if a nav item is active
@@ -67,14 +54,16 @@ export function PortalBottomNav({ className, style }: PortalBottomNavProps) {
   return (
     <nav
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 transition-colors duration-300",
+        "fixed bottom-0 left-0 right-0 z-50 h-16 bg-background/80 backdrop-blur-xl border-t border-border/40",
         className
       )}
-      style={style}
       role="navigation"
       aria-label="Main navigation"
     >
-      <div className="h-full flex items-center justify-around px-4">
+      {/* Subtle top gradient for depth */}
+      <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent opacity-50 pointer-events-none" />
+
+      <div className="relative h-full max-w-lg mx-auto px-2 flex items-center justify-around">
         {navItems.map((item) => {
           const active = isActive(item.href);
           const Icon = item.icon;
@@ -84,65 +73,63 @@ export function PortalBottomNav({ className, style }: PortalBottomNavProps) {
               key={item.href}
               href={item.href}
               className={cn(
-                'relative flex flex-col items-center justify-center gap-1 flex-1',
-                'transition-all duration-150 ease-out',
+                'relative flex flex-col items-center justify-center gap-0.5 w-full h-full',
+                'transition-all duration-200 ease-out',
                 'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/20',
                 'active:scale-95',
-                // Touch target
+                // Touch target padding
                 'min-w-[44px] min-h-[44px]'
               )}
               aria-current={active ? 'page' : undefined}
-              aria-label={item.label}
             >
-              {/* Icon */}
-              <Icon
+              {/* Active indicator pill */}
+              {active && (
+                <div
+                  className="absolute top-1 left-1/2 -translate-x-1/2 w-12 h-1 rounded-full bg-primary
+                             animate-in fade-in-0 zoom-in-50 duration-200"
+                />
+              )}
+
+              {/* Icon container with active glow */}
+              <div
                 className={cn(
-                  'transition-all duration-150',
-                  active && 'scale-110'
+                  'relative flex items-center justify-center w-10 h-10 rounded-2xl',
+                  'transition-all duration-200',
+                  active
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
                 )}
-                style={{
-                  width: 'var(--icon-md)', // 24px
-                  height: 'var(--icon-md)',
-                  color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                  strokeWidth: active ? '2.5' : '2',
-                }}
-              />
+              >
+                <Icon
+                  className={cn(
+                    'h-5 w-5 transition-transform duration-200',
+                    active && 'scale-110'
+                  )}
+                  strokeWidth={active ? 2.5 : 2}
+                />
+
+                {/* Subtle glow on active */}
+                {active && (
+                  <div className="absolute inset-0 rounded-2xl bg-primary/5 blur-md" />
+                )}
+              </div>
 
               {/* Label */}
               <span
                 className={cn(
-                  'transition-colors duration-150',
-                  active ? 'font-medium' : 'font-normal'
+                  'text-[10px] font-medium transition-colors duration-200',
+                  active ? 'text-primary' : 'text-muted-foreground'
                 )}
-                style={{
-                  fontSize: '10px',
-                  color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                }}
               >
                 {item.label}
               </span>
-
-              {/* Active indicator dot (top) */}
-              {active && (
-                <div
-                  className="absolute top-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full animate-in fade-in-0 zoom-in-50 duration-200"
-                  style={{
-                    background: 'var(--color-primary)',
-                  }}
-                />
-              )}
             </Link>
           );
         })}
       </div>
 
       {/* Safe area spacer for iOS */}
-      <div
-        className="h-[env(safe-area-inset-bottom)]"
-        style={{
-          background: 'var(--color-bg-card)',
-        }}
-      />
+      <div className="h-[env(safe-area-inset-bottom)] bg-background" />
     </nav>
   );
 }

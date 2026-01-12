@@ -56,8 +56,6 @@ export const PERMISSIONS = {
   BILLING_MANAGE_PROFILES: 'billing.manage_profiles',
   BILLING_APPLY_LATE_FEES: 'billing.apply_late_fees',
   BILLING_MANAGE_WALLETS: 'billing.manage_wallets',
-  BILLING_REQUEST_LATE_FEE_WAIVER: 'billing.request_late_fee_waiver',
-  BILLING_APPROVE_LATE_FEE_WAIVER: 'billing.approve_late_fee_waiver',
 
   // Security Module
   SECURITY_VIEW: 'security.view',
@@ -148,14 +146,6 @@ export const PERMISSIONS = {
   EMAIL_IMPORTS_TRIGGER: 'email_imports.trigger',
   EMAIL_IMPORTS_PROCESS: 'email_imports.process',
   EMAIL_IMPORTS_MANAGE_PASSWORDS: 'email_imports.manage_passwords',
-
-  // Two-Factor Authentication Module
-  TWO_FACTOR_VIEW_STATUS: 'two_factor.view_status',
-  TWO_FACTOR_ENABLE: 'two_factor.enable',
-  TWO_FACTOR_DISABLE: 'two_factor.disable',
-  TWO_FACTOR_MANAGE_POLICIES: 'two_factor.manage_policies',
-  TWO_FACTOR_VIEW_AUDIT_LOG: 'two_factor.view_audit_log',
-  TWO_FACTOR_RESET_USER: 'two_factor.reset_user',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];

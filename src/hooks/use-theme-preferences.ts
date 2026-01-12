@@ -59,45 +59,13 @@ export function useSetUserThemeOverride(context: ThemeContext) {
 
   return useMutation({
     mutationFn: (themeId: string | null) => setUserThemeOverride(context, themeId),
-
-    // ADD: Optimistic update for instant UI feedback
-    onMutate: async (newTheme) => {
-      // Cancel any outgoing refetches (so they don't overwrite optimistic update)
-      await queryClient.cancelQueries({ queryKey: ['user-theme-override', context] });
-      await queryClient.cancelQueries({ queryKey: ['effective-theme', context] });
-
-      // Snapshot the previous values for rollback
-      const previousOverride = queryClient.getQueryData(['user-theme-override', context]);
-      const previousEffective = queryClient.getQueryData(['effective-theme', context]);
-
-      // Optimistically update to the new value
-      queryClient.setQueryData(['user-theme-override', context], newTheme);
-      if (newTheme === null) {
-        // If clearing override, effective theme falls back to estate default
-        const estateTheme = queryClient.getQueryData(['estate-theme', context]);
-        queryClient.setQueryData(['effective-theme', context], estateTheme || 'default');
-      } else {
-        queryClient.setQueryData(['effective-theme', context], newTheme);
-      }
-
-      // Return context with previous values for rollback
-      return { previousOverride, previousEffective };
-    },
-
-    onError: (err: Error, newTheme, context) => {
-      // Rollback to previous values on error
-      if (context) {
-        queryClient.setQueryData(['user-theme-override', 'resident-portal'], context.previousOverride);
-        queryClient.setQueryData(['effective-theme', 'resident-portal'], context.previousEffective);
-      }
-      toast.error(`Failed to update theme: ${err.message}`);
-    },
-
     onSuccess: (_data, themeId) => {
-      // Invalidate queries to ensure data is fresh
       queryClient.invalidateQueries({ queryKey: ['user-theme-override', context] });
       queryClient.invalidateQueries({ queryKey: ['effective-theme', context] });
       toast.success(themeId === null ? 'Reset to estate default' : 'Personal theme updated');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update theme: ${error.message}`);
     },
   });
 }

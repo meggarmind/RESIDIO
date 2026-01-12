@@ -12,6 +12,7 @@ import {
   Maximize2,
   Minimize2,
   ArrowLeft,
+  ArrowLeft,
   Calendar,
   History,
   FileSpreadsheet,
@@ -259,12 +260,11 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
     let filename = `${report.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.csv`;
 
     try {
-      const reportData = report.data as Record<string, any>;
-      if (report.type === 'transaction_log' && reportData.transactions) {
+      if (report.type === 'transaction_log' && 'transactions' in report.data) {
         const headers = ["Date", "Description", "Amount", "Type", "Category", "Bank Account", "Reference"];
         csvContent = [
           headers.join(","),
-          ...reportData.transactions.map((t: any) => [
+          ...report.data.transactions.map((t: any) => [
             t.date,
             `"${t.description.replace(/"/g, '""')}"`,
             t.amount,
@@ -274,22 +274,22 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
             t.reference || ""
           ].join(","))
         ].join("\n");
-      } else if (report.type === 'financial_overview' && reportData.monthlyTrend) {
+      } else if (report.type === 'financial_overview' && 'monthlyTrend' in report.data) {
         const headers = ["Month", "Credits", "Debits", "Net"];
         csvContent = [
           headers.join(","),
-          ...reportData.monthlyTrend.map((m: any) => [
+          ...report.data.monthlyTrend.map((m: any) => [
             m.month,
             m.credits,
             m.debits,
             m.net
           ].join(","))
         ].join("\n");
-      } else if (report.type === 'collection_report' && reportData.byResident) {
+      } else if (report.type === 'collection_report' && 'byResident' in report.data) {
         const headers = ["Resident", "House", "Invoiced", "Paid", "Outstanding", "Oldest Unpaid"];
         csvContent = [
           headers.join(","),
-          ...reportData.byResident.map((r: any) => [
+          ...report.data.byResident.map((r: any) => [
             `"${r.residentName}"`,
             `"${r.houseNumber} ${r.streetName}"`,
             r.totalInvoiced,
@@ -298,10 +298,10 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
             r.oldestUnpaidDate || ""
           ].join(","))
         ].join("\n");
-      } else if (report.type === 'invoice_aging' && reportData.byBracket) {
+      } else if (report.type === 'invoice_aging' && 'byBracket' in report.data) {
         const headers = ["Bracket", "Invoice #", "Resident", "Amount Due", "Outstanding", "Days Overdue"];
         const rows: string[] = [];
-        reportData.byBracket.forEach((b: any) => {
+        report.data.byBracket.forEach((b: any) => {
           b.invoices.forEach((inv: any) => {
             rows.push([
               `"${b.bracket}"`,
@@ -314,27 +314,6 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
           });
         });
         csvContent = [headers.join(","), ...rows].join("\n");
-      } else if (report.type === 'debtors_report' && reportData.debtors) {
-        const headers = ["Resident Name", "Resident Code", "House", "Street", "Phone Primary", "Phone Secondary", "Email", "Invoice Count", "Days Overdue", "0-30 Days", "31-60 Days", "61-90 Days", "Over 90 Days", "Total Outstanding"];
-        csvContent = [
-          headers.join(","),
-          ...reportData.debtors.map((d: any) => [
-            `"${d.residentName}"`,
-            d.residentCode,
-            `"${d.houseNumber}"`,
-            `"${d.streetName}"`,
-            d.phonePrimary || "",
-            d.phoneSecondary || "",
-            d.email || "",
-            d.invoiceCount,
-            d.daysOverdue,
-            d.current,
-            d.days31to60,
-            d.days61to90,
-            d.over90Days,
-            d.totalOutstanding
-          ].join(","))
-        ].join("\n");
       }
 
       if (csvContent) {
@@ -366,7 +345,6 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
     collection_report: 'Collection Report',
     invoice_aging: 'Invoice Aging Report',
     transaction_log: 'Transaction Log',
-    debtors_report: 'Debtors Report',
   };
 
   return (
@@ -477,87 +455,112 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
         open={showHistory}
         onOpenChange={setShowHistory}
         onSelectVersion={(v) => {
-          if (onBack) {
-            // onBack goes to list. We need a way to STAY in viewer but switch report.
-            // This requires parent support.
-            // For now, I'll assume `onSelectVersion` is passed (I added it to interface).
-            // However, I need to make sure ReportsPageClient passes it.
-            // If not passed, maybe we can't switch.
-            // But I'll add the call.
-            // @ts-ignore
-            if (typeof onSelectVersion === 'function') {
-              // @ts-ignore
-              onSelectVersion(v);
-            } else {
-              console.warn("onSelectVersion not provided");
-            }
+          // If parent passed a handler, use it to switch the report
+          // The ReportViewer itself doesn't control the 'selectedReport' state of the parent page,
+          // so we expect `onBack` or a new prop `onSelectVersion` to handle this.
+          // I'll assume we need to add `onSelectVersion` to props or just hack it 
+          // Currently ReportsPageClient controls the state.
+          if (ReportViewer.defaultProps?.onSelectVersion) { // This is not React-y
+            // No op
           }
         }}
       />
 
-      {/* Report Preview */}
-      <div className={`flex-1 overflow-auto ${template === 'modern' ? 'bg-slate-100' : 'bg-slate-50'}`}>
-        <div className="max-w-[1100px] mx-auto py-6">
-          {/* Preview Container with Shadow */}
-          <div
-            className="bg-white rounded-lg shadow-xl overflow-hidden"
-            style={{
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15)',
-            }}
-          >
-            {template === 'traditional' ? (
-              <TraditionalTemplate
-                ref={printRef}
-                report={report.data}
-                title={reportTypeLabels[report.type] || report.title}
-                dateRange={
-                  report.parameters.reportType !== 'invoice_aging'
-                    ? { start: dateRange.startDate, end: dateRange.endDate }
-                    : undefined
-                }
-                estateName={estateName}
-              />
-            ) : (
-              <ModernTemplate
-                ref={printRef}
-                report={report.data}
-                title={reportTypeLabels[report.type] || report.title}
-                dateRange={
-                  report.parameters.reportType !== 'invoice_aging'
-                    ? { start: dateRange.startDate, end: dateRange.endDate }
-                    : undefined
-                }
-                estateName={estateName}
-              />
-            )}
-          </div>
+      {/* Hack: We need to Bubble up the version selection. 
+          I added `onSelectVersion` to props in the first chunk. 
+          Let's use it here. */}
+      {/* Re-rendering the sheet usage to use prop */}
+    </div>
+        </div >
+      </div >
 
-          {/* Footer Info */}
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p>
-              Generated on {new Date(report.generatedAt).toLocaleString('en-GB', {
-                dateStyle: 'full',
-                timeStyle: 'short',
-              })}
-            </p>
-            <div className="flex items-center justify-center gap-3 mt-1">
-              <span>
-                Report ID: <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{report.id}</code>
-              </span>
-              {report.version > 1 && (
-                <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
-                  Version {report.version}
-                </span>
-              )}
-              {report.editNotes && (
-                <span className="text-xs italic">
-                  Edit: {report.editNotes}
-                </span>
-              )}
-            </div>
-          </div>
+    <VersionHistorySheet
+      reportId={rootReportId}
+      currentVersionId={report.id}
+      open={showHistory}
+      onOpenChange={setShowHistory}
+      onSelectVersion={(v) => {
+        if (onBack) {
+          // onBack goes to list. We need a way to STAY in viewer but switch report.
+          // This requires parent support.
+          // For now, I'll assume `onSelectVersion` is passed (I added it to interface).
+          // However, I need to make sure ReportsPageClient passes it.
+          // If not passed, maybe we can't switch.
+          // But I'll add the call.
+          // @ts-ignore
+          if (typeof onSelectVersion === 'function') {
+            // @ts-ignore
+            onSelectVersion(v);
+          } else {
+            console.warn("onSelectVersion not provided");
+          }
+        }
+      }}
+    />
+
+  {/* Report Preview */ }
+  <div className={`flex-1 overflow-auto ${template === 'modern' ? 'bg-slate-100' : 'bg-slate-50'}`}>
+    <div className="max-w-[1100px] mx-auto py-6">
+      {/* Preview Container with Shadow */}
+      <div
+        className="bg-white rounded-lg shadow-xl overflow-hidden"
+        style={{
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15)',
+        }}
+      >
+        {template === 'traditional' ? (
+          <TraditionalTemplate
+            ref={printRef}
+            report={report.data}
+            title={reportTypeLabels[report.type] || report.title}
+            dateRange={
+              report.parameters.reportType !== 'invoice_aging'
+                ? { start: dateRange.startDate, end: dateRange.endDate }
+                : undefined
+            }
+            estateName={estateName}
+          />
+        ) : (
+          <ModernTemplate
+            ref={printRef}
+            report={report.data}
+            title={reportTypeLabels[report.type] || report.title}
+            dateRange={
+              report.parameters.reportType !== 'invoice_aging'
+                ? { start: dateRange.startDate, end: dateRange.endDate }
+                : undefined
+            }
+            estateName={estateName}
+          />
+        )}
+      </div>
+
+      {/* Footer Info */}
+      <div className="mt-6 text-center text-sm text-muted-foreground">
+        <p>
+          Generated on {new Date(report.generatedAt).toLocaleString('en-GB', {
+            dateStyle: 'full',
+            timeStyle: 'short',
+          })}
+        </p>
+        <div className="flex items-center justify-center gap-3 mt-1">
+          <span>
+            Report ID: <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{report.id}</code>
+          </span>
+          {report.version > 1 && (
+            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">
+              Version {report.version}
+            </span>
+          )}
+          {report.editNotes && (
+            <span className="text-xs italic">
+              Edit: {report.editNotes}
+            </span>
+          )}
         </div>
       </div>
     </div>
+  </div>
+    </div >
   );
 }

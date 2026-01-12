@@ -2,10 +2,18 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Copy, Check, Eye, EyeOff } from 'lucide-react';
+import { Copy, Check, Eye, EyeOff, Share2, MessageCircle } from 'lucide-react';
 import { AccessCodeTypeBadge, ValidityBadge } from './security-badges';
 import { formatDateTime } from '@/lib/utils';
 import type { AccessCode } from '@/types/database';
+import { getShareMessage, getWhatsAppShareLink } from '@/lib/utils/share';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
 
 interface AccessCodeDisplayProps {
   code: string;
@@ -16,6 +24,7 @@ interface AccessCodeDisplayProps {
   showValidity?: boolean;
   size?: 'sm' | 'md' | 'lg';
   masked?: boolean;
+  showShare?: boolean;
 }
 
 export function AccessCodeDisplay({
@@ -27,6 +36,7 @@ export function AccessCodeDisplay({
   showValidity = false,
   size = 'md',
   masked: initialMasked = false,
+  showShare = true, // Default to true if not specified, or false? Let's default true as it's a useful feature.
 }: AccessCodeDisplayProps) {
   const [copied, setCopied] = useState(false);
   const [masked, setMasked] = useState(initialMasked);
@@ -35,6 +45,28 @@ export function AccessCodeDisplay({
     await navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    toast.success('Code copied to clipboard');
+  };
+
+  const handleShareWhatsApp = () => {
+    const mockAccessCode = {
+      code,
+      valid_until: validUntil ?? null,
+    } as AccessCode;
+
+    const link = getWhatsAppShareLink(mockAccessCode);
+    window.open(link, '_blank');
+  };
+
+  const handleCopyInvitation = async () => {
+    const mockAccessCode = {
+      code,
+      valid_until: validUntil ?? null,
+    } as AccessCode;
+
+    const message = getShareMessage(mockAccessCode);
+    await navigator.clipboard.writeText(message);
+    toast.success('Invitation copied to clipboard');
   };
 
   const sizeClasses = {
@@ -49,9 +81,8 @@ export function AccessCodeDisplay({
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <code
-          className={`font-mono bg-muted rounded-md border ${sizeClasses[size]} ${
-            !isActive ? 'opacity-50 line-through' : ''
-          }`}
+          className={`font-mono bg-muted rounded-md border ${sizeClasses[size]} ${!isActive ? 'opacity-50 line-through' : ''
+            }`}
         >
           {displayCode}
         </code>
@@ -82,6 +113,31 @@ export function AccessCodeDisplay({
               <Copy className="h-4 w-4" />
             )}
           </Button>
+        )}
+
+        {showShare && isActive && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Share access code"
+              >
+                <Share2 className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleShareWhatsApp}>
+                <MessageCircle className="mr-2 h-4 w-4" />
+                Share via WhatsApp
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleCopyInvitation}>
+                <Copy className="mr-2 h-4 w-4" />
+                Copy Invitation
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 

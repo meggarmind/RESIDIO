@@ -22,6 +22,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableHeader,
+  TableRow,
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,16 +57,13 @@ import {
   Home,
   Download,
   Loader2,
-  ScrollText,
 } from 'lucide-react';
-import { StatementGeneratorDialog } from '@/components/billing/statement-generator-dialog';
 import { formatCurrency, cn, getPropertyShortname } from '@/lib/utils';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useLayoutTheme } from '@/contexts/layout-theme-context';
 import { payInvoiceWithWallet } from '@/actions/billing/pay-invoice-with-wallet';
 import { disputeInvoice } from '@/actions/billing/dispute-invoice';
-import { PaystackPayButton } from '@/components/payments/paystack-pay-button';
 import type { InvoiceWithDetails, InvoiceStatus } from '@/types/database';
 
 // Spring physics for smooth, professional animations
@@ -101,13 +100,13 @@ const rowVariants = {
   }),
 };
 
-// Status configuration with theme-aware colors
-const statusConfig: Record<InvoiceStatus, { icon: React.ElementType; label: string; textColor: string; bgColor: string }> = {
-  unpaid: { icon: AlertCircle, label: 'Unpaid', textColor: 'var(--status-warning)', bgColor: 'var(--status-warning-subtle)' },
-  partially_paid: { icon: Clock, label: 'Partial', textColor: 'var(--status-info)', bgColor: 'var(--status-info-subtle)' },
-  paid: { icon: CheckCircle2, label: 'Paid', textColor: 'var(--status-success)', bgColor: 'var(--status-success-subtle)' },
-  void: { icon: XCircle, label: 'Void', textColor: 'var(--text-disabled)', bgColor: 'var(--bg-secondary)' },
-  overdue: { icon: AlertCircle, label: 'Overdue', textColor: 'var(--status-error)', bgColor: 'var(--status-error-subtle)' },
+// Status configuration
+const statusConfig: Record<InvoiceStatus, { icon: React.ElementType; label: string; color: string }> = {
+  unpaid: { icon: AlertCircle, label: 'Unpaid', color: 'text-amber-600 bg-amber-500/10' },
+  partially_paid: { icon: Clock, label: 'Partial', color: 'text-blue-600 bg-blue-500/10' },
+  paid: { icon: CheckCircle2, label: 'Paid', color: 'text-emerald-600 bg-emerald-500/10' },
+  void: { icon: XCircle, label: 'Void', color: 'text-muted-foreground bg-muted' },
+  overdue: { icon: AlertCircle, label: 'Overdue', color: 'text-red-600 bg-red-500/10' },
 };
 
 /**
@@ -150,19 +149,6 @@ export default function ResidentInvoicesPage() {
   const unpaidCount = invoices.filter(i => ['unpaid', 'partially_paid', 'overdue'].includes(i.status)).length;
   const paidCount = invoices.filter(i => i.status === 'paid').length;
 
-  // Extract unique houses from invoices for statement generator
-  const uniqueHouses = invoices.reduce((acc, invoice) => {
-    if (invoice.house && !acc.find(h => h.id === invoice.house?.id)) {
-      acc.push({
-        id: invoice.house.id,
-        house_number: invoice.house.house_number,
-        short_name: invoice.house.short_name,
-        street: invoice.house.street,
-      });
-    }
-    return acc;
-  }, [] as Array<{ id: string; house_number: string; short_name?: string | null; street?: { name: string } | null }>);
-
   if (isLoading) {
     return <InvoicesSkeleton />;
   }
@@ -174,30 +160,15 @@ export default function ResidentInvoicesPage() {
     >
       <div className={cn('space-y-6', isExpanded && 'space-y-8')}>
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className={cn(
-              'text-2xl font-bold tracking-tight',
-              isExpanded && 'text-3xl xl:text-4xl'
-            )}>Payments</h1>
-            <p className={cn(
-              'text-muted-foreground',
-              isExpanded && 'text-base'
-            )}>View your invoices and payment history</p>
-          </div>
-          {residentId && (
-            <StatementGeneratorDialog
-              residentId={residentId}
-              houses={uniqueHouses}
-              trigger={
-                <Button variant="outline" size="sm" className="gap-2 shrink-0">
-                  <ScrollText className="h-4 w-4" />
-                  <span className="hidden sm:inline">Account Statement</span>
-                  <span className="sm:hidden">Statement</span>
-                </Button>
-              }
-            />
-          )}
+        <div className="space-y-1">
+          <h1 className={cn(
+            'text-2xl font-bold tracking-tight',
+            isExpanded && 'text-3xl xl:text-4xl'
+          )}>Payments</h1>
+          <p className={cn(
+            'text-muted-foreground',
+            isExpanded && 'text-base'
+          )}>View your invoices and payment history</p>
         </div>
 
         {/* Summary Cards */}
@@ -211,16 +182,11 @@ export default function ResidentInvoicesPage() {
             animate="visible"
             custom={0}
           >
-            <Card
-              style={{
-                background: `linear-gradient(to bottom right, var(--status-error-subtle), transparent)`,
-                borderColor: 'var(--status-error)',
-              }}
-            >
+            <Card className="bg-gradient-to-br from-red-500/10 to-orange-500/5 border-red-500/20">
               <CardContent className="p-4">
                 <div className="space-y-1">
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Outstanding</p>
-                  <p className="text-xl font-bold" style={{ color: 'var(--status-error)' }}>
+                  <p className="text-xs text-muted-foreground">Outstanding</p>
+                  <p className="text-xl font-bold text-red-600 dark:text-red-400">
                     <AnimatedCounter
                       value={indebtedness?.totalUnpaid || 0}
                       formatter={formatCurrency}
@@ -237,16 +203,11 @@ export default function ResidentInvoicesPage() {
             animate="visible"
             custom={1}
           >
-            <Card
-              style={{
-                background: `linear-gradient(to bottom right, var(--status-success-subtle), transparent)`,
-                borderColor: 'var(--status-success)',
-              }}
-            >
+            <Card className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 border-emerald-500/20">
               <CardContent className="p-4">
                 <div className="space-y-1">
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Wallet Balance</p>
-                  <p className="text-xl font-bold" style={{ color: 'var(--status-success)' }}>
+                  <p className="text-xs text-muted-foreground">Wallet Balance</p>
+                  <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
                     <AnimatedCounter
                       value={wallet?.balance || 0}
                       formatter={formatCurrency}
@@ -368,36 +329,18 @@ function InvoiceCard({
       custom={index}
     >
       <Card
-        className="cursor-pointer transition-all active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        className="cursor-pointer hover:border-primary/30 transition-colors active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         onClick={onClick}
         onKeyDown={handleKeyDown}
         role="button"
         tabIndex={0}
         aria-label={`Invoice ${invoice.invoice_number}, ${config.label}`}
-        style={{
-          backgroundColor: 'var(--bg-card)',
-          borderColor: 'var(--border-default)',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
-          e.currentTarget.style.borderColor = 'var(--border-hover)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--bg-card)';
-          e.currentTarget.style.borderColor = 'var(--border-default)';
-        }}
       >
         <CardContent className="p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               {/* Status Icon */}
-              <div
-                className="p-2 rounded-lg shrink-0"
-                style={{
-                  color: config.textColor,
-                  backgroundColor: config.bgColor,
-                }}
-              >
+              <div className={cn('p-2 rounded-lg shrink-0', config.color)}>
                 <StatusIcon className="h-4 w-4" />
               </div>
 
@@ -419,19 +362,17 @@ function InvoiceCard({
             {/* Amount & Arrow */}
             <div className="flex items-center gap-2 shrink-0">
               <div className="text-right">
-                <p
-                  className="font-semibold"
-                  style={{
-                    color: remaining > 0 ? 'var(--status-error)' : 'var(--text-secondary)'
-                  }}
-                >
+                <p className={cn(
+                  'font-semibold',
+                  remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'
+                )}>
                   {formatCurrency(remaining > 0 ? remaining : invoice.amount_due || 0)}
                 </p>
                 <StatusBadge variant={getStatusVariant(invoice.status)}>
                   {config.label}
                 </StatusBadge>
               </div>
-              <ChevronRight className="h-4 w-4" style={{ color: 'var(--text-muted)' }} />
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </div>
           </div>
         </CardContent>
@@ -520,7 +461,7 @@ function InvoiceTable({
                 <TableCell className="text-right font-medium">
                   {formatCurrency(invoice.amount_due || 0)}
                 </TableCell>
-                <TableCell className="text-right" style={{ color: 'var(--status-success)' }}>
+                <TableCell className="text-right text-emerald-600">
                   {formatCurrency(invoice.amount_paid || 0)}
                 </TableCell>
                 <TableCell>
@@ -744,13 +685,10 @@ function InvoiceDetailSheetContent({
       <ResponsiveSheetBody>
         <div className="space-y-6 pb-8">
           {/* Status Badge */}
-          <div
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium"
-            style={{
-              color: config.textColor,
-              backgroundColor: config.bgColor,
-            }}
-          >
+          <div className={cn(
+            'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium',
+            config.color
+          )}>
             <StatusIcon className="h-4 w-4" />
             {config.label}
           </div>
@@ -759,28 +697,23 @@ function InvoiceDetailSheetContent({
           <div className="grid grid-cols-2 gap-4">
             <Card>
               <CardContent className="p-4">
-                <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Total Due</p>
-                <p className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{formatCurrency(invoice.amount_due || 0)}</p>
+                <p className="text-xs text-muted-foreground mb-1">Total Due</p>
+                <p className="text-xl font-bold">{formatCurrency(invoice.amount_due || 0)}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4">
-                <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Amount Paid</p>
-                <p className="text-xl font-bold" style={{ color: 'var(--status-success)' }}>{formatCurrency(invoice.amount_paid || 0)}</p>
+                <p className="text-xs text-muted-foreground mb-1">Amount Paid</p>
+                <p className="text-xl font-bold text-emerald-600">{formatCurrency(invoice.amount_paid || 0)}</p>
               </CardContent>
             </Card>
           </div>
 
           {remaining > 0 && (
-            <Card
-              style={{
-                backgroundColor: 'var(--status-error-subtle)',
-                borderColor: 'var(--status-error)',
-              }}
-            >
+            <Card className="bg-red-500/5 border-red-500/20">
               <CardContent className="p-4">
-                <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Remaining Balance</p>
-                <p className="text-xl font-bold" style={{ color: 'var(--status-error)' }}>{formatCurrency(remaining)}</p>
+                <p className="text-xs text-muted-foreground mb-1">Remaining Balance</p>
+                <p className="text-xl font-bold text-red-600">{formatCurrency(remaining)}</p>
               </CardContent>
             </Card>
           )}
@@ -850,19 +783,14 @@ function InvoiceDetailSheetContent({
 
           {/* Pay with Wallet Button */}
           {maxPayable > 0 && walletBalance > 0 ? (
-            <Card
-              style={{
-                backgroundColor: 'var(--status-success-subtle)',
-                borderColor: 'var(--status-success)',
-              }}
-            >
+            <Card className="bg-emerald-500/5 border-emerald-500/20">
               <CardContent className="p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Wallet className="h-4 w-4" style={{ color: 'var(--status-success)' }} />
-                    <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Pay with Wallet</span>
+                    <Wallet className="h-4 w-4 text-emerald-600" />
+                    <span className="text-sm font-medium">Pay with Wallet</span>
                   </div>
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <span className="text-xs text-muted-foreground">
                     Balance: {formatCurrency(walletBalance)}
                   </span>
                 </div>
@@ -915,32 +843,16 @@ function InvoiceDetailSheetContent({
                 )}
               </CardContent>
             </Card>
-          ) : null}
-
-          {/* Pay Online with Paystack */}
-          {!isPaid && remaining > 0 && (
-            <Card
-              style={{
-                background: `linear-gradient(to bottom right, var(--status-success-subtle), transparent)`,
-                borderColor: 'var(--status-success)',
-              }}
-            >
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" style={{ color: 'var(--status-success)' }} />
-                  <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Pay Online</span>
-                </div>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Pay securely with card, bank transfer, or USSD
-                </p>
-                <PaystackPayButton
-                  invoiceId={invoice.id}
-                  amount={remaining}
-                  invoiceNumber={invoice.invoice_number}
-                />
+          ) : !isPaid && walletBalance <= 0 ? (
+            <Card className="bg-muted/50 border-dashed">
+              <CardContent className="p-4 text-center">
+                <p className="text-sm font-medium text-muted-foreground">Insufficient Wallet Balance</p>
+                <Button variant="link" className="h-auto p-0 text-xs mt-1">
+                  Top up wallet to pay
+                </Button>
               </CardContent>
             </Card>
-          )}
+          ) : null}
 
           {/* Download Receipt Button */}
           <Button

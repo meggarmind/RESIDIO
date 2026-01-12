@@ -103,30 +103,24 @@ export default function WalletPage() {
         animate="visible"
         custom={0}
       >
-        <Card
-          style={{
-            background: `linear-gradient(to bottom right, var(--accent-primary), var(--accent-secondary))`,
-            border: 'none',
-            color: 'var(--text-on-accent)',
-          }}
-        >
+        <Card className="bg-gradient-to-br from-[#111827] to-[#1f2937] border-0 text-white">
           <CardHeader>
-            <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-on-accent)', opacity: 0.7 }}>Current Balance</CardTitle>
+            <CardTitle className="text-white/70 text-sm font-medium">Current Balance</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-end justify-between">
               <div>
-                <div className="text-5xl font-bold mb-2" style={{ color: 'var(--text-on-accent)' }}>
+                <div className="text-5xl font-bold mb-2">
                   <AnimatedCounter
                     value={walletBalance}
                     formatter={formatCurrency}
                   />
                 </div>
-                <p className="text-sm" style={{ color: 'var(--text-on-accent)', opacity: 0.6 }}>
+                <p className="text-white/60 text-sm">
                   Available for invoice payments
                 </p>
               </div>
-              <WalletIcon className="h-16 w-16" style={{ color: 'var(--text-on-accent)', opacity: 0.2 }} />
+              <WalletIcon className="h-16 w-16 text-white/20" />
             </div>
           </CardContent>
         </Card>
@@ -218,29 +212,18 @@ export default function WalletPage() {
                 {filteredTransactions.map((transaction, index) => (
                   <motion.div
                     key={transaction.id}
-                    className="flex items-center justify-between p-4 rounded-lg transition-colors"
-                    style={{
-                      borderWidth: '1px',
-                      borderColor: 'var(--border-default)',
-                      backgroundColor: 'var(--bg-card)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--bg-card)';
-                    }}
+                    className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-accent/50 transition-colors"
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
                   >
                     <div className="flex items-center gap-4">
                       <div
-                        className="h-10 w-10 rounded-full flex items-center justify-center"
-                        style={{
-                          backgroundColor: transaction.type === 'credit' ? 'var(--status-success-subtle)' : 'var(--status-error-subtle)',
-                          color: transaction.type === 'credit' ? 'var(--status-success)' : 'var(--status-error)',
-                        }}
+                        className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                          transaction.type === 'credit'
+                            ? 'bg-green-500/10 text-green-600'
+                            : 'bg-red-500/10 text-red-600'
+                        }`}
                       >
                         {transaction.type === 'credit' ? (
                           <ArrowDownRight className="h-5 w-5" />
@@ -249,26 +232,27 @@ export default function WalletPage() {
                         )}
                       </div>
                       <div>
-                        <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
+                        <p className="font-medium text-bill-text">
                           {transaction.type === 'credit' ? 'Top Up' : 'Payment'}
                         </p>
-                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                        <p className="text-sm text-bill-text-secondary">
                           {transaction.created_at && format(new Date(transaction.created_at), 'MMM dd, yyyy')}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
                       <p
-                        className="font-semibold"
-                        style={{
-                          color: transaction.type === 'credit' ? 'var(--status-success)' : 'var(--status-error)'
-                        }}
+                        className={`font-semibold ${
+                          transaction.type === 'credit'
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                        }`}
                       >
                         {transaction.type === 'credit' ? '+' : '-'}
                         {formatCurrency(transaction.amount || 0)}
                       </p>
                       {transaction.description && (
-                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                        <p className="text-xs text-bill-text-secondary">
                           {transaction.description}
                         </p>
                       )}

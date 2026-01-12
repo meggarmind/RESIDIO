@@ -67,9 +67,7 @@ export async function sendCorrectionNotification(
   const houseDisplay = house
     ? house.short_name || `House ${house.house_number}`
     : '';
-  // Supabase returns street as array due to foreign key
-  const streetData = house?.street ? (Array.isArray(house.street) ? house.street[0] : house.street) : null;
-  const streetDisplay = (streetData as { name: string } | null)?.name || '';
+  const streetDisplay = house?.street?.name || '';
 
   // 3. Format correction summary
   const creditSummary = creditNotes
@@ -248,13 +246,13 @@ Please do not reply to this email.
   // 5. Send notification
   const result = await sendImmediate({
     channel: 'email',
-    recipientId: resident.id,
-    recipientEmail: resident.email,
+    category: 'billing',
+    recipient_id: resident.id,
+    recipient_email: resident.email,
     subject,
     body: textBody,
-    htmlBody: htmlBody,
+    html_body: htmlBody,
     metadata: {
-      category: 'billing',
       original_invoice_id: originalInvoice.id,
       original_invoice_number: originalInvoice.invoice_number,
       credit_notes: creditNotes.map(n => n.id),

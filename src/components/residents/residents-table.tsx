@@ -356,10 +356,10 @@ export function ResidentsTable() {
       )}
 
       {/* Table */}
-      <div className="rounded-xl border overflow-hidden shadow-soft animate-slide-up">
-        <Table variant="modern">
+      <div className="rounded-md border">
+        <Table>
           <TableHeader>
-            <TableRow interactive={false}>
+            <TableRow>
               <TableHead>Code</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Phone</TableHead>

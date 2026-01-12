@@ -4,6 +4,27 @@
 
 ## Current Phase: Phase 16 - Community Communication ✅ COMPLETE
 
+## 🗺️ Roadmap Alignment & Concurrent Tracks
+*Use this section to identify independent work streams available for parallel execution.*
+
+### 🟢 Track A: Resident Experience (Frontend/Integration Focus)
+**Primary Scope:** Phase 12 (Resident View Portal) + New Features
+- [ ] **Resident Portal**: Read-only dashboard, payment history, property details (`/portal/*`)
+- [ ] **Smart Access Sharing**: WhatsApp integration for guest codes
+- [ ] **Onboarding Wizard**: Self-service profile completion for new residents
+- **Dependencies:** Core Auth ✅, Resident Registry ✅. *Independent of Admin Financials.*
+
+### 🔵 Track B: Admin Financials (Backend/Reporting Focus)
+**Primary Scope:** Phase 4 (Financial Reports Completion) + Phase 13 (Analytics Polish)
+- [ ] **Report Enhancements**: Recategorization, version history, editing capabilities
+- [ ] **Recurring Configurations**: Automation settings for reports
+- [ ] **Notifications**: Subscription system for financial events
+- **Dependencies:** Payment Records ✅. *Isolated to Admin Dashboard.*
+
+### 🟣 Track C: Independent Modules
+- [ ] **Digital AGM & E-Voting**: Standalone module (Phase 17)
+- [ ] **UI/UX Polish**: Cross-cutting improvements from Review Plan (Payment Flow, Page Polish)
+
 ### Recent Session Work (2026-01-08): UI/UX Review Phase 2
 
 #### Card Variant System (UI/UX Phase 2) ✅

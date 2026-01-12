@@ -611,7 +611,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        {RESIDENT_ROLE_LABELS[residentRole as ResidentRole]} must be sponsored by an Owner-Occupier, Property Owner, or Renter of the same house
+                        {RESIDENT_ROLE_LABELS[residentRole as ResidentRole]} must be sponsored by a Resident Landlord, Non-Resident Landlord, or Tenant of the same house
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

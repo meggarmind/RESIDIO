@@ -7,14 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { HouseWithStreet, ResidentRole } from '@/types/database';
 
-// Role labels for display (synced with RESIDENT_ROLE_LABELS in database.ts)
+// Role labels for display
 const roleLabels: Record<ResidentRole, string> = {
-  resident_landlord: 'Owner-Occupier',
-  non_resident_landlord: 'Property Owner',
-  tenant: 'Renter',
+  resident_landlord: 'Landlord',
+  non_resident_landlord: 'Non-Resident Landlord',
+  tenant: 'Tenant',
   developer: 'Developer',
-  co_resident: 'Occupant',
-  household_member: 'Family Member',
+  co_resident: 'Co-Resident',
+  household_member: 'Household Member',
   domestic_staff: 'Domestic Staff',
   caretaker: 'Caretaker',
   contractor: 'Contractor',

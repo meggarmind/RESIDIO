@@ -301,7 +301,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                             </SelectContent>
                                         </Select>
                                         <p className="text-xs text-muted-foreground">
-                                            {RESIDENT_ROLE_LABELS[selectedRole]} must be sponsored by a Property Owner, Owner-Occupier, or Renter
+                                            {RESIDENT_ROLE_LABELS[selectedRole]} must be sponsored by a landlord, owner-occupier, or tenant
                                         </p>
                                     </div>
                                 )}

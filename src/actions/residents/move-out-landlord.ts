@@ -57,7 +57,7 @@ export async function moveOutLandlord(
   if (assignment.resident_role !== 'resident_landlord') {
     return {
       success: false,
-      error: `Only Owner-Occupiers can use Move Out. This resident is a ${assignment.resident_role}.`
+      error: `Only Resident Landlords can use Move Out. This resident is a ${assignment.resident_role}.`
     };
   }
 
@@ -128,7 +128,7 @@ export async function moveOutLandlord(
         event_type: 'role_change',
         previous_role: 'resident_landlord' as ResidentRole,
         event_date: today,
-        notes: notes || 'Owner-Occupier moved out, converted to Property Owner',
+        notes: notes || 'Resident Landlord moved out, converted to Non-Resident Landlord',
         is_current: true,
         created_by: user.id,
       });
@@ -141,7 +141,7 @@ export async function moveOutLandlord(
         resident_role: 'co_resident' as ResidentRole, // Generic, actual role will be in the record
         event_type: 'move_out' as const,
         event_date: today,
-        notes: 'Removed due to Owner-Occupier move-out',
+        notes: 'Removed due to Resident Landlord move-out',
         is_current: false,
         created_by: user.id,
       }));

@@ -35,7 +35,7 @@ export async function verifyPaystackPayment(
   if (!validation.success) {
     return {
       success: false,
-      error: validation.error.errors[0]?.message || 'Invalid reference',
+      error: validation.error.issues[0]?.message || 'Invalid reference',
     };
   }
 

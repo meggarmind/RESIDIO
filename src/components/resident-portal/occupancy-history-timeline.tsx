@@ -41,14 +41,14 @@ const EVENT_COLORS: Record<OwnershipEventType, string> = {
   role_change: 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400',
 };
 
-// Role labels (synced with RESIDENT_ROLE_LABELS in database.ts)
+// Role labels
 const ROLE_LABELS: Record<ResidentRole, string> = {
-  resident_landlord: 'Owner-Occupier',
-  non_resident_landlord: 'Property Owner',
-  tenant: 'Renter',
+  resident_landlord: 'Landlord',
+  non_resident_landlord: 'Non-Resident Landlord',
+  tenant: 'Tenant',
   developer: 'Developer',
-  co_resident: 'Occupant',
-  household_member: 'Family Member',
+  co_resident: 'Co-Resident',
+  household_member: 'Household Member',
   domestic_staff: 'Domestic Staff',
   caretaker: 'Caretaker',
   contractor: 'Contractor',

@@ -96,59 +96,21 @@ async function sendViaEmail(
 }
 
 /**
- * Send a notification via SMS using Termii
+ * Send a notification via SMS (NOT YET IMPLEMENTED)
+ *
+ * To implement SMS:
+ * 1. Add SMS gateway integration (e.g., Twilio, Africa's Talking)
+ * 2. Implement this function
+ * 3. Add 'sms' to IMPLEMENTED_CHANNELS in types.ts
  */
 async function sendViaSms(
-  item: NotificationQueueItem
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _item: NotificationQueueItem
 ): Promise<SendNotificationResult> {
-  // Check if SMS is globally enabled
-  const smsEnabled = await getSettingValue('sms_enabled');
-  if (smsEnabled === false) {
-    return {
-      success: false,
-      error: 'SMS notifications are disabled in system settings',
-    };
-  }
-
-  // Validate recipient phone
-  if (!item.recipient_phone) {
-    return {
-      success: false,
-      error: 'No recipient phone number provided',
-    };
-  }
-
-  try {
-    // Dynamic import to avoid circular dependencies
-    const { sendSms } = await import('@/lib/sms/send-sms');
-
-    const result = await sendSms({
-      to: {
-        phone: item.recipient_phone,
-        residentId: item.recipient_id,
-      },
-      message: item.body,
-      smsType: 'notification',
-      metadata: item.metadata as Record<string, unknown> | undefined,
-    });
-
-    if (!result.success) {
-      return {
-        success: false,
-        error: result.error,
-      };
-    }
-
-    return {
-      success: true,
-      externalId: result.messageId,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error sending SMS',
-    };
-  }
+  return {
+    success: false,
+    error: 'SMS notifications are not yet implemented. Coming soon!',
+  };
 }
 
 /**

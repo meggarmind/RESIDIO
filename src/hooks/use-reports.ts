@@ -103,7 +103,6 @@ const reportTypeLabels: Record<ReportRequestFormData['reportType'], string> = {
     collection_report: 'Collection Report',
     invoice_aging: 'Invoice Aging Report',
     transaction_log: 'Transaction Log',
-    debtors_report: 'Debtors Report',
 };
 
 export function useGenerateReport() {

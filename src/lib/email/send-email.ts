@@ -107,7 +107,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
         residentId: recipient.residentId,
         emailType: options.emailType,
         subject: options.subject,
-        status: 'debug',
+        status: 'DEBUG_MODE',
         metadata: {
           ...options.metadata,
           original_recipient: recipient.email,

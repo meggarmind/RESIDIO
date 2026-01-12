@@ -2,7 +2,7 @@
 
 import { BillingProfileForm } from '@/components/billing/billing-profile-form';
 import { BillingProfileEditDialog } from '@/components/billing/billing-profile-edit-dialog';
-import { useBillingProfiles, useDeleteBillingProfile, useDevelopmentLevyProfiles, useDuplicateBillingProfile, useInvoiceGenerationDay, useUpdateInvoiceGenerationDay, useAutoGenerateEnabled, useUpdateAutoGenerateEnabled, useLateFeeWaivers, usePendingWaiverCount, useApproveLateFeeWaiver, useRejectLateFeeWaiver } from '@/hooks/use-billing';
+import { useBillingProfiles, useDeleteBillingProfile, useDevelopmentLevyProfiles, useDuplicateBillingProfile, useInvoiceGenerationDay, useUpdateInvoiceGenerationDay, useAutoGenerateEnabled, useUpdateAutoGenerateEnabled } from '@/hooks/use-billing';
 import { useBillingSettings, useUpdateSetting, useGenerateRetroactiveLevies, useCurrentDevelopmentLevyProfileId, useSetCurrentDevelopmentLevyProfileId } from '@/hooks/use-settings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,9 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Building, Users, Clock, Loader2, Pencil, Landmark, CheckCircle, Copy, AlertTriangle, Info, DollarSign, Bell, CalendarClock, FileX2, Check, X } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
+import { Trash2, Building, Users, Clock, Loader2, Pencil, Landmark, CheckCircle, Copy, AlertTriangle, Info, DollarSign, Bell, CalendarClock } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -30,8 +28,6 @@ import {
 import { useState, useMemo } from 'react';
 import { BILLABLE_ROLE_OPTIONS, BILLING_TARGET_LABELS } from '@/types/database';
 import { useApplyLateFees } from '@/hooks/use-billing';
-import { formatDistanceToNow } from 'date-fns';
-import type { LateFeeWaiverWithDetails } from '@/types/database';
 
 const NONE_VALUE = '_none';
 
@@ -52,14 +48,6 @@ export default function BillingSettingsPage() {
     const updateAutoGenerateMutation = useUpdateAutoGenerateEnabled();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editProfileId, setEditProfileId] = useState<string | null>(null);
-    const [waiverReviewNotes, setWaiverReviewNotes] = useState('');
-    const [reviewingWaiverId, setReviewingWaiverId] = useState<string | null>(null);
-
-    // Late fee waiver hooks
-    const { data: waivers, isLoading: waiversLoading } = useLateFeeWaivers({ status: 'pending' });
-    const { data: pendingWaiverCount } = usePendingWaiverCount();
-    const approveWaiverMutation = useApproveLateFeeWaiver();
-    const rejectWaiverMutation = useRejectLateFeeWaiver();
 
     // Reminder days options
     const REMINDER_DAY_OPTIONS = [
@@ -131,19 +119,6 @@ export default function BillingSettingsPage() {
         }
         if (typeof value === 'number') return value;
         return 7;
-    };
-
-    const getLateFeeAutoApply = (): boolean => {
-        return settingsMap.late_fee_auto_apply === true;
-    };
-
-    const getLateFeeApplicationDay = (): number => {
-        const value = settingsMap.late_fee_application_day;
-        if (typeof value === 'string') {
-            return parseInt(value.replace(/"/g, '')) || 5;
-        }
-        if (typeof value === 'number') return value;
-        return 5;
     };
 
     const getPaymentReminderDays = (): number[] => {
@@ -379,56 +354,6 @@ export default function BillingSettingsPage() {
 
                                 <Separator />
 
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-0.5">
-                                        <Label htmlFor="late_fee_auto_apply">Auto-Apply Late Fees</Label>
-                                        <p className="text-sm text-muted-foreground">
-                                            Automatically apply late fees on the configured day
-                                        </p>
-                                    </div>
-                                    <Switch
-                                        id="late_fee_auto_apply"
-                                        checked={getLateFeeAutoApply()}
-                                        onCheckedChange={() => handleSettingToggle('late_fee_auto_apply', getLateFeeAutoApply())}
-                                        disabled={updateSettingMutation.isPending}
-                                    />
-                                </div>
-
-                                {getLateFeeAutoApply() && (
-                                    <>
-                                        <Separator />
-                                        <div className="flex items-center justify-between">
-                                            <div className="space-y-0.5">
-                                                <Label htmlFor="late_fee_application_day">Application Day</Label>
-                                                <p className="text-sm text-muted-foreground">
-                                                    Day of the month to auto-apply late fees
-                                                </p>
-                                            </div>
-                                            <Select
-                                                value={String(getLateFeeApplicationDay())}
-                                                onValueChange={(value) => updateSettingMutation.mutate({ key: 'late_fee_application_day', value })}
-                                                disabled={updateSettingMutation.isPending}
-                                            >
-                                                <SelectTrigger className="w-[180px]">
-                                                    <SelectValue placeholder="Select day" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => {
-                                                        const suffix = day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th';
-                                                        return (
-                                                            <SelectItem key={day} value={String(day)}>
-                                                                {day}{suffix} of month
-                                                            </SelectItem>
-                                                        );
-                                                    })}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </>
-                                )}
-
-                                <Separator />
-
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
                                         <div className="space-y-0.5">
@@ -458,129 +383,6 @@ export default function BillingSettingsPage() {
                     </CardContent>
                 </Card>
             </div>
-
-            {/* Late Fee Waiver Requests */}
-            {(pendingWaiverCount ?? 0) > 0 && (
-                <div>
-                    <h3 className="text-lg font-medium flex items-center gap-2">
-                        <FileX2 className="h-5 w-5" />
-                        Late Fee Waiver Requests
-                        <Badge variant="secondary" className="ml-2">{pendingWaiverCount} pending</Badge>
-                    </h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                        Review and approve/reject late fee waiver requests.
-                    </p>
-                    <Card>
-                        <CardContent className="pt-6">
-                            {waiversLoading ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <Loader2 className="h-6 w-6 animate-spin" />
-                                </div>
-                            ) : (waivers?.data?.length ?? 0) === 0 ? (
-                                <p className="text-center text-muted-foreground py-8">No pending waiver requests</p>
-                            ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Invoice</TableHead>
-                                            <TableHead>Resident</TableHead>
-                                            <TableHead>Late Fee</TableHead>
-                                            <TableHead>Waiver Type</TableHead>
-                                            <TableHead>Reason</TableHead>
-                                            <TableHead>Requested</TableHead>
-                                            <TableHead className="text-right">Actions</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {waivers?.data?.map((waiver: LateFeeWaiverWithDetails) => (
-                                            <TableRow key={waiver.id}>
-                                                <TableCell className="font-medium">
-                                                    {waiver.invoice?.invoice_number}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {waiver.resident?.first_name} {waiver.resident?.last_name}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {formatCurrency(waiver.original_late_fee)}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant={waiver.waiver_type === 'full' ? 'default' : 'secondary'}>
-                                                        {waiver.waiver_type === 'full' ? 'Full' : `Partial (${formatCurrency(waiver.waiver_amount || 0)})`}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="max-w-[200px] truncate" title={waiver.reason}>
-                                                    {waiver.reason}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {formatDistanceToNow(new Date(waiver.created_at), { addSuffix: true })}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    {reviewingWaiverId === waiver.id ? (
-                                                        <div className="flex items-center gap-2 justify-end">
-                                                            <Textarea
-                                                                placeholder="Review notes (optional)"
-                                                                value={waiverReviewNotes}
-                                                                onChange={(e) => setWaiverReviewNotes(e.target.value)}
-                                                                className="w-48 h-16 text-xs"
-                                                            />
-                                                            <div className="flex flex-col gap-1">
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    className="text-green-600"
-                                                                    onClick={() => {
-                                                                        approveWaiverMutation.mutate({ waiverId: waiver.id, notes: waiverReviewNotes });
-                                                                        setReviewingWaiverId(null);
-                                                                        setWaiverReviewNotes('');
-                                                                    }}
-                                                                    disabled={approveWaiverMutation.isPending}
-                                                                >
-                                                                    <Check className="h-3 w-3" />
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    className="text-red-600"
-                                                                    onClick={() => {
-                                                                        rejectWaiverMutation.mutate({ waiverId: waiver.id, notes: waiverReviewNotes });
-                                                                        setReviewingWaiverId(null);
-                                                                        setWaiverReviewNotes('');
-                                                                    }}
-                                                                    disabled={rejectWaiverMutation.isPending}
-                                                                >
-                                                                    <X className="h-3 w-3" />
-                                                                </Button>
-                                                            </div>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                onClick={() => {
-                                                                    setReviewingWaiverId(null);
-                                                                    setWaiverReviewNotes('');
-                                                                }}
-                                                            >
-                                                                Cancel
-                                                            </Button>
-                                                        </div>
-                                                    ) : (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => setReviewingWaiverId(waiver.id)}
-                                                        >
-                                                            Review
-                                                        </Button>
-                                                    )}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
 
             {/* Payment Reminders */}
             <div>

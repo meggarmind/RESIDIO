@@ -664,9 +664,9 @@ function getActionLabel(actionType: DeveloperOwnerActionType | string): string {
 function formatRole(role: string): string {
   const labels: Record<string, string> = {
     developer: 'Developer',
-    non_resident_landlord: 'Property Owner',
+    non_resident_landlord: 'Non-Resident Landlord',
     resident_landlord: 'Owner-Occupier',
-    tenant: 'Renter',
+    tenant: 'Tenant',
   };
   return labels[role] || role.replace(/_/g, ' ');
 }

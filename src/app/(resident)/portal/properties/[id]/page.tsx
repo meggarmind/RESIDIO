@@ -113,10 +113,10 @@ export default function PropertyDetailPage({ params }: PropertyDetailPageProps) 
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                As the primary resident, you can add family members, domestic staff, or caretakers to this property.
+                As the primary resident, you can add household members, domestic staff, or caretakers to this property.
               </p>
               <div className="mt-4 text-xs text-muted-foreground">
-                Family members can be added to the estate&apos;s security contact list to allow gate access.
+                Household members can be added to the estate&apos;s security contact list to allow gate access.
               </div>
             </CardContent>
           </Card>

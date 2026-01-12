@@ -8,7 +8,6 @@ import { updateHouse } from '@/actions/houses/update-house';
 import { deleteHouse } from '@/actions/houses/delete-house';
 import { getOwnershipHistory } from '@/actions/houses/get-ownership-history';
 import { getHouseResidents, getHouseResidentsBatch } from '@/actions/houses/get-house-residents';
-import { getHouseStats } from '@/actions/houses/get-house-stats';
 import type { HouseSearchParams, HouseFormData } from '@/lib/validators/house';
 import type { HouseOwnershipHistoryWithResident } from '@/types/database';
 import type { ResidentSummary } from '@/actions/houses/get-house-residents';
@@ -160,21 +159,5 @@ export function useHouseResidentsBatch(houseIds: string[]) {
       return result.data as Record<string, ResidentSummary[]>;
     },
     enabled: houseIds.length > 0,
-  });
-}
-
-/**
- * Fetch house statistics for the stats cards.
- * Uses optimized COUNT queries for performance.
- */
-export function useHouseStats() {
-  return useQuery({
-    queryKey: ['house-stats'],
-    queryFn: async () => {
-      const result = await getHouseStats();
-      if (result.error) throw new Error(result.error);
-      return result.data;
-    },
-    staleTime: 30000, // Consider data fresh for 30 seconds
   });
 }

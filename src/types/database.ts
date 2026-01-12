@@ -33,8 +33,7 @@ export type PermissionCategory =
   | 'notifications'
   | 'report_subscriptions'
   | 'impersonation'  // Admin impersonation system
-  | 'email_imports' // Gmail bank statement integration
-  | 'two_factor'; // Two-factor authentication
+  | 'email_imports'; // Gmail bank statement integration
 
 // Human-readable labels for new roles
 export const APP_ROLE_LABELS: Record<AppRoleName, string> = {
@@ -119,47 +118,6 @@ export type SecurityContactStatus = 'active' | 'suspended' | 'expired' | 'revoke
 export type AccessCodeType = 'permanent' | 'one_time';
 export type IdDocumentType = 'nin' | 'voters_card' | 'drivers_license' | 'passport' | 'company_id' | 'other';
 
-// Visitor Management Enhancement Types
-export type VisitorRecurrencePattern = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'custom';
-export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
-export type VehicleType = 'car' | 'motorcycle' | 'bicycle' | 'truck' | 'van' | 'bus' | 'other';
-export type EntryMethod = 'code' | 'photo' | 'manual' | 'vehicle_plate';
-
-export const VISITOR_RECURRENCE_PATTERN_LABELS: Record<VisitorRecurrencePattern, string> = {
-  daily: 'Daily',
-  weekly: 'Weekly',
-  biweekly: 'Bi-Weekly',
-  monthly: 'Monthly',
-  custom: 'Custom',
-};
-
-export const DAY_OF_WEEK_LABELS: Record<DayOfWeek, string> = {
-  monday: 'Monday',
-  tuesday: 'Tuesday',
-  wednesday: 'Wednesday',
-  thursday: 'Thursday',
-  friday: 'Friday',
-  saturday: 'Saturday',
-  sunday: 'Sunday',
-};
-
-export const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
-  car: 'Car',
-  motorcycle: 'Motorcycle',
-  bicycle: 'Bicycle',
-  truck: 'Truck',
-  van: 'Van',
-  bus: 'Bus',
-  other: 'Other',
-};
-
-export const ENTRY_METHOD_LABELS: Record<EntryMethod, string> = {
-  code: 'Access Code',
-  photo: 'Photo Verification',
-  manual: 'Manual Entry',
-  vehicle_plate: 'Vehicle Plate Recognition',
-};
-
 export const SECURITY_CONTACT_STATUS_LABELS: Record<SecurityContactStatus, string> = {
   active: 'Active',
   suspended: 'Suspended',
@@ -241,9 +199,7 @@ export type ApprovalRequestType =
   | 'owner_resident_modification'
   | 'owner_security_code_change'
   // Admin impersonation system
-  | 'impersonation_request'
-  // Late fee waiver system
-  | 'late_fee_waiver';
+  | 'impersonation_request';
 
 // Labels for approval request types
 export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
@@ -260,8 +216,6 @@ export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> =
   owner_security_code_change: 'Owner Security Code Change Request',
   // Admin impersonation
   impersonation_request: 'Resident Impersonation Request',
-  // Late fee waiver
-  late_fee_waiver: 'Late Fee Waiver Request',
 };
 
 // Phase 8: Audit Logging Types
@@ -331,16 +285,7 @@ export type AuditEntityType =
   | 'email_imports'               // Phase 17: Email Import
   | 'email_messages'              // Phase 17: Email Import
   | 'email_transactions'          // Phase 17: Email Import
-  | 'estate_bank_account_passwords' // Phase 17: Email Import
-  | 'clearance_certificate'        // Renter Move-Out Clearance
-  | 'late_fee_waivers'             // Late Fee Waiver System
-  | 'late_fee_log'                 // Late Fee Application Log
-  | 'paystack_transactions'        // Paystack Payment Gateway
-  | 'two_factor_tokens'            // 2FA tokens
-  | 'two_factor_backup_codes'      // 2FA backup codes
-  | 'two_factor_policies'          // 2FA enforcement policies
-  | 'two_factor_audit_log'         // 2FA audit trail
-  | 'visitor_vehicles';            // Visitor Vehicle Registration
+  | 'estate_bank_account_passwords'; // Phase 17: Email Import
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -409,15 +354,6 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   email_messages: 'Email Message',                      // Email Import System
   email_transactions: 'Email Transaction',              // Email Import System
   estate_bank_account_passwords: 'Bank Account Password', // Email Import System
-  clearance_certificate: 'Clearance Certificate',       // Renter Move-Out Clearance
-  late_fee_waivers: 'Late Fee Waiver',                  // Late Fee Waiver System
-  late_fee_log: 'Late Fee Application',                 // Late Fee Application Log
-  paystack_transactions: 'Paystack Transaction',        // Paystack Payment Gateway
-  two_factor_tokens: '2FA Token',                       // Two-Factor Authentication
-  two_factor_backup_codes: '2FA Backup Code',           // Two-Factor Authentication
-  two_factor_policies: '2FA Policy',                    // Two-Factor Authentication
-  two_factor_audit_log: '2FA Audit Log',                // Two-Factor Authentication
-  visitor_vehicles: 'Visitor Vehicle',                  // Visitor Management Enhancement
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -466,14 +402,13 @@ export const BILLING_TARGET_LABELS: Record<BillingTargetType, string> = {
 };
 
 // Role display labels for UI
-// Updated terminology (Jan 2026): More professional property-focused labels
 export const RESIDENT_ROLE_LABELS: Record<ResidentRole, string> = {
-  resident_landlord: 'Owner-Occupier',
-  non_resident_landlord: 'Property Owner',
-  tenant: 'Renter',
+  resident_landlord: 'Resident Landlord',
+  non_resident_landlord: 'Non-Resident Landlord',
+  tenant: 'Tenant',
   developer: 'Developer',
-  co_resident: 'Occupant',
-  household_member: 'Family Member',
+  co_resident: 'Co-Resident',
+  household_member: 'Household Member',
   domestic_staff: 'Domestic Staff',
   caretaker: 'Caretaker',
   contractor: 'Contractor',
@@ -487,22 +422,22 @@ export const RESIDENT_TYPE_LABELS: Record<ResidentType, string> = {
 
 // Primary role options for forms (individual residents)
 export const PRIMARY_ROLE_OPTIONS = [
-  { value: 'resident_landlord' as const, label: 'Owner-Occupier' },
-  { value: 'non_resident_landlord' as const, label: 'Property Owner' },
-  { value: 'tenant' as const, label: 'Renter' },
+  { value: 'resident_landlord' as const, label: 'Resident Landlord' },
+  { value: 'non_resident_landlord' as const, label: 'Non-Resident Landlord' },
+  { value: 'tenant' as const, label: 'Tenant' },
   { value: 'developer' as const, label: 'Developer' },
 ];
 
 // Corporate-only role options (corporate entities can only have these roles)
 export const CORPORATE_ROLE_OPTIONS = [
-  { value: 'non_resident_landlord' as const, label: 'Property Owner' },
+  { value: 'non_resident_landlord' as const, label: 'Non-Resident Landlord' },
   { value: 'developer' as const, label: 'Developer' },
 ];
 
 // Secondary role options for forms (individuals only)
 export const SECONDARY_ROLE_OPTIONS = [
-  { value: 'co_resident' as const, label: 'Occupant' },
-  { value: 'household_member' as const, label: 'Family Member' },
+  { value: 'co_resident' as const, label: 'Co-Resident' },
+  { value: 'household_member' as const, label: 'Household Member' },
   { value: 'domestic_staff' as const, label: 'Domestic Staff' },
   { value: 'caretaker' as const, label: 'Caretaker' },
   { value: 'contractor' as const, label: 'Contractor' },
@@ -746,7 +681,7 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['security_contact_categories']['Insert']>;
       };
 
-      // Phase 6: Security Contacts (Enhanced with Visitor Management)
+      // Phase 6: Security Contacts
       security_contacts: {
         Row: {
           id: string;
@@ -766,50 +701,12 @@ export interface Database {
           relationship: string | null;
           notes: string | null;
           status: SecurityContactStatus;
-          // Visitor Management Enhancement fields
-          is_recurring: boolean;
-          recurrence_pattern: VisitorRecurrencePattern | null;
-          recurrence_days: DayOfWeek[] | null;
-          recurrence_start_date: string | null;
-          recurrence_end_date: string | null;
-          expected_arrival_time: string | null;
-          expected_departure_time: string | null;
-          purpose: string | null;
-          visit_count: number;
-          last_visit_at: string | null;
-          is_frequent_visitor: boolean;
           created_at: string;
           updated_at: string;
           created_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['security_contacts']['Row'], 'id' | 'created_at' | 'updated_at' | 'visit_count' | 'is_frequent_visitor'> & {
-          visit_count?: number;
-          is_frequent_visitor?: boolean;
-        };
+        Insert: Omit<Database['public']['Tables']['security_contacts']['Row'], 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['security_contacts']['Insert']>;
-      };
-
-      // Visitor Vehicles
-      visitor_vehicles: {
-        Row: {
-          id: string;
-          contact_id: string;
-          vehicle_type: VehicleType;
-          plate_number: string;
-          make: string | null;
-          model: string | null;
-          color: string | null;
-          year: number | null;
-          photo_url: string | null;
-          is_primary: boolean;
-          is_active: boolean;
-          notes: string | null;
-          created_at: string;
-          updated_at: string;
-          created_by: string | null;
-        };
-        Insert: Omit<Database['public']['Tables']['visitor_vehicles']['Row'], 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Database['public']['Tables']['visitor_vehicles']['Insert']>;
       };
 
       // Phase 6: Access Codes
@@ -832,7 +729,7 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['access_codes']['Insert']>;
       };
 
-      // Phase 6: Access Logs (Enhanced with Visitor Management)
+      // Phase 6: Access Logs
       access_logs: {
         Row: {
           id: string;
@@ -846,18 +743,9 @@ export interface Database {
           notes: string | null;
           flagged: boolean;
           flag_reason: string | null;
-          // Visitor Management Enhancement fields
-          expected_duration_minutes: number | null;
-          actual_duration_minutes: number | null;
-          vehicle_id: string | null;
-          entry_method: string | null;
-          photo_captured_at: string | null;
-          photo_url: string | null;
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['access_logs']['Row'], 'id' | 'created_at' | 'actual_duration_minutes'> & {
-          actual_duration_minutes?: number | null;
-        };
+        Insert: Omit<Database['public']['Tables']['access_logs']['Row'], 'id' | 'created_at'>;
         Update: Partial<Database['public']['Tables']['access_logs']['Insert']>;
       };
 
@@ -971,11 +859,6 @@ export type AccessCodeUpdate = Database['public']['Tables']['access_codes']['Upd
 export type AccessLog = Database['public']['Tables']['access_logs']['Row'];
 export type AccessLogInsert = Database['public']['Tables']['access_logs']['Insert'];
 export type AccessLogUpdate = Database['public']['Tables']['access_logs']['Update'];
-
-// Visitor Vehicles type aliases
-export type VisitorVehicle = Database['public']['Tables']['visitor_vehicles']['Row'];
-export type VisitorVehicleInsert = Database['public']['Tables']['visitor_vehicles']['Insert'];
-export type VisitorVehicleUpdate = Database['public']['Tables']['visitor_vehicles']['Update'];
 
 // Joined types for queries
 export interface HouseWithStreet extends House {
@@ -1123,9 +1006,6 @@ export interface Invoice {
   created_at: string;
   updated_at: string;
   created_by: string | null;
-  is_correction?: boolean;
-  parent_invoice_id?: string | null;
-  correction_type?: 'credit_note' | 'debit_note' | null;
 }
 
 // Invoice with related data
@@ -1162,8 +1042,7 @@ export type ApprovalEntityType =
   | 'estate_bank_account'
   | 'resident_houses'       // For developer/owner approval requests
   | 'security_code'         // For security code approval requests
-  | 'impersonation_session' // For admin impersonation approval requests
-  | 'invoice';              // For late fee waiver approval requests
+  | 'impersonation_session';  // For admin impersonation approval requests
 
 // Approval Request type (maker-checker workflow)
 export interface ApprovalRequest {
@@ -1233,85 +1112,10 @@ export interface SecurityContactWithDetails extends SecurityContact {
     phone_primary: string;
   };
   access_codes: AccessCode[];
-  vehicles?: VisitorVehicle[];
   created_by_profile?: {
     id: string;
     full_name: string;
   } | null;
-}
-
-// Visitor Vehicle with contact details
-export interface VisitorVehicleWithContact extends VisitorVehicle {
-  contact: {
-    id: string;
-    full_name: string;
-    phone_primary: string;
-    resident: {
-      id: string;
-      first_name: string;
-      last_name: string;
-      resident_code: string;
-    };
-  };
-}
-
-// Visitor Analytics (from the visitor_analytics view)
-export interface VisitorAnalytics {
-  contact_id: string;
-  full_name: string;
-  resident_id: string;
-  category_id: string;
-  is_recurring: boolean;
-  is_frequent_visitor: boolean;
-  visit_count: number;
-  last_visit_at: string | null;
-  status: SecurityContactStatus;
-  category_name: string;
-  resident_first_name: string;
-  resident_last_name: string;
-  resident_code: string;
-  visits_last_30_days: number;
-  visits_last_7_days: number;
-  avg_visit_duration_minutes: number | null;
-  vehicle_count: number;
-}
-
-// Frequent Visitor result from get_frequent_visitors function
-export interface FrequentVisitor {
-  contact_id: string;
-  full_name: string;
-  phone_primary: string;
-  photo_url: string | null;
-  category_name: string;
-  resident_name: string;
-  resident_code: string;
-  visit_count: number;
-  last_visit_at: string;
-  avg_duration_minutes: number | null;
-}
-
-// Visitor History Summary from get_visitor_history_summary function
-export interface VisitorHistorySummary {
-  total_visits: number;
-  first_visit: string | null;
-  last_visit: string | null;
-  avg_duration_minutes: number | null;
-  total_duration_hours: number;
-  most_common_gate: string | null;
-  flagged_visits: number;
-  vehicles_used: number;
-}
-
-// Recurring Schedule input for creating/updating recurring visitors
-export interface RecurringScheduleInput {
-  is_recurring: boolean;
-  recurrence_pattern?: VisitorRecurrencePattern | null;
-  recurrence_days?: DayOfWeek[] | null;
-  recurrence_start_date?: string | null;
-  recurrence_end_date?: string | null;
-  expected_arrival_time?: string | null;
-  expected_departure_time?: string | null;
-  purpose?: string | null;
 }
 
 // Access code with contact details (for verification)
@@ -2673,273 +2477,3 @@ export type EmailImportAuditEntityType =
   | 'email_messages'
   | 'email_transactions'
   | 'estate_bank_account_passwords';
-
-// ============================================
-// Late Fee Waiver Types
-// ============================================
-
-export type LateFeeWaiverType = 'full' | 'partial';
-export type LateFeeWaiverStatus = 'pending' | 'approved' | 'rejected';
-
-export const LATE_FEE_WAIVER_TYPE_LABELS: Record<LateFeeWaiverType, string> = {
-  full: 'Full Waiver',
-  partial: 'Partial Waiver',
-};
-
-export const LATE_FEE_WAIVER_STATUS_LABELS: Record<LateFeeWaiverStatus, string> = {
-  pending: 'Pending Approval',
-  approved: 'Approved',
-  rejected: 'Rejected',
-};
-
-export interface LateFeeWaiver {
-  id: string;
-  invoice_id: string;
-  resident_id: string;
-  requested_by: string;
-  reason: string;
-  waiver_type: LateFeeWaiverType;
-  waiver_amount: number | null;
-  original_late_fee: number;
-  status: LateFeeWaiverStatus;
-  reviewed_by: string | null;
-  reviewed_at: string | null;
-  review_notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface LateFeeWaiverWithDetails extends LateFeeWaiver {
-  invoice: {
-    id: string;
-    invoice_number: string;
-    amount_due: number;
-    due_date: string;
-    status: InvoiceStatus;
-  };
-  resident: {
-    id: string;
-    first_name: string;
-    last_name: string;
-    resident_code: string;
-  };
-  requester: {
-    id: string;
-    full_name: string;
-    email: string;
-  };
-  reviewer?: {
-    id: string;
-    full_name: string;
-    email: string;
-  } | null;
-}
-
-export interface LateFeeLog {
-  id: string;
-  run_date: string;
-  trigger_type: 'manual' | 'cron' | 'api';
-  triggered_by: string | null;
-  invoices_processed: number;
-  fees_applied: number;
-  total_fees_amount: number;
-  invoices_skipped_waiver: number;
-  invoices_skipped_already_applied: number;
-  errors: string[];
-  duration_ms: number | null;
-  created_at: string;
-}
-
-// =====================================================
-// Two-Factor Authentication (2FA) Types
-// =====================================================
-
-// 2FA method enum
-export type TwoFactorMethod = 'sms' | 'authenticator' | 'email';
-
-// 2FA enforcement policy enum
-export type TwoFactorEnforcement = 'disabled' | 'optional' | 'required_admin' | 'required_all';
-
-// 2FA action types for audit log
-export type TwoFactorAuditAction =
-  | 'enabled'
-  | 'disabled'
-  | 'verified_login'
-  | 'failed_login'
-  | 'backup_code_used'
-  | 'recovery_initiated'
-  | 'method_changed'
-  | 'secret_regenerated'
-  | 'settings_updated';
-
-// 2FA token purpose
-export type TwoFactorTokenPurpose = 'login' | 'setup' | 'disable' | 'recovery';
-
-// Labels for 2FA methods
-export const TWO_FACTOR_METHOD_LABELS: Record<TwoFactorMethod, string> = {
-  sms: 'SMS Code',
-  authenticator: 'Authenticator App',
-  email: 'Email Code',
-};
-
-// Labels for 2FA enforcement policies
-export const TWO_FACTOR_ENFORCEMENT_LABELS: Record<TwoFactorEnforcement, string> = {
-  disabled: 'Disabled',
-  optional: 'Optional',
-  required_admin: 'Required for Admins',
-  required_all: 'Required for All Users',
-};
-
-// Labels for 2FA audit actions
-export const TWO_FACTOR_AUDIT_ACTION_LABELS: Record<TwoFactorAuditAction, string> = {
-  enabled: '2FA Enabled',
-  disabled: '2FA Disabled',
-  verified_login: 'Login Verified',
-  failed_login: 'Login Failed',
-  backup_code_used: 'Backup Code Used',
-  recovery_initiated: 'Recovery Initiated',
-  method_changed: 'Method Changed',
-  secret_regenerated: 'Secret Regenerated',
-  settings_updated: 'Settings Updated',
-};
-
-// Profile 2FA fields (extends base Profile)
-export interface Profile2FA {
-  two_factor_enabled: boolean;
-  two_factor_method: TwoFactorMethod | null;
-  two_factor_verified_at: string | null;
-  two_factor_last_verified_at: string | null;
-  two_factor_recovery_codes_used: number;
-}
-
-// 2FA token from database
-export interface TwoFactorToken {
-  id: string;
-  profile_id: string;
-  token: string;
-  token_type: TwoFactorMethod;
-  purpose: TwoFactorTokenPurpose;
-  expires_at: string;
-  used_at: string | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  created_at: string;
-}
-
-// 2FA backup code from database
-export interface TwoFactorBackupCode {
-  id: string;
-  profile_id: string;
-  code_hash: string;
-  used_at: string | null;
-  created_at: string;
-}
-
-// 2FA policy from database
-export interface TwoFactorPolicy {
-  id: string;
-  role_id: string | null;
-  enforcement: TwoFactorEnforcement;
-  grace_period_days: number;
-  allow_sms: boolean;
-  allow_authenticator: boolean;
-  allow_email: boolean;
-  require_backup_codes: boolean;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  created_by: string | null;
-}
-
-// 2FA policy with role details
-export interface TwoFactorPolicyWithRole extends TwoFactorPolicy {
-  role: {
-    id: string;
-    name: AppRoleName;
-    display_name: string;
-  } | null;
-}
-
-// 2FA audit log entry
-export interface TwoFactorAuditLog {
-  id: string;
-  profile_id: string;
-  action: TwoFactorAuditAction;
-  method: TwoFactorMethod | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  metadata: Record<string, unknown>;
-  created_at: string;
-}
-
-// 2FA audit log with profile details
-export interface TwoFactorAuditLogWithProfile extends TwoFactorAuditLog {
-  profile: {
-    id: string;
-    full_name: string;
-    email: string;
-  } | null;
-}
-
-// 2FA setup result
-export interface TwoFactorSetupResult {
-  success: boolean;
-  message: string;
-  qrCode?: string; // For authenticator apps
-  secret?: string; // TOTP secret (masked in production)
-  backupCodes?: string[]; // Plain backup codes (shown once)
-  expiresAt?: string;
-}
-
-// 2FA verification result
-export interface TwoFactorVerifyResult {
-  success: boolean;
-  message: string;
-  verified?: boolean;
-  remainingAttempts?: number;
-}
-
-// 2FA status for a user
-export interface TwoFactorStatus {
-  enabled: boolean;
-  method: TwoFactorMethod | null;
-  verifiedAt: string | null;
-  lastVerifiedAt: string | null;
-  backupCodesRemaining: number;
-  isRequired: boolean;
-  gracePeriodEndsAt: string | null;
-  allowedMethods: TwoFactorMethod[];
-}
-
-// 2FA enforcement check result
-export interface TwoFactorEnforcementCheck {
-  isRequired: boolean;
-  reason: string;
-  gracePeriodEndsAt: string | null;
-  canBypass: boolean;
-}
-
-// Input for enabling 2FA
-export interface Enable2FAInput {
-  method: TwoFactorMethod;
-  generateBackupCodes?: boolean;
-}
-
-// Input for verifying 2FA during login
-export interface Verify2FAInput {
-  code: string;
-  isBackupCode?: boolean;
-  rememberDevice?: boolean;
-}
-
-// Input for updating 2FA policy
-export interface UpdateTwoFactorPolicyInput {
-  roleId?: string | null;
-  enforcement?: TwoFactorEnforcement;
-  gracePeriodDays?: number;
-  allowSms?: boolean;
-  allowAuthenticator?: boolean;
-  allowEmail?: boolean;
-  requireBackupCodes?: boolean;
-  isActive?: boolean;
-}

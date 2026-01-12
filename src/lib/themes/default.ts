@@ -17,59 +17,26 @@ export const defaultTheme: VisualTheme = {
       secondary: '#F3F4F6',
       card: '#FFFFFF',
       sidebar: '#FFFFFF',
-      elevated: '#FFFFFF',
-      hover: '#F3F4F6',
-      active: '#E5E7EB',
     },
     text: {
       primary: '#111827',
       secondary: '#6B7280',
       muted: '#9CA3AF',
-      disabled: '#D1D5DB',
-      onAccent: '#FFFFFF',
     },
     accent: {
       primary: '#86EFAC', // mint
       secondary: '#C4B5FD', // lavender
       tertiary: '#5EEAD4', // teal
-      hover: '#6EE7B7',
-      active: '#4ADE80',
     },
     status: {
       success: '#22C55E',
-      successSubtle: '#DCFCE7',
       warning: '#FDBA74',
-      warningSubtle: '#FEF3C7',
       error: '#FDA4AF',
-      errorSubtle: '#FEE2E2',
       info: '#60A5FA',
-      infoSubtle: '#DBEAFE',
     },
     border: {
       default: '#E5E7EB',
       subtle: '#F3F4F6',
-      focus: '#86EFAC',
-      hover: '#D1D5DB',
-    },
-    interactive: {
-      default: '#F9FAFB',
-      hover: '#F3F4F6',
-      active: '#E5E7EB',
-      disabled: '#F9FAFB',
-      focus: '#86EFAC',
-    },
-    input: {
-      bg: '#FFFFFF',
-      border: '#D1D5DB',
-      borderHover: '#9CA3AF',
-      borderFocus: '#86EFAC',
-      placeholder: '#9CA3AF',
-      bgDisabled: '#F9FAFB',
-    },
-    overlay: {
-      backdrop: 'rgba(17, 24, 39, 0.5)',
-      tooltip: '#1F2937',
-      popover: '#FFFFFF',
     },
   },
 
@@ -79,59 +46,26 @@ export const defaultTheme: VisualTheme = {
       secondary: '#374151',
       card: '#1E293B',
       sidebar: '#111827',
-      elevated: '#1E293B',
-      hover: '#1E293B',
-      active: '#334155',
     },
     text: {
       primary: '#F9FAFB',
       secondary: '#9CA3AF',
       muted: '#6B7280',
-      disabled: '#4B5563',
-      onAccent: '#111827',
     },
     accent: {
       primary: '#86EFAC', // mint (same as light)
       secondary: '#C4B5FD', // lavender
       tertiary: '#5EEAD4', // teal
-      hover: '#6EE7B7',
-      active: '#4ADE80',
     },
     status: {
       success: '#22C55E',
-      successSubtle: '#14532D',
       warning: '#FDBA74',
-      warningSubtle: '#78350F',
       error: '#FDA4AF',
-      errorSubtle: '#7F1D1D',
       info: '#60A5FA',
-      infoSubtle: '#1E3A8A',
     },
     border: {
       default: '#374151',
       subtle: '#1E293B',
-      focus: '#86EFAC',
-      hover: '#4B5563',
-    },
-    interactive: {
-      default: '#1E293B',
-      hover: '#334155',
-      active: '#475569',
-      disabled: '#1E293B',
-      focus: '#86EFAC',
-    },
-    input: {
-      bg: '#1E293B',
-      border: '#4B5563',
-      borderHover: '#6B7280',
-      borderFocus: '#86EFAC',
-      placeholder: '#6B7280',
-      bgDisabled: '#1E293B',
-    },
-    overlay: {
-      backdrop: 'rgba(15, 23, 42, 0.75)',
-      tooltip: '#1F2937',
-      popover: '#1E293B',
     },
   },
 

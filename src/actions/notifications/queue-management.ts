@@ -131,13 +131,12 @@ export async function clearQueue(filters?: { channel?: string; category?: string
   if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
 
   const supabase = createAdminClient();
-  let query = supabase.from('notification_queue').delete().select('*');
+  let query = supabase.from('notification_queue').delete().select('*', { count: 'exact' });
 
   if (filters?.channel) query = query.eq('channel', filters.channel);
   if (filters?.category) query = query.eq('category', filters.category);
 
-  const { data, error } = await query;
-  const count = data?.length || 0;
+  const { count, error } = await query;
 
   if (!error) {
     await logAudit({

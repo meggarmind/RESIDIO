@@ -23,7 +23,6 @@ import { ModernStatsCards } from '@/components/dashboard/modern-stats-cards';
 import { ModernFinancialHealth } from '@/components/dashboard/modern-financial-health';
 import { ModernPendingPayments } from '@/components/dashboard/modern-pending-payments';
 import { ModernRecentActivity } from '@/components/dashboard/modern-recent-activity';
-import { ModernQuickActions } from '@/components/dashboard/modern-quick-actions';
 
 function ErrorHandler() {
     const searchParams = useSearchParams();
@@ -58,68 +57,27 @@ function DashboardSkeleton() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="animate-slide-up">
-                <Skeleton className="h-9 w-64 rounded-lg" />
-                <Skeleton className="h-5 w-80 mt-2 rounded-md" />
+            <div>
+                <Skeleton className="h-9 w-64" />
+                <Skeleton className="h-5 w-80 mt-2" />
             </div>
 
             {/* Quick Stats */}
-            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-                {[1, 2, 3, 4].map((i) => (
-                    <div
-                        key={i}
-                        className={`rounded-2xl border bg-card p-6 shadow-soft animate-slide-up stagger-${i}`}
-                    >
-                        <div className="flex items-center justify-between mb-4">
-                            <Skeleton className="h-4 w-24 rounded-md" />
-                            <Skeleton className="h-11 w-11 rounded-xl" />
-                        </div>
-                        <Skeleton className="h-9 w-20 rounded-lg mb-2" />
-                        <Skeleton className="h-3 w-32 rounded-md" />
-                    </div>
-                ))}
-            </div>
+            <Skeleton className="h-24 w-full rounded-lg" />
 
             {/* Main Grid */}
             <div className="grid gap-6 lg:grid-cols-2">
-                <div className="rounded-2xl border bg-card p-6 shadow-soft animate-slide-up stagger-5">
-                    <Skeleton className="h-6 w-40 rounded-lg mb-4" />
-                    <Skeleton className="h-[200px] w-full rounded-xl" />
-                </div>
-                <div className="rounded-2xl border bg-card p-6 shadow-soft animate-slide-up stagger-6">
-                    <Skeleton className="h-6 w-40 rounded-lg mb-4" />
-                    <Skeleton className="h-[200px] w-full rounded-xl" />
-                </div>
+                <Skeleton className="h-[280px] rounded-lg" />
+                <Skeleton className="h-[280px] rounded-lg" />
             </div>
 
             {/* Quick Actions */}
-            <div className="rounded-2xl border bg-card p-6 shadow-soft animate-slide-up">
-                <Skeleton className="h-6 w-32 rounded-lg mb-4" />
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[1, 2, 3, 4].map((i) => (
-                        <Skeleton key={i} className="h-20 rounded-xl" />
-                    ))}
-                </div>
-            </div>
+            <Skeleton className="h-[200px] rounded-lg" />
 
             {/* Bottom Grid */}
             <div className="grid gap-6 lg:grid-cols-2">
-                <div className="rounded-2xl border bg-card p-6 shadow-soft animate-slide-up">
-                    <Skeleton className="h-6 w-40 rounded-lg mb-4" />
-                    <div className="space-y-3">
-                        {[1, 2, 3].map((i) => (
-                            <Skeleton key={i} className="h-16 w-full rounded-xl" />
-                        ))}
-                    </div>
-                </div>
-                <div className="rounded-2xl border bg-card p-6 shadow-soft animate-slide-up">
-                    <Skeleton className="h-6 w-40 rounded-lg mb-4" />
-                    <div className="space-y-3">
-                        {[1, 2, 3, 4].map((i) => (
-                            <Skeleton key={i} className="h-12 w-full rounded-lg" />
-                        ))}
-                    </div>
-                </div>
+                <Skeleton className="h-[280px] rounded-lg" />
+                <Skeleton className="h-[320px] rounded-lg" />
             </div>
         </div>
     );
@@ -191,12 +149,8 @@ export default function DashboardPage() {
                 </div>
             )}
 
-            {/* Quick Actions - Conditional rendering based on theme */}
-            {isModernTheme ? (
-                <ModernQuickActions />
-            ) : (
-                <QuickActionsPanel />
-            )}
+            {/* Quick Actions */}
+            <QuickActionsPanel />
 
             {/* System Health (Admin only) */}
             {profile?.role_name === 'super_admin' && (

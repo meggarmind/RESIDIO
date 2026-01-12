@@ -108,10 +108,14 @@ export async function getAccountStatement(
             .single();
 
         if (house) {
-            const street = house.street as { name: string } | null;
+            // Street can be array or single object depending on Supabase relationship
+            const streetData = house.street as { name: string }[] | { name: string } | null;
+            const streetName = Array.isArray(streetData)
+                ? streetData[0]?.name
+                : streetData?.name;
             houseData = {
                 id: house.id,
-                address: `${house.house_number}, ${street?.name || 'Unknown Street'}`,
+                address: `${house.house_number}, ${streetName || 'Unknown Street'}`,
                 short_name: house.short_name,
             };
         }
@@ -227,7 +231,9 @@ export async function getAccountStatement(
 
     // Add invoices as debits
     (invoices || []).forEach((invoice) => {
-        const billingProfile = invoice.billing_profile as { name: string } | null;
+        // billing_profile can be array or single object depending on Supabase relationship
+        const bpData = invoice.billing_profile as { name: string }[] | { name: string } | null;
+        const billingProfile = Array.isArray(bpData) ? bpData[0] : bpData;
         const periodStr = invoice.period_start && invoice.period_end
             ? `${formatPeriodDate(invoice.period_start)} - ${formatPeriodDate(invoice.period_end)}`
             : null;

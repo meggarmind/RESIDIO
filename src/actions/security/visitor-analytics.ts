@@ -513,7 +513,7 @@ export async function getTodayExpectedRecurringVisitors(): Promise<{
       expected_arrival_time: v.expected_arrival_time,
       expected_departure_time: v.expected_departure_time,
       purpose: v.purpose,
-      resident: v.resident as { first_name: string; last_name: string; resident_code: string },
+      resident: (Array.isArray(v.resident) ? v.resident[0] : v.resident) as { first_name: string; last_name: string; resident_code: string },
     })),
     error: null,
   };

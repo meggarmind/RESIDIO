@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/utils';
+import { InvoiceData } from '@/types/database';
 
 interface ResidentAnalyticsChartsProps {
     invoices: any[]; // Using any[] temporarily, should be Invoice[]

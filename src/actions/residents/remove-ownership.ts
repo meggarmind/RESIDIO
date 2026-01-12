@@ -59,7 +59,7 @@ export async function removeOwnership(
   if (ownerRole !== 'non_resident_landlord' && ownerRole !== 'developer') {
     return {
       success: false,
-      error: `Only Property Owner or Developer ownership can be removed. Current role is ${RESIDENT_ROLE_LABELS[ownerRole]}.`
+      error: `Only Non-Resident Landlord or Developer ownership can be removed. Current role is ${RESIDENT_ROLE_LABELS[ownerRole]}.`
     };
   }
 

@@ -23,7 +23,6 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  CalendarClock,
 } from 'lucide-react';
 import { useNotificationTemplates, useNotificationSchedules, useQueueStatistics, useNotificationStats } from '@/hooks/use-notifications';
 import { NOTIFICATION_CHANNEL_LABELS, isChannelImplemented } from '@/lib/notifications/types';
@@ -155,40 +154,6 @@ export default function NotificationsSettingsPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Payment Reminders Card */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarClock className="h-5 w-5 text-primary" />
-            Invoice Payment Reminders
-          </CardTitle>
-          <CardDescription>
-            Automated reminder escalation with configurable schedules and multi-channel delivery
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2 text-sm">
-            <Badge variant="outline" className="gap-1">
-              <Mail className="h-3 w-3" />
-              Email
-            </Badge>
-            <Badge variant="outline" className="gap-1">
-              <MessageSquare className="h-3 w-3" />
-              SMS
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Configure escalating reminders at 7, 3, and 1 days before due date, on the due date, and after overdue.
-          </p>
-          <Button asChild className="w-full">
-            <Link href="/settings/notifications/reminders">
-              Configure Reminders
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
 
       {/* Navigation Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
