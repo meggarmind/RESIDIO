@@ -13,9 +13,12 @@ import {
   FileText,
   Megaphone,
   User,
-  Hexagon
+  Hexagon,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
+import { useSidebarState } from '@/hooks/use-sidebar-state';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface PortalSidebarProps {
@@ -45,6 +48,7 @@ interface PortalSidebarProps {
 export function PortalSidebar({ className }: PortalSidebarProps) {
   const pathname = usePathname();
   const { logoUrl } = useEstateLogo();
+  const { isCollapsed, isExpanded, toggleCollapsed, setHoverExpanded } = useSidebarState();
 
   /**
    * Navigation items ordered by usage frequency
@@ -61,58 +65,92 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
     { href: '/portal/profile', label: 'Profile', icon: User },
   ];
 
+
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-30 flex flex-col items-center transition-colors duration-300 hidden md:flex",
+        "flex flex-col transition-all duration-300 ease-in-out flex-shrink-0",
+        isExpanded ? "items-start" : "items-center",
         className
       )}
       style={{
-        width: 'var(--sidebar-width)', // 80px
+        width: isExpanded ? '256px' : '80px',
+        minWidth: isExpanded ? '256px' : '80px',
         background: 'var(--color-bg-card)',
         borderRight: '1px solid var(--color-bg-input)',
-        padding: 'var(--space-4) var(--space-3)', // 16px 12px
+        padding: '16px 12px',
       }}
+      onMouseEnter={() => isCollapsed && setHoverExpanded(true)}
+      onMouseLeave={() => isCollapsed && setHoverExpanded(false)}
     >
       {/* Logo/Brand Section */}
-      <div
-        className="flex items-center justify-center mb-8 flex-shrink-0"
-        style={{
-          width: '48px',
-          height: '48px',
-        }}
-      >
-        {logoUrl ? (
-          /* Dynamic estate logo */
-          <img
-            src={logoUrl}
-            alt="Estate Logo"
-            className="h-10 w-10 object-contain rounded-lg"
-          />
-        ) : (
-          /* Fallback: Icon */
-          <div
-            className="flex items-center justify-center rounded-lg"
-            style={{
-              width: '48px',
-              height: '48px',
-              background: 'var(--color-primary)',
-            }}
-          >
-            <Hexagon
-              className="text-white"
-              style={{
-                width: 'var(--icon-md)',
-                height: 'var(--icon-md)',
-              }}
+      <div className={cn(
+        "flex items-center mb-8 flex-shrink-0 w-full",
+        isCollapsed && !isExpanded ? "justify-center" : "justify-between"
+      )}>
+        {isCollapsed && !isExpanded ? (
+          /* Collapsed: Just show logo centered */
+          logoUrl ? (
+            <img
+              src={logoUrl}
+              alt="Estate Logo"
+              className="h-10 w-10 object-contain rounded-lg"
             />
-          </div>
+          ) : (
+            <div
+              className="flex items-center justify-center rounded-lg"
+              style={{ width: '48px', height: '48px', background: 'var(--color-primary)' }}
+            >
+              <Hexagon
+                className="text-white"
+                style={{
+                  width: 'var(--icon-md)',
+                  height: 'var(--icon-md)',
+                }}
+              />
+            </div>
+          )
+        ) : (
+          /* Expanded: Show logo + button in a row */
+          <>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="Estate Logo"
+                className="h-10 w-10 object-contain rounded-lg flex-shrink-0"
+              />
+            ) : (
+              <div
+                className="flex items-center justify-center rounded-lg flex-shrink-0"
+                style={{ width: '40px', height: '40px', background: 'var(--color-primary)' }}
+              >
+                <Hexagon
+                  className="text-white"
+                  style={{ width: '20px', height: '20px' }}
+                />
+              </div>
+            )}
+
+            <button
+              onClick={toggleCollapsed}
+              className="p-2 rounded-lg flex-shrink-0 transition-colors hover:bg-gray-100"
+              style={{
+                color: 'var(--color-text-secondary)',
+              }}
+              aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+            </button>
+          </>
         )}
       </div>
 
       {/* Navigation Items */}
-      <TooltipProvider delayDuration={0}>
-        <nav className="flex-1 w-full flex flex-col items-center gap-2">
+      <nav className={cn(
+        "flex-1 w-full flex flex-col gap-2",
+        isCollapsed && !isExpanded ? "items-center" : "items-stretch"
+      )}>
+        <TooltipProvider delayDuration={0}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = item.href === '/portal'
@@ -127,15 +165,16 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
                     aria-label={item.label}
                     aria-current={isActive ? 'page' : undefined}
                     className={cn(
-                      "flex items-center justify-center transition-all duration-150 hover:scale-105",
-                      isActive
-                        ? "shadow-md"
-                        : ""
+                      "flex items-center transition-all duration-150",
+                      isCollapsed && !isExpanded
+                        ? "justify-center hover:scale-105"
+                        : "gap-3 px-3 hover:translate-x-1",
+                      isActive && "shadow-md"
                     )}
                     style={{
-                      width: '48px',
+                      width: isCollapsed && !isExpanded ? '48px' : '100%',
                       height: '48px',
-                      borderRadius: 'var(--radius-md)', // 8px
+                      borderRadius: 'var(--radius-md)',
                       background: isActive ? 'var(--color-primary)' : 'transparent',
                       color: isActive ? '#FFFFFF' : 'var(--color-text-muted)',
                     }}
@@ -153,21 +192,30 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
                     }}
                   >
                     <Icon
+                      className="flex-shrink-0"
                       style={{
-                        width: 'var(--icon-md)', // 24px
+                        width: 'var(--icon-md)',
                         height: 'var(--icon-md)',
                       }}
                     />
+                    {isExpanded && (
+                      <span className="text-sm font-medium truncate">
+                        {item.label}
+                      </span>
+                    )}
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right" className="ml-2">
-                  <p style={{ fontSize: 'var(--text-sm)' }}>{item.label}</p>
-                </TooltipContent>
+                {/* Only show tooltip when collapsed */}
+                {isCollapsed && !isExpanded && (
+                  <TooltipContent side="right" className="ml-2">
+                    <p style={{ fontSize: 'var(--text-sm)' }}>{item.label}</p>
+                  </TooltipContent>
+                )}
               </Tooltip>
             );
           })}
-        </nav>
-      </TooltipProvider>
+        </TooltipProvider>
+      </nav>
 
       {/* Settings/Profile at Bottom */}
       <div className="mt-auto w-full flex flex-col items-center">

@@ -6,7 +6,6 @@ import { PortalSidebar } from '@/components/resident-portal/portal-sidebar';
 import { ImpersonationPortalWrapper } from '@/components/resident-portal/impersonation-portal-wrapper';
 import { OnboardingCheck } from '@/components/resident-portal/onboarding-check';
 import { VisualThemeProvider } from '@/contexts/visual-theme-context';
-import { useEffectiveTheme } from '@/hooks/use-theme-preferences';
 
 /**
  * Resident Portal Layout - Modern Design System
@@ -42,18 +41,18 @@ import { useEffectiveTheme } from '@/hooks/use-theme-preferences';
 function PortalContent({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="min-h-screen transition-colors duration-300"
+      className="flex min-h-screen transition-colors duration-300"
       style={{
         background: 'var(--color-bg-page)',
         fontFamily: 'var(--font-family-primary)',
         color: 'var(--color-text-primary)',
       }}
     >
-      {/* Desktop & Tablet Sidebar (Icon-only, 80px) */}
+      {/* Desktop & Tablet Sidebar - Part of flex flow, pushes content */}
       <PortalSidebar className="hidden md:flex" />
 
-      {/* Main Layout Grid */}
-      <div className="md:pl-[80px] flex flex-col min-h-screen">
+      {/* Main Layout - Uses flex-1 to take remaining space */}
+      <div className="flex flex-1 flex-col min-h-screen">
         {/* Fixed Header - 64px height */}
         <PortalHeader />
 
@@ -89,10 +88,8 @@ export default function ResidentPortalLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { data: effectiveTheme } = useEffectiveTheme('resident-portal');
-
   return (
-    <VisualThemeProvider context="resident-portal" initialThemeId={effectiveTheme || 'portal-modern'}>
+    <VisualThemeProvider context="resident-portal">
       <ImpersonationPortalWrapper>
         <OnboardingCheck>
           <PortalContent>{children}</PortalContent>
