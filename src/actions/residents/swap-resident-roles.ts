@@ -86,7 +86,7 @@ export async function swapResidentRoles(
   if (demoteRole !== 'tenant' && demoteRole !== 'resident_landlord') {
     return {
       success: false,
-      error: `Can only swap with a Tenant or Resident Landlord. This resident is a ${RESIDENT_ROLE_LABELS[demoteRole]}.`
+      error: `Can only swap with a Renter or Owner-Occupier. This resident is a ${RESIDENT_ROLE_LABELS[demoteRole]}.`
     };
   }
 

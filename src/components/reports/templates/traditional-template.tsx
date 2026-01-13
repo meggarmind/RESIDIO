@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef } from 'react';
-import type { FinancialOverviewData, CollectionReportData, InvoiceAgingData, TransactionLogData, ReportData } from '@/actions/reports/report-engine';
+import type { FinancialOverviewData, CollectionReportData, InvoiceAgingData, TransactionLogData, DebtorsReportData, ReportData } from '@/actions/reports/report-engine';
 
 // ============================================================
 // Utility Functions
@@ -548,6 +548,167 @@ function TransactionLogTraditional({ data }: { data: TransactionLogData }) {
 }
 
 // ============================================================
+// Debtors Report Template
+// ============================================================
+
+function DebtorsReportTraditional({ data }: { data: DebtorsReportData }) {
+  return (
+    <>
+      {/* Summary */}
+      <div style={{ ...parseStyles(styles.section) }}>
+        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>Debtors Summary</h2>
+        <div style={{ ...parseStyles(styles.summaryBox) }}>
+          <div style={{ ...parseStyles(styles.summaryRow) }}>
+            <span>Total Debtors</span>
+            <span style={{ fontFamily: "'Courier New', monospace" }}>{data.summary.totalDebtors}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRow) }}>
+            <span>Current (0-30 days)</span>
+            <span style={{ fontFamily: "'Courier New', monospace" }}>{formatCurrency(data.summary.current)}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRow) }}>
+            <span>31-60 days</span>
+            <span style={{ fontFamily: "'Courier New', monospace" }}>{formatCurrency(data.summary.days31to60)}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRow) }}>
+            <span>61-90 days</span>
+            <span style={{ fontFamily: "'Courier New', monospace" }}>{formatCurrency(data.summary.days61to90)}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRow) }}>
+            <span>Over 90 days</span>
+            <span style={{ color: '#8B0000', fontFamily: "'Courier New', monospace" }}>{formatCurrency(data.summary.over90Days)}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRowLast) }}>
+            <span>Total Outstanding</span>
+            <span style={{ fontFamily: "'Courier New', monospace" }}>{formatCurrency(data.summary.totalOutstanding)}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRow), borderBottom: 'none', paddingTop: '16px' }}>
+            <span>Average Debt per Debtor</span>
+            <span style={{ fontFamily: "'Courier New', monospace" }}>{formatCurrency(data.summary.averageDebt)}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRow), borderBottom: 'none' }}>
+            <span>Average Days Overdue</span>
+            <span style={{ fontFamily: "'Courier New', monospace" }}>{Math.round(data.summary.averageDaysOverdue)} days</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Debtors List with Contact Info */}
+      <div style={{ ...parseStyles(styles.section) }}>
+        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>Debtors List (For Follow-up Actions)</h2>
+        <table style={{ ...parseStyles(styles.table) }}>
+          <thead>
+            <tr>
+              <th style={{ ...parseStyles(styles.th) }}>Debtor / Property</th>
+              <th style={{ ...parseStyles(styles.th) }}>Contact Information</th>
+              <th style={{ ...parseStyles(styles.thRight) }}>Invoices</th>
+              <th style={{ ...parseStyles(styles.thRight) }}>Days Overdue</th>
+              <th style={{ ...parseStyles(styles.thRight) }}>Outstanding</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.debtors.map((debtor) => (
+              <tr key={debtor.residentId}>
+                <td style={{ ...parseStyles(styles.td) }}>
+                  <strong>{debtor.residentName}</strong><br />
+                  <small style={{ color: '#666' }}>{debtor.residentCode}</small><br />
+                  <span>{debtor.houseNumber}, {debtor.streetName}</span>
+                </td>
+                <td style={{ ...parseStyles(styles.td) }}>
+                  {debtor.phonePrimary && (
+                    <div>Tel: {debtor.phonePrimary}</div>
+                  )}
+                  {debtor.phoneSecondary && (
+                    <div>Alt: {debtor.phoneSecondary}</div>
+                  )}
+                  {debtor.email && (
+                    <div>Email: {debtor.email}</div>
+                  )}
+                  {!debtor.phonePrimary && !debtor.email && (
+                    <em style={{ color: '#999' }}>No contact info</em>
+                  )}
+                </td>
+                <td style={{ ...parseStyles(styles.tdRight) }}>{debtor.invoiceCount}</td>
+                <td style={{
+                  ...parseStyles(styles.tdRight),
+                  color: debtor.daysOverdue > 90 ? '#8B0000' : debtor.daysOverdue > 30 ? '#B8860B' : 'inherit',
+                  fontWeight: debtor.daysOverdue > 60 ? 'bold' : 'normal',
+                }}>
+                  {debtor.daysOverdue}
+                </td>
+                <td style={{ ...parseStyles(styles.tdDebit) }}>
+                  {formatCurrency(debtor.totalOutstanding)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
+              <td style={{ ...parseStyles(styles.td) }} colSpan={2}>TOTAL ({data.summary.totalDebtors} debtors)</td>
+              <td style={{ ...parseStyles(styles.tdRight) }}>{data.debtors.reduce((sum, d) => sum + d.invoiceCount, 0)}</td>
+              <td style={{ ...parseStyles(styles.tdRight) }}>{Math.round(data.summary.averageDaysOverdue)} avg</td>
+              <td style={{ ...parseStyles(styles.tdDebit) }}>{formatCurrency(data.summary.totalOutstanding)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* Aging Breakdown by Debtor */}
+      <div style={{ ...parseStyles(styles.section) }}>
+        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>Aging Breakdown by Debtor</h2>
+        <table style={{ ...parseStyles(styles.table) }}>
+          <thead>
+            <tr>
+              <th style={{ ...parseStyles(styles.th) }}>Debtor</th>
+              <th style={{ ...parseStyles(styles.thRight) }}>0-30 Days</th>
+              <th style={{ ...parseStyles(styles.thRight) }}>31-60 Days</th>
+              <th style={{ ...parseStyles(styles.thRight) }}>61-90 Days</th>
+              <th style={{ ...parseStyles(styles.thRight) }}>Over 90 Days</th>
+              <th style={{ ...parseStyles(styles.thRight) }}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.debtors.filter(d => d.totalOutstanding > 0).map((debtor) => (
+              <tr key={debtor.residentId}>
+                <td style={{ ...parseStyles(styles.td) }}>
+                  {debtor.residentName}<br />
+                  <small style={{ color: '#666' }}>{debtor.houseNumber}</small>
+                </td>
+                <td style={{ ...parseStyles(styles.tdRight) }}>
+                  {debtor.current > 0 ? formatCurrency(debtor.current) : '-'}
+                </td>
+                <td style={{ ...parseStyles(styles.tdRight), color: debtor.days31to60 > 0 ? '#B8860B' : 'inherit' }}>
+                  {debtor.days31to60 > 0 ? formatCurrency(debtor.days31to60) : '-'}
+                </td>
+                <td style={{ ...parseStyles(styles.tdRight), color: debtor.days61to90 > 0 ? '#CD853F' : 'inherit' }}>
+                  {debtor.days61to90 > 0 ? formatCurrency(debtor.days61to90) : '-'}
+                </td>
+                <td style={{ ...parseStyles(styles.tdDebit) }}>
+                  {debtor.over90Days > 0 ? formatCurrency(debtor.over90Days) : '-'}
+                </td>
+                <td style={{ ...parseStyles(styles.tdDebit), fontWeight: 'bold' }}>
+                  {formatCurrency(debtor.totalOutstanding)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
+              <td style={{ ...parseStyles(styles.td) }}>TOTAL</td>
+              <td style={{ ...parseStyles(styles.tdRight) }}>{formatCurrency(data.summary.current)}</td>
+              <td style={{ ...parseStyles(styles.tdRight), color: '#B8860B' }}>{formatCurrency(data.summary.days31to60)}</td>
+              <td style={{ ...parseStyles(styles.tdRight), color: '#CD853F' }}>{formatCurrency(data.summary.days61to90)}</td>
+              <td style={{ ...parseStyles(styles.tdDebit) }}>{formatCurrency(data.summary.over90Days)}</td>
+              <td style={{ ...parseStyles(styles.tdDebit) }}>{formatCurrency(data.summary.totalOutstanding)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </>
+  );
+}
+
+// ============================================================
 // Helper to parse inline styles
 // ============================================================
 
@@ -617,6 +778,9 @@ export const TraditionalTemplate = forwardRef<HTMLDivElement, TraditionalTemplat
           )}
           {report.type === 'transaction_log' && (
             <TransactionLogTraditional data={report.data} />
+          )}
+          {report.type === 'debtors_report' && (
+            <DebtorsReportTraditional data={report.data} />
           )}
         </main>
 

@@ -101,10 +101,11 @@ export async function getUserThemeOverride(context: 'admin-dashboard' | 'residen
       .single();
 
     if (error) {
-      console.error('Failed to fetch user theme override:', error);
+      console.error('[getUserThemeOverride] Failed to fetch user theme override:', error);
       return { data: null, error: error.message };
     }
 
+    console.log('[getUserThemeOverride] Fetched theme:', { context, userId: user.id, theme: data.dashboard_theme_override });
     return { data: data.dashboard_theme_override, error: null };
   } else {
     const { data, error } = await supabase
@@ -114,10 +115,11 @@ export async function getUserThemeOverride(context: 'admin-dashboard' | 'residen
       .single();
 
     if (error) {
-      console.error('Failed to fetch user theme override:', error);
+      console.error('[getUserThemeOverride] Failed to fetch user theme override:', error);
       return { data: null, error: error.message };
     }
 
+    console.log('[getUserThemeOverride] Fetched theme:', { context, userId: user.id, theme: data.portal_theme_override });
     return { data: data.portal_theme_override, error: null };
   }
 }
@@ -146,14 +148,19 @@ export async function setUserThemeOverride(
     ? { dashboard_theme_override: themeId }
     : { portal_theme_override: themeId };
 
+  console.log('[setUserThemeOverride] Updating user theme:', { userId: user.id, context, themeId, updateData });
+
   const { error } = await supabase
     .from('profiles')
     .update(updateData)
     .eq('id', user.id);
 
   if (error) {
+    console.error('[setUserThemeOverride] Database update failed:', error);
     return { data: null, error: error.message };
   }
+
+  console.log('[setUserThemeOverride] Database update successful');
 
   // Audit log
   await logAudit({

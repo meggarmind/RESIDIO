@@ -32,7 +32,7 @@ VALUES
   -- ========== BILLING TEMPLATES (4) ==========
 
   (
-    'ww000001-0001-0001-0001-000000000001'::uuid,
+    'ca000001-0001-0001-0001-000000000001'::uuid,
     'invoice_generated',
     'Invoice Generated',
     'billing',
@@ -57,13 +57,13 @@ Residio Estate Management',
     '["resident_name", "house_address", "invoice_number", "amount", "due_date", "billing_period"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '365 days',
     NOW() - INTERVAL '30 days'
   ),
 
   (
-    'ww000001-0001-0001-0001-000000000002'::uuid,
+    'ca000001-0001-0001-0001-000000000002'::uuid,
     'invoice_reminder',
     'Invoice Payment Reminder',
     'billing',
@@ -86,13 +86,13 @@ Residio Estate Management',
     '["resident_name", "invoice_number", "amount", "due_date", "days_until_due"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '365 days',
     NOW() - INTERVAL '30 days'
   ),
 
   (
-    'ww000001-0001-0001-0001-000000000003'::uuid,
+    'ca000001-0001-0001-0001-000000000003'::uuid,
     'invoice_overdue',
     'Invoice Overdue Notice',
     'billing',
@@ -118,13 +118,13 @@ Residio Estate Management',
     '["resident_name", "invoice_number", "original_amount", "late_fee", "total_amount", "days_overdue"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '365 days',
     NOW() - INTERVAL '30 days'
   ),
 
   (
-    'ww000001-0001-0001-0001-000000000004'::uuid,
+    'ca000001-0001-0001-0001-000000000004'::uuid,
     'invoice_overdue_sms',
     'Invoice Overdue SMS',
     'billing',
@@ -135,7 +135,7 @@ Residio Estate Management',
     '["invoice_number", "amount"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '365 days',
     NOW() - INTERVAL '30 days'
   ),
@@ -143,7 +143,7 @@ Residio Estate Management',
   -- ========== PAYMENT TEMPLATES (3) ==========
 
   (
-    'ww000001-0001-0001-0001-000000000005'::uuid,
+    'ca000001-0001-0001-0001-000000000005'::uuid,
     'payment_received',
     'Payment Received Confirmation',
     'payment',
@@ -170,13 +170,13 @@ Residio Estate Management',
     '["resident_name", "receipt_number", "amount", "payment_method", "payment_date", "invoice_details", "account_balance"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '365 days',
     NOW() - INTERVAL '30 days'
   ),
 
   (
-    'ww000001-0001-0001-0001-000000000006'::uuid,
+    'ca000001-0001-0001-0001-000000000006'::uuid,
     'wallet_credit',
     'Wallet Credit Applied',
     'payment',
@@ -196,13 +196,13 @@ Residio Estate Management',
     '["resident_name", "amount", "reason", "new_balance"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '300 days',
     NOW() - INTERVAL '30 days'
   ),
 
   (
-    'ww000001-0001-0001-0001-000000000007'::uuid,
+    'ca000001-0001-0001-0001-000000000007'::uuid,
     'payment_received_sms',
     'Payment Received SMS',
     'payment',
@@ -213,7 +213,7 @@ Residio Estate Management',
     '["amount", "receipt_number"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '365 days',
     NOW() - INTERVAL '30 days'
   ),
@@ -221,7 +221,7 @@ Residio Estate Management',
   -- ========== SECURITY TEMPLATES (3) ==========
 
   (
-    'ww000001-0001-0001-0001-000000000008'::uuid,
+    'ca000001-0001-0001-0001-000000000008'::uuid,
     'visitor_checkin',
     'Visitor Check-in Notification',
     'security',
@@ -243,13 +243,13 @@ Residio Estate Security',
     '["resident_name", "visitor_name", "visitor_category", "checkin_time", "access_code"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '300 days',
     NOW() - INTERVAL '30 days'
   ),
 
   (
-    'ww000001-0001-0001-0001-000000000009'::uuid,
+    'ca000001-0001-0001-0001-000000000009'::uuid,
     'access_code_expiring',
     'Access Code Expiring Soon',
     'security',
@@ -271,13 +271,13 @@ Residio Estate Security',
     '["resident_name", "contact_name", "category", "access_code", "expiry_date"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '200 days',
     NOW() - INTERVAL '30 days'
   ),
 
   (
-    'ww000001-0001-0001-0001-000000000010'::uuid,
+    'ca000001-0001-0001-0001-000000000010'::uuid,
     'visitor_checkin_sms',
     'Visitor Check-in SMS',
     'security',
@@ -288,7 +288,7 @@ Residio Estate Security',
     '["visitor_name", "checkin_time", "access_code"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '300 days',
     NOW() - INTERVAL '30 days'
   ),
@@ -296,7 +296,7 @@ Residio Estate Security',
   -- ========== ANNOUNCEMENT TEMPLATES (3) ==========
 
   (
-    'ww000001-0001-0001-0001-000000000011'::uuid,
+    'ca000001-0001-0001-0001-000000000011'::uuid,
     'announcement_general',
     'General Announcement',
     'announcement',
@@ -316,13 +316,13 @@ Residio Estate Management',
     '["announcement_title", "announcement_content", "posted_by", "post_date"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '365 days',
     NOW() - INTERVAL '30 days'
   ),
 
   (
-    'ww000001-0001-0001-0001-000000000012'::uuid,
+    'ca000001-0001-0001-0001-000000000012'::uuid,
     'announcement_emergency',
     'Emergency Alert',
     'announcement',
@@ -341,13 +341,13 @@ Residio Estate Management',
     '["announcement_title", "announcement_content", "post_date"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '365 days',
     NOW() - INTERVAL '30 days'
   ),
 
   (
-    'ww000001-0001-0001-0001-000000000013'::uuid,
+    'ca000001-0001-0001-0001-000000000013'::uuid,
     'announcement_emergency_sms',
     'Emergency Alert SMS',
     'announcement',
@@ -358,7 +358,7 @@ Residio Estate Management',
     '["announcement_title"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '365 days',
     NOW() - INTERVAL '30 days'
   ),
@@ -366,7 +366,7 @@ Residio Estate Management',
   -- ========== SYSTEM TEMPLATES (2) ==========
 
   (
-    'ww000001-0001-0001-0001-000000000014'::uuid,
+    'ca000001-0001-0001-0001-000000000014'::uuid,
     'welcome_resident',
     'Welcome New Resident',
     'system',
@@ -395,13 +395,13 @@ Residio Estate Management',
     '["resident_name", "house_address", "resident_code", "resident_role", "portal_url"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '365 days',
     NOW() - INTERVAL '30 days'
   ),
 
   (
-    'ww000001-0001-0001-0001-000000000015'::uuid,
+    'ca000001-0001-0001-0001-000000000015'::uuid,
     'password_reset',
     'Password Reset Request',
     'system',
@@ -423,7 +423,7 @@ Residio Estate Management',
     '["resident_name", "reset_link", "expiry_hours"]'::jsonb,
     true,
     true,
-    'aa000001-0001-0001-0001-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000001'::uuid,
     NOW() - INTERVAL '365 days',
     NOW() - INTERVAL '30 days'
   )
@@ -454,38 +454,38 @@ INSERT INTO notification_preferences (
 )
 VALUES
   -- RES002: Prefers email only, no SMS
-  ('xx000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'billing', 'email', true, 'all', NULL, NULL, NOW() - INTERVAL '180 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'billing', 'sms', false, 'all', NULL, NULL, NOW() - INTERVAL '180 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000003'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'security', 'email', true, 'all', NULL, NULL, NOW() - INTERVAL '180 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'billing', 'email', true, 'all', NULL, NULL, NOW() - INTERVAL '180 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'billing', 'sms', false, 'all', NULL, NULL, NOW() - INTERVAL '180 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000003'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'security', 'email', true, 'all', NULL, NULL, NOW() - INTERVAL '180 days', NOW() - INTERVAL '30 days'),
 
   -- RES003: All channels enabled with quiet hours
-  ('xx000001-0001-0001-0001-000000000004'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'billing', 'email', true, 'all', '22:00:00', '07:00:00', NOW() - INTERVAL '150 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'billing', 'sms', true, 'important', '22:00:00', '07:00:00', NOW() - INTERVAL '150 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000006'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'security', 'sms', true, 'all', NULL, NULL, NOW() - INTERVAL '150 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000004'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'billing', 'email', true, 'all', '22:00:00', '07:00:00', NOW() - INTERVAL '150 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'billing', 'sms', true, 'important', '22:00:00', '07:00:00', NOW() - INTERVAL '150 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000006'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'security', 'sms', true, 'all', NULL, NULL, NOW() - INTERVAL '150 days', NOW() - INTERVAL '30 days'),
 
   -- RES005: Non-resident landlord - email only, weekly digest
-  ('xx000001-0001-0001-0001-000000000007'::uuid, 'aa000001-0001-0001-0001-000000000005'::uuid, 'billing', 'email', true, 'weekly', NULL, NULL, NOW() - INTERVAL '200 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000008'::uuid, 'aa000001-0001-0001-0001-000000000005'::uuid, 'announcement', 'email', true, 'important', NULL, NULL, NOW() - INTERVAL '200 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000007'::uuid, 'aa000001-0001-0001-0001-000000000005'::uuid, 'billing', 'email', true, 'weekly', NULL, NULL, NOW() - INTERVAL '200 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000008'::uuid, 'aa000001-0001-0001-0001-000000000005'::uuid, 'announcement', 'email', true, 'important', NULL, NULL, NOW() - INTERVAL '200 days', NOW() - INTERVAL '30 days'),
 
   -- RES010: Tenant - all notifications enabled
-  ('xx000001-0001-0001-0001-000000000009'::uuid, 'aa000001-0001-0001-0001-000000000010'::uuid, 'billing', 'email', true, 'all', NULL, NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000010'::uuid, 'aa000001-0001-0001-0001-000000000010'::uuid, 'billing', 'sms', true, 'all', NULL, NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000011'::uuid, 'aa000001-0001-0001-0001-000000000010'::uuid, 'security', 'email', true, 'all', NULL, NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000012'::uuid, 'aa000001-0001-0001-0001-000000000010'::uuid, 'security', 'sms', true, 'all', NULL, NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000009'::uuid, 'aa000001-0001-0001-0001-000000000010'::uuid, 'billing', 'email', true, 'all', NULL, NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000010'::uuid, 'aa000001-0001-0001-0001-000000000010'::uuid, 'billing', 'sms', true, 'all', NULL, NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000011'::uuid, 'aa000001-0001-0001-0001-000000000010'::uuid, 'security', 'email', true, 'all', NULL, NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000012'::uuid, 'aa000001-0001-0001-0001-000000000010'::uuid, 'security', 'sms', true, 'all', NULL, NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '30 days'),
 
   -- RES020: Disabled most notifications
-  ('xx000001-0001-0001-0001-000000000013'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, 'billing', 'email', true, 'important', NULL, NULL, NOW() - INTERVAL '90 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000014'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, 'billing', 'sms', false, 'all', NULL, NULL, NOW() - INTERVAL '90 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000015'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, 'announcement', 'email', false, 'all', NULL, NULL, NOW() - INTERVAL '90 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000013'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, 'billing', 'email', true, 'important', NULL, NULL, NOW() - INTERVAL '90 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000014'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, 'billing', 'sms', false, 'all', NULL, NULL, NOW() - INTERVAL '90 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000015'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, 'announcement', 'email', false, 'all', NULL, NULL, NOW() - INTERVAL '90 days', NOW() - INTERVAL '30 days'),
 
   -- RES004: Business hours only
-  ('xx000001-0001-0001-0001-000000000016'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, 'billing', 'email', true, 'all', '18:00:00', '08:00:00', NOW() - INTERVAL '120 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000017'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, 'security', 'sms', true, 'all', NULL, NULL, NOW() - INTERVAL '120 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000016'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, 'billing', 'email', true, 'all', '18:00:00', '08:00:00', NOW() - INTERVAL '120 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000017'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, 'security', 'sms', true, 'all', NULL, NULL, NOW() - INTERVAL '120 days', NOW() - INTERVAL '30 days'),
 
   -- RES006: Security committee member - all security alerts
-  ('xx000001-0001-0001-0001-000000000018'::uuid, 'aa000001-0001-0001-0001-000000000006'::uuid, 'security', 'email', true, 'all', NULL, NULL, NOW() - INTERVAL '200 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000019'::uuid, 'aa000001-0001-0001-0001-000000000006'::uuid, 'security', 'sms', true, 'all', NULL, NULL, NOW() - INTERVAL '200 days', NOW() - INTERVAL '30 days'),
-  ('xx000001-0001-0001-0001-000000000020'::uuid, 'aa000001-0001-0001-0001-000000000006'::uuid, 'announcement', 'email', true, 'all', NULL, NULL, NOW() - INTERVAL '200 days', NOW() - INTERVAL '30 days')
+  ('cb000001-0001-0001-0001-000000000018'::uuid, 'aa000001-0001-0001-0001-000000000006'::uuid, 'security', 'email', true, 'all', NULL, NULL, NOW() - INTERVAL '200 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000019'::uuid, 'aa000001-0001-0001-0001-000000000006'::uuid, 'security', 'sms', true, 'all', NULL, NULL, NOW() - INTERVAL '200 days', NOW() - INTERVAL '30 days'),
+  ('cb000001-0001-0001-0001-000000000020'::uuid, 'aa000001-0001-0001-0001-000000000006'::uuid, 'announcement', 'email', true, 'all', NULL, NULL, NOW() - INTERVAL '200 days', NOW() - INTERVAL '30 days')
 ON CONFLICT (id) DO UPDATE SET
   enabled = EXCLUDED.enabled,
   frequency = EXCLUDED.frequency,
@@ -516,70 +516,70 @@ INSERT INTO notification_history (
 )
 VALUES
   -- Invoice notifications (15)
-  ('yy000001-0001-0001-0001-000000000001'::uuid, 'ww000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'res002@example.com', 'email', 'New Invoice: INV-2025-001 - ₦15,000', 'Dear John Doe, A new invoice has been generated...', 'delivered', '{"invoice_id": "ff000001-0001-0001-0001-000000000001"}'::jsonb, NOW() - INTERVAL '180 days', NOW() - INTERVAL '180 days' + INTERVAL '2 minutes', NOW() - INTERVAL '180 days' + INTERVAL '30 minutes', NULL, NOW() - INTERVAL '180 days'),
+  ('cd000001-0001-0001-0001-000000000001'::uuid, 'ca000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'res002@example.com', 'email', 'New Invoice: INV-2025-001 - ₦15,000', 'Dear John Doe, A new invoice has been generated...', 'delivered', '{"invoice_id": "ff000001-0001-0001-0001-000000000001"}'::jsonb, NOW() - INTERVAL '180 days', NOW() - INTERVAL '180 days' + INTERVAL '2 minutes', NOW() - INTERVAL '180 days' + INTERVAL '30 minutes', NULL, NOW() - INTERVAL '180 days'),
 
-  ('yy000001-0001-0001-0001-000000000002'::uuid, 'ww000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'res003@example.com', 'email', 'New Invoice: INV-2025-002 - ₦25,000', 'Dear Jane Smith, A new invoice has been generated...', 'delivered', '{"invoice_id": "ff000001-0001-0001-0001-000000000002"}'::jsonb, NOW() - INTERVAL '180 days', NOW() - INTERVAL '180 days' + INTERVAL '1 minute', NOW() - INTERVAL '180 days' + INTERVAL '2 hours', NULL, NOW() - INTERVAL '180 days'),
+  ('cd000001-0001-0001-0001-000000000002'::uuid, 'ca000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'res003@example.com', 'email', 'New Invoice: INV-2025-002 - ₦25,000', 'Dear Jane Smith, A new invoice has been generated...', 'delivered', '{"invoice_id": "ff000001-0001-0001-0001-000000000002"}'::jsonb, NOW() - INTERVAL '180 days', NOW() - INTERVAL '180 days' + INTERVAL '1 minute', NOW() - INTERVAL '180 days' + INTERVAL '2 hours', NULL, NOW() - INTERVAL '180 days'),
 
-  ('yy000001-0001-0001-0001-000000000003'::uuid, 'ww000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, 'res020@example.com', 'email', 'Payment Reminder: Invoice INV-2025-020 Due 2025-02-15', 'Dear Resident, This is a friendly reminder...', 'delivered', '{"invoice_id": "ff000001-0001-0001-0001-000000000020"}'::jsonb, NOW() - INTERVAL '150 days', NOW() - INTERVAL '150 days' + INTERVAL '3 minutes', NULL, NULL, NOW() - INTERVAL '150 days'),
+  ('cd000001-0001-0001-0001-000000000003'::uuid, 'ca000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, 'res020@example.com', 'email', 'Payment Reminder: Invoice INV-2025-020 Due 2025-02-15', 'Dear Resident, This is a friendly reminder...', 'delivered', '{"invoice_id": "ff000001-0001-0001-0001-000000000020"}'::jsonb, NOW() - INTERVAL '150 days', NOW() - INTERVAL '150 days' + INTERVAL '3 minutes', NULL, NULL, NOW() - INTERVAL '150 days'),
 
-  ('yy000001-0001-0001-0001-000000000004'::uuid, 'ww000001-0001-0001-0001-000000000003'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, 'res020@example.com', 'email', 'OVERDUE: Invoice INV-2025-020 - Immediate Action Required', 'Dear Resident, Your invoice is now OVERDUE...', 'delivered', '{"invoice_id": "ff000001-0001-0001-0001-000000000020"}'::jsonb, NOW() - INTERVAL '120 days', NOW() - INTERVAL '120 days' + INTERVAL '2 minutes', NOW() - INTERVAL '120 days' + INTERVAL '4 hours', NOW() - INTERVAL '120 days' + INTERVAL '4 hours', NOW() - INTERVAL '120 days'),
+  ('cd000001-0001-0001-0001-000000000004'::uuid, 'ca000001-0001-0001-0001-000000000003'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, 'res020@example.com', 'email', 'OVERDUE: Invoice INV-2025-020 - Immediate Action Required', 'Dear Resident, Your invoice is now OVERDUE...', 'delivered', '{"invoice_id": "ff000001-0001-0001-0001-000000000020"}'::jsonb, NOW() - INTERVAL '120 days', NOW() - INTERVAL '120 days' + INTERVAL '2 minutes', NOW() - INTERVAL '120 days' + INTERVAL '4 hours', NOW() - INTERVAL '120 days' + INTERVAL '4 hours', NOW() - INTERVAL '120 days'),
 
-  ('yy000001-0001-0001-0001-000000000005'::uuid, 'ww000001-0001-0001-0001-000000000004'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, '+2348012345678', 'sms', NULL, 'RESIDIO: Invoice INV-2025-020 is overdue...', 'delivered', '{"invoice_id": "ff000001-0001-0001-0001-000000000020"}'::jsonb, NOW() - INTERVAL '120 days', NOW() - INTERVAL '120 days' + INTERVAL '30 seconds', NULL, NULL, NOW() - INTERVAL '120 days'),
+  ('cd000001-0001-0001-0001-000000000005'::uuid, 'ca000001-0001-0001-0001-000000000004'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, '+2348012345678', 'sms', NULL, 'RESIDIO: Invoice INV-2025-020 is overdue...', 'delivered', '{"invoice_id": "ff000001-0001-0001-0001-000000000020"}'::jsonb, NOW() - INTERVAL '120 days', NOW() - INTERVAL '120 days' + INTERVAL '30 seconds', NULL, NULL, NOW() - INTERVAL '120 days'),
 
-  ('yy000001-0001-0001-0001-000000000006'::uuid, 'ww000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, 'res004@example.com', 'email', 'New Invoice: INV-2025-030 - ₦15,000', 'Dear Resident, A new invoice has been generated...', 'delivered', '{"invoice_id": "ff000001-0001-0001-0001-000000000030"}'::jsonb, NOW() - INTERVAL '90 days', NOW() - INTERVAL '90 days' + INTERVAL '2 minutes', NOW() - INTERVAL '90 days' + INTERVAL '1 hour', NULL, NOW() - INTERVAL '90 days'),
+  ('cd000001-0001-0001-0001-000000000006'::uuid, 'ca000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, 'res004@example.com', 'email', 'New Invoice: INV-2025-030 - ₦15,000', 'Dear Resident, A new invoice has been generated...', 'delivered', '{"invoice_id": "ff000001-0001-0001-0001-000000000030"}'::jsonb, NOW() - INTERVAL '90 days', NOW() - INTERVAL '90 days' + INTERVAL '2 minutes', NOW() - INTERVAL '90 days' + INTERVAL '1 hour', NULL, NOW() - INTERVAL '90 days'),
 
-  ('yy000001-0001-0001-0001-000000000007'::uuid, 'ww000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000005'::uuid, 'res005@example.com', 'email', 'New Invoice: INV-2025-035 - ₦15,000', 'Dear Resident, A new invoice has been generated...', 'delivered', NULL, NOW() - INTERVAL '90 days', NOW() - INTERVAL '90 days' + INTERVAL '5 minutes', NULL, NULL, NOW() - INTERVAL '90 days'),
+  ('cd000001-0001-0001-0001-000000000007'::uuid, 'ca000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000005'::uuid, 'res005@example.com', 'email', 'New Invoice: INV-2025-035 - ₦15,000', 'Dear Resident, A new invoice has been generated...', 'delivered', NULL, NOW() - INTERVAL '90 days', NOW() - INTERVAL '90 days' + INTERVAL '5 minutes', NULL, NULL, NOW() - INTERVAL '90 days'),
 
-  ('yy000001-0001-0001-0001-000000000008'::uuid, 'ww000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000006'::uuid, 'res006@example.com', 'email', 'New Invoice: INV-2025-040 - ₦15,000', 'Dear Resident, A new invoice has been generated...', 'delivered', NULL, NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days' + INTERVAL '1 minute', NOW() - INTERVAL '60 days' + INTERVAL '20 minutes', NULL, NOW() - INTERVAL '60 days'),
+  ('cd000001-0001-0001-0001-000000000008'::uuid, 'ca000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000006'::uuid, 'res006@example.com', 'email', 'New Invoice: INV-2025-040 - ₦15,000', 'Dear Resident, A new invoice has been generated...', 'delivered', NULL, NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days' + INTERVAL '1 minute', NOW() - INTERVAL '60 days' + INTERVAL '20 minutes', NULL, NOW() - INTERVAL '60 days'),
 
-  ('yy000001-0001-0001-0001-000000000009'::uuid, 'ww000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000007'::uuid, 'res007@example.com', 'email', 'Payment Reminder: Invoice Due Soon', 'Dear Resident, This is a friendly reminder...', 'delivered', NULL, NOW() - INTERVAL '45 days', NOW() - INTERVAL '45 days' + INTERVAL '2 minutes', NULL, NULL, NOW() - INTERVAL '45 days'),
+  ('cd000001-0001-0001-0001-000000000009'::uuid, 'ca000001-0001-0001-0001-000000000002'::uuid, 'aa000001-0001-0001-0001-000000000007'::uuid, 'res007@example.com', 'email', 'Payment Reminder: Invoice Due Soon', 'Dear Resident, This is a friendly reminder...', 'delivered', NULL, NOW() - INTERVAL '45 days', NOW() - INTERVAL '45 days' + INTERVAL '2 minutes', NULL, NULL, NOW() - INTERVAL '45 days'),
 
-  ('yy000001-0001-0001-0001-000000000010'::uuid, 'ww000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'res002@example.com', 'email', 'New Invoice: INV-2026-001 - ₦15,000', 'Dear John Doe, A new invoice has been generated...', 'delivered', NULL, NOW() - INTERVAL '7 days', NOW() - INTERVAL '7 days' + INTERVAL '1 minute', NOW() - INTERVAL '7 days' + INTERVAL '15 minutes', NOW() - INTERVAL '7 days' + INTERVAL '16 minutes', NOW() - INTERVAL '7 days'),
+  ('cd000001-0001-0001-0001-000000000010'::uuid, 'ca000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'res002@example.com', 'email', 'New Invoice: INV-2026-001 - ₦15,000', 'Dear John Doe, A new invoice has been generated...', 'delivered', NULL, NOW() - INTERVAL '7 days', NOW() - INTERVAL '7 days' + INTERVAL '1 minute', NOW() - INTERVAL '7 days' + INTERVAL '15 minutes', NOW() - INTERVAL '7 days' + INTERVAL '16 minutes', NOW() - INTERVAL '7 days'),
 
   -- Payment notifications (10)
-  ('yy000001-0001-0001-0001-000000000011'::uuid, 'ww000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'res002@example.com', 'email', 'Payment Received - Receipt #RCP-2025-001', 'Dear John Doe, Thank you! We have received your payment...', 'delivered', '{"payment_id": "gg000001-0001-0001-0001-000000000001"}'::jsonb, NOW() - INTERVAL '175 days', NOW() - INTERVAL '175 days' + INTERVAL '1 minute', NOW() - INTERVAL '175 days' + INTERVAL '10 minutes', NULL, NOW() - INTERVAL '175 days'),
+  ('cd000001-0001-0001-0001-000000000011'::uuid, 'ca000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'res002@example.com', 'email', 'Payment Received - Receipt #RCP-2025-001', 'Dear John Doe, Thank you! We have received your payment...', 'delivered', '{"payment_id": "gg000001-0001-0001-0001-000000000001"}'::jsonb, NOW() - INTERVAL '175 days', NOW() - INTERVAL '175 days' + INTERVAL '1 minute', NOW() - INTERVAL '175 days' + INTERVAL '10 minutes', NULL, NOW() - INTERVAL '175 days'),
 
-  ('yy000001-0001-0001-0001-000000000012'::uuid, 'ww000001-0001-0001-0001-000000000007'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, '+2348023456789', 'sms', NULL, 'RESIDIO: Payment of ₦15,000 received. Receipt #RCP-2025-001. Thank you!', 'delivered', '{"payment_id": "gg000001-0001-0001-0001-000000000001"}'::jsonb, NOW() - INTERVAL '175 days', NOW() - INTERVAL '175 days' + INTERVAL '15 seconds', NULL, NULL, NOW() - INTERVAL '175 days'),
+  ('cd000001-0001-0001-0001-000000000012'::uuid, 'ca000001-0001-0001-0001-000000000007'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, '+2348023456789', 'sms', NULL, 'RESIDIO: Payment of ₦15,000 received. Receipt #RCP-2025-001. Thank you!', 'delivered', '{"payment_id": "gg000001-0001-0001-0001-000000000001"}'::jsonb, NOW() - INTERVAL '175 days', NOW() - INTERVAL '175 days' + INTERVAL '15 seconds', NULL, NULL, NOW() - INTERVAL '175 days'),
 
-  ('yy000001-0001-0001-0001-000000000013'::uuid, 'ww000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'res003@example.com', 'email', 'Payment Received - Receipt #RCP-2025-005', 'Dear Jane Smith, Thank you! We have received your payment...', 'delivered', NULL, NOW() - INTERVAL '170 days', NOW() - INTERVAL '170 days' + INTERVAL '2 minutes', NULL, NULL, NOW() - INTERVAL '170 days'),
+  ('cd000001-0001-0001-0001-000000000013'::uuid, 'ca000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'res003@example.com', 'email', 'Payment Received - Receipt #RCP-2025-005', 'Dear Jane Smith, Thank you! We have received your payment...', 'delivered', NULL, NOW() - INTERVAL '170 days', NOW() - INTERVAL '170 days' + INTERVAL '2 minutes', NULL, NULL, NOW() - INTERVAL '170 days'),
 
-  ('yy000001-0001-0001-0001-000000000014'::uuid, 'ww000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, 'res020@example.com', 'email', 'Payment Received - Receipt #RCP-2025-025', 'Dear Resident, Thank you! We have received your payment...', 'delivered', NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '100 days' + INTERVAL '3 minutes', NOW() - INTERVAL '100 days' + INTERVAL '1 hour', NULL, NOW() - INTERVAL '100 days'),
+  ('cd000001-0001-0001-0001-000000000014'::uuid, 'ca000001-0001-0001-0001-000000000005'::uuid, 'aa000001-0001-0001-0001-000000000020'::uuid, 'res020@example.com', 'email', 'Payment Received - Receipt #RCP-2025-025', 'Dear Resident, Thank you! We have received your payment...', 'delivered', NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '100 days' + INTERVAL '3 minutes', NOW() - INTERVAL '100 days' + INTERVAL '1 hour', NULL, NOW() - INTERVAL '100 days'),
 
-  ('yy000001-0001-0001-0001-000000000015'::uuid, 'ww000001-0001-0001-0001-000000000006'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, 'res004@example.com', 'email', 'Wallet Credit Applied - ₦5,000', 'Dear Resident, A credit of ₦5,000 has been applied to your wallet...', 'delivered', NULL, NOW() - INTERVAL '85 days', NOW() - INTERVAL '85 days' + INTERVAL '1 minute', NULL, NULL, NOW() - INTERVAL '85 days'),
+  ('cd000001-0001-0001-0001-000000000015'::uuid, 'ca000001-0001-0001-0001-000000000006'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, 'res004@example.com', 'email', 'Wallet Credit Applied - ₦5,000', 'Dear Resident, A credit of ₦5,000 has been applied to your wallet...', 'delivered', NULL, NOW() - INTERVAL '85 days', NOW() - INTERVAL '85 days' + INTERVAL '1 minute', NULL, NULL, NOW() - INTERVAL '85 days'),
 
   -- Security notifications (10)
-  ('yy000001-0001-0001-0001-000000000016'::uuid, 'ww000001-0001-0001-0001-000000000008'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'res002@example.com', 'email', 'Visitor Checked In: Sarah Doe', 'Dear John Doe, A visitor has checked in to see you...', 'delivered', '{"contact_id": "mm000001-0001-0001-0001-000000000001"}'::jsonb, NOW() - INTERVAL '150 days', NOW() - INTERVAL '150 days' + INTERVAL '30 seconds', NOW() - INTERVAL '150 days' + INTERVAL '5 minutes', NULL, NOW() - INTERVAL '150 days'),
+  ('cd000001-0001-0001-0001-000000000016'::uuid, 'ca000001-0001-0001-0001-000000000008'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'res002@example.com', 'email', 'Visitor Checked In: Sarah Doe', 'Dear John Doe, A visitor has checked in to see you...', 'delivered', '{"contact_id": "db000001-0001-0001-0001-000000000001"}'::jsonb, NOW() - INTERVAL '150 days', NOW() - INTERVAL '150 days' + INTERVAL '30 seconds', NOW() - INTERVAL '150 days' + INTERVAL '5 minutes', NULL, NOW() - INTERVAL '150 days'),
 
-  ('yy000001-0001-0001-0001-000000000017'::uuid, 'ww000001-0001-0001-0001-000000000010'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, '+2348023456789', 'sms', NULL, 'RESIDIO: Sarah Doe checked in at 09:15. Code: 123456', 'delivered', NULL, NOW() - INTERVAL '150 days', NOW() - INTERVAL '150 days' + INTERVAL '10 seconds', NULL, NULL, NOW() - INTERVAL '150 days'),
+  ('cd000001-0001-0001-0001-000000000017'::uuid, 'ca000001-0001-0001-0001-000000000010'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, '+2348023456789', 'sms', NULL, 'RESIDIO: Sarah Doe checked in at 09:15. Code: 123456', 'delivered', NULL, NOW() - INTERVAL '150 days', NOW() - INTERVAL '150 days' + INTERVAL '10 seconds', NULL, NULL, NOW() - INTERVAL '150 days'),
 
-  ('yy000001-0001-0001-0001-000000000018'::uuid, 'ww000001-0001-0001-0001-000000000008'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'res003@example.com', 'email', 'Visitor Checked In: ABC Plumbing', 'Dear Jane Smith, A visitor has checked in to see you...', 'delivered', NULL, NOW() - INTERVAL '120 days', NOW() - INTERVAL '120 days' + INTERVAL '1 minute', NULL, NULL, NOW() - INTERVAL '120 days'),
+  ('cd000001-0001-0001-0001-000000000018'::uuid, 'ca000001-0001-0001-0001-000000000008'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'res003@example.com', 'email', 'Visitor Checked In: ABC Plumbing', 'Dear Jane Smith, A visitor has checked in to see you...', 'delivered', NULL, NOW() - INTERVAL '120 days', NOW() - INTERVAL '120 days' + INTERVAL '1 minute', NULL, NULL, NOW() - INTERVAL '120 days'),
 
-  ('yy000001-0001-0001-0001-000000000019'::uuid, 'ww000001-0001-0001-0001-000000000009'::uuid, 'aa000001-0001-0001-0001-000000000005'::uuid, 'res005@example.com', 'email', 'Access Code Expiring: Mr. James (Caretaker)', 'Dear Resident, The access code for your registered contact is expiring soon...', 'delivered', NULL, NOW() - INTERVAL '90 days', NOW() - INTERVAL '90 days' + INTERVAL '2 minutes', NOW() - INTERVAL '90 days' + INTERVAL '3 hours', NOW() - INTERVAL '90 days' + INTERVAL '3 hours', NOW() - INTERVAL '90 days'),
+  ('cd000001-0001-0001-0001-000000000019'::uuid, 'ca000001-0001-0001-0001-000000000009'::uuid, 'aa000001-0001-0001-0001-000000000005'::uuid, 'res005@example.com', 'email', 'Access Code Expiring: Mr. James (Caretaker)', 'Dear Resident, The access code for your registered contact is expiring soon...', 'delivered', NULL, NOW() - INTERVAL '90 days', NOW() - INTERVAL '90 days' + INTERVAL '2 minutes', NOW() - INTERVAL '90 days' + INTERVAL '3 hours', NOW() - INTERVAL '90 days' + INTERVAL '3 hours', NOW() - INTERVAL '90 days'),
 
-  ('yy000001-0001-0001-0001-000000000020'::uuid, 'ww000001-0001-0001-0001-000000000008'::uuid, 'aa000001-0001-0001-0001-000000000010'::uuid, 'res010@example.com', 'email', 'Visitor Checked In: DHL Delivery', 'Dear Resident, A visitor has checked in to see you...', 'delivered', NULL, NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days' + INTERVAL '45 seconds', NOW() - INTERVAL '60 days' + INTERVAL '2 minutes', NULL, NOW() - INTERVAL '60 days'),
+  ('cd000001-0001-0001-0001-000000000020'::uuid, 'ca000001-0001-0001-0001-000000000008'::uuid, 'aa000001-0001-0001-0001-000000000010'::uuid, 'res010@example.com', 'email', 'Visitor Checked In: DHL Delivery', 'Dear Resident, A visitor has checked in to see you...', 'delivered', NULL, NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days' + INTERVAL '45 seconds', NOW() - INTERVAL '60 days' + INTERVAL '2 minutes', NULL, NOW() - INTERVAL '60 days'),
 
   -- Announcement notifications (10)
-  ('yy000001-0001-0001-0001-000000000021'::uuid, 'ww000001-0001-0001-0001-000000000011'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'res002@example.com', 'email', 'Annual General Meeting Notice', 'Dear Resident, You are invited to the Annual General Meeting...', 'delivered', '{"announcement_id": "pp000001-0001-0001-0001-000000000001"}'::jsonb, NOW() - INTERVAL '200 days', NOW() - INTERVAL '200 days' + INTERVAL '2 minutes', NOW() - INTERVAL '200 days' + INTERVAL '30 minutes', NULL, NOW() - INTERVAL '200 days'),
+  ('cd000001-0001-0001-0001-000000000021'::uuid, 'ca000001-0001-0001-0001-000000000011'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'res002@example.com', 'email', 'Annual General Meeting Notice', 'Dear Resident, You are invited to the Annual General Meeting...', 'delivered', '{"announcement_id": "ae000001-0001-0001-0001-000000000001"}'::jsonb, NOW() - INTERVAL '200 days', NOW() - INTERVAL '200 days' + INTERVAL '2 minutes', NOW() - INTERVAL '200 days' + INTERVAL '30 minutes', NULL, NOW() - INTERVAL '200 days'),
 
-  ('yy000001-0001-0001-0001-000000000022'::uuid, 'ww000001-0001-0001-0001-000000000011'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'res003@example.com', 'email', 'Annual General Meeting Notice', 'Dear Resident, You are invited to the Annual General Meeting...', 'delivered', NULL, NOW() - INTERVAL '200 days', NOW() - INTERVAL '200 days' + INTERVAL '2 minutes', NOW() - INTERVAL '200 days' + INTERVAL '1 hour', NULL, NOW() - INTERVAL '200 days'),
+  ('cd000001-0001-0001-0001-000000000022'::uuid, 'ca000001-0001-0001-0001-000000000011'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'res003@example.com', 'email', 'Annual General Meeting Notice', 'Dear Resident, You are invited to the Annual General Meeting...', 'delivered', NULL, NOW() - INTERVAL '200 days', NOW() - INTERVAL '200 days' + INTERVAL '2 minutes', NOW() - INTERVAL '200 days' + INTERVAL '1 hour', NULL, NOW() - INTERVAL '200 days'),
 
-  ('yy000001-0001-0001-0001-000000000023'::uuid, 'ww000001-0001-0001-0001-000000000012'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'res002@example.com', 'email', '🚨 URGENT: Water Supply Disruption', 'EMERGENCY ALERT: Scheduled maintenance will affect water supply...', 'delivered', NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '100 days' + INTERVAL '30 seconds', NOW() - INTERVAL '100 days' + INTERVAL '5 minutes', NULL, NOW() - INTERVAL '100 days'),
+  ('cd000001-0001-0001-0001-000000000023'::uuid, 'ca000001-0001-0001-0001-000000000012'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, 'res002@example.com', 'email', '🚨 URGENT: Water Supply Disruption', 'EMERGENCY ALERT: Scheduled maintenance will affect water supply...', 'delivered', NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '100 days' + INTERVAL '30 seconds', NOW() - INTERVAL '100 days' + INTERVAL '5 minutes', NULL, NOW() - INTERVAL '100 days'),
 
-  ('yy000001-0001-0001-0001-000000000024'::uuid, 'ww000001-0001-0001-0001-000000000013'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, '+2348023456789', 'sms', NULL, 'RESIDIO ALERT: Water Supply Disruption. Check email/portal for details.', 'delivered', NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '100 days' + INTERVAL '10 seconds', NULL, NULL, NOW() - INTERVAL '100 days'),
+  ('cd000001-0001-0001-0001-000000000024'::uuid, 'ca000001-0001-0001-0001-000000000013'::uuid, 'aa000001-0001-0001-0001-000000000002'::uuid, '+2348023456789', 'sms', NULL, 'RESIDIO ALERT: Water Supply Disruption. Check email/portal for details.', 'delivered', NULL, NOW() - INTERVAL '100 days', NOW() - INTERVAL '100 days' + INTERVAL '10 seconds', NULL, NULL, NOW() - INTERVAL '100 days'),
 
-  ('yy000001-0001-0001-0001-000000000025'::uuid, 'ww000001-0001-0001-0001-000000000011'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, 'res004@example.com', 'email', 'Estate Christmas Party', 'Dear Resident, You are cordially invited to the annual Christmas party...', 'delivered', NULL, NOW() - INTERVAL '45 days', NOW() - INTERVAL '45 days' + INTERVAL '3 minutes', NOW() - INTERVAL '45 days' + INTERVAL '2 hours', NULL, NOW() - INTERVAL '45 days'),
+  ('cd000001-0001-0001-0001-000000000025'::uuid, 'ca000001-0001-0001-0001-000000000011'::uuid, 'aa000001-0001-0001-0001-000000000004'::uuid, 'res004@example.com', 'email', 'Estate Christmas Party', 'Dear Resident, You are cordially invited to the annual Christmas party...', 'delivered', NULL, NOW() - INTERVAL '45 days', NOW() - INTERVAL '45 days' + INTERVAL '3 minutes', NOW() - INTERVAL '45 days' + INTERVAL '2 hours', NULL, NOW() - INTERVAL '45 days'),
 
   -- System notifications (5)
-  ('yy000001-0001-0001-0001-000000000026'::uuid, 'ww000001-0001-0001-0001-000000000014'::uuid, 'aa000001-0001-0001-0001-000000000040'::uuid, 'res040@example.com', 'email', 'Welcome to Residio Estate, New Resident!', 'Dear New Resident, Welcome to Residio Estate! Your account has been successfully created...', 'delivered', NULL, NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days' + INTERVAL '1 minute', NOW() - INTERVAL '60 days' + INTERVAL '10 minutes', NOW() - INTERVAL '60 days' + INTERVAL '11 minutes', NOW() - INTERVAL '60 days'),
+  ('cd000001-0001-0001-0001-000000000026'::uuid, 'ca000001-0001-0001-0001-000000000014'::uuid, 'aa000001-0001-0001-0001-000000000040'::uuid, 'res040@example.com', 'email', 'Welcome to Residio Estate, New Resident!', 'Dear New Resident, Welcome to Residio Estate! Your account has been successfully created...', 'delivered', NULL, NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days' + INTERVAL '1 minute', NOW() - INTERVAL '60 days' + INTERVAL '10 minutes', NOW() - INTERVAL '60 days' + INTERVAL '11 minutes', NOW() - INTERVAL '60 days'),
 
-  ('yy000001-0001-0001-0001-000000000027'::uuid, 'ww000001-0001-0001-0001-000000000015'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'res003@example.com', 'email', 'Password Reset Request - Residio Estate', 'Dear Jane Smith, We received a request to reset your password...', 'delivered', NULL, NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days' + INTERVAL '30 seconds', NOW() - INTERVAL '30 days' + INTERVAL '2 minutes', NOW() - INTERVAL '30 days' + INTERVAL '3 minutes', NOW() - INTERVAL '30 days'),
+  ('cd000001-0001-0001-0001-000000000027'::uuid, 'ca000001-0001-0001-0001-000000000015'::uuid, 'aa000001-0001-0001-0001-000000000003'::uuid, 'res003@example.com', 'email', 'Password Reset Request - Residio Estate', 'Dear Jane Smith, We received a request to reset your password...', 'delivered', NULL, NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days' + INTERVAL '30 seconds', NOW() - INTERVAL '30 days' + INTERVAL '2 minutes', NOW() - INTERVAL '30 days' + INTERVAL '3 minutes', NOW() - INTERVAL '30 days'),
 
   -- Failed notifications (3)
-  ('yy000001-0001-0001-0001-000000000028'::uuid, 'ww000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000008'::uuid, 'invalid-email@', 'email', 'New Invoice: INV-2025-050', 'Dear Resident, A new invoice has been generated...', 'failed', NULL, NULL, NULL, NULL, NULL, NOW() - INTERVAL '75 days'),
+  ('cd000001-0001-0001-0001-000000000028'::uuid, 'ca000001-0001-0001-0001-000000000001'::uuid, 'aa000001-0001-0001-0001-000000000008'::uuid, 'invalid-email@', 'email', 'New Invoice: INV-2025-050', 'Dear Resident, A new invoice has been generated...', 'failed', NULL, NULL, NULL, NULL, NULL, NOW() - INTERVAL '75 days'),
 
-  ('yy000001-0001-0001-0001-000000000029'::uuid, 'ww000001-0001-0001-0001-000000000004'::uuid, 'aa000001-0001-0001-0001-000000000009'::uuid, '+234invalid', 'sms', NULL, 'RESIDIO: Invoice is overdue...', 'failed', NULL, NULL, NULL, NULL, NULL, NOW() - INTERVAL '70 days'),
+  ('cd000001-0001-0001-0001-000000000029'::uuid, 'ca000001-0001-0001-0001-000000000004'::uuid, 'aa000001-0001-0001-0001-000000000009'::uuid, '+234invalid', 'sms', NULL, 'RESIDIO: Invoice is overdue...', 'failed', NULL, NULL, NULL, NULL, NULL, NOW() - INTERVAL '70 days'),
 
-  ('yy000001-0001-0001-0001-000000000030'::uuid, 'ww000001-0001-0001-0001-000000000008'::uuid, 'aa000001-0001-0001-0001-000000000007'::uuid, 'res007@example.com', 'email', 'Visitor Checked In: Unknown', 'Dear Resident, A visitor has checked in...', 'bounced', NULL, NOW() - INTERVAL '50 days', NULL, NULL, NULL, NOW() - INTERVAL '50 days')
+  ('cd000001-0001-0001-0001-000000000030'::uuid, 'ca000001-0001-0001-0001-000000000008'::uuid, 'aa000001-0001-0001-0001-000000000007'::uuid, 'res007@example.com', 'email', 'Visitor Checked In: Unknown', 'Dear Resident, A visitor has checked in...', 'bounced', NULL, NOW() - INTERVAL '50 days', NULL, NULL, NULL, NOW() - INTERVAL '50 days')
 ON CONFLICT (id) DO UPDATE SET
   status = EXCLUDED.status,
   sent_at = EXCLUDED.sent_at,
@@ -599,15 +599,15 @@ DECLARE
   v_email INT;
   v_sms INT;
 BEGIN
-  SELECT COUNT(*) INTO v_templates FROM notification_templates WHERE id::text LIKE 'ww000001%';
-  SELECT COUNT(*) INTO v_preferences FROM notification_preferences WHERE id::text LIKE 'xx000001%';
-  SELECT COUNT(*) INTO v_history FROM notification_history WHERE id::text LIKE 'yy000001%';
+  SELECT COUNT(*) INTO v_templates FROM notification_templates WHERE id::text LIKE 'ca000001%';
+  SELECT COUNT(*) INTO v_preferences FROM notification_preferences WHERE id::text LIKE 'cb000001%';
+  SELECT COUNT(*) INTO v_history FROM notification_history WHERE id::text LIKE 'cd000001%';
 
-  SELECT COUNT(*) INTO v_delivered FROM notification_history WHERE id::text LIKE 'yy000001%' AND status = 'delivered';
-  SELECT COUNT(*) INTO v_failed FROM notification_history WHERE id::text LIKE 'yy000001%' AND status IN ('failed', 'bounced');
+  SELECT COUNT(*) INTO v_delivered FROM notification_history WHERE id::text LIKE 'cd000001%' AND status = 'delivered';
+  SELECT COUNT(*) INTO v_failed FROM notification_history WHERE id::text LIKE 'cd000001%' AND status IN ('failed', 'bounced');
 
-  SELECT COUNT(*) INTO v_email FROM notification_history WHERE id::text LIKE 'yy000001%' AND channel = 'email';
-  SELECT COUNT(*) INTO v_sms FROM notification_history WHERE id::text LIKE 'yy000001%' AND channel = 'sms';
+  SELECT COUNT(*) INTO v_email FROM notification_history WHERE id::text LIKE 'cd000001%' AND channel = 'email';
+  SELECT COUNT(*) INTO v_sms FROM notification_history WHERE id::text LIKE 'cd000001%' AND channel = 'sms';
 
   RAISE NOTICE '';
   RAISE NOTICE '=== Notifications Fixture Verification ===';

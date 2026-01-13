@@ -240,6 +240,11 @@ interface InvoiceReceiptPDFProps {
  */
 export function InvoiceReceiptPDF({ invoice, estateName = 'Residio Estate' }: InvoiceReceiptPDFProps) {
   const isPartial = invoice.status === 'partially_paid';
+  const isPaid = invoice.status === 'paid' || isPartial;
+  const receiptNumber = invoice.invoice_number;
+  const amountDue = invoice.amount_due || 0;
+  const amountPaid = invoice.amount_paid || 0;
+  const remaining = amountDue - amountPaid;
 
   return (
     <Document>

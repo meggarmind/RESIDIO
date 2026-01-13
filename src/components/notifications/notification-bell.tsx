@@ -114,16 +114,27 @@ function NotificationItem({ notification, onMarkAsRead, isMarkingRead }: Notific
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const [category, setCategory] = useState<string>('all');
 
   const { data: unreadCount = 0, isLoading: isLoadingCount } = useUnreadNotificationCount();
   const { data: notificationsData, isLoading: isLoadingNotifications } = useInAppNotifications({
     limit: 10,
+    category: category !== 'all' ? category : undefined,
   });
   const markAsReadMutation = useMarkNotificationAsRead();
   const markAllAsReadMutation = useMarkAllNotificationsAsRead();
 
   const notifications = notificationsData?.data || [];
   const hasUnread = unreadCount > 0;
+
+  // Category tabs
+  const categories = [
+    { value: 'all', label: 'All' },
+    { value: 'payment', label: 'Payments' },
+    { value: 'announcement', label: 'Announcements' },
+    { value: 'security', label: 'Security' },
+    { value: 'system', label: 'System' },
+  ];
 
   const handleMarkAsRead = (id: string) => {
     markAsReadMutation.mutate(id);
@@ -156,7 +167,7 @@ export function NotificationBell() {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
-        <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center justify-between p-4 pb-0 border-b">
           <div className="flex items-center gap-2">
             <h3 className="font-semibold">Notifications</h3>
             {hasUnread && (
@@ -177,6 +188,24 @@ export function NotificationBell() {
               Mark all read
             </Button>
           )}
+        </div>
+
+        {/* Category Tabs */}
+        <div className="flex items-center gap-1 p-2 border-b overflow-x-auto">
+          {categories.map((cat) => (
+            <button
+              key={cat.value}
+              onClick={() => setCategory(cat.value)}
+              className={cn(
+                'px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap',
+                category === cat.value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              )}
+            >
+              {cat.label}
+            </button>
+          ))}
         </div>
 
         <ScrollArea className="h-[340px]">

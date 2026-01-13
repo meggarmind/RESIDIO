@@ -34,7 +34,7 @@ const formSchema = z.object({
   last_name: z.string().min(1, 'Last name is required'),
   email: z.string().email('Invalid email address').optional().or(z.literal('')),
   phone_primary: z.string().optional(),
-  resident_role: z.enum(['household_member', 'domestic_staff', 'caretaker']),
+  resident_role: z.enum(['household_member', 'domestic_staff', 'caretaker', 'co_resident', 'contractor']),
   relationship: z.string().optional(),
   send_portal_invite: z.boolean(),
 });
@@ -44,8 +44,10 @@ type FormValues = z.input<typeof formSchema>;
 // Role options with labels
 const ROLE_OPTIONS = [
   { value: 'household_member', label: 'Household Member', description: 'Family member or dependent' },
+  { value: 'co_resident', label: 'Co-Resident', description: 'Adult living in the unit' },
   { value: 'domestic_staff', label: 'Domestic Staff', description: 'Domestic worker (e.g., driver, cleaner)' },
   { value: 'caretaker', label: 'Caretaker', description: 'Person assigned to maintain the unit' },
+  { value: 'contractor', label: 'Contractor', description: 'External service provider' },
 ] as const;
 
 interface HouseholdMemberFormProps {
@@ -53,8 +55,10 @@ interface HouseholdMemberFormProps {
   houseName?: string;
   onSuccess?: () => void;
   // For controlled mode (external open state)
+  // For controlled mode (external open state)
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  currentUserRole?: string;
 }
 
 export function HouseholdMemberForm({
@@ -63,7 +67,24 @@ export function HouseholdMemberForm({
   onSuccess,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
+  currentUserRole,
 }: HouseholdMemberFormProps) {
+  // Filter roles based on permissions
+  const availableRoles = ROLE_OPTIONS.filter((option) => {
+    if (!currentUserRole) return false;
+
+    // Owner-Occupier & Renter can add: Occupant, Family Member, Domestic Staff
+    if (['resident_landlord', 'tenant'].includes(currentUserRole)) {
+      return ['household_member', 'co_resident', 'domestic_staff'].includes(option.value);
+    }
+
+    // Property Owner & Developer can add: Caretaker, Contractor
+    if (['non_resident_landlord', 'developer'].includes(currentUserRole)) {
+      return ['caretaker', 'contractor'].includes(option.value);
+    }
+
+    return false;
+  });
   // Internal state for uncontrolled mode
   const [internalOpen, setInternalOpen] = useState(false);
 
@@ -204,16 +225,22 @@ export function HouseholdMemberForm({
               <SelectValue placeholder="Select role" />
             </SelectTrigger>
             <SelectContent>
-              {ROLE_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  <div>
-                    <span>{option.label}</span>
-                    <span className="text-xs text-muted-foreground ml-2">
-                      ({option.description})
-                    </span>
-                  </div>
-                </SelectItem>
-              ))}
+              {availableRoles.length > 0 ? (
+                availableRoles.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    <div>
+                      <span>{option.label}</span>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        ({option.description})
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))
+              ) : (
+                <div className="p-2 text-sm text-muted-foreground text-center">
+                  You do not have permission to add members
+                </div>
+              )}
             </SelectContent>
           </Select>
         </div>

@@ -54,7 +54,7 @@ export function InvoiceCorrectionTimeline({
       setLoading(true);
       const result = await getInvoiceCorrections(invoiceId);
       if (result.data) {
-        setData(result.data);
+        setData(result.data as unknown as CorrectionHistoryData);
       }
       setLoading(false);
     };

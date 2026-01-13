@@ -48,6 +48,8 @@ export function useUserThemeOverride(context: ThemeContext) {
     queryKey: ['user-theme-override', context],
     queryFn: () => getUserThemeOverride(context),
     select: (response) => response.data,
+    staleTime: Infinity, // Never consider cache stale - rely on optimistic updates from mutations
+    gcTime: 1000 * 60 * 5, // Keep in cache for 5 minutes after component unmount
   });
 }
 
@@ -59,13 +61,44 @@ export function useSetUserThemeOverride(context: ThemeContext) {
 
   return useMutation({
     mutationFn: (themeId: string | null) => setUserThemeOverride(context, themeId),
-    onSuccess: (_data, themeId) => {
-      queryClient.invalidateQueries({ queryKey: ['user-theme-override', context] });
-      queryClient.invalidateQueries({ queryKey: ['effective-theme', context] });
-      toast.success(themeId === null ? 'Reset to estate default' : 'Personal theme updated');
+
+    // ADD: Optimistic update for instant UI feedback
+    onMutate: async (newTheme) => {
+      // Cancel any outgoing refetches (so they don't overwrite optimistic update)
+      await queryClient.cancelQueries({ queryKey: ['user-theme-override', context] });
+      await queryClient.cancelQueries({ queryKey: ['effective-theme', context] });
+
+      // Snapshot the previous values for rollback
+      const previousOverride = queryClient.getQueryData(['user-theme-override', context]);
+      const previousEffective = queryClient.getQueryData(['effective-theme', context]);
+
+      // Optimistically update to the new value
+      queryClient.setQueryData(['user-theme-override', context], { data: newTheme, error: null });
+      if (newTheme === null) {
+        // If clearing override, effective theme falls back to estate default
+        const estateTheme = queryClient.getQueryData(['estate-theme', context]);
+        queryClient.setQueryData(['effective-theme', context], { data: estateTheme || 'default', error: null });
+      } else {
+        queryClient.setQueryData(['effective-theme', context], { data: newTheme, error: null });
+      }
+
+      // Return context with previous values for rollback
+      return { previousOverride, previousEffective };
     },
-    onError: (error: Error) => {
-      toast.error(`Failed to update theme: ${error.message}`);
+
+    onError: (err: Error, newTheme, rollbackContext) => {
+      // Rollback to previous values on error
+      if (rollbackContext) {
+        queryClient.setQueryData(['user-theme-override', context], rollbackContext.previousOverride);
+        queryClient.setQueryData(['effective-theme', context], rollbackContext.previousEffective);
+      }
+      toast.error(`Failed to update theme: ${err.message}`);
+    },
+
+    onSuccess: (_data, themeId) => {
+      // No need to invalidate - optimistic updates already set the correct cache values
+      // Invalidation would trigger unnecessary refetches that could overwrite with stale data
+      toast.success(themeId === null ? 'Reset to estate default' : 'Personal theme updated');
     },
   });
 }
@@ -78,6 +111,7 @@ export function useEffectiveTheme(context: ThemeContext) {
     queryKey: ['effective-theme', context],
     queryFn: () => getEffectiveTheme(context),
     select: (response) => response.data,
-    staleTime: 1000 * 60, // 1 minute (reduced from 5 for better theme change responsiveness)
+    staleTime: Infinity, // Never consider cache stale - rely on optimistic updates from mutations
+    gcTime: 1000 * 60 * 5, // Keep in cache for 5 minutes after component unmount
   });
 }

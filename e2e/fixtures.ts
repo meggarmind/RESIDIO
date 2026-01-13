@@ -15,7 +15,8 @@ export async function loginAs(page: Page, userType: keyof typeof TEST_USERS) {
     await page.waitForLoadState('networkidle');
     await page.fill('input[type="email"], input[name="email"]', user.email);
     await page.fill('input[type="password"]', user.password);
-    await page.click('button[type="submit"]');
+    // Press Enter to submit form - more reliable than clicking through overlays
+    await page.press('input[type="password"]', 'Enter');
     // Wait for either dashboard or portal redirect (admin is linked to resident)
     await page.waitForURL(/\/(dashboard|portal)/, { timeout: 30000 });
 }
@@ -27,7 +28,8 @@ export async function loginForPortal(page: Page, userType: keyof typeof TEST_USE
     await page.waitForLoadState('networkidle');
     await page.fill('input[type="email"], input[name="email"]', user.email);
     await page.fill('input[type="password"]', user.password);
-    await page.click('button[type="submit"]');
+    // Press Enter to submit form - more reliable than clicking through overlays
+    await page.press('input[type="password"]', 'Enter');
     // Wait for redirect then navigate to portal
     await page.waitForURL(/\/(dashboard|portal)/, { timeout: 30000 });
     // Ensure we're on the portal

@@ -50,6 +50,7 @@ export default function SettingsPage() {
     estate_facebook_url: '',
     estate_twitter_url: '',
     estate_instagram_url: '',
+    assistant_name: '',
   });
   const [isDirty, setIsDirty] = useState(false);
 
@@ -72,6 +73,7 @@ export default function SettingsPage() {
         estate_facebook_url: settingsObj.estate_facebook_url || '',
         estate_twitter_url: settingsObj.estate_twitter_url || '',
         estate_instagram_url: settingsObj.estate_instagram_url || '',
+        assistant_name: settingsObj.assistant_name || '',
       });
       setIsDirty(false);
     }
@@ -196,6 +198,19 @@ export default function SettingsPage() {
                       onChange={(e) => handleInputChange('estate_email', e.target.value)}
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="assistant-name">AI Assistant Name</Label>
+                  <Input
+                    id="assistant-name"
+                    placeholder="Estate Assistant"
+                    value={estateForm.assistant_name}
+                    onChange={(e) => handleInputChange('assistant_name', e.target.value)}
+                  />
+                  <p className="text-[0.8rem] text-muted-foreground">
+                    Customize the name of your floating AI assistant. Defaults to &quot;[Estate Name] Assistant&quot; if left blank.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -466,11 +481,10 @@ export default function SettingsPage() {
 
               {/* Show backfill results */}
               {backfillResult && (
-                <div className={`mt-4 p-4 rounded-lg border ${
-                  backfillResult.success
-                    ? 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
-                    : 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
-                }`}>
+                <div className={`mt-4 p-4 rounded-lg border ${backfillResult.success
+                  ? 'bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800'
+                  : 'bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800'
+                  }`}>
                   <div className="flex items-center gap-2 mb-2">
                     {backfillResult.success ? (
                       <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />

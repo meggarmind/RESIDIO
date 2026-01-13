@@ -5,3 +5,7 @@ export * from './codes';
 export * from './access-logs';
 export * from './categories';
 export * from './export';
+
+// Visitor Management Enhancement
+export * from './vehicles';
+export * from './visitor-analytics';

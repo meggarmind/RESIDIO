@@ -2,23 +2,41 @@
 
 import { Suspense, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useResident } from '@/hooks/use-residents';
 import { useInvoices, useResidentIndebtedness, useResidentWallet } from '@/hooks/use-billing';
 import { useResidentSecurityContacts } from '@/hooks/use-security';
 import { usePublishedAnnouncements } from '@/hooks/use-announcements';
-import { NahidStatsCards } from '@/components/resident-portal/dashboard/nahid-stats-cards';
-import { NahidInvoicesTable } from '@/components/resident-portal/dashboard/nahid-invoices-table';
-import { ResidentAnalyticsCharts } from '@/components/resident-portal/dashboard/resident-analytics-charts';
+import { useResidentDocuments } from '@/hooks/use-documents';
+import { DashboardGreeting } from '@/components/resident-portal/dashboard-greeting';
+import { MetricCard } from '@/components/resident-portal/metric-card';
+import { FeatureCard } from '@/components/resident-portal/feature-card';
+import { FinancialSummaryStats } from '@/components/resident-portal/financial-summary-stats';
+import { PaymentTimeline, type PaymentTimelineItem } from '@/components/resident-portal/payment-timeline';
+import { AnnouncementsFeed, type AnnouncementFeedItem } from '@/components/resident-portal/announcements-feed';
 import { WalletTopUpDialog } from '@/components/resident-portal/wallet-topup-dialog';
 import { VisitorAccessDialog } from '@/components/resident-portal/visitor-access-dialog';
-import { Button } from '@/components/ui/button';
+import { MyPropertiesCard } from '@/components/resident-portal/my-properties-card';
+import { NairaIcon } from '@/components/icons/naira-icon';
+import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { Shield, CreditCard, Loader2 } from 'lucide-react';
+import {
+  Building,
+  Shield,
+  FileText,
+  UserPlus,
+  Receipt,
+  Wallet,
+  TrendingUp,
+  Loader2,
+  Clock,
+  AlertCircle,
+} from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatCurrency } from '@/lib/utils';
 
-// Spring physics for smooth, professional animations
+// Spring physics for smooth animations
 const spring = {
   type: 'spring' as const,
   stiffness: 300,
@@ -26,7 +44,7 @@ const spring = {
   mass: 1,
 };
 
-// Stagger animation variants for content sections
+// Stagger animation variants
 const sectionVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: (custom: number) => ({
@@ -34,7 +52,7 @@ const sectionVariants = {
     y: 0,
     transition: {
       ...spring,
-      delay: custom * 0.15, // 150ms stagger between sections
+      delay: custom * 0.1,
     },
   }),
 };
@@ -44,50 +62,185 @@ const sectionVariants = {
  */
 function ResidentPortalHomePageInner() {
   const { residentId } = useAuth();
-  const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Dialog state - must be declared before any conditional returns (Rules of Hooks)
+  // Dialog state
   const [topUpDialogOpen, setTopUpDialogOpen] = useState(false);
   const [visitorDialogOpen, setVisitorDialogOpen] = useState(false);
 
-  // Check if we're in impersonation mode (admin selecting a resident)
+  // Check if we're in impersonation mode
   const impersonateMode = searchParams.get('impersonate') === 'true';
 
-  // Fetch Resident Data - hooks must be called unconditionally
-  // Pass null to skip fetching when no residentId
+  // Fetch Data
   const { data: resident, isLoading: residentLoading } = useResident(residentId || '');
   const { data: indebtedness, isLoading: indebtednessLoading } = useResidentIndebtedness(residentId || '');
   const { data: wallet, isLoading: walletLoading } = useResidentWallet(residentId || '');
   const { data: contactsData, isLoading: contactsLoading } = useResidentSecurityContacts(residentId || '');
-
-  // Fetch Invoices (for recent transactions table)
   const { data: invoicesData } = useInvoices({
     residentId: residentId || '',
-    limit: 5
+    limit: 5,
   });
+  const { data: announcements = [] } = usePublishedAnnouncements({ limit: 5 });
+  const { data: documentsData } = useResidentDocuments();
 
-  // Fetch Invoices for Analytics (last 50 to cover recent months)
-  const { data: analyticsData } = useInvoices({
-    residentId: residentId || '',
-    limit: 50
-  });
+  // Derived values (must come before any conditional returns to follow Rules of Hooks)
+  const walletBalance = wallet?.balance || 0;
+  const totalOwed = indebtedness?.totalUnpaid || 0;
+  const firstName = resident?.first_name || 'Resident';
 
-  // Fetch Announcements
-  const { data: announcements = [], isLoading: announcementsLoading } = usePublishedAnnouncements({ limit: 5 });
+  // Wrap invoices in useMemo to prevent unnecessary re-renders
+  const invoices = useMemo(() => invoicesData?.data || [], [invoicesData?.data]);
 
-  // Guard: If no residentId
+  // Compute metrics (all useMemo hooks must be called before conditional returns)
+  const propertyCount = useMemo(() => {
+    return resident?.resident_houses?.filter((rh) => rh.is_active).length || 0;
+  }, [resident]);
+
+  const securityContactsCount = useMemo(() => {
+    return contactsData?.data?.filter((c) => c.status === 'active')?.length || 0;
+  }, [contactsData]);
+
+  // Documents count - real data
+  const documentsCount = useMemo(() => {
+    return documentsData?.data?.length || 0;
+  }, [documentsData]);
+
+  // Visitors count - filtered from security contacts
+  const visitorsCount = useMemo(() => {
+    return contactsData?.data?.filter((c) => c.category?.name === 'Visitor' && c.status === 'active')?.length || 0;
+  }, [contactsData]);
+
+  // Time-based greeting
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  }, []);
+
+  // Calculate actual trends from real data
+  const currentMonthInvoices = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return invoices.filter((inv) => new Date(inv.created_at || '') >= startOfMonth).length;
+  }, [invoices]);
+
+  const overdueThisWeek = useMemo(() => {
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay()); // Start of current week (Sunday)
+    return invoices.filter(
+      (inv) => inv.status === 'overdue' && new Date(inv.due_date || '') >= startOfWeek
+    ).length;
+  }, [invoices]);
+
+  // Note: Balance trend would require wallet transaction history
+  // Keeping a placeholder for now until we implement transaction-based calculation
+  const balanceTrend = null; // Set to null to hide trend until implemented
+
+  // Prepare Financial Summary Stats data
+  const overdueInvoices = useMemo(() => {
+    const overdue = invoices.filter((inv) => inv.status === 'overdue');
+    const totalAmount = overdue.reduce((sum, inv) => sum + (inv.amount_due || 0), 0);
+    return { count: overdue.length, amount: totalAmount };
+  }, [invoices]);
+
+  const dueSoonInvoices = useMemo(() => {
+    const now = new Date();
+    const sevenDaysFromNow = new Date(now);
+    sevenDaysFromNow.setDate(now.getDate() + 7);
+
+    const dueSoon = invoices.filter((inv) => {
+      if (inv.status === 'paid' || inv.status === 'overdue') return false;
+      const dueDate = new Date(inv.due_date || '');
+      return dueDate > now && dueDate <= sevenDaysFromNow;
+    });
+    const totalAmount = dueSoon.reduce((sum, inv) => sum + (inv.amount_due || 0), 0);
+    return { count: dueSoon.length, amount: totalAmount };
+  }, [invoices]);
+
+  const paidThisMonthInvoices = useMemo(() => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const paid = invoices.filter((inv) => {
+      if (inv.status !== 'paid') return false;
+      // Assuming there's a paid_at or updated_at field for payment date
+      const paidDate = new Date(inv.updated_at || inv.created_at || '');
+      return paidDate >= startOfMonth;
+    });
+    const totalAmount = paid.reduce((sum, inv) => sum + (inv.amount_due || 0), 0);
+    return { count: paid.length, amount: totalAmount };
+  }, [invoices]);
+
+  // Prepare Payment Timeline data
+  const upcomingPayments = useMemo((): PaymentTimelineItem[] => {
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(now);
+    thirtyDaysFromNow.setDate(now.getDate() + 30);
+
+    return invoices
+      .filter((inv) => {
+        if (inv.status === 'paid') return false;
+        const dueDate = new Date(inv.due_date || '');
+        return dueDate <= thirtyDaysFromNow;
+      })
+      .map((inv) => {
+        const dueDate = new Date(inv.due_date || '');
+        const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+        let status: PaymentTimelineItem['status'];
+        if (inv.status === 'overdue' || daysUntilDue < 0) {
+          status = 'overdue';
+        } else if (daysUntilDue <= 7) {
+          status = 'due_soon';
+        } else {
+          status = 'upcoming';
+        }
+
+        return {
+          invoiceId: inv.id,
+          invoiceNumber: inv.invoice_number || '',
+          dueDate,
+          amount: inv.amount_due || 0,
+          status,
+          daysUntilDue: Math.max(0, daysUntilDue),
+          invoiceType: inv.invoice_type,
+        };
+      })
+      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+      .slice(0, 5); // Show top 5 upcoming payments
+  }, [invoices]);
+
+  // Prepare Announcements Feed data
+  const announcementsFeedData = useMemo((): AnnouncementFeedItem[] => {
+    return announcements.slice(0, 5).map((ann) => ({
+      id: ann.id,
+      title: ann.title || '',
+      content: ann.content?.substring(0, 100), // Truncate to 100 chars
+      priority: ann.priority as AnnouncementFeedItem['priority'],
+      category: (typeof ann.category === 'object' ? ann.category?.name : ann.category) || 'General',
+      createdAt: new Date(ann.published_at || ann.created_at || ''),
+      isRead: false, // TODO: Implement read status tracking
+    }));
+  }, [announcements]);
+
+  // Active properties for My Properties widget
+  const activeProperties = useMemo(() => {
+    return resident?.resident_houses?.filter((rh) => rh.is_active) || [];
+  }, [resident]);
+
+  // Loading state check (after all hooks are called)
+  const isLoading = residentLoading || indebtednessLoading || walletLoading || contactsLoading;
+
+  // Guard: If no residentId (after all hooks are called)
   if (!residentId) {
     if (impersonateMode) {
-      // Admin is selecting a resident - show helpful placeholder
-      // The selector dialog is rendered by ImpersonationPortalWrapper
       return (
         <div className="flex flex-col items-center justify-center min-h-[80vh] text-center">
           <p className="text-muted-foreground">Select a resident to view their portal</p>
         </div>
       );
     }
-    // Regular case - waiting for auth to load
     return (
       <div className="flex items-center justify-center min-h-[80vh]">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -95,128 +248,302 @@ function ResidentPortalHomePageInner() {
     );
   }
 
-  // Compute Properties Count
-  const propertyCount = useMemo(() => {
-    return resident?.resident_houses?.filter(rh => rh.is_active).length || 0;
-  }, [resident]);
-
-  // Compute Active Security Contacts
-  const securityContactsCount = useMemo(() => {
-    return contactsData?.data?.filter(c => c.status === 'active')?.length || 0;
-  }, [contactsData]);
-
-  // Derived Values
-  const walletBalance = wallet?.balance || 0;
-  const invoices = invoicesData?.data || [];
-  const latestAnnouncement = announcements && announcements.length > 0 ? announcements[0] : null;
-
-  // Loading State
-  const isLoading = residentLoading || indebtednessLoading || walletLoading || contactsLoading;
-
   if (isLoading) {
     return <DashboardSkeleton />;
   }
 
   return (
-    <div className="space-y-8 pb-10">
-      {/* Hero Section: Financial Overview, Quick Actions, Latest Update */}
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
+      {/* Main Content Column */}
       <div className="space-y-8">
-        {/* Page Title */}
-        <motion.div
-          variants={sectionVariants}
-          initial="hidden"
-          animate="visible"
-          custom={0}
-        >
-          <h1 className="text-[28px] font-bold text-bill-text tracking-tight">Dashboard</h1>
-          <p className="text-bill-text-secondary mt-1">Welcome back, {resident?.first_name || 'Resident'}</p>
+        {/* Greeting Section */}
+        <motion.div variants={sectionVariants} initial="hidden" animate="visible" custom={0}>
+          <DashboardGreeting
+            userName={firstName}
+            greeting={greeting}
+            subtitle="Let's check your asset"
+          />
         </motion.div>
 
-        {/* Stats Row */}
+        {/* Top Metrics Row (3 columns) */}
         <motion.div
+          className="grid grid-cols-1 md:grid-cols-3 gap-4"
           variants={sectionVariants}
           initial="hidden"
           animate="visible"
           custom={1}
         >
-          <NahidStatsCards
-            walletBalance={walletBalance}
-            propertyCount={propertyCount}
-            securityContactsCount={securityContactsCount}
-            onTopUpClick={() => setTopUpDialogOpen(true)}
-            onViewPropertiesClick={() => router.push('/portal/properties')}
-            onAddVisitorClick={() => setVisitorDialogOpen(true)}
+          <MetricCard
+            label="Wallet Balance"
+            value={formatCurrency(walletBalance)}
+            trend={balanceTrend}
+            icon={<Wallet />}
+            iconColor="blue"
+          />
+          <MetricCard
+            label="Invoices"
+            value={invoices.length.toString()}
+            subtitle={`${currentMonthInvoices} this month`}
+            icon={<NairaIcon />}
+            iconColor="purple"
+          />
+          <MetricCard
+            label="Outstanding"
+            value={formatCurrency(totalOwed)}
+            subtitle={`${overdueThisWeek} overdue this week`}
+            icon={<TrendingUp />}
+            iconColor="orange"
           />
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content: Transactions & Charts */}
-          <motion.div
-            className="lg:col-span-2 space-y-8"
-            variants={sectionVariants}
-            initial="hidden"
-            animate="visible"
-            custom={2}
+        {/* My Assets Section (4 columns: My Properties first + 3 feature cards) */}
+        <motion.div variants={sectionVariants} initial="hidden" animate="visible" custom={2}>
+          <h2
+            className="mb-4"
+            style={{
+              fontSize: 'var(--text-lg)',
+              fontWeight: 'var(--font-semibold)',
+              color: 'var(--color-text-primary)',
+            }}
           >
-            {/* Analytics/Charts */}
-            <div className="h-[350px]">
-              <ResidentAnalyticsCharts invoices={analyticsData?.data || []} />
-            </div>
-
-            {/* Transactions Table */}
-            <NahidInvoicesTable invoices={invoices} />
-          </motion.div>
-
-          {/* Side Content: Announcements / Quick Actions */}
-          <motion.div
-            className="space-y-6"
-            variants={sectionVariants}
-            initial="hidden"
-            animate="visible"
-            custom={2.5}
-          >
-            {/* Announcements Card */}
-            <div className="bg-bill-card border border-border rounded-2xl p-6 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-              <h3 className="text-lg font-semibold text-bill-text mb-4">Latest Updates</h3>
-              {latestAnnouncement ? (
-                <div>
-                  <span className="text-xs font-medium text-bill-mint mb-2 block">
-                    {new Date(latestAnnouncement.created_at || new Date()).toLocaleDateString()}
-                  </span>
-                  <h4 className="font-medium text-bill-text mb-2 line-clamp-2">{latestAnnouncement.title}</h4>
-                  <p className="text-sm text-bill-text-secondary line-clamp-3 mb-4">
-                    {latestAnnouncement.content}
-                  </p>
-                  <Link href="/portal/announcements" className="w-full block">
-                    <Button variant="outline" size="sm" className="w-full">Read More</Button>
-                  </Link>
-                </div>
-              ) : (
-                <p className="text-sm text-bill-text-secondary">No recent updates.</p>
+            My Assets
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* My Properties - FIRST column */}
+            <div
+              className="rounded-2xl p-4 relative overflow-hidden"
+              style={{
+                backgroundColor: 'var(--color-primary)',
+              }}
+            >
+              {propertyCount > 1 && (
+                <Link
+                  href="/portal/properties"
+                  className="absolute top-3 right-3 text-xs hover:underline z-10"
+                  style={{ color: 'var(--color-primary-foreground)' }}
+                >
+                  View All
+                </Link>
               )}
+              <MyPropertiesCard
+                properties={activeProperties.slice(0, 2)}
+                totalPropertyCount={propertyCount}
+                isLoading={residentLoading}
+                className="themed-properties"
+              />
             </div>
+            <FeatureCard
+              title="Security Contacts"
+              subtitle={`${securityContactsCount} Active Contacts`}
+              icon={<Shield />}
+              iconColor="pink"
+              href="/portal/security-contacts"
+            />
+            <FeatureCard
+              title="Documents"
+              subtitle={`${documentsCount} Files Available`}
+              icon={<FileText />}
+              iconColor="green"
+              href="/portal/documents"
+            />
+            <FeatureCard
+              title="Visitors"
+              subtitle={`${visitorsCount} Registered`}
+              icon={<UserPlus />}
+              iconColor="orange"
+              href="/portal/visitors"
+            />
+          </div>
+        </motion.div>
 
-            {/* Quick Actions Card */}
-            <div className="bg-bill-secondary/50 rounded-2xl p-6 border border-border">
-              <h3 className="text-sm font-semibold text-bill-text uppercase tracking-wider mb-4">Quick Actions</h3>
-              <div className="space-y-3">
-                <Link href="/portal/security-contacts" className="block">
-                  <Button variant="outline" className="w-full justify-start bg-bill-card">
-                    <Shield className="mr-2 h-4 w-4" />
-                    Add Visitor
-                  </Button>
-                </Link>
-                <Link href="/portal/invoices" className="block">
-                  <Button variant="outline" className="w-full justify-start bg-bill-card">
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    Pay Bills
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-        </div>
+        {/* Latest Announcements (Horizontal Card) */}
+        <motion.div variants={sectionVariants} initial="hidden" animate="visible" custom={2.5}>
+          <AnnouncementsFeed announcements={announcementsFeedData} />
+        </motion.div>
       </div>
+
+      {/* Right Sidebar Column (Desktop only) */}
+      <motion.div
+        className="hidden lg:block space-y-6"
+        variants={sectionVariants}
+        initial="hidden"
+        animate="visible"
+        custom={1.5}
+      >
+        {/* Financial Summary Stats (2x2 grid) */}
+        <FinancialSummaryStats
+          stats={[
+            {
+              label: 'Overdue',
+              value: overdueInvoices.amount,
+              subtitle: `${overdueInvoices.count} invoice${overdueInvoices.count !== 1 ? 's' : ''}`,
+              icon: AlertCircle,
+              iconColor: 'orange',
+              href: '/portal/invoices?status=overdue',
+            },
+            {
+              label: 'Due Soon',
+              value: dueSoonInvoices.amount,
+              subtitle: `${dueSoonInvoices.count} invoice${dueSoonInvoices.count !== 1 ? 's' : ''}`,
+              icon: Clock,
+              iconColor: 'purple',
+              href: '/portal/invoices?status=unpaid',
+            },
+            {
+              label: 'Paid MTD',
+              value: paidThisMonthInvoices.amount,
+              subtitle: `${paidThisMonthInvoices.count} payment${paidThisMonthInvoices.count !== 1 ? 's' : ''}`,
+              icon: TrendingUp,
+              iconColor: 'green',
+            },
+            {
+              label: 'Wallet',
+              value: walletBalance,
+              subtitle: 'Available',
+              icon: Wallet,
+              iconColor: 'blue',
+              href: '/portal/wallet',
+            },
+          ]}
+        />
+
+        {/* Payment Timeline */}
+        <PaymentTimeline items={upcomingPayments} />
+
+        {/* Recent Invoices (moved from main content) */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2
+              style={{
+                fontSize: 'var(--text-base)',
+                fontWeight: 'var(--font-semibold)',
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              Recent Invoices
+            </h2>
+            <Link
+              href="/portal/invoices"
+              style={{
+                fontSize: 'var(--text-xs)',
+                color: 'var(--color-primary)',
+                fontWeight: 'var(--font-medium)',
+              }}
+            >
+              View All
+            </Link>
+          </div>
+
+          {invoices.length > 0 ? (
+            <div className="overflow-y-auto" style={{ maxHeight: '500px' }}>
+              <table className="w-full">
+                <thead className="sticky top-0" style={{ backgroundColor: 'var(--bg-card)' }}>
+                  <tr
+                    style={{
+                      borderBottom: '1px solid var(--color-bg-input)',
+                    }}
+                  >
+                    <th
+                      className="text-left pb-2"
+                      style={{
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: 'var(--font-semibold)',
+                        color: 'var(--color-text-muted)',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Invoice
+                    </th>
+                    <th
+                      className="text-right pb-2"
+                      style={{
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: 'var(--font-semibold)',
+                        color: 'var(--color-text-muted)',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Amount
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((invoice, index) => (
+                    <tr
+                      key={invoice.id}
+                      style={{
+                        borderBottom:
+                          index !== invoices.length - 1
+                            ? '1px solid var(--color-bg-input)'
+                            : 'none',
+                      }}
+                    >
+                      <td className="py-2">
+                        <div>
+                          <p
+                            style={{
+                              fontSize: 'var(--text-sm)',
+                              fontWeight: 'var(--font-medium)',
+                              color: 'var(--color-text-primary)',
+                            }}
+                          >
+                            #{invoice.invoice_number}
+                          </p>
+                          <p
+                            style={{
+                              fontSize: 'var(--text-xs)',
+                              color: 'var(--color-text-secondary)',
+                            }}
+                          >
+                            {new Date(invoice.due_date || '').toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="py-2 text-right">
+                        <p
+                          style={{
+                            fontSize: 'var(--text-sm)',
+                            fontWeight: 'var(--font-semibold)',
+                            color: 'var(--color-text-primary)',
+                          }}
+                        >
+                          {formatCurrency(invoice.amount_due)}
+                        </p>
+                        <Badge
+                          variant={
+                            invoice.status === 'paid'
+                              ? 'success'
+                              : invoice.status === 'overdue'
+                                ? 'destructive'
+                                : 'warning'
+                          }
+                          className="text-xs mt-1"
+                        >
+                          {invoice.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p
+              style={{
+                fontSize: 'var(--text-sm)',
+                color: 'var(--color-text-secondary)',
+                textAlign: 'center',
+                padding: 'var(--space-6) 0',
+              }}
+            >
+              No recent invoices
+            </p>
+          )}
+        </div>
+      </motion.div>
 
       {/* Dialogs */}
       <WalletTopUpDialog
@@ -225,37 +552,53 @@ function ResidentPortalHomePageInner() {
         currentBalance={walletBalance}
       />
 
-      <VisitorAccessDialog
-        open={visitorDialogOpen}
-        onOpenChange={setVisitorDialogOpen}
-      />
+      <VisitorAccessDialog open={visitorDialogOpen} onOpenChange={setVisitorDialogOpen} />
     </div>
   );
 }
 
 function DashboardSkeleton() {
   return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[300px]">
-        <Skeleton className="lg:col-span-6 rounded-[24px]" />
-        <Skeleton className="lg:col-span-3 rounded-[24px]" />
-        <Skeleton className="lg:col-span-3 rounded-[24px]" />
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8">
+      {/* Main Content Skeleton */}
+      <div className="space-y-8">
+        <Skeleton style={{ height: '80px', borderRadius: 'var(--radius-lg)' }} />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Skeleton style={{ height: '160px', borderRadius: 'var(--radius-lg)' }} />
+          <Skeleton style={{ height: '160px', borderRadius: 'var(--radius-lg)' }} />
+          <Skeleton style={{ height: '160px', borderRadius: 'var(--radius-lg)' }} />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Skeleton style={{ height: '120px', borderRadius: 'var(--radius-lg)' }} />
+          <Skeleton style={{ height: '120px', borderRadius: 'var(--radius-lg)' }} />
+          <Skeleton style={{ height: '120px', borderRadius: 'var(--radius-lg)' }} />
+          <Skeleton style={{ height: '120px', borderRadius: 'var(--radius-lg)' }} />
+        </div>
+        <Skeleton style={{ height: '400px', borderRadius: 'var(--radius-lg)' }} />
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-48">
-        <Skeleton className="rounded-[24px]" />
-        <Skeleton className="rounded-[24px]" />
-        <Skeleton className="rounded-[24px]" />
+
+      {/* Right Sidebar Skeleton */}
+      <div className="hidden lg:block space-y-6">
+        <Skeleton style={{ height: '180px', borderRadius: 'var(--radius-lg)' }} />
+        <Skeleton style={{ height: '280px', borderRadius: 'var(--radius-lg)' }} />
+        <Skeleton style={{ height: '220px', borderRadius: 'var(--radius-lg)' }} />
       </div>
-      <Skeleton className="h-96 w-full rounded-[24px]" />
     </div>
   );
 }
 
 /**
- * Resident Portal Home Page
+ * Resident Portal Home Page - Modern Design System
  *
- * Wraps inner component with Suspense boundary for useSearchParams.
- * Shows skeleton loader during Suspense fallback.
+ * Complete dashboard redesign following the portal-modern design template with:
+ * - Greeting section with time-based greeting
+ * - Top 3 metric cards (Total Balance, Invoices, Outstanding)
+ * - My Assets grid (4 feature cards: Properties, Security Contacts, Documents, Visitors)
+ * - Recent invoices table with status badges
+ * - Right sidebar (desktop only) with quick stats, calendar, and activity log
+ *
+ * Layout: 2-column grid on desktop (main content + 280px sidebar)
+ * Mobile: Single column, sidebar content moved below or hidden
  */
 export default function ResidentPortalHomePage() {
   return (

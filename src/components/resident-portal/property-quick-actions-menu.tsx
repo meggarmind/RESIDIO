@@ -37,6 +37,8 @@ interface PropertyQuickActionsMenuProps {
   canManage?: boolean;
   /** Loading state */
   isLoading?: boolean;
+  /** Handler for Add Member action (overrides default navigation) */
+  onAddMember?: () => void;
   className?: string;
 }
 
@@ -55,6 +57,7 @@ export function PropertyQuickActionsMenu({
   residentId,
   canManage = false,
   isLoading = false,
+  onAddMember,
   className,
 }: PropertyQuickActionsMenuProps) {
 
@@ -99,7 +102,8 @@ export function PropertyQuickActionsMenu({
     {
       label: 'Add Member',
       icon: <UserPlus className="w-5 h-5" />,
-      href: canManage ? '/portal/household' : undefined,
+      href: !onAddMember && canManage ? '/portal/household' : undefined,
+      onClick: onAddMember,
       disabled: !canManage,
       colorClass: canManage ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400 dark:text-gray-600',
       bgClass: canManage ? 'bg-purple-50 dark:bg-purple-900/20' : 'bg-gray-50 dark:bg-gray-900/20',
@@ -124,111 +128,111 @@ export function PropertyQuickActionsMenu({
         borderColor: 'var(--color-border)',
       }}
     >
-        {/* Header */}
-        <div className="flex items-center gap-2 mb-4">
-          <LayoutGrid
-            style={{
-              width: 'var(--icon-sm)',
-              height: 'var(--icon-sm)',
-              color: 'var(--color-text-primary)',
-            }}
-          />
-          <h3
-            className="font-semibold"
-            style={{
-              fontSize: 'var(--text-lg)',
-              color: 'var(--color-text-primary)',
-            }}
-          >
-            Quick Actions
-          </h3>
-        </div>
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <LayoutGrid
+          style={{
+            width: 'var(--icon-sm)',
+            height: 'var(--icon-sm)',
+            color: 'var(--color-text-primary)',
+          }}
+        />
+        <h3
+          className="font-semibold"
+          style={{
+            fontSize: 'var(--text-lg)',
+            color: 'var(--color-text-primary)',
+          }}
+        >
+          Quick Actions
+        </h3>
+      </div>
 
-        {/* Actions Grid */}
-        <div className="grid grid-cols-2 gap-3">
-          {actions.map((action, index) => {
-            const extendedAction = action as QuickAction & { isStatementAction?: boolean };
+      {/* Actions Grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {actions.map((action, index) => {
+          const extendedAction = action as QuickAction & { isStatementAction?: boolean };
 
-            // Create the button content
-            const buttonContent = (
-              <>
-                <div
-                  className={cn(
-                    'w-10 h-10 rounded-lg flex items-center justify-center',
-                    action.bgClass
-                  )}
-                >
-                  <div className={action.colorClass}>{action.icon}</div>
-                </div>
-                <span
-                  className="text-sm font-medium"
-                  style={{
-                    color: action.disabled ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
-                  }}
-                >
-                  {action.label}
-                </span>
-              </>
-            );
-
-            // Special handling for Statement action - wrap in dialog
-            if (extendedAction.isStatementAction && residentId) {
-              return (
-                <StatementGeneratorDialog
-                  key={index}
-                  residentId={residentId}
-                  defaultHouseId={houseId}
-                  trigger={
-                    <Button
-                      variant="outline"
-                      className="h-24 flex-col gap-2 w-full"
-                    >
-                      {buttonContent}
-                    </Button>
-                  }
-                />
-              );
-            }
-
-            // Regular action button
-            const ActionButton = (
-              <Button
-                variant="outline"
+          // Create the button content
+          const buttonContent = (
+            <>
+              <div
                 className={cn(
-                  'h-24 flex-col gap-2 w-full',
-                  action.disabled && 'opacity-50 cursor-not-allowed'
+                  'w-10 h-10 rounded-lg flex items-center justify-center',
+                  action.bgClass
                 )}
-                onClick={action.onClick}
-                disabled={action.disabled}
-                asChild={!!action.href && !action.disabled}
               >
-                {action.href && !action.disabled ? (
-                  <Link href={action.href}>{buttonContent}</Link>
-                ) : (
-                  buttonContent
-                )}
-              </Button>
-            );
+                <div className={action.colorClass}>{action.icon}</div>
+              </div>
+              <span
+                className="text-sm font-medium"
+                style={{
+                  color: action.disabled ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
+                }}
+              >
+                {action.label}
+              </span>
+            </>
+          );
 
+          // Special handling for Statement action - wrap in dialog
+          if (extendedAction.isStatementAction && residentId) {
             return (
-              <React.Fragment key={index}>
-                {ActionButton}
-              </React.Fragment>
+              <StatementGeneratorDialog
+                key={index}
+                residentId={residentId}
+                defaultHouseId={houseId}
+                trigger={
+                  <Button
+                    variant="outline"
+                    className="h-24 flex-col gap-2 w-full"
+                  >
+                    {buttonContent}
+                  </Button>
+                }
+              />
             );
-          })}
-        </div>
+          }
 
-        {/* Info Text for Disabled Actions */}
-        {!canManage && (
-          <p
-            className="text-xs mt-3 text-center"
-            style={{
-              color: 'var(--color-text-muted)',
-            }}
-          >
-            Some actions require primary resident permissions
-          </p>
-        )}
+          // Regular action button
+          const ActionButton = (
+            <Button
+              variant="outline"
+              className={cn(
+                'h-24 flex-col gap-2 w-full',
+                action.disabled && 'opacity-50 cursor-not-allowed'
+              )}
+              onClick={action.onClick}
+              disabled={action.disabled}
+              asChild={!!action.href && !action.disabled}
+            >
+              {action.href && !action.disabled ? (
+                <Link href={action.href}>{buttonContent}</Link>
+              ) : (
+                buttonContent
+              )}
+            </Button>
+          );
+
+          return (
+            <React.Fragment key={index}>
+              {ActionButton}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* Info Text for Disabled Actions */}
+      {!canManage && (
+        <p
+          className="text-xs mt-3 text-center"
+          style={{
+            color: 'var(--color-text-muted)',
+          }}
+        >
+          Some actions require primary resident permissions
+        </p>
+      )}
     </div>
   );
 }

@@ -60,13 +60,18 @@ supabase/
 
 ## Core Entities
 
-### User & Auth
+### User & Auth (RBAC v2)
 
 | Table | Description |
 |-------|-------------|
-| `profiles` | User accounts with roles, linked to Supabase Auth |
-| `roles` | Configurable roles with permission arrays |
-| `role_assignments` | Junction table linking residents to roles |
+| `profiles` | User accounts linked to Supabase Auth with theme overrides |
+| `app_roles` | Phase 10: Granular roles with levels and categories |
+| `app_permissions` | Phase 10: Specific permissions grouped by category |
+| `role_permissions` | Junction table linking roles to permissions |
+| `role_assignment_rules` | Rules defining allowed resident role for app roles |
+| `two_factor_policies` | 2FA enforcement rules per role |
+| `two_factor_tokens` | Active 2FA login/setup tokens |
+| `two_factor_backup_codes` | Hashed backup codes for recovery |
 
 ### Property
 
@@ -104,23 +109,49 @@ supabase/
 | `access_codes` | Permanent and one-time access codes |
 | `access_logs` | Check-in/check-out recording |
 
-### Notifications
+### Community & Communication
 
 | Table | Description |
 |-------|-------------|
-| `notification_templates` | Message templates with variables |
-| `notification_schedules` | Trigger rules for automated notifications |
-| `notification_queue` | Pending notifications to send |
-| `notification_history` | Sent notification records |
-| `notification_preferences` | Per-resident channel preferences |
+| `announcements` | Community-wide updates with status and priority |
+| `announcement_categories` | Categorization for announcements with visual styles |
+| `announcement_read_receipts` | Tracking for resident engagement |
+| `in_app_notifications` | Real-time alerts for residents |
+| `notification_templates` | Legacy: Message templates with variables |
+| `message_templates` | Phase 16: Modern reusable communication templates |
+| `report_subscriptions` | Resident preferences for automated reporting |
+
+### Documents
+
+| Table | Description |
+|-------|-------------|
+| `documents` | Core entity for cloud-stored files with versioning |
+| `document_categories` | Folder-like categorization with visibility rules |
+| `document_access_logs` | Security audit trail for document interactions |
+
+### Email & Gmail Integration
+
+| Table | Description |
+|-------|-------------|
+| `gmail_oauth_credentials` | Secure OAuth tokens for Gmail API access |
+| `email_imports` | Session tracking for automated bank imports |
+| `email_messages` | Individual emails fetched and classification |
+| `email_transactions` | Transactions extracted from email alerts/PDFs |
+| `bank_statement_imports` | Legacy: Manual statement import sessions |
+| `resident_payment_aliases` | Mapping for automated resident matching |
+| `estate_bank_account_passwords` | Encrypted passwords for bank PDF decryption |
 
 ### System
 
 | Table | Description |
 |-------|-------------|
-| `audit_logs` | Immutable activity logs |
-| `system_settings` | Application configuration key-value store |
+| `audit_logs` | Immutable activity logs across all modules |
+| `system_settings` | Core application configuration |
+| `impersonation_sessions` | Admin-resident portal preview sessions |
 | `approval_requests` | Maker-checker workflow queue |
+| `entity_notes` | Polymorphic notes for residents and houses |
+| `late_fee_log` | Application history for automated late fees |
+| `late_fee_waivers` | Resident requests for fee removal |
 
 ---
 
@@ -277,7 +308,7 @@ Defines the relationship a resident has to a property. Updated in Phase 15 to in
 
 ### `id_document_type`
 ```sql
-'national_id' | 'drivers_license' | 'passport' | 'voters_card' | 'other'
+'nin' | 'drivers_license' | 'passport' | 'voters_card' | 'company_id' | 'other'
 ```
 
 ### `notification_channel`
@@ -288,40 +319,62 @@ Defines the relationship a resident has to a property. Updated in Phase 15 to in
 ### `audit_action`
 ```sql
 'CREATE' | 'UPDATE' | 'DELETE' | 'VERIFY' | 'APPROVE' | 'REJECT' |
-'ASSIGN' | 'UNASSIGN' | 'ACTIVATE' | 'DEACTIVATE' | 'GENERATE' | 'ALLOCATE'
+'ASSIGN' | 'UNASSIGN' | 'ACTIVATE' | 'DEACTIVATE' | 'GENERATE' | 
+'ALLOCATE' | 'TRANSFER' | 'BULK_UPDATE' | 'LOGIN' | 'LOGOUT'
 ```
 
 ---
 
 ## Entity Relationships
 
-```
-profiles ─────────────────┐
-    │                     │
-    └── role_assignments ─┘
-            │
-            ▼
-         roles
+```mermaid
+graph TD
+    subgraph Auth_RBAC [Auth & RBAC]
+        profiles --> app_roles
+        app_roles --> role_permissions
+        role_permissions --> app_permissions
+        profiles --> two_factor_policies
+    end
 
-streets ◄── houses ──► house_types
-              │
-              └── resident_houses ──► residents ──► wallets
-                        │                  │
-                        │                  └── wallet_transactions
-                        │
-                        └── invoices ──► invoice_items
-                              │
-                              └── payment_records
+    subgraph Property_Structure [Property]
+        streets --> houses
+        houses --> house_types
+    end
 
-residents ──► security_contacts ──► access_codes
-                     │
-                     └── access_logs
+    subgraph Resident_Management [Residents]
+        residents --> resident_houses
+        houses --> resident_houses
+        residents --> wallets
+        wallets --> wallet_transactions
+        residents --> entity_notes
+    end
 
-notification_templates ──► notification_schedules
-                               │
-                               └── notification_queue ──► notification_history
-                                                              │
-                                                              └── notification_preferences
+    subgraph Financial [Billing & Payments]
+        resident_houses --> invoices
+        billing_profiles --> invoices
+        invoices --> invoice_items
+        invoices --> payment_records
+        payment_records --> email_transactions
+        email_imports --> email_transactions
+    end
+
+    subgraph Communication [Community]
+        announcements --> announcement_categories
+        announcements --> announcement_read_receipts
+        residents --> announcement_read_receipts
+        residents --> in_app_notifications
+    end
+
+    subgraph Documents_Module [Documents]
+        documents --> document_categories
+        documents --> document_access_logs
+    end
+
+    subgraph Security_Module [Security]
+        residents --> security_contacts
+        security_contacts --> access_codes
+        access_codes --> access_logs
+    end
 ```
 
 ---

@@ -113,8 +113,11 @@ export async function updateSettings(settings: Record<string, any>): Promise<{ s
 
         const { error } = await supabase
             .from('system_settings')
-            .update({ value: storageValue })
-            .eq('key', key);
+            .upsert({
+                key,
+                value: storageValue,
+                category: 'general' // Default to general for bulk updates from UI
+            }, { onConflict: 'key' });
 
         if (error) {
             errors.push(`${key}: ${error.message}`);

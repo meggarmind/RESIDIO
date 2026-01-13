@@ -46,8 +46,20 @@ See [Development Environment](setup/development-environment.md) for detailed set
 - [Database Schema](architecture/database-schema.md) - Core entities, relationships, triggers, and enums
 - [Resident Types & Roles](architecture/resident-types-roles.md) - Resident classification, roles, and business logic
 
+### Features
+- [Analytics Dashboard](features/analytics.md) - Revenue trends, collection rates, and performance tracking
+- [Document Management](features/document-management.md) - Categories, storage, and access control
+- [Announcements System](features/announcements.md) - Community communication, scheduling, and read receipts
+- [Admin Impersonation](features/admin-impersonation.md) - Secure resident portal preview for admins
+- [Gmail Integration](features/gmail-integration.md) - Automated bank statement import and processing
+
 ### API
 - [Supabase Integration](api/supabase-integration.md) - Data layer patterns, client configuration, MCP tools, form handling
+
+### UI & UX
+- [Card System](ui/card-system.md) - Standardized UI component variants
+- [Theme Customization](ui/portal-theme-migration-guide.md) - Dual-theme system and visual options
+- [Iconography](ui/icon-theming-guide.md) - Theme-aware icons and SVG usage
 
 ### Setup
 - [Development Environment](setup/development-environment.md) - Prerequisites, commands, environment variables, project structure
@@ -71,7 +83,12 @@ Current development phase and progress are tracked in [TODO.md](../TODO.md).
 - **House Management** - Property registry with ownership/occupancy history
 - **Payment & Billing** - Invoice generation, wallet system, payment recording
 - **Security Contacts** - Access codes, check-in/out logging, visitor management
-- **Notifications** - Email alerts with template management
+- **Analytics Dashboard** - interactive charts for revenue and collection rates
+- **Document Management** - Categorized cloud storage with access control
+- **Community Communication** - Announcements, emergency broadcasts, and templates
+- **Admin Impersonation** - View portal exactly as a resident does
+- **Multi-Theme UI** - Support for "Modern" and "Default" visual themes
+- **Gmail Integration** - Automated bank statement import from Gmail
 - **Audit Logging** - Immutable activity trail for compliance
 - **Role-Based Access** - Granular permissions with 7+ configurable roles
 

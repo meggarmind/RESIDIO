@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   Shield,
   Users,
@@ -31,6 +30,14 @@ import {
   useExpiringContactCount,
 } from '@/hooks/use-security';
 import type { SecurityContactFilters } from '@/lib/validators/security-contact';
+import {
+  EnhancedStatCard,
+  EnhancedTableCard,
+  EnhancedPageHeader,
+} from '@/components/dashboard/enhanced-stat-card';
+import { ModernSkeleton, ModernStatsCardSkeleton } from '@/components/dashboard/modern-skeleton';
+import { useVisualTheme } from '@/contexts/visual-theme-context';
+import { cn } from '@/lib/utils';
 
 export default function SecurityPage() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -38,6 +45,9 @@ export default function SecurityPage() {
     page: 1,
     limit: 10,
   });
+
+  const { themeId } = useVisualTheme();
+  const isModern = themeId === 'modern';
 
   const { data: permissionsData, isLoading: permissionsLoading } = useCurrentUserSecurityPermissions();
   const { data: contactsData, isLoading: contactsLoading } = useSecurityContacts(contactFilters);
@@ -64,51 +74,15 @@ export default function SecurityPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <Skeleton className="h-9 w-40" />
-            <Skeleton className="h-5 w-80 mt-2" />
+            <ModernSkeleton className="h-9 w-40" />
+            <ModernSkeleton className="h-5 w-80 mt-2" />
           </div>
-          <Skeleton className="h-10 w-36" />
+          <ModernSkeleton className="h-10 w-36 rounded-xl" />
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {[...Array(6)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-4" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-8 w-12" />
-                <Skeleton className="h-3 w-24 mt-2" />
-              </CardContent>
-            </Card>
+            <ModernStatsCardSkeleton key={i} />
           ))}
-        </div>
-        <div className="space-y-4">
-          <Skeleton className="h-10 w-80" />
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <Skeleton className="h-6 w-32" />
-                <Skeleton className="h-4 w-48" />
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {[...Array(4)].map((_, i) => (
-                  <Skeleton key={i} className="h-4 w-full" />
-                ))}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <Skeleton className="h-6 w-32" />
-                <Skeleton className="h-4 w-48" />
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {[...Array(4)].map((_, i) => (
-                  <Skeleton key={i} className="h-4 w-full" />
-                ))}
-              </CardContent>
-            </Card>
-          </div>
         </div>
       </div>
     );
@@ -117,148 +91,131 @@ export default function SecurityPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Shield className="h-8 w-8" />
-            Security
-          </h1>
-          <p className="text-muted-foreground">
-            Manage access control, security contacts, and visitor verification.
-          </p>
-        </div>
-        {canRegisterContacts && (
-          <Button asChild>
-            <Link href="/security/contacts/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Register Contact
-            </Link>
-          </Button>
-        )}
-      </div>
+      <EnhancedPageHeader
+        title="Security"
+        description="Manage access control, security contacts, and visitor verification"
+        icon={Shield}
+        actions={
+          canRegisterContacts ? (
+            <Button
+              asChild
+              className={cn(
+                isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
+              )}
+            >
+              <Link href="/security/contacts/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Register Contact
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
 
       {/* Quick Stats */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Contacts</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {activeCountLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : activeContactsCount}
-            </div>
-            <p className="text-xs text-muted-foreground">With valid access codes</p>
-          </CardContent>
-        </Card>
+        <EnhancedStatCard
+          title="Active Contacts"
+          value={activeContactsCount}
+          icon={CheckCircle}
+          isLoading={activeCountLoading}
+          description="With valid access codes"
+          accentColor="success"
+        />
 
-        {/* Expiring Soon Card */}
-        <Card className={expiringContactsCount > 0 ? 'border-yellow-300 dark:border-yellow-700' : ''}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {expiringCountLoading ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : expiringContactsCount > 0 ? (
-                <span className="text-yellow-600">{expiringContactsCount}</span>
-              ) : (
-                <span className="text-muted-foreground">0</span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">Within 7 days</p>
-          </CardContent>
-        </Card>
+        <EnhancedStatCard
+          title="Expiring Soon"
+          value={expiringContactsCount}
+          icon={Clock}
+          isLoading={expiringCountLoading}
+          description="Within 7 days"
+          accentColor={expiringContactsCount > 0 ? 'warning' : 'default'}
+        />
 
-        {/* Expired Card */}
-        <Card className={expiredContactsCount > 0 ? 'border-red-300 dark:border-red-700' : ''}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Expired</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {expiredCountLoading ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : expiredContactsCount > 0 ? (
-                <span className="text-red-600">{expiredContactsCount}</span>
-              ) : (
-                <span className="text-muted-foreground">0</span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">No valid codes</p>
-          </CardContent>
-        </Card>
+        <EnhancedStatCard
+          title="Expired"
+          value={expiredContactsCount}
+          icon={AlertTriangle}
+          isLoading={expiredCountLoading}
+          description="No valid codes"
+          accentColor={expiredContactsCount > 0 ? 'danger' : 'default'}
+        />
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Check-ins</CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {logsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : todayCheckIns}
-            </div>
-            <p className="text-xs text-muted-foreground">Visitors checked in today</p>
-          </CardContent>
-        </Card>
+        <EnhancedStatCard
+          title="Today's Check-ins"
+          value={todayCheckIns}
+          icon={UserCheck}
+          isLoading={logsLoading}
+          description="Visitors checked in today"
+          accentColor="info"
+        />
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Currently Inside</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {logsLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : currentlyInside}
-            </div>
-            <p className="text-xs text-muted-foreground">Not yet checked out</p>
-          </CardContent>
-        </Card>
+        <EnhancedStatCard
+          title="Currently Inside"
+          value={currentlyInside}
+          icon={Users}
+          isLoading={logsLoading}
+          description="Not yet checked out"
+          accentColor={currentlyInside > 0 ? 'info' : 'default'}
+        />
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Flagged Today</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {logsLoading ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : flaggedToday > 0 ? (
-                <span className="text-destructive">{flaggedToday}</span>
-              ) : (
-                <span className="text-green-600">0</span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">Suspicious activity reports</p>
-          </CardContent>
-        </Card>
+        <EnhancedStatCard
+          title="Flagged Today"
+          value={flaggedToday}
+          icon={AlertTriangle}
+          isLoading={logsLoading}
+          description="Suspicious activity reports"
+          accentColor={flaggedToday > 0 ? 'danger' : 'success'}
+        />
       </div>
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview" className="flex items-center gap-2">
+        <TabsList className={cn(
+          isModern && 'bg-gray-100 dark:bg-[#1E293B] rounded-xl p-1'
+        )}>
+          <TabsTrigger
+            value="overview"
+            className={cn(
+              'flex items-center gap-2',
+              isModern && 'data-[state=active]:bg-white dark:data-[state=active]:bg-[#334155] rounded-lg'
+            )}
+          >
             <Shield className="h-4 w-4" />
             Overview
           </TabsTrigger>
           {canVerifyCodes && (
-            <TabsTrigger value="verify" className="flex items-center gap-2">
+            <TabsTrigger
+              value="verify"
+              className={cn(
+                'flex items-center gap-2',
+                isModern && 'data-[state=active]:bg-white dark:data-[state=active]:bg-[#334155] rounded-lg'
+              )}
+            >
               <ScanLine className="h-4 w-4" />
               Verify Code
             </TabsTrigger>
           )}
           {canViewContacts && (
-            <TabsTrigger value="contacts" className="flex items-center gap-2">
+            <TabsTrigger
+              value="contacts"
+              className={cn(
+                'flex items-center gap-2',
+                isModern && 'data-[state=active]:bg-white dark:data-[state=active]:bg-[#334155] rounded-lg'
+              )}
+            >
               <Users className="h-4 w-4" />
               Contacts
             </TabsTrigger>
           )}
           {canViewLogs && (
-            <TabsTrigger value="logs" className="flex items-center gap-2">
+            <TabsTrigger
+              value="logs"
+              className={cn(
+                'flex items-center gap-2',
+                isModern && 'data-[state=active]:bg-white dark:data-[state=active]:bg-[#334155] rounded-lg'
+              )}
+            >
               <ClipboardList className="h-4 w-4" />
               Access Logs
             </TabsTrigger>
@@ -270,10 +227,22 @@ export default function SecurityPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {/* Quick Verification Card */}
             {canVerifyCodes && (
-              <Card>
+              <Card className={cn(
+                isModern && 'rounded-xl border-gray-200 dark:border-[#334155] bg-white dark:bg-[#1E293B]'
+              )}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <ScanLine className="h-5 w-5" />
+                    <div className={cn(
+                      'flex h-8 w-8 items-center justify-center rounded-lg',
+                      isModern
+                        ? 'bg-[#0EA5E9]/10 dark:bg-[#0EA5E9]/20'
+                        : 'bg-primary/10 dark:bg-primary/20'
+                    )}>
+                      <ScanLine className={cn(
+                        'h-4 w-4',
+                        isModern ? 'text-[#0EA5E9]' : 'text-primary'
+                      )} />
+                    </div>
                     Quick Verification
                   </CardTitle>
                   <CardDescription>
@@ -284,7 +253,12 @@ export default function SecurityPage() {
                   <p className="text-sm text-muted-foreground mb-4">
                     Use the verification tab to scan or enter access codes and record check-ins.
                   </p>
-                  <Button onClick={() => setActiveTab('verify')}>
+                  <Button
+                    onClick={() => setActiveTab('verify')}
+                    className={cn(
+                      isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
+                    )}
+                  >
                     <ScanLine className="mr-2 h-4 w-4" />
                     Open Verification
                   </Button>
@@ -293,10 +267,22 @@ export default function SecurityPage() {
             )}
 
             {/* Recent Activity Card */}
-            <Card>
+            <Card className={cn(
+              isModern && 'rounded-xl border-gray-200 dark:border-[#334155] bg-white dark:bg-[#1E293B]'
+            )}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5" />
+                  <div className={cn(
+                    'flex h-8 w-8 items-center justify-center rounded-lg',
+                    isModern
+                      ? 'bg-[#0EA5E9]/10 dark:bg-[#0EA5E9]/20'
+                      : 'bg-primary/10 dark:bg-primary/20'
+                  )}>
+                    <ClipboardList className={cn(
+                      'h-4 w-4',
+                      isModern ? 'text-[#0EA5E9]' : 'text-primary'
+                    )} />
+                  </div>
                   Recent Activity
                 </CardTitle>
                 <CardDescription>
@@ -313,13 +299,16 @@ export default function SecurityPage() {
                     {todayLogs.slice(0, 5).map((log) => (
                       <div
                         key={log.id}
-                        className="flex items-center justify-between text-sm border-b pb-2 last:border-0"
+                        className={cn(
+                          'flex items-center justify-between text-sm border-b pb-2 last:border-0',
+                          isModern && 'border-gray-100 dark:border-[#334155]'
+                        )}
                       >
                         <div className="flex items-center gap-2">
                           {log.check_out_time ? (
                             <UserX className="h-4 w-4 text-muted-foreground" />
                           ) : (
-                            <UserCheck className="h-4 w-4 text-green-600" />
+                            <UserCheck className="h-4 w-4 text-emerald-600" />
                           )}
                           <span className="font-medium">
                             {(log.contact as any)?.full_name || 'Unknown'}
@@ -327,7 +316,10 @@ export default function SecurityPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           {log.flagged && (
-                            <Badge variant="destructive" className="text-xs">
+                            <Badge variant="destructive" className={cn(
+                              'text-xs',
+                              isModern && 'rounded-full'
+                            )}>
                               Flagged
                             </Badge>
                           )}
@@ -357,10 +349,22 @@ export default function SecurityPage() {
 
             {/* Contacts Summary Card */}
             {canViewContacts && (
-              <Card>
+              <Card className={cn(
+                isModern && 'rounded-xl border-gray-200 dark:border-[#334155] bg-white dark:bg-[#1E293B]'
+              )}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
+                    <div className={cn(
+                      'flex h-8 w-8 items-center justify-center rounded-lg',
+                      isModern
+                        ? 'bg-[#0EA5E9]/10 dark:bg-[#0EA5E9]/20'
+                        : 'bg-primary/10 dark:bg-primary/20'
+                    )}>
+                      <Users className={cn(
+                        'h-4 w-4',
+                        isModern ? 'text-[#0EA5E9]' : 'text-primary'
+                      )} />
+                    </div>
                     Contacts Summary
                   </CardTitle>
                   <CardDescription>
@@ -371,14 +375,22 @@ export default function SecurityPage() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <CheckCircle className="h-4 w-4 text-emerald-600" />
                         Active Contacts
                       </span>
-                      <Badge variant="outline">{activeContactsCount}</Badge>
+                      <Badge
+                        variant="outline"
+                        className={cn(isModern && 'rounded-full')}
+                      >
+                        {activeContactsCount}
+                      </Badge>
                     </div>
                     <Button
                       variant="outline"
-                      className="w-full mt-4"
+                      className={cn(
+                        'w-full mt-4',
+                        isModern && 'rounded-xl'
+                      )}
                       onClick={() => setActiveTab('contacts')}
                     >
                       View All Contacts
@@ -389,14 +401,23 @@ export default function SecurityPage() {
             )}
 
             {/* Quick Actions Card */}
-            <Card>
+            <Card className={cn(
+              isModern && 'rounded-xl border-gray-200 dark:border-[#334155] bg-white dark:bg-[#1E293B]'
+            )}>
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
                 <CardDescription>Common security operations</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 {canRegisterContacts && (
-                  <Button asChild variant="outline" className="w-full justify-start">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className={cn(
+                      'w-full justify-start',
+                      isModern && 'rounded-xl'
+                    )}
+                  >
                     <Link href="/security/contacts/new">
                       <Plus className="mr-2 h-4 w-4" />
                       Register New Contact
@@ -404,7 +425,14 @@ export default function SecurityPage() {
                   </Button>
                 )}
                 {canViewContacts && (
-                  <Button asChild variant="outline" className="w-full justify-start">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className={cn(
+                      'w-full justify-start',
+                      isModern && 'rounded-xl'
+                    )}
+                  >
                     <Link href="/security/contacts">
                       <Users className="mr-2 h-4 w-4" />
                       Manage All Contacts
@@ -412,7 +440,14 @@ export default function SecurityPage() {
                   </Button>
                 )}
                 {canViewLogs && (
-                  <Button asChild variant="outline" className="w-full justify-start">
+                  <Button
+                    asChild
+                    variant="outline"
+                    className={cn(
+                      'w-full justify-start',
+                      isModern && 'rounded-xl'
+                    )}
+                  >
                     <Link href="/security/logs">
                       <ClipboardList className="mr-2 h-4 w-4" />
                       View Access Logs
@@ -436,12 +471,21 @@ export default function SecurityPage() {
           <TabsContent value="contacts" className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Security Contacts</h2>
+                <h2 className={cn(
+                  'text-xl font-semibold',
+                  isModern && 'text-gray-900 dark:text-white'
+                )}>
+                  Security Contacts
+                </h2>
                 <p className="text-sm text-muted-foreground">
                   Manage authorized visitors and staff for residents
                 </p>
               </div>
-              <Button asChild variant="outline">
+              <Button
+                asChild
+                variant="outline"
+                className={cn(isModern && 'rounded-xl')}
+              >
                 <Link href="/security/contacts">
                   View Full List →
                 </Link>
@@ -456,18 +500,29 @@ export default function SecurityPage() {
           <TabsContent value="logs" className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Access Logs</h2>
+                <h2 className={cn(
+                  'text-xl font-semibold',
+                  isModern && 'text-gray-900 dark:text-white'
+                )}>
+                  Access Logs
+                </h2>
                 <p className="text-sm text-muted-foreground">
                   Today's check-in and check-out records
                 </p>
               </div>
-              <Button asChild variant="outline">
+              <Button
+                asChild
+                variant="outline"
+                className={cn(isModern && 'rounded-xl')}
+              >
                 <Link href="/security/logs">
                   View Full History →
                 </Link>
               </Button>
             </div>
-            <Card>
+            <Card className={cn(
+              isModern && 'rounded-xl border-gray-200 dark:border-[#334155] bg-white dark:bg-[#1E293B]'
+            )}>
               <CardContent className="pt-6">
                 {logsLoading ? (
                   <div className="flex justify-center py-8">
@@ -478,9 +533,11 @@ export default function SecurityPage() {
                     {todayLogs.map((log) => (
                       <div
                         key={log.id}
-                        className={`flex items-center justify-between p-4 border rounded-lg ${
-                          log.flagged ? 'border-destructive bg-destructive/5' : ''
-                        }`}
+                        className={cn(
+                          'flex items-center justify-between p-4 border rounded-lg',
+                          isModern && 'rounded-xl border-gray-100 dark:border-[#334155]',
+                          log.flagged && 'border-destructive bg-destructive/5'
+                        )}
                       >
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
@@ -488,7 +545,12 @@ export default function SecurityPage() {
                               {(log.contact as any)?.full_name || 'Unknown Contact'}
                             </span>
                             {log.flagged && (
-                              <Badge variant="destructive">Flagged</Badge>
+                              <Badge
+                                variant="destructive"
+                                className={cn(isModern && 'rounded-full')}
+                              >
+                                Flagged
+                              </Badge>
                             )}
                           </div>
                           <div className="text-sm text-muted-foreground">
@@ -502,7 +564,7 @@ export default function SecurityPage() {
                         </div>
                         <div className="text-right space-y-1">
                           <div className="flex items-center gap-2 text-sm">
-                            <UserCheck className="h-4 w-4 text-green-600" />
+                            <UserCheck className="h-4 w-4 text-emerald-600" />
                             <span>In: {new Date(log.check_in_time).toLocaleTimeString()}</span>
                           </div>
                           {log.check_out_time ? (
@@ -511,7 +573,13 @@ export default function SecurityPage() {
                               <span>Out: {new Date(log.check_out_time).toLocaleTimeString()}</span>
                             </div>
                           ) : (
-                            <Badge variant="outline" className="text-xs">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                'text-xs',
+                                isModern && 'rounded-full'
+                              )}
+                            >
                               Still inside
                             </Badge>
                           )}
@@ -520,7 +588,10 @@ export default function SecurityPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8">
+                  <div className={cn(
+                    'text-center py-8',
+                    isModern && 'bg-gray-50 dark:bg-[#0F172A] rounded-xl'
+                  )}>
                     <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
                     <p className="text-muted-foreground">No access logs recorded today</p>
                   </div>

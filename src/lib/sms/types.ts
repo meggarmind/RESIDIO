@@ -7,6 +7,7 @@ export type SmsType =
   | 'notification'
   | 'payment_reminder'
   | 'access_code'
+  | 'emergency'
   | 'test';
 
 export interface SmsRecipient {

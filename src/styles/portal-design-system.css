@@ -17,38 +17,39 @@
      ============================================ */
 
   /* Base Colors - Mapped from tweakcn semantic colors */
-  --color-bg-page: var(--color-background);
-  --color-bg-card: var(--color-card);
-  --color-bg-input: var(--color-input);
+  --color-bg-page: var(--background);
+  --color-bg-card: var(--card);
+  --color-bg-input: var(--input);
 
   /* Brand & Accent Colors - Mapped from tweakcn */
-  --color-primary: var(--color-primary);
-  --color-primary-light: var(--color-accent);
-  --color-accent-cyan: var(--color-chart-1);
-  --color-accent-orange: var(--color-chart-4);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-light: var(--accent);
+  --color-accent-cyan: var(--chart-1);
+  --color-accent-orange: var(--chart-4);
 
   /* Semantic Colors - Mapped from tweakcn */
-  --color-success: var(--color-chart-3);
-  --color-success-bg: var(--color-muted);
-  --color-warning: var(--color-chart-4);
-  --color-warning-bg: var(--color-muted);
-  --color-error: var(--color-destructive);
-  --color-error-bg: var(--color-muted);
+  --color-success: var(--chart-3);
+  --color-success-bg: var(--muted);
+  --color-warning: var(--chart-4);
+  --color-warning-bg: var(--muted);
+  --color-error: var(--destructive);
+  --color-error-bg: var(--muted);
 
   /* Text Colors - Mapped from tweakcn */
-  --color-text-primary: var(--color-foreground);
-  --color-text-secondary: var(--color-muted-foreground);
-  --color-text-muted: var(--color-muted-foreground);
-  --color-text-placeholder: var(--color-muted-foreground);
-  --color-text-disabled: var(--color-muted-foreground);
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+  --color-text-muted: var(--muted-foreground);
+  --color-text-placeholder: var(--muted-foreground);
+  --color-text-disabled: var(--muted-foreground);
 
   /* Icon Background Colors - Use chart colors for variety */
-  --color-icon-bg-pink: var(--color-chart-5);
-  --color-icon-bg-blue: var(--color-chart-1);
-  --color-icon-bg-purple: var(--color-chart-2);
-  --color-icon-bg-orange: var(--color-chart-4);
-  --color-icon-bg-green: var(--color-chart-3);
-  --color-icon-bg-cyan: var(--color-chart-1);
+  --color-icon-bg-pink: var(--chart-5);
+  --color-icon-bg-blue: var(--chart-1);
+  --color-icon-bg-purple: var(--chart-2);
+  --color-icon-bg-orange: var(--chart-4);
+  --color-icon-bg-green: var(--chart-3);
+  --color-icon-bg-cyan: var(--chart-1);
 
   /* ============================================
      TYPOGRAPHY SYSTEM
@@ -70,15 +71,24 @@
   --text-5xl: 48px;
 
   /* Line Heights */
-  --leading-xs: 16px;     /* 1.33 for 12px */
-  --leading-sm: 20px;     /* 1.43 for 14px */
-  --leading-base: 24px;   /* 1.5 for 16px */
-  --leading-lg: 28px;     /* 1.56 for 18px */
-  --leading-xl: 28px;     /* 1.4 for 20px */
-  --leading-2xl: 32px;    /* 1.33 for 24px */
-  --leading-3xl: 36px;    /* 1.2 for 30px */
-  --leading-4xl: 40px;    /* 1.11 for 36px */
-  --leading-5xl: 52px;    /* 1.08 for 48px */
+  --leading-xs: 16px;
+  /* 1.33 for 12px */
+  --leading-sm: 20px;
+  /* 1.43 for 14px */
+  --leading-base: 24px;
+  /* 1.5 for 16px */
+  --leading-lg: 28px;
+  /* 1.56 for 18px */
+  --leading-xl: 28px;
+  /* 1.4 for 20px */
+  --leading-2xl: 32px;
+  /* 1.33 for 24px */
+  --leading-3xl: 36px;
+  /* 1.2 for 30px */
+  --leading-4xl: 40px;
+  /* 1.11 for 36px */
+  --leading-5xl: 52px;
+  /* 1.08 for 48px */
 
   /* Font Weights */
   --font-normal: 400;
@@ -366,12 +376,29 @@
 }
 
 /* Icon Background Colors */
-.icon-box-pink { background: var(--color-icon-bg-pink); }
-.icon-box-blue { background: var(--color-icon-bg-blue); }
-.icon-box-purple { background: var(--color-icon-bg-purple); }
-.icon-box-orange { background: var(--color-icon-bg-orange); }
-.icon-box-green { background: var(--color-icon-bg-green); }
-.icon-box-cyan { background: var(--color-icon-bg-cyan); }
+.icon-box-pink {
+  background: var(--color-icon-bg-pink);
+}
+
+.icon-box-blue {
+  background: var(--color-icon-bg-blue);
+}
+
+.icon-box-purple {
+  background: var(--color-icon-bg-purple);
+}
+
+.icon-box-orange {
+  background: var(--color-icon-bg-orange);
+}
+
+.icon-box-green {
+  background: var(--color-icon-bg-green);
+}
+
+.icon-box-cyan {
+  background: var(--color-icon-bg-cyan);
+}
 
 /* Badges */
 .badge {
@@ -568,6 +595,7 @@
 
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {

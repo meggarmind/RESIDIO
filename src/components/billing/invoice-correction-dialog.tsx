@@ -313,7 +313,7 @@ export function InvoiceCorrectionDialog({
                   <CurrencyInput
                     id={`amount-${index}`}
                     value={correction.amount}
-                    onChange={(value) => updateCorrection(index, 'amount', value)}
+                    onValueChange={(value) => updateCorrection(index, 'amount', value)}
                     placeholder="0.00"
                   />
                 </div>

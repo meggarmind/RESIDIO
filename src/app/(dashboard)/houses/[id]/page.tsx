@@ -39,7 +39,8 @@ import { HouseForm } from '@/components/houses/house-form';
 import { HousePaymentStatus } from '@/components/houses/house-payment-status';
 import { OccupancyBadge, AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { useHouse, useDeleteHouse, useOwnershipHistory } from '@/hooks/use-houses';
-import { useResidents, useAssignHouse, useUnassignHouse, useMoveOutLandlord, useUpdateResidentHouse, useSwapResidentRoles, useTransferOwnership, useRemoveOwnership } from '@/hooks/use-residents';
+import { useResidents, useAssignHouse, useUnassignHouse, useMoveOutLandlord, useUpdateResidentHouse, useSwapResidentRoles, useTransferOwnership, useRemoveOwnership, usePendingMoveOut, useConfirmRenterMoveOut } from '@/hooks/use-residents';
+import { MoveOutWizard } from '@/components/residents/move-out-wizard';
 import { Home, Pencil, Trash2, Users, ArrowLeft, Plus, Link2, Loader2, DoorOpen, AlertTriangle, SquarePen, ArrowUp, ArrowRightLeft, History, Calendar, UserMinus, StickyNote } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ResidentRole, ResidentHouse, Resident } from '@/types/database';
@@ -114,6 +115,12 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     role: ResidentRole;
   } | null>(null);
 
+  // Move Out wizard state (for tenants)
+  const [moveOutWizardResident, setMoveOutWizardResident] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
   const { data: house, isLoading, error } = useHouse(id);
   // Reduced limit for performance - consider async search for large estates
   const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 500 });
@@ -126,6 +133,8 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
   const transferOwnershipMutation = useTransferOwnership();
   const removeOwnershipMutation = useRemoveOwnership();
   const { data: ownershipHistory, isLoading: historyLoading } = useOwnershipHistory(id);
+  const { data: pendingMoveOut } = usePendingMoveOut(id);
+  const confirmMoveOutMutation = useConfirmRenterMoveOut();
 
   // Compute derived values - MUST be before any conditional returns (React Rules of Hooks)
   const activeResidents = house?.resident_houses?.filter(rh => rh.is_active) ?? [];
@@ -724,9 +733,9 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                   const residentName = `${rh.resident.first_name} ${rh.resident.last_name}`;
 
                   // Determine which action buttons to show based on role
-                  const showRemoveButton = role === 'tenant' ||
-                    ['co_resident', 'household_member', 'domestic_staff', 'caretaker'].includes(role);
+                  const showRemoveButton = ['co_resident', 'household_member', 'domestic_staff', 'caretaker'].includes(role);
                   const showMoveOutButton = role === 'resident_landlord';
+                  const showTenantMoveOutButton = role === 'tenant';
                   // Edit button only for secondary roles
                   const showEditButton = ['co_resident', 'household_member', 'domestic_staff', 'caretaker'].includes(role);
                   // Promote button only for co_resident when there's a primary residing resident
@@ -735,7 +744,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                   const showTransferButton = role === 'non_resident_landlord' || role === 'developer';
 
                   return (
-                    <div key={rh.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div key={rh.id} className="flex items-center justify-between p-3 border rounded-lg" data-testid="resident-card">
                       <div>
                         <Link
                           href={`/residents/${rh.resident.id}`}
@@ -759,6 +768,21 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                               name: residentName,
                             })}
                             disabled={moveOutMutation.isPending}
+                          >
+                            <DoorOpen className="h-4 w-4 mr-1" />
+                            Move Out
+                          </Button>
+                        )}
+
+                        {/* Move Out Wizard button for Tenant */}
+                        {showTenantMoveOutButton && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setMoveOutWizardResident({
+                              id: rh.resident.id,
+                              name: residentName,
+                            })}
                           >
                             <DoorOpen className="h-4 w-4 mr-1" />
                             Move Out
@@ -807,6 +831,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                             })}
                             disabled={unassignMutation.isPending}
                             className="text-muted-foreground hover:text-destructive"
+                            data-testid="remove-resident-button"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -1332,6 +1357,19 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Move Out Wizard for Tenants */}
+      {moveOutWizardResident && house && (
+        <MoveOutWizard
+          open={!!moveOutWizardResident}
+          onOpenChange={(open) => !open && setMoveOutWizardResident(null)}
+          residentId={moveOutWizardResident.id}
+          residentName={moveOutWizardResident.name}
+          houseId={id}
+          houseAddress={`${house.short_name || house.house_number}, ${house.street?.name || ''}`}
+          isSelfService={false}
+        />
+      )}
     </div>
   );
 }

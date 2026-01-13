@@ -20,6 +20,7 @@ import {
     Calendar,
     CalendarClock,
     TrendingUp,
+    Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -66,6 +67,12 @@ const reportTypeConfig: Record<
         label: 'Transaction Log',
         gradient: 'from-purple-500 to-violet-500',
         iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
+    },
+    debtors_report: {
+        icon: Users,
+        label: 'Debtors Report',
+        gradient: 'from-red-500 to-rose-500',
+        iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
     },
 };
 

@@ -26,7 +26,7 @@ export async function updateEmailDebugMode(
   recipient?: string
 ): Promise<UpdateEmailDebugModeResult> {
   // Check permission
-  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE);
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
   if (!auth.authorized) {
     return { success: false, error: auth.error || 'Unauthorized' };
   }

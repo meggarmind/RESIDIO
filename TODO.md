@@ -5,37 +5,74 @@
 ## Current Phase: Phase 16 - Community Communication ✅ COMPLETE
 
 ## 🗺️ Roadmap Alignment & Concurrent Tracks
+
 *Use this section to identify independent work streams available for parallel execution.*
 
 ### 🟢 Track A: Resident Experience (Frontend/Integration Focus)
+
 **Primary Scope:** Phase 12 (Resident View Portal) + New Features
+
 - [ ] **Resident Portal**: Read-only dashboard, payment history, property details (`/portal/*`)
 - [ ] **Smart Access Sharing**: WhatsApp integration for guest codes
 - [ ] **Onboarding Wizard**: Self-service profile completion for new residents
 - **Dependencies:** Core Auth ✅, Resident Registry ✅. *Independent of Admin Financials.*
 
 ### 🔵 Track B: Admin Financials (Backend/Reporting Focus)
+
 **Primary Scope:** Phase 4 (Financial Reports Completion) + Phase 13 (Analytics Polish)
+
 - [ ] **Report Enhancements**: Recategorization, version history, editing capabilities
 - [ ] **Recurring Configurations**: Automation settings for reports
 - [ ] **Notifications**: Subscription system for financial events
 - **Dependencies:** Payment Records ✅. *Isolated to Admin Dashboard.*
 
 ### 🟣 Track C: Independent Modules
+
 - [ ] **Digital AGM & E-Voting**: Standalone module (Phase 17)
 - [ ] **UI/UX Polish**: Cross-cutting improvements from Review Plan (Payment Flow, Page Polish)
+
+### Recent Session Work (2026-01-13): Documentation & Review
+
+- [x] **Project Review**: Comprehensive review of implementation status
+- [x] **Documentation Update**: Update `TODO.md` and `docs/` folder
+- [x] **AI Assistant**: Verify implementation (Mock version)
+
+### Recent Session Work (2026-01-12): Theme System Re-engineering (tweakcn) ✅
+
+Replacing custom theme system with 10 tweakcn.com presets.
+
+- [x] **Theme Assets**: Fetched 10 themes (Supabase, Doom-64, etc.)
+- [x] **Type Definitions**: Created `TweakcnTheme` and related types
+- [x] **Theme Registry**: Created `tweakcn-registry.ts` with all themes
+- [x] **Font Loading**: Created `fonts.ts` for dynamic Google Fonts
+- [x] **Theme Provider**: Update `VisualThemeProvider` to use new registry and OKLCH colors
+- [x] **Configuration**: Update Tailwind and Global CSS
+- [x] **Component Cleanup**: Remove hardcoded colors from Sidebar/Header
+- [x] **Cleanup**: Remove legacy theme files and migrate database
+
+### Recent Session Work (2026-01-11): AI Assistant Chatbot ✅
+
+Implemented a floating AI-powered chatbot assistant.
+
+- [x] **Hook**: `use-ai-assistant.ts` with mock responses
+- [x] **Component**: `EstateAiAssistant` floating widget
+- [x] **Integration**: Added to `layout.tsx`
+- [x] **configuration**: Customizable name via General Settings
 
 ### Recent Session Work (2026-01-08): UI/UX Review Phase 2
 
 #### Card Variant System (UI/UX Phase 2) ✅
+
 Created standardized card variants using class-variance-authority (cva):
 
 **Problem Solved:**
+
 - Inconsistent card padding across application (p-4 vs p-6 vs p-0)
 - Mixed shadow usage patterns
 - No semantic variants for different card types
 
 **Solution Implemented:**
+
 - Added `variant` prop to Card component with 5 variants:
   - `default`: Standard py-6 for forms/settings
   - `stat`: Compact py-4 for KPI/metric cards
@@ -46,6 +83,7 @@ Created standardized card variants using class-variance-authority (cva):
 - Exported `cardVariants` for advanced use cases
 
 **Files Modified:**
+
 - `src/components/ui/card.tsx` - Added variant system with cva
 - `src/components/analytics/kpi-summary-cards.tsx` - Using `variant="stat"`
 - `src/components/dashboard/quick-stats-card.tsx` - Using `variant="list"`
@@ -56,20 +94,24 @@ Created standardized card variants using class-variance-authority (cva):
 ---
 
 #### Navigation Improvements (UI/UX Phase 1) ✅
+
 Comprehensive navigation review and improvements based on frontend-developer agent analysis:
 
 **Portal Mobile Navigation:**
+
 - Added missing Wallet link to bottom navigation
 - Reordered by usage frequency: Home → Bills → Wallet → Contacts → Profile
 - Changed icon from CreditCard to Receipt for Bills
 - File: `src/components/resident-portal/portal-bottom-nav.tsx`
 
 **Portal Sidebar:**
+
 - Reordered items by usage frequency: Dashboard → Invoices → Wallet → Properties → Security Contacts → Visitors → Documents → Announcements → Profile
 - Added JSDoc comments explaining ordering rationale
 - File: `src/components/resident-portal/portal-sidebar.tsx`
 
 **Admin Navigation Section Groupings:**
+
 - Added `NavSection` interface for grouping related items
 - Created section-based navigation structure:
   - Core: Dashboard, Analytics
@@ -82,6 +124,7 @@ Comprehensive navigation review and improvements based on frontend-developer age
 - Files: `src/config/navigation.ts`, `src/hooks/use-navigation.ts`, `src/components/dashboard/sidebar.tsx`, `src/components/dashboard/modern-sidebar.tsx`
 
 #### UI/UX Review Plan (Multi-Session)
+
 Full 5-phase improvement plan created from frontend-developer agent review:
 
 | Phase | Focus | Status |
@@ -96,37 +139,45 @@ Plan file: `.claude/plans/structured-honking-brooks.md`
 
 ---
 
-### Earlier Session Work (2026-01-08):
+### Earlier Session Work (2026-01-08)
 
 #### Dynamic Estate Logo Display (DEV-81) ✅
+
 Implemented dynamic logo display across all sidebars:
 
 **Problem Solved:**
+
 - All 4 sidebars (admin default, admin modern, portal header, portal sidebar) showed static hardcoded branding
 - Estate admins couldn't customize branding with their own logo
 
 **Solution Implemented:**
+
 - Created `src/hooks/use-estate-logo.ts` - Hook to fetch logo from system settings
 - Updated all 4 sidebar components to conditionally render uploaded logo or fallback branding
 - Logo stored in `estate_logo_url` key in system_settings (upload already existed)
 
 **Files Created:**
+
 - `src/hooks/use-estate-logo.ts` - Hook with fallback handling
 
 **Files Modified:**
+
 - `src/components/dashboard/sidebar.tsx` - Dynamic logo with fallback
 - `src/components/dashboard/modern-sidebar.tsx` - Dynamic logo with fallback
 - `src/components/resident-portal/portal-header.tsx` - Dynamic logo with fallback
 - `src/components/resident-portal/portal-sidebar.tsx` - Dynamic logo with fallback
 
 #### Contact Information Consolidation (DEV-85) ✅
+
 Consolidated duplicate contact sections on profile page:
 
 **Problem Solved:**
+
 - Profile page had two separate cards: "Contact Information" and "Contact Verification"
 - Redundant display of contact details with confusing UX
 
 **Solution Implemented:**
+
 - Refactored `ContactVerificationCard` to export reusable components:
   - `useContactVerification` hook - All verification state and handlers
   - `OTPVerificationDialog` - Standalone dialog component
@@ -135,33 +186,40 @@ Consolidated duplicate contact sections on profile page:
 - Reduced left column from 3 cards to 2 cards
 
 **Files Modified:**
+
 - `src/components/resident-portal/contact-verification-card.tsx` - Extracted hook, dialog, badge
 - `src/app/(resident)/portal/profile/page.tsx` - Consolidated contact section
 
 #### Navigation Extraction from Themes ✅
+
 Decoupled navigation links from theme-specific components so themes only affect visual presentation:
 
 **Problem Solved:**
+
 - Navigation items were duplicated across 3 files with inconsistencies
 - Modern sidebar was missing "Email Imports" link (bug)
 - Mobile nav used outdated role-based filtering instead of permissions
 
 **Solution Implemented:**
+
 - Created `src/config/navigation.ts` - Single source of truth for all 12 nav items
 - Created `src/hooks/use-navigation.ts` - Shared hook for permission-filtered navigation
 - Updated `sidebar.tsx`, `modern-sidebar.tsx`, `mobile-nav.tsx` to use shared config
 - Mobile nav now uses permission-based filtering (security upgrade)
 
 **Files Created:**
+
 - `src/config/navigation.ts` - NavItem type + ADMIN_NAV_ITEMS array
 - `src/hooks/use-navigation.ts` - useNavigation() and useMobileNavigation() hooks
 
 **Files Modified:**
+
 - `src/components/dashboard/sidebar.tsx` - Removed 113 lines of duplicated config
 - `src/components/dashboard/modern-sidebar.tsx` - Removed 96 lines, fixed Email Imports bug
 - `src/components/dashboard/mobile-nav.tsx` - Upgraded to permission-based filtering
 
 #### Gmail Email Integration (Phase 8 Enhancement) ✅
+
 Bank statement import via Gmail integration:
 
 - **PDF Decryption Fix**: Replaced pdf-lib with qpdf CLI (more reliable for encrypted PDFs)
@@ -171,6 +229,7 @@ Bank statement import via Gmail integration:
 - **Type Fixes**: Updated email import interfaces for TypeScript compliance
 
 #### Modern Theme Implementation ✅
+
 Implemented dual-theme system with Default and Modern visual themes:
 
 - **Visual Theme Provider**: `src/contexts/visual-theme-context.tsx`
@@ -182,15 +241,17 @@ Implemented dual-theme system with Default and Modern visual themes:
 - **Database**: Theme preferences in profiles table
 
 **Modern Theme Features:**
+
 - Dark navy sidebar (#1E293B)
 - Blue-teal accent colors (#0EA5E9)
 - Generous spacing (1.5rem-2rem)
 - Larger border radius (12px)
 - Enhanced shadows
 
-### Recent Session Work (2026-01-07):
+### Recent Session Work (2026-01-07)
 
 #### Admin Impersonation Bug Fixes ✅
+
 - **Exit Button Not Responding**: Fixed multiple issues preventing exit from impersonation:
   - Removed `disabled={isEnding}` from Exit buttons (users must always be able to exit)
   - Added session storage fallback when React Query state is stale
@@ -207,9 +268,10 @@ Implemented dual-theme system with Default and Modern visual themes:
 
 **Note**: Needs more testing with additional portal-enabled residents. See memory for enhancement ideas.
 
-### Recent Session Work (2026-01-02):
+### Recent Session Work (2026-01-02)
 
 #### Admin Impersonation System (DEV-74, DEV-75, DEV-76) ✅
+
 - **Core System**: Admins can view resident portal as any resident in read-only mode
   - `impersonation_sessions` table with RLS policies
   - Server actions: start/end/search impersonation
@@ -225,6 +287,7 @@ Implemented dual-theme system with Default and Modern visual themes:
   - Support for any_admin, specific_admins, permission_based
 
 #### Phase 16: Community Communication ✅
+
 - **Announcements System**: Full CRUD with scheduling
   - Database: 3 migrations (tables, permissions, categories)
   - Actions: create, update, delete, publish, get
@@ -237,7 +300,7 @@ Implemented dual-theme system with Default and Modern visual themes:
 - **Emergency Broadcast**: Priority announcement system
 - **Announcement Categories**: Settings page for management
 
-### Recent Session Work (2025-12-31):
+### Recent Session Work (2025-12-31)
 
 #### Bug Fixes & UX Enhancements ✅
 
@@ -262,9 +325,10 @@ Implemented dual-theme system with Default and Modern visual themes:
   - Updated "Residents can view housemates house assignments" policy to use helper function
   - Migration: `fix_resident_houses_rls_recursion`
 
-### Recent Session Work (2025-12-28):
+### Recent Session Work (2025-12-28)
 
 #### Phase 15: Document Management ✅
+
 - **Database Migration**: Created document_categories, documents, document_access_logs tables
 - **Storage**: Configured Supabase Storage bucket (50MB limit, document MIME types only)
 - **RLS Policies**: Secure access control with category-based resident visibility
@@ -278,6 +342,7 @@ Implemented dual-theme system with Default and Modern visual themes:
 - **Sidebar**: Added Documents to admin and portal navigation
 
 #### Security Hardening ✅
+
 - **XSS Prevention**: Fixed innerHTML vulnerability in payment print function
   - Uses sandboxed iframe with `cloneNode()` instead of innerHTML injection
 - **Authorization Bypass**: Fixed receipt API to use RBAC permissions
@@ -291,24 +356,28 @@ Implemented dual-theme system with Default and Modern visual themes:
   - Created shared validator: `src/lib/validators/password.ts`
 
 #### Week 2 Performance Optimizations ✅
+
 - **React.memo**: Memoized table row components (ResidentRow, PaymentRow)
 - **Badge Memoization**: Wrapped status badge components with `memo()`
 - **useCallback**: Added memoized event handlers to table components
 - **Auth Provider**: Parallelized role and permissions fetching
 
 #### Week 1 Performance Optimizations ✅
+
 - Created `get-resident-stats.ts` with parallel COUNT queries (~1000x faster)
 - Parallelized `fetchMonthlyTrends()`, `fetchInvoiceDistribution()`, `fetchSecurityAlerts()`
 - Optimized middleware permission queries (2 queries → 1 with nested select)
 - Tuned React Query polling intervals (50% fewer server requests)
 
 #### Portal & Self-Service Enhancements ✅
+
 - Household member self-service for primary residents
 - Responsive portal layout (mobile + desktop sidebar)
 - Admin-resident cross-navigation
 - Color-coded role badges
 
-### Recent Session Work (2025-12-27):
+### Recent Session Work (2025-12-27)
+
 - ✅ Completed Phase 13: Analytics Dashboard MVP
   - Installed Recharts v2.15.0 for interactive charts
   - Created `/analytics` route with RBAC (admin/chairman/financial_secretary only)
@@ -319,7 +388,8 @@ Implemented dual-theme system with Default and Modern visual themes:
   - Full skeleton loading states and error handling
   - Mobile-responsive grid layout
 
-### Recent Session Work (2025-12-23):
+### Recent Session Work (2025-12-23)
+
 - ✅ Fixed sidebar navigation - Reports now shows both "Generate Reports" wizard and "Financial Overview" as children
 - ✅ Fixed hydration error - nested `<button>` elements in AccountSelectionStep (changed to `<div role="button">`)
 - ✅ Fixed "Maximum update depth exceeded" infinite loop on Select All in report wizard
@@ -327,11 +397,13 @@ Implemented dual-theme system with Default and Modern visual themes:
   - Solution: Used `getValues()` in handlers, `useCallback` for memoization, `React.memo` for component
 
 > **📋 Prompts Check**: Always check `/prompts` folder for pending development tasks:
+>
 > - **Session start**: Automated via SessionStart hook
 > - **Between phases**: Check before starting new phase work
 > - **When asked "what's next?"**: Review prompts alongside TODO items
 >
 > **⚠️ MANDATORY: After completing any prompt from Notion inbox:**
+>
 > 1. Move prompt file: `mv prompts/<filename> processed/`
 > 2. Update Notion status to "Done" using `mcp__notion__notion-update-page`
 > 3. If Notion MCP times out, retry up to 3 times before documenting in Troubleshooting section
@@ -339,6 +411,7 @@ Implemented dual-theme system with Default and Modern visual themes:
 ---
 
 ## Phase 0: Project Setup & Infrastructure ✅ COMPLETE
+
 - [x] Initialize Next.js 16 with TypeScript, Tailwind CSS, App Router
 - [x] Install core dependencies (Supabase, React Query, React Hook Form, Zod)
 - [x] Setup shadcn/ui with 15 components
@@ -347,13 +420,14 @@ Implemented dual-theme system with Default and Modern visual themes:
 - [x] Create database type definitions
 - [x] Implement auth middleware
 - [x] Migrate from Docker Compose to Supabase CLI
-- [x] Connect to GitHub (https://github.com/meggarmind/RESIDIO)
+- [x] Connect to GitHub (<https://github.com/meggarmind/RESIDIO>)
 - [x] Connect to staging Supabase cloud instance
 - [x] Configure MCP servers (Supabase, GitHub, Memory, TestSprite)
 
 ---
 
 ## Phase 1: Authentication & RBAC ✅ COMPLETE
+
 - [x] Create database migration for profiles table with RLS
 - [x] Set up Supabase Auth trigger (auto-create profile on signup)
 - [x] Create login page (`src/app/(auth)/login/page.tsx`)
@@ -367,6 +441,7 @@ Implemented dual-theme system with Default and Modern visual themes:
 ---
 
 ## Phase 2: Dashboard Shell ✅ COMPLETE
+
 - [x] Create dashboard layout (`src/app/(dashboard)/layout.tsx`)
 - [x] Build sidebar navigation component with role filtering
 - [x] Build header with user menu and sign out
@@ -376,6 +451,7 @@ Implemented dual-theme system with Default and Modern visual themes:
 ---
 
 ## Phase 3: Resident & House Management ✅ COMPLETE
+
 - [x] Create 8 database migrations (enums, streets, house_types, houses, residents, resident_houses)
 - [x] Add auto-generated 6-digit resident codes via trigger
 - [x] Add house occupancy tracking trigger
@@ -388,7 +464,8 @@ Implemented dual-theme system with Default and Modern visual themes:
 - [x] Update sidebar with Houses link
 - [x] Add form, select, textarea shadcn components
 
-### Key Implementation Notes:
+### Key Implementation Notes
+
 - Use `ALL_VALUE = '_all'` constant for Select "all" options (shadcn doesn't allow empty strings)
 - Resident roles: owner, tenant, occupier, domestic_staff
 - Resident codes: 6-digit numeric auto-generated
@@ -396,13 +473,15 @@ Implemented dual-theme system with Default and Modern visual themes:
 ---
 
 ## Phase 4: Resident & House Enhancements ✅ COMPLETE
+
 - [x] Create reference management (Streets/House Types)
 - [x] Implement flexible emergency contacts (Link existing resident)
 - [x] Update resident roles (Household Member)
 - [x] Implement multiple house linking for residents
 - [x] Update DB schema (enums, FKs)
 
-### Key Implementation Notes:
+### Key Implementation Notes
+
 - Reference Admin Page restricted to Admin/Chairman/FinSec
 - Emergency contacts can be manual or linked to existing resident ID
 
@@ -411,6 +490,7 @@ Implemented dual-theme system with Default and Modern visual themes:
 ## Phase 5: Payment & Billing System ✅ COMPLETE
 
 ### 5.1 Payment Records ✅ COMPLETE
+
 - [x] Create payment_records table migration
 - [x] Build payments list page with table (`/payments`)
 - [x] Create payment recording form (`/payments/new`)
@@ -419,6 +499,7 @@ Implemented dual-theme system with Default and Modern visual themes:
 - [x] Pre-fill resident when navigating from resident detail page
 
 ### 5.2 Wallet System ✅ COMPLETE
+
 - [x] Create wallets table migration
 - [x] Create wallet_transactions table migration
 - [x] Auto-create wallet on resident creation
@@ -429,6 +510,7 @@ Implemented dual-theme system with Default and Modern visual themes:
 - [x] Manual wallet adjustment dialog
 
 ### 5.3 Billing & Invoices ✅ COMPLETE
+
 - [x] Create billing_profiles table migration
 - [x] Create invoices table migration
 - [x] Create invoice_items table migration
@@ -440,12 +522,14 @@ Implemented dual-theme system with Default and Modern visual themes:
 - [x] Invoice detail page
 
 ### 5.4 Payment Enhancements ✅ COMPLETE
+
 - [x] Implement bulk payment status update (dropdown in floating action bar)
 - [x] Create overdue invoice detection logic (`check-overdue-invoices.ts`)
 - [x] Add Check Overdue button to billing page with alert banner
 - [x] Payment receipts with print functionality (popup window)
 
-### Key Implementation Notes:
+### Key Implementation Notes
+
 - Billing logic: Only bill tenants OR owner-occupiers (not non-resident owners)
 - `findBillableResident()` function determines who to bill per property
 - CurrencyInput component for all monetary fields (comma-separated formatting)
@@ -456,14 +540,17 @@ Implemented dual-theme system with Default and Modern visual themes:
 ## UI Enhancements (2025-12-12) ✅ COMPLETE
 
 ### House Ownership History Tracking
+
 - [x] Added `house_added` event type to track when houses are added to portal
 - [x] Created migration with backfill for existing houses
 - [x] Display ownership/occupancy timeline on house detail page
 
 ### Property Registry Filters
+
 - [x] Added House Status filter (Occupied/Vacant) to houses table
 
 ### Resident Registry Filters
+
 - [x] Added multi-select Role filter with checkboxes
 - [x] Clear button inside dropdown to reset selections
 - [x] Visual indicator badges below filter bar showing selected roles
@@ -474,6 +561,7 @@ Implemented dual-theme system with Default and Modern visual themes:
 ## Phase 5.5: Billing Profile Enhancements ✅ COMPLETE
 
 ### One-Time Levies Configuration ✅ COMPLETE
+
 - [x] Created one-time billing profiles:
   - Development Levy: ₦500,000 (flat fee per house)
   - Transformer Levy: ₦30,000 (house-targeted)
@@ -481,6 +569,7 @@ Implemented dual-theme system with Default and Modern visual themes:
   - Renovation Fee: ₦500,000 (manual only, not auto-generated)
 
 ### Database Migrations ✅ COMPLETE
+
 - [x] Add `number_of_plots` to houses table (default: 1)
 - [x] Add `effective_date` to billing_profiles table
 - [x] Add `is_development_levy` to billing_profiles table
@@ -488,6 +577,7 @@ Implemented dual-theme system with Default and Modern visual themes:
 - [x] Create `approval_requests` table for maker-checker workflow
 
 ### Development Levy Enhancement ✅ COMPLETE (2025-12-13)
+
 - [x] Added `is_development_levy` boolean flag to billing_profiles
 - [x] **Fixed critical bug**: Removed incorrect plot multiplication - Development Levy is FLAT FEE per house
 - [x] Added `getDevelopmentLevyProfiles()` server action
@@ -498,7 +588,8 @@ Implemented dual-theme system with Default and Modern visual themes:
 - [x] Added Current Development Levy selector in billing settings
 - [x] Profile cards show "Development Levy" badge (blue) and "Current" badge (green)
 
-### Key Implementation Notes:
+### Key Implementation Notes
+
 - Development Levy is a **flat fee per house** (NOT multiplied by plots)
 - Detection now uses `is_development_levy` flag (with fallback to name-based)
 - Current Development Levy profile tracked in `system_settings`
@@ -509,11 +600,13 @@ Implemented dual-theme system with Default and Modern visual themes:
 ## Phase 5.6: UI & Reference Enhancements ✅ COMPLETE
 
 ### 5.6.1 Billing Profile Duplicate Function ✅
+
 - [x] Add `duplicateBillingProfile()` server action
 - [x] Add `useDuplicateBillingProfile()` hook
 - [x] Add Duplicate (Copy) button to billing profile cards
 
 ### 5.6.2 Streets Reference Enhancement ✅
+
 - [x] Database migration: Add `short_name` column to streets table
 - [x] Run `db:types` to regenerate TypeScript types
 - [x] Update `streetFormSchema` with short_name field
@@ -526,13 +619,15 @@ Implemented dual-theme system with Default and Modern visual themes:
   - Added Duplicate button
   - Form fields: Long Name*, Short Name, Description
 
-### Key Implementation Notes:
+### Key Implementation Notes
+
 - Streets now have `name` (Long Name) and `short_name` fields
 - Edit mode uses same dialog as create, with form state tracking `editingId`
 - Duplicate creates copy with "Copy of {original}" prefix
 - Billing profile duplicate copies profile and all billing items
 
 ### Maker-Checker Workflow (Deferred to Phase 5.7)
+
 - **Maker**: financial_secretary creates change requests
 - **Checker**: chairman approves/rejects requests
 - **Auto-approve**: admin role auto-approves all changes
@@ -543,14 +638,17 @@ Implemented dual-theme system with Default and Modern visual themes:
 ## Phase 5.7: Payment Page UX Fix ✅ COMPLETE (2025-12-15)
 
 ### Problem Fixed
+
 Payment page was refreshing and jumping to top after any action (delete, update, filter, pagination), creating terrible UX.
 
 ### Root Cause
+
 - Payment page was a server component using `revalidatePath('/payments')` in all mutation actions
 - This forced full server-side re-renders, causing scroll position reset and loss of local state
 - Architecture mismatch: Residents/Houses pages use client components (no issues), Payment page used server component
 
 ### Solution Implemented
+
 **Converted payment page to client component pattern** (following residents/houses pattern):
 
 1. **Removed `revalidatePath()` from 4 server action files**:
@@ -568,6 +666,7 @@ Payment page was refreshing and jumping to top after any action (delete, update,
    - Maintained URL-based filter persistence via `useSearchParams()`
 
 ### Files Modified (5 total)
+
 - `src/actions/payments/delete-payment.ts`
 - `src/actions/payments/update-payment.ts`
 - `src/actions/payments/create-payment.ts`
@@ -575,10 +674,12 @@ Payment page was refreshing and jumping to top after any action (delete, update,
 - `src/app/(dashboard)/payments/page.tsx`
 
 ### How It Works Now
+
 **Before**: Delete payment → Server action → `revalidatePath()` → Full SSR re-render → Scroll resets ❌
 **After**: Delete payment → Server action (no revalidatePath) → React Query invalidates → Client refetch → Smooth update, scroll preserved ✅
 
 ### Benefits
+
 - ✅ No more scroll jumps
 - ✅ Maintains URL-based filter state (bookmarkable)
 - ✅ Follows proven pattern (consistent with residents/houses)
@@ -590,9 +691,11 @@ Payment page was refreshing and jumping to top after any action (delete, update,
 ## Phase 5.8: Settings Pages Scroll Fix ✅ COMPLETE (2025-12-19)
 
 ### Problem Fixed
+
 Settings pages (streets, house-types, bank-accounts, transaction-tags) had scroll jump issues similar to the payment page fix.
 
 ### Solution Implemented
+
 Extended the Phase 5.7 pattern to 4 additional settings pages:
 
 1. **Removed `revalidatePath()` from 7 server action files**:
@@ -621,6 +724,7 @@ Extended the Phase 5.7 pattern to 4 additional settings pages:
    - `src/app/(dashboard)/settings/transaction-tags/page.tsx`
 
 ### Files Modified (15 total)
+
 - 7 server actions
 - 1 hooks file
 - 3 components
@@ -631,6 +735,7 @@ Extended the Phase 5.7 pattern to 4 additional settings pages:
 ## Development Workflow: Notion Inbox Integration ✅ COMPLETE (2025-12-19)
 
 ### Migration to NSMA ✅ (2025-12-27)
+
 Migrated from Python inbox processor to NSMA (Notion Sync Manager):
 
 | Aspect | Old (Python) | New (NSMA) |
@@ -639,9 +744,10 @@ Migrated from Python inbox processor to NSMA (Notion Sync Manager):
 | **Directory** | Flat: `prompts/`, `deferred/`, `processed/` | Nested: `prompts/{pending,deferred,processed,archived}` |
 | **Hook** | Python script | NSMA CLI (Node.js) |
 | **Config** | `inbox_processor_config.json` | `.nsma-config.md` (7 phases, 17 modules) |
-| **Dashboard** | None | http://localhost:3100 |
+| **Dashboard** | None | <http://localhost:3100> |
 
 **New Workflow**:
+
 - Prompts written to: `/home/feyijimiohioma/projects/Residio/prompts/pending/`
 - After completion: `mv prompts/pending/<file> prompts/processed/`
 - To defer: `mv prompts/pending/<file> prompts/deferred/`
@@ -650,6 +756,7 @@ Migrated from Python inbox processor to NSMA (Notion Sync Manager):
 **Old processor preserved** at `/home/feyijimiohioma/mobile-first-notion-workflow/` for reference.
 
 ### Original Implementation (2025-12-19)
+
 Enhanced the Notion inbox processor with:
 
 1. **YAML Frontmatter with Notion Page ID**:
@@ -665,17 +772,21 @@ Enhanced the Notion inbox processor with:
    - Use `mcp__notion__notion-update-page` or NSMA dashboard
 
 ### SessionStart Hook (Updated 2025-12-27)
+
 **Files**:
+
 - `.claude/hooks/session-start.sh` - NSMA universal hook
 - `.claude/settings.json` - Hook configuration
 
 **Features**:
+
 - Dynamic phase detection from TODO.md
 - Prompt categorization (aligned vs decision-required)
 - Deferred prompt re-check for phase alignment
 - Inbox item notification (for unassigned items)
 
 **Folder Structure** (NSMA):
+
 ```
 prompts/
 ├── pending/     # Active prompts (auto-synced from Notion)
@@ -689,6 +800,7 @@ prompts/
 ## Phase 6: Security Contact List ✅ COMPLETE
 
 ### Database Migrations ✅
+
 - [x] Create `security_contact_categories` table with configurable settings
 - [x] Create `security_contacts` table with full contact schema
 - [x] Create `access_codes` table for code management
@@ -698,6 +810,7 @@ prompts/
 - [x] Define enums: `security_contact_status`, `id_document_type`, `access_code_type`
 
 ### Server Actions ✅
+
 - [x] Full CRUD for security contacts (`src/actions/security/contacts.ts`)
 - [x] Access code generation and management (`src/actions/security/codes.ts`)
 - [x] Category management (`src/actions/security/categories.ts`)
@@ -707,6 +820,7 @@ prompts/
 - [x] Audit logging integrated on all mutations
 
 ### React Query Hooks ✅
+
 - [x] Complete hook library in `src/hooks/use-security.ts`
 - [x] Contact hooks: useSecurityContacts, useCreateSecurityContact, useUpdateSecurityContact, etc.
 - [x] Access code hooks: useGenerateAccessCode, useRevokeAccessCode, useVerifyAccessCode
@@ -715,6 +829,7 @@ prompts/
 - [x] Export hooks: useExportSecurityContactsCSV, useExportAccessLogsCSV
 
 ### UI Components ✅
+
 - [x] SecurityContactForm - Create/edit contacts with validation
 - [x] SecurityContactsTable - Data table with filters and pagination
 - [x] SecurityContactStatusBadge - Status display with icons
@@ -723,6 +838,7 @@ prompts/
 - [x] ResidentSecurityContacts - Resident detail page integration
 
 ### Pages ✅
+
 - [x] `/security` - Dashboard with stats and tabs
 - [x] `/security/contacts` - Contact list with search/filter
 - [x] `/security/contacts/new` - Register new contact
@@ -732,6 +848,7 @@ prompts/
 - [x] `/settings/security` - Security module configuration
 
 ### Key Features ✅
+
 - [x] 11-permission role-based access control system
 - [x] Contact status lifecycle (active → suspended/expired/revoked)
 - [x] Access codes: permanent and one-time with max uses
@@ -745,6 +862,7 @@ prompts/
 ---
 
 ## Phase 7: Audit Logging ✅ COMPLETE
+
 - [x] Create audit_logs table migration (immutable, append-only)
 - [x] Add AuditAction enum and AuditEntityType types
 - [x] Create `logAudit()` utility for easy integration from server actions
@@ -755,7 +873,8 @@ prompts/
 - [x] Create audit detail dialog with old/new value comparison
 - [x] Add integration documentation (`src/lib/audit/README.md`)
 
-### Key Implementation Notes:
+### Key Implementation Notes
+
 - Audit logs are immutable (no UPDATE/DELETE policies)
 - Only admin/chairman can view audit logs
 - `logAudit()` is fail-safe - won't break main operations if logging fails
@@ -765,18 +884,22 @@ prompts/
 ---
 
 ## Phase 8: Application Settings & Configuration ✅ COMPLETE
+
 Centralized management for all system parameters.
 
 ### Settings Infrastructure ✅
+
 - [x] Unified Settings Layout (`/settings/layout.tsx`) with sidebar navigation
 - [x] 9 navigation items: General, Billing Profiles, Bank Accounts, Security, Streets, House Types, Transaction Tags, Audit Logs, System
 
 ### General Settings ✅
+
 - [x] Estate Information form (name, email, address, phone, website)
 - [x] Social Links (Facebook, Twitter, Instagram URLs)
 - [x] Database migration for general estate settings
 
 ### Payment Configuration ✅
+
 - [x] Late Fee Configuration section in Billing Settings:
   - Enable/disable late fees toggle
   - Fee type selector (percentage/fixed)
@@ -788,6 +911,7 @@ Centralized management for all system parameters.
 - [x] Database migration for payment configuration settings
 
 ### System Settings ✅
+
 - [x] System Settings page (`/settings/system`) - admin-only
 - [x] Maintenance Mode with toggle and custom message
 - [x] Maintenance page (`/maintenance`) for locked-out users
@@ -797,6 +921,7 @@ Centralized management for all system parameters.
 - [x] Database migration for system admin settings
 
 ### Reference Pages ✅
+
 - [x] Security Settings (`/settings/security`) - Code validity, contact limits, role permissions
 - [x] Audit Logs viewer (`/settings/audit-logs`)
 - [x] Billing Settings (`/settings/billing`) - Billing profiles, development levy config, late fees
@@ -805,7 +930,8 @@ Centralized management for all system parameters.
 - [x] Streets reference (`/settings/streets`)
 - [x] House Types reference (`/settings/house-types`)
 
-### Key Implementation Notes:
+### Key Implementation Notes
+
 - Late fees: Manual trigger via "Apply Late Fees Now" button (admin/chairman/finsec)
 - Payment reminders: Config saved but email implementation deferred to Phase 9
 - Maintenance mode: Full lockout - non-admin users redirected to `/maintenance`
@@ -815,6 +941,7 @@ Centralized management for all system parameters.
 ---
 
 ## Phase 9: Polish ✅ COMPLETE
+
 - [x] Add loading states and skeletons (all tables and pages have skeleton loaders)
 - [x] Implement error boundaries (4 files: error.tsx, (dashboard)/error.tsx, global-error.tsx, not-found.tsx)
 - [x] Add toast notifications for actions (payment-form already uses toast.error)
@@ -824,7 +951,9 @@ Centralized management for all system parameters.
 ---
 
 ## Phase 10: Flexible RBAC System ✅ COMPLETE
+
 Transform hardcoded 4-role system to 7+ configurable roles:
+
 - [x] Database migration for roles table with permissions (20251222000000_create_rbac_system.sql)
 - [x] Define 7 system roles: Super Admin, Chairman, Financial Officer, Security Officer, Resident, and custom roles
 - [x] EXCO/BOT organizational structure support (role categories)
@@ -842,9 +971,11 @@ Transform hardcoded 4-role system to 7+ configurable roles:
 ---
 
 ## Phase 11: Alert Management Module ✅ COMPLETE
+
 Centralized notification system (Email-only for now, SMS/WhatsApp future-proofed):
 
 ### Phase 11.1: Database Foundation ✅
+
 - [x] Create notification_templates table with variables JSON field
 - [x] Create notification_schedules table for trigger rules
 - [x] Create notification_queue table for pending notifications
@@ -854,6 +985,7 @@ Centralized notification system (Email-only for now, SMS/WhatsApp future-proofed
 - [x] Add notification entity types to AuditEntityType
 
 ### Phase 11.2: Core Notification Library ✅
+
 - [x] `src/lib/notifications/types.ts` - Channel-agnostic type definitions
 - [x] `src/lib/notifications/templates.ts` - Template rendering with {{variable}} interpolation
 - [x] `src/lib/notifications/deduplication.ts` - Composite key deduplication strategy
@@ -863,6 +995,7 @@ Centralized notification system (Email-only for now, SMS/WhatsApp future-proofed
 - [x] `src/lib/notifications/preferences.ts` - Per-resident notification preferences
 
 ### Phase 11.3: Server Actions ✅
+
 - [x] Template CRUD actions (`src/actions/notifications/templates.ts`)
 - [x] Schedule CRUD actions (`src/actions/notifications/schedules.ts`)
 - [x] Queue management actions (`src/actions/notifications/queue.ts`)
@@ -871,6 +1004,7 @@ Centralized notification system (Email-only for now, SMS/WhatsApp future-proofed
 - [x] High-level send actions (`src/actions/notifications/send.ts`)
 
 ### Phase 11.4: React Query Hooks ✅
+
 - [x] Complete hook library in `src/hooks/use-notifications.ts`
 - [x] Template hooks: useNotificationTemplates, useCreateTemplate, useUpdateTemplate, etc.
 - [x] Schedule hooks: useNotificationSchedules, useCreateSchedule, etc.
@@ -879,6 +1013,7 @@ Centralized notification system (Email-only for now, SMS/WhatsApp future-proofed
 - [x] Preference hooks: useResidentPreferences, useUpdateResidentPreference
 
 ### Phase 11.5: Admin UI - Templates & Schedules ✅
+
 - [x] Notifications dashboard page (`/settings/notifications`)
 - [x] Template list component with actions (edit, preview, duplicate, toggle, delete)
 - [x] Template form with variable management UI
@@ -888,6 +1023,7 @@ Centralized notification system (Email-only for now, SMS/WhatsApp future-proofed
 - [x] Schedules page (`/settings/notifications/schedules`)
 
 ### Phase 11.6: Notification History Viewer ✅
+
 - [x] History page with tabs (`/settings/notifications/history`)
 - [x] NotificationHistory component with filters (channel, status, search)
 - [x] QueueViewer component for pending queue items
@@ -895,6 +1031,7 @@ Centralized notification system (Email-only for now, SMS/WhatsApp future-proofed
 - [x] Pagination support for history
 
 ### Phase 11.7: Resident Preferences ✅
+
 - [x] PreferencesForm component with per-category, per-channel toggles
 - [x] Added Notifications tab to resident detail page
 - [x] Email enabled by default, SMS/WhatsApp shown as "Coming soon"
@@ -902,17 +1039,20 @@ Centralized notification system (Email-only for now, SMS/WhatsApp future-proofed
 - [x] Pending changes pattern for batch saving
 
 ### Phase 11.8: Cron Job & Queue Processing ✅
+
 - [x] Created `/api/cron/process-notifications` route
 - [x] Updated `vercel.json` with 5-minute cron schedule
 - [x] Queue processing with priority ordering
 - [x] Daily purge of old sent/cancelled items (30-day retention)
 
 ### Phase 11.9: Migrate Existing Email Flows ✅
+
 - [x] Updated `logEmail()` to also write to notification_history
 - [x] Legacy emails now appear in unified notification history
 - [x] Marked with `legacy_email: true` metadata for identification
 
-### Key Implementation Notes:
+### Key Implementation Notes
+
 - **Channel Dispatcher Pattern**: `send.ts` dispatches to channel-specific senders
 - **Template Variables**: Handlebars-style `{{variable}}` interpolation
 - **Deduplication Key**: `{channel}:{category}:{entity_type}:{entity_id}:{resident_id}`
@@ -923,7 +1063,9 @@ Centralized notification system (Email-only for now, SMS/WhatsApp future-proofed
 ---
 
 ## Phase 12: Resident View Portal ✅ COMPLETE
+
 Self-service portal for residents:
+
 - [x] Resident authentication (uses existing auth with resident_id check)
 - [x] Read-only dashboard with property info (/portal - wallet balance, outstanding, properties)
 - [x] View invoices and payment history (/portal/invoices - filter tabs, detail sheets)
@@ -938,6 +1080,7 @@ Self-service portal for residents:
 ## Phase 13: Dashboard & Analytics ✅ COMPLETE (2025-12-27)
 
 ### MVP Implementation (Core Charts)
+
 - [x] Recharts library integration (v2.15.0)
 - [x] Analytics types (`src/types/analytics.ts`)
 - [x] Server action with parallel data fetching (`src/actions/analytics/get-analytics-data.ts`)
@@ -957,6 +1100,7 @@ Self-service portal for residents:
 - [x] Mobile-responsive grid layout
 
 ### Key Files Created (14 new files)
+
 - `src/types/analytics.ts` - TypeScript interfaces
 - `src/actions/analytics/get-analytics-data.ts` - Server action
 - `src/hooks/use-analytics.ts` - React Query hook
@@ -974,10 +1118,12 @@ Self-service portal for residents:
 - `src/app/(dashboard)/analytics/analytics-page-client.tsx` - Client dashboard
 
 ### Files Modified
+
 - `src/components/dashboard/sidebar.tsx` - Added Analytics nav item
 - `package.json` - Added recharts dependency
 
 ### Future Enhancements (Phase 13.2+)
+
 - [ ] PDF export (using @react-pdf/renderer)
 - [ ] Excel export (using xlsx library)
 - [ ] Invoice aging reports
@@ -989,24 +1135,28 @@ Self-service portal for residents:
 ## Phase 14: Performance & Security ✅ COMPLETE
 
 ### Week 1: Database Query Optimizations ✅
+
 - [x] Residents page stats optimization (parallel COUNT queries)
 - [x] Dashboard stats parallelization (Promise.all)
 - [x] Middleware query consolidation (nested select)
 - [x] React Query polling interval tuning
 
 ### Week 2: React Component Optimizations ✅
+
 - [x] Auth provider query parallelization
 - [x] React.memo for table row components
 - [x] Badge component memoization
 - [x] useCallback for event handlers
 
 ### Security Hardening ✅
+
 - [x] XSS prevention (sandboxed iframe + cloneNode)
 - [x] Authorization bypass fix (RBAC permissions)
 - [x] CRON timing-safe authentication (crypto.timingSafeEqual)
 - [x] Strong password requirements (12+ chars, complexity)
 
 ### Key Files Created
+
 - `src/lib/auth/cron-auth.ts` - Centralized CRON authentication
 - `src/lib/validators/password.ts` - Shared password validation
 - `src/actions/residents/get-resident-stats.ts` - Optimized stats
@@ -1014,7 +1164,9 @@ Self-service portal for residents:
 ---
 
 ## Phase 15: Document Management ✅ COMPLETE
+
 Central document repository:
+
 - [x] Documents database table with categories (document_categories, documents, document_access_logs)
 - [x] File upload to Supabase Storage (50MB limit, PDF/DOCX/XLSX/TXT)
 - [x] Document library UI with search/filter (list/grid view, category filter)
@@ -1029,7 +1181,9 @@ Central document repository:
 ---
 
 ## Phase 16: Community Communication ✅ COMPLETE
+
 Enhanced communication tools:
+
 - [x] Announcements database table
 - [x] Community announcements/bulletin board
 - [x] Scheduled announcements (future publish date)
@@ -1042,7 +1196,9 @@ Enhanced communication tools:
 ---
 
 ## Phase 17: Legacy App Migration
+
 Data migration from existing system:
+
 - [ ] Define legacy data mapping schema
 - [ ] Create data import scripts/tools
 - [ ] Resident data migration
@@ -1059,7 +1215,9 @@ Data migration from existing system:
 Ideas for future phases (not yet scheduled):
 
 ### Admin-Created Theme System (Foundation Complete ✅)
+
 The visual theme system foundation is now implemented:
+
 - [x] Theme definitions in code (default, modern themes)
 - [x] Theme registry pattern for extensibility
 - [x] CSS variable injection from theme definitions
@@ -1068,6 +1226,7 @@ The visual theme system foundation is now implemented:
 - [x] Navigation extracted to theme-independent configuration
 
 **Remaining for full admin control:**
+
 - [ ] Database table for admin-created themes
 - [ ] Theme editor UI (color pickers, live preview)
 - [ ] Export/import themes as JSON
@@ -1080,9 +1239,11 @@ The visual theme system foundation is now implemented:
 ---
 
 ## Phase 17: UI Enhancement & Polish ✅ COMPLETE
+
 Comprehensive UI/UX improvements:
 
 ### 17.1 Dark Mode Activation ✅
+
 - [x] Add ThemeProvider to providers.tsx (next-themes)
 - [x] Update layout.tsx with suppressHydrationWarning
 - [x] Create theme-switcher.tsx component (Sun/Moon/Monitor icons)
@@ -1090,34 +1251,40 @@ Comprehensive UI/UX improvements:
 - [x] Add compact theme switcher to header (mobile)
 
 ### 17.2 Semantic Colors System ✅
+
 - [x] Add success/warning/info CSS variables (oklch, light + dark modes)
 - [x] Add semantic variants to Badge component (success, warning, info)
 - [x] Add semantic variants to Alert component (success, warning, info)
 
 ### 17.3 Loading & Feedback Polish ✅
+
 - [x] Create skeleton variants (SkeletonText, SkeletonAvatar, SkeletonCard, SkeletonTableRow)
 - [x] Enhance Sonner toast styling with semantic colors
 - [x] Add toast icons for success/error/warning/info
 
 ### 17.4 Component Refinements ✅
+
 - [x] Add isLoading prop to Button with spinner and preserved width
 - [x] Add loadingText prop for custom loading messages
 - [x] Add interactive prop to Card for hover lift effect
 - [x] Add button press feedback (scale animation)
 
 ### 17.5 Micro-interactions & Polish ✅
+
 - [x] Add shake animation keyframe (for form errors)
 - [x] Add fade-in-up animation keyframe
 - [x] Add scale-in animation keyframe
 - [x] Add card-interactive and table-row-interactive utility classes
 
-### Key Implementation Notes:
+### Key Implementation Notes
+
 - Theme switcher uses next-themes with attribute="class" for Tailwind dark mode
 - Semantic colors use oklch color space for perceptual uniformity
 - Button isLoading auto-disables and shows spinner while preserving children text
 - All new components follow existing shadcn/ui patterns
 
-### Files Modified:
+### Files Modified
+
 - `src/components/providers.tsx` - ThemeProvider wrapper
 - `src/app/layout.tsx` - suppressHydrationWarning
 - `src/components/ui/theme-switcher.tsx` - NEW
@@ -1134,7 +1301,9 @@ Comprehensive UI/UX improvements:
 ---
 
 ## Phase 19: Deployment & Production
+
 Production deployment:
+
 - [ ] Vercel deployment configuration
 - [ ] Production Supabase setup
 - [ ] Environment variables configuration
@@ -1147,7 +1316,9 @@ Production deployment:
 ---
 
 ## Phase 20: External API - Security Barrier Integration
+
 API for external systems:
+
 - [ ] Create API route for access verification (`/api/v1/access/verify`)
 - [ ] API key authentication system
 - [ ] Rate limiting
@@ -1163,7 +1334,9 @@ API for external systems:
 ---
 
 ## Phase 21: WhatsApp Integration
+
 WhatsApp Business API:
+
 - [ ] WhatsApp Business account setup
 - [ ] Message templates approval (Meta requirement)
 - [ ] Opt-out by default (regulatory compliance)
@@ -1174,7 +1347,9 @@ WhatsApp Business API:
 ---
 
 ## Phase 22: SMS Integration
+
 SMS notification channel:
+
 - [ ] SMS gateway integration (Termii, Africa's Talking, or similar)
 - [ ] Opt-in/opt-out management
 - [ ] SMS templates
@@ -1185,7 +1360,9 @@ SMS notification channel:
 ---
 
 ## Phase 23: Mobile Application
+
 Native mobile experience:
+
 - [ ] React Native or Flutter app setup
 - [ ] Push notifications
 - [ ] Offline capability
@@ -1200,7 +1377,9 @@ Native mobile experience:
 ---
 
 ## Phase 26: Payment Gateway Integration
+
 Online payment processing:
+
 - [ ] Paystack/Flutterwave integration
 - [ ] Online invoice payment
 - [ ] Payment confirmation automation
@@ -1211,7 +1390,9 @@ Online payment processing:
 ---
 
 ## Phase 27: Advanced Billing Features
+
 Enhanced billing capabilities:
+
 - [ ] Recurring payment scheduling
 - [ ] Early payment discounts
 - [ ] Payment plans for delinquent accounts
@@ -1222,7 +1403,9 @@ Enhanced billing capabilities:
 ---
 
 ## Phase 28: Violation & Compliance Tracking
+
 Rule enforcement system:
+
 - [ ] Violation categories and rules database
 - [ ] Violation reporting and tracking
 - [ ] Warning/fine escalation workflow
@@ -1233,7 +1416,9 @@ Rule enforcement system:
 ---
 
 ## Phase 29: Committee & Meeting Management
+
 Association governance:
+
 - [ ] Committee creation and membership
 - [ ] Meeting scheduling and invitations
 - [ ] Agenda management
@@ -1244,6 +1429,7 @@ Association governance:
 ---
 
 ## Project Structure
+
 ```
 residio/
 ├── src/
@@ -1283,6 +1469,7 @@ No pending issues.
 ## Recent Updates (2025-12-19)
 
 ### Transaction Tags: Keyword Auto-Tagging System ✅
+
 - Added `keywords` text[] column to `transaction_tags` table
 - Updated TypeScript types for TransactionTag interfaces
 - Added `autoTagTransaction()` server action for keyword-based auto-tagging
@@ -1291,6 +1478,7 @@ No pending issues.
 - Added Keywords column to tags table showing keyword count
 
 **Files Modified:**
+
 - `supabase/migrations/20251219115958_add_keywords_to_transaction_tags.sql`
 - `src/types/database.ts`
 - `src/lib/validators/import.ts`
@@ -1298,6 +1486,7 @@ No pending issues.
 - `src/components/admin/transaction-tags-list.tsx`
 
 ### Import Flow Auto-Tagging Integration ✅
+
 Integrated `autoTagTransaction()` into the bank statement import workflow:
 
 - Added `auto_tagged` boolean column to `bank_statement_rows` table
@@ -1308,6 +1497,7 @@ Integrated `autoTagTransaction()` into the bank statement import workflow:
 - Build passes successfully
 
 **Files Modified:**
+
 - `supabase/migrations/20251219_add_auto_tagged_to_bank_statement_rows.sql`
 - `src/types/database.ts` - Added `auto_tagged` to `BankStatementRow`
 - `src/actions/imports/create-import.ts` - Auto-tag logic after row insert
@@ -1319,15 +1509,18 @@ Integrated `autoTagTransaction()` into the bank statement import workflow:
 ## Recent Updates (2025-12-22)
 
 ### Phase 17: UI Enhancement & Polish ✅ COMPLETE
+
 Comprehensive UI/UX overhaul implementing dark mode, semantic colors, and micro-interactions:
 
 **Dark Mode Implementation:**
+
 - Added `ThemeProvider` from next-themes wrapping the app
 - Created `ThemeSwitcher` component with Light/Dark/System options
 - Theme toggle appears in sidebar footer (desktop) and header (mobile)
 - All existing dark mode CSS is now accessible via theme switcher
 
 **Semantic Colors (oklch):**
+
 - Added success (green), warning (amber), info (blue) color variables
 - Both light and dark mode variants using oklch color space
 - New Badge variants: `success`, `warning`, `info`
@@ -1335,20 +1528,24 @@ Comprehensive UI/UX overhaul implementing dark mode, semantic colors, and micro-
 - Toast notifications styled with semantic colors and icons
 
 **Enhanced Components:**
+
 - `Button`: Added `isLoading` prop with spinner, `loadingText` prop, press feedback animation
 - `Card`: Added `interactive` prop for hover lift effect
 - `Skeleton`: Added SkeletonText, SkeletonAvatar, SkeletonCard, SkeletonTableRow variants
 
 **Micro-interactions:**
+
 - Shake animation for form errors
 - Fade-in-up and scale-in animations
 - Card hover lift effect utility class
 - Table row hover effect utility class
 
 **Files Created:**
+
 - `src/components/ui/theme-switcher.tsx`
 
 **Files Modified (11):**
+
 - `src/components/providers.tsx`
 - `src/app/layout.tsx`
 - `src/app/globals.css`
@@ -1366,18 +1563,22 @@ Comprehensive UI/UX overhaul implementing dark mode, semantic colors, and micro-
 ## Recent Updates (2025-12-21)
 
 ### Phase 9 Polish: 'use server' Export Fix ✅
+
 Fixed critical runtime error "A 'use server' file can only export async functions, found object":
 
 **Problem**: Next.js 15/16 enforces strict rules that 'use server' files can only export async functions. The file `src/lib/auth/authorize.ts` was exporting:
+
 - `AuthorizationResult` interface (invalid)
 - `ACTION_ROLES` const object (invalid)
 
 **Solution**:
+
 1. Created `src/lib/auth/action-roles.ts` - new file containing interface and const (no 'use server')
 2. Updated `src/lib/auth/authorize.ts` - removed exports, only exports `authorizeAction` function
 3. Updated 9 consumer files to import `ACTION_ROLES` from new location
 
 **Files Modified:**
+
 - `src/lib/auth/action-roles.ts` (NEW)
 - `src/lib/auth/authorize.ts`
 - `src/actions/residents/update-resident.ts`
@@ -1391,7 +1592,9 @@ Fixed critical runtime error "A 'use server' file can only export async function
 - `src/actions/payments/delete-payment.ts`
 
 ### Phase 9 Polish Verification ✅
+
 Verified all Phase 9 items were already implemented:
+
 - Error boundaries: All 4 files exist and are properly implemented
 - Table skeleton loaders: houses-table, residents-table, security-contacts-table all have Skeleton states
 - Page loading states: dashboard, security, billing pages have skeleton loaders
@@ -1402,6 +1605,7 @@ Verified all Phase 9 items were already implemented:
 ## Recent Updates (2025-12-20)
 
 ### Security Contacts: Expired Visibility Controls ✅
+
 Enhanced visibility controls for expired security contacts:
 
 - Added `getExpiredContactCount()` and `getExpiringContactCount()` server actions
@@ -1413,12 +1617,14 @@ Enhanced visibility controls for expired security contacts:
 - By default, expired contacts are hidden; toggle shows only expired
 
 **Files Modified:**
+
 - `src/actions/security/contacts.ts` - Added expired/expiring count functions
 - `src/hooks/use-security.ts` - Added count hooks
 - `src/components/security/security-contacts-table.tsx` - Enhanced filtering and styling
 - `src/app/(dashboard)/security/page.tsx` - Added new stat cards
 
 ### Bank Statement Import: Visual Polish & Workflow Separation ✅
+
 Comprehensive enhancement of import flow with credit/debit differentiation:
 
 - Added transaction type filter toggle (All/Credits/Debits) with counts
@@ -1428,9 +1634,11 @@ Comprehensive enhancement of import flow with credit/debit differentiation:
 - Enhanced summary cards with icons and border colors
 
 **Files Modified:**
+
 - `src/components/imports/import-preview.tsx` - Transaction type filter, enhanced stats
 
 ### Bank Statement Import: Expense Breakdown Enhancements ✅
+
 Added export functionality, interactive charts, and additional metrics:
 
 - Added "Export CSV" button for breakdown data
@@ -1442,9 +1650,11 @@ Added export functionality, interactive charts, and additional metrics:
 - Enhanced tag cards show average amount per category
 
 **Files Modified:**
+
 - `src/components/imports/import-breakdown.tsx` - Full enhancement
 
 ### Cloud Supabase Configuration Update ✅
+
 Updated CLAUDE.md to reflect cloud-only Supabase usage:
 
 - Removed local Supabase CLI references
@@ -1453,6 +1663,7 @@ Updated CLAUDE.md to reflect cloud-only Supabase usage:
 - Updated environment variables section
 
 **Files Modified:**
+
 - `CLAUDE.md` - Updated Supabase configuration guidance
 
 ---
@@ -1460,19 +1671,24 @@ Updated CLAUDE.md to reflect cloud-only Supabase usage:
 ## Recent Updates (2025-12-27)
 
 ### Phase 12 Completion: PDF Receipt Downloads ✅
+
 Implemented PDF receipt generation for the resident portal:
 
 **Package Added:**
+
 - `@react-pdf/renderer` - Server-side PDF generation from React components
 
 **Files Created:**
+
 - `src/lib/pdf/invoice-receipt.tsx` - PDF template component with styled receipt layout
 - `src/app/api/receipts/[id]/route.ts` - API route for authenticated PDF generation
 
 **Files Modified:**
+
 - `src/app/(resident)/portal/invoices/page.tsx` - Enabled download button with loading state
 
 **Key Features:**
+
 - Professional receipt layout with estate branding
 - Displays invoice items, amounts, and payment status
 - Authorization check: residents can only download their own receipts
@@ -1481,32 +1697,39 @@ Implemented PDF receipt generation for the resident portal:
 - Toast notifications for success/error feedback
 
 **Technical Notes:**
+
 - Uses `renderToBuffer()` for server-side PDF generation
 - Converts Buffer to Uint8Array for NextResponse compatibility
 - Filename derived from invoice number (e.g., `RCP-202312-0001.pdf`)
 - Estate name fetched from system settings
 
 ### Portal & Self-Service Enhancements ✅ (2025-12-27 - Parallel Session)
+
 Comprehensive portal improvements from development inbox prompts:
 
 **Task 1: Currency Standardization** ✅ No changes needed
+
 - Verified all 26 files use Nigerian Naira (₦) via `formatCurrency()` with NGN locale
 
 **Task 2: Portal Dashboard Empty States** ✅
+
 - Added empty state messaging when properties = 0 or contacts = 0
 - Clear guidance to contact admin when no properties assigned
 
 **Task 3: Admin-Resident Portal Cross-Navigation** ✅
+
 - Admin sidebar: "View as Resident" link (visible when user has resident_id)
 - Admin header dropdown: "Resident Portal" menu item
 - Portal header/sidebar: "Admin Dashboard" link (visible when user has RESIDENTS_VIEW permission)
 
 **Task 4: Color-Coded Role Badges** ✅
+
 - Added `roleColors` mapping with distinct colors per role type
 - Supports dark mode with appropriate color variants
 - Roles: landlord (blue), non-resident landlord (purple), tenant (green), household member (gray), domestic staff (teal), contractor (amber), caretaker (indigo), co-resident (cyan), developer (rose)
 
 **Task 5: Household Member Self-Service** ✅
+
 - **Server Action**: `src/actions/residents/add-household-member.ts`
   - `addHouseholdMember()` - Create new secondary resident (household_member, domestic_staff, caretaker)
   - `getHouseholdMembers()` - Fetch household members for a house
@@ -1522,6 +1745,7 @@ Comprehensive portal improvements from development inbox prompts:
   - Add/remove functionality with confirmation dialog
 
 **Task 6: Responsive Portal Layout** ✅
+
 - **Desktop Sidebar**: `src/components/resident-portal/portal-sidebar.tsx`
   - Fixed sidebar (256px) on md+ screens
   - Navigation items: Home, Payments, Security Contacts, Profile
@@ -1534,17 +1758,21 @@ Comprehensive portal improvements from development inbox prompts:
 - **Responsive Grids**: Portal dashboard uses `md:grid-cols-2/3/4` patterns
 
 **Task 7: Complete Portal Features** ✅
+
 - Covered by Tasks 2-6 above
 
 **Type Updates:**
+
 - Added `is_primary` to `resident_houses` type in `src/types/database.ts`
 
 **Files Created (3):**
+
 - `src/actions/residents/add-household-member.ts`
 - `src/components/resident-portal/household-member-form.tsx`
 - `src/components/resident-portal/portal-sidebar.tsx`
 
 **Files Modified (9):**
+
 - `src/app/(resident)/portal/page.tsx` - Empty states, responsive grids
 - `src/app/(resident)/portal/profile/page.tsx` - Household management, role colors
 - `src/app/(resident)/layout.tsx` - Responsive layout with sidebar
@@ -1559,9 +1787,11 @@ Comprehensive portal improvements from development inbox prompts:
 ## Recent Updates (2025-12-28)
 
 ### Portal Desktop Layout Enhancements ✅
+
 Implemented 7 desktop-optimized layouts for the resident portal:
 
 **Foundation Components Created:**
+
 - `src/hooks/use-media-query.ts` - Viewport detection with `useIsDesktop`, `useIsMobile`, `useMediaQuery`
 - `src/components/ui/responsive-sheet.tsx` - Auto-switching Sheet/Drawer/Modal based on viewport
   - Mobile: Bottom sheet (existing behavior)
@@ -1578,16 +1808,19 @@ Implemented 7 desktop-optimized layouts for the resident portal:
 | **Profile** (`portal/profile`) | Two-column layout (1/3 identity + 2/3 content); grid-based cards for properties/notifications |
 
 **Key Patterns Applied:**
+
 - **Conditional rendering**: `isDesktop ? <Table/> : <CardList/>`
 - **Hover-reveal actions**: `opacity-0 group-hover:opacity-100 transition-opacity`
 - **Grid layouts within cards**: Properties, household members, notifications use grid on desktop
 - **ResponsiveSheet variants**: `drawer` for detail views, `modal` for form dialogs
 
 **Files Created (2):**
+
 - `src/hooks/use-media-query.ts`
 - `src/components/ui/responsive-sheet.tsx`
 
 **Files Modified (4):**
+
 - `src/app/(resident)/portal/invoices/page.tsx` - Desktop table + ResponsiveSheet drawer
 - `src/app/(resident)/portal/security-contacts/page.tsx` - Grid layout + ResponsiveSheet modals
 - `src/app/(resident)/portal/documents/page.tsx` - Desktop table with file icons
@@ -1595,6 +1828,7 @@ Implemented 7 desktop-optimized layouts for the resident portal:
 
 **Prompts Processed (7):**
 All moved to `prompts/processed/`:
+
 - `20251228_portal_&_self-service_global_sheet_modal_desktop_variants.md`
 - `20251228_portal_&_self-service_payments_page_desktop_list_layout.md`
 - `20251228_portal_&_self-service_invoice_detail_desktop_drawer_layout.md`

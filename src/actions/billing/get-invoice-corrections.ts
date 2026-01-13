@@ -164,7 +164,7 @@ export async function getParentInvoice(
     .select(
       `
       *,
-      resident:residents!invoices_resident_id_fkey(id, first_name, last_name, resident_code),
+      resident:residents!invoices_resident_id_fkey(id, first_name, last_name, resident_code, phone_primary, email),
       house:houses!invoices_house_id_fkey(id, house_number, short_name, street:streets(name)),
       billing_profile:billing_profiles(id, name),
       invoice_items(id, description, amount)
@@ -177,5 +177,5 @@ export async function getParentInvoice(
     return { data: null, error: parentError.message };
   }
 
-  return { data: parent as InvoiceWithDetails };
+  return { data: parent as unknown as InvoiceWithDetails };
 }

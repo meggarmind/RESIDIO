@@ -6,6 +6,7 @@ export const reportTypes = [
     { value: 'collection_report', label: 'Collection Report', description: 'Payment collection summary by resident' },
     { value: 'invoice_aging', label: 'Invoice Aging Report', description: 'Outstanding invoices by age brackets' },
     { value: 'transaction_log', label: 'Transaction Log', description: 'Detailed list of all transactions' },
+    { value: 'debtors_report', label: 'Debtors Report', description: 'Detailed debtors list with aging buckets and contact info' },
 ] as const;
 
 export type ReportType = typeof reportTypes[number]['value'];
@@ -36,7 +37,7 @@ export type AggregationType = typeof aggregationOptions[number]['value'];
 
 // Report Request Schema
 export const reportRequestSchema = z.object({
-    reportType: z.enum(['financial_overview', 'collection_report', 'invoice_aging', 'transaction_log']),
+    reportType: z.enum(['financial_overview', 'collection_report', 'invoice_aging', 'transaction_log', 'debtors_report']),
     periodPreset: z.enum(['this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year', 'custom']),
     startDate: z.string().default(''),
     endDate: z.string().default(''),

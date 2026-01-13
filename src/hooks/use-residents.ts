@@ -10,6 +10,13 @@ import { deleteResident } from '@/actions/residents/delete-resident';
 import { assignHouse } from '@/actions/residents/assign-house';
 import { unassignHouse } from '@/actions/residents/unassign-house';
 import { moveOutLandlord } from '@/actions/residents/move-out-landlord';
+import {
+  checkRenterClearance,
+  initiateRenterMoveOut,
+  confirmRenterMoveOut,
+  getPendingMoveOut,
+  type RenterMoveOutInput,
+} from '@/actions/residents/move-out-renter';
 import { updateResidentHouse } from '@/actions/residents/update-resident-house';
 import { swapResidentRoles } from '@/actions/residents/swap-resident-roles';
 import { transferOwnership } from '@/actions/residents/transfer-ownership';
@@ -208,6 +215,92 @@ export function useMoveOutLandlord() {
       queryClient.invalidateQueries({ queryKey: ['house', variables.houseId] });
       queryClient.invalidateQueries({ queryKey: ['ownershipHistory', variables.houseId] });
     },
+  });
+}
+
+/**
+ * Check renter financial clearance for move-out
+ */
+export function useCheckRenterClearance(residentId: string | undefined) {
+  return useQuery({
+    queryKey: ['renterClearance', residentId],
+    queryFn: async () => {
+      if (!residentId) throw new Error('Resident ID is required');
+      const result = await checkRenterClearance(residentId);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    enabled: !!residentId,
+  });
+}
+
+/**
+ * Initiate renter move-out process
+ */
+export function useInitiateRenterMoveOut() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: RenterMoveOutInput) => {
+      const result = await initiateRenterMoveOut(input);
+      if (result.error) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['residents'] });
+      queryClient.invalidateQueries({ queryKey: ['resident', variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ['houses'] });
+      queryClient.invalidateQueries({ queryKey: ['house', variables.houseId] });
+      queryClient.invalidateQueries({ queryKey: ['ownershipHistory', variables.houseId] });
+      queryClient.invalidateQueries({ queryKey: ['pendingMoveOut'] });
+    },
+  });
+}
+
+/**
+ * CSO confirms physical move-out of renter
+ */
+export function useConfirmRenterMoveOut() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      residentId,
+      houseId,
+      certificateNumber,
+    }: {
+      residentId: string;
+      houseId: string;
+      certificateNumber: string;
+    }) => {
+      const result = await confirmRenterMoveOut(residentId, houseId, certificateNumber);
+      if (result.error) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['residents'] });
+      queryClient.invalidateQueries({ queryKey: ['resident', variables.residentId] });
+      queryClient.invalidateQueries({ queryKey: ['houses'] });
+      queryClient.invalidateQueries({ queryKey: ['house', variables.houseId] });
+      queryClient.invalidateQueries({ queryKey: ['ownershipHistory', variables.houseId] });
+      queryClient.invalidateQueries({ queryKey: ['pendingMoveOut'] });
+    },
+  });
+}
+
+/**
+ * Get pending move-out for a house/resident
+ */
+export function usePendingMoveOut(houseId: string | undefined, residentId?: string) {
+  return useQuery({
+    queryKey: ['pendingMoveOut', houseId, residentId],
+    queryFn: async () => {
+      if (!houseId) throw new Error('House ID is required');
+      const result = await getPendingMoveOut(houseId, residentId);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    enabled: !!houseId,
   });
 }
 

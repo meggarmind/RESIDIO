@@ -1,13 +1,30 @@
 import { z } from 'zod';
-import type { SecurityContactStatus, AccessCodeType, IdDocumentType } from '@/types/database';
+import type { SecurityContactStatus, AccessCodeType, IdDocumentType, VisitorRecurrencePattern, DayOfWeek, VehicleType } from '@/types/database';
 
 // Enums for validation
 const securityContactStatusEnum = z.enum(['active', 'suspended', 'expired', 'revoked']);
 const accessCodeTypeEnum = z.enum(['permanent', 'one_time']);
 const idDocumentTypeEnum = z.enum(['nin', 'voters_card', 'drivers_license', 'passport', 'company_id', 'other']);
 
+// Visitor Management Enhancement enums
+const visitorRecurrencePatternEnum = z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'custom']);
+const dayOfWeekEnum = z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']);
+const vehicleTypeEnum = z.enum(['car', 'motorcycle', 'bicycle', 'truck', 'van', 'bus', 'other']);
+
 // Phone number validation regex (Nigerian format support)
 const phoneRegex = /^(\+234|0)[789][01]\d{8}$/;
+
+// Recurring schedule sub-schema
+const recurringScheduleSchema = z.object({
+  is_recurring: z.boolean().default(false),
+  recurrence_pattern: visitorRecurrencePatternEnum.optional().nullable(),
+  recurrence_days: z.array(dayOfWeekEnum).optional().nullable(),
+  recurrence_start_date: z.string().optional().nullable(),
+  recurrence_end_date: z.string().optional().nullable(),
+  expected_arrival_time: z.string().optional().nullable(),
+  expected_departure_time: z.string().optional().nullable(),
+  purpose: z.string().optional().nullable(),
+});
 
 // Base security contact schema
 const baseSecurityContactSchema = z.object({
@@ -32,6 +49,16 @@ const baseSecurityContactSchema = z.object({
   employer: z.string().optional().or(z.literal('')),
   relationship: z.string().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
+
+  // Recurring visitor fields
+  is_recurring: z.boolean().default(false),
+  recurrence_pattern: visitorRecurrencePatternEnum.optional().nullable(),
+  recurrence_days: z.array(dayOfWeekEnum).optional().nullable(),
+  recurrence_start_date: z.string().optional().nullable(),
+  recurrence_end_date: z.string().optional().nullable(),
+  expected_arrival_time: z.string().optional().nullable(),
+  expected_departure_time: z.string().optional().nullable(),
+  purpose: z.string().optional().nullable(),
 });
 
 // Create security contact schema
@@ -210,5 +237,115 @@ export function isValidAccessCodeFormat(code: string): boolean {
   return codePatternSchema.safeParse(code.toUpperCase()).success;
 }
 
+// ============================================================
+// Visitor Management Enhancement Schemas
+// ============================================================
+
+// Visitor Vehicle schema
+export const createVisitorVehicleSchema = z.object({
+  contact_id: z.string().uuid('Invalid contact ID'),
+  vehicle_type: vehicleTypeEnum.default('car'),
+  plate_number: z.string().min(2, 'Plate number is required').max(20, 'Plate number is too long'),
+  make: z.string().optional().or(z.literal('')),
+  model: z.string().optional().or(z.literal('')),
+  color: z.string().optional().or(z.literal('')),
+  year: z.number().min(1900).max(new Date().getFullYear() + 1).optional().nullable(),
+  photo_url: z.string().url().optional().or(z.literal('')),
+  is_primary: z.boolean().default(false),
+  notes: z.string().optional().or(z.literal('')),
+});
+
+export type CreateVisitorVehicleData = z.infer<typeof createVisitorVehicleSchema>;
+
+// Update visitor vehicle schema
+export const updateVisitorVehicleSchema = createVisitorVehicleSchema.partial().extend({
+  id: z.string().uuid('Invalid vehicle ID'),
+});
+
+export type UpdateVisitorVehicleData = z.infer<typeof updateVisitorVehicleSchema>;
+
+// Enhanced check-in schema with duration and vehicle
+export const enhancedCheckInSchema = z.object({
+  access_code_id: z.string().uuid().optional().nullable(),
+  contact_id: z.string().uuid('Contact ID is required'),
+  gate_location: z.string().optional().or(z.literal('')),
+  notes: z.string().optional().or(z.literal('')),
+  expected_duration_minutes: z.number().min(1).max(1440).optional().nullable(), // Max 24 hours
+  vehicle_id: z.string().uuid().optional().nullable(),
+  entry_method: z.enum(['code', 'photo', 'manual', 'vehicle_plate']).optional().nullable(),
+  photo_url: z.string().url().optional().or(z.literal('')),
+});
+
+export type EnhancedCheckInData = z.infer<typeof enhancedCheckInSchema>;
+
+// Photo capture schema for visitor photos at gate
+export const visitorPhotoCaptureSchema = z.object({
+  contact_id: z.string().uuid('Invalid contact ID'),
+  photo_data: z.string().min(1, 'Photo data is required'), // Base64 encoded image
+  capture_type: z.enum(['profile', 'gate_entry']).default('profile'),
+});
+
+export type VisitorPhotoCaptureData = z.infer<typeof visitorPhotoCaptureSchema>;
+
+// Recurring schedule update schema
+export const updateRecurringScheduleSchema = z.object({
+  contact_id: z.string().uuid('Invalid contact ID'),
+  is_recurring: z.boolean(),
+  recurrence_pattern: visitorRecurrencePatternEnum.optional().nullable(),
+  recurrence_days: z.array(dayOfWeekEnum).optional().nullable(),
+  recurrence_start_date: z.string().optional().nullable(),
+  recurrence_end_date: z.string().optional().nullable(),
+  expected_arrival_time: z.string().optional().nullable(),
+  expected_departure_time: z.string().optional().nullable(),
+  purpose: z.string().optional().nullable(),
+}).refine(
+  (data) => {
+    // If recurring is true, pattern is required
+    if (data.is_recurring && !data.recurrence_pattern) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: 'Recurrence pattern is required for recurring visitors',
+    path: ['recurrence_pattern'],
+  }
+).refine(
+  (data) => {
+    // If pattern is weekly or biweekly, days are required
+    if (data.is_recurring && ['weekly', 'biweekly'].includes(data.recurrence_pattern || '')) {
+      return data.recurrence_days && data.recurrence_days.length > 0;
+    }
+    return true;
+  },
+  {
+    message: 'Please select at least one day for weekly/bi-weekly recurring visits',
+    path: ['recurrence_days'],
+  }
+);
+
+export type UpdateRecurringScheduleData = z.infer<typeof updateRecurringScheduleSchema>;
+
+// Visitor analytics filters schema
+export const visitorAnalyticsFiltersSchema = z.object({
+  resident_id: z.string().uuid().optional(),
+  category_id: z.string().uuid().optional(),
+  is_recurring: z.boolean().optional(),
+  is_frequent_visitor: z.boolean().optional(),
+  min_visits: z.number().min(1).optional(),
+  days: z.number().min(1).max(365).optional().default(30),
+  page: z.number().min(1).optional().default(1),
+  limit: z.number().min(1).max(100).optional().default(20),
+});
+
+export type VisitorAnalyticsFilters = z.input<typeof visitorAnalyticsFiltersSchema>;
+
 // Export enums for use in forms
-export { securityContactStatusEnum, accessCodeTypeEnum, idDocumentTypeEnum };
+export {
+  securityContactStatusEnum,
+  accessCodeTypeEnum,
+  idDocumentTypeEnum,
+  visitorRecurrencePatternEnum,
+  dayOfWeekEnum,
+  vehicleTypeEnum,
+};

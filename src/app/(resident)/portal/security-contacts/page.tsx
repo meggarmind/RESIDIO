@@ -480,6 +480,7 @@ function AddContactSheet({
       await createMutation.mutateAsync({
         ...data,
         resident_id: residentId,
+        is_recurring: false,
       });
       toast.success('Contact added successfully');
       form.reset();
