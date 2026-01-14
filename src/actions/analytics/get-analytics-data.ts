@@ -97,6 +97,27 @@ async function fetchRevenueTrend(
     monthlyData.set(key, current);
   });
 
+  // Fetch expenses for the same period to show in trend
+  const { data: expenses } = await supabase
+    .from('expenses')
+    .select('amount, expense_date')
+    .gte('expense_date', startDate)
+    .lte('expense_date', endDate)
+    .eq('status', 'paid');
+
+  expenses?.forEach((e) => {
+    const date = new Date(e.expense_date);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+    if (!monthlyData.has(key)) {
+      monthlyData.set(key, { revenue: 0, expenses: 0 });
+    }
+
+    const current = monthlyData.get(key)!;
+    current.expenses += Number(e.amount) || 0;
+    monthlyData.set(key, current);
+  });
+
   // Convert to array and format
   const result: TimeSeriesDataPoint[] = [];
   const sortedKeys = Array.from(monthlyData.keys()).sort();
@@ -390,8 +411,17 @@ async function fetchKPIs(
 
   const collectionRate = totalDue > 0 ? Math.round((totalPaid / totalDue) * 1000) / 10 : 0;
 
-  // For now, expenses are set to 0 (could be enhanced with expense tracking)
-  const totalExpenses = 0;
+  // Fetch real expenses from the new table
+  const { data: expensesResult } = await supabase
+    .from('expenses')
+    .select('amount')
+    .gte('expense_date', startDate)
+    .lte('expense_date', endDate)
+    .eq('status', 'paid');
+
+  const totalExpenses =
+    expensesResult?.reduce((sum, e) => sum + (Number(e.amount) || 0), 0) ?? 0;
+
   const netIncome = totalRevenue - totalExpenses;
 
   return {

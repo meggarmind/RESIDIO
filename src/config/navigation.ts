@@ -208,6 +208,14 @@ const NAV_SETTINGS: NavItem = {
   permissions: [PERMISSIONS.SETTINGS_VIEW],
 };
 
+const NAV_PROJECTS: NavItem = {
+  id: 'projects',
+  title: 'Capital Projects',
+  href: '/projects',
+  icon: Building2,
+  permissions: [PERMISSIONS.PROJECTS_VIEW],
+};
+
 /**
  * Admin Dashboard Navigation Sections
  *
@@ -218,6 +226,14 @@ const NAV_SETTINGS: NavItem = {
  * - Operations: Security, Reports, Documents, Announcements, Approvals
  * - System: Settings
  */
+const NAV_EXPENDITURE: NavItem = {
+  id: 'expenditure',
+  title: 'Expenditure',
+  href: '/expenditure',
+  icon: CreditCard, // Using CreditCard for now or import Wallet
+  permissions: [PERMISSIONS.EXPENDITURE_VIEW],
+};
+
 export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'core',
@@ -232,12 +248,12 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'financial',
     label: 'Financial',
-    items: [NAV_PAYMENTS, NAV_BILLING],
+    items: [NAV_PAYMENTS, NAV_BILLING, NAV_EXPENDITURE],
   },
   {
     id: 'operations',
     label: 'Operations',
-    items: [NAV_SECURITY, NAV_REPORTS, NAV_DOCUMENTS, NAV_ANNOUNCEMENTS, NAV_APPROVALS],
+    items: [NAV_SECURITY, NAV_REPORTS, NAV_DOCUMENTS, NAV_ANNOUNCEMENTS, NAV_APPROVALS, NAV_PROJECTS],
   },
   {
     id: 'system',

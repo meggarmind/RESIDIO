@@ -65,6 +65,7 @@ import { useLayoutTheme } from '@/contexts/layout-theme-context';
 import { payInvoiceWithWallet } from '@/actions/billing/pay-invoice-with-wallet';
 import { disputeInvoice } from '@/actions/billing/dispute-invoice';
 import { PaystackPayButton } from '@/components/payments/paystack-pay-button';
+import { BulkPaymentSheet } from '@/components/payments/bulk-payment-sheet';
 import type { InvoiceWithDetails, InvoiceStatus } from '@/types/database';
 
 // Spring physics for smooth, professional animations
@@ -127,6 +128,11 @@ export default function ResidentInvoicesPage() {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithDetails | null>(null);
 
+  // NEW: Multi-selection state
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
+  const [isBulkSheetOpen, setIsBulkSheetOpen] = useState(false);
+
   // Fetch data
   const { data: invoicesData, isLoading: invoicesLoading } = useInvoices({
     residentId: residentId || undefined,
@@ -185,19 +191,34 @@ export default function ResidentInvoicesPage() {
               isExpanded && 'text-base'
             )}>View your invoices and payment history</p>
           </div>
-          {residentId && (
-            <StatementGeneratorDialog
-              residentId={residentId}
-              houses={uniqueHouses}
-              trigger={
-                <Button variant="outline" size="sm" className="gap-2 shrink-0">
-                  <ScrollText className="h-4 w-4" />
-                  <span className="hidden sm:inline">Account Statement</span>
-                  <span className="sm:hidden">Statement</span>
-                </Button>
-              }
-            />
-          )}
+          <div className="flex items-center gap-2">
+            {activeTab === 'unpaid' && invoices.some(i => ['unpaid', 'partially_paid', 'overdue'].includes(i.status)) && (
+              <Button
+                variant={isSelectionMode ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setIsSelectionMode(!isSelectionMode);
+                  setSelectedInvoiceIds(new Set());
+                }}
+                className="gap-2"
+              >
+                {isSelectionMode ? 'Cancel' : 'Select'}
+              </Button>
+            )}
+            {residentId && (
+              <StatementGeneratorDialog
+                residentId={residentId}
+                houses={uniqueHouses}
+                trigger={
+                  <Button variant="outline" size="sm" className="gap-2 shrink-0">
+                    <ScrollText className="h-4 w-4" />
+                    <span className="hidden sm:inline">Account Statement</span>
+                    <span className="sm:hidden">Statement</span>
+                  </Button>
+                }
+              />
+            )}
+          </div>
         </div>
 
         {/* Summary Cards */}
@@ -212,15 +233,20 @@ export default function ResidentInvoicesPage() {
             custom={0}
           >
             <Card
+              className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              onClick={() => setActiveTab('unpaid')}
               style={{
-                background: `linear-gradient(to bottom right, var(--status-error-subtle), transparent)`,
-                borderColor: 'var(--status-error)',
+                background: activeTab === 'unpaid'
+                  ? `linear-gradient(to bottom right, var(--status-error-subtle), var(--bg-card))`
+                  : `linear-gradient(to bottom right, var(--status-error-subtle), transparent)`,
+                borderColor: activeTab === 'unpaid' ? 'var(--status-error)' : 'var(--border-default)',
+                borderWidth: activeTab === 'unpaid' ? '2px' : '1px',
               }}
             >
-              <CardContent className="p-4">
+              <CardContent className="p-4 text-center sm:text-left">
                 <div className="space-y-1">
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Outstanding</p>
-                  <p className="text-xl font-bold" style={{ color: 'var(--status-error)' }}>
+                  <p className="text-xs uppercase tracking-wider font-bold" style={{ color: 'var(--text-muted)' }}>Outstanding</p>
+                  <p className="text-xl sm:text-2xl font-black" style={{ color: 'var(--status-error)' }}>
                     <AnimatedCounter
                       value={indebtedness?.totalUnpaid || 0}
                       formatter={formatCurrency}
@@ -238,15 +264,17 @@ export default function ResidentInvoicesPage() {
             custom={1}
           >
             <Card
+              className="cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              onClick={() => router.push('/portal/wallet')}
               style={{
                 background: `linear-gradient(to bottom right, var(--status-success-subtle), transparent)`,
                 borderColor: 'var(--status-success)',
               }}
             >
-              <CardContent className="p-4">
+              <CardContent className="p-4 text-center sm:text-left">
                 <div className="space-y-1">
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Wallet Balance</p>
-                  <p className="text-xl font-bold" style={{ color: 'var(--status-success)' }}>
+                  <p className="text-xs uppercase tracking-wider font-bold" style={{ color: 'var(--text-muted)' }}>Wallet Balance</p>
+                  <p className="text-xl sm:text-2xl font-black" style={{ color: 'var(--status-success)' }}>
                     <AnimatedCounter
                       value={wallet?.balance || 0}
                       formatter={formatCurrency}
@@ -289,20 +317,24 @@ export default function ResidentInvoicesPage() {
                     </CardContent>
                   </Card>
                 ) : isDesktop ? (
-                  /* Desktop: Table Layout */
-                  <InvoiceTable
-                    invoices={filteredInvoices}
-                    onSelect={setSelectedInvoice}
-                  />
-                ) : (
-                  /* Mobile: Card Layout */
                   <div className="space-y-3">
                     {filteredInvoices.map((invoice, index) => (
                       <InvoiceCard
                         key={invoice.id}
                         invoice={invoice}
-                        onClick={() => setSelectedInvoice(invoice)}
+                        onClick={() => {
+                          if (isSelectionMode) {
+                            const next = new Set(selectedInvoiceIds);
+                            if (next.has(invoice.id)) next.delete(invoice.id);
+                            else next.add(invoice.id);
+                            setSelectedInvoiceIds(next);
+                          } else {
+                            setSelectedInvoice(invoice);
+                          }
+                        }}
                         index={index}
+                        isSelected={selectedInvoiceIds.has(invoice.id)}
+                        isSelectionMode={isSelectionMode}
                       />
                     ))}
                   </div>
@@ -312,7 +344,35 @@ export default function ResidentInvoicesPage() {
           </AnimatePresence>
         </Tabs>
 
-        {/* Invoice Detail Sheet */}
+        {/* Floating Bulk Action Bar */}
+        <AnimatePresence>
+          {isSelectionMode && selectedInvoiceIds.size > 0 && (
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-md px-4 py-3 bg-slate-900 text-white rounded-2xl shadow-2xl flex items-center justify-between gap-4"
+            >
+              <div>
+                <p className="text-sm font-bold">{selectedInvoiceIds.size} Selected</p>
+                <p className="text-xs text-slate-400">
+                  Total: {formatCurrency(
+                    invoices
+                      .filter(i => selectedInvoiceIds.has(i.id))
+                      .reduce((sum, i) => sum + ((i.amount_due || 0) - (i.amount_paid || 0)), 0)
+                  )}
+                </p>
+              </div>
+              <Button
+                onClick={() => setIsBulkSheetOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white border-none font-bold px-6"
+              >
+                Pay Total
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <InvoiceDetailSheet
           invoice={selectedInvoice}
           open={!!selectedInvoice}
@@ -326,6 +386,20 @@ export default function ResidentInvoicesPage() {
             queryClient.invalidateQueries({ queryKey: ['resident-indebtedness', residentId] });
           }}
         />
+
+        {/* Bulk Payment Sheet */}
+        <BulkPaymentSheet
+          invoices={invoices.filter(i => selectedInvoiceIds.has(i.id))}
+          open={isBulkSheetOpen}
+          onOpenChange={setIsBulkSheetOpen}
+          walletBalance={wallet?.balance || 0}
+          onSuccess={() => {
+            setIsSelectionMode(false);
+            setSelectedInvoiceIds(new Set());
+            queryClient.invalidateQueries({ queryKey: ['invoices'] });
+            queryClient.invalidateQueries({ queryKey: ['resident-wallet', residentId] });
+          }}
+        />
       </div>
     </FeatureRestrictionGate>
   );
@@ -336,10 +410,14 @@ function InvoiceCard({
   invoice,
   onClick,
   index,
+  isSelected,
+  isSelectionMode,
 }: {
   invoice: InvoiceWithDetails;
   onClick: () => void;
   index: number;
+  isSelected?: boolean;
+  isSelectionMode?: boolean;
 }) {
   const config = statusConfig[invoice.status];
   const StatusIcon = config.icon;
@@ -368,16 +446,32 @@ function InvoiceCard({
       custom={index}
     >
       <Card
-        className="cursor-pointer transition-all active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        className={cn(
+          "cursor-pointer transition-all active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 overflow-hidden",
+          isSelected && "ring-2 ring-emerald-500 ring-offset-2"
+        )}
         onClick={onClick}
         onKeyDown={handleKeyDown}
         role="button"
         tabIndex={0}
         aria-label={`Invoice ${invoice.invoice_number}, ${config.label}`}
         style={{
-          backgroundColor: 'var(--bg-card)',
-          borderColor: 'var(--border-default)',
+          backgroundColor: isSelected ? 'var(--status-success-subtle)' : 'var(--bg-card)',
+          borderColor: isSelected ? 'var(--status-success)' : 'var(--border-default)',
         }}
+      >
+        <CardContent className="p-4 relative">
+          {isSelectionMode && (
+            <div className="absolute right-4 top-4">
+              <div className={cn(
+                "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
+                isSelected ? "bg-emerald-500 border-emerald-500 text-white" : "border-muted-foreground/30"
+              )}>
+                {isSelected && <CheckCircle2 className="h-3 w-3" />}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3">
         onMouseEnter={(e) => {
           e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
           e.currentTarget.style.borderColor = 'var(--border-hover)';
@@ -444,9 +538,15 @@ function InvoiceCard({
 function InvoiceTable({
   invoices,
   onSelect,
+  isSelectionMode,
+  selectedInvoiceIds,
+  onToggleSelection,
 }: {
   invoices: InvoiceWithDetails[];
   onSelect: (invoice: InvoiceWithDetails) => void;
+  isSelectionMode?: boolean;
+  selectedInvoiceIds?: Set<string>;
+  onToggleSelection?: (id: string) => void;
 }) {
   // Map status to StatusBadge variant
   const getStatusVariant = (status: InvoiceStatus): 'success' | 'error' | 'warning' | 'info' => {
@@ -461,6 +561,7 @@ function InvoiceTable({
       <Table>
         <TableHeader>
           <TableRow>
+            {isSelectionMode && <TableHead className="w-[40px]"></TableHead>}
             <TableHead>Invoice #</TableHead>
             <TableHead>Property</TableHead>
             <TableHead>Category</TableHead>
@@ -479,13 +580,32 @@ function InvoiceTable({
             return (
               <motion.tr
                 key={invoice.id}
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => onSelect(invoice)}
+                className={cn(
+                   "cursor-pointer hover:bg-muted/50 transition-colors",
+                   selectedInvoiceIds?.has(invoice.id) && "bg-emerald-500/5 hover:bg-emerald-500/10"
+                )}
+                onClick={() => {
+                  if (isSelectionMode && onToggleSelection) {
+                    onToggleSelection(invoice.id);
+                  } else {
+                    onSelect(invoice);
+                  }
+                }}
                 variants={rowVariants}
                 initial="hidden"
                 animate="visible"
                 custom={index}
               >
+                {isSelectionMode && (
+                  <TableCell>
+                    <div className={cn(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
+                      selectedInvoiceIds?.has(invoice.id) ? "bg-emerald-500 border-emerald-500 text-white" : "border-muted-foreground/30"
+                    )}>
+                      {selectedInvoiceIds?.has(invoice.id) && <CheckCircle2 className="h-3 w-3" />}
+                    </div>
+                  </TableCell>
+                )}
                 <TableCell className="font-medium">
                   {invoice.invoice_number}
                 </TableCell>

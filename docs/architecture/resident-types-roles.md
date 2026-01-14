@@ -9,6 +9,7 @@
 ## Overview
 
 Residio uses a **two-dimensional classification system** for residents:
+
 1. **Resident Type** (`primary` | `secondary`) - Defines independence level
 2. **Resident Role** (9 options) - Defines relationship to property
 
@@ -216,6 +217,7 @@ Portal features are access-controlled based on resident role categories.
 ### 6.2 Approval Required for Non-Occupying Owners
 
 When a property is occupied by a tenant:
+
 - Property Owner/Developer actions on security contacts require **tenant approval**
 - Actions requiring approval:
   - Adding security contacts
@@ -223,6 +225,16 @@ When a property is occupied by a tenant:
   - Generating access codes
 
 **Implementation**: `src/actions/approvals/`
+
+### 6.3 Enhanced Visitor Management
+
+The system supports advanced visitor features including:
+
+- **Recurring Visitors**: Scheduled access patterns (daily, weekly, etc.)
+- **Vehicle Registration**: License plate tracking and photo capture
+- **Visit Analytics**: Duration tracking and frequency analysis
+
+See [Visitor Management Enhancements](../features/visitor-management.md) for full details.
 
 ---
 
@@ -258,6 +270,7 @@ When property is occupied, these actions by Developer or Property Owner require 
 ### 7.3 Hierarchical Settings for Approvals
 
 Approval requirements can be configured at three levels:
+
 1. **Estate-wide default**: Applied to all properties
 2. **Per-property override**: Specific to individual properties
 3. **Per-resident override**: Specific to individual residents
@@ -333,6 +346,7 @@ When a primary resident (sponsor) leaves a property, their sponsored residents a
 ### 9.3 Promotion System
 
 When a sponsor departs, sponsored residents who need to replace the departing sponsor can be:
+
 1. **Transferred** to another primary resident at the property
 2. **Promoted** to primary status (if eligible)
 3. **Removed** from the property
@@ -430,6 +444,7 @@ Tags can be assigned per resident-house relationship to control access and featu
 ### 11.3 Tag Override Hierarchy
 
 Tags can be configured at:
+
 1. **Role defaults**: Default tags for each role
 2. **Per-house assignment**: Override for specific house assignment
 3. **Manual override**: Admin can manually add/remove tags
@@ -504,6 +519,7 @@ Only these roles indicate actual physical residency in a unit:
 | All others | No |
 
 **Type Definition**:
+
 ```typescript
 export type ResidencyRole = 'resident_landlord' | 'tenant' | 'co_resident';
 ```
@@ -522,6 +538,7 @@ export type ResidencyRole = 'resident_landlord' | 'tenant' | 'co_resident';
 ### 13.5 Verification Requirements
 
 To assign the `resident` app role to a user:
+
 ```
 User's linked resident MUST have:
 - email_verified_at IS NOT NULL (if email exists)

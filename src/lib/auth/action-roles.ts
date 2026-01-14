@@ -110,6 +110,16 @@ export const PERMISSIONS = {
   DOCUMENTS_DELETE: 'documents.delete',
   DOCUMENTS_MANAGE_CATEGORIES: 'documents.manage_categories',
 
+  // Expenditure
+  EXPENDITURE_VIEW: 'view_expenditure',
+  EXPENDITURE_MANAGE: 'manage_expenditure',
+  VENDORS_VIEW: 'view_vendors',
+  VENDORS_MANAGE: 'manage_vendors',
+
+  // Projects Module
+  PROJECTS_VIEW: 'view_projects',
+  PROJECTS_MANAGE: 'manage_projects',
+
   // Announcements Module (Phase 16)
   ANNOUNCEMENTS_VIEW: 'announcements.view',
   ANNOUNCEMENTS_CREATE: 'announcements.create',

@@ -12,9 +12,9 @@
 
 **Primary Scope:** Phase 12 (Resident View Portal) + New Features
 
-- [ ] **Resident Portal**: Read-only dashboard, payment history, property details (`/portal/*`)
+- [x] **Resident Portal**: Read-only dashboard, payment history, property details (`/portal/*`)
 - [ ] **Smart Access Sharing**: WhatsApp integration for guest codes
-- [ ] **Onboarding Wizard**: Self-service profile completion for new residents
+- [x] **Onboarding Wizard**: Self-service profile completion for new residents
 - **Dependencies:** Core Auth ✅, Resident Registry ✅. *Independent of Admin Financials.*
 
 ### 🔵 Track B: Admin Financials (Backend/Reporting Focus)
@@ -36,6 +36,17 @@
 - [x] **Project Review**: Comprehensive review of implementation status
 - [x] **Documentation Update**: Update `TODO.md` and `docs/` folder
 - [x] **AI Assistant**: Verify implementation (Mock version)
+
+### Recent Session Work (2026-01-12): Resident Portal Enhancements ✅
+
+- [x] **Onboarding Wizard**: Implemented multi-step flow (Theme, Profile, Household)
+- [x] **Property Details Page**: Refactored layout, moved Occupancy History to bottom-right, added "Add Member" quick action
+
+### Recent Session Work (2026-01-13): Code & Architecture Review ✅
+
+- [x] **New Documentation**: Created `docs/features/visitor-management.md` and `docs/features/notes-module.md`
+- [x] **Architecture Update**: Updated `docs/architecture/resident-types-roles.md` to include Visitor enhancements
+- [x] **Project Review**: Comprehensive review of implementation status vs documentation
 
 ### Recent Session Work (2026-01-12): Theme System Re-engineering (tweakcn) ✅
 

@@ -111,7 +111,10 @@ export function RevenueTrendChart({ data, isLoading }: RevenueTrendChartProps) {
                 width={50}
               />
               <Tooltip
-                formatter={(value: number) => [formatTooltipValue(value), 'Revenue']}
+                formatter={(value: number, name: string) => [
+                  formatTooltipValue(value),
+                  name === 'value' ? 'Revenue' : 'Expenses'
+                ]}
                 contentStyle={{
                   backgroundColor: 'hsl(var(--card))',
                   borderColor: 'hsl(var(--border))',
@@ -120,12 +123,23 @@ export function RevenueTrendChart({ data, isLoading }: RevenueTrendChartProps) {
                 }}
                 labelStyle={{ fontWeight: 600 }}
               />
+              <Legend verticalAlign="top" height={36} align="right" iconType="circle" />
               <Line
+                name="Revenue"
                 type="monotone"
                 dataKey="value"
-                stroke="hsl(142.1 76.2% 36.3%)"
+                stroke="hsl(142.1 76.2% 36.3%)" // Emerald
                 strokeWidth={2}
                 dot={{ fill: 'hsl(142.1 76.2% 36.3%)', strokeWidth: 0, r: 3 }}
+                activeDot={{ r: 5, strokeWidth: 0 }}
+              />
+              <Line
+                name="Expenses"
+                type="monotone"
+                dataKey="secondaryValue"
+                stroke="hsl(0 84.2% 60.2%)" // Destructive/Red
+                strokeWidth={2}
+                dot={{ fill: 'hsl(0 84.2% 60.2%)', strokeWidth: 0, r: 3 }}
                 activeDot={{ r: 5, strokeWidth: 0 }}
               />
             </LineChart>

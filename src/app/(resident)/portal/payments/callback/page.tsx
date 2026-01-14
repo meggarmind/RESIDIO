@@ -19,6 +19,7 @@ import {
 import { formatCurrency, cn } from '@/lib/utils';
 import { verifyPaystackPayment } from '@/actions/paystack';
 import { getChannelDisplayName } from '@/lib/paystack';
+import { PaymentResult } from '@/components/payments/payment-result';
 import type { PaystackTransactionStatus } from '@/lib/paystack';
 
 // Status configuration
@@ -178,109 +179,30 @@ function PaymentCallbackContent() {
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-md"
-      >
-        <Card className="overflow-hidden">
-          {/* Status Header */}
-          <div className={cn('py-8 px-6', config.bgColor)}>
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              className="flex justify-center mb-4"
-            >
-              <div className={cn('p-4 rounded-full bg-background/80', config.color)}>
-                <StatusIcon className="h-10 w-10" />
-              </div>
-            </motion.div>
-            <div className="text-center">
-              <h1 className={cn('text-2xl font-bold mb-2', config.color)}>
-                {config.title}
-              </h1>
-              <p className="text-sm text-muted-foreground">{config.description}</p>
-            </div>
-          </div>
-
-          {/* Payment Details */}
-          {paymentDetails && status === 'success' && (
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                {/* Amount */}
-                <div className="text-center py-4 bg-muted/50 rounded-lg">
-                  <p className="text-sm text-muted-foreground mb-1">Amount Paid</p>
-                  <p className="text-3xl font-bold text-emerald-600">
-                    {formatCurrency(paymentDetails.amount)}
-                  </p>
-                </div>
-
-                {/* Details Grid */}
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="p-3 rounded-lg bg-muted/50">
-                    <p className="text-xs text-muted-foreground mb-1">Reference</p>
-                    <p className="font-mono font-medium truncate">{paymentDetails.reference}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-muted/50">
-                    <p className="text-xs text-muted-foreground mb-1">Payment Method</p>
-                    <p className="font-medium">{getChannelDisplayName(paymentDetails.channel)}</p>
-                  </div>
-                </div>
-
-                {paymentDetails.paid_at && (
-                  <div className="p-3 rounded-lg bg-muted/50">
-                    <p className="text-xs text-muted-foreground mb-1">Paid At</p>
-                    <p className="font-medium">
-                      {new Date(paymentDetails.paid_at).toLocaleString('en-NG', {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          )}
-
-          {/* Actions */}
-          <CardContent className={cn(paymentDetails && status === 'success' ? 'pt-2 pb-6' : 'py-6')}>
-            <div className="flex flex-col gap-3">
-              <Button
-                onClick={() => router.push('/portal/invoices')}
-                className="w-full gap-2"
-              >
-                <FileText className="h-4 w-4" />
-                View Invoices
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-
-              {(status === 'failed' || status === 'abandoned') && (
-                <Button
-                  variant="outline"
-                  onClick={() => router.back()}
-                  className="w-full"
-                >
-                  Try Again
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Support Note */}
-        {status === 'success' && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="text-center text-xs text-muted-foreground mt-4"
-          >
-            A receipt has been sent to your email. Contact support if you have any questions.
-          </motion.p>
-        )}
-      </motion.div>
+      <PaymentResult
+        status={status === 'abandoned' ? 'cancelled' : status || 'pending'}
+        title={config.title}
+        description={config.description}
+        amount={paymentDetails?.amount}
+        reference={paymentDetails?.reference}
+        paymentMethod={paymentDetails?.channel ? getChannelDisplayName(paymentDetails.channel) : undefined}
+        date={paymentDetails?.paid_at ? new Date(paymentDetails.paid_at).toLocaleString('en-NG', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }) : undefined}
+        primaryAction={{
+          label: 'View Invoices',
+          onClick: () => router.push('/portal/invoices'),
+          icon: FileText
+        }}
+        secondaryAction={
+          (status === 'failed' || status === 'abandoned') ? {
+            label: 'Try Again',
+            onClick: () => router.back(),
+            icon: RefreshCw
+          } : undefined
+        }
+      />
     </div>
   );
 }
