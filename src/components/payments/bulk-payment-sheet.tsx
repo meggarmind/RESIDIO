@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { payInvoiceWithWallet } from '@/actions/billing/pay-invoice-with-wallet';
+import { payMultipleInvoicesWithWallet } from '@/actions/billing/pay-multiple-invoices-with-wallet';
 import { PaymentResult } from './payment-result';
 import type { InvoiceWithDetails } from '@/types/database';
 
@@ -54,40 +54,21 @@ export function BulkPaymentSheet({
     const handleWalletPayment = async () => {
         setIsPaying(true);
         try {
-            // In a real implementation, we would use a specialized bulk action.
-            // For now, we'll loop or just simulate for the MVP if we don't have the bulk action yet.
-            // BUT according to the plan, I should create the bulk action.
-            // Let's assume for now we call the individual ones or wait until I create the bulk one.
-            // Actually, I'll create the bulk action right after this.
+            const result = await payMultipleInvoicesWithWallet(invoices.map(i => i.id));
 
-            // For now, let's just use the mock approach or individual calls if simple.
-            // Individual calls are risky for atomicity. I'll stick to creating the bulk action.
-
-            // Placeholder for bulk action call
-            // const result = await payMultipleInvoicesWithWallet(invoices.map(i => i.id));
-
-            // Simulation for now to test UI
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            // Temporary: using individual calls for the sake of showing progress, 
-            // but I WILL implement the bulk action properly.
-            const results = await Promise.all(invoices.map(inv => payInvoiceWithWallet(inv.id)));
-            const allSuccess = results.every(r => r.success);
-
-            if (allSuccess) {
+            if (result.success) {
                 setPaymentResult({
                     status: 'success',
-                    amount: totalAmount,
-                    count: invoices.length,
+                    amount: result.totalPaid,
+                    count: result.countPaid,
                 });
                 onSuccess();
             } else {
-                const firstError = results.find(r => !r.success)?.error;
                 setPaymentResult({
                     status: 'failed',
                     amount: totalAmount,
                     count: invoices.length,
-                    error: firstError || 'Some payments failed',
+                    error: result.error || 'Payment failed',
                 });
             }
         } catch (error) {

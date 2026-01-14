@@ -86,24 +86,24 @@ export function MyPropertiesCard({
           className
         )}
         style={{
-          backgroundColor: 'var(--bg-card)',
+          backgroundColor: 'var(--card)',
           borderWidth: '1px',
-          borderColor: 'var(--border-default)',
+          borderColor: 'var(--border)',
         }}
       >
         <Building
           className="h-12 w-12 mx-auto mb-4"
-          style={{ color: 'var(--text-secondary)' }}
+          style={{ color: 'var(--muted-foreground)' }}
         />
         <h3
           className="text-base font-semibold mb-2"
-          style={{ color: 'var(--text-primary)' }}
+          style={{ color: 'var(--foreground)' }}
         >
           No Active Property Assignments
         </h3>
         <p
           className="text-sm"
-          style={{ color: 'var(--text-secondary)' }}
+          style={{ color: 'var(--muted-foreground)' }}
         >
           You don't have any active property assignments yet.
         </p>
@@ -145,13 +145,13 @@ export function MyPropertiesCard({
               style={
                 isThemed
                   ? {
-                      borderWidth: '1px',
-                    }
+                    borderWidth: '1px',
+                  }
                   : {
-                      backgroundColor: 'var(--bg-card)',
-                      borderWidth: '1px',
-                      borderColor: 'var(--border-default)',
-                    }
+                    backgroundColor: 'var(--card)',
+                    borderWidth: '1px',
+                    borderColor: 'var(--border)',
+                  }
               }
               variants={cardVariants}
               initial="hidden"
@@ -164,11 +164,11 @@ export function MyPropertiesCard({
                   'h-10 w-10 flex items-center justify-center rounded-full mb-3',
                   isThemed && 'bg-white/20'
                 )}
-                style={!isThemed ? { backgroundColor: 'var(--bg-secondary)' } : undefined}
+                style={!isThemed ? { backgroundColor: 'var(--secondary)' } : undefined}
               >
                 <Home
                   className="h-5 w-5"
-                  style={{ color: isThemed ? 'var(--color-primary-foreground)' : 'var(--text-primary)' }}
+                  style={{ color: isThemed ? 'var(--primary-foreground)' : 'var(--foreground)' }}
                 />
               </div>
 
@@ -178,14 +178,14 @@ export function MyPropertiesCard({
                 <div>
                   <h3
                     className="text-sm font-semibold"
-                    style={{ color: isThemed ? 'var(--color-primary-foreground)' : 'var(--text-primary)' }}
+                    style={{ color: isThemed ? 'var(--primary-foreground)' : 'var(--foreground)' }}
                   >
                     {house.short_name || house.house_number}
                   </h3>
                   {house.house_number && house.short_name && (
                     <p
                       className="text-xs"
-                      style={{ color: isThemed ? 'var(--color-primary-foreground)' : 'var(--text-secondary)' }}
+                      style={{ color: isThemed ? 'var(--primary-foreground)' : 'var(--muted-foreground)' }}
                     >
                       House #{house.house_number}
                     </p>
@@ -196,7 +196,7 @@ export function MyPropertiesCard({
                 {house.street && (
                   <div
                     className="flex items-start gap-2 text-xs"
-                    style={{ color: isThemed ? 'var(--color-primary-foreground)' : 'var(--text-secondary)' }}
+                    style={{ color: isThemed ? 'var(--primary-foreground)' : 'var(--muted-foreground)' }}
                   >
                     <MapPin className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                     <span className="line-clamp-1">{house.street.name}</span>
@@ -207,7 +207,7 @@ export function MyPropertiesCard({
                 {house.house_type && (
                   <div
                     className="flex items-center gap-2 text-xs"
-                    style={{ color: isThemed ? 'var(--color-primary-foreground)' : 'var(--text-secondary)' }}
+                    style={{ color: isThemed ? 'var(--primary-foreground)' : 'var(--muted-foreground)' }}
                   >
                     <Building className="h-3.5 w-3.5 flex-shrink-0" />
                     <span>{house.house_type.name}</span>
@@ -233,7 +233,7 @@ export function MyPropertiesCard({
                   {rh.move_in_date && (
                     <span
                       className="text-xs whitespace-nowrap"
-                      style={{ color: isThemed ? 'var(--color-primary-foreground)' : 'var(--text-secondary)' }}
+                      style={{ color: isThemed ? 'var(--primary-foreground)' : 'var(--muted-foreground)' }}
                     >
                       Since{' '}
                       {new Date(rh.move_in_date).toLocaleDateString('en-US', {

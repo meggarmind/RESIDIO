@@ -303,7 +303,7 @@ function ResidentPortalHomePageInner() {
             style={{
               fontSize: 'var(--text-lg)',
               fontWeight: 'var(--font-semibold)',
-              color: 'var(--color-text-primary)',
+              color: 'var(--foreground)',
             }}
           >
             My Assets
@@ -313,14 +313,14 @@ function ResidentPortalHomePageInner() {
             <div
               className="rounded-2xl p-4 relative overflow-hidden"
               style={{
-                backgroundColor: 'var(--color-primary)',
+                backgroundColor: 'var(--primary)',
               }}
             >
               {propertyCount > 1 && (
                 <Link
                   href="/portal/properties"
                   className="absolute top-3 right-3 text-xs hover:underline z-10"
-                  style={{ color: 'var(--color-primary-foreground)' }}
+                  style={{ color: 'var(--primary-foreground)' }}
                 >
                   View All
                 </Link>
@@ -417,7 +417,7 @@ function ResidentPortalHomePageInner() {
               style={{
                 fontSize: 'var(--text-base)',
                 fontWeight: 'var(--font-semibold)',
-                color: 'var(--color-text-primary)',
+                color: 'var(--foreground)',
               }}
             >
               Recent Invoices
@@ -426,7 +426,7 @@ function ResidentPortalHomePageInner() {
               href="/portal/invoices"
               style={{
                 fontSize: 'var(--text-xs)',
-                color: 'var(--color-primary)',
+                color: 'var(--primary)',
                 fontWeight: 'var(--font-medium)',
               }}
             >
@@ -440,7 +440,7 @@ function ResidentPortalHomePageInner() {
                 <thead className="sticky top-0" style={{ backgroundColor: 'var(--bg-card)' }}>
                   <tr
                     style={{
-                      borderBottom: '1px solid var(--color-bg-input)',
+                      borderBottom: '1px solid var(--input)',
                     }}
                   >
                     <th
@@ -448,7 +448,7 @@ function ResidentPortalHomePageInner() {
                       style={{
                         fontSize: 'var(--text-xs)',
                         fontWeight: 'var(--font-semibold)',
-                        color: 'var(--color-text-muted)',
+                        color: 'hsl(var(--muted-foreground))',
                         textTransform: 'uppercase',
                       }}
                     >
@@ -459,7 +459,7 @@ function ResidentPortalHomePageInner() {
                       style={{
                         fontSize: 'var(--text-xs)',
                         fontWeight: 'var(--font-semibold)',
-                        color: 'var(--color-text-muted)',
+                        color: 'hsl(var(--muted-foreground))',
                         textTransform: 'uppercase',
                       }}
                     >
@@ -474,7 +474,7 @@ function ResidentPortalHomePageInner() {
                       style={{
                         borderBottom:
                           index !== invoices.length - 1
-                            ? '1px solid var(--color-bg-input)'
+                            ? '1px solid var(--input)'
                             : 'none',
                       }}
                     >
@@ -484,7 +484,7 @@ function ResidentPortalHomePageInner() {
                             style={{
                               fontSize: 'var(--text-sm)',
                               fontWeight: 'var(--font-medium)',
-                              color: 'var(--color-text-primary)',
+                              color: 'var(--foreground)',
                             }}
                           >
                             #{invoice.invoice_number}
@@ -492,7 +492,7 @@ function ResidentPortalHomePageInner() {
                           <p
                             style={{
                               fontSize: 'var(--text-xs)',
-                              color: 'var(--color-text-secondary)',
+                              color: 'var(--muted-foreground)',
                             }}
                           >
                             {new Date(invoice.due_date || '').toLocaleDateString('en-US', {
@@ -507,7 +507,7 @@ function ResidentPortalHomePageInner() {
                           style={{
                             fontSize: 'var(--text-sm)',
                             fontWeight: 'var(--font-semibold)',
-                            color: 'var(--color-text-primary)',
+                            color: 'var(--foreground)',
                           }}
                         >
                           {formatCurrency(invoice.amount_due)}
@@ -534,7 +534,7 @@ function ResidentPortalHomePageInner() {
             <p
               style={{
                 fontSize: 'var(--text-sm)',
-                color: 'var(--color-text-secondary)',
+                color: 'var(--muted-foreground)',
                 textAlign: 'center',
                 padding: 'var(--space-6) 0',
               }}

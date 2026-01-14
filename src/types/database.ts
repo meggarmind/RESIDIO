@@ -1353,6 +1353,13 @@ export interface AccessLogWithDetails extends AccessLog {
     code: string;
     code_type: AccessCodeType;
   } | null;
+  vehicle?: {
+    id: string;
+    plate_number: string;
+    vehicle_type: string;
+    make: string | null;
+    model: string | null;
+  } | null;
   verified_by_profile?: {
     id: string;
     full_name: string;

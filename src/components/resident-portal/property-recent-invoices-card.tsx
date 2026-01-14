@@ -49,7 +49,7 @@ export function PropertyRecentInvoicesCard({
       case 'paid':
         return 'success';
       case 'overdue':
-        return 'error';
+        return 'destructive';
       case 'partially_paid':
         return 'warning';
       default:
@@ -79,7 +79,7 @@ export function PropertyRecentInvoicesCard({
           className
         )}
         style={{
-          borderColor: 'var(--color-border)',
+          borderColor: 'hsl(var(--border))',
         }}
       >
         <div className="flex items-center justify-between mb-4">
@@ -105,7 +105,7 @@ export function PropertyRecentInvoicesCard({
           className
         )}
         style={{
-          borderColor: 'var(--color-border)',
+          borderColor: 'hsl(var(--border))',
         }}
       >
         <div className="flex items-center gap-2 mb-4">
@@ -113,14 +113,14 @@ export function PropertyRecentInvoicesCard({
             style={{
               width: 'var(--icon-sm)',
               height: 'var(--icon-sm)',
-              color: 'var(--color-text-primary)',
+              color: 'hsl(var(--foreground))',
             }}
           />
           <h3
             className="font-semibold"
             style={{
               fontSize: 'var(--text-lg)',
-              color: 'var(--color-text-primary)',
+              color: 'hsl(var(--foreground))',
             }}
           >
             Recent Invoices
@@ -130,21 +130,23 @@ export function PropertyRecentInvoicesCard({
           <div
             className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
             style={{
-              background: 'var(--color-bg-muted)',
+              background: 'var(--muted)'
+              ,
             }}
           >
             <FileText
               style={{
                 width: '24px',
                 height: '24px',
-                color: 'var(--color-text-muted)',
+                color: 'var(--muted-foreground)'
+                ,
               }}
             />
           </div>
           <p
             style={{
               fontSize: 'var(--text-sm)',
-              color: 'var(--color-text-secondary)',
+              color: 'var(--muted-foreground)',
             }}
           >
             No invoices for this property yet
@@ -162,7 +164,7 @@ export function PropertyRecentInvoicesCard({
         className
       )}
       style={{
-        borderColor: 'var(--color-border)',
+        borderColor: 'var(--border)',
       }}
     >
       {/* Header */}
@@ -172,14 +174,14 @@ export function PropertyRecentInvoicesCard({
             style={{
               width: 'var(--icon-sm)',
               height: 'var(--icon-sm)',
-              color: 'var(--color-text-primary)',
+              color: 'hsl(var(--foreground))',
             }}
           />
           <h3
             className="font-semibold"
             style={{
               fontSize: 'var(--text-lg)',
-              color: 'var(--color-text-primary)',
+              color: 'var(--foreground)',
             }}
           >
             Recent Invoices
@@ -205,7 +207,7 @@ export function PropertyRecentInvoicesCard({
               'transition-colors hover:bg-muted/50'
             )}
             style={{
-              border: '1px solid var(--color-border)',
+              border: '1px solid var(--border)',
             }}
           >
             {/* Invoice Details */}
@@ -218,7 +220,7 @@ export function PropertyRecentInvoicesCard({
                   className="font-medium truncate group-hover:underline"
                   style={{
                     fontSize: 'var(--text-sm)',
-                    color: 'var(--color-text-primary)',
+                    color: 'var(--foreground)',
                   }}
                 >
                   Invoice #{invoice.invoice_number}
@@ -226,7 +228,7 @@ export function PropertyRecentInvoicesCard({
                 <p
                   className="text-xs"
                   style={{
-                    color: 'var(--color-text-muted)',
+                    color: 'var(--muted-foreground)',
                   }}
                 >
                   Due {format(new Date(invoice.due_date || ''), 'MMM d, yyyy')}
@@ -240,7 +242,7 @@ export function PropertyRecentInvoicesCard({
                 className="font-semibold"
                 style={{
                   fontSize: 'var(--text-sm)',
-                  color: 'var(--color-text-primary)',
+                  color: 'hsl(var(--foreground))',
                 }}
               >
                 {formatCurrency(invoice.amount_due || 0)}
@@ -270,11 +272,11 @@ export function PropertyRecentInvoicesCard({
       </div>
 
       {/* View All Link */}
-      <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+      <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
         <Link
           href={`/portal/invoices?house=${houseId}`}
           className="flex items-center justify-between text-sm hover:underline"
-          style={{ color: 'var(--color-primary)' }}
+          style={{ color: 'var(--primary)' }}
         >
           <span>View All Invoices</span>
           <ArrowRight className="w-4 h-4" />

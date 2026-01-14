@@ -7,7 +7,7 @@ import { UserCheck, Car, Clock, ArrowRight, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import type { AccessLog } from '@/types/database';
+import type { AccessLogWithDetails } from '@/types/database';
 
 /**
  * Property Visitor Activity Card Component
@@ -25,7 +25,7 @@ import type { AccessLog } from '@/types/database';
 
 interface PropertyVisitorActivityCardProps {
   /** Last 10 access logs for this property */
-  accessLogs: AccessLog[];
+  accessLogs: AccessLogWithDetails[];
   /** Loading state */
   isLoading?: boolean;
   /** Property ID for "View All" link */
@@ -64,7 +64,7 @@ export function PropertyVisitorActivityCard({
           className
         )}
         style={{
-          borderColor: 'var(--color-border)',
+          borderColor: 'hsl(var(--border))',
         }}
       >
         <div className="flex items-center justify-between mb-4">
@@ -90,7 +90,7 @@ export function PropertyVisitorActivityCard({
           className
         )}
         style={{
-          borderColor: 'var(--color-border)',
+          borderColor: 'hsl(var(--border))',
         }}
       >
         <div className="flex items-center gap-2 mb-4">
@@ -98,14 +98,14 @@ export function PropertyVisitorActivityCard({
             style={{
               width: 'var(--icon-sm)',
               height: 'var(--icon-sm)',
-              color: 'var(--color-text-primary)',
+              color: 'hsl(var(--foreground))',
             }}
           />
           <h3
             className="font-semibold"
             style={{
               fontSize: 'var(--text-lg)',
-              color: 'var(--color-text-primary)',
+              color: 'hsl(var(--foreground))',
             }}
           >
             Recent Visitor Activity
@@ -115,21 +115,21 @@ export function PropertyVisitorActivityCard({
           <div
             className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
             style={{
-              background: 'var(--color-bg-muted)',
+              background: 'hsl(var(--muted))',
             }}
           >
             <UserCheck
               style={{
                 width: '24px',
                 height: '24px',
-                color: 'var(--color-text-muted)',
+                color: 'hsl(var(--muted-foreground))',
               }}
             />
           </div>
           <p
             style={{
               fontSize: 'var(--text-sm)',
-              color: 'var(--color-text-secondary)',
+              color: 'var(--muted-foreground)',
             }}
           >
             No recent visitor activity recorded
@@ -147,7 +147,7 @@ export function PropertyVisitorActivityCard({
         className
       )}
       style={{
-        borderColor: 'var(--color-border)',
+        borderColor: 'hsl(var(--border))',
       }}
     >
       {/* Header */}
@@ -157,14 +157,14 @@ export function PropertyVisitorActivityCard({
             style={{
               width: 'var(--icon-sm)',
               height: 'var(--icon-sm)',
-              color: 'var(--color-text-primary)',
+              color: 'hsl(var(--foreground))',
             }}
           />
           <h3
             className="font-semibold"
             style={{
               fontSize: 'var(--text-lg)',
-              color: 'var(--color-text-primary)',
+              color: 'hsl(var(--foreground))',
             }}
           >
             Recent Visitor Activity
@@ -194,14 +194,14 @@ export function PropertyVisitorActivityCard({
                 index < accessLogs.length - 1 && 'border-l-2'
               )}
               style={{
-                borderColor: index < accessLogs.length - 1 ? 'var(--color-border)' : 'transparent',
+                borderColor: index < accessLogs.length - 1 ? 'hsl(var(--border))' : 'transparent',
               }}
             >
               {/* Timeline Dot */}
               <div
                 className="absolute left-[-5px] top-[6px] w-2.5 h-2.5 rounded-full"
                 style={{
-                  background: isCheckedOut ? 'var(--color-success)' : 'var(--color-primary)',
+                  background: isCheckedOut ? 'hsl(var(--success, 142.1 70.6% 45.3%))' : 'hsl(var(--primary))',
                 }}
               />
 
@@ -209,8 +209,8 @@ export function PropertyVisitorActivityCard({
               <div
                 className="rounded-lg p-3"
                 style={{
-                  background: 'var(--color-bg-muted)',
-                  border: '1px solid var(--color-border)',
+                  background: 'hsl(var(--muted))',
+                  border: '1px solid hsl(var(--border))',
                 }}
               >
                 {/* Visitor Name */}
@@ -218,15 +218,15 @@ export function PropertyVisitorActivityCard({
                   className="font-medium mb-1"
                   style={{
                     fontSize: 'var(--text-sm)',
-                    color: 'var(--color-text-primary)',
+                    color: 'hsl(var(--foreground))',
                   }}
                 >
-                  {log.contact_name || 'Unknown Visitor'}
+                  {log.contact?.full_name || 'Unknown Contact'}
                 </p>
 
                 {/* Check-in Time */}
                 <div className="flex items-center gap-4 flex-wrap text-xs mb-2">
-                  <div className="flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
+                  <div className="flex items-center gap-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
                     <Clock className="w-3 h-3" />
                     <span>
                       {log.check_in_time
@@ -235,7 +235,7 @@ export function PropertyVisitorActivityCard({
                     </span>
                   </div>
                   {duration && (
-                    <div className="flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
+                    <div className="flex items-center gap-1" style={{ color: 'hsl(var(--muted-foreground))' }}>
                       <Calendar className="w-3 h-3" />
                       <span>{duration}</span>
                     </div>
@@ -243,11 +243,10 @@ export function PropertyVisitorActivityCard({
                 </div>
 
                 {/* Vehicle Badge */}
-                {log.vehicle_plate && (
-                  <Badge variant="outline" className="text-xs">
-                    <Car className="w-3 h-3 mr-1" />
-                    {log.vehicle_plate}
-                  </Badge>
+                {log.vehicle?.plate_number && (
+                  <span className="text-xs ml-auto font-mono bg-muted px-1.5 py-0.5 rounded border border-border">
+                    {log.vehicle.plate_number}
+                  </span>
                 )}
 
                 {/* Status Badge */}
@@ -263,11 +262,13 @@ export function PropertyVisitorActivityCard({
       </div>
 
       {/* View All Link */}
-      <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+      <div className="mt-4 pt-4 border-t" style={{ borderColor: 'hsl(var(--border))' }}>
         <Link
           href="/portal/security"
           className="flex items-center justify-between text-sm hover:underline"
-          style={{ color: 'var(--color-primary)' }}
+          style={{
+            color: 'var(--primary)'
+          }}
         >
           <span>View All Activity</span>
           <ArrowRight className="w-4 h-4" />

@@ -129,6 +129,24 @@ export interface TweakcnColorVars {
   /** Text color on destructive */
   'destructive-foreground': string;
 
+  /** Success color (green) */
+  success: string;
+
+  /** Text color on success */
+  'success-foreground': string;
+
+  /** Warning color (amber/orange) */
+  warning: string;
+
+  /** Text color on warning */
+  'warning-foreground': string;
+
+  /** Info color (blue) */
+  info: string;
+
+  /** Text color on info */
+  'info-foreground': string;
+
   /** Border color */
   border: string;
 

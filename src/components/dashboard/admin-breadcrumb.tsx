@@ -3,10 +3,16 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronRight, Home } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface BreadcrumbItem {
   label: string;
   href: string;
+}
+
+interface AdminBreadcrumbProps {
+  hideDashboard?: boolean;
+  className?: string;
 }
 
 // Admin path labels mapping
@@ -47,20 +53,20 @@ function isUUID(str: string): boolean {
   return uuidRegex.test(str);
 }
 
-export function AdminBreadcrumb() {
+export function AdminBreadcrumb({ hideDashboard = false, className }: AdminBreadcrumbProps) {
   const pathname = usePathname();
 
   // Parse pathname into breadcrumb items
   const segments = pathname.split('/').filter(Boolean);
 
-  // Don't show breadcrumb on dashboard home
-  if (pathname === '/dashboard') {
+  // Don't show breadcrumb on dashboard home if not requested explicitly
+  if (pathname === '/dashboard' && !hideDashboard) {
     return null;
   }
 
-  const breadcrumbs: BreadcrumbItem[] = [
-    { label: 'Dashboard', href: '/dashboard' },
-  ];
+  const breadcrumbs: BreadcrumbItem[] = hideDashboard
+    ? []
+    : [{ label: 'Dashboard', href: '/dashboard' }];
 
   // Build breadcrumb trail
   let currentPath = '';
@@ -94,9 +100,11 @@ export function AdminBreadcrumb() {
     breadcrumbs.push({ label, href: fullPath });
   }
 
+  if (breadcrumbs.length === 0) return null;
+
   return (
     <nav
-      className="flex items-center gap-1.5 text-sm text-muted-foreground mb-4"
+      className={cn("flex items-center gap-1.5 text-sm text-muted-foreground mb-4", className)}
       aria-label="Breadcrumb"
     >
       <ol className="flex items-center gap-1.5">
@@ -114,7 +122,7 @@ export function AdminBreadcrumb() {
                 href={item.href}
                 className="hover:text-foreground transition-colors flex items-center gap-1.5"
               >
-                {index === 0 && <Home className="h-3.5 w-3.5" aria-hidden="true" />}
+                {index === 0 && !hideDashboard && <Home className="h-3.5 w-3.5" aria-hidden="true" />}
                 {item.label}
               </Link>
             )}

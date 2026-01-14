@@ -16,29 +16,28 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationBell } from '@/components/notifications';
 import { GlobalSearchCommand } from './global-search-command';
-import { Menu, LogOut, User, Home, Search, UserPlus } from 'lucide-react';
+import { Menu, LogOut, User, Home, Search, UserPlus, Activity, Command, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { AdminBreadcrumb } from './admin-breadcrumb';
 
 interface ModernHeaderProps {
   onMenuClick?: () => void;
 }
 
 /**
- * Modern Header Component
+ * Modern Header Component - Phase 2 (Enhanced)
  *
  * Features Modern theme design with:
- * - White/light background (dark mode adaptive)
+ * - Floating bento-style layout
+ * - Interactive expanding search
+ * - System status indicator
  * - Dynamic page title based on route
- * - Global search with command palette (⌘K)
- * - Primary action button (Add Resident)
- * - Notification bell with badges
- * - User profile dropdown
- * - Mobile responsive with hamburger menu
  */
 export function ModernHeader({ onMenuClick }: ModernHeaderProps) {
   const { profile, signOut, residentId, isSigningOut } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -71,185 +70,197 @@ export function ModernHeader({ onMenuClick }: ModernHeaderProps) {
 
   return (
     <>
-      <header
-        className="sticky top-0 z-40 flex h-20 items-center gap-4 border-b px-4 md:px-6"
-        style={{
-          backgroundColor: 'var(--bg-card)',
-          borderColor: 'var(--border-default)',
-        }}
-      >
-        {/* Mobile Menu Button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden rounded-xl"
-          onClick={onMenuClick}
+      <div className="sticky top-0 z-40 w-full px-4 pt-4">
+        <header
+          className={cn(
+            "flex h-20 items-center gap-4 px-4 md:px-6 transition-all duration-500 rounded-2xl border shadow-sm backdrop-blur-md bg-background/80",
+            "hover:shadow-md hover:border-accent-primary/20"
+          )}
         >
-          <Menu className="h-5 w-5" />
-          <span className="sr-only">Toggle menu</span>
-        </Button>
-
-        {/* Page Title - Desktop Only */}
-        <div className="hidden md:block min-w-[120px]">
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-            {getPageTitle(pathname)}
-          </h1>
-        </div>
-
-        {/* Search Bar - Desktop (clicks to open command palette) */}
-        <button
-          type="button"
-          onClick={() => setSearchOpen(true)}
-          className="hidden md:flex items-center gap-3 w-full max-w-md rounded-xl border py-2.5 px-4 text-sm transition-colors cursor-pointer text-left"
-          style={{
-            backgroundColor: 'var(--bg-secondary)',
-            borderColor: 'var(--border-default)',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
-            e.currentTarget.style.borderColor = 'var(--border-hover)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
-            e.currentTarget.style.borderColor = 'var(--border-default)';
-          }}
-        >
-          <Search className="h-5 w-5" style={{ color: 'var(--text-muted)' }} />
-          <span className="flex-1" style={{ color: 'var(--text-muted)' }}>Quick Search...</span>
-          <kbd
-            className="pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium"
-            style={{
-              backgroundColor: 'var(--bg-card)',
-              borderColor: 'var(--border-subtle)',
-              color: 'var(--text-muted)',
-            }}
-          >
-            <span className="text-xs">⌘</span>K
-          </kbd>
-        </button>
-
-        {/* Mobile Search Icon */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden rounded-xl"
-          onClick={() => setSearchOpen(true)}
-        >
-          <Search className="h-5 w-5" />
-          <span className="sr-only">Search</span>
-        </Button>
-
-        {/* Spacer - pushes action items to the right */}
-        <div className="flex-1" />
-
-        {/* Right-aligned Action Items Group */}
-        <div className="flex items-center gap-2 md:gap-4">
-          {/* Primary Action - Add Resident (Desktop Only) */}
+          {/* Mobile Menu Button */}
           <Button
-            asChild
-            className="hidden md:flex gap-2 rounded-xl font-medium shadow-sm"
-            style={{
-              backgroundColor: 'var(--accent-primary)',
-              color: 'var(--text-on-accent)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--accent-hover)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--accent-primary)';
-            }}
-          >
-            <Link href="/residents?action=create">
-              <UserPlus className="h-4 w-4" />
-              Add Resident
-            </Link>
-          </Button>
-
-          {/* Mobile Add Button - Icon Only */}
-          <Button
-            asChild
+            variant="ghost"
             size="icon"
             className="md:hidden rounded-xl"
-            style={{
-              backgroundColor: 'var(--accent-primary)',
-              color: 'var(--text-on-accent)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--accent-hover)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--accent-primary)';
-            }}
+            onClick={onMenuClick}
           >
-            <Link href="/residents?action=create">
-              <UserPlus className="h-4 w-4" />
-              <span className="sr-only">Add Resident</span>
-            </Link>
+            <Menu className="h-5 w-5" />
+            <span className="sr-only">Toggle menu</span>
           </Button>
 
-          {/* Notification Bell */}
-          {mounted && <NotificationBell />}
+          {/* Page Title - Desktop Only */}
+          <div className="hidden md:block min-w-[120px]">
+            <h1 className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+              {getPageTitle(pathname)}
+            </h1>
+            <AdminBreadcrumb hideDashboard className="mb-0 text-[10px] -mt-1 opacity-60" />
+          </div>
 
-          {/* User Profile Dropdown */}
-          {mounted && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback
-                      className="font-semibold"
-                      style={{
-                        backgroundColor: 'var(--accent-primary)',
-                        color: 'var(--text-on-accent)',
-                      }}
-                    >
-                      {profile?.full_name?.charAt(0) || '?'}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{profile?.full_name}</p>
-                    <p className="text-xs leading-none text-muted-foreground">
-                      {profile?.email}
-                    </p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="capitalize">
-                  <User className="mr-2 h-4 w-4" />
-                  {profile?.role_display_name || profile?.role?.replace('_', ' ')}
-                </DropdownMenuItem>
-                {residentId && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link href="/portal">
-                        <Home className="mr-2 h-4 w-4" />
-                        Resident Portal
-                      </Link>
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={signOut}
-                  disabled={isSigningOut}
-                  className="text-destructive cursor-pointer"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  {isSigningOut ? 'Signing out...' : 'Sign out'}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      </header>
+          {/* System Status Indicator */}
+          <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/5 border border-primary/10 transition-all hover:bg-primary/10 select-none">
+            <Activity className="h-3.5 w-3.5 text-primary animate-pulse" />
+            <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Session Active</span>
+          </div>
 
-      {/* Global Search Command Palette */}
-      <GlobalSearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
+          {/* Search Bar - Desktop (clicks to open command palette) */}
+          <div
+            className={cn(
+              "hidden md:flex items-center transition-all duration-300 ease-in-out",
+              isSearchFocused ? "flex-[2] max-w-lg" : "flex-1 max-w-md"
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+              className={cn(
+                "flex items-center gap-3 w-full rounded-xl border py-2.5 px-4 text-sm transition-all group",
+                isSearchFocused
+                  ? "bg-muted ring-2 ring-accent-primary/20 border-accent-primary/50"
+                  : "bg-muted/30 border-transparent hover:bg-muted/50 hover:border-muted-foreground/20 text-left"
+              )}
+            >
+              <Search className={cn(
+                "h-5 w-5 transition-colors",
+                isSearchFocused ? "text-accent-primary" : "text-muted-foreground group-hover:text-foreground"
+              )} />
+              <span className="flex-1 text-muted-foreground">Search anywhere...</span>
+              <kbd className="pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-1 rounded border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground shadow-sm">
+                <Command className="h-2.5 w-2.5" />
+                <span>K</span>
+              </kbd>
+            </button>
+          </div>
+
+          {/* Mobile Search Icon */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden rounded-xl"
+            onClick={() => setSearchOpen(true)}
+          >
+            <Search className="h-5 w-5" />
+            <span className="sr-only">Search</span>
+          </Button>
+          {/* Spacer - pushes action items to the right */}
+          <div className="flex-1" />
+
+          {/* Right-aligned Action Items Group */}
+          <div className="flex items-center gap-2 md:gap-4">
+            {/* Quick Action Dropdown - Desktop */}
+            <div className="hidden sm:block">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="gap-2 rounded-xl shadow-sm hover:translate-y-[-1px] transition-all bg-accent-primary hover:bg-accent-hover text-white px-4 py-2">
+                    <Sparkles className="h-4 w-4" />
+                    <span>Quick Action</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52 rounded-xl overflow-hidden p-1 shadow-lg ring-1 ring-black/5">
+                  <DropdownMenuLabel className="text-xs font-semibold py-2 px-3 opacity-50 uppercase tracking-wider">Workspace Actions</DropdownMenuLabel>
+                  <DropdownMenuSeparator className="my-1" />
+                  <DropdownMenuItem asChild>
+                    <Link href="/residents?action=create" className="cursor-pointer flex items-center gap-2 py-2.5 px-3 rounded-lg hover:bg-accent group">
+                      <UserPlus className="h-4 w-4 text-muted-foreground group-hover:text-accent-primary transition-colors" />
+                      <span>Add Resident</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/billing?action=create" className="cursor-pointer flex items-center gap-2 py-2.5 px-3 rounded-lg hover:bg-accent group">
+                      <Receipt className="h-4 w-4 text-muted-foreground group-hover:text-accent-primary transition-colors" />
+                      <span>Create Invoice</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/reports/new" className="cursor-pointer flex items-center gap-2 py-2.5 px-3 rounded-lg hover:bg-accent group">
+                      <FileText className="h-4 w-4 text-muted-foreground group-hover:text-accent-primary transition-colors" />
+                      <span>Generate Report</span>
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Mobile Add Button - Icon Only */}
+            <Button
+              asChild
+              size="icon"
+              className="md:hidden rounded-xl bg-accent-primary hover:bg-accent-hover text-white"
+            >
+              <Link href="/residents?action=create">
+                <Sparkles className="h-4 w-4" />
+                <span className="sr-only">Quick Action</span>
+              </Link>
+            </Button>
+
+            {/* Spacer to push user items to extreme right */}
+            <div className="hidden md:block w-2 lg:w-4" />
+
+            {/* Notification Bell */}
+            {mounted && <NotificationBell />}
+
+            {/* User Profile Dropdown */}
+            {mounted && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback
+                        className="font-semibold"
+                        style={{
+                          backgroundColor: 'var(--accent-primary)',
+                          color: 'var(--text-on-accent)',
+                        }}
+                      >
+                        {profile?.full_name?.charAt(0) || '?'}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{profile?.full_name}</p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {profile?.email}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="capitalize">
+                    <User className="mr-2 h-4 w-4" />
+                    {profile?.role_display_name || profile?.role?.replace('_', ' ')}
+                  </DropdownMenuItem>
+                  {residentId && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link href="/portal">
+                          <Home className="mr-2 h-4 w-4" />
+                          Resident Portal
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={signOut}
+                    disabled={isSigningOut}
+                    className="text-destructive cursor-pointer"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    {isSigningOut ? 'Signing out...' : 'Sign out'}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </header>
+
+        {/* Global Search Command Palette */}
+        <GlobalSearchCommand open={searchOpen} onOpenChange={setSearchOpen} />
+      </div>
     </>
   );
 }

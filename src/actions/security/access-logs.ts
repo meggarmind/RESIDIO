@@ -304,6 +304,7 @@ export async function getAccessLogs(filters: AccessLogsFilters = {}): Promise<Ac
       ),
       resident:residents(id, first_name, last_name, resident_code),
       access_code:access_codes(id, code, code_type),
+      vehicle:visitor_vehicles(id, plate_number, vehicle_type, make, model),
       verified_by_profile:profiles!access_logs_verified_by_fkey(id, full_name)
     `,
       { count: 'exact' }

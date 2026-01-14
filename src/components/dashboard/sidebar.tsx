@@ -1,10 +1,11 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { User, UserSearch, ChevronLeft, ChevronRight } from 'lucide-react';
+import { User, UserSearch, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
@@ -27,11 +28,50 @@ export function Sidebar({ className }: SidebarProps) {
   const { logoUrl } = useEstateLogo();
   const { isCollapsed, isExpanded, toggleCollapsed, setHoverExpanded } = useSidebarState();
 
+  // Expandable submenu state
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
+
+  // Check if any child is active
+  const hasActiveChild = (children?: { href: string }[]) => {
+    if (!children) return false;
+    return children.some(
+      (child) => pathname === child.href || pathname.startsWith(`${child.href}/`)
+    );
+  };
+
+  // Toggle submenu expansion
+  const toggleSubmenu = (menuId: string) => {
+    setExpandedMenus((prev) => {
+      const next = new Set(prev);
+      if (next.has(menuId)) {
+        next.delete(menuId);
+      } else {
+        next.add(menuId);
+      }
+      return next;
+    });
+  };
+
+  // Auto-expand sub-menus containing active children on load/pathname change
+  useEffect(() => {
+    sections.forEach(section => {
+      section.items.forEach(item => {
+        if (item.children && hasActiveChild(item.children)) {
+          setExpandedMenus(prev => {
+            const next = new Set(prev);
+            next.add(item.id);
+            return next;
+          });
+        }
+      });
+    });
+  }, [pathname, sections]);
+
   return (
     <aside
       className={cn(
         'flex flex-col border-r transition-all duration-300 ease-in-out',
-        isCollapsed ? 'w-16' : 'w-64',
+        isExpanded ? 'w-64' : 'w-16',
         className
       )}
       style={{
@@ -61,7 +101,7 @@ export function Sidebar({ className }: SidebarProps) {
               >
                 R
               </div>
-              {isExpanded && <span className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Residio</span>}
+              {isExpanded && <span className="text-xl font-bold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>Residio</span>}
             </>
           )}
         </Link>
@@ -96,7 +136,7 @@ export function Sidebar({ className }: SidebarProps) {
               {/* Section header - only show when expanded */}
               {section.label && isExpanded && (
                 <h3
-                  className="px-3 py-2 text-xs font-semibold uppercase tracking-wider"
+                  className="px-3 py-2 text-xs font-semibold uppercase tracking-wider whitespace-nowrap"
                   style={{ color: 'var(--text-muted)' }}
                 >
                   {section.label}
@@ -108,37 +148,49 @@ export function Sidebar({ className }: SidebarProps) {
               )}
               <ul className="space-y-1">
                 {section.items.map((item) => {
-                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                  const showBadgeCount = item.showBadge && pendingCount && pendingCount > 0;
+                  const isActive = pathname === item.href;
+                  const hasChildren = item.children && item.children.length > 0;
+                  const isParentOfActive = hasActiveChild(item.children);
+                  const isMenuExpanded = expandedMenus.has(item.id) || isParentOfActive;
+                  const showBadgeCount = item.showBadge && typeof pendingCount === 'number' && pendingCount > 0;
 
                   const navLink = (
-                    <Link
-                      href={item.href}
+                    <div
                       className={cn(
-                        'flex items-center rounded-lg text-sm font-medium transition-all duration-200',
-                        isExpanded ? 'gap-3 px-3 py-2' : 'justify-center px-2 py-2'
+                        'flex items-center rounded-lg text-sm font-medium transition-all duration-200 relative group',
+                        isExpanded ? 'gap-3 px-3 py-2' : 'justify-center px-2 py-2',
+                        (isActive || isParentOfActive) && 'before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-1 before:rounded-r-full'
                       )}
                       style={{
-                        backgroundColor: isActive ? 'var(--accent-primary)' : 'transparent',
-                        color: isActive ? 'var(--text-on-accent)' : 'var(--text-secondary)',
+                        backgroundColor: isActive ? 'var(--accent-primary)' : (isParentOfActive ? 'var(--bg-hover)' : 'transparent'),
+                        color: isActive ? 'var(--text-on-accent)' : (isParentOfActive ? 'var(--accent-primary)' : 'var(--text-secondary)'),
                       }}
                       onMouseEnter={(e) => {
-                        if (!isActive) {
+                        if (!isActive && !isParentOfActive) {
                           e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
                           e.currentTarget.style.color = 'var(--text-primary)';
                         }
                       }}
                       onMouseLeave={(e) => {
-                        if (!isActive) {
+                        if (!isActive && !isParentOfActive) {
                           e.currentTarget.style.backgroundColor = 'transparent';
                           e.currentTarget.style.color = 'var(--text-secondary)';
                         }
                       }}
                     >
-                      <item.icon className="h-4 w-4 flex-shrink-0" />
+                      {/* Active indicator custom style injection since pseudo-elements can't use inline styles easily for variable colors without CSS var injection */}
+                      {(isActive || isParentOfActive) && (
+                        <style jsx>{`
+                          .active-indicator-${item.id}::before {
+                            background-color: var(--accent-primary) !important;
+                          }
+                        `}</style>
+                      )}
+
+                      <item.icon className={cn('h-4 w-4 flex-shrink-0', (isActive || isParentOfActive) && `active-indicator-${item.id}`)} />
                       {isExpanded && (
                         <>
-                          <span className="flex-1 truncate">{item.title}</span>
+                          <span className="flex-1 truncate whitespace-nowrap">{item.title}</span>
                           {showBadgeCount && (
                             <Badge
                               variant="destructive"
@@ -147,63 +199,86 @@ export function Sidebar({ className }: SidebarProps) {
                               {pendingCount}
                             </Badge>
                           )}
+                          {hasChildren && (
+                            <ChevronDown
+                              className={cn(
+                                'h-3.5 w-3.5 transition-transform duration-200 opacity-60 group-hover:opacity-100',
+                                isMenuExpanded && 'rotate-180'
+                              )}
+                            />
+                          )}
                         </>
                       )}
-                    </Link>
+                    </div>
                   );
 
                   return (
                     <li key={item.id}>
                       {isCollapsed && !isExpanded ? (
                         <Tooltip>
-                          <TooltipTrigger asChild>{navLink}</TooltipTrigger>
+                          <TooltipTrigger asChild>
+                            <Link href={item.href}>{navLink}</Link>
+                          </TooltipTrigger>
                           <TooltipContent side="right">
                             <p>{item.title}</p>
                           </TooltipContent>
                         </Tooltip>
+                      ) : hasChildren ? (
+                        <button
+                          onClick={() => toggleSubmenu(item.id)}
+                          className="w-full text-left"
+                        >
+                          {navLink}
+                        </button>
                       ) : (
-                        navLink
+                        <Link href={item.href}>{navLink}</Link>
                       )}
 
-                      {/* Render nested children with indent - only when expanded */}
-                      {item.children && item.children.length > 0 && isExpanded && (
-                        <ul className="mt-1 space-y-1">
-                          {item.children.map((child) => {
-                            const isChildActive =
-                              pathname === child.href || pathname.startsWith(`${child.href}/`);
-                            return (
-                              <li key={child.id}>
-                                <Link
-                                  href={child.href}
-                                  className="flex items-center gap-3 rounded-lg px-3 py-2 pl-9 text-sm font-medium transition-all duration-200"
-                                  style={{
-                                    backgroundColor: isChildActive
-                                      ? 'var(--accent-primary)'
-                                      : 'transparent',
-                                    color: isChildActive
-                                      ? 'var(--text-on-accent)'
-                                      : 'var(--text-secondary)',
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    if (!isChildActive) {
-                                      e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
-                                      e.currentTarget.style.color = 'var(--text-primary)';
-                                    }
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (!isChildActive) {
-                                      e.currentTarget.style.backgroundColor = 'transparent';
-                                      e.currentTarget.style.color = 'var(--text-secondary)';
-                                    }
-                                  }}
-                                >
-                                  <child.icon className="h-4 w-4" />
-                                  <span className="flex-1 truncate">{child.title}</span>
-                                </Link>
-                              </li>
-                            );
-                          })}
-                        </ul>
+                      {/* Render nested children with accordion behavior - only when expanded */}
+                      {hasChildren && isExpanded && (
+                        <div
+                          className={cn(
+                            'overflow-hidden transition-all duration-300 ease-in-out',
+                            isMenuExpanded ? 'max-h-96 opacity-100 mt-1' : 'max-h-0 opacity-0 mt-0'
+                          )}
+                        >
+                          <ul className="relative ml-5 border-l space-y-1" style={{ borderColor: 'var(--border-subtle)' }}>
+                            {item.children!.map((child) => {
+                              const isChildActive = pathname === child.href;
+                              return (
+                                <li key={child.id} className="relative">
+                                  <Link
+                                    href={child.href}
+                                    className="flex items-center gap-3 rounded-lg px-3 py-1.5 pl-4 text-sm font-medium transition-all duration-200"
+                                    style={{
+                                      backgroundColor: isChildActive
+                                        ? 'var(--accent-primary)'
+                                        : 'transparent',
+                                      color: isChildActive
+                                        ? 'var(--text-on-accent)'
+                                        : 'var(--text-secondary)',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      if (!isChildActive) {
+                                        e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
+                                        e.currentTarget.style.color = 'var(--text-primary)';
+                                      }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      if (!isChildActive) {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                        e.currentTarget.style.color = 'var(--text-secondary)';
+                                      }
+                                    }}
+                                  >
+                                    <child.icon className="h-3.5 w-3.5" />
+                                    <span className="flex-1 truncate whitespace-nowrap">{child.title}</span>
+                                  </Link>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
                       )}
                     </li>
                   );
@@ -264,7 +339,7 @@ export function Sidebar({ className }: SidebarProps) {
                 }}
               >
                 <User className="h-4 w-4" />
-                <span>My Portal</span>
+                <span className="whitespace-nowrap">My Portal</span>
               </Link>
             )
           )}
@@ -314,7 +389,7 @@ export function Sidebar({ className }: SidebarProps) {
                 }}
               >
                 <UserSearch className="h-4 w-4" />
-                <span>View as Resident</span>
+                <span className="whitespace-nowrap">View as Resident</span>
               </button>
             )
           )}
@@ -345,7 +420,7 @@ export function Sidebar({ className }: SidebarProps) {
           ) : (
             <div className="flex items-center gap-3 px-3 py-2">
               <div
-                className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium flex-shrink-0"
                 style={{
                   backgroundColor: 'var(--bg-elevated)',
                   color: 'var(--text-primary)',
@@ -354,10 +429,10 @@ export function Sidebar({ className }: SidebarProps) {
                 {profile?.full_name?.charAt(0) || '?'}
               </div>
               <div className="flex-1 truncate">
-                <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                <p className="text-sm font-medium truncate whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
                   {profile?.full_name}
                 </p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-xs truncate whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
                   {profile?.role_display_name || profile?.role?.replace('_', ' ')}
                 </p>
               </div>

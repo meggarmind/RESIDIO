@@ -137,3 +137,46 @@ export function getPropertyShortname(
   if (!house) return '';
   return house.short_name || house.house_number || '';
 }
+
+/**
+ * Mask an email address by hiding characters in the middle of the local part.
+ * Example: feyijimiohioma@gmail.com -> fey********a@gmail.com
+ */
+export function maskEmail(email: string | null | undefined): string {
+  if (!email) return 'Not set';
+
+  const [localPart, domain] = email.split('@');
+  if (!localPart || !domain) return email;
+
+  if (localPart.length <= 4) {
+    return `${localPart[0]}${'*'.repeat(localPart.length - 1)}@${domain}`;
+  }
+
+  const prefix = localPart.slice(0, 3);
+  const suffix = localPart.slice(-1);
+  const maskedLength = localPart.length - 4;
+
+  return `${prefix}${'*'.repeat(maskedLength > 0 ? maskedLength : 3)}${suffix}@${domain}`;
+}
+
+/**
+ * Mask a phone number by hiding characters in the middle.
+ * Example: 08036996725 -> 080*****725
+ */
+export function maskPhone(phone: string | null | undefined): string {
+  if (!phone) return 'Not set';
+
+  // Clean the phone number (remove spaces, dashes, etc.)
+  const cleanPhone = phone.replace(/\D/g, '');
+
+  if (cleanPhone.length <= 6) {
+    const visibleStart = cleanPhone.slice(0, 2);
+    return `${visibleStart}${'*'.repeat(cleanPhone.length - 2)}`;
+  }
+
+  const prefix = cleanPhone.slice(0, 3);
+  const suffix = cleanPhone.slice(-3);
+  const maskedLength = cleanPhone.length - 6;
+
+  return `${prefix}${'*'.repeat(maskedLength > 0 ? maskedLength : 4)}${suffix}`;
+}

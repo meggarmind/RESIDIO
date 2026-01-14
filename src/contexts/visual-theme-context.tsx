@@ -218,6 +218,14 @@ export function VisualThemeProvider({
     document.documentElement.style.setProperty('--destructive', colors.destructive);
     document.documentElement.style.setProperty('--destructive-foreground', colors['destructive-foreground']);
 
+    // Status
+    if (colors.success) document.documentElement.style.setProperty('--success', colors.success);
+    if (colors['success-foreground']) document.documentElement.style.setProperty('--success-foreground', colors['success-foreground']);
+    if (colors.warning) document.documentElement.style.setProperty('--warning', colors.warning);
+    if (colors['warning-foreground']) document.documentElement.style.setProperty('--warning-foreground', colors['warning-foreground']);
+    if (colors.info) document.documentElement.style.setProperty('--info', colors.info);
+    if (colors['info-foreground']) document.documentElement.style.setProperty('--info-foreground', colors['info-foreground']);
+
     // Border & Input
     document.documentElement.style.setProperty('--border', colors.border);
     document.documentElement.style.setProperty('--input', colors.input);

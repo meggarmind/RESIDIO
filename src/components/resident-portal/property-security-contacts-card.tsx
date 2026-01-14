@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import type { SecurityContact } from '@/types/database';
+import type { SecurityContactWithCategory } from '@/types/database';
 
 /**
  * Property Security Contacts Card Component
@@ -25,7 +25,7 @@ import type { SecurityContact } from '@/types/database';
 
 interface PropertySecurityContactsCardProps {
   /** Active security contacts for this property */
-  contacts: SecurityContact[];
+  contacts: SecurityContactWithCategory[];
   /** Loading state */
   isLoading?: boolean;
   /** Whether user can manage contacts (primary resident) */
@@ -50,7 +50,7 @@ export function PropertySecurityContactsCard({
     if (lower.includes('family')) return 'success';
     if (lower.includes('friend')) return 'info';
     if (lower.includes('vendor') || lower.includes('service')) return 'warning';
-    if (lower.includes('emergency')) return 'error';
+    if (lower.includes('emergency')) return 'destructive';
 
     return 'secondary';
   };
@@ -98,14 +98,14 @@ export function PropertySecurityContactsCard({
             style={{
               width: 'var(--icon-sm)',
               height: 'var(--icon-sm)',
-              color: 'var(--color-text-primary)',
+              color: 'hsl(var(--foreground))',
             }}
           />
           <h3
             className="font-semibold"
             style={{
               fontSize: 'var(--text-lg)',
-              color: 'var(--color-text-primary)',
+              color: 'hsl(var(--foreground))',
             }}
           >
             Security Contacts
@@ -115,14 +115,14 @@ export function PropertySecurityContactsCard({
           <div
             className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
             style={{
-              background: 'var(--color-bg-muted)',
+              background: 'hsl(var(--muted))',
             }}
           >
             <Shield
               style={{
                 width: '24px',
                 height: '24px',
-                color: 'var(--color-text-muted)',
+                color: 'hsl(var(--muted-foreground))',
               }}
             />
           </div>
@@ -130,7 +130,7 @@ export function PropertySecurityContactsCard({
             className="mb-1"
             style={{
               fontSize: 'var(--text-sm)',
-              color: 'var(--color-text-secondary)',
+              color: 'var(--muted-foreground)',
             }}
           >
             {canManage
@@ -163,7 +163,7 @@ export function PropertySecurityContactsCard({
         className
       )}
       style={{
-        borderColor: 'var(--color-border)',
+        borderColor: 'hsl(var(--border))',
       }}
     >
       {/* Header */}
@@ -173,14 +173,14 @@ export function PropertySecurityContactsCard({
             style={{
               width: 'var(--icon-sm)',
               height: 'var(--icon-sm)',
-              color: 'var(--color-text-primary)',
+              color: 'hsl(var(--foreground))',
             }}
           />
           <h3
             className="font-semibold"
             style={{
               fontSize: 'var(--text-lg)',
-              color: 'var(--color-text-primary)',
+              color: 'hsl(var(--foreground))',
             }}
           >
             Security Contacts
@@ -206,8 +206,8 @@ export function PropertySecurityContactsCard({
               'transition-colors'
             )}
             style={{
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-bg-card)',
+              border: '1px solid hsl(var(--border))',
+              background: 'hsl(var(--card))',
             }}
           >
             {/* Contact Avatar + Info */}
@@ -215,14 +215,14 @@ export function PropertySecurityContactsCard({
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
                 style={{
-                  background: 'var(--color-bg-muted)',
+                  background: 'hsl(var(--muted))',
                 }}
               >
                 <User
                   style={{
                     width: '20px',
                     height: '20px',
-                    color: 'var(--color-text-muted)',
+                    color: 'hsl(var(--muted-foreground))',
                   }}
                 />
               </div>
@@ -231,47 +231,45 @@ export function PropertySecurityContactsCard({
                   className="font-medium truncate"
                   style={{
                     fontSize: 'var(--text-sm)',
-                    color: 'var(--color-text-primary)',
+                    color: 'hsl(var(--foreground))',
                   }}
                 >
-                  {contact.contact_name}
+                  {contact.full_name}
                 </p>
-                {contact.phone_number && (
+                {contact.phone_primary && (
                   <a
-                    href={`tel:${contact.phone_number}`}
+                    href={`tel:${contact.phone_primary}`}
                     className="text-xs hover:underline flex items-center gap-1"
                     style={{
-                      color: 'var(--color-text-muted)',
+                      color: 'hsl(var(--muted-foreground))',
                     }}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Phone className="w-3 h-3" />
-                    {contact.phone_number}
+                    {contact.phone_primary}
                   </a>
                 )}
               </div>
             </div>
 
             {/* Category Badge */}
-            {contact.category && (
-              <Badge
-                variant={getCategoryVariant(contact.category)}
-                className="text-xs shrink-0"
-              >
-                {contact.category}
-              </Badge>
-            )}
+            <Badge
+              variant={getCategoryVariant(contact.category?.name || null)}
+              className="text-xs shrink-0"
+            >
+              {contact.category?.name || 'Contact'}
+            </Badge>
           </div>
         ))}
       </div>
 
       {/* Manage Link */}
       {canManage && (
-        <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+        <div className="mt-4 pt-4 border-t" style={{ borderColor: 'hsl(var(--border))' }}>
           <Link
             href="/portal/security"
             className="flex items-center justify-between text-sm hover:underline"
-            style={{ color: 'var(--color-primary)' }}
+            style={{ color: 'var(--primary)' }}
           >
             <span>Manage Security Contacts</span>
             <ArrowRight className="w-4 h-4" />

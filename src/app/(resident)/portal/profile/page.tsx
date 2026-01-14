@@ -54,9 +54,11 @@ import {
   Loader2,
   FileBarChart,
   Palette,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, maskEmail, maskPhone } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useLayoutTheme } from '@/contexts/layout-theme-context';
 import { HouseholdMemberForm } from '@/components/resident-portal/household-member-form';
@@ -147,6 +149,7 @@ export default function ResidentProfilePage() {
   const [activeTab, setActiveTab] = useState<string>('properties');
   const isDesktop = useIsDesktop();
   const { isExpanded } = useLayoutTheme();
+  const [showContactInfo, setShowContactInfo] = useState(false);
 
   // Contact verification hook
   const verification = useContactVerification({ residentId: residentId || '' });
@@ -270,11 +273,33 @@ export default function ResidentProfilePage() {
           >
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Contact Information
-                </CardTitle>
-                <CardDescription>Your contact details and verification status</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Contact Information
+                    </CardTitle>
+                    <CardDescription>Your contact details and verification status</CardDescription>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-xs gap-1.5"
+                    onClick={() => setShowContactInfo(!showContactInfo)}
+                  >
+                    {showContactInfo ? (
+                      <>
+                        <EyeOff className="h-3.5 w-3.5" />
+                        Hide
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="h-3.5 w-3.5" />
+                        Reveal
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 {/* Email with verification */}
@@ -285,7 +310,9 @@ export default function ResidentProfilePage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-muted-foreground">Email</p>
-                      <p className="text-sm font-medium truncate">{resident.email || 'Not set'}</p>
+                      <p className="text-sm font-medium truncate">
+                        {showContactInfo ? (resident.email || 'Not set') : maskEmail(resident.email)}
+                      </p>
                     </div>
                   </div>
                   {residentId && (
@@ -306,7 +333,9 @@ export default function ResidentProfilePage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs text-muted-foreground">Phone</p>
-                      <p className="text-sm font-medium">{resident.phone_primary || 'Not set'}</p>
+                      <p className="text-sm font-medium">
+                        {showContactInfo ? (resident.phone_primary || 'Not set') : maskPhone(resident.phone_primary)}
+                      </p>
                     </div>
                   </div>
                   {residentId && resident.phone_primary && (
@@ -326,7 +355,9 @@ export default function ResidentProfilePage() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs text-muted-foreground">Alternative Phone</p>
-                      <p className="text-sm font-medium">{resident.phone_secondary}</p>
+                      <p className="text-sm font-medium">
+                        {showContactInfo ? resident.phone_secondary : maskPhone(resident.phone_secondary)}
+                      </p>
                     </div>
                   </div>
                 )}

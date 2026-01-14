@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useInvoices, useResidentIndebtedness, useResidentWallet } from '@/hooks/use-billing';
 import { useIsDesktop } from '@/hooks/use-media-query';
@@ -121,6 +122,7 @@ const statusConfig: Record<InvoiceStatus, { icon: React.ElementType; label: stri
  * - Invoice detail sheet
  */
 export default function ResidentInvoicesPage() {
+  const router = useRouter();
   const { residentId } = useAuth();
   const queryClient = useQueryClient();
   const isDesktop = useIsDesktop();
@@ -317,6 +319,19 @@ export default function ResidentInvoicesPage() {
                     </CardContent>
                   </Card>
                 ) : isDesktop ? (
+                  <InvoiceTable
+                    invoices={filteredInvoices}
+                    onSelect={setSelectedInvoice}
+                    isSelectionMode={isSelectionMode}
+                    selectedInvoiceIds={selectedInvoiceIds}
+                    onToggleSelection={(id) => {
+                      const next = new Set(selectedInvoiceIds);
+                      if (next.has(id)) next.delete(id);
+                      else next.add(id);
+                      setSelectedInvoiceIds(next);
+                    }}
+                  />
+                ) : (
                   <div className="space-y-3">
                     {filteredInvoices.map((invoice, index) => (
                       <InvoiceCard
@@ -472,17 +487,6 @@ function InvoiceCard({
             </div>
           )}
           <div className="flex items-center justify-between gap-3">
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
-          e.currentTarget.style.borderColor = 'var(--border-hover)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--bg-card)';
-          e.currentTarget.style.borderColor = 'var(--border-default)';
-        }}
-      >
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               {/* Status Icon */}
               <div
@@ -581,8 +585,8 @@ function InvoiceTable({
               <motion.tr
                 key={invoice.id}
                 className={cn(
-                   "cursor-pointer hover:bg-muted/50 transition-colors",
-                   selectedInvoiceIds?.has(invoice.id) && "bg-emerald-500/5 hover:bg-emerald-500/10"
+                  "cursor-pointer hover:bg-muted/50 transition-colors",
+                  selectedInvoiceIds?.has(invoice.id) && "bg-emerald-500/5 hover:bg-emerald-500/10"
                 )}
                 onClick={() => {
                   if (isSelectionMode && onToggleSelection) {

@@ -85,8 +85,8 @@ export default function WalletPage() {
         transition={spring}
       >
         <div>
-          <h1 className="text-[28px] font-bold text-bill-text tracking-tight">Wallet</h1>
-          <p className="text-bill-text-secondary mt-1">
+          <h1 className="text-[28px] font-bold text-foreground tracking-tight">Wallet</h1>
+          <p className="text-muted-foreground mt-1">
             Manage your wallet balance and transactions
           </p>
         </div>
@@ -104,29 +104,31 @@ export default function WalletPage() {
         custom={0}
       >
         <Card
+          className="border-none overflow-hidden relative"
           style={{
-            background: `linear-gradient(to bottom right, var(--accent-primary), var(--accent-secondary))`,
-            border: 'none',
-            color: 'var(--text-on-accent)',
+            background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%)',
+            color: 'hsl(var(--primary-foreground))',
           }}
         >
-          <CardHeader>
-            <CardTitle className="text-sm font-medium" style={{ color: 'var(--text-on-accent)', opacity: 0.7 }}>Current Balance</CardTitle>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/10 rounded-full -ml-10 -mb-10 blur-2xl pointer-events-none" />
+          <CardHeader className="relative z-10">
+            <CardTitle className="text-sm font-medium opacity-80" style={{ color: 'inherit' }}>Current Balance</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="relative z-10">
             <div className="flex items-end justify-between">
               <div>
-                <div className="text-5xl font-bold mb-2" style={{ color: 'var(--text-on-accent)' }}>
+                <div className="text-5xl font-bold mb-2">
                   <AnimatedCounter
                     value={walletBalance}
                     formatter={formatCurrency}
                   />
                 </div>
-                <p className="text-sm" style={{ color: 'var(--text-on-accent)', opacity: 0.6 }}>
+                <p className="text-sm opacity-70">
                   Available for invoice payments
                 </p>
               </div>
-              <WalletIcon className="h-16 w-16" style={{ color: 'var(--text-on-accent)', opacity: 0.2 }} />
+              <WalletIcon className="h-16 w-16 opacity-20" />
             </div>
           </CardContent>
         </Card>
@@ -188,16 +190,16 @@ export default function WalletPage() {
             {walletTransactions.length === 0 ? (
               <div className="py-12 text-center">
                 <WalletIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-bill-text mb-2">No Transactions Yet</h3>
-                <p className="text-sm text-bill-text-secondary">
+                <h3 className="text-lg font-semibold text-foreground mb-2">No Transactions Yet</h3>
+                <p className="text-sm text-muted-foreground">
                   Your wallet transactions will appear here
                 </p>
               </div>
             ) : filteredTransactions.length === 0 ? (
               <div className="py-12 text-center">
                 <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-bill-text mb-2">No Results Found</h3>
-                <p className="text-sm text-bill-text-secondary">
+                <h3 className="text-lg font-semibold text-foreground mb-2">No Results Found</h3>
+                <p className="text-sm text-muted-foreground">
                   Try adjusting your search or filters
                 </p>
                 <Button
@@ -215,66 +217,55 @@ export default function WalletPage() {
             ) : (
               <div className="space-y-4">
                 <AnimatePresence mode="popLayout">
-                {filteredTransactions.map((transaction, index) => (
-                  <motion.div
-                    key={transaction.id}
-                    className="flex items-center justify-between p-4 rounded-lg transition-colors"
-                    style={{
-                      borderWidth: '1px',
-                      borderColor: 'var(--border-default)',
-                      backgroundColor: 'var(--bg-card)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--bg-card)';
-                    }}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className="h-10 w-10 rounded-full flex items-center justify-center"
-                        style={{
-                          backgroundColor: transaction.type === 'credit' ? 'var(--status-success-subtle)' : 'var(--status-error-subtle)',
-                          color: transaction.type === 'credit' ? 'var(--status-success)' : 'var(--status-error)',
-                        }}
-                      >
-                        {transaction.type === 'credit' ? (
-                          <ArrowDownRight className="h-5 w-5" />
-                        ) : (
-                          <ArrowUpRight className="h-5 w-5" />
+                  {filteredTransactions.map((transaction, index) => (
+                    <motion.div
+                      key={transaction.id}
+                      className="flex items-center justify-between p-4 rounded-xl border border-border bg-card hover:bg-muted/50 transition-all duration-200 group"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className="h-10 w-10 rounded-full flex items-center justify-center transition-transform group-hover:scale-110"
+                          style={{
+                            backgroundColor: transaction.type === 'credit' ? 'hsl(var(--success) / 0.1)' : 'hsl(var(--destructive) / 0.1)',
+                            color: transaction.type === 'credit' ? 'hsl(var(--success, 142.1 70.6% 45.3%))' : 'hsl(var(--destructive))',
+                          }}
+                        >
+                          {transaction.type === 'credit' ? (
+                            <ArrowDownRight className="h-5 w-5" />
+                          ) : (
+                            <ArrowUpRight className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-foreground">
+                            {transaction.type === 'credit' ? 'Top Up' : 'Payment'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {transaction.created_at && format(new Date(transaction.created_at), 'MMM dd, yyyy')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p
+                          className="font-bold text-lg"
+                          style={{
+                            color: transaction.type === 'credit' ? 'hsl(var(--success, 142.1 70.6% 45.3%))' : 'hsl(var(--destructive))'
+                          }}
+                        >
+                          {transaction.type === 'credit' ? '+' : '-'}
+                          {formatCurrency(transaction.amount || 0)}
+                        </p>
+                        {transaction.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-1 max-w-[200px]">
+                            {transaction.description}
+                          </p>
                         )}
                       </div>
-                      <div>
-                        <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
-                          {transaction.type === 'credit' ? 'Top Up' : 'Payment'}
-                        </p>
-                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                          {transaction.created_at && format(new Date(transaction.created_at), 'MMM dd, yyyy')}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p
-                        className="font-semibold"
-                        style={{
-                          color: transaction.type === 'credit' ? 'var(--status-success)' : 'var(--status-error)'
-                        }}
-                      >
-                        {transaction.type === 'credit' ? '+' : '-'}
-                        {formatCurrency(transaction.amount || 0)}
-                      </p>
-                      {transaction.description && (
-                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                          {transaction.description}
-                        </p>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  ))}
                 </AnimatePresence>
               </div>
             )}

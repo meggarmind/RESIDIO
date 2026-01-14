@@ -57,29 +57,29 @@ export function PropertyFinancialSummaryCard({
       label: 'Outstanding',
       value: outstanding,
       icon: <Receipt style={{ width: '20px', height: '20px' }} />,
-      colorClass: outstanding > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400',
-      bgClass: outstanding > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'bg-green-50 dark:bg-green-900/20',
+      colorClass: outstanding > 0 ? 'text-destructive' : 'text-success',
+      bgClass: outstanding > 0 ? 'bg-destructive/10' : 'bg-success/10',
     },
     {
       label: 'Wallet Balance',
       value: walletBalance,
       icon: <Wallet style={{ width: '20px', height: '20px' }} />,
-      colorClass: 'text-blue-600 dark:text-blue-400',
-      bgClass: 'bg-blue-50 dark:bg-blue-900/20',
+      colorClass: 'text-primary',
+      bgClass: 'bg-primary/10',
     },
     {
       label: 'Total Paid',
       value: totalPaid,
       icon: <CheckCircle2 style={{ width: '20px', height: '20px' }} />,
-      colorClass: 'text-green-600 dark:text-green-400',
-      bgClass: 'bg-green-50 dark:bg-green-900/20',
+      colorClass: 'text-success',
+      bgClass: 'bg-success/10',
     },
     {
       label: 'Invoices',
       value: invoiceCount,
       icon: <FileText style={{ width: '20px', height: '20px' }} />,
-      colorClass: 'text-purple-600 dark:text-purple-400',
-      bgClass: 'bg-purple-50 dark:bg-purple-900/20',
+      colorClass: 'text-info',
+      bgClass: 'bg-info/10',
     },
   ];
 
@@ -92,24 +92,22 @@ export function PropertyFinancialSummaryCard({
           className
         )}
         style={{
-          borderColor: 'var(--color-border)',
+          borderColor: 'hsl(var(--border))',
         }}
       >
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="space-y-2">
               <div
-                className="h-4 rounded animate-pulse"
-                style={{ background: 'var(--color-bg-muted)' }}
+                className="h-4 rounded animate-pulse bg-muted"
               />
               <div
-                className="h-8 rounded animate-pulse"
-                style={{ background: 'var(--color-bg-muted)' }}
+                className="h-8 rounded animate-pulse bg-muted"
               />
             </div>
           ))}
         </div>
-      </div>
+      </div >
     );
   }
 
@@ -121,7 +119,7 @@ export function PropertyFinancialSummaryCard({
         className
       )}
       style={{
-        borderColor: 'var(--color-border)',
+        borderColor: 'hsl(var(--border))',
       }}
     >
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
@@ -140,7 +138,7 @@ export function PropertyFinancialSummaryCard({
               <p
                 className="text-sm font-medium"
                 style={{
-                  color: 'var(--color-text-secondary)',
+                  color: 'var(--muted-foreground)',
                 }}
               >
                 {metric.label}
@@ -163,6 +161,6 @@ export function PropertyFinancialSummaryCard({
           </div>
         ))}
       </div>
-    </div>
+    </div >
   );
 }

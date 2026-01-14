@@ -20,17 +20,17 @@ const roleLabels: Record<ResidentRole, string> = {
   contractor: 'Contractor',
 };
 
-// Role colors for badges
+// Role colors for badges (modern theme compliant)
 const roleColors: Record<string, string> = {
-  resident_landlord: 'bg-blue-500/10 text-blue-700 border-blue-200 dark:text-blue-400 dark:border-blue-800',
-  non_resident_landlord: 'bg-purple-500/10 text-purple-700 border-purple-200 dark:text-purple-400 dark:border-purple-800',
-  tenant: 'bg-green-500/10 text-green-700 border-green-200 dark:text-green-400 dark:border-green-800',
-  household_member: 'bg-gray-500/10 text-gray-700 border-gray-200 dark:text-gray-400 dark:border-gray-700',
-  domestic_staff: 'bg-teal-500/10 text-teal-700 border-teal-200 dark:text-teal-400 dark:border-teal-800',
-  contractor: 'bg-amber-500/10 text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-800',
-  caretaker: 'bg-indigo-500/10 text-indigo-700 border-indigo-200 dark:text-indigo-400 dark:border-indigo-800',
-  co_resident: 'bg-cyan-500/10 text-cyan-700 border-cyan-200 dark:text-cyan-400 dark:border-cyan-800',
-  developer: 'bg-rose-500/10 text-rose-700 border-rose-200 dark:text-rose-400 dark:border-rose-800',
+  resident_landlord: 'bg-primary/10 text-primary border-primary/20',
+  non_resident_landlord: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
+  tenant: 'bg-success/10 text-success border-success/20',
+  household_member: 'bg-muted text-muted-foreground border-border',
+  domestic_staff: 'bg-teal-500/10 text-teal-500 border-teal-500/20',
+  contractor: 'bg-warning/10 text-warning border-warning/20',
+  caretaker: 'bg-sky-500/10 text-sky-500 border-sky-500/20',
+  co_resident: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20',
+  developer: 'bg-destructive/10 text-destructive border-destructive/20',
 };
 
 interface PropertyHeaderProps {
@@ -69,11 +69,11 @@ export function PropertyHeader({
       <div className="flex items-start gap-4">
         <div className={cn(
           'p-3 rounded-xl',
-          isOccupied ? 'bg-emerald-500/20' : 'bg-amber-500/20'
+          isOccupied ? 'bg-success/10' : 'bg-warning/10'
         )}>
           <Home className={cn(
             'h-6 w-6',
-            isOccupied ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+            isOccupied ? 'text-success' : 'text-warning'
           )} />
         </div>
         <div className="flex-1 min-w-0">
@@ -103,24 +103,19 @@ export function PropertyHeader({
 
             {/* Primary Badge */}
             {isPrimary && (
-              <Badge className="text-xs bg-blue-500 text-white border-0">
+              <Badge className="text-xs bg-primary text-primary-foreground border-0 shadow-sm">
                 Primary
               </Badge>
             )}
 
             {/* Occupancy Badge */}
             <Badge
-              variant="outline"
-              className={cn(
-                'text-xs',
-                isOccupied
-                  ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200 dark:text-emerald-400 dark:border-emerald-800'
-                  : 'bg-amber-500/10 text-amber-700 border-amber-200 dark:text-amber-400 dark:border-amber-800'
-              )}
+              variant={isOccupied ? 'success' : 'warning'}
+              className="text-xs"
             >
               <span className={cn(
                 'h-1.5 w-1.5 rounded-full mr-1.5',
-                isOccupied ? 'bg-emerald-500' : 'bg-amber-500'
+                isOccupied ? 'bg-success-foreground' : 'bg-warning-foreground'
               )} />
               {isOccupied ? 'Occupied' : 'Vacant'}
             </Badge>

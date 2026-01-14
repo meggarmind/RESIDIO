@@ -167,6 +167,15 @@ export default function PropertyDetailPage({ params }: PropertyDetailPageProps) 
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs / Back Navigation */}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Link href="/portal" className="hover:text-foreground transition-colors">Dashboard</Link>
+        <span>/</span>
+        <Link href="/portal/properties" className="hover:text-foreground transition-colors">Properties</Link>
+        <span>/</span>
+        <span className="text-foreground font-medium">{house.house_number || house.short_name}</span>
+      </div>
+
       {/* Property Header */}
       <PropertyHeader
         house={house}

@@ -72,7 +72,7 @@ export function FeatureCard({
             className="font-semibold"
             style={{
               fontSize: 'var(--text-base)',
-              color: 'var(--color-text-primary)',
+              color: 'var(--foreground)',
             }}
           >
             {title}
@@ -91,7 +91,7 @@ export function FeatureCard({
         <p
           style={{
             fontSize: 'var(--text-sm)',
-            color: 'var(--color-text-secondary)',
+            color: 'var(--muted-foreground)',
           }}
         >
           {subtitle}
@@ -105,7 +105,7 @@ export function FeatureCard({
           style={{
             width: 'var(--icon-sm)',
             height: 'var(--icon-sm)',
-            color: 'var(--color-text-muted)',
+            color: 'var(--muted-foreground)',
           }}
         />
       )}
