@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Plus, Minus, Send, MessageCircle } from 'lucide-react';
+import { Sparkles, Plus, Minus, Send, MessageCircle, X } from 'lucide-react';
 import { useAiAssistant, Message } from '@/hooks/use-ai-assistant';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,8 @@ export function EstateAiAssistant() {
     const {
         isOpen,
         toggleOpen,
+        isDismissed,
+        dismissAssistant,
         messages,
         sendMessage,
         isTyping,
@@ -40,6 +42,8 @@ export function EstateAiAssistant() {
         }
     }, [messages, isTyping]);
 
+    if (isDismissed) return null;
+
     return (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
             <AnimatePresence>
@@ -56,14 +60,26 @@ export function EstateAiAssistant() {
                                 <Sparkles className="w-4 h-4" />
                                 <span className="truncate max-w-[200px]">{assistantName}</span>
                             </div>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={toggleOpen}
-                                className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/10"
-                            >
-                                <Minus className="w-4 h-4" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={toggleOpen}
+                                    title="Minimize"
+                                    className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/10"
+                                >
+                                    <Minus className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={dismissAssistant}
+                                    title="Close Assistant"
+                                    className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/10"
+                                >
+                                    <X className="w-4 h-4" />
+                                </Button>
+                            </div>
                         </div>
 
                         {/* Chat Area */}
@@ -133,9 +149,18 @@ export function EstateAiAssistant() {
                         <div className="w-px h-4 bg-primary-foreground/20 mx-1" />
                         <button
                             onClick={toggleOpen}
+                            title="Open Assistant"
                             className="hover:bg-primary-foreground/10 rounded-full p-1 transition-colors"
                         >
                             <Plus className="w-4 h-4" />
+                        </button>
+                        <div className="w-px h-1.5 bg-primary-foreground/20 mx-0.5 rounded-full" />
+                        <button
+                            onClick={dismissAssistant}
+                            title="Hide Assistant"
+                            className="hover:bg-primary-foreground/10 rounded-full p-1 transition-colors"
+                        >
+                            <X className="w-3.5 h-3.5" />
                         </button>
                     </div>
                 </motion.div>

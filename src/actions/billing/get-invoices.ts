@@ -176,6 +176,7 @@ export async function getHousePaymentStatus(houseId: string): Promise<{ data: Ho
             amount_due,
             amount_paid,
             status,
+            due_date,
             resident_id,
             resident:residents(id, first_name, last_name, resident_code)
         `)
@@ -237,6 +238,9 @@ export async function getHousePaymentStatus(houseId: string): Promise<{ data: Ho
         status.totalPaid += amountPaid;
         status.totalOutstanding += outstanding > 0 ? outstanding : 0;
 
+        const isOverdue = (invoice.status === 'unpaid' || invoice.status === 'partially_paid') &&
+            invoice.due_date && new Date(invoice.due_date as string) < new Date();
+
         switch (invoice.status) {
             case 'unpaid':
                 status.unpaidCount++;
@@ -247,10 +251,11 @@ export async function getHousePaymentStatus(houseId: string): Promise<{ data: Ho
             case 'paid':
                 status.paidCount++;
                 break;
-            case 'overdue':
-                status.overdueCount++;
-                status.overdueAmount += outstanding > 0 ? outstanding : 0;
-                break;
+        }
+
+        if (isOverdue) {
+            status.overdueCount++;
+            status.overdueAmount += outstanding > 0 ? outstanding : 0;
         }
 
         // Track per-resident totals
@@ -316,6 +321,7 @@ export async function getResidentCrossPropertyPaymentSummary(residentId: string)
             amount_due,
             amount_paid,
             status,
+            due_date,
             house_id,
             house:houses(id, house_number, short_name, street:streets(name))
         `)
@@ -384,8 +390,9 @@ export async function getResidentCrossPropertyPaymentSummary(residentId: string)
 
         if (houseId && house) {
             const existing = propertyMap.get(houseId);
-            const isOverdue = invoice.status === 'overdue';
-            const isUnpaid = invoice.status === 'unpaid' || invoice.status === 'overdue';
+            const isOverdue = (invoice.status === 'unpaid' || invoice.status === 'partially_paid') &&
+                invoice.due_date && new Date(invoice.due_date as string) < new Date();
+            const isUnpaid = invoice.status === 'unpaid' || invoice.status === 'partially_paid';
 
             if (existing) {
                 existing.totalDue += amountDue;

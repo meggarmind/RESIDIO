@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Users, ChevronRight, UserPlus, Trash2, User } from 'lucide-react';
 import { useResident } from '@/hooks/use-residents';
-import { useUser } from '@/lib/auth/auth-context';
+import { useAuth } from '@/lib/auth/auth-provider';
 import { HouseholdMemberForm } from '@/components/resident-portal/household-member-form';
 import { Badge } from '@/components/ui/badge';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -31,14 +31,14 @@ interface HouseholdStepProps {
 }
 
 export function HouseholdStep({ onNext, onBack }: HouseholdStepProps) {
-    const { user } = useUser();
-    const { data: resident } = useResident(user?.resident_id || undefined);
+    const { residentId } = useAuth();
+    const { data: resident } = useResident(residentId || undefined);
     const queryClient = useQueryClient();
 
     // We need the house ID for household operations.
     // Assuming resident has at least one house.
     // We'll prioritize the "primary" house or the first one.
-    const primaryHouse = resident?.houses?.find(h => h.is_primary) || resident?.houses?.[0];
+    const primaryHouse = resident?.resident_houses?.find(h => h.is_primary) || resident?.resident_houses?.[0];
     const houseId = primaryHouse?.house_id;
 
     const { data: members = [], isLoading } = useQuery({

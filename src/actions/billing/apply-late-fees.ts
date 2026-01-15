@@ -89,7 +89,7 @@ export async function applyLateFees(
   const { data: overdueInvoices, error: fetchError } = await supabase
     .from('invoices')
     .select('id, invoice_number, amount_due, due_date, status, metadata')
-    .eq('status', 'overdue')
+    .in('status', ['unpaid', 'partially_paid'])
     .lt('due_date', cutoffDateStr)
     .order('due_date', { ascending: true });
 

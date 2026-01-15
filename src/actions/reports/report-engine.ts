@@ -508,7 +508,7 @@ async function generateInvoiceAging(
         house_number
       )
     `)
-    .in('status', ['unpaid', 'partially_paid', 'overdue']);
+    .in('status', ['unpaid', 'partially_paid']);
 
   if (error) {
     console.error('Error fetching invoices for aging:', error);
@@ -708,7 +708,7 @@ async function generateDebtorsReport(
         street:streets (name)
       )
     `)
-    .in('status', ['unpaid', 'partially_paid', 'overdue']);
+    .in('status', ['unpaid', 'partially_paid']);
 
   if (error) {
     console.error('Error fetching invoices for debtors report:', error);

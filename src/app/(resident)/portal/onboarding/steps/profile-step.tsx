@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { User, Phone, Mail, Loader2, Check, AlertCircle } from 'lucide-react';
 import { useResident, useUpdateResident } from '@/hooks/use-residents';
-import { useUser } from '@/lib/auth/auth-context';
+import { useAuth } from '@/lib/auth/auth-provider';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -31,7 +31,7 @@ interface ProfileStepProps {
 }
 
 export function ProfileStep({ onNext, onBack }: ProfileStepProps) {
-    const { user } = useUser();
+    const { user } = useAuth();
     const { data: resident, isLoading: isLoadingResident } = useResident(user?.resident_id || undefined);
     const updateResident = useUpdateResident();
     const [isSubmitting, setIsSubmitting] = useState(false);

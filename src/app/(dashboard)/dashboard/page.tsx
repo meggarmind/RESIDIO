@@ -17,8 +17,8 @@ import { InvoiceDistributionCard } from '@/components/dashboard/invoice-distribu
 import { RecentActivityCard } from '@/components/dashboard/recent-activity-card';
 import { CronHealthCard } from '@/components/dashboard/cron-health-card';
 
-// Modern Theme Dashboard Components
-import { ModernGreeting } from '@/components/dashboard/modern-greeting';
+import { ContextualGreeting } from '@/components/dashboard/contextual-greeting';
+import { SmartSuggestions } from '@/components/dashboard/smart-suggestions';
 import { ModernStatsCards } from '@/components/dashboard/modern-stats-cards';
 import { ModernFinancialHealth } from '@/components/dashboard/modern-financial-health';
 import { ModernPendingPayments } from '@/components/dashboard/modern-pending-payments';
@@ -146,19 +146,22 @@ export default function DashboardPage() {
 
             {/* Welcome Header - Conditional rendering based on theme */}
             {isModernTheme ? (
-                <ModernGreeting name={firstName} />
+                <ContextualGreeting name={firstName} />
             ) : (
                 <WelcomeHeader name={firstName} />
             )}
 
             {/* Stats Row - Conditional rendering based on theme */}
             {isModernTheme ? (
-                <ModernStatsCards
-                    financialHealth={stats?.financialHealth ?? null}
-                    quickStats={stats?.quickStats ?? null}
-                    unpaidCount={stats?.invoiceDistribution?.unpaid ?? 0}
-                    isLoading={isLoading}
-                />
+                <>
+                    <ModernStatsCards
+                        financialHealth={stats?.financialHealth ?? null}
+                        quickStats={stats?.quickStats ?? null}
+                        unpaidCount={stats?.invoiceDistribution?.unpaid ?? 0}
+                        isLoading={isLoading}
+                    />
+                    {!isLoading && <SmartSuggestions />}
+                </>
             ) : (
                 <QuickStatsCard
                     quickStats={stats?.quickStats ?? null}

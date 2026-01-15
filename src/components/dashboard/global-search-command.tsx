@@ -17,16 +17,21 @@ import {
   Shield,
   FileText,
   Search,
+  Plus,
+  Zap,
+  FilePlus,
+  UserPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
+import { useOS } from '@/hooks/use-os';
 
 interface SearchResult {
   id: string;
   title: string;
   subtitle?: string;
   href: string;
-  type: 'resident' | 'house' | 'payment' | 'security' | 'document';
+  type: 'resident' | 'house' | 'payment' | 'security' | 'document' | 'action';
 }
 
 interface GlobalSearchCommandProps {
@@ -40,6 +45,7 @@ const typeIcons = {
   payment: CreditCard,
   security: Shield,
   document: FileText,
+  action: Zap,
 };
 
 const typeLabels = {
@@ -48,12 +54,46 @@ const typeLabels = {
   payment: 'Payments',
   security: 'Security Contacts',
   document: 'Documents',
+  action: 'Quick Actions',
 };
+
+// Static Quick Actions Definition
+const QUICK_ACTIONS: SearchResult[] = [
+  {
+    id: 'add-resident',
+    title: 'Add New Resident',
+    subtitle: 'Register a new resident to a property',
+    href: '/residents/new',
+    type: 'action',
+  },
+  {
+    id: 'create-invoice',
+    title: 'Create Invoice',
+    subtitle: 'Generate a new invoice for a resident',
+    href: '/billing/invoices/new',
+    type: 'action',
+  },
+  {
+    id: 'add-house',
+    title: 'Add House',
+    subtitle: 'Add a new property to the estate',
+    href: '/houses/new', // Assumes this route exists or modal trigger
+    type: 'action',
+  },
+  {
+    id: 'security-log',
+    title: 'View Security Log',
+    subtitle: 'Check recent security activity',
+    href: '/security/log',
+    type: 'action',
+  },
+];
 
 /**
  * Global Search Command Palette
  *
  * Provides real-time search across multiple modules:
+ * - Quick Actions (static)
  * - Residents (by name, phone, email)
  * - Properties (by house number, street, type)
  * - Payments (by reference, amount)
@@ -61,17 +101,26 @@ const typeLabels = {
  * - Documents (by title)
  *
  * Uses cmdk for keyboard navigation and Modern theme styling.
+ * Adapts shortcuts based on OS (Cmd+K vs Ctrl+K).
  */
 export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandProps) {
   const router = useRouter();
+  const os = useOS();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Debounced search
   useEffect(() => {
+    // If empty query, show Quick Actions only? Or show nothing?
+    // Let's show nothing initially, or maybe recent searches in future.
     if (!query || query.length < 2) {
-      setResults([]);
+      if (query.length === 0) {
+        // Show Quick Actions by default when empty
+        setResults(QUICK_ACTIONS);
+      } else {
+        setResults([]);
+      }
       return;
     }
 
@@ -81,7 +130,14 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
         const supabase = createClient();
         const searchResults: SearchResult[] = [];
 
-        // Search residents
+        // 1. Filter Quick Actions locally
+        const matchedActions = QUICK_ACTIONS.filter(action =>
+          action.title.toLowerCase().includes(query.toLowerCase()) ||
+          (action.subtitle && action.subtitle.toLowerCase().includes(query.toLowerCase()))
+        );
+        searchResults.push(...matchedActions);
+
+        // 2. Search Residents
         const { data: residents } = await supabase
           .from('residents')
           .select('id, first_name, last_name, phone, email')
@@ -100,7 +156,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
           );
         }
 
-        // Search houses
+        // 3. Search Houses
         const { data: houses } = await supabase
           .from('houses')
           .select('id, house_number, street_id, streets(name)')
@@ -127,7 +183,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
           );
         }
 
-        // Search payments
+        // 4. Search Payments
         const { data: payments } = await supabase
           .from('payments')
           .select('id, payment_reference, amount')
@@ -146,7 +202,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
           );
         }
 
-        // Search security contacts
+        // 5. Search Security Contacts
         const { data: contacts } = await supabase
           .from('security_contacts')
           .select('id, name, phone')
@@ -165,7 +221,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
           );
         }
 
-        // Search documents
+        // 6. Search Documents
         const { data: documents } = await supabase
           .from('documents')
           .select('id, title, category')
@@ -197,6 +253,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
   }, [query]);
 
   // Group results by type
+  // Order: Actions first, then others
   const groupedResults = results.reduce<Record<string, SearchResult[]>>(
     (acc, result) => {
       if (!acc[result.type]) {
@@ -208,6 +265,9 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
     {}
   );
 
+  // Custom order for groups
+  const groupOrder = ['action', 'resident', 'house', 'payment', 'security', 'document'];
+
   // Handle selection
   const handleSelect = useCallback(
     (href: string) => {
@@ -218,7 +278,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
     [router, onOpenChange]
   );
 
-  // Close on Escape
+  // Close on Escape & Open on Shortcut
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
@@ -231,10 +291,12 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
     return () => document.removeEventListener('keydown', down);
   }, [open, onOpenChange]);
 
+  const shortcutKey = os === 'mac' ? '⌘' : 'Ctrl';
+
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput
-        placeholder="Search residents, properties, payments..."
+        placeholder="Search or type a command..."
         value={query}
         onValueChange={setQuery}
         className="border-none focus:ring-0"
@@ -251,13 +313,18 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
           <CommandEmpty>No results found for &quot;{query}&quot;</CommandEmpty>
         )}
 
-        {!isLoading && query.length < 2 && (
+        {/* Start Helper State */}
+        {!isLoading && query.length < 2 && results.length === 0 && (
           <div className="py-6 text-center text-sm text-muted-foreground">
             Type at least 2 characters to search
           </div>
         )}
 
-        {Object.entries(groupedResults).map(([type, items]) => {
+        {/* Render groups in specific order */}
+        {groupOrder.map((type) => {
+          const items = groupedResults[type];
+          if (!items || items.length === 0) return null;
+
           const Icon = typeIcons[type as keyof typeof typeIcons];
           const label = typeLabels[type as keyof typeof typeLabels];
 
@@ -290,9 +357,10 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
       <div className="border-t px-4 py-3 text-xs text-muted-foreground flex items-center justify-between">
         <span>Navigate with ↑↓ arrows, select with Enter</span>
         <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-          <span className="text-xs">⌘</span>K
+          <span className="min-w-[12px] text-center">{shortcutKey}</span>K
         </kbd>
       </div>
     </CommandDialog>
   );
 }
+

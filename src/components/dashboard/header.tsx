@@ -17,6 +17,7 @@ import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import { NotificationBell } from '@/components/notifications';
 import { GlobalSearchCommand } from './global-search-command';
 import { AdminBreadcrumb } from './admin-breadcrumb';
+import { useAiAssistant } from '@/hooks/use-ai-assistant';
 import { cn } from '@/lib/utils';
 import {
   Menu,
@@ -40,6 +41,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { profile, signOut, residentId, isSigningOut } = useAuth();
+  const { isDismissed, restoreAssistant } = useAiAssistant();
   const [mounted, setMounted] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -216,6 +218,18 @@ export function Header({ onMenuClick }: HeaderProps) {
                             <Home className="mr-2 h-4 w-4" />
                             Resident Portal
                           </Link>
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    {isDismissed && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onSelect={restoreAssistant}
+                          className="cursor-pointer text-accent-primary"
+                        >
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Show AI Assistant
                         </DropdownMenuItem>
                       </>
                     )}

@@ -169,7 +169,7 @@ async function fetchFinancialHealth(
     const { data: overdueInvoices } = await supabase
         .from('invoices')
         .select('amount_due, amount_paid')
-        .in('status', ['unpaid', 'partially_paid', 'overdue'])
+        .in('status', ['unpaid', 'partially_paid'])
         .lt('due_date', new Date().toISOString().split('T')[0]);
 
     const overdueAmount = overdueInvoices?.reduce(
@@ -226,11 +226,11 @@ async function fetchFinancialHealth(
 async function fetchInvoiceDistribution(supabase: any): Promise<InvoiceStatusDistribution> {
     // Use parallel COUNT queries instead of fetching all invoices
     // This is ~100x faster for large invoice tables
-    const [unpaid, paid, partiallyPaid, overdue, voided] = await Promise.all([
+    const [unpaid, paid, partiallyPaid, overdueData, voided] = await Promise.all([
         supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'unpaid'),
         supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'paid'),
         supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'partially_paid'),
-        supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'overdue'),
+        supabase.from('invoices').select('*', { count: 'exact', head: true }).in('status', ['unpaid', 'partially_paid']).lt('due_date', new Date().toISOString().split('T')[0]),
         supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'void'),
     ]);
 
@@ -238,7 +238,7 @@ async function fetchInvoiceDistribution(supabase: any): Promise<InvoiceStatusDis
         unpaid: unpaid.count ?? 0,
         paid: paid.count ?? 0,
         partiallyPaid: partiallyPaid.count ?? 0,
-        overdue: overdue.count ?? 0,
+        overdue: overdueData.count ?? 0,
         void: voided.count ?? 0
     };
 }

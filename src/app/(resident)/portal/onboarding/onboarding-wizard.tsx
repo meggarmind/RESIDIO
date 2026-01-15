@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence } from 'framer-motion';
-import { useUser } from '@/lib/auth/auth-context';
+import { useAuth } from '@/lib/auth/auth-provider';
 import { useResident } from '@/hooks/use-residents';
 import { useSetUserThemeOverride } from '@/hooks/use-theme-preferences';
 import { useVisualTheme } from '@/contexts/visual-theme-context';
@@ -130,13 +130,13 @@ interface OnboardingWizardProps {
 export function OnboardingWizard({ estateTheme }: OnboardingWizardProps) {
     const router = useRouter();
     const [currentStep, setCurrentStep] = useState(STEPS.THEME);
-    const { user } = useUser();
+    const { residentId } = useAuth();
 
     // Fetch resident to check role (for household step skipping)
-    const { data: resident } = useResident(user?.resident_id || undefined);
+    const { data: resident } = useResident(residentId || undefined);
 
     // Determine if user is primary (can add household members)
-    const isPrimary = resident?.houses?.some(h => h.is_primary) ?? false;
+    const isPrimary = resident?.resident_houses?.some(h => h.is_primary) ?? false;
 
     const nextStep = () => {
         if (currentStep === STEPS.PROFILE && !isPrimary) {

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Access Diagnostic Tool</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .info-box {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border-left: 4px solid #2196F3;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px 10px 0;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2196F3;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Portal Access Diagnostic Tool</h1>
+        <p>This tool will check your authentication status and help diagnose why /portal is not loading.</p>
+        
+        <button onclick="runDiagnostic()">Run Diagnostic</button>
+        <button onclick="window.location.href='/login'">Go to Login</button>
+        <button onclick="window.location.href='/portal'">Try Portal</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+        const supabaseUrl = 'https://kzugmyjjqttardhfejzc.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6dWdteWpqcXR0YXJkaGZlanpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyMzUzOTMsImV4cCI6MjA4MDgxMTM5M30.DPk_x5EHj3AoHaORGbUMwH7GxPBK0rOMbOmVfn2RZuU';
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+        window.runDiagnostic = async function() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="status"><div class="loading"></div> Running diagnostic...</div>';
+
+            try {
+                // Check authentication
+                const { data: { user }, error: authError } = await supabase.auth.getUser();
+                
+                if (authError || !user) {
+                    resultsDiv.innerHTML = `
+                        <div class="status error">
+                            ❌ <strong>Not Authenticated</strong>
+                        </div>
+                        <div class="info-box">
+                            <h3>Solution: Log In</h3>
+                            <p>You need to log in to access the portal.</p>
+                            <ol>
+                                <li>Click the "Go to Login" button above</li>
+                                <li>Enter your credentials</li>
+                                <li>After login, you'll be redirected to /portal</li>
+                            </ol>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // User is authenticated, check profile
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('id, email, role_id, resident_id, role')
+                    .eq('id', user.id)
+                    .single();
+
+                if (profileError || !profile) {
+                    resultsDiv.innerHTML = `
+                        <div class="status error">
+                            ❌ <strong>Profile Not Found</strong>
+                        </div>
+                        <div class="info-box">
+                            <p>Your user account exists but has no profile record.</p>
+                            <p>Contact an administrator to set up your profile.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Check resident_id
+                const hasResidentId = profile.resident_id !== null;
+                const hasRoleId = profile.role_id !== null;
+
+                let statusHtml = `
+                    <div class="status ${hasResidentId ? 'success' : 'warning'}">
+                        ${hasResidentId ? '✅' : '⚠️'} <strong>Authentication Status</strong>
+                    </div>
+                    <div class="info-box">
+                        <h3>Your Profile Details:</h3>
+                        <pre>${JSON.stringify({
+                            email: profile.email,
+                            role: profile.role,
+                            has_admin_role: hasRoleId,
+                            has_resident_id: hasResidentId,
+                            can_access_portal: hasResidentId
+                        }, null, 2)}</pre>
+                    </div>
+                `;
+
+                if (!hasResidentId) {
+                    statusHtml += `
+                        <div class="status error">
+                            ❌ <strong>Cannot Access Portal</strong>
+                        </div>
+                        <div class="info-box">
+                            <h3>Problem: Missing resident_id</h3>
+                            <p>Your profile does not have a <code>resident_id</code>, which is required to access the portal.</p>
+                            
+                            <h4>Solution Options:</h4>
+                            ${hasRoleId ? `
+                                <p><strong>Option 1: Use Impersonation Mode (Admin Only)</strong></p>
+                                <p>Since you're an admin, you can access the portal by impersonating a resident:</p>
+                                <button onclick="window.location.href='/portal?impersonate=true'">
+                                    Access Portal (Impersonation Mode)
+                                </button>
+                                <br><br>
+                            ` : ''}
+                            <p><strong>Option ${hasRoleId ? '2' : '1'}: Link Your Account to a Resident</strong></p>
+                            <ol>
+                                <li>Go to <a href="https://supabase.com/dashboard/project/kzugmyjjqttardhfejzc/editor" target="_blank">Supabase Dashboard</a></li>
+                                <li>Navigate to Table Editor → <code>residents</code> table</li>
+                                <li>Find or create a resident record and copy the <code>id</code></li>
+                                <li>Go to Table Editor → <code>profiles</code> table</li>
+                                <li>Find your profile (email: ${profile.email})</li>
+                                <li>Edit the <code>resident_id</code> field and paste the resident ID</li>
+                                <li>Save and refresh this page</li>
+                            </ol>
+                        </div>
+                    `;
+                } else {
+                    statusHtml += `
+                        <div class="status success">
+                            ✅ <strong>Portal Access Granted!</strong>
+                        </div>
+                        <div class="info-box">
+                            <p>Your account is properly configured. You should be able to access the portal.</p>
+                            <button onclick="window.location.href='/portal'">Go to Portal</button>
+                        </div>
+                    `;
+                }
+
+                resultsDiv.innerHTML = statusHtml;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ <strong>Error Running Diagnostic</strong>
+                    </div>
+                    <div class="info-box">
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        };
+    </script>
+</body>
+</html>

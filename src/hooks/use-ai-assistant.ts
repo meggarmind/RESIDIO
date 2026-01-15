@@ -17,6 +17,15 @@ export function useAiAssistant() {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [isTyping, setIsTyping] = useState(false);
+    const [isDismissed, setIsDismissed] = useState(false);
+
+    // Load dismissal state from localStorage
+    useEffect(() => {
+        const dismissed = localStorage.getItem('ai-assistant-dismissed');
+        if (dismissed === 'true') {
+            setIsDismissed(true);
+        }
+    }, []);
 
     const estateName = settings?.find(s => s.key === 'estate_name')?.value as string || 'Estate';
     const assistantNameSetting = settings?.find(s => s.key === 'assistant_name')?.value as string;
@@ -24,6 +33,16 @@ export function useAiAssistant() {
 
     const toggleOpen = useCallback(() => {
         setIsOpen(prev => !prev);
+    }, []);
+
+    const dismissAssistant = useCallback(() => {
+        setIsDismissed(true);
+        localStorage.setItem('ai-assistant-dismissed', 'true');
+    }, []);
+
+    const restoreAssistant = useCallback(() => {
+        setIsDismissed(false);
+        localStorage.removeItem('ai-assistant-dismissed');
     }, []);
 
     const sendMessage = useCallback(async (text: string) => {
@@ -69,6 +88,9 @@ export function useAiAssistant() {
     return {
         isOpen,
         toggleOpen,
+        isDismissed,
+        dismissAssistant,
+        restoreAssistant,
         messages,
         sendMessage,
         isTyping,
