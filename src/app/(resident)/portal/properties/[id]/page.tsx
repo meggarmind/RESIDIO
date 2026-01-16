@@ -31,6 +31,7 @@ import { PropertyVisitorActivityCard } from '@/components/resident-portal/proper
 import { PropertyDocumentsCard } from '@/components/resident-portal/property-documents-card';
 import { PropertyQuickActionsMenu } from '@/components/resident-portal/property-quick-actions-menu';
 import { PropertyPaymentHistoryTimeline } from '@/components/resident-portal/property-payment-history-timeline';
+import { MoveOutWizard } from '@/components/residents/move-out-wizard';
 import type { ResidentRole, Invoice } from '@/types/database';
 import { isPrimaryRole } from '@/lib/validators/resident';
 
@@ -47,6 +48,7 @@ export default function PropertyDetailPage({ params }: PropertyDetailPageProps) 
   const queryClient = useQueryClient();
   const [showMemberForm, setShowMemberForm] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
+  const [showMoveOutWizard, setShowMoveOutWizard] = useState(false);
 
   // Fetch existing data
   const { data: resident, isLoading: residentLoading } = useResident(residentId || undefined);
@@ -232,6 +234,8 @@ export default function PropertyDetailPage({ params }: PropertyDetailPageProps) 
             canManage={canManageHousehold}
             isLoading={false}
             onAddMember={() => setShowMemberForm(true)}
+            onMoveOut={() => setShowMoveOutWizard(true)}
+            isTenant={userRole === 'tenant'}
           />
 
           {/* Payment History (Tier 2) */}
@@ -316,6 +320,18 @@ export default function PropertyDetailPage({ params }: PropertyDetailPageProps) 
         walletBalance={wallet?.data?.balance || 0}
         onSuccess={handlePaymentSuccess}
       />
+      {/* Move Out Wizard */}
+      {userRole === 'tenant' && (
+        <MoveOutWizard
+          open={showMoveOutWizard}
+          onOpenChange={setShowMoveOutWizard}
+          residentId={residentId || ''}
+          residentName={resident ? `${resident.first_name} ${resident.last_name}` : ''}
+          houseId={houseId}
+          houseAddress={house ? `${house.short_name || house.house_number}, ${house.street?.name}` : ''}
+          isSelfService={true}
+        />
+      )}
     </div>
   );
 }

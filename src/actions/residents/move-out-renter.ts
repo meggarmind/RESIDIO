@@ -8,6 +8,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { getResidentIndebtedness } from '@/actions/billing/get-invoices';
 import { getOrCreateWallet } from '@/actions/billing/wallet';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
+import { sendEmail } from '@/lib/email/send-email';
 import type { ResidentRole } from '@/types/database';
 
 export type MoveOutDestination = 'leaving_estate' | 'moving_within_estate';
@@ -445,6 +446,27 @@ export async function initiateRenterMoveOut(
     }
   }
 
+  // Send email to the renter
+  if (resident.email) {
+    await sendEmail({
+      to: {
+        email: resident.email,
+        name: `${resident.first_name} ${resident.last_name}`,
+        residentId,
+      },
+      subject: 'Move-Out Clearance Certificate',
+      emailType: 'clearance_certificate',
+      react: null, // Would normally use a react template
+      metadata: {
+        certificateNumber,
+        validUntil: certificate.validUntil,
+        houseAddress,
+      },
+    }).catch(err => {
+      console.error('[moveOutRenter] Email failed:', err);
+    });
+  }
+
   // Audit log
   await logAudit({
     action: 'CREATE',
@@ -765,10 +787,10 @@ export async function getPendingMoveOut(
     destination: metadata?.destination || 'leaving_estate',
     destinationHouse: metadata?.destination_house_id
       ? {
-          id: metadata.destination_house_id,
-          address: '', // Would need another query
-          role: metadata.destination_role,
-        }
+        id: metadata.destination_house_id,
+        address: '', // Would need another query
+        role: metadata.destination_role,
+      }
       : null,
     certificateNumber: metadata?.certificate_number || '',
     status: isExpired ? 'expired' : 'pending_confirmation',

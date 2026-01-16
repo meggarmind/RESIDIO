@@ -44,21 +44,43 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
   const supabase = await createServerSupabaseClient();
   const { search, status, verification, contact_verification, type, street_id, house_id, resident_role, page = 1, limit = 20 } = params;
 
-  let query = supabase
-    .from('residents')
-    .select(`
+  // Join with resident_houses and houses for filtering
+  // If we filter by house-related fields, we use inner join (via !inner)
+  // to filter the parent residents records.
+  let selectQuery = `
+    *,
+    resident_houses!resident_id(
       *,
-      resident_houses!resident_id(
+      house:houses(
         *,
-        house:houses(
+        street:streets(*),
+        house_type:house_types(*)
+      )
+    )
+  `;
+
+  // Determine if we need to use inner join for filtering
+  const needsInnerJoin = !!(street_id || house_id || resident_role);
+  if (needsInnerJoin) {
+    // Use resident_id!inner to specify the FK and enable inner join filtering
+    selectQuery = `
+      *,
+      resident_houses!resident_id!inner(
+        *,
+        house:houses!inner(
           *,
           street:streets(*),
           house_type:house_types(*)
         )
       )
-    `, { count: 'exact' });
+    `;
+  }
 
-  // Apply filters
+  let query = supabase
+    .from('residents')
+    .select(selectQuery, { count: 'exact' });
+
+  // Apply basic filters
   if (search) {
     const sanitized = sanitizeSearchInput(search);
     query = query.or(`first_name.ilike.%${sanitized}%,last_name.ilike.%${sanitized}%,resident_code.eq.${search},phone_primary.ilike.%${sanitized}%`);
@@ -73,6 +95,26 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
     query = query.eq('resident_type', type);
   }
 
+  // Apply house-related filters at database level
+  if (street_id) {
+    query = query.eq('resident_houses.house.street_id', street_id)
+      .eq('resident_houses.is_active', true);
+  }
+
+  if (house_id) {
+    query = query.eq('resident_houses.house_id', house_id)
+      .eq('resident_houses.is_active', true);
+  }
+
+  if (resident_role && resident_role.length > 0) {
+    query = query.in('resident_houses.resident_role', resident_role)
+      .eq('resident_houses.is_active', true);
+  }
+
+  // Filter by contact verification status (This one depends on multiple fields and might still need JS filtering or complex DB logic)
+  // For now, we'll keep it as JS filtering but we should warn that it affects pagination
+  // UNLESS we calculate it in a view or use a more complex query.
+
   // Pagination
   const from = (page - 1) * limit;
   const to = from + limit - 1;
@@ -80,30 +122,9 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
 
   const { data, error, count } = await query;
 
-  // If filtering by street or house, we need to filter the results
-  let filteredData = (data as ResidentWithHouses[]) ?? [];
+  let filteredData = (data as unknown as ResidentWithHouses[]) ?? [];
 
-  if (street_id) {
-    filteredData = filteredData.filter(resident =>
-      resident.resident_houses?.some(rh => rh.house?.street_id === street_id && rh.is_active)
-    );
-  }
-
-  if (house_id) {
-    filteredData = filteredData.filter(resident =>
-      resident.resident_houses?.some(rh => rh.house_id === house_id && rh.is_active)
-    );
-  }
-
-  if (resident_role && resident_role.length > 0) {
-    filteredData = filteredData.filter(resident =>
-      resident.resident_houses?.some(rh =>
-        resident_role.includes(rh.resident_role) && rh.is_active
-      )
-    );
-  }
-
-  // Filter by contact verification status
+  // Filter by contact verification status (still JS-based as it involves logic)
   if (contact_verification) {
     filteredData = filteredData.filter(resident => {
       const status = getContactVerificationStatus(resident);

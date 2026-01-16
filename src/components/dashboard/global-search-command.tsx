@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   CommandDialog,
   CommandEmpty,
@@ -156,12 +157,43 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
           );
         }
 
-        // 3. Search Houses
-        const { data: houses } = await supabase
-          .from('houses')
-          .select('id, house_number, street_id, streets(name)')
-          .or(`house_number.ilike.%${query}%`)
-          .limit(5);
+        // 3. Search Houses (by house_number or street name)
+        // Run two queries in parallel for more reliable results
+        const [housesByNumberResult, streetsResult] = await Promise.all([
+          // Query 1: Search by house_number
+          supabase
+            .from('houses')
+            .select('id, house_number, street_id, streets(name)')
+            .ilike('house_number', `%${query}%`)
+            .limit(5),
+          // Query 2: Find streets matching the query
+          supabase
+            .from('streets')
+            .select('id')
+            .ilike('name', `%${query}%`)
+            .limit(10),
+        ]);
+
+        const housesByNumber = housesByNumberResult.data || [];
+        const matchingStreetIds = (streetsResult.data || []).map(s => s.id);
+
+        // If we found matching streets, also get houses on those streets
+        let housesByStreet: typeof housesByNumber = [];
+        if (matchingStreetIds.length > 0) {
+          const { data } = await supabase
+            .from('houses')
+            .select('id, house_number, street_id, streets(name)')
+            .in('street_id', matchingStreetIds)
+            .limit(5);
+          housesByStreet = data || [];
+        }
+
+        // Merge and deduplicate results
+        const houseMap = new Map<string, (typeof housesByNumber)[number]>();
+        [...housesByNumber, ...housesByStreet].forEach(h => {
+          if (!houseMap.has(h.id)) houseMap.set(h.id, h);
+        });
+        const houses = Array.from(houseMap.values()).slice(0, 5);
 
         if (houses) {
           searchResults.push(
@@ -302,12 +334,44 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
         className="border-none focus:ring-0"
       />
       <CommandList className="max-h-[400px]">
-        {isLoading && (
-          <div className="py-6 text-center text-sm text-muted-foreground">
-            <Search className="inline-block h-4 w-4 animate-pulse mr-2" />
-            Searching...
-          </div>
-        )}
+        <AnimatePresence mode="wait">
+          {isLoading && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="py-8 flex flex-col items-center justify-center gap-4"
+            >
+              {/* Apple-style loading dots */}
+              <div className="flex items-center gap-1.5">
+                {[0, 1, 2].map((i) => (
+                  <motion.div
+                    key={i}
+                    className="w-2 h-2 rounded-full bg-primary/60"
+                    animate={{
+                      scale: [1, 1.3, 1],
+                      opacity: [0.4, 1, 0.4],
+                    }}
+                    transition={{
+                      duration: 0.8,
+                      repeat: Infinity,
+                      delay: i * 0.15,
+                      ease: 'easeInOut',
+                    }}
+                  />
+                ))}
+              </div>
+              <motion.span
+                className="text-sm text-muted-foreground"
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                Searching across workspace...
+              </motion.span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {!isLoading && query.length >= 2 && results.length === 0 && (
           <CommandEmpty>No results found for &quot;{query}&quot;</CommandEmpty>

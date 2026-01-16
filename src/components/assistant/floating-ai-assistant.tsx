@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MessageSquare, X, Minimize2, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { EstateAssistant } from '@/components/layout/estate-ai-assistant';
+import { EstateAiAssistant } from '@/components/layout/estate-ai-assistant';
 import { cn } from '@/lib/utils';
 
 export function FloatingAiAssistant() {
@@ -40,7 +40,7 @@ export function FloatingAiAssistant() {
                         </div>
 
                         <div className="h-[calc(100%-48px)]">
-                            <EstateAssistant />
+                            <EstateAiAssistant />
                         </div>
                     </motion.div>
                 )}

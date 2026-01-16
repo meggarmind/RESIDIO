@@ -40,7 +40,7 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const { profile, signOut, residentId, isSigningOut } = useAuth();
+  const { profile, signOut, residentId, isSigningOut, isLoading } = useAuth();
   const { isDismissed, restoreAssistant } = useAiAssistant();
   const [mounted, setMounted] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -181,13 +181,21 @@ export function Header({ onMenuClick }: HeaderProps) {
                           <span className="text-xs text-muted-foreground leading-none mb-1">
                             {getGreeting()},
                           </span>
-                          <span className="text-sm font-semibold leading-none">
-                            {profile?.full_name?.split(' ')[0]}
-                          </span>
+                          {isLoading || !profile?.full_name ? (
+                            <span className="h-4 w-16 bg-muted animate-pulse rounded" />
+                          ) : (
+                            <span className="text-sm font-semibold leading-none">
+                              {profile.full_name.split(' ')[0]}
+                            </span>
+                          )}
                         </div>
                         <Avatar className="h-9 w-9 border-2 border-background shadow-sm">
                           <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-                            {profile?.full_name?.charAt(0) || '?'}
+                            {isLoading || !profile?.full_name ? (
+                              <span className="h-4 w-4 bg-muted animate-pulse rounded" />
+                            ) : (
+                              profile.full_name.charAt(0)
+                            )}
                           </AvatarFallback>
                         </Avatar>
                       </div>

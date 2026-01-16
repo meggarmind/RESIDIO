@@ -10,6 +10,7 @@ export type EmailType =
   | 'notification'
   | 'admin_alert'
   | 'emergency_broadcast'
+  | 'clearance_certificate'
   | 'test';
 
 export interface EmailRecipient {

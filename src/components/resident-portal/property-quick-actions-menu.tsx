@@ -8,6 +8,7 @@ import {
   UserPlus,
   FolderOpen,
   LayoutGrid,
+  DoorOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -39,6 +40,10 @@ interface PropertyQuickActionsMenuProps {
   isLoading?: boolean;
   /** Handler for Add Member action (overrides default navigation) */
   onAddMember?: () => void;
+  /** Handler for Move Out action */
+  onMoveOut?: () => void;
+  /** Whether user is a tenant (to show move out action) */
+  isTenant?: boolean;
   className?: string;
 }
 
@@ -58,6 +63,8 @@ export function PropertyQuickActionsMenu({
   canManage = false,
   isLoading = false,
   onAddMember,
+  onMoveOut,
+  isTenant = false,
   className,
 }: PropertyQuickActionsMenuProps) {
 
@@ -114,6 +121,14 @@ export function PropertyQuickActionsMenu({
       href: `/portal/documents?house=${houseId}`,
       colorClass: 'text-amber-600 dark:text-amber-400',
       bgClass: 'bg-amber-50 dark:bg-amber-900/20',
+    },
+    {
+      label: 'Move Out',
+      icon: <DoorOpen className="w-5 h-5" />,
+      onClick: onMoveOut,
+      disabled: !isTenant,
+      colorClass: isTenant ? 'text-rose-600 dark:text-rose-400' : 'text-gray-400 dark:text-gray-600',
+      bgClass: isTenant ? 'bg-rose-50 dark:bg-rose-900/20' : 'bg-gray-50 dark:bg-gray-900/20',
     },
   ];
 

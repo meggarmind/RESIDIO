@@ -37,10 +37,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { HouseForm } from '@/components/houses/house-form';
 import { HousePaymentStatus } from '@/components/houses/house-payment-status';
+import { HouseStatsCards } from '@/components/houses/house-stats-cards';
 import { OccupancyBadge, AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { useHouse, useDeleteHouse, useOwnershipHistory } from '@/hooks/use-houses';
 import { useResidents, useAssignHouse, useUnassignHouse, useMoveOutLandlord, useUpdateResidentHouse, useSwapResidentRoles, useTransferOwnership, useRemoveOwnership, usePendingMoveOut, useConfirmRenterMoveOut } from '@/hooks/use-residents';
 import { MoveOutWizard } from '@/components/residents/move-out-wizard';
+import { OwnerMoveOutWizard } from '@/components/residents/owner-move-out-wizard';
 import { Home, Pencil, Trash2, Users, ArrowLeft, Plus, Link2, Loader2, DoorOpen, AlertTriangle, SquarePen, ArrowUp, ArrowRightLeft, History, Calendar, UserMinus, StickyNote } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ResidentRole, ResidentHouse, Resident } from '@/types/database';
@@ -117,6 +119,12 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
 
   // Move Out wizard state (for tenants)
   const [moveOutWizardResident, setMoveOutWizardResident] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  // Owner Move Out wizard state (for owner-occupiers)
+  const [ownerMoveOutWizardResident, setOwnerMoveOutWizardResident] = useState<{
     id: string;
     name: string;
   } | null>(null);
@@ -556,6 +564,14 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
         </div>
       </div>
 
+      {/* House Stats Overview */}
+      <HouseStatsCards
+        occupancyStatus={house.is_occupied ? 'occupied' : 'vacant'}
+        totalResidents={activeResidents.length}
+        pendingDues={0} // Mocked for now, pending backend integration
+        lastInspectionDate="2025-12-01"
+      />
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -758,16 +774,15 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {/* Move Out button for Resident Landlord */}
+                        {/* Move Out button for Resident Landlord - now uses wizard with clearance */}
                         {showMoveOutButton && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setMoveOutDialogResident({
+                            onClick={() => setOwnerMoveOutWizardResident({
                               id: rh.resident.id,
                               name: residentName,
                             })}
-                            disabled={moveOutMutation.isPending}
                           >
                             <DoorOpen className="h-4 w-4 mr-1" />
                             Move Out
@@ -1367,6 +1382,20 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
           residentName={moveOutWizardResident.name}
           houseId={id}
           houseAddress={`${house.short_name || house.house_number}, ${house.street?.name || ''}`}
+          isSelfService={false}
+        />
+      )}
+
+      {/* Owner Move Out Wizard for Owner-Occupiers */}
+      {ownerMoveOutWizardResident && house && (
+        <OwnerMoveOutWizard
+          open={!!ownerMoveOutWizardResident}
+          onOpenChange={(open) => !open && setOwnerMoveOutWizardResident(null)}
+          residentId={ownerMoveOutWizardResident.id}
+          residentName={ownerMoveOutWizardResident.name}
+          houseId={id}
+          houseAddress={`${house.short_name || house.house_number}, ${house.street?.name || ''}`}
+          secondaryResidentCount={secondaryResidents.length}
           isSelfService={false}
         />
       )}
