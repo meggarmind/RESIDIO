@@ -69,7 +69,7 @@ async function validatePdfParsing() {
 
         // Validate data shape and specific rows
         // 1. Check for a known credit/deposit row
-        const depositTx = result.transactions.find(t => t.description.includes('IMAEKE KINGSLEY'));
+        const depositTx = result.transactions.find(t => t.description && t.description.includes('IMAEKE KINGSLEY'));
         if (depositTx) {
             console.log('Validation: Deposit Row (Credit) -> FOUND');
             console.log(`  Row Details: ${depositTx.description} | ${depositTx.amount} | ${depositTx.transactionType}`);
@@ -85,7 +85,7 @@ async function validatePdfParsing() {
         }
 
         // 2. Check for a known debit/withdrawal row
-        const debitTx = result.transactions.find(t => t.description.includes('Electronic Money Transfer Levy'));
+        const debitTx = result.transactions.find(t => t.description && t.description.includes('Electronic Money Transfer Levy'));
         if (debitTx) {
             console.log('Validation: Withdrawal Row (Debit) -> FOUND');
             console.log(`  Row Details: ${debitTx.description} | ${debitTx.amount} | ${debitTx.transactionType}`);

@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { formatAuditLog, type AuditLogEntry } from '@/lib/audit/audit-formatter';
 
 // ─────────────────────────────────────────────────────────────────
 // Enhanced Dashboard Stats Types
@@ -563,42 +564,7 @@ async function fetchRecentActivity(supabase: any): Promise<RecentActivityItem[]>
         .order('created_at', { ascending: false })
         .limit(10);
 
-    auditLogs?.forEach((log: any) => {
-        let type: RecentActivityItem['type'] = 'resident';
-        let description = log.description || `${log.action} ${log.entity_type}`;
-
-        switch (log.entity_type) {
-            case 'payments':
-                type = 'payment';
-                break;
-            case 'invoices':
-                type = 'invoice';
-                break;
-            case 'security_contacts':
-            case 'access_codes':
-                type = 'security';
-                break;
-            case 'bank_statement_imports':
-                type = 'import';
-                break;
-            case 'approval_requests':
-                type = 'approval';
-                break;
-        }
-
-        activity.push({
-            id: log.id,
-            type,
-            action: log.action,
-            description,
-            timestamp: log.created_at,
-            actorName: log.actor?.full_name || undefined,
-            entityName: log.entity_display || undefined,
-            amount: log.new_values?.amount ? Number(log.new_values.amount) : undefined
-        });
-    });
-
-    return activity.slice(0, 8);
+    return (auditLogs || []).map((log: any) => formatAuditLog(log)).slice(0, 8);
 }
 
 async function fetchMonthlyTrends(supabase: any, now: Date): Promise<MonthlyTrend[]> {

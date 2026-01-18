@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 interface PettyCashDashboardProps {
     data: PettyCashMetrics;
     onSnapLog?: (receiptData: any) => void;
+    onTopUp?: () => void;
 }
 
 /**
@@ -19,7 +20,7 @@ interface PettyCashDashboardProps {
  * Manages the "Digital Float" for estate operations.
  * Allows quick top-ups, expense logging, and "Snap & Log" receipt capture.
  */
-export function PettyCashDashboard({ data, onSnapLog }: PettyCashDashboardProps) {
+export function PettyCashDashboard({ data, onSnapLog, onTopUp }: PettyCashDashboardProps) {
     const { totalBalance, metrics, recentTransactions } = data;
     const [isScanning, setIsScanning] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -73,7 +74,7 @@ export function PettyCashDashboard({ data, onSnapLog }: PettyCashDashboardProps)
                     <CardContent>
                         <div className="flex items-baseline justify-between">
                             <div className="text-3xl font-bold">{formatCurrency(totalBalance)}</div>
-                            <Button size="sm" className="gap-2">
+                            <Button size="sm" className="gap-2" onClick={onTopUp}>
                                 <Plus className="h-4 w-4" /> Top Up
                             </Button>
                         </div>

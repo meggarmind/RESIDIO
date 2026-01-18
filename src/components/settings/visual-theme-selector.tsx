@@ -1,18 +1,16 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { getThemesGroupedByCategory } from '@/lib/themes/tweakcn-registry';
+import { getAllThemes } from '@/lib/themes/tweakcn-registry';
 import type { TweakcnTheme } from '@/types/theme';
 
 // Legacy type alias for compatibility
 type VisualTheme = TweakcnTheme;
-type ThemeCategory = 'core' | 'light' | 'dark';
 import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Check, Sparkles, Sun, Moon } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 interface VisualThemeSelectorProps {
   value: string;
@@ -21,18 +19,6 @@ interface VisualThemeSelectorProps {
   allowDefault?: boolean;
   disabled?: boolean;
 }
-
-const categoryLabels: Record<ThemeCategory, string> = {
-  core: 'Core',
-  dark: 'Dark Themes',
-  light: 'Light Themes',
-};
-
-const categoryIcons: Record<ThemeCategory, typeof Sparkles> = {
-  core: Sparkles,
-  dark: Moon,
-  light: Sun,
-};
 
 function ThemeCard({
   theme,
@@ -133,7 +119,7 @@ function ThemeCard({
 /**
  * Visual Theme Selector Component with Live Hover Preview
  *
- * Displays available visual themes in a tabbed grid layout (Core, Light, Dark).
+ * Displays all available visual themes in a grid layout.
  * Hovering over a theme card applies a live preview to the entire application.
  * Supports both admin (estate-wide) and resident (personal override) contexts.
  */
@@ -144,9 +130,8 @@ export function VisualThemeSelector({
   allowDefault = false,
   disabled = false,
 }: VisualThemeSelectorProps) {
-  const groupedThemes = getThemesGroupedByCategory();
+  const allThemes = getAllThemes();
   const { setPreviewThemeId } = useVisualTheme();
-  const [activeTab, setActiveTab] = useState<ThemeCategory>('core');
   const [mobilePreviewId, setMobilePreviewId] = useState<string | null>(null);
 
   // Handle hover preview (desktop)
@@ -177,8 +162,6 @@ export function VisualThemeSelector({
     }
   }, [disabled, mobilePreviewId, onChange, setPreviewThemeId]);
 
-  const categories: ThemeCategory[] = ['core', 'light', 'dark'];
-
   return (
     <RadioGroup value={value} onValueChange={onChange} disabled={disabled}>
       <div className="space-y-4">
@@ -206,55 +189,22 @@ export function VisualThemeSelector({
           </div>
         )}
 
-        {/* Theme Category Tabs */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as ThemeCategory)}>
-          <TabsList className="grid w-full grid-cols-3">
-            {categories.map((category) => {
-              const Icon = categoryIcons[category];
-              const count = groupedThemes[category].length;
-              return (
-                <TabsTrigger
-                  key={category}
-                  value={category}
-                  className="flex items-center gap-2"
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{categoryLabels[category]}</span>
-                  <span className="text-xs text-muted-foreground">({count})</span>
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-
-          {categories.map((category) => {
-            const themes = groupedThemes[category];
-            return (
-              <TabsContent key={category} value={category} className="mt-4">
-                {themes.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No themes available in this category
-                  </div>
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {themes.map((theme) => (
-                      <ThemeCard
-                        key={theme.id}
-                        theme={theme}
-                        isSelected={value === theme.id}
-                        isPreview={mobilePreviewId === theme.id && value !== theme.id}
-                        disabled={disabled}
-                        onHoverStart={() => handleHoverStart(theme.id)}
-                        onHoverEnd={handleHoverEnd}
-                        onTap={() => handleTap(theme.id)}
-                        mobilePreviewActive={mobilePreviewId === theme.id && value !== theme.id}
-                      />
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
-            );
-          })}
-        </Tabs>
+        {/* Themes Grid */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {allThemes.map((theme) => (
+            <ThemeCard
+              key={theme.id}
+              theme={theme}
+              isSelected={value === theme.id}
+              isPreview={mobilePreviewId === theme.id && value !== theme.id}
+              disabled={disabled}
+              onHoverStart={() => handleHoverStart(theme.id)}
+              onHoverEnd={handleHoverEnd}
+              onTap={() => handleTap(theme.id)}
+              mobilePreviewActive={mobilePreviewId === theme.id && value !== theme.id}
+            />
+          ))}
+        </div>
 
         {/* Mobile Confirm Selection Button */}
         {mobilePreviewId && mobilePreviewId !== value && (

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Palette, Save, Monitor } from 'lucide-react';
+import { Palette, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { VisualThemeSelector } from '@/components/settings/visual-theme-selector';
 import {
@@ -22,42 +22,39 @@ export default function AppearanceSettingsPage() {
   const { data: portalTheme, isLoading: portalLoading } = useEstateDefaultTheme('resident-portal');
   const setPortalTheme = useSetEstateDefaultTheme('resident-portal');
 
-  // Local state for form
-  const [selectedDashboardTheme, setSelectedDashboardTheme] = useState('default');
-  const [selectedPortalTheme, setSelectedPortalTheme] = useState('default');
+  // Local state for form - unified to single selection
+  const [selectedTheme, setSelectedTheme] = useState('default');
   const [isDirty, setIsDirty] = useState(false);
 
   const isLoading = dashboardLoading || portalLoading;
   const isSaving = setDashboardTheme.isPending || setPortalTheme.isPending;
 
   // Load settings when data is fetched
+  // We prioritize dashboard theme as the source of truth if they differ
   useEffect(() => {
     if (dashboardTheme) {
-      setSelectedDashboardTheme(dashboardTheme);
+      setSelectedTheme(dashboardTheme);
+    } else if (portalTheme) {
+      setSelectedTheme(portalTheme);
     }
-  }, [dashboardTheme]);
-
-  useEffect(() => {
-    if (portalTheme) {
-      setSelectedPortalTheme(portalTheme);
-    }
-  }, [portalTheme]);
+  }, [dashboardTheme, portalTheme]);
 
   // Track dirty state
   useEffect(() => {
-    const dashboardChanged = !!(dashboardTheme && selectedDashboardTheme !== dashboardTheme);
-    const portalChanged = !!(portalTheme && selectedPortalTheme !== portalTheme);
-    setIsDirty(dashboardChanged || portalChanged);
-  }, [selectedDashboardTheme, selectedPortalTheme, dashboardTheme, portalTheme]);
+    // Dirty if matches neither dashboard nor portal (should be synced, but check both)
+    const matchesDashboard = dashboardTheme && selectedTheme === dashboardTheme;
+    const matchesPortal = portalTheme && selectedTheme === portalTheme;
+    setIsDirty(!matchesDashboard || !matchesPortal);
+  }, [selectedTheme, dashboardTheme, portalTheme]);
 
   const handleSave = async () => {
     const promises = [];
 
-    // Save dashboard theme if changed
-    if (dashboardTheme && selectedDashboardTheme !== dashboardTheme) {
+    // Save to dashboard theme
+    if (dashboardTheme !== selectedTheme) {
       promises.push(
         new Promise((resolve, reject) => {
-          setDashboardTheme.mutate(selectedDashboardTheme, {
+          setDashboardTheme.mutate(selectedTheme, {
             onSuccess: resolve,
             onError: reject,
           });
@@ -65,11 +62,11 @@ export default function AppearanceSettingsPage() {
       );
     }
 
-    // Save portal theme if changed
-    if (portalTheme && selectedPortalTheme !== portalTheme) {
+    // Save to portal theme
+    if (portalTheme !== selectedTheme) {
       promises.push(
         new Promise((resolve, reject) => {
-          setPortalTheme.mutate(selectedPortalTheme, {
+          setPortalTheme.mutate(selectedTheme, {
             onSuccess: resolve,
             onError: reject,
           });
@@ -85,10 +82,10 @@ export default function AppearanceSettingsPage() {
     try {
       await Promise.all(promises);
       setIsDirty(false);
-      toast.success('Appearance settings saved successfully');
+      toast.success('Global appearance settings saved successfully');
     } catch (error) {
       console.error('Failed to save appearance settings:', error);
-      toast.error('Failed to save some settings');
+      toast.error('Failed to save settings');
     }
   };
 
@@ -98,12 +95,11 @@ export default function AppearanceSettingsPage() {
         <div>
           <h3 className="text-lg font-medium">Appearance Settings</h3>
           <p className="text-sm text-muted-foreground">
-            Configure the visual appearance of the dashboard and resident portal.
+            Configure the visual appearance of the application.
           </p>
         </div>
         <Separator />
         <div className="space-y-6">
-          <Skeleton className="h-64 w-full" />
           <Skeleton className="h-64 w-full" />
         </div>
       </div>
@@ -116,50 +112,27 @@ export default function AppearanceSettingsPage() {
       <div>
         <h3 className="text-lg font-medium">Appearance Settings</h3>
         <p className="text-sm text-muted-foreground">
-          Configure the visual appearance of the dashboard and resident portal.
+          Configure the visual appearance of the application.
         </p>
       </div>
       <Separator />
 
-      {/* Admin Dashboard Theme */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Monitor className="h-5 w-5" />
-            Admin Dashboard Theme
-          </CardTitle>
-          <CardDescription>
-            Choose the default visual theme for the admin dashboard. This affects the color palette,
-            typography, and overall visual style.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <VisualThemeSelector
-            value={selectedDashboardTheme}
-            onChange={setSelectedDashboardTheme}
-            context="admin-dashboard"
-            disabled={isSaving}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Resident Portal Theme */}
+      {/* Global Theme Settings */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Palette className="h-5 w-5" />
-            Resident Portal Theme
+            Global Theme
           </CardTitle>
           <CardDescription>
-            Choose the default visual theme for the resident portal. Residents can override this
-            with their personal preference in their profile settings.
+            Choose the visual theme for the entire estate interface (Admin Dashboard & Resident Portal).
           </CardDescription>
         </CardHeader>
         <CardContent>
           <VisualThemeSelector
-            value={selectedPortalTheme}
-            onChange={setSelectedPortalTheme}
-            context="resident-portal"
+            value={selectedTheme}
+            onChange={setSelectedTheme}
+            context="admin-dashboard" // Context mainly used for preview/class application internally if needed
             disabled={isSaving}
           />
         </CardContent>

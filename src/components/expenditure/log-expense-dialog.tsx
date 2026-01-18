@@ -30,6 +30,9 @@ import {
 } from '@/components/ui/select';
 import { createExpense } from '@/actions/expenses/create-expense';
 import { toast } from 'sonner';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { cn } from '@/lib/utils';
+import { Wallet, Building2, CreditCard } from 'lucide-react';
 
 const expenseSchema = z.object({
     amount: z.string().min(1, 'Amount is required'),
@@ -39,6 +42,17 @@ const expenseSchema = z.object({
     vendor_id: z.string().optional(),
     project_id: z.string().optional(),
     status: z.enum(['pending', 'paid', 'cancelled']),
+    source_type: z.enum(['manual', 'petty_cash', 'bank_import']).default('manual'),
+    payment_method: z.enum(['bank_transfer', 'cash', 'card', 'cheque', 'other']).default('bank_transfer'),
+    petty_cash_account_id: z.string().optional(),
+}).refine((data) => {
+    if (data.source_type === 'petty_cash' && !data.petty_cash_account_id) {
+        return false;
+    }
+    return true;
+}, {
+    message: "Petty cash account is required",
+    path: ["petty_cash_account_id"]
 });
 
 interface LogExpenseDialogProps {
@@ -47,6 +61,7 @@ interface LogExpenseDialogProps {
     vendors: any[];
     categories: any[];
     projects: any[];
+    pettyCashAccounts?: any[];
     onSuccess: (newExpense: any) => void;
     initialData?: Partial<ExpenseFormValues>;
 }
@@ -59,6 +74,9 @@ interface ExpenseFormValues {
     vendor_id?: string;
     project_id?: string;
     status: 'pending' | 'paid' | 'cancelled';
+    source_type: 'manual' | 'petty_cash' | 'bank_import';
+    payment_method: 'bank_transfer' | 'cash' | 'card' | 'cheque' | 'other';
+    petty_cash_account_id?: string;
 }
 
 export function LogExpenseDialog({
@@ -67,6 +85,7 @@ export function LogExpenseDialog({
     vendors,
     categories,
     projects,
+    pettyCashAccounts = [],
     onSuccess,
     initialData
 }: LogExpenseDialogProps) {
@@ -82,11 +101,27 @@ export function LogExpenseDialog({
             vendor_id: initialData?.vendor_id || '',
             project_id: initialData?.project_id || '',
             status: initialData?.status || 'paid',
+            source_type: initialData?.source_type || 'manual',
+            payment_method: initialData?.payment_method || 'bank_transfer',
+            petty_cash_account_id: initialData?.petty_cash_account_id || '',
         },
     });
 
-    // Reset form when initialData changes or dialog opens
-    // This requires a useEffect which we will skip for now as simpler approach works for explicit opens
+    const sourceType = form.watch('source_type');
+
+    // Auto-set payment method based on source
+    useEffect(() => {
+        if (sourceType === 'petty_cash') {
+            form.setValue('payment_method', 'cash');
+            form.setValue('status', 'paid');
+            // If only one petty cash account, auto-select it
+            if (pettyCashAccounts.length === 1) {
+                form.setValue('petty_cash_account_id', pettyCashAccounts[0].id);
+            }
+        } else if (sourceType === 'manual') {
+            form.setValue('payment_method', 'bank_transfer');
+        }
+    }, [sourceType, form, pettyCashAccounts]);
 
     async function onSubmit(data: ExpenseFormValues) {
         setIsSubmitting(true);
@@ -116,6 +151,9 @@ export function LogExpenseDialog({
                 vendor_id: initialData.vendor_id || '',
                 project_id: initialData.project_id || '',
                 status: initialData.status || 'paid',
+                source_type: initialData.source_type || 'manual',
+                payment_method: initialData.payment_method || 'bank_transfer',
+                petty_cash_account_id: initialData.petty_cash_account_id || '',
             });
         }
     }, [open, initialData, form]);
@@ -123,90 +161,161 @@ export function LogExpenseDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                     <DialogTitle>Log Estate Expense</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-4">
+
+                        {/* Source Selection */}
                         <FormField
                             control={form.control}
-                            name="amount"
+                            name="source_type"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Amount</FormLabel>
+                                    <FormLabel>Payment Source</FormLabel>
                                     <FormControl>
-                                        <Input type="number" placeholder="0.00" {...field} />
+                                        <RadioGroup
+                                            onValueChange={field.onChange}
+                                            defaultValue={field.value}
+                                            className="grid grid-cols-2 gap-4"
+                                        >
+                                            <FormItem>
+                                                <FormControl>
+                                                    <RadioGroupItem value="manual" className="peer sr-only" />
+                                                </FormControl>
+                                                <FormLabel className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
+                                                    <Building2 className="mb-3 h-6 w-6" />
+                                                    Bank Transfer / Card
+                                                </FormLabel>
+                                            </FormItem>
+                                            <FormItem>
+                                                <FormControl>
+                                                    <RadioGroupItem value="petty_cash" className="peer sr-only" />
+                                                </FormControl>
+                                                <FormLabel className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer">
+                                                    <Wallet className="mb-3 h-6 w-6" />
+                                                    Petty Cash
+                                                </FormLabel>
+                                            </FormItem>
+                                        </RadioGroup>
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
 
-                        <FormField
-                            control={form.control}
-                            name="category_id"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Category</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select category" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            {categories.map((cat) => (
-                                                <SelectItem key={cat.id} value={cat.id}>
-                                                    {cat.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        {/* Petty Cash Account Selector */}
+                        {sourceType === 'petty_cash' && (
+                            <FormField
+                                control={form.control}
+                                name="petty_cash_account_id"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Paid From</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select petty cash account" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {pettyCashAccounts.map((account) => (
+                                                    <SelectItem key={account.id} value={account.id}>
+                                                        {account.name} (Bal: ₦{account.currentBalance?.toLocaleString()})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
 
-                        <FormField
-                            control={form.control}
-                            name="vendor_id"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Vendor (Optional)</FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="amount"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Amount</FormLabel>
                                         <FormControl>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select vendor" />
-                                            </SelectTrigger>
+                                            <Input type="number" placeholder="0.00" {...field} />
                                         </FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="none">None</SelectItem>
-                                            {vendors.map((vendor) => (
-                                                <SelectItem key={vendor.id} value={vendor.id}>
-                                                    {vendor.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
 
-                        <FormField
-                            control={form.control}
-                            name="expense_date"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Date</FormLabel>
-                                    <FormControl>
-                                        <Input type="date" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                            <FormField
+                                control={form.control}
+                                name="expense_date"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Date</FormLabel>
+                                        <FormControl>
+                                            <Input type="date" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="category_id"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Category</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select category" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {categories.map((cat) => (
+                                                    <SelectItem key={cat.id} value={cat.id}>
+                                                        {cat.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="vendor_id"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Vendor (Optional)</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select vendor" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="none">None</SelectItem>
+                                                {vendors.map((vendor) => (
+                                                    <SelectItem key={vendor.id} value={vendor.id}>
+                                                        {vendor.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
 
                         <FormField
                             control={form.control}
@@ -248,8 +357,32 @@ export function LogExpenseDialog({
                             )}
                         />
 
+                        {sourceType === 'manual' && (
+                            <FormField
+                                control={form.control}
+                                name="status"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Payment Status</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select status" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="paid">Paid</SelectItem>
+                                                <SelectItem value="pending">Pending</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
+
                         <DialogFooter>
-                            <Button type="submit" disabled={isSubmitting}>
+                            <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                                 {isSubmitting ? 'Recording...' : 'Record Expense'}
                             </Button>
                         </DialogFooter>

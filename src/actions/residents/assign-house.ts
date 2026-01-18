@@ -207,6 +207,8 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
     return { data: null, error: 'Resident is already assigned to this house' };
   }
 
+  const today = new Date().toISOString().split('T')[0];
+
   const { data, error } = await supabase
     .from('resident_houses')
     .insert({

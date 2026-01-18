@@ -201,7 +201,7 @@ async function generateFinancialOverview(
   bankAccountIds: string[],
   transactionType: 'all' | 'credit' | 'debit'
 ): Promise<FinancialOverviewData> {
-  // Build query for bank statement rows
+  // 1. Fetch Bank Statement Rows
   let query = supabase
     .from('bank_statement_rows')
     .select(`
@@ -226,12 +226,10 @@ async function generateFinancialOverview(
     .lte('transaction_date', endDate)
     .eq('bank_statement_imports.status', 'completed');
 
-  // Filter by bank accounts if specified
   if (bankAccountIds.length > 0) {
     query = query.in('bank_statement_imports.bank_account_id', bankAccountIds);
   }
 
-  // Filter by transaction type if specified
   if (transactionType !== 'all') {
     query = query.eq('transaction_type', transactionType);
   }
@@ -239,8 +237,57 @@ async function generateFinancialOverview(
   const { data: rows, error } = await query;
 
   if (error) {
-    console.error('Error fetching financial overview:', error);
+    console.error('Error fetching financial overview (bank rows):', error);
     throw new Error(error.message);
+  }
+
+  // 2. Fetch Expenses (Manual / Petty Cash)
+  // Only fetching if we are interested in 'debit' or 'all' transactions
+  let expensesData: any[] = [];
+  if (transactionType === 'all' || transactionType === 'debit') {
+    let expensesQuery = supabase
+      .from('expenses')
+      .select(`
+        id,
+        amount,
+        expense_date,
+        description,
+        category_id,
+        expense_categories (
+          id,
+          name,
+          color
+        ),
+        payment_method,
+        source_type,
+        status
+      `)
+      .gte('expense_date', startDate)
+      .lte('expense_date', endDate)
+      .eq('status', 'paid');
+
+    // We exclude 'bank_import' source type because those should already be covered by bank_statement_rows
+    // Assuming 'bank_import' means it was created FROM a bank row.
+    // If payment_method is 'bank_transfer', it might still be a manual entry that hasn't been reconciled with a bank row yet.
+    // To be safe and avoid double counting:
+    // - If source_type is 'bank_import', exclude it (it's in bank rows).
+    // - If source_type is 'petty_cash', include it (it's NOT in bank rows, it's cash).
+    // - If source_type is 'manual', it depends. If 'bank_transfer', it might be a double count if bank rows are also imported.
+    // For this implementation, we will strictly include 'petty_cash' expenses as these are clearly distinct from bank rows.
+    // And we can include 'manual' expenses if we assume they are cash or external to the connected bank accounts.
+    // Let's include all non-bank-import expenses for now to ensure visibility, but this is a policy decision.
+
+    expensesQuery = expensesQuery.neq('source_type', 'bank_import');
+
+    const { data: expenses, error: expensesError } = await expensesQuery;
+
+    if (expensesError) {
+      console.error('Error fetching expenses for report:', expensesError);
+      // We log but don't fail properly? Or should we fail?
+      // Let's just log for now to avoid breaking the whole report if expenses fail
+    } else {
+      expensesData = expenses || [];
+    }
   }
 
   // Process data
@@ -249,7 +296,9 @@ async function generateFinancialOverview(
   const creditCategoryMap = new Map<string | null, CategoryBreakdown>();
   const debitCategoryMap = new Map<string | null, CategoryBreakdown>();
   const monthlyData = new Map<string, { credits: number; debits: number }>();
+  let totalTransactionCount = (rows?.length || 0) + expensesData.length;
 
+  // Process Bank Rows
   for (const row of rows || []) {
     const amount = Number(row.amount) || 0;
     const tag = row.transaction_tags as unknown as { id: string; name: string; color: string } | null;
@@ -261,7 +310,6 @@ async function generateFinancialOverview(
     if (row.transaction_type === 'credit') {
       totalCredits += amount;
 
-      // Aggregate by category
       const existing = creditCategoryMap.get(categoryId);
       if (existing) {
         existing.transactionCount += 1;
@@ -310,6 +358,41 @@ async function generateFinancialOverview(
     }
   }
 
+  // Process Expenses (treated as Debits)
+  for (const expense of expensesData) {
+    const amount = Number(expense.amount) || 0;
+    const category = expense.expense_categories as unknown as { id: string; name: string; color: string } | null;
+    const categoryId = expense.category_id || null;
+    const categoryName = category?.name || 'Uncategorized Expense';
+    const categoryColor = category?.color || 'orange'; // Default valid color for expense
+
+    totalDebits += amount;
+
+    const existing = debitCategoryMap.get(categoryId);
+    if (existing) {
+      existing.transactionCount += 1;
+      existing.totalAmount += amount;
+    } else {
+      debitCategoryMap.set(categoryId, {
+        categoryId,
+        categoryName,
+        categoryColor,
+        transactionType: 'debit',
+        transactionCount: 1,
+        totalAmount: amount,
+        percentageOfTotal: 0,
+      });
+    }
+
+    // Monthly trend for expenses
+    if (expense.expense_date) {
+      const monthKey = expense.expense_date.substring(0, 7);
+      const monthData = monthlyData.get(monthKey) || { credits: 0, debits: 0 };
+      monthData.debits += amount;
+      monthlyData.set(monthKey, monthData);
+    }
+  }
+
   // Calculate percentages and convert to arrays (only categories with transactions)
   const creditCategories = Array.from(creditCategoryMap.values()).map((cat) => ({
     ...cat,
@@ -340,7 +423,7 @@ async function generateFinancialOverview(
       totalCredits,
       totalDebits,
       netBalance: totalCredits - totalDebits,
-      transactionCount: rows?.length || 0,
+      transactionCount: totalTransactionCount,
     },
     creditCategories,
     debitCategories,

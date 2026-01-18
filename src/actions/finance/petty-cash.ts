@@ -249,6 +249,74 @@ export async function replenishPettyCashAccount(
     return { success: true };
 }
 
+export async function recordCashCollection(
+    accountId: string,
+    amount: number,
+    description: string
+): Promise<{ success: boolean; error?: string }> {
+    const supabase = await createServerSupabaseClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        return { success: false, error: 'Unauthorized' };
+    }
+
+    // Fetch current account
+    const { data: account, error: fetchError } = await supabase
+        .from('petty_cash_accounts')
+        .select('*')
+        .eq('id', accountId)
+        .single();
+
+    if (fetchError || !account) {
+        return { success: false, error: 'Petty cash account not found' };
+    }
+
+    const oldBalance = Number(account.current_balance) || 0;
+    const newBalance = oldBalance + amount;
+
+    // Update the account
+    const { error: updateError } = await supabase
+        .from('petty_cash_accounts')
+        .update({
+            current_balance: newBalance,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', accountId);
+
+    if (updateError) {
+        console.error('Error recording cash collection:', updateError);
+        return { success: false, error: 'Failed to record cash collection' };
+    }
+
+    // Log this collection as an expense with special type/flag or just audit?
+    // User requirement: "track cash positions - monies collected... ability to expend"
+    // Ideally we should have a transaction log. For now, we update balance and log audit.
+    // In a full accounting system we'd insert into a 'transactions' table.
+    // 'expenses' table is for MONEY OUT. We don't have an 'income' table besides bank_statement_rows.
+    // To make it show in Financial Report as Income, we might need a workaround or just rely on 'petty_cash_accounts' balance changes if we tracked history.
+    // BUT the requirement says "expenses info to the financial report". It doesn't explicitly say "Cash Income" must be a line item in the report,
+    // but implied by "track cash positions".
+    // For now, updating balance allows tracking "Position".
+
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'petty_cash_accounts',
+        entityId: accountId,
+        entityDisplay: `Cash Collection: ${description}`,
+        oldValues: { current_balance: oldBalance },
+        newValues: {
+            current_balance: newBalance,
+            collection_amount: amount,
+            description,
+        },
+    });
+
+    revalidatePath('/expenditure');
+
+    return { success: true };
+}
+
 export async function getPettyCashAccounts(): Promise<PettyCashAccount[]> {
     const supabase = await createServerSupabaseClient();
 

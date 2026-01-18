@@ -29,7 +29,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Check, X, Clock, CheckCircle, XCircle, ArrowRight, Eye, ImageIcon, ExternalLink, Loader2 } from 'lucide-react';
+import { Check, X, Clock, CheckCircle, XCircle, ArrowRight, Eye, ImageIcon, ExternalLink, Loader2, FileText } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { ApprovalStatus, ApprovalRequestWithDetails } from '@/types/database';
 import { getPaymentProofUrl } from '@/actions/payments/submit-payment-proof';
@@ -89,8 +89,8 @@ export default function ApprovalsPage() {
             setIsLoadingProof(true);
             try {
                 // We'll need a helper to get proof_url from payment record id
-                const { data: supabase } = await import('@/lib/supabase/client');
-                const client = (supabase as any).createClient(); // Fallback if helper not available
+                const { createClient } = await import('@/lib/supabase/client');
+                const client = createClient();
 
                 const { data: payment } = await client
                     .from('payment_records')
