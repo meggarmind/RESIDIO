@@ -6,24 +6,19 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { useEnhancedDashboardStats } from '@/hooks/use-dashboard';
 import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
-// Default Theme Dashboard Components
-import { FinancialHealthCard } from '@/components/dashboard/financial-health-card';
+// Dashboard Components
 import { SecurityAlertsCard } from '@/components/dashboard/security-alerts-card';
 import { QuickActionsPanel } from '@/components/dashboard/quick-actions-panel';
-import { QuickStatsCard } from '@/components/dashboard/quick-stats-card';
-import { InvoiceDistributionCard } from '@/components/dashboard/invoice-distribution-card';
 import { RecentActivityCard } from '@/components/dashboard/recent-activity-card';
-import { CronHealthCard } from '@/components/dashboard/cron-health-card';
-
 import { ContextualGreeting } from '@/components/dashboard/contextual-greeting';
 import { SmartSuggestions } from '@/components/dashboard/smart-suggestions';
 import { ModernStatsCards } from '@/components/dashboard/modern-stats-cards';
 import { ModernFinancialHealth } from '@/components/dashboard/modern-financial-health';
 import { ModernPendingPayments } from '@/components/dashboard/modern-pending-payments';
 import { ModernRecentActivity } from '@/components/dashboard/modern-recent-activity';
-import { ModernQuickActions } from '@/components/dashboard/modern-quick-actions';
 
 function ErrorHandler() {
     const searchParams = useSearchParams();
@@ -36,22 +31,6 @@ function ErrorHandler() {
     }, [searchParams]);
 
     return null;
-}
-
-function WelcomeHeader({ name }: { name: string }) {
-    const hour = new Date().getHours();
-    const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-
-    return (
-        <div className="space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                {greeting}, {name}
-            </h1>
-            <p className="text-muted-foreground text-sm sm:text-base">
-                Here&apos;s what&apos;s happening in your community today.
-            </p>
-        </div>
-    );
 }
 
 function DashboardSkeleton() {
@@ -81,24 +60,18 @@ function DashboardSkeleton() {
             </div>
 
             {/* Main Grid */}
-            <div className="grid gap-6 lg:grid-cols-2">
-                <div className="rounded-2xl border bg-card p-6 shadow-soft animate-slide-up stagger-5">
+            <div className="grid gap-6 lg:grid-cols-4">
+                <div className="lg:col-span-2 rounded-2xl border bg-card p-6 shadow-soft animate-slide-up">
                     <Skeleton className="h-6 w-40 rounded-lg mb-4" />
                     <Skeleton className="h-[200px] w-full rounded-xl" />
                 </div>
-                <div className="rounded-2xl border bg-card p-6 shadow-soft animate-slide-up stagger-6">
+                <div className="lg:col-span-1 rounded-2xl border bg-card p-6 shadow-soft animate-slide-up">
                     <Skeleton className="h-6 w-40 rounded-lg mb-4" />
                     <Skeleton className="h-[200px] w-full rounded-xl" />
                 </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="rounded-2xl border bg-card p-6 shadow-soft animate-slide-up">
-                <Skeleton className="h-6 w-32 rounded-lg mb-4" />
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[1, 2, 3, 4].map((i) => (
-                        <Skeleton key={i} className="h-20 rounded-xl" />
-                    ))}
+                <div className="lg:col-span-1 rounded-2xl border bg-card p-6 shadow-soft animate-slide-up">
+                    <Skeleton className="h-6 w-40 rounded-lg mb-4" />
+                    <Skeleton className="h-[200px] w-full rounded-xl" />
                 </div>
             </div>
 
@@ -128,15 +101,13 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
     const { profile, isLoading: authLoading } = useAuth();
     const { data: stats, isLoading: statsLoading, error: statsError } = useEnhancedDashboardStats();
-    const { themeId } = useVisualTheme();
 
     if (authLoading) {
         return <DashboardSkeleton />;
     }
 
-    const firstName = profile?.full_name?.trim() ? profile.full_name.split(' ')[0] : 'there';
+    const firstName = profile?.full_name?.trim() ? profile.full_name.trim().split(' ')[0] : 'there';
     const isLoading = statsLoading;
-    const isModernTheme = themeId === 'modern';
 
     if (statsError || stats?.error) {
         const errorMessage = statsError instanceof Error ? statsError.message : (stats?.error || 'An unexpected error occurred');
@@ -163,88 +134,79 @@ export default function DashboardPage() {
                 <ErrorHandler />
             </Suspense>
 
-            {/* Welcome Header - Conditional rendering based on theme */}
-            {isModernTheme ? (
-                <ContextualGreeting name={firstName} />
-            ) : (
-                <WelcomeHeader name={firstName} />
-            )}
+            {/* Welcome Header - Unified to ContextualGreeting */}
+            <ContextualGreeting name={firstName} />
 
-            {/* Stats Row - Conditional rendering based on theme */}
-            {isModernTheme ? (
-                <>
-                    <ModernStatsCards
-                        financialHealth={stats?.financialHealth ?? null}
-                        quickStats={stats?.quickStats ?? null}
-                        unpaidCount={stats?.invoiceDistribution?.unpaid ?? 0}
-                        isLoading={isLoading}
-                    />
-                    {!isLoading && <SmartSuggestions />}
-                </>
-            ) : (
-                <QuickStatsCard
-                    quickStats={stats?.quickStats ?? null}
-                    isLoading={isLoading}
-                />
-            )}
+            {/* Top Stats Section */}
+            <ModernStatsCards
+                financialHealth={stats?.financialHealth ?? null}
+                quickStats={stats?.quickStats ?? null}
+                unpaidCount={stats?.invoiceDistribution?.unpaid ?? 0}
+                isLoading={isLoading}
+            />
 
-            {/* Financial Health & Secondary Card - Conditional rendering based on theme */}
-            {isModernTheme ? (
-                <div className="grid gap-6 lg:grid-cols-2">
+            {!isLoading && <SmartSuggestions />}
+
+            {/* Main Content Grid: Triple Column Sharing Row (2:1:1 split) */}
+            <div className="grid gap-6 lg:grid-cols-4">
+                {/* Column 1 & 2: Financial Health (50%) */}
+                <div className="lg:col-span-2">
                     <ModernFinancialHealth
                         financialHealth={stats?.financialHealth ?? null}
                         isLoading={isLoading}
                     />
-                    <ModernPendingPayments
-                        distribution={stats?.invoiceDistribution ?? null}
-                        isLoading={isLoading}
-                    />
                 </div>
-            ) : (
-                <div className="grid gap-6 lg:grid-cols-2">
-                    <FinancialHealthCard
-                        financialHealth={stats?.financialHealth ?? null}
-                        isLoading={isLoading}
-                    />
+
+                {/* Column 3: Security Alerts (25%) */}
+                <div className="lg:col-span-1">
                     <SecurityAlertsCard
                         securityAlerts={stats?.securityAlerts ?? null}
                         isLoading={isLoading}
+                        compact
                     />
                 </div>
-            )}
 
-            {/* Quick Actions - Conditional rendering based on theme */}
-            {isModernTheme ? (
-                <ModernQuickActions />
-            ) : (
-                <QuickActionsPanel />
-            )}
+                {/* Column 4: Quick Actions (25%) */}
+                <div className="lg:col-span-1">
+                    <QuickActionsPanel compact />
+                </div>
+            </div>
 
-
-            {/* Invoice Distribution & Recent Activity - Conditional rendering based on theme */}
-            {isModernTheme ? (
+            {/* Bottom Grid: Pending Payments & Recent Activity */}
+            <div className="grid gap-6 lg:grid-cols-2">
+                <ModernPendingPayments
+                    distribution={stats?.invoiceDistribution ?? null}
+                    isLoading={isLoading}
+                />
                 <ModernRecentActivity
                     activities={stats?.recentActivity ?? null}
                     isLoading={isLoading}
                 />
-            ) : (
-                <div className="grid gap-6 lg:grid-cols-2">
-                    <InvoiceDistributionCard
-                        distribution={stats?.invoiceDistribution ?? null}
-                        isLoading={isLoading}
-                    />
-                    <RecentActivityCard
-                        activities={stats?.recentActivity ?? null}
-                        isLoading={isLoading}
-                    />
-                </div>
-            )}
+            </div>
 
             {/* Last Updated */}
             {stats?.lastUpdated && (
                 <p className="text-xs text-muted-foreground text-center">
                     Last updated: {new Date(stats.lastUpdated).toLocaleTimeString()}
                 </p>
+            )}
+
+            {/* Debug Info (Only visible if ?debug=true) */}
+            {typeof window !== 'undefined' && window.location.search.includes('debug=true') && (
+                <div className="mt-8 p-4 bg-muted rounded-lg font-mono text-xs overflow-auto max-h-64">
+                    <h4 className="font-bold mb-2">Debug Info:</h4>
+                    <pre>{JSON.stringify({
+                        profile: { id: profile?.id, role: profile?.role, name: profile?.full_name },
+                        stats: {
+                            loading: statsLoading,
+                            error: statsError,
+                            serverError: stats?.error,
+                            hasData: !!stats?.data,
+                            lastUpdated: stats?.lastUpdated
+                        },
+                        auth: { loading: authLoading }
+                    }, null, 2)}</pre>
+                </div>
             )}
         </div>
     );

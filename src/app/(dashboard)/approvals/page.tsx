@@ -29,9 +29,11 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Check, X, Clock, CheckCircle, XCircle, ArrowRight } from 'lucide-react';
+import { Check, X, Clock, CheckCircle, XCircle, ArrowRight, Eye, ImageIcon, ExternalLink, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { ApprovalStatus, ApprovalRequestWithDetails } from '@/types/database';
+import { getPaymentProofUrl } from '@/actions/payments/submit-payment-proof';
+import { toast } from 'sonner';
 
 const ALL_VALUE = '_all';
 
@@ -47,6 +49,7 @@ const REQUEST_TYPE_LABELS: Record<string, string> = {
     owner_property_access: 'Owner Property Access',
     owner_resident_modification: 'Owner Resident Modification',
     owner_security_code_change: 'Owner Security Code Change',
+    manual_payment_verification: 'Manual Payment Verification',
 };
 
 const STATUS_BADGES: Record<ApprovalStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -63,6 +66,8 @@ export default function ApprovalsPage() {
         action: 'approve' | 'reject' | null;
     }>({ open: false, request: null, action: null });
     const [notes, setNotes] = useState('');
+    const [proofUrl, setProofUrl] = useState<string | null>(null);
+    const [isLoadingProof, setIsLoadingProof] = useState(false);
 
     const { data, isLoading } = useApprovalRequests({
         status: statusFilter === ALL_VALUE ? 'all' : statusFilter as ApprovalStatus,
@@ -70,9 +75,39 @@ export default function ApprovalsPage() {
     const approveMutation = useApproveRequest();
     const rejectMutation = useRejectRequest();
 
-    const handleAction = (request: ApprovalRequestWithDetails, action: 'approve' | 'reject') => {
+    const handleAction = async (request: ApprovalRequestWithDetails, action: 'approve' | 'reject') => {
         setActionDialog({ open: true, request, action });
         setNotes('');
+        setProofUrl(null);
+
+        if (request.request_type === 'manual_payment_verification') {
+            const changes = request.requested_changes as any;
+            // Get proof URL from the payment record if available
+            // We need to fetch the payment record details to get proof_url
+            // Actually, we can get it from the entity_id if we fetch it
+            // For now, let's assume we need to fetch it since it's not in requested_changes
+            setIsLoadingProof(true);
+            try {
+                // We'll need a helper to get proof_url from payment record id
+                const { data: supabase } = await import('@/lib/supabase/client');
+                const client = (supabase as any).createClient(); // Fallback if helper not available
+
+                const { data: payment } = await client
+                    .from('payment_records')
+                    .select('proof_url')
+                    .eq('id', request.entity_id)
+                    .single();
+
+                if (payment?.proof_url) {
+                    const result = await getPaymentProofUrl(payment.proof_url);
+                    if (result.url) setProofUrl(result.url);
+                }
+            } catch (error) {
+                console.error('Error loading proof:', error);
+            } finally {
+                setIsLoadingProof(false);
+            }
+        }
     };
 
     const confirmAction = async () => {
@@ -102,16 +137,25 @@ export default function ApprovalsPage() {
 
         return (
             <div className="text-sm space-y-1">
-                {Object.keys(requestedChanges).map((key) => (
-                    <div key={key} className="flex items-center gap-2">
-                        <span className="text-muted-foreground">{key.replace(/_/g, ' ')}:</span>
-                        <span className="line-through text-muted-foreground">
-                            {String(currentValues[key] ?? 'N/A')}
-                        </span>
-                        <ArrowRight className="h-3 w-3" />
-                        <span className="font-medium">{String(requestedChanges[key])}</span>
+                {Object.keys(requestedChanges).map((key) => {
+                    if (key === 'reason' || key === 'status') return null;
+                    return (
+                        <div key={key} className="flex items-center gap-2">
+                            <span className="text-muted-foreground">{key.replace(/_/g, ' ')}:</span>
+                            <span className="line-through text-muted-foreground">
+                                {String(currentValues[key] ?? 'N/A')}
+                            </span>
+                            <ArrowRight className="h-3 w-3" />
+                            <span className="font-medium">{String(requestedChanges[key])}</span>
+                        </div>
+                    );
+                })}
+                {request.request_type === 'manual_payment_verification' && (
+                    <div className="flex items-center gap-2 text-amber-600 font-medium py-1">
+                        <ImageIcon className="h-4 w-4" />
+                        <span>Receipt attached to payment record</span>
                     </div>
-                ))}
+                )}
             </div>
         );
     };
@@ -271,6 +315,49 @@ export default function ApprovalsPage() {
                                 <div className="pt-2">
                                     {renderChangeDetails(actionDialog.request)}
                                 </div>
+
+                                {actionDialog.request.request_type === 'manual_payment_verification' && (
+                                    <div className="mt-4 border rounded-md overflow-hidden bg-white">
+                                        <div className="bg-muted px-3 py-2 text-xs font-medium border-b flex items-center justify-between">
+                                            <span>PAYMENT RECEIPT</span>
+                                            {proofUrl && (
+                                                <a href={proofUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline flex items-center gap-1">
+                                                    Open Original <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                            )}
+                                        </div>
+                                        <div className="relative aspect-video flex items-center justify-center p-2">
+                                            {isLoadingProof ? (
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                                                    <span className="text-xs text-muted-foreground">Loading receipt...</span>
+                                                </div>
+                                            ) : proofUrl ? (
+                                                proofUrl.endsWith('.pdf') ? (
+                                                    <div className="flex flex-col items-center gap-2">
+                                                        <FileText className="h-12 w-12 text-red-500" />
+                                                        <span className="text-xs">PDF Document</span>
+                                                        <Button variant="outline" size="sm" asChild>
+                                                            <a href={proofUrl} target="_blank" rel="noreferrer">View PDF</a>
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    <img
+                                                        src={proofUrl}
+                                                        alt="Payment Proof"
+                                                        className="max-h-full max-w-full object-contain cursor-zoom-in"
+                                                        onClick={() => window.open(proofUrl, '_blank')}
+                                                    />
+                                                )
+                                            ) : (
+                                                <div className="flex flex-col items-center gap-2 text-red-500">
+                                                    <ImageIcon className="h-8 w-8 opacity-20" />
+                                                    <span className="text-xs">Could not load receipt image.</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div>
@@ -300,8 +387,8 @@ export default function ApprovalsPage() {
                             {approveMutation.isPending || rejectMutation.isPending
                                 ? 'Processing...'
                                 : actionDialog.action === 'approve'
-                                ? 'Confirm Approval'
-                                : 'Confirm Rejection'}
+                                    ? 'Confirm Approval'
+                                    : 'Confirm Rejection'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -355,43 +355,50 @@ async function fetchSecurityAlerts(
     sevenDaysFromNow: Date
 ): Promise<SecurityAlerts> {
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const nowStr = now.toISOString();
+    const sevenDaysFromNowStr = sevenDaysFromNow.toISOString();
 
     // Parallelize all 4 queries (4x faster)
+    // We now use unique contact counts to match the Security module logic
     const [
         expiringCodesResult,
-        expiredCodesResult,
+        expiredContactsResult,
         suspendedContactsResult,
         recentFlaggedResult,
     ] = await Promise.all([
-        // Expiring codes (within 7 days)
+        // Expiring codes list (top 5 contacts with codes expiring soon)
+        // We select the contacts who have codes expiring
         supabase
-            .from('access_codes')
+            .from('security_contacts')
             .select(`
                 id,
-                code,
-                valid_until,
-                contact:security_contacts(
-                    full_name,
-                    resident:residents(first_name, last_name)
-                )
+                full_name,
+                resident:residents(first_name, last_name),
+                access_codes!inner(id, code, valid_until)
             `)
-            .eq('is_active', true)
-            .not('valid_until', 'is', null)
-            .gte('valid_until', now.toISOString())
-            .lte('valid_until', sevenDaysFromNow.toISOString())
+            .eq('status', 'active')
+            .eq('access_codes.is_active', true)
+            .not('access_codes.valid_until', 'is', null)
+            .gt('access_codes.valid_until', nowStr)
+            .lte('access_codes.valid_until', sevenDaysFromNowStr)
             .limit(5),
-        // Expired codes count
+
+        // Count contacts whose status is 'active' but have NO valid codes
+        // (Either no codes at all, or all codes are inactive/expired)
         supabase
-            .from('access_codes')
-            .select('*', { count: 'exact', head: true })
-            .eq('is_active', true)
-            .not('valid_until', 'is', null)
-            .lt('valid_until', now.toISOString()),
+            .from('security_contacts')
+            .select(`
+                id,
+                access_codes(id, is_active, valid_until)
+            `)
+            .eq('status', 'active'),
+
         // Suspended contacts
         supabase
             .from('security_contacts')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'suspended'),
+
         // Recent flagged entries (last 7 days)
         supabase
             .from('access_logs')
@@ -400,26 +407,52 @@ async function fetchSecurityAlerts(
             .gte('created_at', sevenDaysAgo.toISOString()),
     ]);
 
-    const expiringCodes = expiringCodesResult.data;
-    const expiredCodesCount = expiredCodesResult.count;
-    const suspendedContactsCount = suspendedContactsResult.count;
-    const recentFlaggedEntries = recentFlaggedResult.count;
+    // Calculate Expired Contacts Count
+    const allActiveContacts = expiredContactsResult.data || [];
+    let expiredContactsCount = 0;
+    for (const contact of allActiveContacts) {
+        const codes = contact.access_codes || [];
+        const hasValidCode = codes.some((code: any) => {
+            if (!code.is_active) return false;
+            if (!code.valid_until) return true; // No expiry = always valid
+            return new Date(code.valid_until) > now;
+        });
 
-    const formattedExpiringCodes = (expiringCodes ?? []).map((code: any) => ({
-        id: code.id,
-        code: code.code,
-        contactName: code.contact?.full_name || 'Unknown',
-        residentName: code.contact?.resident
-            ? `${code.contact.resident.first_name} ${code.contact.resident.last_name}`
-            : 'Unknown',
-        validUntil: code.valid_until
-    }));
+        if (!hasValidCode) {
+            expiredContactsCount++;
+        }
+    }
+
+    // Calculate Expiring Contacts Count (Unique contacts with at least one expiring code)
+    // We fetch a bit more for formatting, but we need the count of distinct contacts
+    const { count: expiringContactsCount } = await supabase
+        .from('security_contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .eq('access_codes.is_active', true)
+        .not('access_codes.valid_until', 'is', null)
+        .gt('access_codes.valid_until', nowStr)
+        .lte('access_codes.valid_until', sevenDaysFromNowStr);
+
+    const formattedExpiringCodes = (expiringCodesResult.data ?? []).map((contact: any) => {
+        // Find the best code to show (one that's expiring soonest but not yet expired)
+        const code = contact.access_codes[0];
+        return {
+            id: contact.id,
+            code: code.code,
+            contactName: contact.full_name || 'Unknown',
+            residentName: contact.resident
+                ? `${contact.resident.first_name} ${contact.resident.last_name}`
+                : 'Unknown',
+            validUntil: code.valid_until
+        };
+    });
 
     return {
-        expiringCodesCount: expiringCodes?.length ?? 0,
-        expiredCodesCount: expiredCodesCount ?? 0,
-        suspendedContactsCount: suspendedContactsCount ?? 0,
-        recentFlaggedEntries: recentFlaggedEntries ?? 0,
+        expiringCodesCount: expiringContactsCount ?? 0,
+        expiredCodesCount: expiredContactsCount,
+        suspendedContactsCount: suspendedContactsResult.count ?? 0,
+        recentFlaggedEntries: recentFlaggedResult.count ?? 0,
         expiringCodes: formattedExpiringCodes
     };
 }

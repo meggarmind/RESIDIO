@@ -25,31 +25,35 @@ interface QuickAction {
     color: 'emerald' | 'blue' | 'amber' | 'purple' | 'rose' | 'slate';
 }
 
+interface QuickActionsPanelProps {
+    compact?: boolean;
+}
+
 const quickActions: QuickAction[] = [
     {
         label: 'Add Resident',
-        description: 'Register new resident',
+        description: 'Register resident',
         href: '/residents/new',
         icon: UserPlus,
         color: 'emerald',
     },
     {
         label: 'Record Payment',
-        description: 'Manual payment entry',
+        description: 'Payment entry',
         href: '/payments/new',
         icon: CreditCard,
         color: 'blue',
     },
     {
         label: 'Generate Invoices',
-        description: 'Create monthly invoices',
+        description: 'New invoices',
         href: '/billing/generate',
         icon: FileText,
         color: 'amber',
     },
     {
         label: 'Import Statement',
-        description: 'Bank statement upload',
+        description: 'Statement upload',
         href: '/billing/imports/new',
         icon: Upload,
         color: 'purple',
@@ -103,15 +107,16 @@ const colorStyles = {
     },
 };
 
-function QuickActionButton({ action }: { action: QuickAction }) {
+function QuickActionButton({ action, compact }: { action: QuickAction; compact?: boolean }) {
     const styles = colorStyles[action.color];
     const Icon = action.icon;
 
     return (
         <Link href={action.href} className="group">
             <div className={cn(
-                'flex items-center gap-3 p-3 rounded-lg border transition-all duration-200',
+                'flex items-center gap-3 rounded-lg border transition-all duration-200',
                 'hover:shadow-md hover:translate-y-[-2px]',
+                compact ? "p-2" : "p-3",
                 styles.bg,
                 styles.border
             )}>
@@ -123,26 +128,31 @@ function QuickActionButton({ action }: { action: QuickAction }) {
                 </div>
                 <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{action.label}</p>
-                    <p className="text-xs text-muted-foreground truncate">{action.description}</p>
+                    {!compact && (
+                        <p className="text-xs text-muted-foreground truncate">{action.description}</p>
+                    )}
                 </div>
             </div>
         </Link>
     );
 }
 
-export function QuickActionsPanel() {
+export function QuickActionsPanel({ compact }: QuickActionsPanelProps) {
     return (
-        <Card className="animate-fade-in-up">
-            <CardHeader className="pb-3">
+        <Card className={cn("animate-fade-in-up h-full", compact ? "border-none shadow-none bg-transparent" : "")}>
+            <CardHeader className={compact ? "p-4 pb-2" : "pb-3"}>
                 <CardTitle className="flex items-center gap-2 text-base font-semibold">
                     <Zap className="h-5 w-5 text-amber-500" />
-                    Quick Actions
+                    {compact ? "Actions" : "Quick Actions"}
                 </CardTitle>
             </CardHeader>
-            <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            <CardContent className={compact ? "p-4 pt-0" : ""}>
+                <div className={cn(
+                    "grid gap-2",
+                    compact ? "grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+                )}>
                     {quickActions.map((action) => (
-                        <QuickActionButton key={action.href} action={action} />
+                        <QuickActionButton key={action.href} action={action} compact={compact} />
                     ))}
                 </div>
             </CardContent>

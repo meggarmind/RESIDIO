@@ -263,7 +263,9 @@ export type ApprovalRequestType =
   // Admin impersonation system
   | 'impersonation_request'
   // Late fee waiver system
-  | 'late_fee_waiver';
+  | 'late_fee_waiver'
+  // Hybrid Payments
+  | 'manual_payment_verification';
 
 // Labels for approval request types
 export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
@@ -282,6 +284,8 @@ export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> =
   impersonation_request: 'Resident Impersonation Request',
   // Late fee waiver
   late_fee_waiver: 'Late Fee Waiver Request',
+  // Hybrid Payments
+  manual_payment_verification: 'Manual Payment Verification',
 };
 
 // Phase 8: Audit Logging Types
@@ -1263,7 +1267,8 @@ export type ApprovalEntityType =
   | 'resident_houses'       // For developer/owner approval requests
   | 'security_code'         // For security code approval requests
   | 'impersonation_session' // For admin impersonation approval requests
-  | 'invoice';              // For late fee waiver approval requests
+  | 'invoice'               // For late fee waiver approval requests
+  | 'payment_record';       // For manual payment verification
 
 // Approval Request type (maker-checker workflow)
 export interface ApprovalRequest {
@@ -1297,8 +1302,7 @@ export interface ApprovalRequestWithDetails extends ApprovalRequest {
     email: string;
     role: UserRole;
   } | null;
-  // Entity details based on entity_type
-  entity_name: string; // House address or billing profile name
+  entity_name: string; // House address, billing profile name, or payment reference/amount
 }
 
 // Phase 8: Audit Log Types

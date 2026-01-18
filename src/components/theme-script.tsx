@@ -6,7 +6,14 @@ import { TweakcnTheme } from '@/types/theme';
  * This script runs immediately before the page renders and applies the theme
  * from sessionStorage or defaults if not found.
  */
-export function ThemeScript({ context }: { context: 'admin-dashboard' | 'resident-portal' }) {
+/**
+ * Blocking script to prevent Flash of Unstyled Content (FOUC)
+ * This script runs immediately before the page renders and applies the theme
+ * from sessionStorage or defaults if not found.
+ * 
+ * It automatically detects context (admin vs resident) from the URL.
+ */
+export function ThemeScript() {
   // Serialize only the essential theme data to keep the script small
   const themeData = Object.entries(TWEAKCN_THEME_REGISTRY).reduce((acc, [id, theme]: [string, TweakcnTheme]) => {
     acc[id] = {
@@ -21,7 +28,9 @@ export function ThemeScript({ context }: { context: 'admin-dashboard' | 'residen
     (function() {
       try {
         var themeData = ${JSON.stringify(themeData)};
-        var context = "${context}";
+        var pathname = window.location.pathname;
+        var context = pathname.startsWith("/portal") ? "resident-portal" : "admin-dashboard";
+        
         var storageKey = "residio-visual-theme-" + context;
         var themeId = sessionStorage.getItem(storageKey) || "supabase";
         var theme = themeData[themeId] || themeData["supabase"];

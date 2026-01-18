@@ -1,10 +1,11 @@
 'use client';
 
-import { Wallet, FileText, Shield, TrendingUp, TrendingDown } from 'lucide-react';
+import { Wallet, FileText, Shield, TrendingUp, TrendingDown, Info, ChevronRight, Hash, Users } from 'lucide-react';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
 import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { cn } from '@/lib/utils';
 import type { FinancialHealthMetrics, QuickStats } from '@/actions/dashboard/get-enhanced-dashboard-stats';
+import Link from 'next/link';
 
 interface ModernStatsCardsProps {
   financialHealth: FinancialHealthMetrics | null;
@@ -13,125 +14,199 @@ interface ModernStatsCardsProps {
   isLoading?: boolean;
 }
 
-interface StatCardProps {
-  title: string;
-  mainValue: number;
-  valuePrefix?: string;
-  valueSuffix?: string;
-  secondaryLabel: string;
-  secondaryValue: number | string;
-  percentageChange?: number;
-  icon: React.ElementType;
-  iconColor: string;
-  iconBgColor: string;
-}
+// ─────────────────────────────────────────────────────────────────
+// Shared Utilities
+// ─────────────────────────────────────────────────────────────────
 
-function StatCard({
-  title,
-  mainValue,
-  valuePrefix,
-  valueSuffix,
-  secondaryLabel,
-  secondaryValue,
-  percentageChange,
-  icon: Icon,
-  iconColor,
-  iconBgColor,
-}: StatCardProps) {
-  const isPositive = percentageChange !== undefined && percentageChange >= 0;
+const formatValue = (value: number) => {
+  return new Intl.NumberFormat('en-NG').format(Math.round(value));
+};
+
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('en-NG', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
+// ─────────────────────────────────────────────────────────────────
+// specialized Stat Components
+// ─────────────────────────────────────────────────────────────────
+
+function HealthStat({ title, percentage, label }: { title: string; percentage: number; label: string }) {
+  const radius = 32;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (percentage / 100) * circumference;
 
   return (
-    <div className={cn(
-      'group relative overflow-hidden rounded-xl border bg-white p-6 shadow-sm transition-all duration-200',
-      // Modern theme: generous border radius, subtle shadows
-      'hover:shadow-md dark:bg-[#1E293B] dark:border-[#334155]',
-      // Modern theme: blue-teal accent border top
-      'border-t-4 border-t-[#0EA5E9]'
-    )}>
-      {/* Icon */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className={cn(
-          'flex h-12 w-12 items-center justify-center rounded-xl',
-          iconBgColor
-        )}>
-          <Icon className={cn('h-6 w-6', iconColor)} />
-        </div>
+    <div className="flex flex-col bg-card rounded-xl border p-4 shadow-sm animate-fade-in-up h-full">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
+        <Info className="h-3.5 w-3.5 text-muted-foreground/50" />
       </div>
-
-      {/* Title */}
-      <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-        {title}
-      </p>
-
-      {/* Main Value */}
-      <div className="flex items-baseline gap-2 mb-3">
-        {valuePrefix && (
-          <span className="text-2xl font-bold text-gray-900 dark:text-white">
-            {valuePrefix}
-          </span>
-        )}
-        <AnimatedCounter
-          value={mainValue}
-          className="text-3xl font-bold text-gray-900 dark:text-white"
-          duration={1000}
-        />
-        {valueSuffix && (
-          <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-            {valueSuffix}
-          </span>
-        )}
-      </div>
-
-      {/* Secondary Info */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {secondaryLabel}:{' '}
-          <span className="font-semibold text-gray-700 dark:text-gray-300">
-            {typeof secondaryValue === 'number' ? (
-              <AnimatedCounter value={secondaryValue} duration={800} />
-            ) : (
-              secondaryValue
-            )}
-          </span>
-        </p>
-
-        {/* Percentage Badge */}
-        {percentageChange !== undefined && (
-          <div className={cn(
-            'flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold',
-            isPositive
-              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-              : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-          )}>
-            {isPositive ? (
-              <TrendingUp className="h-3 w-3" />
-            ) : (
-              <TrendingDown className="h-3 w-3" />
-            )}
-            <span>{Math.abs(percentageChange).toFixed(1)}%</span>
+      <div className="flex-1 flex flex-col items-center justify-center py-2">
+        <div className="relative flex items-center justify-center">
+          <svg className="h-20 w-20 transform -rotate-90">
+            <circle
+              cx="40"
+              cy="40"
+              r={radius}
+              stroke="currentColor"
+              strokeWidth="6"
+              fill="transparent"
+              className="text-muted/30"
+            />
+            <circle
+              cx="40"
+              cy="40"
+              r={radius}
+              stroke="currentColor"
+              strokeWidth="6"
+              fill="transparent"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              strokeLinecap="round"
+              className="text-primary transition-all duration-1000 ease-out"
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-lg font-bold">
+              <AnimatedCounter value={percentage} duration={1000} />%
+            </span>
           </div>
-        )}
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-3 text-center px-2">{label}</p>
       </div>
     </div>
   );
 }
 
+function ActionStat({ title, count, label, secondaryLabel, href }: { title: string; count: number; label: string; secondaryLabel: string; href: string }) {
+  return (
+    <Link href={href} className="group h-full">
+      <div className="flex flex-col bg-card rounded-xl border p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group-hover:border-primary/30 h-full">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center py-2">
+          <span className="text-4xl font-bold mb-1">
+            <AnimatedCounter value={count} duration={800} />
+          </span>
+          <span className="text-[11px] font-medium text-foreground/80 mb-2">{label}</span>
+          <p className="text-[10px] text-muted-foreground text-center border-t border-muted/50 pt-2 w-full">
+            {secondaryLabel}
+          </p>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function CurrencyStat({ title, value, label, subLabel }: { title: string; value: number; label: string; subLabel: string }) {
+  return (
+    <div className="flex flex-col bg-card rounded-xl border p-4 shadow-sm animate-fade-in-up h-full">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
+      </div>
+      <div className="flex-1 flex flex-col items-center justify-center py-2">
+        <div className="text-2xl font-bold flex items-baseline gap-1 mb-2">
+          <span className="text-lg text-muted-foreground">₦</span>
+          <span>{formatValue(value)}</span>
+        </div>
+        <div className="bg-muted px-2 py-0.5 rounded-full mb-3">
+          <span className="text-[10px] font-medium text-muted-foreground">{label}</span>
+        </div>
+        <p className="text-[10px] text-muted-foreground text-center uppercase tracking-tighter">
+          {subLabel}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function HighlightStat({ title, value, label, details }: { title: string; value: number; label: string; details: string }) {
+  return (
+    <div className="flex flex-col bg-primary/5 rounded-xl border border-primary/20 p-4 shadow-sm animate-fade-in-up h-full relative overflow-hidden group">
+      {/* Texture background */}
+      <div className="absolute top-0 right-0 p-1 opacity-10 transition-transform group-hover:scale-110">
+        <TrendingUp className="h-12 w-12 text-primary rotate-12" />
+      </div>
+
+      <div className="flex items-center gap-1.5 mb-2 relative z-10 transition-colors">
+        <div className="p-1 rounded bg-primary/20">
+          <TrendingUp className="h-3.5 w-3.5 text-primary" />
+        </div>
+        <span className="text-xs font-bold text-primary uppercase tracking-wider">{title}</span>
+        <Info className="h-3.5 w-3.5 text-primary/40 ml-auto" />
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center py-2 relative z-10">
+        <div className="text-3xl font-bold text-primary mb-1">
+          ₦{formatValue(value)}
+        </div>
+        <span className="text-[11px] font-medium text-primary/80 mb-3">{label}</span>
+        <p className="text-[10px] text-primary/60 text-center uppercase font-bold tracking-tight">
+          {details}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function OccupancyStat({ title, current, total, label, subLabel }: { title: string; current: number; total: number; label: string; subLabel: string }) {
+  const percentage = total > 0 ? (current / total) * 100 : 0;
+
+  return (
+    <div className="flex flex-col bg-card rounded-xl border p-4 shadow-sm animate-fade-in-up h-full">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
+      </div>
+      <div className="flex-1 flex flex-col items-center justify-center py-2">
+        <IconContainer icon={Users} color="text-foreground" bgColor="bg-muted" />
+
+        <div className="w-full text-center mb-1">
+          <span className="text-xl font-bold">{label}</span>
+        </div>
+        <div className="text-[10px] text-muted-foreground mb-4 uppercase font-medium">
+          ₦{formatValue(current)} ({formatValue(percentage)}%)
+        </div>
+
+        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+          <div
+            className="h-full bg-foreground transition-all duration-1000 ease-out"
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IconContainer({ icon: Icon, color, bgColor }: { icon: any, color: string, bgColor: string }) {
+  return (
+    <div className={cn("p-1.5 rounded-lg mb-3", bgColor)}>
+      <Icon className={cn("h-4 w-4", color)} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Skeleton Loader
+// ─────────────────────────────────────────────────────────────────
+
 function StatsCardsSkeleton() {
   return (
-    <div className="grid gap-6 md:grid-cols-3">
-      {[...Array(3)].map((_, i) => (
+    <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+      {[...Array(5)].map((_, i) => (
         <div
           key={i}
-          className="rounded-xl border border-gray-200 bg-white p-6 dark:bg-[#1E293B] dark:border-[#334155]"
+          className="rounded-xl border border-gray-200 bg-white p-6 dark:bg-[#1E293B] dark:border-[#334155] min-h-[160px]"
         >
-          <div className="mb-4 flex items-center justify-between">
-            <ShimmerSkeleton width={48} height={48} rounded="xl" speed="fast" />
-          </div>
-          <ShimmerSkeleton width={80} height={16} className="mb-2" speed="fast" />
-          <ShimmerSkeleton width={120} height={36} className="mb-3" speed="fast" />
-          <div className="flex items-center justify-between">
-            <ShimmerSkeleton width={100} height={14} speed="fast" />
-            <ShimmerSkeleton width={60} height={24} rounded="full" speed="fast" />
+          <ShimmerSkeleton width={80} height={12} className="mb-4" speed="fast" />
+          <div className="flex flex-col items-center justify-center space-y-4 pt-2">
+            <ShimmerSkeleton width={60} height={60} rounded="full" speed="fast" />
+            <ShimmerSkeleton width={100} height={20} speed="fast" />
           </div>
         </div>
       ))}
@@ -139,17 +214,10 @@ function StatsCardsSkeleton() {
   );
 }
 
-/**
- * Modern Theme Stats Cards
- *
- * Three-card row displaying:
- * 1. Total Wallet Balance (with monthly collection comparison)
- * 2. Unpaid Invoices (with outstanding amount)
- * 3. Security Contacts (with active count)
- *
- * Features Modern theme styling with blue-teal accents, generous spacing,
- * and percentage indicators with semantic colors.
- */
+// ─────────────────────────────────────────────────────────────────
+// Main Component
+// ─────────────────────────────────────────────────────────────────
+
 export function ModernStatsCards({
   financialHealth,
   quickStats,
@@ -160,54 +228,50 @@ export function ModernStatsCards({
     return <StatsCardsSkeleton />;
   }
 
-  // Calculate this month's collection percentage change
-  const collectionChange = financialHealth.previousMonthRevenue > 0
-    ? ((financialHealth.monthlyRevenue - financialHealth.previousMonthRevenue) / financialHealth.previousMonthRevenue) * 100
-    : 0;
-
-  // Format currency values
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+  const collectionRate = Math.round(financialHealth.collectionRate);
+  const pendingActions = (unpaidCount ?? 0) + (quickStats.pendingVerification ?? 0);
 
   return (
-    <div className="grid gap-6 md:grid-cols-3 animate-fade-in-up">
-      {/* Total Balance Card */}
-      <StatCard
-        title="Total Balance"
-        mainValue={financialHealth.totalWalletBalance}
-        valuePrefix="₦"
-        secondaryLabel="Collected this month"
-        secondaryValue={`₦${formatCurrency(financialHealth.monthlyRevenue)}`}
-        percentageChange={collectionChange}
-        icon={Wallet}
-        iconColor="text-[#0EA5E9]"
-        iconBgColor="bg-[#0EA5E9]/10"
+    <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 animate-fade-in-up">
+      {/* 1. Collection Health (Circular Progress) */}
+      <HealthStat
+        title="Collection"
+        percentage={collectionRate}
+        label={`${formatValue(financialHealth.totalCollected)} of ${formatValue(financialHealth.totalCollected + financialHealth.totalOutstanding)} Invoices`}
       />
 
-      {/* Unpaid Invoices Card */}
-      <StatCard
-        title="Unpaid Invoices"
-        mainValue={unpaidCount}
-        secondaryLabel="Total outstanding"
-        secondaryValue={`₦${formatCurrency(financialHealth.totalOutstanding)}`}
-        icon={FileText}
-        iconColor="text-amber-600 dark:text-amber-400"
-        iconBgColor="bg-amber-100 dark:bg-amber-900/20"
+      {/* 2. Action Needed (Large Number) */}
+      <ActionStat
+        title="Action Needed"
+        count={pendingActions}
+        label="items need attention"
+        secondaryLabel={`${unpaidCount} unpaid • ${quickStats.pendingVerification} pending verification`}
+        href="/approvals"
       />
 
-      {/* Security Contacts Card */}
-      <StatCard
-        title="Security Contacts"
-        mainValue={quickStats.totalSecurityContacts}
-        secondaryLabel="Active this week"
-        secondaryValue={quickStats.activeSecurityContacts}
-        icon={Shield}
-        iconColor="text-[#14B8A6]"
-        iconBgColor="bg-[#14B8A6]/10"
+      {/* 3. Wallet Balance (Portfolio Stats) */}
+      <CurrencyStat
+        title="Portfolio Value"
+        value={financialHealth.totalWalletBalance}
+        label="Total Wallet Balance"
+        subLabel="vs last month"
+      />
+
+      {/* 4. Monthly Revenue (Primary Highlight Card) */}
+      <HighlightStat
+        title="Monthly Revenue"
+        value={financialHealth.monthlyRevenue}
+        label="collected this month"
+        details="Payment Analysis"
+      />
+
+      {/* 5. Occupancy (Horizontal Progress) */}
+      <OccupancyStat
+        title="Occupancy"
+        current={quickStats.occupiedHouses}
+        total={quickStats.totalHouses}
+        label="Occupied Houses"
+        subLabel="Occupancy Rate"
       />
     </div>
   );

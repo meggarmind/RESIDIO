@@ -28,6 +28,7 @@ import {
   useActiveContactCount,
   useExpiredContactCount,
   useExpiringContactCount,
+  useSuspendedContactCount,
 } from '@/hooks/use-security';
 import type { SecurityContactFilters } from '@/lib/validators/security-contact';
 import {
@@ -55,6 +56,7 @@ export default function SecurityPage() {
   const { data: activeCount, isLoading: activeCountLoading } = useActiveContactCount();
   const { data: expiredCount, isLoading: expiredCountLoading } = useExpiredContactCount();
   const { data: expiringCount, isLoading: expiringCountLoading } = useExpiringContactCount(7);
+  const { data: suspendedCount, isLoading: suspendedCountLoading } = useSuspendedContactCount();
 
   const canViewContacts = permissionsData?.permissions?.view_contacts || false;
   const canRegisterContacts = permissionsData?.permissions?.register_contacts || false;
@@ -65,6 +67,7 @@ export default function SecurityPage() {
   const activeContactsCount = activeCount ?? 0;
   const expiredContactsCount = expiredCount ?? 0;
   const expiringContactsCount = expiringCount ?? 0;
+  const suspendedContactsCount = suspendedCount ?? 0;
   const todayCheckIns = todayLogs?.filter(log => log.check_in_time)?.length || 0;
   const currentlyInside = todayLogs?.filter(log => log.check_in_time && !log.check_out_time)?.length || 0;
   const flaggedToday = todayLogs?.filter(log => log.flagged)?.length || 0;
@@ -79,7 +82,7 @@ export default function SecurityPage() {
           </div>
           <ModernSkeleton className="h-10 w-36 rounded-xl" />
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {[...Array(6)].map((_, i) => (
             <ModernStatsCardSkeleton key={i} />
           ))}
@@ -113,7 +116,7 @@ export default function SecurityPage() {
       />
 
       {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         <EnhancedStatCard
           title="Active Contacts"
           value={activeContactsCount}
@@ -139,6 +142,15 @@ export default function SecurityPage() {
           isLoading={expiredCountLoading}
           description="No valid codes"
           accentColor={expiredContactsCount > 0 ? 'danger' : 'default'}
+        />
+
+        <EnhancedStatCard
+          title="Suspended"
+          value={suspendedContactsCount}
+          icon={UserX}
+          isLoading={suspendedCountLoading}
+          description="Access revoked"
+          accentColor={suspendedContactsCount > 0 ? 'warning' : 'default'}
         />
 
         <EnhancedStatCard

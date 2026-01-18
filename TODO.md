@@ -4,18 +4,43 @@
 
 ## Current Phase: Phase 17 - Product Vibe Enhancements 🚧 IN PROGRESS
 
-### Recent Session Work (2026-01-18): API Test Fixes
+### Recent Session Work (2026-01-18): Hybrid Payments Implementation
+- [x] **Hybrid Payments**: Manual "Proof of Payment" workflow + Paystack Integration Placeholder
+- [x] **Resident Sovereignty**: Enabled residents to upload receipts for manual payment verification
+- [x] **Admin Verification**: Implemented maker-checker workflow for manual payment approvals
+- [x] **Instant Deposits**: Integrated Paystack placeholder to credit wallets instantly
+- [x] **Storage & Security**: Set up RLS-protected `payment-proofs` bucket with resident-isolated folders
+- [x] **Audit Trail**: Enhanced auditing for manual payment submissions and admin approvals
+- [x] **Theme Resilience**: Eliminated "green flash" on page load by moving theme logic to root layout and neutralizing CSS fallbacks
+### Recent Session Work (2026-01-18): Dashboard Redesign (High-Fidelity & Compaction)
+- [x] **Top Cards Redesign**: Implemented a 5-card row with specialized high-fidelity components (Circular Collection Health, Action Numbers, Multi-Currency Portfolio, Highlighted Monthly Revenue, and Occupancy Rate).
+- [x] **Data Formatting**: Applied thousand comma separators and local currency symbols to all primary and secondary stats.
+- [x] **Bottom Row Compaction (205px Max)**: 
+    - Replaced large `Pending Payments` blocks with a sleek **Multi-Segment Distribution Bar** and legend.
+    - Streamlined `Recent Activity` into a fixed-height **Scrollable System Events** log to strictly enforce the 205px height limit.
+- [x] **Premium UI Consistency**: Refined all dashboard components to strictly inherit from the active theme variables and OKLCH color system, ensuring a "Wow" first impression across all themes.
+
+### Recent Session Work (2026-01-18): Dashboard Unification (3-Column Layout)
+- [x] **Dashboard Recovery**: Implemented 15s timeouts and sub-query hardening for dashboard stats
+- [x] **Auth Resilience**: Added `getServerSession` rescue action for client-side auth hangs
+- [x] **Sidebar Visibility**: Resolved permission filtering delays via event-driven recovery
+- [x] **Hydration & 406 Fixes**: Resolved layout mismatch and standardized Supabase count queriesgic in `DashboardPage`
+- [x] **Observability**: Added comprehensive server-side and client-side debug logging
 - [x] **Test Script Consolidation**: Improved `docs/api/api-tests/test_first_bank_pdf.ts` for ESM compatibility
 - [x] **Robustness**: Added `qpdf` dependency check and global rejection handling to standalone tests
 - [x] **Verification**: Validated First Bank PDF parsing against sample statement
 
-### Recent Session Work (2026-01-16): Product Vibe Review
+### Recent Session Work (2026-01-18): Security Stats Standardization & Parity
+- [x] **Logic Alignment**: Standardized security contact counting logic across Dashboard and Security modules
+- [x] **Contact-Centric Stats**: Dashboard now counts unique security contacts instead of individual access codes for "Expired" and "Expiring" stats
+- [x] **Security Module Parity**: Added "Suspended" contact count to the Security module's stats cards and server actions
+- [x] **Verification**: SQL-verified that dashboard counts (1 expired contact) now match the Security module, resolving the 3 vs 1 disparity
 
 - [x] **Product Audit**: Analyzed Resident Experience, Security, and Finance clusters (`product_audit.md`)
 - [x] **Verified Email Integration**: Confirmed logic for First Bank parsing to support "Living Data"
 - [x] **Implementation Plan**: Created plan for Phase 1 (Resident Sovereignty)
-- [ ] **Smart Action Center**: Upgrade to context-aware suggestions
-- [ ] **Hybrid Payments**: Manual "Proof" flow + Placeholder Paystack integration
+- [x] **Hybrid Payments**: Manual "Proof" flow + Placeholder Paystack integration (VIBE UPGRADE)
+- [ ] **Smart Action Center**: Upgrade to context-aware suggestions (URGENT)
 - [ ] **Visitor Access**: Recent visitors quick-access carousel
 
 ## Phase 16 - Community Communication ✅ COMPLETE
@@ -1222,7 +1247,9 @@ Enhanced communication tools:
 
 ---
 
-## Phase 17: Legacy App Migration
+## Phase 18: Legacy App Migration (Delayed)
+
+*Note: This phase is scheduled after automated testing based on user-stories.*
 
 Data migration from existing system:
 
@@ -1237,31 +1264,9 @@ Data migration from existing system:
 
 ---
 
-## Future Ideas / Backlog
+## Future Ideas / Backlog (Pruned)
 
 Ideas for future phases (not yet scheduled):
-
-### Admin-Created Theme System (Foundation Complete ✅)
-
-The visual theme system foundation is now implemented:
-
-- [x] Theme definitions in code (default, modern themes)
-- [x] Theme registry pattern for extensibility
-- [x] CSS variable injection from theme definitions
-- [x] Estate-wide default + user override preference hierarchy
-- [x] Theme selector component with live preview
-- [x] Navigation extracted to theme-independent configuration
-
-**Remaining for full admin control:**
-
-- [ ] Database table for admin-created themes
-- [ ] Theme editor UI (color pickers, live preview)
-- [ ] Export/import themes as JSON
-- [ ] Additional built-in presets (high contrast, colorblind-friendly)
-- [ ] Theme scheduling (seasonal themes, events)
-
-> **Context**: Foundation implemented in 2026-01-08 session. Themes are now purely visual
-> (colors, spacing, shadows) while navigation/functionality remains independent.
 
 ---
 
@@ -1386,16 +1391,9 @@ SMS notification channel:
 
 ---
 
-## Phase 23: Mobile Application
+## Phase 23: Mobile Application (DROPPED)
 
-Native mobile experience:
-
-- [ ] React Native or Flutter app setup
-- [ ] Push notifications
-- [ ] Offline capability
-- [ ] Biometric authentication
-- [ ] QR code scanning for access verification
-- [ ] Resident portal features (mobile-optimized)
+*Status: Permanently stepped down. Focus is on ensuring the web portal is fully responsive and usable on mobile.*
 
 ---
 
@@ -1416,29 +1414,15 @@ Online payment processing:
 
 ---
 
-## Phase 27: Advanced Billing Features
+## Phase 27: Advanced Billing Features (DROPPED)
 
-Enhanced billing capabilities:
-
-- [ ] Recurring payment scheduling
-- [ ] Early payment discounts
-- [ ] Payment plans for delinquent accounts
-- [ ] Utility metering (water/electric sub-metering)
-- [ ] Surcharge rules engine
-- [ ] Multi-currency support (optional)
+*Status: No longer required. Not supported by the estate.*
 
 ---
 
-## Phase 28: Violation & Compliance Tracking
+## Phase 28: Violation & Compliance Tracking (DROPPED)
 
-Rule enforcement system:
-
-- [ ] Violation categories and rules database
-- [ ] Violation reporting and tracking
-- [ ] Warning/fine escalation workflow
-- [ ] Violation history per resident
-- [ ] Appeal process
-- [ ] Compliance reports
+*Status: No longer required.*
 
 ---
 
@@ -1584,6 +1568,37 @@ Comprehensive UI/UX overhaul implementing dark mode, semantic colors, and micro-
 - `src/components/ui/sonner.tsx`
 - `src/components/ui/button.tsx`
 - `src/components/ui/card.tsx`
+
+---
+
+## Recent Updates (2026-01-18)
+
+### Header Redesign & Action Grouping ✅
+
+Redesigned the dashboard header to match the Stripe/Apple-inspired layout guide:
+
+- **Repositioned System Status**: Moved the pulsing circle to the far left (after mobile menu) for better visibility.
+- **Centered Search Bar**: Center-aligned the search bar with a darker, defined border (`bg-muted/50`, `border-muted-foreground/10`) for improved contrast.
+- **Role Switcher**:
+    - Converted the static "Admin" role display in the user menu into a functional **Resident Portal** link.
+    - This allows admins who are also residents to switch contexts instantly from their profile badge.
+    - Cleaned up the menu by removing redundant links while keeping the AI Assistant and Sign out actions.
+- **Quick Action Button**:
+    - Replaced the generic sparkle icon with a custom high-fidelity **Grid+** icon that perfectly matches the provided reference (3 small border-defined squares with a prominent orange-circled plus sign).
+    - Expanded the quick action dropdown with a comprehensive list of shortcuts:
+        - **Add Resident** (UserPlus)
+        - **Add House** (Home)
+        - **Create Invoice** (Receipt)
+        - **Import Statement** (Upload)
+        - **Generate Report** (FileText)
+        - **Security Contact** (ShieldCheck)
+    - Added high-fidelity micro-interactions (hover scale, orange highlight, active press feedback).
+- **Role Switcher Integration**: Converted the static role label in the profile menu into an active "Resident Portal" switcher (for users with resident IDs), streamlining navigation between roles.
+- **Clean Aesthetic**: Removed keyboard shortcut displays and moved the redundant portal link for a more minimal, premium look.
+
+**Files Modified:**
+
+- `src/components/dashboard/header.tsx`
 
 ---
 

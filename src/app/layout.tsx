@@ -4,6 +4,8 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { EstateAiAssistant } from "@/components/layout/estate-ai-assistant";
 
+import { ThemeScript } from "@/components/theme-script";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -30,6 +32,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
+        <ThemeScript />
         <Providers>
           {children}
           <EstateAiAssistant />

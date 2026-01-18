@@ -9,7 +9,6 @@ import { MobileNav } from '@/components/dashboard/mobile-nav';
 import { AdminBreadcrumb } from '@/components/dashboard/admin-breadcrumb';
 import { VisualThemeProvider, useVisualTheme } from '@/contexts/visual-theme-context';
 import { useEffectiveTheme } from '@/hooks/use-theme-preferences';
-import { ThemeScript } from '@/components/theme-script';
 
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -52,7 +51,6 @@ export default function DashboardLayout({
 
   return (
     <>
-      <ThemeScript context="admin-dashboard" />
       <VisualThemeProvider context="admin-dashboard" initialThemeId={effectiveTheme || 'default'}>
         <DashboardContent>{children}</DashboardContent>
       </VisualThemeProvider>

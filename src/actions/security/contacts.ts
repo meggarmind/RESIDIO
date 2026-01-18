@@ -650,6 +650,34 @@ export async function getExpiringContactCount(days: number = 7): Promise<{
 }
 
 /**
+ * Gets the count of suspended security contacts.
+ */
+export async function getSuspendedContactCount(): Promise<{
+  count: number;
+  error: string | null;
+}> {
+  const supabase = await createServerSupabaseClient();
+
+  // Check permission
+  const canView = await hasSecurityPermission('view_contacts');
+  if (!canView) {
+    return { count: 0, error: 'Permission denied' };
+  }
+
+  const { count, error } = await supabase
+    .from('security_contacts')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'suspended');
+
+  if (error) {
+    console.error('Get suspended contact count error:', error);
+    return { count: 0, error: 'Failed to count suspended contacts' };
+  }
+
+  return { count: count || 0, error: null };
+}
+
+/**
  * Search security contacts by name, phone, or ID number
  */
 export async function searchSecurityContacts(

@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useMemo, useRef, useCal
 import { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { UserRole, AppRoleName } from '@/types/database';
+import { getServerSession } from '@/actions/auth/get-server-session';
 
 // Profile with both legacy and new RBAC fields
 interface Profile {
@@ -88,10 +89,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
+    // Listen for auth changes early to catch initial session if getSession hangs
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, newSession) => {
+        console.log(`[AuthProvider] onAuthStateChange event: ${event}`, !!newSession);
+
+        // If we get an initial session or sign-in event, and we aren't initialized,
+        // use this to satisfy the loading state.
+        if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && newSession) {
+          setSession(newSession);
+          setUser(newSession.user);
+          if (!isInitialized.current) {
+            console.log('[AuthProvider] Satisfying initialization via onAuthStateChange');
+            isInitialized.current = true;
+            fetchProfile(newSession.user.id).finally(() => setIsLoading(false));
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setCachedProfile(null);
+          setIsLoading(false);
+        }
+      }
+    );
+
     // Get initial session
-    const getInitialSession = async () => {
-      // Skip re-initialization if we already have valid session data
+    const getInitialSession = async (retries = 1) => {
+      console.log(`[AuthProvider] getInitialSession start (Attempt ${2 - retries})`);
+
+      // If already initialized by onAuthStateChange, skip
       if (isInitialized.current) {
+        console.log('[AuthProvider] Already initialized by events, skipping getSession');
         setIsLoading(false);
         return;
       }
@@ -99,54 +128,88 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // PERFORMANCE: Use cached profile for instant UI while fetching fresh data
       const cachedProfile = getCachedProfile();
       if (cachedProfile) {
+        console.log('[AuthProvider] Using cached profile');
         setProfile(cachedProfile);
       }
 
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
-      setSession(initialSession);
-      setUser(initialSession?.user ?? null);
+      try {
+        console.log('[AuthProvider] Calling getSession()...');
+        // Use a race to avoid hanging the entire app
+        const { data: { session: initialSession }, error: sessionError } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('getSession timeout')), 10000))
+        ]).catch(async (err) => {
+          console.warn('[AuthProvider] getSession timed out/failed, trying getUser()...');
+          return await Promise.race([
+            supabase.auth.getUser(),
+            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('getUser timeout')), 10000))
+          ]);
+        });
 
-      isInitialized.current = true;
+        if (isInitialized.current) return;
 
-      // Release loading state early if we have cached profile (optimistic UI)
-      if (cachedProfile && initialSession?.user) {
-        setIsLoading(false);
-        // Fetch fresh profile in background (non-blocking)
-        fetchProfile(initialSession.user.id);
-      } else if (initialSession?.user) {
-        // No cache - must wait for profile before releasing loading state
-        // eslint-disable-next-line react-hooks/immutability
-        await fetchProfile(initialSession.user.id);
-        setIsLoading(false);
-      } else {
-        // No user - clear any stale cache
-        setCachedProfile(null);
+        if (initialSession || (initialSession as any).user) {
+          const s = (initialSession as any).session || initialSession;
+          const u = (initialSession as any).user || s?.user;
+
+          setSession(s);
+          setUser(u);
+          console.log('[AuthProvider] Identity retrieved on client:', !!u);
+
+          isInitialized.current = true;
+          if (u) {
+            await fetchProfile(u.id).catch(e => console.error('[AuthProvider] fetchProfile failed:', e));
+          }
+          setIsLoading(false);
+        } else {
+          throw new Error('No client-side identity found');
+        }
+      } catch (err) {
+        console.error('[AuthProvider] Client-side auth failed, trying server-side rescue...', err);
+
+        try {
+          const { session: serverSession, error: serverError } = await getServerSession();
+
+          if (isInitialized.current) return;
+
+          if (serverSession?.user) {
+            console.log('[AuthProvider] Rescuing session from server action!');
+            setUser(serverSession.user);
+            // If server returned profile, use it immediately
+            if (serverSession.profile) {
+              console.log('[AuthProvider] Server provided profile, loading RBAC...');
+              // We still need to fetch permissions/role details for the full Profile object
+              await fetchProfile(serverSession.user.id);
+            } else {
+              await fetchProfile(serverSession.user.id);
+            }
+            isInitialized.current = true;
+            setIsLoading(false);
+            return;
+          }
+        } catch (rescueErr) {
+          console.error('[AuthProvider] Server-side rescue failed:', rescueErr);
+        }
+
+        if (retries > 0 && !isInitialized.current) {
+          console.log('[AuthProvider] Retrying getInitialSession...');
+          return getInitialSession(retries - 1);
+        }
+
+        if (isInitialized.current) return;
+
+        console.error('[AuthProvider] getInitialSession FATAL');
+        isInitialized.current = true;
         setIsLoading(false);
       }
     };
 
     getInitialSession();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-
-        if (newSession?.user) {
-          await fetchProfile(newSession.user.id);
-        } else {
-          setProfile(null);
-        }
-
-        setIsLoading(false);
-      }
-    );
-
     return () => {
       subscription.unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -167,27 +230,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let permissions: string[] = [];
 
     if (profileData?.role_id) {
+      console.log('[AuthProvider] Fetching role/permissions for:', profileData.role_id);
       // Run both queries in parallel since they only depend on role_id
-      const [roleResult, permissionsResult] = await Promise.all([
-        // Fetch role details
-        supabase
-          .from('app_roles')
-          .select('name, display_name')
-          .eq('id', profileData.role_id)
-          .single(),
-        // Fetch permissions with nested select (combines 2 queries into 1)
-        supabase
-          .from('role_permissions')
-          .select('permission:app_permissions!inner(name)')
-          .eq('role_id', profileData.role_id),
-      ]);
+      // Add safety timeout to prevent hanging the app on slow RBAC queries
+      try {
+        const [roleResult, permissionsResult] = await Promise.race([
+          Promise.all([
+            // Fetch role details
+            supabase
+              .from('app_roles')
+              .select('name, display_name')
+              .eq('id', profileData.role_id)
+              .single(),
+            // Fetch permissions with nested select (combines 2 queries into 1)
+            supabase
+              .from('role_permissions')
+              .select('permission:app_permissions!inner(name)')
+              .eq('role_id', profileData.role_id),
+          ]),
+          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('RBAC fetch timeout')), 15000))
+        ]);
 
-      appRole = roleResult.data;
-      // Extract permission names from nested result
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      permissions = (permissionsResult.data as any[] ?? [])
-        .map((rp) => rp.permission?.name)
-        .filter((name): name is string => name != null);
+        appRole = roleResult.data;
+        // Extract permission names from nested result
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        permissions = (permissionsResult.data as any[] ?? [])
+          .map((rp) => rp.permission?.name)
+          .filter((name): name is string => name != null);
+      } catch (err) {
+        console.error('[AuthProvider] RBAC fetch failed or timed out:', err);
+      }
     }
 
     const newProfile: Profile = {

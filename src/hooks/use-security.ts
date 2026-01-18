@@ -21,6 +21,7 @@ import {
   getActiveContactCount,
   getExpiredContactCount,
   getExpiringContactCount,
+  getSuspendedContactCount,
   // Codes
   generateAccessCode,
   getContactAccessCodes,
@@ -229,6 +230,23 @@ export function useExpiringContactCount(days: number = 7) {
     // Optimized: 60s → 300s (expiring contacts are checked less frequently)
     refetchInterval: 300000,
     staleTime: 120000,
+  });
+}
+
+/**
+ * Hook to get the count of suspended security contacts.
+ */
+export function useSuspendedContactCount() {
+  return useQuery({
+    queryKey: ['suspendedContactCount'],
+    queryFn: async () => {
+      const result = await getSuspendedContactCount();
+      if (result.error) throw new Error(result.error);
+      return result.count;
+    },
+    // Optimized
+    refetchInterval: 120000,
+    staleTime: 60000,
   });
 }
 
