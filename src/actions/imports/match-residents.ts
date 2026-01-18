@@ -197,7 +197,36 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
     }
 
     // Update row in database
-    const status = matchResult.resident_id ? 'matched' : 'unmatched';
+    const isDebit = row.transaction_type === 'debit';
+    let status: string;
+    let additionalUpdates: Record<string, unknown> = {};
+
+    if (matchResult.resident_id) {
+      // Credit matched to resident
+      status = 'matched';
+    } else if (isDebit) {
+      // For debit transactions, try to auto-match to expense category
+      const { autoMatchExpenseCategory } = await import('@/actions/expenses/get-expense-categories');
+      const categoryMatch = await autoMatchExpenseCategory(row.description || '');
+
+      if (categoryMatch.category) {
+        // Debit matched to expense category
+        status = 'matched';
+        additionalUpdates = {
+          matched_expense_category_id: categoryMatch.category.id,
+          match_confidence: 'high',
+          match_method: 'keyword',
+        };
+        // Adjust counts since we found a match for this debit
+        unmatchedCount--;
+        matchedCount++;
+      } else {
+        status = 'unmatched';
+      }
+    } else {
+      status = 'unmatched';
+    }
+
     await supabase
       .from('bank_statement_rows')
       .update({
@@ -205,6 +234,7 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
         match_confidence: matchResult.confidence,
         match_method: matchResult.method,
         status,
+        ...additionalUpdates,
       })
       .eq('id', row.id);
   }
@@ -227,9 +257,16 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
 // Manual Match / Reassign Row
 // ============================================================
 
+// ============================================================
+// Manual Match / Reassign Row
+// ============================================================
+
 type ManualMatchParams = {
   row_id: string;
-  resident_id: string;
+  resident_id?: string | null;
+  project_id?: string | null;
+  petty_cash_account_id?: string | null;
+  expense_category_id?: string | null;
   save_as_alias?: boolean;
   alias_notes?: string;
 }
@@ -237,7 +274,15 @@ type ManualMatchParams = {
 export async function manualMatchRow(params: ManualMatchParams): Promise<ManualMatchResponse> {
   const supabase = await createServerSupabaseClient();
 
-  const { row_id, resident_id, save_as_alias = false, alias_notes } = params;
+  const {
+    row_id,
+    resident_id,
+    project_id,
+    petty_cash_account_id,
+    expense_category_id,
+    save_as_alias = false,
+    alias_notes
+  } = params;
 
   // Get the row
   const { data: row, error: rowError } = await supabase
@@ -253,29 +298,60 @@ export async function manualMatchRow(params: ManualMatchParams): Promise<ManualM
     };
   }
 
-  // Verify resident exists
-  const { data: resident, error: residentError } = await supabase
-    .from('residents')
-    .select('id, first_name, last_name')
-    .eq('id', resident_id)
-    .single();
+  // Verify resident exists if provided
+  if (resident_id) {
+    const { data: resident, error: residentError } = await supabase
+      .from('residents')
+      .select('id, first_name, last_name')
+      .eq('id', resident_id)
+      .single();
 
-  if (residentError || !resident) {
+    if (residentError || !resident) {
+      return {
+        data: null,
+        error: 'Resident not found',
+      };
+    }
+  }
+
+  // Determine assignment values (ensure mutual exclusivity)
+  const updateData: any = {
+    match_confidence: 'manual',
+    match_method: 'manual',
+    status: 'matched',
+  };
+
+  if (resident_id) {
+    updateData.matched_resident_id = resident_id;
+    updateData.matched_project_id = null;
+    updateData.matched_petty_cash_account_id = null;
+    updateData.matched_expense_category_id = null;
+  } else if (project_id) {
+    updateData.matched_resident_id = null;
+    updateData.matched_project_id = project_id;
+    updateData.matched_petty_cash_account_id = null;
+    updateData.matched_expense_category_id = null;
+  } else if (petty_cash_account_id) {
+    updateData.matched_resident_id = null;
+    updateData.matched_project_id = null;
+    updateData.matched_petty_cash_account_id = petty_cash_account_id;
+    updateData.matched_expense_category_id = null;
+  } else if (expense_category_id) {
+    updateData.matched_resident_id = null;
+    updateData.matched_project_id = null;
+    updateData.matched_petty_cash_account_id = null;
+    updateData.matched_expense_category_id = expense_category_id;
+  } else {
     return {
       data: null,
-      error: 'Resident not found',
+      error: 'No assignment target provided',
     };
   }
 
   // Update row with manual match
   const { data: updatedRow, error: updateError } = await supabase
     .from('bank_statement_rows')
-    .update({
-      matched_resident_id: resident_id,
-      match_confidence: 'manual',
-      match_method: 'manual',
-      status: 'matched',
-    })
+    .update(updateData)
     .eq('id', row_id)
     .select()
     .single();
@@ -287,8 +363,8 @@ export async function manualMatchRow(params: ManualMatchParams): Promise<ManualM
     };
   }
 
-  // Optionally save as alias
-  if (save_as_alias && row.description) {
+  // Optionally save as alias (only for residents)
+  if (resident_id && save_as_alias && row.description) {
     // Extract sender name from description
     const senderName = extractSenderName(row.description);
     if (senderName) {
@@ -360,6 +436,9 @@ export async function unmatchRow(row_id: string): Promise<ManualMatchResponse> {
     .from('bank_statement_rows')
     .update({
       matched_resident_id: null,
+      matched_project_id: null,
+      matched_petty_cash_account_id: null,
+      matched_expense_category_id: null,
       match_confidence: 'none',
       match_method: null,
       status: 'unmatched',

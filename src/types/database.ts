@@ -1625,6 +1625,10 @@ export interface BankStatementRow {
   payment_id: string | null;
   error_message: string | null;
   created_at: string;
+  // New assignment fields
+  matched_petty_cash_account_id: string | null;
+  matched_project_id: string | null;
+  matched_expense_category_id: string | null;
   // Transaction tag fields
   tag_id: string | null;
   tagged_by: string | null;
@@ -1754,6 +1758,43 @@ export interface TransactionTagUpdate {
   is_active?: boolean;
   sort_order?: number;
   keywords?: string[];
+}
+
+// ============================================================
+// Expense Categories (for categorizing estate expenditures)
+// ============================================================
+
+// Reuse TransactionTagColor for expense category colors
+export type ExpenseCategoryColor = TransactionTagColor;
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  keywords: string[];
+  color: ExpenseCategoryColor;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExpenseCategoryInsert {
+  name: string;
+  description?: string | null;
+  keywords?: string[];
+  color?: ExpenseCategoryColor;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+export interface ExpenseCategoryUpdate {
+  name?: string;
+  description?: string | null;
+  keywords?: string[];
+  color?: ExpenseCategoryColor;
+  is_active?: boolean;
+  sort_order?: number;
 }
 
 // ============================================================
@@ -2683,11 +2724,16 @@ export interface EmailTransaction {
   bank_account_last4: string | null;
   raw_extracted_data: Record<string, unknown> | null;
   matched_resident_id: string | null;
+  matched_project_id: string | null;
+  matched_petty_cash_account_id: string | null;
+  matched_expense_category_id: string | null;
+  tag_id: string | null;
   match_confidence: MatchConfidence | null;
   match_method: MatchMethod | null;
   match_details: Record<string, unknown> | null;
   status: EmailTransactionStatus;
   payment_id: string | null;
+  expense_id: string | null;
   skip_reason: string | null;
   error_message: string | null;
   reviewed_by: string | null;
@@ -2774,6 +2820,7 @@ export interface ProcessEmailTransactionsResult {
   queuedForReview: number;
   skipped: number;
   errored: number;
+  expensesCreated: number;
   error?: string;
 }
 

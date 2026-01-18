@@ -14,6 +14,7 @@ import {
   createTransactionTag,
   updateTransactionTag,
   deleteTransactionTag,
+  deleteTransactionTags,
 } from '@/actions/reference/transaction-tags';
 import { toast } from 'sonner';
 import type { StreetFormData, HouseTypeFormData } from '@/lib/validators/house';
@@ -234,6 +235,25 @@ export function useDeleteTransactionTag() {
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to delete transaction tag');
+    },
+  });
+}
+
+export function useDeleteTransactionTags() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const result = await deleteTransactionTags(ids);
+      if (result.error) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: () => {
+      toast.success('Transaction tags deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['transaction-tags'] });
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to delete transaction tags');
     },
   });
 }

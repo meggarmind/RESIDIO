@@ -1,7 +1,17 @@
 'use client';
 
 import { forwardRef } from 'react';
-import type { FinancialOverviewData, CollectionReportData, InvoiceAgingData, TransactionLogData, DebtorsReportData, ReportData } from '@/actions/reports/report-engine';
+import type {
+  FinancialOverviewData,
+  CollectionReportData,
+  InvoiceAgingData,
+  TransactionLogData,
+  DebtorsReportData,
+  IndebtednessSummaryData,
+  IndebtednessDetailData,
+  DevelopmentLevyData,
+  ReportData
+} from '@/actions/reports/report-engine';
 
 // ============================================================
 // Utility Functions
@@ -709,6 +719,201 @@ function DebtorsReportTraditional({ data }: { data: DebtorsReportData }) {
 }
 
 // ============================================================
+// Indebtedness Summary Template
+// ============================================================
+
+function IndebtednessSummaryTraditional({ data }: { data: IndebtednessSummaryData }) {
+  return (
+    <>
+      {/* Summary */}
+      <div style={{ ...parseStyles(styles.section) }}>
+        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>Indebtedness Summary</h2>
+        <div style={{ ...parseStyles(styles.summaryBox) }}>
+          <div style={{ ...parseStyles(styles.summaryRow) }}>
+            <span>Total Properties Counted</span>
+            <span style={{ fontFamily: "'Courier New', monospace" }}>{data.summary.totalHouses}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRow) }}>
+            <span>Indebted Properties</span>
+            <span style={{ color: '#8B0000', fontFamily: "'Courier New', monospace" }}>{data.summary.indebtedCount}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRow), borderBottom: 'none' }}>
+            <span>Non-Indebted Properties</span>
+            <span style={{ color: '#006400', fontFamily: "'Courier New', monospace" }}>{data.summary.nonIndebtedCount}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Property List */}
+      <div style={{ ...parseStyles(styles.section) }}>
+        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>Property Indebtedness Status</h2>
+        <table style={{ ...parseStyles(styles.table) }}>
+          <thead>
+            <tr>
+              <th style={{ ...parseStyles(styles.th) }}>Property</th>
+              <th style={{ ...parseStyles(styles.th) }}>Resident Name</th>
+              <th style={{ ...parseStyles(styles.thRight) }}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.houses.map((house) => (
+              <tr key={house.houseId}>
+                <td style={{ ...parseStyles(styles.td) }}>
+                  {house.houseNumber}, {house.streetName}
+                </td>
+                <td style={{ ...parseStyles(styles.td) }}>{house.primaryResidentName}</td>
+                <td style={{
+                  ...parseStyles(styles.tdRight),
+                  color: house.isIndebted ? '#8B0000' : '#006400',
+                  fontWeight: 'bold'
+                }}>
+                  {house.isIndebted ? 'INDEBTED' : 'CLEAR'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+// ============================================================
+// Indebtedness Detail Template
+// ============================================================
+
+function IndebtednessDetailTraditional({ data }: { data: IndebtednessDetailData }) {
+  return (
+    <>
+      {/* Summary */}
+      <div style={{ ...parseStyles(styles.section) }}>
+        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>Indebtedness Detail Summary</h2>
+        <div style={{ ...parseStyles(styles.summaryBox) }}>
+          <div style={{ ...parseStyles(styles.summaryRow) }}>
+            <span>Total Properties</span>
+            <span style={{ fontFamily: "'Courier New', monospace" }}>{data.summary.totalHouses}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRow) }}>
+            <span>Debt-Bearing Properties</span>
+            <span style={{ color: '#8B0000', fontFamily: "'Courier New', monospace" }}>{data.summary.indebtedCount}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRowLast) }}>
+            <span>Total Outstanding Debt</span>
+            <span style={{ color: '#8B0000', fontFamily: "'Courier New', monospace" }}>
+              {formatCurrency(data.summary.totalOutstanding)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Detailed List */}
+      <div style={{ ...parseStyles(styles.section) }}>
+        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>Outstanding Balances by Property</h2>
+        <table style={{ ...parseStyles(styles.table) }}>
+          <thead>
+            <tr>
+              <th style={{ ...parseStyles(styles.th) }}>Property</th>
+              <th style={{ ...parseStyles(styles.th) }}>Resident Name</th>
+              <th style={{ ...parseStyles(styles.thRight) }}>Amount Outstanding</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.houses.filter(h => h.isIndebted).map((house) => (
+              <tr key={house.houseId}>
+                <td style={{ ...parseStyles(styles.td) }}>
+                  {house.houseNumber}, {house.streetName}
+                </td>
+                <td style={{ ...parseStyles(styles.td) }}>{house.primaryResidentName}</td>
+                <td style={{ ...parseStyles(styles.tdDebit) }}>
+                  {formatCurrency(house.outstandingAmount)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
+              <td style={{ ...parseStyles(styles.td) }} colSpan={2}>TOTAL OUTSTANDING</td>
+              <td style={{ ...parseStyles(styles.tdDebit) }}>{formatCurrency(data.summary.totalOutstanding)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </>
+  );
+}
+
+// ============================================================
+// Development Levy Template
+// ============================================================
+
+function DevelopmentLevyTraditional({ data }: { data: DevelopmentLevyData }) {
+  return (
+    <>
+      {/* Summary */}
+      <div style={{ ...parseStyles(styles.section) }}>
+        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>Development Levy Collection Summary</h2>
+        <div style={{ ...parseStyles(styles.summaryBox) }}>
+          <div style={{ ...parseStyles(styles.summaryRow) }}>
+            <span>Total Expected</span>
+            <span style={{ fontFamily: "'Courier New', monospace" }}>{formatCurrency(data.summary.totalAmount)}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRow) }}>
+            <span>Total Collected</span>
+            <span style={{ color: '#006400', fontFamily: "'Courier New', monospace" }}>{formatCurrency(data.summary.collectedAmount)}</span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRowLast) }}>
+            <span>Outstanding</span>
+            <span style={{ color: '#8B0000', fontFamily: "'Courier New', monospace" }}>
+              {formatCurrency(data.summary.totalAmount - data.summary.collectedAmount)}
+            </span>
+          </div>
+          <div style={{ ...parseStyles(styles.summaryRow), borderBottom: 'none', paddingTop: '16px' }}>
+            <span>Collection Progress</span>
+            <span style={{ fontWeight: 'bold' }}>{data.summary.collectionRate.toFixed(1)}%</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Property List */}
+      <div style={{ ...parseStyles(styles.section) }}>
+        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>Levy Payment Status by Property</h2>
+        <table style={{ ...parseStyles(styles.table) }}>
+          <thead>
+            <tr>
+              <th style={{ ...parseStyles(styles.th) }}>Property</th>
+              <th style={{ ...parseStyles(styles.th) }}>Responsible Party</th>
+              <th style={{ ...parseStyles(styles.thRight) }}>Levy Amount</th>
+              <th style={{ ...parseStyles(styles.thRight) }}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.houses.map((house) => (
+              <tr key={house.houseId}>
+                <td style={{ ...parseStyles(styles.td) }}>
+                  {house.houseNumber}, {house.streetName}
+                </td>
+                <td style={{ ...parseStyles(styles.td) }}>
+                  {house.responsibleResidentName}<br />
+                  <small style={{ color: '#666' }}>{house.residentRole.replace(/_/g, ' ')}</small>
+                </td>
+                <td style={{ ...parseStyles(styles.tdRight) }}>{formatCurrency(house.levyAmount)}</td>
+                <td style={{
+                  ...parseStyles(styles.tdRight),
+                  color: house.isPaid ? '#006400' : '#8B0000',
+                  fontWeight: 'bold'
+                }}>
+                  {house.isPaid ? 'PAID' : 'PENDING'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+// ============================================================
 // Helper to parse inline styles
 // ============================================================
 
@@ -781,6 +986,15 @@ export const TraditionalTemplate = forwardRef<HTMLDivElement, TraditionalTemplat
           )}
           {report.type === 'debtors_report' && (
             <DebtorsReportTraditional data={report.data} />
+          )}
+          {report.type === 'indebtedness_summary' && (
+            <IndebtednessSummaryTraditional data={report.data} />
+          )}
+          {report.type === 'indebtedness_detail' && (
+            <IndebtednessDetailTraditional data={report.data} />
+          )}
+          {report.type === 'development_levy' && (
+            <DevelopmentLevyTraditional data={report.data} />
           )}
         </main>
 

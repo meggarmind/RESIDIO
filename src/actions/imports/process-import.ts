@@ -208,11 +208,29 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 
   // Process each row
   for (const row of rows) {
-    // Debit transactions (expenses) don't need resident matching - skip that check for debits
+    // Check for explicit matches first
     const isDebit = row.transaction_type === 'debit';
+    const hasManualMatch = row.matched_resident_id || row.matched_project_id || row.matched_petty_cash_account_id || row.matched_expense_category_id;
 
-    // Skip if no resident matched (only for credits)
-    if (!isDebit && !row.matched_resident_id) {
+    // Skip if no match found (and we are skipping unmatched)
+    if (!hasManualMatch && !row.tag_id && skip_unmatched) {
+      // Debits might auto-match via tags, but if no tag and no manual assignment, skip
+      if (isDebit && !row.tag_id) {
+        result.skipped_count++;
+        await supabase.from('bank_statement_rows').update({ status: 'skipped' }).eq('id', row.id);
+        continue;
+      }
+      // Credits MUST have a match
+      if (!isDebit) {
+        result.skipped_count++;
+        await supabase.from('bank_statement_rows').update({ status: 'skipped' }).eq('id', row.id);
+        continue;
+      }
+    }
+
+    // Skip if no resident matched (only for credits, unless matched to other types)
+    if (!isDebit && !hasManualMatch) {
+      // Check if it's a credit but not matched to anything
       if (skip_unmatched) {
         result.skipped_count++;
         await supabase
@@ -222,10 +240,10 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
         continue;
       } else {
         result.error_count++;
-        result.errors.push({ row_id: row.id, error: 'No resident matched' });
+        result.errors.push({ row_id: row.id, error: 'No assignment matched' });
         await supabase
           .from('bank_statement_rows')
-          .update({ status: 'error', error_message: 'No resident matched' })
+          .update({ status: 'error', error_message: 'No assignment matched' })
           .eq('id', row.id);
         continue;
       }
@@ -241,8 +259,8 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
       continue;
     }
 
-    // Check for duplicates (only for credits/payments)
-    if (!isDebit && skip_duplicates && row.transaction_date) {
+    // Check for duplicates (only for residential payments/credits)
+    if (!isDebit && row.matched_resident_id && skip_duplicates && row.transaction_date) {
       const dupCheck = await checkDuplicate(
         row.reference,
         row.amount,
@@ -261,24 +279,52 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     }
 
     try {
-      if (isDebit) {
+      if (row.matched_petty_cash_account_id) {
+        // ============================================================
+        // Handle Petty Cash Assignment (Credit or Debit)
+        // ============================================================
+        const { replenishPettyCashAccount } = await import('@/actions/finance/petty-cash');
+
+        // If Credit: Income to Petty Cash (Increase Balance)
+        // If Debit: Bank -> Petty Cash (Increase Balance)
+        // Both cases effectively "Fund" the petty cash from the bank's perspective in this context
+        // OR user meant "Expenses paid via Petty Cash"?
+        // Given "Income to petty cash inflow" -> Increase.
+        // Given "Transfer to Petty Cash" (Debit) -> Increase.
+
+        const amount = Math.abs(row.amount);
+        const replenishResult = await replenishPettyCashAccount(
+          row.matched_petty_cash_account_id,
+          amount,
+          `Imported: ${row.description || 'Bank Transfer'}`
+        );
+
+        if (!replenishResult.success) {
+          throw new Error(replenishResult.error || 'Failed to update petty cash');
+        }
+
+        // Update row status
+        await supabase
+          .from('bank_statement_rows')
+          .update({
+            status: 'created',
+            payment_id: row.matched_petty_cash_account_id, // Store account ID as reference
+          })
+          .eq('id', row.id);
+
+        result.created_count++;
+
+      } else if (isDebit) {
         // ============================================================
         // Handle DEBIT transaction - Create Expense
         // ============================================================
 
-        // Get expense category from tag if available
-        let categoryId: string | null = null;
-        if (row.tag_id) {
-          const { data: tagData } = await supabase
-            .from('transaction_tags')
-            .select('expense_category_id')
-            .eq('id', row.tag_id)
-            .single();
+        // Get expense category - use directly matched category
+        // Note: Auto-matching happens during the matching phase (match-residents.ts)
+        // Here we only use what was already matched or assigned
+        let categoryId: string | null = row.matched_expense_category_id;
 
-          categoryId = tagData?.expense_category_id || null;
-        }
-
-        // Use miscellaneous category if no tag or tag has no category
+        // If no category assigned, use miscellaneous category as fallback
         if (!categoryId) {
           const { data: miscCategory } = await supabase
             .from('expense_categories')
@@ -290,7 +336,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
         }
 
         if (!categoryId) {
-          throw new Error('No expense category found for bank import');
+          throw new Error('No expense category found for bank import. Please add a "Bank Import - Miscellaneous" category.');
         }
 
         // Create the expense record
@@ -304,6 +350,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
           payment_method: 'bank_transfer',
           is_verified: true,
           bank_row_id: row.id,
+          project_id: row.matched_project_id || undefined, // Add Project ID if matched
         });
 
         // Update row status with expense_id (we'll store in payment_id field for now)
@@ -321,8 +368,14 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
         // ============================================================
         // Handle CREDIT transaction - Create Payment (existing logic)
         // ============================================================
+
+        // Ensure we have a resident match if we got here
+        if (!row.matched_resident_id) {
+          throw new Error('Resident matching required for payment creation');
+        }
+
         const paymentResult = await createPayment({
-          resident_id: row.matched_resident_id!,
+          resident_id: row.matched_resident_id,
           amount: row.amount,
           payment_date: new Date(row.transaction_date || new Date()),
           status: 'paid',
@@ -368,6 +421,9 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
       }
     }
   }
+
+  return result; // Early return handled by surrounding code, but here we just exit loop and return result
+
 
   // Update import final status
   const finalStatus = result.success ? 'completed' : 'failed';

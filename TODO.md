@@ -4,6 +4,29 @@
 
 ## Current Phase: Phase 17 - Product Vibe Enhancements 🚧 IN PROGRESS
 
+### Recent Session Work (2026-01-18): Email Import Unification
+- [x] **Database Schema**: Added assignment columns (`matched_project_id`, `matched_petty_cash_account_id`, `matched_expense_category_id`, `tag_id`, `expense_id`) to `email_transactions` table.
+- [x] **Processing Logic**: Modified `matchEmailTransactions` to queue debit transactions for review instead of skipping them.
+- [x] **Unified Handling**: Enhanced `processEmailTransactions` to support creating expenses or replenishing petty cash from email imports.
+- [x] **Single Transaction Processing**: Updated `processSingleTransaction` to handle debit assignments during admin review.
+- [x] **Automated Tests**: Created `src/actions/email-imports/__tests__/process-email-import.test.ts` with 100% pass rate for credit/debit workflows.
+- [x] **Verification**: Validated that credits still create payments and debits now correctly handle expense creation.
+
+### Recent Session Work (2026-01-18): Unified Categories for Bank Import
+- [x] **Category Unification**: Eliminated duplication between Transaction Tags (debit) and Expense Categories
+- [x] **Database Migration**: Added keywords, color, is_active, sort_order to expense_categories table
+- [x] **Auto-Matching**: Created `autoMatchExpenseCategory()` for keyword-based debit categorization
+- [x] **Backend Fix**: Removed broken tag→category lookup from `process-import.ts`
+- [x] **Frontend Update**: Import preview now shows category indicator for debits, tag selector for credits
+
+### Recent Session Work (2026-01-18): New Financial Report Types
+- [x] **Indebtedness Summary Report**: Added report showing indebted/non-indebted status per house, sorted by street then house number
+- [x] **Indebtedness Detail Report**: Extended summary report with outstanding amount column
+- [x] **Development Levy Report**: Added report showing development levy responsibility (NRL/Owner-Occupier), amount, and paid status per property
+- [x] **Report Engine**: Implemented 3 new generator functions with proper primary resident and responsible party logic
+- [x] **Report Templates**: Added 3 new modern template components with summary cards and data tables
+- [x] **Bug Fix**: Resolved `TypeError` in `ReportRequestWizard` by adding missing report type configurations
+
 ### Recent Session Work (2026-01-18): Unified Expenditure Engine Integration
 - [x] **Petty Cash Management**: Created `PettyCashTransactionDialog` for replenishments and cash collections.
 - [x] **Expense Logging**: Enhanced `LogExpenseDialog` to support petty cash source and auto-selection of accounts.
@@ -20,12 +43,12 @@
 - [x] **Audit Trail**: Enhanced auditing for manual payment submissions and admin approvals
 - [x] **Theme Resilience**: Eliminated "green flash" on page load by moving theme logic to root layout and neutralizing CSS fallbacks
 ### Recent Session Work (2026-01-18): Dashboard Redesign (High-Fidelity & Compaction)
-- [x] **Top Cards Redesign**: Implemented a 5-card row with specialized high-fidelity components (Circular Collection Health, Action Numbers, Multi-Currency Portfolio, Highlighted Monthly Revenue, and Occupancy Rate).
+- [x] **Top Cards Redesign**: Implemented a 5-card row with specialized high-fidelity components.
+    - Added a **rotating Suggestions Carousel** card (replacing the Occupancy card) to streamline the layout.
+    - Integrated `useSmartSuggestions` to provide context-aware recommendations directly in the primary stats row.
+    - **Bug Fix**: Resolved a Rules of Hooks violation in `DashboardPage` by ensuring all hooks are called at the top level.
+- [x] **Row Removal & Flow**: Removed the dedicated "Suggestions for you" row entirely, moving Financial Health, Security, and Quick Actions up for a more compact and efficient dashboard flow.
 - [x] **Data Formatting**: Applied thousand comma separators and local currency symbols to all primary and secondary stats.
-- [x] **Bottom Row Compaction (205px Max)**: 
-    - Replaced large `Pending Payments` blocks with a sleek **Multi-Segment Distribution Bar** and legend.
-    - Streamlined `Recent Activity` into a fixed-height **Scrollable System Events** log to strictly enforce the 205px height limit.
-- [x] **Premium UI Consistency**: Refined all dashboard components to strictly inherit from the active theme variables and OKLCH color system, ensuring a "Wow" first impression across all themes.
 
 ### Recent Session Work (2026-01-18): Dashboard Unification (3-Column Layout)
 - [x] **Dashboard Recovery**: Implemented 15s timeouts and sub-query hardening for dashboard stats
@@ -48,6 +71,22 @@
 - [x] **Desktop Sidebar**: Designed a premium `SettingsSidebar` with Lucide icons, glass effects, and clean headers.
 - [x] **Mobile Optimization**: Implemented `SettingsMobileNav` with a "Sheet" slide-out and drill-down interactions to eliminate infinite scrolling.
 
+### Recent Session Work (2026-01-18): Transaction Tags Managment
+- [x] **Bulk Delete**: Implemented server action and UI for deleting multiple transaction tags at once.
+- [x] **UI Enhancement**: Improved visibility of Edit/Delete actions in the tags list.
+- [x] **Selection**: Added checkbox selection for bulk operations.
+
+
+### Recent Session Work (2026-01-18): Audit Log Humanization
+- [x] **Human-Readable Logs**: Implemented `AuditLogPresenter` to transform technical database table names (e.g., `estate_bank_account_passwords`) into user-friendly terms ("Banking Password").
+- [x] **Context Awareness**: Added logic to parse `new_values` for richer context (e.g., "Bank Statement for January 2026").
+- [x] **Dashboard Integration**: Updated Audit Pulse component (`ModernRecentActivity`) to use the new presenter layer without altering underlying data.
+
+### Recent Session Work (2026-01-18): Payment Import Review Enhancements
+- [x] **Assignment Expansion**: Extended bank import assignments to include Capital Projects, Petty Cash, and Expenses.
+- [x] **UI Layout Fix**: Resolved horizontal scrolling issues in `ImportPreview` to ensure action buttons are visible.
+- [x] **Manual Match Dialog**: Enhanced dialog with tabs for selecting assignment type (Resident/Project/Petty Cash/Category).
+- [x] **Backend Logic**: Updated `processImport` to create appropriate records (Payment vs Expense vs Petty Cash Update) based on assignment.
 
 - [x] **Product Audit**: Analyzed Resident Experience, Security, and Finance clusters (`product_audit.md`)
 - [x] **Verified Email Integration**: Confirmed logic for First Bank parsing to support "Living Data"
@@ -55,6 +94,17 @@
 - [x] **Hybrid Payments**: Manual "Proof" flow + Placeholder Paystack integration (VIBE UPGRADE)
 - [ ] **Smart Action Center**: Upgrade to context-aware suggestions (URGENT)
 - [ ] **Visitor Access**: Recent visitors quick-access carousel
+
+### Recent Session Work (2026-01-18): Debt Reports Enhancements
+- [x] **Unoccupied Houses Filter**: Added `includeUnoccupied` flag to report request schema and wizard.
+- [x] **Report Engine**: Updated `generateIndebtednessSummary`, `generateIndebtednessDetail`, and `generateDevelopmentLevyReport` to support filtering houses without primary residents/responsible parties.
+- [x] **Ambiguity Resolution**: Resolved `PGRST201` error by explicitly specifying foreign key relationships in Supabase house queries.
+- [x] **Wizard UX**: Skipped account selection step for debt reports and visually indicated skipped steps in the stepper.
+- [x] **Traditional View**: Implemented 3 new print-optimized traditional templates for debt reports.
+- [x] **UI Polish**: Fixed "undefined" labels and centralized report naming in `REPORT_TYPE_LABELS`.
+- [x] **Naming Resilience**: Added logic to handle and fix existing reports with "undefined" in their names.
+- [x] **Print Optimization**: Updated CSS to remove browser-injected headers/footers (about:blank) from print outputs.
+- [x] **Real-Time Transition**: Transitioned `Debtors`, `Indebtedness`, and `Levy` reports to "As of Today" logic, skipping unnecessary wizard steps.
 
 ## Phase 16 - Community Communication ✅ COMPLETE
 

@@ -38,6 +38,9 @@ import {
     ArrowUpDown,
     Sparkles,
     Users,
+    LayoutList,
+    ClipboardList,
+    Construction,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -116,6 +119,24 @@ const reportTypeConfig: Record<ReportType, {
         iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
         borderHover: 'hover:border-red-500/50',
     },
+    indebtedness_summary: {
+        icon: LayoutList,
+        gradient: 'from-orange-500/10 to-amber-500/5',
+        iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+        borderHover: 'hover:border-orange-500/50',
+    },
+    indebtedness_detail: {
+        icon: ClipboardList,
+        gradient: 'from-rose-500/10 to-pink-500/5',
+        iconBg: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+        borderHover: 'hover:border-rose-500/50',
+    },
+    development_levy: {
+        icon: Construction,
+        gradient: 'from-indigo-500/10 to-blue-500/5',
+        iconBg: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
+        borderHover: 'hover:border-indigo-500/50',
+    },
 };
 
 // ============================================================
@@ -132,11 +153,19 @@ const periodIcons: Record<PeriodPreset, React.ElementType> = {
     custom: CalendarRange,
 };
 
+// Reports that don't depend on bank accounts
+const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['indebtedness_summary', 'indebtedness_detail', 'development_levy'];
+
+// Reports that are always "As of Today" (skip date selection)
+const REALTIME_REPORTS: ReportType[] = ['debtors_report', 'indebtedness_summary', 'indebtedness_detail', 'development_levy', 'invoice_aging'];
+
 // ============================================================
 // Stepper Component
 // ============================================================
 
-function StepIndicator({ steps, currentStep }: { steps: Step[]; currentStep: number }) {
+function StepIndicator({ steps, currentStep, reportType }: { steps: Step[]; currentStep: number; reportType: string }) {
+    const isAgnostic = ACCOUNT_AGNOSTIC_REPORTS.includes(reportType as any);
+    const isRealtime = REALTIME_REPORTS.includes(reportType as any);
     const progressPercent = ((currentStep - 1) / (steps.length - 1)) * 100;
 
     return (
@@ -152,35 +181,38 @@ function StepIndicator({ steps, currentStep }: { steps: Step[]; currentStep: num
             {/* Steps */}
             <div className="relative flex justify-between">
                 {steps.map((step) => {
+                    const isSkipped = (step.id === 3 && isAgnostic) || (step.id === 2 && isRealtime);
+                    const isActive = currentStep === step.id;
                     const isCompleted = currentStep > step.id;
-                    const isCurrent = currentStep === step.id;
 
                     return (
-                        <div key={step.id} className="flex flex-col items-center">
+                        <div key={step.id} className="relative flex flex-col items-center flex-1">
+                            {/* Step circle */}
                             <div
                                 className={cn(
-                                    'relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-300',
-                                    isCompleted
-                                        ? 'border-emerald-500 bg-emerald-500 text-white'
-                                        : isCurrent
-                                          ? 'border-emerald-500 bg-background text-emerald-600 shadow-lg shadow-emerald-500/20'
-                                          : 'border-muted bg-background text-muted-foreground'
+                                    "w-10 h-10 rounded-full border-2 flex items-center justify-center bg-background z-10 transition-all duration-300",
+                                    isActive ? "border-primary ring-4 ring-primary/10" :
+                                        isCompleted ? "border-primary bg-primary text-primary-foreground" :
+                                            isSkipped ? "border-muted text-muted-foreground opacity-50 italic" : "border-muted"
                                 )}
                             >
                                 {isCompleted ? (
                                     <Check className="h-5 w-5" />
                                 ) : (
-                                    <span className="text-sm font-semibold">{step.id}</span>
+                                    <span className={cn("text-sm font-medium", isSkipped && "text-[9px]")}>
+                                        {isSkipped ? "N/A" : step.id}
+                                    </span>
                                 )}
                             </div>
-                            <div className="mt-2 text-center">
-                                <p
-                                    className={cn(
-                                        'text-xs font-medium transition-colors',
-                                        isCurrent ? 'text-foreground' : 'text-muted-foreground'
-                                    )}
-                                >
-                                    {step.title}
+
+                            {/* Label */}
+                            <div className="mt-3 text-center">
+                                <p className={cn(
+                                    "text-xs font-medium transition-colors",
+                                    isActive ? "text-primary" : "text-muted-foreground",
+                                    isSkipped && "italic opacity-50"
+                                )}>
+                                    {isSkipped ? `${step.title} (Skipped)` : step.title}
                                 </p>
                             </div>
                         </div>
@@ -511,22 +543,29 @@ const AccountSelectionStep = memo(function AccountSelectionStep({
 function OptionsStep({
     includeCharts,
     includeDetails,
+    includeUnoccupied,
     aggregation,
     transactionType,
+    reportType,
     onIncludeChartsChange,
     onIncludeDetailsChange,
+    onIncludeUnoccupiedChange,
     onAggregationChange,
     onTransactionTypeChange,
 }: {
     includeCharts: boolean;
     includeDetails: boolean;
+    includeUnoccupied: boolean;
     aggregation: AggregationType;
     transactionType: 'all' | 'credit' | 'debit';
+    reportType: ReportType;
     onIncludeChartsChange: (value: boolean) => void;
     onIncludeDetailsChange: (value: boolean) => void;
+    onIncludeUnoccupiedChange: (value: boolean) => void;
     onAggregationChange: (value: AggregationType) => void;
     onTransactionTypeChange: (value: 'all' | 'credit' | 'debit') => void;
 }) {
+    const isDebtReport = ['indebtedness_summary', 'indebtedness_detail', 'development_levy'].includes(reportType);
     return (
         <div className="space-y-6">
             <div className="text-center mb-8">
@@ -567,6 +606,21 @@ function OptionsStep({
                             onCheckedChange={onIncludeDetailsChange}
                         />
                     </div>
+
+                    {isDebtReport && (
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-emerald-500/10">
+                            <div className="space-y-0.5">
+                                <Label className="font-medium">Unoccupied Properties</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Include properties with no active residents
+                                </p>
+                            </div>
+                            <Switch
+                                checked={includeUnoccupied}
+                                onCheckedChange={onIncludeUnoccupiedChange}
+                            />
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
@@ -664,41 +718,59 @@ function ReviewStep({ formData }: { formData: Partial<ReportRequestFormData> }) 
                         </div>
                         <div>
                             <p className="text-sm text-muted-foreground">Time Period</p>
-                            <p className="font-semibold">{period?.label}</p>
-                            <p className="text-sm text-muted-foreground mt-0.5">
-                                {new Date(dateRange.startDate).toLocaleDateString('en-GB', {
-                                    day: 'numeric',
-                                    month: 'long',
-                                    year: 'numeric',
-                                })}{' '}
-                                -{' '}
-                                {new Date(dateRange.endDate).toLocaleDateString('en-GB', {
-                                    day: 'numeric',
-                                    month: 'long',
-                                    year: 'numeric',
-                                })}
-                            </p>
+                            {REALTIME_REPORTS.includes(formData.reportType as any) ? (
+                                <>
+                                    <p className="font-semibold">Current (As of Today)</p>
+                                    <p className="text-sm text-muted-foreground mt-0.5">
+                                        {new Date().toLocaleDateString('en-GB', {
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric',
+                                        })}
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="font-semibold">{period?.label}</p>
+                                    <p className="text-sm text-muted-foreground mt-0.5">
+                                        {new Date(dateRange.startDate).toLocaleDateString('en-GB', {
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric',
+                                        })}{' '}
+                                        -{' '}
+                                        {new Date(dateRange.endDate).toLocaleDateString('en-GB', {
+                                            day: 'numeric',
+                                            month: 'long',
+                                            year: 'numeric',
+                                        })}
+                                    </p>
+                                </>
+                            )}
                         </div>
                     </div>
 
                     <hr className="border-dashed" />
 
                     {/* Accounts */}
-                    <div className="flex items-start gap-4">
-                        <div className="p-3 rounded-xl bg-amber-500/15 text-amber-600">
-                            <Building2 className="h-6 w-6" />
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground">Bank Accounts</p>
-                            <p className="font-semibold">
-                                {(formData.bankAccountIds?.length ?? 0) === 0
-                                    ? 'All Accounts'
-                                    : `${formData.bankAccountIds?.length ?? 0} account(s) selected`}
-                            </p>
-                        </div>
-                    </div>
-
-                    <hr className="border-dashed" />
+                    {!ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType as any) && (
+                        <>
+                            <div className="flex items-start gap-4">
+                                <div className="p-3 rounded-xl bg-amber-500/15 text-amber-600">
+                                    <Building2 className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-muted-foreground">Bank Accounts</p>
+                                    <p className="font-semibold">
+                                        {(formData.bankAccountIds?.length ?? 0) === 0
+                                            ? 'All Accounts'
+                                            : `${formData.bankAccountIds?.length ?? 0} account(s) selected`}
+                                    </p>
+                                </div>
+                            </div>
+                            <hr className="border-dashed" />
+                        </>
+                    )}
 
                     {/* Options Summary */}
                     <div className="flex flex-wrap gap-2">
@@ -721,6 +793,11 @@ function ReviewStep({ formData }: { formData: Partial<ReportRequestFormData> }) 
                         {formData.transactionType !== 'all' && (
                             <Badge variant="secondary" className="gap-1.5">
                                 {formData.transactionType === 'credit' ? 'Income Only' : 'Expenses Only'}
+                            </Badge>
+                        )}
+                        {formData.includeUnoccupied && (
+                            <Badge variant="secondary" className="gap-1.5 bg-blue-500/10 text-blue-600 border-blue-500/20">
+                                Unoccupied Included
                             </Badge>
                         )}
                     </div>
@@ -750,6 +827,7 @@ export function ReportRequestWizard({ onGenerate, isGenerating = false }: Report
             aggregation: 'monthly' as const,
             includeCharts: true,
             includeDetails: true,
+            includeUnoccupied: false,
         },
     });
 
@@ -772,14 +850,38 @@ export function ReportRequestWizard({ onGenerate, isGenerating = false }: Report
     }, [periodPreset, setValue]);
 
     const handleNext = () => {
-        if (currentStep < STEPS.length) {
-            setCurrentStep(currentStep + 1);
+        let nextStep = currentStep + 1;
+
+        // Skip Date range for real-time reports
+        if (nextStep === 2 && REALTIME_REPORTS.includes(formValues.reportType || '')) {
+            nextStep++;
+        }
+
+        // Skip bank accounts for certain reports
+        if (nextStep === 3 && ACCOUNT_AGNOSTIC_REPORTS.includes(formValues.reportType || '')) {
+            nextStep++;
+        }
+
+        if (nextStep <= STEPS.length) {
+            setCurrentStep(nextStep);
         }
     };
 
     const handlePrev = () => {
-        if (currentStep > 1) {
-            setCurrentStep(currentStep - 1);
+        let prevStep = currentStep - 1;
+
+        // Skip bank accounts for certain reports
+        if (prevStep === 3 && ACCOUNT_AGNOSTIC_REPORTS.includes(formValues.reportType || '')) {
+            prevStep--;
+        }
+
+        // Skip Date range for real-time reports
+        if (prevStep === 2 && REALTIME_REPORTS.includes(formValues.reportType || '')) {
+            prevStep--;
+        }
+
+        if (prevStep >= 1) {
+            setCurrentStep(prevStep);
         }
     };
 
@@ -831,7 +933,7 @@ export function ReportRequestWizard({ onGenerate, isGenerating = false }: Report
             <Card className="overflow-hidden shadow-xl border-0 bg-gradient-to-b from-background to-muted/20">
                 <CardContent className="p-8">
                     {/* Step Indicator */}
-                    <StepIndicator steps={STEPS} currentStep={currentStep} />
+                    <StepIndicator steps={STEPS} currentStep={currentStep} reportType={formValues.reportType || ''} />
 
                     {/* Step Content */}
                     <div className="min-h-[400px]">
@@ -865,10 +967,13 @@ export function ReportRequestWizard({ onGenerate, isGenerating = false }: Report
                             <OptionsStep
                                 includeCharts={formValues.includeCharts ?? true}
                                 includeDetails={formValues.includeDetails ?? true}
+                                includeUnoccupied={formValues.includeUnoccupied ?? false}
                                 aggregation={formValues.aggregation ?? 'monthly'}
                                 transactionType={formValues.transactionType ?? 'all'}
+                                reportType={formValues.reportType || 'financial_overview'}
                                 onIncludeChartsChange={(v) => setValue('includeCharts', v)}
                                 onIncludeDetailsChange={(v) => setValue('includeDetails', v)}
+                                onIncludeUnoccupiedChange={(v) => setValue('includeUnoccupied', v)}
                                 onAggregationChange={(v) => setValue('aggregation', v)}
                                 onTransactionTypeChange={(v) => setValue('transactionType', v)}
                             />

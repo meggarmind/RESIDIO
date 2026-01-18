@@ -254,6 +254,81 @@ export async function deleteTransactionTag(id: string): Promise<DeleteTransactio
 }
 
 // ============================================================
+// BULK DELETE: Delete Multiple Transaction Tags
+// ============================================================
+
+export async function deleteTransactionTags(ids: string[]): Promise<DeleteTransactionTagResponse> {
+  const supabase = await createServerSupabaseClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: 'Unauthorized' };
+  }
+
+  if (!ids.length) {
+    return { error: null };
+  }
+
+  // Check if any tags are in use
+  const { data: existingUsage, error: usageError } = await supabase
+    .from('bank_statement_rows')
+    .select('tag_id')
+    .in('tag_id', ids);
+
+  if (usageError) {
+    return { error: usageError.message };
+  }
+
+  if (existingUsage && existingUsage.length > 0) {
+    // Get unique tag IDs that are in use
+    const usedTagIds = [...new Set(existingUsage.map(row => row.tag_id))];
+
+    // Fetch names of used tags for better error message
+    const { data: usedTags } = await supabase
+      .from('transaction_tags')
+      .select('name')
+      .in('id', usedTagIds);
+
+    const usedTagNames = usedTags?.map(t => t.name).join(', ') || 'selected tags';
+
+    return {
+      error: `Cannot delete the following tags because they are in use: ${usedTagNames}. Please reassign or remove them from transactions first.`
+    };
+  }
+
+  // Log audit event for each tag before deletion (or batch log if preferred, but individual is safer for history)
+  // Fetch tags to be deleted to log their names
+  const { data: tagsToDelete } = await supabase
+    .from('transaction_tags')
+    .select('*')
+    .in('id', ids);
+
+  const { error } = await supabase
+    .from('transaction_tags')
+    .delete()
+    .in('id', ids);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  // Log audit events
+  if (tagsToDelete) {
+    await Promise.all(tagsToDelete.map(tag =>
+      logAudit({
+        action: 'DELETE',
+        entityType: 'transaction_tags',
+        entityId: tag.id,
+        entityDisplay: tag.name,
+        oldValues: tag,
+      })
+    ));
+  }
+
+  return { error: null };
+}
+
+// ============================================================
 // Tag Import Row (for tagging during import review)
 // ============================================================
 

@@ -1,7 +1,17 @@
 'use client';
 
 import { forwardRef } from 'react';
-import type { FinancialOverviewData, CollectionReportData, InvoiceAgingData, TransactionLogData, DebtorsReportData, ReportData } from '@/actions/reports/report-engine';
+import type {
+  FinancialOverviewData,
+  CollectionReportData,
+  InvoiceAgingData,
+  TransactionLogData,
+  DebtorsReportData,
+  IndebtednessSummaryData,
+  IndebtednessDetailData,
+  DevelopmentLevyData,
+  ReportData
+} from '@/actions/reports/report-engine';
 
 // ============================================================
 // Utility Functions
@@ -458,7 +468,7 @@ function CollectionReportModern({ data }: { data: CollectionReportData }) {
               fontSize: '32px',
               fontWeight: '700',
               color: data.summary.collectionRate >= 80 ? colors.success :
-                     data.summary.collectionRate >= 50 ? colors.warning : colors.danger,
+                data.summary.collectionRate >= 50 ? colors.warning : colors.danger,
             }}>
               {data.summary.collectionRate.toFixed(1)}%
             </span>
@@ -466,7 +476,7 @@ function CollectionReportModern({ data }: { data: CollectionReportData }) {
           <ProgressBar
             value={data.summary.collectionRate}
             color={data.summary.collectionRate >= 80 ? colors.success :
-                   data.summary.collectionRate >= 50 ? colors.warning : colors.danger}
+              data.summary.collectionRate >= 50 ? colors.warning : colors.danger}
             showPercentage={false}
           />
         </div>
@@ -950,8 +960,8 @@ function DebtorsReportModern({ data }: { data: DebtorsReportData }) {
                     ...modernTableCell,
                     textAlign: 'right',
                     color: debtor.daysOverdue > 90 ? colors.danger :
-                           debtor.daysOverdue > 60 ? '#f97316' :
-                           debtor.daysOverdue > 30 ? colors.warning : colors.slate[600],
+                      debtor.daysOverdue > 60 ? '#f97316' :
+                        debtor.daysOverdue > 30 ? colors.warning : colors.slate[600],
                     fontWeight: debtor.daysOverdue > 60 ? '600' : '400',
                   }}>
                     {debtor.daysOverdue}
@@ -1036,6 +1046,315 @@ function DebtorsReportModern({ data }: { data: DebtorsReportData }) {
                 </td>
                 <td style={{ ...modernTableCell, textAlign: 'right', fontWeight: '700', color: colors.danger }}>
                   {formatCurrency(data.summary.totalOutstanding)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </DataCard>
+    </>
+  );
+}
+
+// ============================================================
+// Indebtedness Summary Template
+// ============================================================
+
+function IndebtednessSummaryModern({ data }: { data: IndebtednessSummaryData }) {
+  return (
+    <>
+      {/* Summary Cards */}
+      <div style={{
+        display: 'flex',
+        gap: '16px',
+        flexWrap: 'wrap',
+        marginBottom: '32px',
+      }}>
+        <StatCard
+          label="Total Houses"
+          value={data.summary.totalHouses.toString()}
+          color="primary"
+        />
+        <StatCard
+          label="Indebted"
+          value={data.summary.indebtedCount.toString()}
+          subValue={`${((data.summary.indebtedCount / data.summary.totalHouses) * 100 || 0).toFixed(1)}% of total`}
+          color="danger"
+        />
+        <StatCard
+          label="Non-Indebted"
+          value={data.summary.nonIndebtedCount.toString()}
+          subValue={`${((data.summary.nonIndebtedCount / data.summary.totalHouses) * 100 || 0).toFixed(1)}% of total`}
+          color="success"
+        />
+      </div>
+
+      {/* Indebtedness Table */}
+      <DataCard title="Indebtedness Status by House">
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={modernTableHeader}>Street</th>
+                <th style={modernTableHeader}>House #</th>
+                <th style={modernTableHeader}>Primary Resident</th>
+                <th style={{ ...modernTableHeader, textAlign: 'center' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.houses.map((house, idx) => (
+                <tr key={house.houseId} style={{
+                  backgroundColor: idx % 2 === 0 ? '#fff' : colors.slate[50],
+                }}>
+                  <td style={modernTableCell}>{house.streetName}</td>
+                  <td style={{ ...modernTableCell, fontWeight: '500' }}>{house.houseNumber}</td>
+                  <td style={modernTableCell}>{house.primaryResidentName}</td>
+                  <td style={{ ...modernTableCell, textAlign: 'center' }}>
+                    <span style={{
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      padding: '4px 12px',
+                      borderRadius: '12px',
+                      backgroundColor: house.isIndebted ? `${colors.danger}15` : `${colors.success}15`,
+                      color: house.isIndebted ? colors.danger : colors.success,
+                    }}>
+                      {house.isIndebted ? 'Indebted' : 'Non-Indebted'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </DataCard>
+    </>
+  );
+}
+
+// ============================================================
+// Indebtedness Detail Template
+// ============================================================
+
+function IndebtednessDetailModern({ data }: { data: IndebtednessDetailData }) {
+  return (
+    <>
+      {/* Summary Cards */}
+      <div style={{
+        display: 'flex',
+        gap: '16px',
+        flexWrap: 'wrap',
+        marginBottom: '32px',
+      }}>
+        <StatCard
+          label="Total Houses"
+          value={data.summary.totalHouses.toString()}
+          color="primary"
+        />
+        <StatCard
+          label="Indebted"
+          value={data.summary.indebtedCount.toString()}
+          subValue={`${((data.summary.indebtedCount / data.summary.totalHouses) * 100 || 0).toFixed(1)}% of total`}
+          color="danger"
+        />
+        <StatCard
+          label="Total Outstanding"
+          value={formatCurrency(data.summary.totalOutstanding)}
+          color="danger"
+        />
+        <StatCard
+          label="Non-Indebted"
+          value={data.summary.nonIndebtedCount.toString()}
+          color="success"
+        />
+      </div>
+
+      {/* Indebtedness Detail Table */}
+      <DataCard title="Indebtedness Details by House">
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={modernTableHeader}>Street</th>
+                <th style={modernTableHeader}>House #</th>
+                <th style={modernTableHeader}>Primary Resident</th>
+                <th style={{ ...modernTableHeader, textAlign: 'center' }}>Status</th>
+                <th style={{ ...modernTableHeader, textAlign: 'right' }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.houses.map((house, idx) => (
+                <tr key={house.houseId} style={{
+                  backgroundColor: idx % 2 === 0 ? '#fff' : colors.slate[50],
+                }}>
+                  <td style={modernTableCell}>{house.streetName}</td>
+                  <td style={{ ...modernTableCell, fontWeight: '500' }}>{house.houseNumber}</td>
+                  <td style={modernTableCell}>{house.primaryResidentName}</td>
+                  <td style={{ ...modernTableCell, textAlign: 'center' }}>
+                    <span style={{
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      padding: '4px 12px',
+                      borderRadius: '12px',
+                      backgroundColor: house.isIndebted ? `${colors.danger}15` : `${colors.success}15`,
+                      color: house.isIndebted ? colors.danger : colors.success,
+                    }}>
+                      {house.isIndebted ? 'Indebted' : 'Non-Indebted'}
+                    </span>
+                  </td>
+                  <td style={{
+                    ...modernTableCell,
+                    textAlign: 'right',
+                    fontWeight: house.outstandingAmount > 0 ? '600' : '400',
+                    color: house.outstandingAmount > 0 ? colors.danger : colors.slate[600],
+                  }}>
+                    {formatCurrency(house.outstandingAmount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ backgroundColor: colors.slate[100] }}>
+                <td style={{ ...modernTableCell, fontWeight: '600' }} colSpan={4}>
+                  TOTAL
+                </td>
+                <td style={{ ...modernTableCell, textAlign: 'right', fontWeight: '700', color: colors.danger }}>
+                  {formatCurrency(data.summary.totalOutstanding)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </DataCard>
+    </>
+  );
+}
+
+// ============================================================
+// Development Levy Template
+// ============================================================
+
+function DevelopmentLevyModern({ data }: { data: DevelopmentLevyData }) {
+  return (
+    <>
+      {/* Summary Cards */}
+      <div style={{
+        display: 'flex',
+        gap: '16px',
+        flexWrap: 'wrap',
+        marginBottom: '32px',
+      }}>
+        <StatCard
+          label="Total Properties"
+          value={data.summary.totalHouses.toString()}
+          color="primary"
+        />
+        <StatCard
+          label="Paid"
+          value={data.summary.paidCount.toString()}
+          subValue={formatCurrency(data.summary.collectedAmount)}
+          color="success"
+        />
+        <StatCard
+          label="Unpaid"
+          value={data.summary.unpaidCount.toString()}
+          subValue={formatCurrency(data.summary.totalAmount - data.summary.collectedAmount)}
+          color="danger"
+        />
+        <StatCard
+          label="Collection Rate"
+          value={`${data.summary.collectionRate.toFixed(1)}%`}
+          color={data.summary.collectionRate >= 80 ? 'success' :
+            data.summary.collectionRate >= 50 ? 'warning' : 'danger'}
+        />
+      </div>
+
+      {/* Collection Progress */}
+      <DataCard title="Collection Progress">
+        <div style={{ maxWidth: '400px' }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            marginBottom: '12px',
+          }}>
+            <span style={{ fontSize: '14px', color: colors.slate[600] }}>
+              {formatCurrency(data.summary.collectedAmount)} of {formatCurrency(data.summary.totalAmount)}
+            </span>
+            <span style={{
+              fontSize: '24px',
+              fontWeight: '700',
+              color: data.summary.collectionRate >= 80 ? colors.success :
+                data.summary.collectionRate >= 50 ? colors.warning : colors.danger,
+            }}>
+              {data.summary.collectionRate.toFixed(1)}%
+            </span>
+          </div>
+          <ProgressBar
+            value={data.summary.collectionRate}
+            color={data.summary.collectionRate >= 80 ? colors.success :
+              data.summary.collectionRate >= 50 ? colors.warning : colors.danger}
+            showPercentage={false}
+          />
+        </div>
+      </DataCard>
+
+      {/* Development Levy Table */}
+      <DataCard title="Development Levy Status by Property">
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={modernTableHeader}>House</th>
+                <th style={modernTableHeader}>Primary Resident</th>
+                <th style={modernTableHeader}>Responsible Party</th>
+                <th style={{ ...modernTableHeader, textAlign: 'right' }}>Levy Amount</th>
+                <th style={{ ...modernTableHeader, textAlign: 'center' }}>Paid</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.houses.map((house, idx) => (
+                <tr key={house.houseId} style={{
+                  backgroundColor: idx % 2 === 0 ? '#fff' : colors.slate[50],
+                }}>
+                  <td style={modernTableCell}>
+                    <div style={{ fontWeight: '500' }}>{house.houseNumber}</div>
+                    <div style={{ fontSize: '12px', color: colors.slate[400] }}>{house.streetName}</div>
+                  </td>
+                  <td style={modernTableCell}>{house.responsibleResidentName}</td>
+                  <td style={modernTableCell}>
+                    <span style={{
+                      fontSize: '12px',
+                      backgroundColor: colors.slate[100],
+                      padding: '4px 8px',
+                      borderRadius: '8px',
+                      color: colors.slate[600],
+                    }}>
+                      {house.responsibleResidentRole}
+                    </span>
+                  </td>
+                  <td style={{ ...modernTableCell, textAlign: 'right', fontWeight: '500' }}>
+                    {formatCurrency(house.levyAmount)}
+                  </td>
+                  <td style={{ ...modernTableCell, textAlign: 'center' }}>
+                    <span style={{
+                      fontSize: '16px',
+                    }}>
+                      {house.isPaid ? '✓' : '✗'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ backgroundColor: colors.slate[100] }}>
+                <td style={{ ...modernTableCell, fontWeight: '600' }} colSpan={3}>
+                  TOTAL ({data.summary.paidCount} paid, {data.summary.unpaidCount} unpaid)
+                </td>
+                <td style={{ ...modernTableCell, textAlign: 'right', fontWeight: '700' }}>
+                  {formatCurrency(data.summary.totalAmount)}
+                </td>
+                <td style={{ ...modernTableCell, textAlign: 'center', fontWeight: '600' }}>
+                  {data.summary.collectionRate.toFixed(0)}%
                 </td>
               </tr>
             </tfoot>
@@ -1169,6 +1488,15 @@ export const ModernTemplate = forwardRef<HTMLDivElement, ModernTemplateProps>(
           )}
           {report.type === 'debtors_report' && (
             <DebtorsReportModern data={report.data} />
+          )}
+          {report.type === 'indebtedness_summary' && (
+            <IndebtednessSummaryModern data={report.data} />
+          )}
+          {report.type === 'indebtedness_detail' && (
+            <IndebtednessDetailModern data={report.data} />
+          )}
+          {report.type === 'development_levy' && (
+            <DevelopmentLevyModern data={report.data} />
           )}
         </main>
 

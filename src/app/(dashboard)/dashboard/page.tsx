@@ -14,7 +14,7 @@ import { SecurityAlertsCard } from '@/components/dashboard/security-alerts-card'
 import { QuickActionsPanel } from '@/components/dashboard/quick-actions-panel';
 import { RecentActivityCard } from '@/components/dashboard/recent-activity-card';
 import { ContextualGreeting } from '@/components/dashboard/contextual-greeting';
-import { SmartSuggestions } from '@/components/dashboard/smart-suggestions';
+import { useSmartSuggestions } from '@/hooks/use-smart-suggestions';
 import { ModernStatsCards } from '@/components/dashboard/modern-stats-cards';
 import { ModernFinancialHealth } from '@/components/dashboard/modern-financial-health';
 import { ModernPendingPayments } from '@/components/dashboard/modern-pending-payments';
@@ -32,6 +32,7 @@ function ErrorHandler() {
 
     return null;
 }
+// ... (omitting DashboardSkeleton for brevity as I'm replacing the whole block or using TargetContent)
 
 function DashboardSkeleton() {
     return (
@@ -101,6 +102,7 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
     const { profile, isLoading: authLoading } = useAuth();
     const { data: stats, isLoading: statsLoading, error: statsError } = useEnhancedDashboardStats();
+    const { suggestions } = useSmartSuggestions();
 
     if (authLoading) {
         return <DashboardSkeleton />;
@@ -109,8 +111,8 @@ export default function DashboardPage() {
     const firstName = profile?.full_name?.trim() ? profile.full_name.trim().split(' ')[0] : 'there';
     const isLoading = statsLoading;
 
-    if (statsError || stats?.error) {
-        const errorMessage = statsError instanceof Error ? statsError.message : (stats?.error || 'An unexpected error occurred');
+    if (statsError) {
+        const errorMessage = statsError instanceof Error ? statsError.message : 'An unexpected error occurred';
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
                 <div className="p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20 max-w-md text-center">
@@ -142,10 +144,9 @@ export default function DashboardPage() {
                 financialHealth={stats?.financialHealth ?? null}
                 quickStats={stats?.quickStats ?? null}
                 unpaidCount={stats?.invoiceDistribution?.unpaid ?? 0}
+                suggestions={suggestions}
                 isLoading={isLoading}
             />
-
-            {!isLoading && <SmartSuggestions />}
 
             {/* Main Content Grid: Triple Column Sharing Row (2:1:1 split) */}
             <div className="grid gap-6 lg:grid-cols-4">

@@ -1,16 +1,21 @@
 'use client';
 
-import { Wallet, FileText, Shield, TrendingUp, TrendingDown, Info, ChevronRight, Hash, Users } from 'lucide-react';
+import { Wallet, FileText, Shield, TrendingUp, TrendingDown, Info, ChevronRight, Hash, Users, Sparkles, ArrowRight, Zap } from 'lucide-react';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
 import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { FinancialHealthMetrics, QuickStats } from '@/actions/dashboard/get-enhanced-dashboard-stats';
+import type { SmartSuggestion } from '@/hooks/use-smart-suggestions';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface ModernStatsCardsProps {
   financialHealth: FinancialHealthMetrics | null;
   quickStats: QuickStats | null;
   unpaidCount: number;
+  suggestions?: SmartSuggestion[];
   isLoading?: boolean;
 }
 
@@ -154,30 +159,82 @@ function HighlightStat({ title, value, label, details }: { title: string; value:
   );
 }
 
-function OccupancyStat({ title, current, total, label, subLabel }: { title: string; current: number; total: number; label: string; subLabel: string }) {
-  const percentage = total > 0 ? (current / total) * 100 : 0;
+function SuggestionsCarousel({ suggestions }: { suggestions: SmartSuggestion[] }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (suggestions.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % suggestions.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [suggestions.length]);
+
+  if (suggestions.length === 0) {
+    return (
+      <div className="flex flex-col bg-card rounded-xl border p-4 shadow-sm h-full items-center justify-center text-muted-foreground text-center">
+        <Sparkles className="h-5 w-5 mb-2 opacity-20" />
+        <p className="text-xs">No suggestions at the moment</p>
+      </div>
+    );
+  }
+
+  const suggestion = suggestions[currentIndex];
 
   return (
-    <div className="flex flex-col bg-card rounded-xl border p-4 shadow-sm animate-fade-in-up h-full">
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
+    <div className="flex flex-col bg-card rounded-xl border p-4 shadow-sm animate-fade-in-up h-full relative overflow-hidden">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Suggestions</span>
+        </div>
+        {suggestions.length > 1 && (
+          <div className="flex gap-1">
+            {suggestions.map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "h-1 w-3 rounded-full transition-all duration-300",
+                  i === currentIndex ? "bg-purple-500 w-4" : "bg-muted"
+                )}
+              />
+            ))}
+          </div>
+        )}
       </div>
-      <div className="flex-1 flex flex-col items-center justify-center py-2">
-        <IconContainer icon={Users} color="text-foreground" bgColor="bg-muted" />
 
-        <div className="w-full text-center mb-1">
-          <span className="text-xl font-bold">{label}</span>
-        </div>
-        <div className="text-[10px] text-muted-foreground mb-4 uppercase font-medium">
-          ₦{formatValue(current)} ({formatValue(percentage)}%)
-        </div>
-
-        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-full bg-foreground transition-all duration-1000 ease-out"
-            style={{ width: `${percentage}%` }}
-          />
-        </div>
+      <div className="flex-1 flex flex-col justify-center overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={suggestion.id}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col"
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className={cn(
+                "flex h-5 w-5 items-center justify-center rounded-full shrink-0",
+                suggestion.priority === 'high' ? "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" :
+                  suggestion.priority === 'medium' ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" :
+                    "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+              )}>
+                <Zap className="h-2.5 w-2.5" />
+              </div>
+              <h4 className="font-bold text-xs truncate">{suggestion.title}</h4>
+            </div>
+            <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed mb-3">
+              {suggestion.description}
+            </p>
+            <Button size="sm" variant="ghost" className="h-7 text-[10px] w-full justify-between group px-2 border border-muted hover:bg-muted/50" asChild>
+              <Link href={suggestion.actionUrl}>
+                {suggestion.actionLabel}
+                <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            </Button>
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -222,6 +279,7 @@ export function ModernStatsCards({
   financialHealth,
   quickStats,
   unpaidCount,
+  suggestions = [],
   isLoading,
 }: ModernStatsCardsProps) {
   if (isLoading || !financialHealth || !quickStats) {
@@ -265,14 +323,8 @@ export function ModernStatsCards({
         details="Payment Analysis"
       />
 
-      {/* 5. Occupancy (Horizontal Progress) */}
-      <OccupancyStat
-        title="Occupancy"
-        current={quickStats.occupiedHouses}
-        total={quickStats.totalHouses}
-        label="Occupied Houses"
-        subLabel="Occupancy Rate"
-      />
+      {/* 5. Suggestions Carousel (Replaced Occupancy) */}
+      <SuggestionsCarousel suggestions={suggestions} />
     </div>
   );
 }

@@ -654,24 +654,22 @@ export function ImportPreview({
       {viewMode === 'table' && (
         <>
           <div className="border rounded-lg overflow-hidden max-h-[600px] overflow-y-auto relative">
-            <Table>
+            <Table className="text-xs">
               <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
                 <TableRow>
-                  <TableHead className="w-16">#</TableHead>
-                  <TableHead className="w-20">Type</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Resident</TableHead>
-                  <TableHead className="w-[150px]">Tag</TableHead>
-                  <TableHead className="w-24">Actions</TableHead>
+                  <TableHead className="w-8 px-2">#</TableHead>
+                  <TableHead className="w-[70px] px-1">Date</TableHead>
+                  <TableHead className="px-1">Description</TableHead>
+                  <TableHead className="text-right w-[85px] px-1">Amount</TableHead>
+                  <TableHead className="w-[100px] px-1">Assignment</TableHead>
+                  <TableHead className="w-[90px] px-1">Tag</TableHead>
+                  <TableHead className="w-[70px] px-1">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {displayRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       {searchQuery ? (
                         <span className="text-muted-foreground">
                           No rows match your search: &ldquo;{searchQuery}&rdquo;
@@ -693,74 +691,81 @@ export function ImportPreview({
                     const currentTagId = row.tag_id || NONE_TAG;
                     const isCredit = row.transaction_type === 'credit';
                     const isDebit = row.transaction_type === 'debit';
+                    const r = row as any;
 
                     return (
                       <TableRow
                         key={row.id}
                         className={cn(
                           'hover:bg-muted/50 transition-colors',
-                          isCredit && 'border-l-4 border-l-green-500',
-                          isDebit && 'border-l-4 border-l-red-500'
+                          isCredit && 'bg-green-50/30 dark:bg-green-950/20',
+                          isDebit && 'bg-red-50/30 dark:bg-red-950/20'
                         )}
                       >
-                        <TableCell className="font-mono text-sm">{row.row_number}</TableCell>
-                        <TableCell>
-                          {row.transaction_type === 'credit' ? (
-                            <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
-                              <ArrowDownLeft className="h-3 w-3" />
-                              CR
-                            </Badge>
-                          ) : row.transaction_type === 'debit' ? (
-                            <Badge variant="outline" className="gap-1 bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800">
-                              <ArrowUpRight className="h-3 w-3" />
-                              DR
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">--</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {row.transaction_date
-                            ? new Date(row.transaction_date).toLocaleDateString()
-                            : '--'}
-                        </TableCell>
-                        <TableCell className="max-w-[200px] truncate" title={row.description || ''}>
-                          {row.description || '--'}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          ₦{(row.amount || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getStatusBadge(row.status, row.transaction_type)}
-                            {row.match_confidence && getConfidenceBadge(row.match_confidence)}
+                        {/* # */}
+                        <TableCell className="font-mono px-2">{row.row_number}</TableCell>
+
+                        {/* Date + Type indicator */}
+                        <TableCell className="px-1">
+                          <div className="flex flex-col">
+                            <span>{row.transaction_date ? new Date(row.transaction_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '--'}</span>
+                            <span className={cn("text-[9px] font-semibold", isCredit ? "text-green-600" : isDebit ? "text-red-600" : "text-muted-foreground")}>
+                              {isCredit ? 'CR' : isDebit ? 'DR' : '--'}
+                            </span>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          {row.matched_resident_id ? (
-                            <span className="text-sm">
-                              {(row as any).resident?.first_name} {(row as any).resident?.last_name}
+
+                        {/* Description */}
+                        <TableCell className="px-1 max-w-[180px] truncate" title={row.description || ''}>
+                          {row.description || '--'}
+                        </TableCell>
+
+                        {/* Amount */}
+                        <TableCell className={cn("text-right font-mono px-1", isCredit ? "text-green-700" : isDebit ? "text-red-700" : "")}>
+                          ₦{(row.amount || 0).toLocaleString('en-NG', { minimumFractionDigits: 0 })}
+                        </TableCell>
+
+                        {/* Assignment */}
+                        <TableCell className="px-1">
+                          {r.matched_resident_id ? (
+                            <span className="truncate block max-w-[90px]" title={`${r.resident?.first_name} ${r.resident?.last_name}`}>
+                              {r.resident?.first_name?.charAt(0)}. {r.resident?.last_name}
+                            </span>
+                          ) : r.matched_project_id ? (
+                            <span className="truncate block max-w-[90px] text-blue-600" title={r.project?.name}>
+                              {r.project?.name}
+                            </span>
+                          ) : r.matched_petty_cash_account_id ? (
+                            <span className="truncate block max-w-[90px] text-amber-600" title={r.petty_cash_account?.name}>
+                              {r.petty_cash_account?.name}
+                            </span>
+                          ) : r.matched_expense_category_id ? (
+                            <span className="truncate block max-w-[90px] text-purple-600" title={r.expense_category?.name}>
+                              {r.expense_category?.name}
                             </span>
                           ) : (
-                            <span className="text-muted-foreground">--</span>
+                            <span className="text-muted-foreground italic">--</span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
+
+                        {/* Tag (Credit) / Category (Debit) */}
+                        <TableCell className="px-1">
+                          {isCredit ? (
+                            // Credit transactions: Tag selector
                             <Select
                               value={currentTagId}
                               onValueChange={(value) => handleTagChange(row.id, value)}
                             >
-                              <SelectTrigger className="h-8 w-full">
-                                <SelectValue placeholder="Select tag" />
+                              <SelectTrigger className="h-6 w-full text-[10px] px-1">
+                                <SelectValue placeholder="--" />
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value={NONE_TAG}>
-                                  <span className="text-muted-foreground">No tag</span>
+                                  <span className="text-muted-foreground">None</span>
                                 </SelectItem>
                                 {availableTags.map((tag) => (
                                   <SelectItem key={tag.id} value={tag.id}>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1">
                                       <span className={`w-2 h-2 rounded-full ${(tagColorVariants[tag.color] || 'bg-gray-100').split(' ')[0]}`} />
                                       {tag.name}
                                     </div>
@@ -768,19 +773,17 @@ export function ImportPreview({
                                 ))}
                               </SelectContent>
                             </Select>
-                            {row.auto_tagged && row.tag_id && (
-                              <Badge
-                                variant="outline"
-                                className="h-5 px-1.5 text-xs bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800"
-                                title="Auto-tagged based on keyword match"
-                              >
-                                <Sparkles className="h-3 w-3 mr-0.5" />
-                                Auto
-                              </Badge>
-                            )}
-                          </div>
+                          ) : (
+                            // Debit transactions: Expense categories (shown in Assignment column)
+                            <span className="text-[10px] text-muted-foreground italic">
+                              {r.matched_expense_category_id ? '✓ Cat.' : '--'}
+                            </span>
+                          )}
                         </TableCell>
-                        <TableCell>
+
+                        {/* Actions */}
+                        <TableCell className="px-1">
+
                           <div className="flex items-center gap-1">
                             {/* Manual Match Button */}
                             {(row.status === 'unmatched' || row.status === 'pending') && (

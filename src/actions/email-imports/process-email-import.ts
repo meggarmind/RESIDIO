@@ -13,6 +13,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { createMatcher } from '@/lib/matching/resident-matcher';
 import { createPayment } from '@/actions/payments/create-payment';
+import { createExpense } from '@/actions/expenses/create-expense';
 import { updateEmailImportStatus } from './create-email-import';
 import type {
   EmailTransaction,
@@ -114,14 +115,15 @@ export async function matchEmailTransactions(
 
     // Only match credit transactions (payments coming in)
     if (emailTx.transaction_type !== 'credit') {
-      // Skip debits - they're not payments
+      // Debits are expenses or petty cash - queue for manual categorization
       await adminClient
         .from('email_transactions')
         .update({
-          status: 'skipped',
-          skip_reason: 'Debit transaction (not a payment)',
+          status: 'queued_for_review',
+          skip_reason: null, // Clear any previous skip reason
         })
         .eq('id', emailTx.id);
+      unmatched++;
       continue;
     }
 
@@ -214,9 +216,13 @@ export async function processEmailTransactions(
     queuedForReview: 0,
     skipped: 0,
     errored: 0,
+    expensesCreated: 0,
   };
 
-  for (const tx of transactions) {
+  // 1. Process Matched Credits (Payments)
+  const creditTransactions = (transactions || []).filter(tx => tx.transaction_type === 'credit');
+
+  for (const tx of creditTransactions) {
     const emailTx = tx as EmailTransaction;
 
     // Check for duplicates if enabled
@@ -276,13 +282,97 @@ export async function processEmailTransactions(
         result.errored++;
       }
     } else {
-      // Queue for admin review
-      await adminClient
-        .from('email_transactions')
-        .update({ status: 'queued_for_review' })
-        .eq('id', emailTx.id);
-
       result.queuedForReview++;
+    }
+  }
+
+  // 2. Process Debits with existing assignments (Expenses/Petty Cash)
+  // These might come from high-confidence matching (if we eventually add it) or previous sessions
+  const { data: debitTransactions } = await adminClient
+    .from('email_transactions')
+    .select('*')
+    .eq('email_import_id', importId)
+    .eq('transaction_type', 'debit')
+    .in('status', ['matched', 'queued_for_review']);
+
+  if (debitTransactions && debitTransactions.length > 0) {
+    for (const tx of debitTransactions) {
+      const emailTx = tx as EmailTransaction;
+
+      // Check for assignments
+      const hasAssignment = emailTx.matched_expense_category_id ||
+        emailTx.matched_project_id ||
+        emailTx.matched_petty_cash_account_id;
+
+      if (!hasAssignment) {
+        // Leave in queue for review
+        if (emailTx.status !== 'queued_for_review') {
+          await adminClient.from('email_transactions').update({ status: 'queued_for_review' }).eq('id', emailTx.id);
+          result.queuedForReview++;
+        }
+        continue;
+      }
+
+      try {
+        if (emailTx.matched_petty_cash_account_id) {
+          // Petty Cash Replenishment
+          const { replenishPettyCashAccount } = await import('@/actions/finance/petty-cash');
+          const replenishResult = await replenishPettyCashAccount(
+            emailTx.matched_petty_cash_account_id,
+            Math.abs(Number(emailTx.amount)),
+            `Email import: ${emailTx.description || 'Bank Transfer'}`
+          );
+
+          if (!replenishResult.success) {
+            throw new Error(replenishResult.error || 'Failed to replenish petty cash');
+          }
+
+          await adminClient
+            .from('email_transactions')
+            .update({
+              status: 'processed',
+              processed_at: new Date().toISOString(),
+            })
+            .eq('id', emailTx.id);
+
+          result.expensesCreated++;
+        } else {
+          // Regular Expense
+          const expenseResult = await createExpenseFromTransaction(emailTx, auth.userId);
+
+          if (expenseResult.success) {
+            await adminClient
+              .from('email_transactions')
+              .update({
+                status: 'processed',
+                expense_id: expenseResult.expenseId,
+                processed_at: new Date().toISOString(),
+              })
+              .eq('id', emailTx.id);
+
+            result.expensesCreated++;
+          } else {
+            await adminClient
+              .from('email_transactions')
+              .update({
+                status: 'error',
+                error_message: expenseResult.error,
+              })
+              .eq('id', emailTx.id);
+
+            result.errored++;
+          }
+        }
+      } catch (error) {
+        await adminClient
+          .from('email_transactions')
+          .update({
+            status: 'error',
+            error_message: error instanceof Error ? error.message : 'Unknown error rendering debit',
+          })
+          .eq('id', emailTx.id);
+        result.errored++;
+      }
     }
   }
 
@@ -320,10 +410,13 @@ export async function processEmailTransactions(
 export async function processSingleTransaction(
   transactionId: string,
   params: {
-    residentId: string;
+    residentId?: string;
+    expenseCategoryId?: string;
+    projectId?: string;
+    pettyCashAccountId?: string;
     notes?: string;
   }
-): Promise<{ success: boolean; paymentId?: string; error?: string }> {
+): Promise<{ success: boolean; paymentId?: string; expenseId?: string; error?: string }> {
   const auth = await authorizePermission(PERMISSIONS.EMAIL_IMPORTS_PROCESS);
   if (!auth.authorized) {
     return { success: false, error: auth.error || 'Unauthorized' };
@@ -347,6 +440,66 @@ export async function processSingleTransaction(
   // Validate transaction is processable
   if (!['queued_for_review', 'matched', 'pending'].includes(emailTx.status)) {
     return { success: false, error: `Cannot process transaction with status: ${emailTx.status}` };
+  }
+
+  if (emailTx.transaction_type === 'debit') {
+    // ============================================================
+    // Handle Debit (Expense or Petty Cash)
+    // ============================================================
+
+    if (params.pettyCashAccountId) {
+      const { replenishPettyCashAccount } = await import('@/actions/finance/petty-cash');
+      const replenishResult = await replenishPettyCashAccount(
+        params.pettyCashAccountId,
+        Math.abs(Number(emailTx.amount)),
+        params.notes || `Email import: ${emailTx.description}`
+      );
+
+      if (!replenishResult.success) {
+        return { success: false, error: replenishResult.error };
+      }
+
+      await adminClient.from('email_transactions').update({
+        status: 'processed',
+        matched_petty_cash_account_id: params.pettyCashAccountId,
+        reviewed_by: auth.userId,
+        reviewed_at: new Date().toISOString(),
+        review_notes: params.notes,
+        processed_at: new Date().toISOString(),
+      }).eq('id', transactionId);
+
+      return { success: true };
+    }
+
+    const expenseResult = await createExpenseFromTransaction({
+      ...emailTx,
+      matched_expense_category_id: params.expenseCategoryId || null,
+      matched_project_id: params.projectId || null,
+    }, auth.userId);
+
+    if (!expenseResult.success) {
+      return { success: false, error: expenseResult.error };
+    }
+
+    await adminClient.from('email_transactions').update({
+      status: 'processed',
+      matched_expense_category_id: params.expenseCategoryId,
+      matched_project_id: params.projectId,
+      expense_id: expenseResult.expenseId,
+      reviewed_by: auth.userId,
+      reviewed_at: new Date().toISOString(),
+      review_notes: params.notes,
+      processed_at: new Date().toISOString(),
+    }).eq('id', transactionId);
+
+    return { success: true, expenseId: expenseResult.expenseId };
+  }
+
+  // ============================================================
+  // Handle Credit (Payment)
+  // ============================================================
+  if (!params.residentId) {
+    return { success: false, error: 'Resident ID required for payment transactions' };
   }
 
   // Create payment
@@ -476,6 +629,56 @@ async function createPaymentFromTransaction(
   }
 
   return { success: true, paymentId: result.data?.id };
+}
+
+// ============================================================
+// Helper: Create Expense from Transaction
+// ============================================================
+
+async function createExpenseFromTransaction(
+  transaction: EmailTransaction,
+  userId?: string | null
+): Promise<{ success: boolean; expenseId?: string; error?: string }> {
+  if (!transaction.amount) {
+    return { success: false, error: 'Missing amount' };
+  }
+
+  // Get expense category
+  let categoryId = transaction.matched_expense_category_id;
+
+  // Use miscellaneous category if none provided
+  if (!categoryId) {
+    const adminClient = await createAdminClient();
+    const { data: miscCategory } = await adminClient
+      .from('expense_categories')
+      .select('id')
+      .eq('name', 'Bank Import - Miscellaneous')
+      .single();
+
+    categoryId = miscCategory?.id || null;
+  }
+
+  if (!categoryId) {
+    return { success: false, error: 'No expense category found' };
+  }
+
+  const result = await createExpense({
+    amount: Math.abs(Number(transaction.amount)),
+    category_id: categoryId,
+    expense_date: transaction.transaction_date || new Date().toISOString().split('T')[0],
+    description: transaction.description || 'Email import expense',
+    status: 'paid',
+    source_type: 'bank_import', // Reusing bank_import source_type for consistent reporting
+    payment_method: 'bank_transfer',
+    is_verified: true,
+    project_id: transaction.matched_project_id || undefined,
+  });
+
+  if (!result || !result.id) {
+    return { success: false, error: 'Failed to create expense' };
+  }
+
+  return { success: true, expenseId: result.id };
 }
 
 // ============================================================

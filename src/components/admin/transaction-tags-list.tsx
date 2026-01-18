@@ -6,7 +6,9 @@ import {
   useCreateTransactionTag,
   useUpdateTransactionTag,
   useDeleteTransactionTag,
+  useDeleteTransactionTags,
 } from '@/hooks/use-reference';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -73,6 +75,11 @@ export function TransactionTagsList() {
   const createMutation = useCreateTransactionTag();
   const updateMutation = useUpdateTransactionTag();
   const deleteMutation = useDeleteTransactionTag();
+  const bulkDeleteMutation = useDeleteTransactionTags();
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
 
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -203,6 +210,29 @@ export function TransactionTagsList() {
     setTagToDelete(null);
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    await bulkDeleteMutation.mutateAsync(selectedIds);
+    setBulkDeleteDialogOpen(false);
+    setSelectedIds([]);
+  };
+
+  const toggleSelectAll = (checked: boolean) => {
+    if (checked && tagsData) {
+      setSelectedIds(tagsData.map(tag => tag.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const toggleSelectOne = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds(prev => [...prev, id]);
+    } else {
+      setSelectedIds(prev => prev.filter(item => item !== id));
+    }
+  };
+
   const filteredTags = tagsData || [];
 
   return (
@@ -218,218 +248,238 @@ export function TransactionTagsList() {
             </TabsList>
           </Tabs>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-          <DialogTrigger asChild>
-            <Button size="sm" onClick={openCreateDialog}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Tag
+        <div className="flex items-center gap-2">
+          {selectedIds.length > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setBulkDeleteDialogOpen(true)}
+              disabled={bulkDeleteMutation.isPending}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Selected ({selectedIds.length})
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {isEditing ? 'Edit Transaction Tag' : 'Add New Transaction Tag'}
-              </DialogTitle>
-              <DialogDescription>
-                {isEditing
-                  ? 'Update the transaction tag details below.'
-                  : 'Create a new tag to categorize bank transactions.'}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">
-                    Name*
-                  </Label>
-                  <Input
-                    id="name"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    className="col-span-3"
-                    placeholder="e.g. Rent Payment"
-                    maxLength={50}
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="type" className="text-right">
-                    Type*
-                  </Label>
-                  <Select value={formType} onValueChange={(v) => setFormType(v as TransactionTagType)}>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="credit">Credit (Incoming)</SelectItem>
-                      <SelectItem value="debit">Debit (Outgoing)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="description" className="text-right">
-                    Description
-                  </Label>
-                  <Textarea
-                    id="description"
-                    value={formDescription}
-                    onChange={(e) => setFormDescription(e.target.value)}
-                    className="col-span-3"
-                    placeholder="Optional description"
-                    rows={2}
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="color" className="text-right">
-                    Color
-                  </Label>
-                  <Select value={formColor} onValueChange={(v) => setFormColor(v as TransactionTagColor)}>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select color" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gray">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-gray-500" />
-                          Gray
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="blue">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-blue-500" />
-                          Blue
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="green">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-green-500" />
-                          Green
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="red">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-red-500" />
-                          Red
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="yellow">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-yellow-500" />
-                          Yellow
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="purple">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-purple-500" />
-                          Purple
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="orange">
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full bg-orange-500" />
-                          Orange
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="sort_order" className="text-right">
-                    Sort Order
-                  </Label>
-                  <Input
-                    id="sort_order"
-                    type="number"
-                    value={formSortOrder}
-                    onChange={(e) => setFormSortOrder(parseInt(e.target.value) || 0)}
-                    className="col-span-3"
-                    min={0}
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-start gap-4">
-                  <Label htmlFor="keywords" className="text-right pt-2">
-                    Keywords
-                  </Label>
-                  <div className="col-span-3 space-y-2">
-                    <div className="flex gap-2">
-                      <Input
-                        id="keywords"
-                        value={newKeyword}
-                        onChange={(e) => setNewKeyword(e.target.value)}
-                        onKeyDown={handleKeywordKeyDown}
-                        placeholder="Add keyword for auto-tagging"
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={addKeyword}
-                        disabled={!newKeyword.trim()}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {formKeywords.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {formKeywords.map((keyword) => (
-                          <Badge
-                            key={keyword}
-                            variant="secondary"
-                            className="flex items-center gap-1 pr-1"
-                          >
-                            {keyword}
-                            <button
-                              type="button"
-                              onClick={() => removeKeyword(keyword)}
-                              className="ml-1 rounded-full hover:bg-muted p-0.5"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      Keywords are matched against transaction descriptions for auto-tagging.
-                    </p>
-                  </div>
-                </div>
-                {isEditing && (
+          )}
+          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+            <DialogTrigger asChild>
+              <Button size="sm" onClick={openCreateDialog}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Tag
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {isEditing ? 'Edit Transaction Tag' : 'Add New Transaction Tag'}
+                </DialogTitle>
+                <DialogDescription>
+                  {isEditing
+                    ? 'Update the transaction tag details below.'
+                    : 'Create a new tag to categorize bank transactions.'}
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit}>
+                <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="is_active" className="text-right">
-                      Active
+                    <Label htmlFor="name" className="text-right">
+                      Name*
                     </Label>
-                    <div className="col-span-3 flex items-center gap-2">
-                      <Switch
-                        id="is_active"
-                        checked={formIsActive}
-                        onCheckedChange={setFormIsActive}
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        {formIsActive ? 'Tag is active' : 'Tag is inactive'}
-                      </span>
+                    <Input
+                      id="name"
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      className="col-span-3"
+                      placeholder="e.g. Rent Payment"
+                      maxLength={50}
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="type" className="text-right">
+                      Type*
+                    </Label>
+                    <Select value={formType} onValueChange={(v) => setFormType(v as TransactionTagType)}>
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="credit">Credit (Incoming)</SelectItem>
+                        <SelectItem value="debit">Debit (Outgoing)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="description" className="text-right">
+                      Description
+                    </Label>
+                    <Textarea
+                      id="description"
+                      value={formDescription}
+                      onChange={(e) => setFormDescription(e.target.value)}
+                      className="col-span-3"
+                      placeholder="Optional description"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="color" className="text-right">
+                      Color
+                    </Label>
+                    <Select value={formColor} onValueChange={(v) => setFormColor(v as TransactionTagColor)}>
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select color" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gray">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-gray-500" />
+                            Gray
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="blue">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-blue-500" />
+                            Blue
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="green">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-green-500" />
+                            Green
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="red">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-red-500" />
+                            Red
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="yellow">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-yellow-500" />
+                            Yellow
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="purple">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-purple-500" />
+                            Purple
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="orange">
+                          <div className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full bg-orange-500" />
+                            Orange
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="sort_order" className="text-right">
+                      Sort Order
+                    </Label>
+                    <Input
+                      id="sort_order"
+                      type="number"
+                      value={formSortOrder}
+                      onChange={(e) => setFormSortOrder(parseInt(e.target.value) || 0)}
+                      className="col-span-3"
+                      min={0}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label htmlFor="keywords" className="text-right pt-2">
+                      Keywords
+                    </Label>
+                    <div className="col-span-3 space-y-2">
+                      <div className="flex gap-2">
+                        <Input
+                          id="keywords"
+                          value={newKeyword}
+                          onChange={(e) => setNewKeyword(e.target.value)}
+                          onKeyDown={handleKeywordKeyDown}
+                          placeholder="Add keyword for auto-tagging"
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addKeyword}
+                          disabled={!newKeyword.trim()}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {formKeywords.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {formKeywords.map((keyword) => (
+                            <Badge
+                              key={keyword}
+                              variant="secondary"
+                              className="flex items-center gap-1 pr-1"
+                            >
+                              {keyword}
+                              <button
+                                type="button"
+                                onClick={() => removeKeyword(keyword)}
+                                className="ml-1 rounded-full hover:bg-muted p-0.5"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Keywords are matched against transaction descriptions for auto-tagging.
+                      </p>
                     </div>
                   </div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={isSubmitting || createMutation.isPending || updateMutation.isPending}>
-                  {(isSubmitting || createMutation.isPending || updateMutation.isPending) && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {isEditing && (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="is_active" className="text-right">
+                        Active
+                      </Label>
+                      <div className="col-span-3 flex items-center gap-2">
+                        <Switch
+                          id="is_active"
+                          checked={formIsActive}
+                          onCheckedChange={setFormIsActive}
+                        />
+                        <span className="text-sm text-muted-foreground">
+                          {formIsActive ? 'Tag is active' : 'Tag is inactive'}
+                        </span>
+                      </div>
+                    </div>
                   )}
-                  {isEditing ? 'Save Changes' : 'Create'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={isSubmitting || createMutation.isPending || updateMutation.isPending}>
+                    {(isSubmitting || createMutation.isPending || updateMutation.isPending) && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    {isEditing ? 'Save Changes' : 'Create'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]">
+                <Checkbox
+                  checked={filteredTags.length > 0 && selectedIds.length === filteredTags.length}
+                  onCheckedChange={(checked) => toggleSelectAll(!!checked)}
+                  aria-label="Select all"
+                />
+              </TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Keywords</TableHead>
@@ -456,6 +506,13 @@ export function TransactionTagsList() {
               filteredTags.map((tag) => (
                 <TableRow key={tag.id}>
                   <TableCell>
+                    <Checkbox
+                      checked={selectedIds.includes(tag.id)}
+                      onCheckedChange={(checked) => toggleSelectOne(tag.id, !!checked)}
+                      aria-label={`Select ${tag.name}`}
+                    />
+                  </TableCell>
+                  <TableCell>
                     <Badge className={colorVariants[tag.color]}>{tag.name}</Badge>
                   </TableCell>
                   <TableCell>
@@ -478,11 +535,10 @@ export function TransactionTagsList() {
                   <TableCell className="font-mono text-sm">{tag.sort_order}</TableCell>
                   <TableCell>
                     <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        tag.is_active
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                      }`}
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${tag.is_active
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                        : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+                        }`}
                     >
                       {tag.is_active ? 'Active' : 'Inactive'}
                     </span>
@@ -490,7 +546,7 @@ export function TransactionTagsList() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => openEditDialog(tag)}
@@ -498,9 +554,9 @@ export function TransactionTagsList() {
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10"
                         onClick={() => openDeleteDialog(tag)}
                         disabled={deleteMutation.isPending}
                       >
@@ -538,6 +594,32 @@ export function TransactionTagsList() {
             >
               {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Selected Tags</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedIds.length} selected tags? This action cannot be undone.
+              <span className="block mt-2 text-sm text-amber-600">
+                Note: Tags currently in use by transactions cannot be deleted.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setBulkDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {bulkDeleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete All
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

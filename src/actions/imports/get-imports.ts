@@ -33,6 +33,18 @@ type BankStatementRowWithResident = BankStatementRow & {
     last_name: string;
     resident_code: string;
   };
+  project?: {
+    id: string;
+    name: string;
+  };
+  petty_cash_account?: {
+    id: string;
+    name: string;
+  };
+  expense_category?: {
+    id: string;
+    name: string;
+  };
   payment?: {
     id: string;
     amount: number;
@@ -40,26 +52,17 @@ type BankStatementRowWithResident = BankStatementRow & {
   };
 };
 
+/* ... types ... */
+
+// ============================================================
+// Get Imports (List)
+// ============================================================
+
 type GetImportsResponse = {
   data: BankStatementImportWithDetails[];
   count: number;
   error: string | null;
 }
-
-type GetImportResponse = {
-  data: BankStatementImportWithDetails | null;
-  error: string | null;
-}
-
-type GetImportRowsResponse = {
-  data: BankStatementRowWithResident[];
-  count: number;
-  error: string | null;
-}
-
-// ============================================================
-// Search Params
-// ============================================================
 
 type ImportSearchParams = {
   status?: ImportStatus;
@@ -71,18 +74,9 @@ type ImportSearchParams = {
   limit?: number;
 }
 
-type ImportRowSearchParams = {
-  status?: BankStatementRow['status'];
-  has_match?: boolean;
-  page?: number;
-  limit?: number;
-}
-
-// ============================================================
-// Get All Imports
-// ============================================================
-
-export async function getImports(params: ImportSearchParams = {}): Promise<GetImportsResponse> {
+export async function getImports(
+  params: ImportSearchParams = {}
+): Promise<GetImportsResponse> {
   const supabase = await createServerSupabaseClient();
 
   const { status, bank_account_id, created_by, start_date, end_date, page = 1, limit = 20 } = params;
@@ -92,8 +86,8 @@ export async function getImports(params: ImportSearchParams = {}): Promise<GetIm
     .select(`
       *,
       bank_account:estate_bank_accounts(id, account_number, account_name, bank_name),
-      created_by_user:profiles!bank_statement_imports_created_by_fkey(id, full_name, email),
-      approved_by_user:profiles!bank_statement_imports_approved_by_fkey(id, full_name, email)
+      created_by_user:profiles!created_by(id, full_name, email),
+      approved_by_user:profiles!approved_by(id, full_name, email)
     `, { count: 'exact' })
     .order('created_at', { ascending: false });
 
@@ -132,10 +126,17 @@ export async function getImports(params: ImportSearchParams = {}): Promise<GetIm
 }
 
 // ============================================================
-// Get Single Import
+// Get Import (Single)
 // ============================================================
 
-export async function getImport(id: string): Promise<GetImportResponse> {
+type GetImportResponse = {
+  data: BankStatementImportWithDetails | null;
+  error: string | null;
+}
+
+export async function getImport(
+  import_id: string
+): Promise<GetImportResponse> {
   const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
@@ -143,10 +144,10 @@ export async function getImport(id: string): Promise<GetImportResponse> {
     .select(`
       *,
       bank_account:estate_bank_accounts(id, account_number, account_name, bank_name),
-      created_by_user:profiles!bank_statement_imports_created_by_fkey(id, full_name, email),
-      approved_by_user:profiles!bank_statement_imports_approved_by_fkey(id, full_name, email)
+      created_by_user:profiles!created_by(id, full_name, email),
+      approved_by_user:profiles!approved_by(id, full_name, email)
     `)
-    .eq('id', id)
+    .eq('id', import_id)
     .single();
 
   return {
@@ -172,6 +173,9 @@ export async function getImportRows(
     .select(`
       *,
       resident:residents(id, first_name, last_name, resident_code),
+      project:projects(id, name),
+      petty_cash_account:petty_cash_accounts(id, name),
+      expense_category:expense_categories(id, name),
       payment:payment_records!payment_id(id, amount, status)
     `, { count: 'exact' })
     .eq('import_id', import_id)

@@ -150,18 +150,85 @@ export interface DebtorsReportData {
   debtors: DebtorInfo[];
 }
 
+// ============================================================
+// Indebtedness Report Types (Summary & Detail)
+// ============================================================
+
+export interface HouseIndebtednessRow {
+  houseId: string;
+  houseNumber: string;
+  streetName: string;
+  primaryResidentName: string;
+  primaryResidentId: string | null;
+  isIndebted: boolean;
+}
+
+export interface IndebtednessSummaryData {
+  summary: {
+    totalHouses: number;
+    indebtedCount: number;
+    nonIndebtedCount: number;
+  };
+  houses: HouseIndebtednessRow[];
+}
+
+export interface HouseIndebtednessDetailRow extends HouseIndebtednessRow {
+  outstandingAmount: number;
+}
+
+export interface IndebtednessDetailData {
+  summary: {
+    totalHouses: number;
+    indebtedCount: number;
+    nonIndebtedCount: number;
+    totalOutstanding: number;
+  };
+  houses: HouseIndebtednessDetailRow[];
+}
+
+// ============================================================
+// Development Levy Report Types
+// ============================================================
+
+export interface DevelopmentLevyRow {
+  houseId: string;
+  houseNumber: string;
+  streetName: string;
+  responsibleResidentName: string;
+  responsibleResidentId: string | null;
+  responsibleResidentRole: string;
+  levyAmount: number;
+  isPaid: boolean;
+}
+
+export interface DevelopmentLevyData {
+  summary: {
+    totalHouses: number;
+    paidCount: number;
+    unpaidCount: number;
+    totalAmount: number;
+    collectedAmount: number;
+    collectionRate: number;
+  };
+  houses: DevelopmentLevyRow[];
+}
+
 export type ReportData =
   | { type: 'financial_overview'; data: FinancialOverviewData }
   | { type: 'collection_report'; data: CollectionReportData }
   | { type: 'invoice_aging'; data: InvoiceAgingData }
   | { type: 'transaction_log'; data: TransactionLogData }
-  | { type: 'debtors_report'; data: DebtorsReportData };
+  | { type: 'debtors_report'; data: DebtorsReportData }
+  | { type: 'indebtedness_summary'; data: IndebtednessSummaryData }
+  | { type: 'indebtedness_detail'; data: IndebtednessDetailData }
+  | { type: 'development_levy'; data: DevelopmentLevyData };
 
 export interface GenerateReportResult {
   success: boolean;
   report?: ReportData;
   error?: string;
 }
+
 
 // ============================================================
 // Authorization Check
@@ -958,8 +1025,450 @@ async function generateDebtorsReport(
 }
 
 // ============================================================
+// Indebtedness Summary Report
+// ============================================================
+
+async function generateIndebtednessSummary(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  includeUnoccupied: boolean = false
+): Promise<IndebtednessSummaryData> {
+  // Get all active houses with street info and primary residents
+  const { data: houses, error: housesError } = await supabase
+    .from('houses')
+    .select(`
+      id,
+      house_number,
+      street:streets (
+        id,
+        name
+      ),
+      resident_houses (
+        resident_id,
+        resident_role,
+        is_active,
+        resident:residents!resident_houses_resident_id_fkey (
+          id,
+          first_name,
+          last_name
+        )
+      )
+    `)
+    .eq('is_active', true)
+    .order('house_number');
+
+  if (housesError) {
+    console.error('Error fetching houses for indebtedness summary:', housesError);
+    throw new Error(housesError.message);
+  }
+
+  // Get outstanding amounts per house from invoices
+  const { data: invoices, error: invoicesError } = await supabase
+    .from('invoices')
+    .select(`
+      house_id,
+      amount_due,
+      amount_paid,
+      status
+    `)
+    .in('status', ['unpaid', 'partially_paid']);
+
+  if (invoicesError) {
+    console.error('Error fetching invoices:', invoicesError);
+    throw new Error(invoicesError.message);
+  }
+
+  // Calculate outstanding per house
+  const houseOutstanding = new Map<string, number>();
+  for (const invoice of invoices || []) {
+    if (invoice.house_id) {
+      const outstanding = (Number(invoice.amount_due) || 0) - (Number(invoice.amount_paid) || 0);
+      const current = houseOutstanding.get(invoice.house_id) || 0;
+      houseOutstanding.set(invoice.house_id, current + outstanding);
+    }
+  }
+
+  // Process houses
+  const rows: HouseIndebtednessRow[] = [];
+
+  for (const house of houses || []) {
+    const street = house.street as unknown as { id: string; name: string } | null;
+
+    // Find primary resident (billable role: tenant, resident_landlord, non_resident_landlord, developer)
+    const residentHouses = house.resident_houses as unknown as Array<{
+      resident_id: string;
+      resident_role: string;
+      is_active: boolean;
+      resident: { id: string; first_name: string; last_name: string } | null;
+    }>;
+
+    const primaryRoles = ['tenant', 'resident_landlord', 'non_resident_landlord', 'developer'];
+    const primaryAssignment = residentHouses?.find(
+      rh => rh.is_active && primaryRoles.includes(rh.resident_role)
+    );
+
+    if (!includeUnoccupied && !primaryAssignment) continue;
+
+    const outstanding = houseOutstanding.get(house.id) || 0;
+
+    rows.push({
+      houseId: house.id,
+      houseNumber: house.house_number,
+      streetName: street?.name || 'Unknown Street',
+      primaryResidentName: primaryAssignment?.resident
+        ? `${primaryAssignment.resident.first_name} ${primaryAssignment.resident.last_name}`
+        : 'No Primary Resident',
+      primaryResidentId: primaryAssignment?.resident?.id || null,
+      isIndebted: outstanding > 0,
+    });
+  }
+
+  // Sort by street name, then house number (numeric sort)
+  rows.sort((a, b) => {
+    const streetCompare = a.streetName.localeCompare(b.streetName);
+    if (streetCompare !== 0) return streetCompare;
+    // Extract numeric portion of house number for proper sorting
+    const numA = parseInt(a.houseNumber.replace(/\D/g, '')) || 0;
+    const numB = parseInt(b.houseNumber.replace(/\D/g, '')) || 0;
+    return numA - numB;
+  });
+
+  const indebtedCount = rows.filter(r => r.isIndebted).length;
+
+  return {
+    summary: {
+      totalHouses: rows.length,
+      indebtedCount,
+      nonIndebtedCount: rows.length - indebtedCount,
+    },
+    houses: rows,
+  };
+}
+
+// ============================================================
+// Indebtedness Detail Report
+// ============================================================
+
+async function generateIndebtednessDetail(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  includeUnoccupied: boolean = false
+): Promise<IndebtednessDetailData> {
+  // Get all active houses with street info and primary residents
+  const { data: houses, error: housesError } = await supabase
+    .from('houses')
+    .select(`
+      id,
+      house_number,
+      street:streets (
+        id,
+        name
+      ),
+      resident_houses (
+        resident_id,
+        resident_role,
+        is_active,
+        resident:residents!resident_houses_resident_id_fkey (
+          id,
+          first_name,
+          last_name
+        )
+      )
+    `)
+    .eq('is_active', true)
+    .order('house_number');
+
+  if (housesError) {
+    console.error('Error fetching houses for indebtedness detail:', housesError);
+    throw new Error(housesError.message);
+  }
+
+  // Get outstanding amounts per house from invoices
+  const { data: invoices, error: invoicesError } = await supabase
+    .from('invoices')
+    .select(`
+      house_id,
+      amount_due,
+      amount_paid,
+      status
+    `)
+    .in('status', ['unpaid', 'partially_paid']);
+
+  if (invoicesError) {
+    console.error('Error fetching invoices:', invoicesError);
+    throw new Error(invoicesError.message);
+  }
+
+  // Calculate outstanding per house
+  const houseOutstanding = new Map<string, number>();
+  for (const invoice of invoices || []) {
+    if (invoice.house_id) {
+      const outstanding = (Number(invoice.amount_due) || 0) - (Number(invoice.amount_paid) || 0);
+      const current = houseOutstanding.get(invoice.house_id) || 0;
+      houseOutstanding.set(invoice.house_id, current + outstanding);
+    }
+  }
+
+  // Process houses
+  const rows: HouseIndebtednessDetailRow[] = [];
+  let totalOutstanding = 0;
+
+  for (const house of houses || []) {
+    const street = house.street as unknown as { id: string; name: string } | null;
+
+    // Find primary resident (billable role)
+    const residentHouses = house.resident_houses as unknown as Array<{
+      resident_id: string;
+      resident_role: string;
+      is_active: boolean;
+      resident: { id: string; first_name: string; last_name: string } | null;
+    }>;
+
+    const primaryRoles = ['tenant', 'resident_landlord', 'non_resident_landlord', 'developer'];
+    const primaryAssignment = residentHouses?.find(
+      rh => rh.is_active && primaryRoles.includes(rh.resident_role)
+    );
+
+    if (!includeUnoccupied && !primaryAssignment) continue;
+
+    const outstanding = houseOutstanding.get(house.id) || 0;
+    totalOutstanding += outstanding;
+
+    rows.push({
+      houseId: house.id,
+      houseNumber: house.house_number,
+      streetName: street?.name || 'Unknown Street',
+      primaryResidentName: primaryAssignment?.resident
+        ? `${primaryAssignment.resident.first_name} ${primaryAssignment.resident.last_name}`
+        : 'No Primary Resident',
+      primaryResidentId: primaryAssignment?.resident?.id || null,
+      isIndebted: outstanding > 0,
+      outstandingAmount: outstanding,
+    });
+  }
+
+  // Sort by street name, then house number (numeric sort)
+  rows.sort((a, b) => {
+    const streetCompare = a.streetName.localeCompare(b.streetName);
+    if (streetCompare !== 0) return streetCompare;
+    const numA = parseInt(a.houseNumber.replace(/\D/g, '')) || 0;
+    const numB = parseInt(b.houseNumber.replace(/\D/g, '')) || 0;
+    return numA - numB;
+  });
+
+  const indebtedCount = rows.filter(r => r.isIndebted).length;
+
+  return {
+    summary: {
+      totalHouses: rows.length,
+      indebtedCount,
+      nonIndebtedCount: rows.length - indebtedCount,
+      totalOutstanding,
+    },
+    houses: rows,
+  };
+}
+
+// ============================================================
+// Development Levy Report
+// ============================================================
+
+async function generateDevelopmentLevyReport(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  includeUnoccupied: boolean = false
+): Promise<DevelopmentLevyData> {
+  // Get current development levy profile
+  const { data: settingData } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'current_development_levy_profile_id')
+    .single();
+
+  const devLevyProfileId = settingData?.value ? JSON.parse(settingData.value) : null;
+
+  if (!devLevyProfileId) {
+    // No development levy configured, return empty report
+    return {
+      summary: {
+        totalHouses: 0,
+        paidCount: 0,
+        unpaidCount: 0,
+        totalAmount: 0,
+        collectedAmount: 0,
+        collectionRate: 0,
+      },
+      houses: [],
+    };
+  }
+
+  // Get the development levy profile details
+  const { data: profile } = await supabase
+    .from('billing_profiles')
+    .select(`
+      id,
+      name,
+      billing_items (
+        amount
+      )
+    `)
+    .eq('id', devLevyProfileId)
+    .eq('is_development_levy', true)
+    .single();
+
+  const levyAmount = profile?.billing_items?.[0]?.amount || 0;
+
+  // Get all active houses with residents
+  const { data: houses, error: housesError } = await supabase
+    .from('houses')
+    .select(`
+      id,
+      house_number,
+      street:streets (
+        id,
+        name
+      ),
+      resident_houses (
+        resident_id,
+        resident_role,
+        is_active,
+        resident:residents!resident_houses_resident_id_fkey (
+          id,
+          first_name,
+          last_name
+        )
+      )
+    `)
+    .eq('is_active', true)
+    .order('house_number');
+
+  if (housesError) {
+    console.error('Error fetching houses for development levy report:', housesError);
+    throw new Error(housesError.message);
+  }
+
+  // Get development levy invoices (filter by rate_snapshot containing is_development_levy)
+  const { data: invoices, error: invoicesError } = await supabase
+    .from('invoices')
+    .select(`
+      id,
+      house_id,
+      amount_due,
+      amount_paid,
+      status,
+      rate_snapshot
+    `);
+
+  if (invoicesError) {
+    console.error('Error fetching development levy invoices:', invoicesError);
+    throw new Error(invoicesError.message);
+  }
+
+  // Filter to only development levy invoices and track payment status per house
+  const housePaymentStatus = new Map<string, { paid: boolean; amount: number }>();
+
+  for (const invoice of invoices || []) {
+    const snapshot = invoice.rate_snapshot as { is_development_levy?: boolean } | null;
+    if (snapshot?.is_development_levy && invoice.house_id) {
+      const amountPaid = Number(invoice.amount_paid) || 0;
+      const amountDue = Number(invoice.amount_due) || 0;
+      const isPaid = invoice.status === 'paid' || amountPaid >= amountDue;
+
+      // Track if this house has paid its dev levy
+      const existing = housePaymentStatus.get(invoice.house_id);
+      if (!existing) {
+        housePaymentStatus.set(invoice.house_id, { paid: isPaid, amount: amountDue });
+      } else if (isPaid) {
+        housePaymentStatus.set(invoice.house_id, { paid: true, amount: amountDue });
+      }
+    }
+  }
+
+  // Process houses
+  const rows: DevelopmentLevyRow[] = [];
+  let paidCount = 0;
+  let collectedAmount = 0;
+
+  for (const house of houses || []) {
+    const street = house.street as unknown as { id: string; name: string } | null;
+
+    // Find responsible resident for development levy
+    // Priority: non_resident_landlord > resident_landlord > developer
+    const residentHouses = house.resident_houses as unknown as Array<{
+      resident_id: string;
+      resident_role: string;
+      is_active: boolean;
+      resident: { id: string; first_name: string; last_name: string } | null;
+    }>;
+
+    const activeAssignments = residentHouses?.filter(rh => rh.is_active) || [];
+
+    let responsibleAssignment = activeAssignments.find(rh => rh.resident_role === 'non_resident_landlord');
+    if (!responsibleAssignment) {
+      responsibleAssignment = activeAssignments.find(rh => rh.resident_role === 'resident_landlord');
+    }
+    if (!responsibleAssignment) {
+      responsibleAssignment = activeAssignments.find(rh => rh.resident_role === 'developer');
+    }
+
+    if (!includeUnoccupied && !responsibleAssignment) continue;
+
+    const paymentInfo = housePaymentStatus.get(house.id);
+    const isPaid = paymentInfo?.paid || false;
+    const amount = paymentInfo?.amount || levyAmount;
+
+    if (isPaid) {
+      paidCount++;
+      collectedAmount += amount;
+    }
+
+    const roleLabels: Record<string, string> = {
+      non_resident_landlord: 'Property Owner',
+      resident_landlord: 'Owner-Occupier',
+      developer: 'Developer',
+    };
+
+    rows.push({
+      houseId: house.id,
+      houseNumber: house.house_number,
+      streetName: street?.name || 'Unknown Street',
+      responsibleResidentName: responsibleAssignment?.resident
+        ? `${responsibleAssignment.resident.first_name} ${responsibleAssignment.resident.last_name}`
+        : 'No Responsible Party',
+      responsibleResidentId: responsibleAssignment?.resident?.id || null,
+      responsibleResidentRole: responsibleAssignment
+        ? (roleLabels[responsibleAssignment.resident_role] || responsibleAssignment.resident_role)
+        : 'N/A',
+      levyAmount: amount,
+      isPaid,
+    });
+  }
+
+  // Sort by street name, then house number
+  rows.sort((a, b) => {
+    const streetCompare = a.streetName.localeCompare(b.streetName);
+    if (streetCompare !== 0) return streetCompare;
+    const numA = parseInt(a.houseNumber.replace(/\D/g, '')) || 0;
+    const numB = parseInt(b.houseNumber.replace(/\D/g, '')) || 0;
+    return numA - numB;
+  });
+
+  const totalAmount = rows.length * levyAmount;
+
+  return {
+    summary: {
+      totalHouses: rows.length,
+      paidCount,
+      unpaidCount: rows.length - paidCount,
+      totalAmount,
+      collectedAmount,
+      collectionRate: totalAmount > 0 ? (collectedAmount / totalAmount) * 100 : 0,
+    },
+    houses: rows,
+  };
+}
+
+// ============================================================
 // Main Report Generation Function
 // ============================================================
+
 
 export async function generateReport(
   params: ReportRequestFormData
@@ -1019,6 +1528,21 @@ export async function generateReport(
       case 'debtors_report': {
         const data = await generateDebtorsReport(supabase);
         return { success: true, report: { type: 'debtors_report', data } };
+      }
+
+      case 'indebtedness_summary': {
+        const data = await generateIndebtednessSummary(supabase, params.includeUnoccupied);
+        return { success: true, report: { type: 'indebtedness_summary', data } };
+      }
+
+      case 'indebtedness_detail': {
+        const data = await generateIndebtednessDetail(supabase, params.includeUnoccupied);
+        return { success: true, report: { type: 'indebtedness_detail', data } };
+      }
+
+      case 'development_levy': {
+        const data = await generateDevelopmentLevyReport(supabase, params.includeUnoccupied);
+        return { success: true, report: { type: 'development_levy', data } };
       }
 
       default:

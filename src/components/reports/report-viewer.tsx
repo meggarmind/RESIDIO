@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import type { GeneratedReport } from '@/hooks/use-reports';
 import { useReportVersionHistory } from '@/hooks/use-reports';
-import { getDateRangeFromPreset } from '@/lib/validators/reports';
+import { getDateRangeFromPreset, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
 import {
   Sheet,
   SheetContent,
@@ -174,7 +174,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
       doc.close();
 
       // Set document title
-      doc.title = `${report.title} - ${estateName}`;
+      doc.title = `${getDisplayTitle()} - ${estateName}`;
 
       // Create and append meta charset
       const meta = doc.createElement('meta');
@@ -186,11 +186,12 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
       style.textContent = `
         @page {
           size: A4;
-          margin: 15mm;
+          margin: 0;
         }
 
         @media print {
           body {
+            padding: 15mm;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
@@ -361,13 +362,19 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
   }, []);
 
   // Report title based on type
-  const reportTypeLabels: Record<string, string> = {
-    financial_overview: 'Financial Overview',
-    collection_report: 'Collection Report',
-    invoice_aging: 'Invoice Aging Report',
-    transaction_log: 'Transaction Log',
-    debtors_report: 'Debtors Report',
-  };
+  // Report title based on type - now using central labels
+  const reportTypeLabels = REPORT_TYPE_LABELS;
+
+  // Robust label getter that handles the "undefined" issue
+  const getDisplayTitle = useCallback(() => {
+    const label = reportTypeLabels[report.type as keyof typeof reportTypeLabels] || 'Report';
+    if (!report.title || report.title.startsWith('undefined')) {
+      // Reconstruct title from label and date string if possible
+      const datePart = report.title?.split(' - ')[1] || '';
+      return datePart ? `${label} - ${datePart}` : label;
+    }
+    return report.title;
+  }, [report.type, report.title]);
 
   return (
     <div className={`flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-background' : ''}`}>
@@ -389,7 +396,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
             )}
             <div>
               <h2 className="text-lg font-semibold">
-                {reportTypeLabels[report.type] || report.title}
+                {getDisplayTitle()}
               </h2>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-3.5 w-3.5" />
@@ -509,7 +516,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
               <TraditionalTemplate
                 ref={printRef}
                 report={report.data}
-                title={reportTypeLabels[report.type] || report.title}
+                title={getDisplayTitle()}
                 dateRange={
                   report.parameters.reportType !== 'invoice_aging'
                     ? { start: dateRange.startDate, end: dateRange.endDate }
@@ -521,7 +528,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
               <ModernTemplate
                 ref={printRef}
                 report={report.data}
-                title={reportTypeLabels[report.type] || report.title}
+                title={getDisplayTitle()}
                 dateRange={
                   report.parameters.reportType !== 'invoice_aging'
                     ? { start: dateRange.startDate, end: dateRange.endDate }

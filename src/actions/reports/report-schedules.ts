@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
 
 // Types
-export type ReportType = 'financial_overview' | 'collection_report' | 'invoice_aging' | 'transaction_log' | 'debtors_report';
+export type ReportType = 'financial_overview' | 'collection_report' | 'invoice_aging' | 'transaction_log' | 'debtors_report' | 'indebtedness_summary' | 'indebtedness_detail' | 'development_levy';
 export type ScheduleFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 export type PeriodPreset = 'this_month' | 'last_month' | 'this_quarter' | 'last_quarter' | 'this_year' | 'last_year';
 export type TemplateStyle = 'traditional' | 'modern';

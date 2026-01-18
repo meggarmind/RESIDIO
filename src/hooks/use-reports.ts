@@ -19,7 +19,7 @@ import {
     type CreateScheduleInput,
 } from '@/actions/reports/report-schedules';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
-import { getDateRangeFromPreset } from '@/lib/validators/reports';
+import { getDateRangeFromPreset, REPORT_TYPE_LABELS } from '@/lib/validators/reports';
 import { toast } from 'sonner';
 
 // ============================================================
@@ -98,13 +98,11 @@ export type GeneratedReport = {
 // In-memory store for generated reports (will be replaced with server storage later)
 let generatedReports: GeneratedReport[] = [];
 
-const reportTypeLabels: Record<ReportRequestFormData['reportType'], string> = {
-    financial_overview: 'Financial Overview',
-    collection_report: 'Collection Report',
-    invoice_aging: 'Invoice Aging Report',
-    transaction_log: 'Transaction Log',
-    debtors_report: 'Debtors Report',
-};
+// Use central labels from validator
+const reportTypeLabels = REPORT_TYPE_LABELS;
+
+// Reports that are always "As of Today"
+const REALTIME_REPORTS: ReportRequestFormData['reportType'][] = ['debtors_report', 'indebtedness_summary', 'indebtedness_detail', 'development_levy', 'invoice_aging'];
 
 export function useGenerateReport() {
     const queryClient = useQueryClient();
@@ -129,10 +127,10 @@ export function useGenerateReport() {
 
             // Format title based on report type
             let title = reportTypeLabels[params.reportType];
-            if (params.reportType !== 'invoice_aging') {
-                title += ` - ${new Date(dateRange.startDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} to ${new Date(dateRange.endDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
-            } else {
+            if (REALTIME_REPORTS.includes(params.reportType)) {
                 title += ` - As of ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+            } else {
+                title += ` - ${new Date(dateRange.startDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} to ${new Date(dateRange.endDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
             }
 
             // Save to database if requested (default: true)

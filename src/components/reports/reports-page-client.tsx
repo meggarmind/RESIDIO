@@ -74,6 +74,24 @@ const reportTypeConfig: Record<
         gradient: 'from-red-500 to-rose-500',
         iconBg: 'bg-red-500/15 text-red-600 dark:text-red-400',
     },
+    indebtedness_summary: {
+        icon: Users,
+        label: 'Indebtedness Summary',
+        gradient: 'from-orange-500 to-amber-500',
+        iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+    },
+    indebtedness_detail: {
+        icon: Users,
+        label: 'Indebtedness Report',
+        gradient: 'from-rose-500 to-pink-500',
+        iconBg: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+    },
+    development_levy: {
+        icon: Sparkles,
+        label: 'Development Levy Report',
+        gradient: 'from-amber-600 to-yellow-500',
+        iconBg: 'bg-amber-600/15 text-amber-600 dark:text-amber-400',
+    },
 };
 
 // ============================================================
