@@ -49,7 +49,7 @@ export function InvoiceStatusIndicator() {
     (invoicesData?.data || [])
       .filter((inv) => ['unpaid', 'overdue', 'partially_paid'].includes(inv.status || ''))
       .slice(0, 3)
-  , [invoicesData]);
+    , [invoicesData]);
   const totalOwed = indebtedness?.totalUnpaid || 0;
 
   // Calculate badge color based on invoice urgency
@@ -111,7 +111,10 @@ export function InvoiceStatusIndicator() {
                 {/* Badge indicator */}
                 {badgeColor && (
                   <span
-                    className="absolute top-2 right-2 w-2 h-2 rounded-full"
+                    className={cn(
+                      "absolute top-2 right-2 w-2 h-2 rounded-full",
+                      badgeColor === 'var(--color-error)' && "pulse-urgent"
+                    )}
                     style={{
                       background: badgeColor,
                     }}

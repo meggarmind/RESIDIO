@@ -6,6 +6,7 @@ import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/lib/auth/auth-provider';
 import { LayoutThemeProvider } from '@/contexts/layout-theme-context';
 import { Toaster } from '@/components/ui/sonner';
+import { AiAssistantProvider } from '@/contexts/ai-assistant-context';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -36,8 +37,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <LayoutThemeProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            {children}
-            <Toaster />
+            <AiAssistantProvider>
+              {children}
+              <Toaster />
+            </AiAssistantProvider>
           </AuthProvider>
         </QueryClientProvider>
       </LayoutThemeProvider>

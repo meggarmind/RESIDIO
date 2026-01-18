@@ -30,11 +30,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useResident } from '@/hooks/use-residents';
-import { useCreateSecurityContact, useSecurityContactCategories } from '@/hooks/use-security';
+import { useCreateSecurityContact, useSecurityContactCategories, useResidentSecurityContacts } from '@/hooks/use-security';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Simplified visitor form schema
 const visitorFormSchema = z.object({
@@ -56,7 +60,31 @@ export function VisitorAccessDialog({ open, onOpenChange }: VisitorAccessDialogP
   const { residentId } = useAuth();
   const { data: resident } = useResident(residentId || undefined);
   const { data: categories } = useSecurityContactCategories();
+  const { data: contactsData } = useResidentSecurityContacts(residentId || undefined);
   const createMutation = useCreateSecurityContact();
+  const [submitState, setSubmitState] = useState<'idle' | 'loading' | 'success'>('idle');
+
+  // Get recent visitors
+  const recentVisitors = contactsData?.data
+    ?.filter((c) => c.category?.name?.toLowerCase() === 'visitor')
+    .sort((a, b) => {
+      // Sort by last visit (if available) or creation date
+      const dateA = new Date(a.last_visit_at || a.created_at).getTime();
+      const dateB = new Date(b.last_visit_at || b.created_at).getTime();
+      return dateB - dateA;
+    })
+    .slice(0, 5) || [];
+
+  // Helper to auto-fill form
+  const prefillVisitor = (visitor: any) => {
+    form.setValue('full_name', visitor.full_name);
+    form.setValue('phone_primary', visitor.phone_primary);
+    // In MVP, we map vehicle reg to phone_secondary
+    if (visitor.phone_secondary) {
+      form.setValue('vehicle_registration', visitor.phone_secondary);
+    }
+    form.setFocus('validity_hours');
+  };
 
   // Get visitor category
   const visitorCategory = categories?.find((c) => c.name?.toLowerCase() === 'visitor');
@@ -81,6 +109,7 @@ export function VisitorAccessDialog({ open, onOpenChange }: VisitorAccessDialogP
       return;
     }
 
+    setSubmitState('loading');
     try {
       // Calculate expiry date
       const hours = parseInt(data.validity_hours);
@@ -99,10 +128,17 @@ export function VisitorAccessDialog({ open, onOpenChange }: VisitorAccessDialogP
           : `Valid for ${hours} hours.`,
       });
 
+      setSubmitState('success');
       toast.success('Visitor access created successfully');
-      form.reset();
-      onOpenChange(false);
+
+      // Hold for 800ms to show success, then close
+      setTimeout(() => {
+        form.reset();
+        setSubmitState('idle');
+        onOpenChange(false);
+      }, 800);
     } catch (error) {
+      setSubmitState('idle');
       toast.error('Failed to create visitor access');
       console.error(error);
     }
@@ -164,6 +200,44 @@ export function VisitorAccessDialog({ open, onOpenChange }: VisitorAccessDialogP
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+
+            {/* Recent Visitors Carousel */}
+            {recentVisitors.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent Visitors</label>
+                <ScrollArea className="w-full whitespace-nowrap pb-2">
+                  <div className="flex w-max space-x-4 p-1">
+                    {recentVisitors.map((visitor) => (
+                      <button
+                        key={visitor.id}
+                        type="button"
+                        onClick={() => prefillVisitor(visitor)}
+                        className="flex flex-col items-center gap-2 group transition-all active:scale-95"
+                      >
+                        <div className="p-0.5 rounded-full border-2 border-transparent group-hover:border-primary/50 transition-colors">
+                          <Avatar className="h-12 w-12 border border-border shadow-sm">
+                            <AvatarImage src={visitor.photo_url || ''} />
+                            <AvatarFallback className="text-xs bg-muted/50">
+                              {visitor.full_name
+                                .split(' ')
+                                .map((n: string) => n[0])
+                                .join('')
+                                .substring(0, 2)
+                                .toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        </div>
+                        <span className="text-[10px] font-medium w-16 truncate text-center text-muted-foreground group-hover:text-foreground transition-colors">
+                          {visitor.full_name.split(' ')[0]}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <ScrollBar orientation="horizontal" className="h-1.5" />
+                </ScrollArea>
+              </div>
+            )}
+
             <FormField
               control={form.control}
               name="full_name"
@@ -268,13 +342,49 @@ export function VisitorAccessDialog({ open, onOpenChange }: VisitorAccessDialogP
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={createMutation.isPending}
+                disabled={submitState !== 'idle'}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Access
+              <Button
+                type="submit"
+                disabled={submitState !== 'idle'}
+                className={cn(
+                  "min-w-[140px] transition-all duration-300",
+                  submitState === 'success' && "btn-success-state success-glow"
+                )}
+              >
+                <AnimatePresence mode="wait">
+                  {submitState === 'loading' && (
+                    <motion.span
+                      key="loading"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="flex items-center gap-2"
+                    >
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Creating...
+                    </motion.span>
+                  )}
+                  {submitState === 'success' && (
+                    <motion.span
+                      key="success"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      className="flex items-center gap-2"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Created!
+                    </motion.span>
+                  )}
+                  {submitState === 'idle' && (
+                    <motion.span key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                      Create Access
+                    </motion.span>
+                  )}
+                </AnimatePresence>
               </Button>
             </DialogFooter>
           </form>

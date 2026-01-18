@@ -10,7 +10,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { encrypt, decrypt } from '@/lib/email-imports/oauth-encryption';
+import { encrypt, decrypt } from '@/lib/encryption';
 
 // ============================================================
 // Types

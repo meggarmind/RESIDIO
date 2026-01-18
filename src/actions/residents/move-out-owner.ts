@@ -332,7 +332,7 @@ export async function initiateOwnerMoveOut(
             },
             subject: 'Move-Out Clearance Certificate',
             emailType: 'clearance_certificate',
-            react: null,
+            react: undefined,
             metadata: {
                 certificateNumber,
                 validUntil: certificate.validUntil,

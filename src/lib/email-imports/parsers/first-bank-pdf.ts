@@ -11,9 +11,18 @@
  * - Footer: Summary totals
  */
 
+// Polyfill DOMMatrix for Node.js (required by pdfjs-dist used by pdf-parse)
+// Must be imported before pdf-parse
+import DOMMatrix from '@thednp/dommatrix';
+if (typeof globalThis.DOMMatrix === 'undefined') {
+  // @ts-expect-error - Polyfilling global DOMMatrix for Node.js
+  globalThis.DOMMatrix = DOMMatrix;
+}
+
 import type { ParsedEmailTransaction } from '@/types/database';
 import { parseFirstBankAmount, parseFirstBankDate } from '@/lib/parsers/bank-formats/firstbank';
 import { getPasswordByAccountLast4 } from '@/actions/email-imports/bank-passwords';
+
 
 // ============================================================
 // PDF Decryption
@@ -91,21 +100,25 @@ export async function decryptPdf(
 }
 
 /**
- * Check if PDF is encrypted using pdf-parse
+ * Check if PDF is encrypted by attempting to load it
  */
 export async function isPdfEncrypted(pdfBuffer: Buffer): Promise<boolean> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse');
-    // Try to parse - if it fails with encryption error, PDF is encrypted
-    await pdfParse(pdfBuffer);
-    return false;
+    // Dynamic import to handle pdfjs-dist correctly in Node.js
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+
+    const data = new Uint8Array(pdfBuffer);
+    // Use disableWorker for Node.js environment
+    const loadingTask = pdfjsLib.getDocument({ data, disableWorker: true });
+
+    await loadingTask.promise;
+    return false; // Successfully loaded without password, not encrypted
   } catch (error) {
-    // Check if the error is about encryption
     const errorMessage = error instanceof Error ? error.message : '';
-    return errorMessage.toLowerCase().includes('encrypted') ||
-           errorMessage.toLowerCase().includes('password') ||
-           errorMessage.toLowerCase().includes('secure');
+    // Check if the error indicates password protection
+    return errorMessage.toLowerCase().includes('password') ||
+      errorMessage.toLowerCase().includes('encrypted') ||
+      errorMessage.toLowerCase().includes('incorrect');
   }
 }
 
@@ -118,11 +131,31 @@ export async function isPdfEncrypted(pdfBuffer: Buffer): Promise<boolean> {
  */
 export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
   try {
-    // Use require for pdf-parse (CommonJS package with ESM compatibility issues)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pdfParse = require('pdf-parse');
-    const data = await pdfParse(pdfBuffer);
-    return data.text;
+    // Dynamic import to handle pdfjs-dist correctly in Node.js
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+
+    const data = new Uint8Array(pdfBuffer);
+    // Use disableWorker for Node.js environment
+    const loadingTask = pdfjsLib.getDocument({ data, disableWorker: true });
+
+    const pdfDoc = await loadingTask.promise;
+    const pages: string[] = [];
+
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => {
+          if (!item.transform) return '';
+          const x = Math.round(item.transform[4]);
+          const y = Math.round(item.transform[5]);
+          return `[${x},${y}]${item.str || ''}`;
+        })
+        .join(' ');
+      pages.push(pageText);
+    }
+
+    return pages.join('\n');
   } catch (error) {
     throw new Error(
       `Failed to extract PDF text: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -136,88 +169,109 @@ export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
 
 /**
  * Parse transactions from extracted PDF text.
- * First Bank statement format has transactions in a table structure.
+ * First Bank statement format: DD-MMM-YY Reference Details DD-MMM-YY Deposit Withdrawal Balance
+ * Text is space-separated columnar data from pdfjs-dist extraction.
  */
 export function parseTransactionsFromText(text: string): ParsedEmailTransaction[] {
   const transactions: ParsedEmailTransaction[] = [];
-  const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
 
-  // Transaction line pattern (flexible for various formats)
-  // Typical: DATE | NARRATION | REFERENCE | DEBIT | CREDIT | BALANCE
-  const transactionPattern = /^(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})\s+(.+?)\s+([\d,]+\.?\d*)\s*$/;
+  // First Bank PDF format with coordinates:
+  // [X,Y]DD-MMM-YY   [X,Y]Reference/Details   [X,Y]DD-MMM-YY   [X,Y]Deposit/Withdrawal   [X,Y]Balance
 
-  // More complex pattern for full row
-  const fullRowPattern =
-    /(\d{1,2}[/\-][A-Za-z]{3}[/\-]\d{4}|\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})\s+(.+?)\s+(?:(\d[\d,]*\.?\d*)\s+)?(?:(\d[\d,]*\.?\d*)\s+)?(\d[\d,]*\.?\d*)$/;
+  // Pattern to match Date, then skip items until the next Date, then find Amount and Balance
+  // Format: [x,y]DD-MMM-YY ... [x,y]DD-MMM-YY ... [x,y]Amount ... [x,y]Balance
+  // Note: Details can span multiple items/lines.
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  // Using a more structured approach since we have coordinates
+  // Regex bits:
+  // Coord: \[\d+,\d+\]
+  // Date: \d{2}-[A-Z]{3}-\d{2}
+  // Amount: [\d,]+\.\d{2}
 
-    // Skip header/summary lines
-    if (isHeaderOrSummaryLine(line)) continue;
+  const coordRegex = /\[(\d+),(\d+)\]/g;
+  const datePattern = /\d{2}-[A-Z]{3}-\d{2}/;
+  const amountPattern = /\d[\d,]*(?:\.\d{2})/;
 
-    // Try to match transaction pattern
-    const fullMatch = line.match(fullRowPattern);
-    if (fullMatch) {
-      const [, dateStr, narration, amount1, amount2, balance] = fullMatch;
+  // Split the text into items with coordinates
+  const items: { x: number, y: number, text: string }[] = [];
+  let match;
+  let lastIndex = 0;
 
-      const date = parseFirstBankDate(dateStr);
-      if (!date) continue;
+  while ((match = coordRegex.exec(text)) !== null) {
+    const x = parseInt(match[1]);
+    const y = parseInt(match[2]);
 
-      // Determine if credit or debit based on position
-      // If only one amount before balance, check context
-      let amount: number | null = null;
-      let transactionType: 'credit' | 'debit' = 'credit';
+    // Find where THIS item's text ends (next coordinate start or end of string)
+    const textStart = match.index + match[0].length;
+    let nextMatch = coordRegex.exec(text);
+    let textEnd = nextMatch ? nextMatch.index : text.length;
 
-      if (amount1 && amount2) {
-        // Both debit and credit columns present
-        const debit = parseFirstBankAmount(amount1);
-        const credit = parseFirstBankAmount(amount2);
+    // Backtrack current regex pointer if we found nextMatch
+    if (nextMatch) coordRegex.lastIndex = nextMatch.index;
 
-        if (credit && credit > 0) {
-          amount = credit;
-          transactionType = 'credit';
-        } else if (debit && debit > 0) {
-          amount = debit;
-          transactionType = 'debit';
-        }
-      } else if (amount1) {
-        // Single amount - determine type from narration keywords
-        amount = parseFirstBankAmount(amount1);
-        transactionType = determineTransactionType(narration);
-      }
-
-      if (amount && amount > 0) {
-        transactions.push({
-          transactionDate: date,
-          description: cleanNarration(narration),
-          amount,
-          transactionType,
-          reference: extractReferenceFromNarration(narration),
-          bankAccountLast4: null, // Will be set from PDF metadata if available
-        });
-      }
-
-      continue;
+    const itemText = text.substring(textStart, textEnd).trim();
+    if (itemText || textStart === textEnd) {
+      items.push({ x, y, text: itemText });
     }
 
-    // Try simpler pattern (date + description + amount)
-    const simpleMatch = line.match(transactionPattern);
-    if (simpleMatch) {
-      const [, dateStr, narration, amountStr] = simpleMatch;
+    if (!nextMatch) break;
+  }
 
-      const date = parseFirstBankDate(dateStr);
-      const amount = parseFirstBankAmount(amountStr);
+  // Group items by Y coordinate into rows
+  const rows = new Map<number, { x: number, y: number, text: string }[]>();
+  items.forEach(item => {
+    // Allow small Y difference (2-3 pixels) for the same row
+    const normalizedY = Math.round(item.y / 2) * 2;
+    if (!rows.has(normalizedY)) rows.set(normalizedY, []);
+    rows.get(normalizedY)!.push(item);
+  });
 
-      if (date && amount && amount > 0) {
-        transactions.push({
-          transactionDate: date,
-          description: cleanNarration(narration),
-          amount,
-          transactionType: determineTransactionType(narration),
-          reference: extractReferenceFromNarration(narration),
-          bankAccountLast4: null,
-        });
+  // Sort rows by Y (from top to bottom, usually PDF Y is from bottom up)
+  const sortedY = Array.from(rows.keys()).sort((a, b) => b - a);
+
+  // Merge multi-line details and process rows
+  for (let i = 0; i < sortedY.length; i++) {
+    const y = sortedY[i];
+    const rowItems = rows.get(y)!.sort((a, b) => a.x - b.x);
+    const rowText = rowItems.map(item => item.text).join(' ');
+
+    // Check if row starts with a date
+    if (datePattern.test(rowItems[0]?.text)) {
+      const transDateStr = rowItems[0].text;
+      const date = parseFirstBankDate(transDateStr);
+      if (!date) continue;
+
+      // Find all amounts in the row and their X positions
+      const amountItems = rowItems.filter(item => amountPattern.test(item.text));
+
+      if (amountItems.length >= 2) {
+        // Last one is usually balance, one before is amount
+        const balanceItem = amountItems[amountItems.length - 1];
+        const amountItem = amountItems[amountItems.length - 2];
+
+        const amount = parseFirstBankAmount(amountItem.text);
+        if (amount && amount > 0) {
+          // Use X coordinate to determine type
+          // Deposit column (~391), Withdrawal column (~436)
+          // Threshold set at 410 based on analysis
+          const transactionType = amountItem.x < 410 ? 'credit' : 'debit';
+
+          // Assemble details (can span multiple rows, but start here)
+          const details = rowItems
+            .filter(item => item.x > 80 && item.x < 300)
+            .map(item => item.text)
+            .join(' ')
+            .trim();
+
+          transactions.push({
+            transactionDate: date,
+            description: cleanNarration(details),
+            amount,
+            transactionType,
+            reference: extractReferenceFromNarration(details),
+            bankAccountLast4: null,
+          });
+        }
       }
     }
   }

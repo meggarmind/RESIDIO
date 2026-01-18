@@ -127,16 +127,35 @@ function DashboardSkeleton() {
 
 export default function DashboardPage() {
     const { profile, isLoading: authLoading } = useAuth();
-    const { data: stats, isLoading: statsLoading } = useEnhancedDashboardStats();
+    const { data: stats, isLoading: statsLoading, error: statsError } = useEnhancedDashboardStats();
     const { themeId } = useVisualTheme();
 
     if (authLoading) {
         return <DashboardSkeleton />;
     }
 
-    const firstName = profile?.full_name?.split(' ')[0] || 'there';
+    const firstName = profile?.full_name?.trim() ? profile.full_name.split(' ')[0] : 'there';
     const isLoading = statsLoading;
     const isModernTheme = themeId === 'modern';
+
+    if (statsError || stats?.error) {
+        const errorMessage = statsError instanceof Error ? statsError.message : (stats?.error || 'An unexpected error occurred');
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+                <div className="p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20 max-w-md text-center">
+                    <h3 className="font-semibold text-lg mb-2">Failed to load dashboard</h3>
+                    <p className="text-sm opacity-90">{errorMessage}</p>
+                </div>
+                <Button
+                    variant="outline"
+                    onClick={() => window.location.reload()}
+                    className="gap-2"
+                >
+                    Retry loading
+                </Button>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
@@ -201,10 +220,6 @@ export default function DashboardPage() {
                 <QuickActionsPanel />
             )}
 
-            {/* System Health (Admin only) */}
-            {profile?.role_name === 'super_admin' && (
-                <CronHealthCard />
-            )}
 
             {/* Invoice Distribution & Recent Activity - Conditional rendering based on theme */}
             {isModernTheme ? (

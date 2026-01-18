@@ -14,6 +14,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface AccessCodeDisplayProps {
   code: string;
@@ -81,8 +83,11 @@ export function AccessCodeDisplay({
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <code
-          className={`font-mono bg-muted rounded-md border ${sizeClasses[size]} ${!isActive ? 'opacity-50 line-through' : ''
-            }`}
+          className={cn(
+            'font-mono bg-muted/50 rounded-lg border border-border/50 code-credential',
+            sizeClasses[size],
+            !isActive && 'opacity-50 line-through'
+          )}
         >
           {displayCode}
         </code>
@@ -103,15 +108,40 @@ export function AccessCodeDisplay({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 relative overflow-hidden"
             onClick={handleCopy}
             title="Copy code"
           >
-            {copied ? (
-              <Check className="h-4 w-4 text-green-500" />
-            ) : (
-              <Copy className="h-4 w-4" />
-            )}
+            <AnimatePresence mode="wait">
+              {copied ? (
+                <motion.div
+                  key="check"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                  className="relative"
+                >
+                  <Check className="h-4 w-4 text-emerald-500" />
+                  {/* Pulse glow ring */}
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0.8 }}
+                    animate={{ scale: 2, opacity: 0 }}
+                    transition={{ duration: 0.6 }}
+                    className="absolute inset-0 rounded-full bg-emerald-500/30"
+                  />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="copy"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                >
+                  <Copy className="h-4 w-4" />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </Button>
         )}
 

@@ -6,6 +6,7 @@ import { PortalSidebar } from '@/components/resident-portal/portal-sidebar';
 import { ImpersonationPortalWrapper } from '@/components/resident-portal/impersonation-portal-wrapper';
 import { OnboardingCheck } from '@/components/resident-portal/onboarding-check';
 import { VisualThemeProvider } from '@/contexts/visual-theme-context';
+import { ThemeScript } from '@/components/theme-script';
 
 /**
  * Resident Portal Layout - Modern Design System

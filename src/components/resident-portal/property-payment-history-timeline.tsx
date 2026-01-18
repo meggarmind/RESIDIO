@@ -223,7 +223,10 @@ export function PropertyPaymentHistoryTimeline({
 
               {/* Payment Content */}
               <div
-                className="rounded-lg p-4"
+                className={cn(
+                  "rounded-lg p-4 transition-all duration-200",
+                  "hover:shadow-md hover:-translate-y-0.5"
+                )}
                 style={{
                   background: 'var(--color-bg-muted)',
                   border: '1px solid var(--color-border)',

@@ -10,6 +10,7 @@ import { generateLeviesForHouse } from '@/actions/billing/generate-levies';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { validateHouseAssignment } from './validation';
 
 type AssignHouseResponse = {
   data: ResidentHouse | null;
@@ -83,47 +84,10 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
     };
   }
 
-  // Check if house has a resident_landlord or tenant - blocks PRIMARY role assignments
-  // Only secondary roles (co_resident, household_member, domestic_staff, caretaker) can be added
-  if (isPrimaryRole(role)) {
-    // Check for resident_landlord
-    const { data: existingResidentLandlord } = await supabase
-      .from('resident_houses')
-      .select('id, resident:residents(first_name, last_name)')
-      .eq('house_id', formData.house_id)
-      .eq('resident_role', 'resident_landlord')
-      .eq('is_active', true)
-      .single();
-
-    if (existingResidentLandlord) {
-      const residentData = existingResidentLandlord.resident as unknown as { first_name: string; last_name: string } | null;
-      const landlordName = residentData ? `${residentData.first_name} ${residentData.last_name}` : 'an Owner-Occupier';
-      return {
-        data: null,
-        error: `This house has an Owner-Occupier (${landlordName}). Only secondary residents (Occupant, Family Member, Domestic Staff, Caretaker) can be linked.`,
-      };
-    }
-
-    // Check for tenant (but still allow non_resident_landlord and developer - they don't live there)
-    // Tenant blocks other residency roles (another tenant, resident_landlord)
-    if (role === 'tenant' || role === 'resident_landlord') {
-      const { data: existingTenant } = await supabase
-        .from('resident_houses')
-        .select('id, resident:residents(first_name, last_name)')
-        .eq('house_id', formData.house_id)
-        .eq('resident_role', 'tenant')
-        .eq('is_active', true)
-        .single();
-
-      if (existingTenant) {
-        const residentData = existingTenant.resident as unknown as { first_name: string; last_name: string } | null;
-        const tenantName = residentData ? `${residentData.first_name} ${residentData.last_name}` : 'a Renter';
-        return {
-          data: null,
-          error: `This house has a Tenant (${tenantName}). Cannot add another ${roleLabel} - only secondary residents can be linked.`,
-        };
-      }
-    }
+  // Validate assignment rules (Single Owner, Single Tenant, Occpier vs Renter)
+  const validation = await validateHouseAssignment(supabase, formData.house_id, role);
+  if (!validation.valid) {
+    return { data: null, error: validation.error || 'Invalid assignment' };
   }
 
   // Validate sponsor requirement for domestic_staff and caretaker
@@ -187,81 +151,9 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
     // If it exists but is inactive, reactivate it instead of creating new
     if (!existing.is_active) {
       // Check for occupancy conflicts before reactivating
-      // For ownership roles, check for ANY existing owner (single owner per house rule)
-      // Owners are: resident_landlord, non_resident_landlord, developer
-      if (role === 'resident_landlord' || role === 'non_resident_landlord' || role === 'developer') {
-        const { data: existingOwner } = await supabase
-          .from('resident_houses')
-          .select('id, resident_role, resident:residents(first_name, last_name)')
-          .eq('house_id', formData.house_id)
-          .in('resident_role', ['resident_landlord', 'non_resident_landlord', 'developer'])
-          .eq('is_active', true)
-          .single();
-
-        if (existingOwner) {
-          const residentData = existingOwner.resident as unknown as { first_name: string; last_name: string } | null;
-          const existingName = residentData
-            ? `${residentData.first_name} ${residentData.last_name}`
-            : 'another resident';
-          const existingRoleLabel = RESIDENT_ROLE_LABELS[existingOwner.resident_role as ResidentRole];
-          return {
-            data: null,
-            error: `This house already has a ${existingRoleLabel} (${existingName}). Only one owner is allowed per house. Please transfer ownership first.`,
-          };
-        }
-
-        // Also check tenant conflict for resident_landlord
-        if (role === 'resident_landlord') {
-          const { data: existingTenant } = await supabase
-            .from('resident_houses')
-            .select('id, resident_role, resident:residents(first_name, last_name)')
-            .eq('house_id', formData.house_id)
-            .eq('resident_role', 'tenant')
-            .eq('is_active', true)
-            .single();
-
-          if (existingTenant) {
-            const residentData = existingTenant.resident as unknown as { first_name: string; last_name: string } | null;
-            const existingName = residentData
-              ? `${residentData.first_name} ${residentData.last_name}`
-              : 'another resident';
-            return {
-              data: null,
-              error: `This house already has a Renter (${existingName}). Cannot have both Owner-Occupier and Renter in the same unit.`,
-            };
-          }
-        }
-      }
-
-      // For tenant role, check for existing tenant or resident_landlord
-      if (role === 'tenant') {
-        const { data: existingOccupant } = await supabase
-          .from('resident_houses')
-          .select('id, resident_role, resident:residents(first_name, last_name)')
-          .eq('house_id', formData.house_id)
-          .in('resident_role', ['resident_landlord', 'tenant'])
-          .eq('is_active', true)
-          .single();
-
-        if (existingOccupant) {
-          const residentData = existingOccupant.resident as unknown as { first_name: string; last_name: string } | null;
-          const existingName = residentData
-            ? `${residentData.first_name} ${residentData.last_name}`
-            : 'another resident';
-          const existingRoleLabel = RESIDENT_ROLE_LABELS[existingOccupant.resident_role as ResidentRole];
-
-          if (existingOccupant.resident_role === 'tenant') {
-            return {
-              data: null,
-              error: `This house already has a Renter (${existingName}). Please unassign them first.`,
-            };
-          } else {
-            return {
-              data: null,
-              error: `This house already has a ${existingRoleLabel} (${existingName}). Cannot have both Owner-Occupier and Renter in the same unit.`,
-            };
-          }
-        }
+      const reactivationValidation = await validateHouseAssignment(supabase, formData.house_id, role);
+      if (!reactivationValidation.valid) {
+        return { data: null, error: reactivationValidation.error || 'Invalid assignment' };
       }
 
       const { data: reactivated, error: reactivateError } = await supabase
@@ -314,86 +206,6 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
     // Already active assignment
     return { data: null, error: 'Resident is already assigned to this house' };
   }
-
-  // Check for occupancy conflicts
-  // For ownership roles, check for ANY existing owner (single owner per house rule)
-  // Owners are: resident_landlord, non_resident_landlord, developer
-  if (role === 'resident_landlord' || role === 'non_resident_landlord' || role === 'developer') {
-    const { data: existingOwner } = await supabase
-      .from('resident_houses')
-      .select('id, resident_role, resident:residents(first_name, last_name)')
-      .eq('house_id', formData.house_id)
-      .in('resident_role', ['resident_landlord', 'non_resident_landlord', 'developer'])
-      .eq('is_active', true)
-      .single();
-
-    if (existingOwner) {
-      const residentData = existingOwner.resident as unknown as { first_name: string; last_name: string } | null;
-      const existingName = residentData
-        ? `${residentData.first_name} ${residentData.last_name}`
-        : 'another resident';
-      const existingRoleLabel = RESIDENT_ROLE_LABELS[existingOwner.resident_role as ResidentRole];
-      return {
-        data: null,
-        error: `This house already has a ${existingRoleLabel} (${existingName}). Only one owner is allowed per house. Please transfer ownership first.`,
-      };
-    }
-
-    // Also check tenant conflict for resident_landlord
-    if (role === 'resident_landlord') {
-      const { data: existingTenant } = await supabase
-        .from('resident_houses')
-        .select('id, resident_role, resident:residents(first_name, last_name)')
-        .eq('house_id', formData.house_id)
-        .eq('resident_role', 'tenant')
-        .eq('is_active', true)
-        .single();
-
-      if (existingTenant) {
-        const residentData = existingTenant.resident as unknown as { first_name: string; last_name: string } | null;
-        const existingName = residentData
-          ? `${residentData.first_name} ${residentData.last_name}`
-          : 'another resident';
-        return {
-          data: null,
-          error: `This house already has a Renter (${existingName}). Cannot have both Owner-Occupier and Renter in the same unit.`,
-        };
-      }
-    }
-  }
-
-  // For tenant role, check for existing tenant or resident_landlord
-  if (role === 'tenant') {
-    const { data: existingOccupant } = await supabase
-      .from('resident_houses')
-      .select('id, resident_role, resident:residents(first_name, last_name)')
-      .eq('house_id', formData.house_id)
-      .in('resident_role', ['resident_landlord', 'tenant'])
-      .eq('is_active', true)
-      .single();
-
-    if (existingOccupant) {
-      const residentData = existingOccupant.resident as unknown as { first_name: string; last_name: string } | null;
-      const existingName = residentData
-        ? `${residentData.first_name} ${residentData.last_name}`
-        : 'another resident';
-      const existingRoleLabel = RESIDENT_ROLE_LABELS[existingOccupant.resident_role as ResidentRole];
-
-      if (existingOccupant.resident_role === 'tenant') {
-        return {
-          data: null,
-          error: `This house already has a Renter (${existingName}). Please unassign them first.`,
-        };
-      } else {
-        return {
-          data: null,
-          error: `This house already has a ${existingRoleLabel} (${existingName}). Cannot have both Owner-Occupier and Renter in the same unit.`,
-        };
-      }
-    }
-  }
-
-  const today = new Date().toISOString().split('T')[0];
 
   const { data, error } = await supabase
     .from('resident_houses')

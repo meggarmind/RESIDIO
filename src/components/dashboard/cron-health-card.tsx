@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -36,10 +37,19 @@ interface CronHealthResponse {
 
 async function fetchCronHealth(): Promise<CronHealthResponse> {
     const response = await fetch('/api/health/cron-status');
+    const data = await response.json();
+
+    // If we have a valid JSON with health info, use it even if it's not a 2xx status
+    // (though the API should now be returning 200)
+    if (data && (data.status || data.overall) && Array.isArray(data.jobs)) {
+        return data;
+    }
+
     if (!response.ok) {
         throw new Error('Failed to fetch cron health');
     }
-    return response.json();
+
+    return data;
 }
 
 function getStatusIcon(status: string) {
@@ -69,6 +79,11 @@ function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destr
 }
 
 export function CronHealthCard() {
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
     const {
         data,
         isLoading,
@@ -78,8 +93,9 @@ export function CronHealthCard() {
     } = useQuery({
         queryKey: ['cron-health'],
         queryFn: fetchCronHealth,
-        refetchInterval: 60000, // Refresh every minute
+        refetchInterval: 60000,
         staleTime: 30000,
+        enabled: mounted, // Only run after mount to avoid hydration mismatch
     });
 
     if (isLoading) {
@@ -132,8 +148,9 @@ export function CronHealthCard() {
         );
     }
 
-    const overallStatus = data?.status || 'unknown';
+    const overallStatus = data?.status || (data as any)?.overall || 'unknown';
     const jobs = data?.jobs || [];
+    const lastChecked = data?.lastChecked || (data as any)?.timestamp;
 
     // Filter to show only critical jobs first, then by importance
     const prioritizedJobs = [...jobs].sort((a, b) => {
@@ -206,15 +223,15 @@ export function CronHealthCard() {
                 {jobs.length > 4 && (
                     <Link href="/settings/system">
                         <Button variant="ghost" size="sm" className="w-full mt-3">
-                            View all {jobs.length} tasks
+                            View Detailed Status
                             <ExternalLink className="h-4 w-4 ml-2" />
                         </Button>
                     </Link>
                 )}
 
-                {data?.lastChecked && (
+                {lastChecked && (
                     <p className="text-xs text-muted-foreground text-center mt-3">
-                        Last checked: {new Date(data.lastChecked).toLocaleTimeString()}
+                        Last checked: {new Date(lastChecked).toLocaleTimeString()}
                     </p>
                 )}
             </CardContent>

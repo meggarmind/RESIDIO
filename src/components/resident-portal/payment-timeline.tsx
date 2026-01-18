@@ -1,8 +1,8 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { formatCurrency } from '@/lib/utils';
-import { AlertCircle, Clock, CheckCircle } from 'lucide-react';
+import { ArrowLeft, CreditCard, Clock, AlertCircle, CheckCircle } from 'lucide-react';
+import { cn, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
 
 export interface PaymentTimelineItem {
@@ -139,7 +139,10 @@ export function PaymentTimeline({ items }: PaymentTimelineProps) {
                 style={{ textDecoration: 'none' }}
               >
                 <div
-                  className="p-3 rounded-lg transition-colors duration-150 cursor-pointer"
+                  className={cn(
+                    "p-3 rounded-lg transition-all duration-200 cursor-pointer",
+                    "hover:shadow-md hover:-translate-y-0.5"
+                  )}
                   style={{
                     background: 'var(--color-bg-input)',
                   }}
@@ -169,6 +172,10 @@ export function PaymentTimeline({ items }: PaymentTimelineProps) {
                             color: 'var(--color-text-primary)',
                           }}
                         >
+                          <span className={cn(
+                            "inline-block w-2 h-2 rounded-full mr-2",
+                            item.status === 'overdue' ? "bg-destructive animate-pulse" : "bg-primary"
+                          )} />
                           {item.invoiceType || 'Invoice'} #{item.invoiceNumber}
                         </p>
                         <span

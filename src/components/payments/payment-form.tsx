@@ -31,8 +31,9 @@ import { useResidents } from '@/hooks/use-residents';
 import { paymentFormSchema, type PaymentFormData } from '@/lib/validators/payment';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { formatCurrency } from '@/lib/utils';
-import { Home, AlertTriangle, MapPin } from 'lucide-react';
+import { formatCurrency, cn } from '@/lib/utils';
+import { Home, AlertTriangle, MapPin, Loader2, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface PaymentFormProps {
     initialData?: any;
@@ -46,9 +47,9 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
     const updateMutation = useUpdatePayment();
     // Reduced limit - consider implementing async search for large estates
     const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 200 });
+    const [submitState, setSubmitState] = React.useState<'idle' | 'loading' | 'success'>('idle');
 
     const isEditing = !!initialData;
-    const isLoading = createMutation.isPending || updateMutation.isPending;
 
     const form = useForm<PaymentFormData>({
         resolver: zodResolver(paymentFormSchema),
@@ -84,6 +85,7 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
     const properties = propertiesData?.data ?? [];
 
     async function onSubmit(data: PaymentFormData) {
+        setSubmitState('loading');
         try {
             if (isEditing) {
                 // @ts-ignore
@@ -93,9 +95,15 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                 await createMutation.mutateAsync(data);
                 toast.success('Payment recorded');
             }
-            onSuccess?.();
-            router.push('/payments');
+            setSubmitState('success');
+
+            // Hold for 600ms to show success, then navigate
+            setTimeout(() => {
+                onSuccess?.();
+                router.push('/payments');
+            }, 600);
         } catch (error) {
+            setSubmitState('idle');
             toast.error(error instanceof Error ? error.message : 'Failed to save payment');
         }
     }
@@ -363,10 +371,47 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                 />
 
                 <div className="flex gap-4">
-                    <Button type="submit" disabled={isLoading}>
-                        {isLoading ? 'Saving...' : isEditing ? 'Update Payment' : 'Record Payment'}
+                    <Button
+                        type="submit"
+                        disabled={submitState !== 'idle'}
+                        className={cn(
+                            "min-w-[160px] transition-all duration-300",
+                            submitState === 'success' && "btn-success-state success-glow"
+                        )}
+                    >
+                        <AnimatePresence mode="wait">
+                            {submitState === 'loading' && (
+                                <motion.span
+                                    key="loading"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="flex items-center gap-2"
+                                >
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Saving...
+                                </motion.span>
+                            )}
+                            {submitState === 'success' && (
+                                <motion.span
+                                    key="success"
+                                    initial={{ scale: 0, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                    className="flex items-center gap-2"
+                                >
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    {isEditing ? 'Updated!' : 'Recorded!'}
+                                </motion.span>
+                            )}
+                            {submitState === 'idle' && (
+                                <motion.span key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                                    {isEditing ? 'Update Payment' : 'Record Payment'}
+                                </motion.span>
+                            )}
+                        </AnimatePresence>
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => router.back()}>
+                    <Button type="button" variant="outline" onClick={() => router.back()} disabled={submitState !== 'idle'}>
                         Cancel
                     </Button>
                 </div>

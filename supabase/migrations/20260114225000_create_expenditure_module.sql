@@ -102,11 +102,11 @@ CREATE POLICY "Manage Budgets - Admins/Financial Secretary" ON public.budgets FO
 );
 
 -- 6. Permissions Data
-INSERT INTO public.app_permissions (name, category) VALUES 
-('view_expenditure', 'finance'),
-('manage_expenditure', 'finance'),
-('view_vendors', 'finance'),
-('manage_vendors', 'finance')
+INSERT INTO public.app_permissions (name, display_name, category) VALUES 
+('view_expenditure', 'View Expenditure', 'finance'),
+('manage_expenditure', 'Manage Expenditure', 'finance'),
+('view_vendors', 'View Vendors', 'finance'),
+('manage_vendors', 'Manage Vendors', 'finance')
 ON CONFLICT (name) DO NOTHING;
 
 -- Assign permissions to roles

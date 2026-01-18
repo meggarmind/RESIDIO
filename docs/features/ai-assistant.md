@@ -18,7 +18,8 @@ The Estate AI Assistant is a floating chatbot widget designed to provide residen
 
 - **Component**: `src/components/layout/estate-ai-assistant.tsx` - The UI component.
 - **Hook**: `src/hooks/use-ai-assistant.ts` - Logic for state management and simulated responses.
-- **Integration**: `src/app/layout.tsx` - Included globally.
+- **Integration**: `src/app/layout.tsx` - Included globally at the root layout level.
+- **Visibility Toggle**: `src/components/dashboard/header.tsx` - "Show AI Assistant" dropdown option when dismissed.
 
 ### Usage
 

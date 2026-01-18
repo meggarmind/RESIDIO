@@ -271,14 +271,15 @@ export async function GET() {
             ? 'warning'
             : 'healthy';
 
-    const response: HealthResponse = {
+    const response: HealthResponse & { status: string; lastChecked: string } = {
         overall,
+        status: overall, // Match CronHealthCard
         timestamp: now.toISOString(),
+        lastChecked: now.toISOString(), // Match CronHealthCard
         jobs,
     };
 
-    // Return appropriate HTTP status code
-    const httpStatus = overall === 'critical' ? 503 : overall === 'warning' ? 200 : 200;
-
-    return NextResponse.json(response, { status: httpStatus });
+    // Return 200 even if critical, so the UI can display the details.
+    // Monitoring tools can check the JSON body for 'overall': 'critical'
+    return NextResponse.json(response, { status: 200 });
 }

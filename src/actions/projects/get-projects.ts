@@ -4,9 +4,16 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
+/**
+ * Fetches all projects.
+ * Returns empty array if user lacks permission (used in dropdowns where projects are optional).
+ */
 export async function getProjects() {
     const { authorized } = await authorizePermission(PERMISSIONS.PROJECTS_VIEW);
-    if (!authorized) throw new Error('Unauthorized');
+    if (!authorized) {
+        // Return empty array instead of throwing - used in expense form dropdown
+        return [];
+    }
 
     const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase

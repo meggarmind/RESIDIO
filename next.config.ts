@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '10mb',
     },
   },
+  // Externalize pdfjs-dist to avoid Next.js bundling issues with its worker
+  serverExternalPackages: ['pdfjs-dist'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.supabase.co' },

@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -13,16 +14,17 @@ import {
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, File, X, Loader2, AlertCircle } from 'lucide-react';
+import { Upload, File, X, Loader2, AlertCircle, Lock } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/use-imports';
 import { parseCSVFile } from '@/lib/parsers/csv-parser';
 import { parseXLSXFile } from '@/lib/parsers/xlsx-parser';
+import { parsePdfStatement } from '@/actions/imports/parse-pdf-statement';
 import { toast } from 'sonner';
 
 interface StatementUploadProps {
   onComplete: (data: {
     file: File;
-    fileType: 'csv' | 'xlsx';
+    fileType: 'csv' | 'xlsx' | 'pdf';
     bankAccountId: string;
     transactionFilter: 'credit' | 'debit' | 'all';
     rawData: Record<string, unknown>[];
@@ -30,12 +32,17 @@ interface StatementUploadProps {
   }) => void;
 }
 
+
 export function StatementUpload({ onComplete }: StatementUploadProps) {
   const [file, setFile] = useState<File | null>(null);
   const [bankAccountId, setBankAccountId] = useState<string>('');
   const [transactionFilter, setTransactionFilter] = useState<'credit' | 'debit' | 'all'>('credit');
   const [isParsing, setIsParsing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pdfPassword, setPdfPassword] = useState<string>('');
+  const [passwordRequired, setPasswordRequired] = useState(false);
+
+  const isPdfFile = file?.name.toLowerCase().endsWith('.pdf');
 
   const { data: bankAccountsData, isLoading: isLoadingAccounts } = useBankAccounts();
   const bankAccounts = bankAccountsData?.data || [];
@@ -45,13 +52,15 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
       const selectedFile = acceptedFiles[0];
       const extension = selectedFile.name.split('.').pop()?.toLowerCase();
 
-      if (extension !== 'csv' && extension !== 'xlsx' && extension !== 'xls') {
-        setError('Please upload a CSV or Excel file');
+      if (extension !== 'csv' && extension !== 'xlsx' && extension !== 'xls' && extension !== 'pdf') {
+        setError('Please upload a CSV, Excel, or PDF file');
         return;
       }
 
       setFile(selectedFile);
       setError(null);
+      setPasswordRequired(false);
+      setPdfPassword('');
     }
   }, []);
 
@@ -61,6 +70,7 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
       'text/csv': ['.csv'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/vnd.ms-excel': ['.xls'],
+      'application/pdf': ['.pdf'],
     },
     maxFiles: 1,
   });
@@ -68,6 +78,8 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
   const handleRemoveFile = () => {
     setFile(null);
     setError(null);
+    setPdfPassword('');
+    setPasswordRequired(false);
   };
 
   const handleContinue = async () => {
@@ -97,15 +109,45 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
         const result = await parseXLSXFile(file);
         rawData = result.rawData;
         headers = rawData.length > 0 ? Object.keys(rawData[0]) : [];
+      } else if (extension === 'pdf') {
+        // Parse PDF using server action
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bankAccountId', bankAccountId);
+        if (pdfPassword) {
+          formData.append('password', pdfPassword);
+        }
+
+        const result = await parsePdfStatement(formData);
+
+        if (!result.success) {
+          if (result.passwordRequired) {
+            setPasswordRequired(true);
+          }
+          throw new Error(result.error || 'Failed to parse PDF');
+        }
+
+        // Show toast if saved password was used
+        if (result.usedSavedPassword) {
+          toast.success('Using saved PDF password for this account');
+        }
+
+        rawData = result.data?.rawData || [];
+        headers = result.data?.headers || [];
       }
 
       if (rawData.length === 0) {
         throw new Error('The file appears to be empty or could not be parsed');
       }
 
+      // Determine file type for wizard flow
+      const fileType: 'csv' | 'xlsx' | 'pdf' =
+        extension === 'csv' ? 'csv' :
+          extension === 'pdf' ? 'pdf' : 'xlsx';
+
       onComplete({
         file,
-        fileType: extension === 'csv' ? 'csv' : 'xlsx',
+        fileType,
         bankAccountId,
         transactionFilter,
         rawData,
@@ -132,17 +174,16 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
       <div>
         <Label className="text-base font-medium">Statement File</Label>
         <p className="text-sm text-muted-foreground mb-3">
-          Upload a bank statement in CSV or Excel format
+          Upload a bank statement in CSV, Excel, or PDF format
         </p>
 
         {!file ? (
           <div
             {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-              isDragActive
-                ? 'border-primary bg-primary/5'
-                : 'border-muted-foreground/25 hover:border-primary/50'
-            }`}
+            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${isDragActive
+              ? 'border-primary bg-primary/5'
+              : 'border-muted-foreground/25 hover:border-primary/50'
+              }`}
           >
             <input {...getInputProps()} />
             <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
@@ -150,7 +191,7 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
               {isDragActive ? 'Drop the file here' : 'Drag & drop or click to upload'}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Supports CSV and Excel files (.csv, .xlsx, .xls)
+              Supports CSV, Excel, and PDF files (.csv, .xlsx, .xls, .pdf)
             </p>
           </div>
         ) : (
@@ -177,6 +218,31 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
           </div>
         )}
       </div>
+
+      {/* PDF Password Input - Only show if password is required and not using saved password */}
+      {isPdfFile && passwordRequired && (
+        <div className="space-y-2">
+          <Label htmlFor="pdf-password" className="text-base font-medium flex items-center gap-2">
+            <Lock className="h-4 w-4" />
+            PDF Password
+            <span className="text-destructive text-sm">(Required)</span>
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            This PDF is password-protected. Enter the password to continue.
+          </p>
+          <Input
+            id="pdf-password"
+            type="password"
+            placeholder="Enter PDF password"
+            value={pdfPassword}
+            onChange={(e) => setPdfPassword(e.target.value)}
+            className="max-w-md"
+          />
+          <p className="text-xs text-muted-foreground">
+            Tip: You can save passwords for each bank account in Settings → Bank Accounts.
+          </p>
+        </div>
+      )}
 
       {/* Bank Account Selection */}
       <div className="space-y-2">

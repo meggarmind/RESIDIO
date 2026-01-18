@@ -9,6 +9,8 @@ interface SendPaymentReceiptEmailResult {
   success: boolean;
   error?: string;
   sentTo?: string[];
+  // Unified Expenditure Engine: Verification awareness
+  isPendingVerification?: boolean;
 }
 
 interface Recipient {
@@ -63,10 +65,10 @@ export async function getPaymentRecipients(paymentId: string): Promise<{
   // Main recipient (the payment owner)
   const mainResident: Recipient | null = resident.email
     ? {
-        email: resident.email,
-        name: `${resident.first_name} ${resident.last_name}`,
-        residentId: resident.id,
-      }
+      email: resident.email,
+      name: `${resident.first_name} ${resident.last_name}`,
+      residentId: resident.id,
+    }
     : null;
 
   // Step 3: Get active houses for this resident
@@ -117,10 +119,15 @@ export async function getPaymentRecipients(paymentId: string): Promise<{
 
 /**
  * Send a payment receipt email
+ * @param paymentId - The ID of the payment to send receipt for
+ * @param recipientEmails - List of email addresses to send to
+ * @param options - Additional options
+ * @param options.forceUnverified - Force send even if payment is unverified (admin override)
  */
 export async function sendPaymentReceiptEmail(
   paymentId: string,
-  recipientEmails: string[]
+  recipientEmails: string[],
+  options?: { forceUnverified?: boolean }
 ): Promise<SendPaymentReceiptEmailResult> {
   if (recipientEmails.length === 0) {
     return { success: false, error: 'No recipients specified' };
@@ -128,7 +135,7 @@ export async function sendPaymentReceiptEmail(
 
   const supabase = await createServerSupabaseClient();
 
-  // Get payment with all related data
+  // Get payment with all related data including verification status
   const { data: payment, error } = await supabase
     .from('payment_records')
     .select(`
@@ -141,6 +148,8 @@ export async function sendPaymentReceiptEmail(
       notes,
       period_start,
       period_end,
+      is_verified,
+      verified_at,
       resident:residents(
         id,
         first_name,
@@ -163,6 +172,18 @@ export async function sendPaymentReceiptEmail(
 
   if (!payment) {
     return { success: false, error: 'Payment not found' };
+  }
+
+  // Check verification status
+  const isVerified = payment.is_verified ?? false;
+
+  // Block auto-send for unverified payments unless explicitly forced
+  if (!isVerified && !options?.forceUnverified) {
+    return {
+      success: false,
+      error: 'Cannot auto-send receipt for unverified payment. Use manual verification or force send.',
+      isPendingVerification: true
+    };
   }
 
   const resident = payment.resident as any;
@@ -197,9 +218,21 @@ export async function sendPaymentReceiptEmail(
   // Format dates
   const formatDate = (date: string) => format(new Date(date), 'MMMM d, yyyy');
 
+  // Determine subject based on verification status
+  // If forced unverified, add pending notice
+  const isPendingVerification = !isVerified && options?.forceUnverified;
+  const subject = isPendingVerification
+    ? `Payment Receipt (Pending Verification): ${receiptNumber}`
+    : `Payment Receipt: ${receiptNumber}`;
+
+  // Add notes about pending verification if applicable
+  const receiptNotes = isPendingVerification
+    ? `⚠️ This payment is pending bank verification. ${payment.notes || ''}`
+    : (payment.notes || undefined);
+
   const result = await sendEmail({
     to: recipients,
-    subject: `Payment Receipt: ${receiptNumber}`,
+    subject,
     react: PaymentReceiptEmail({
       residentName: `${resident.first_name} ${resident.last_name}`,
       receiptNumber,
@@ -211,7 +244,7 @@ export async function sendPaymentReceiptEmail(
       residentCode: resident.resident_code,
       periodStart: payment.period_start ? formatDate(payment.period_start) : undefined,
       periodEnd: payment.period_end ? formatDate(payment.period_end) : undefined,
-      notes: payment.notes || undefined,
+      notes: receiptNotes,
       ...estateSettings,
     }),
     emailType: 'payment_receipt',
@@ -219,6 +252,9 @@ export async function sendPaymentReceiptEmail(
       paymentId: payment.id,
       receiptNumber,
       amount: payment.amount,
+      // Unified Expenditure Engine: Verification metadata
+      isVerified,
+      isPendingVerification,
     },
   });
 
@@ -229,5 +265,6 @@ export async function sendPaymentReceiptEmail(
   return {
     success: true,
     sentTo: recipients.map((r) => r.email),
+    isPendingVerification,
   };
 }

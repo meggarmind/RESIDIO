@@ -22,7 +22,7 @@ export interface EmailRecipient {
 export interface SendEmailOptions {
   to: EmailRecipient | EmailRecipient[];
   subject: string;
-  react: React.ReactElement;
+  react?: React.ReactElement | null;
   emailType: EmailType;
   metadata?: Record<string, unknown>;
 }

@@ -2,6 +2,8 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { logAudit } from '@/lib/audit/logger';
+import type { ExpenseSourceType, ExpensePaymentMethod } from '@/types/database';
 
 export interface CreateExpenseInput {
     amount: number;
@@ -11,6 +13,12 @@ export interface CreateExpenseInput {
     vendor_id?: string;
     project_id?: string;
     status?: 'pending' | 'paid' | 'cancelled';
+    // Unified Expenditure Engine fields
+    source_type?: ExpenseSourceType;
+    payment_method?: ExpensePaymentMethod;
+    petty_cash_account_id?: string;
+    is_verified?: boolean;
+    bank_row_id?: string;
 }
 
 export async function createExpense(input: CreateExpenseInput) {
@@ -19,10 +27,27 @@ export async function createExpense(input: CreateExpenseInput) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Unauthorized');
 
+    // Determine verification status based on source
+    // Petty cash and bank imports are auto-verified
+    const isVerified = input.is_verified ??
+        (input.source_type === 'petty_cash' || input.source_type === 'bank_import');
+
     const { data, error } = await supabase
         .from('expenses')
         .insert([{
-            ...input,
+            amount: input.amount,
+            category_id: input.category_id,
+            expense_date: input.expense_date,
+            description: input.description,
+            vendor_id: input.vendor_id,
+            project_id: input.project_id,
+            status: input.status ?? 'pending',
+            source_type: input.source_type ?? 'manual',
+            payment_method: input.payment_method ?? 'bank_transfer',
+            petty_cash_account_id: input.petty_cash_account_id,
+            is_verified: isVerified,
+            verified_at: isVerified ? new Date().toISOString() : null,
+            bank_row_id: input.bank_row_id,
             created_by: user.id
         }])
         .select()
@@ -32,6 +57,19 @@ export async function createExpense(input: CreateExpenseInput) {
         console.error('Error creating expense:', error);
         throw new Error('Failed to create expense');
     }
+
+    // Audit log
+    await logAudit({
+        action: 'CREATE',
+        entityType: 'expenses',
+        entityId: data.id,
+        entityDisplay: `Expense: ${input.description || 'No description'}`,
+        newValues: {
+            amount: input.amount,
+            source_type: input.source_type ?? 'manual',
+            is_verified: isVerified,
+        },
+    });
 
     revalidatePath('/analytics');
     revalidatePath('/expenditure');

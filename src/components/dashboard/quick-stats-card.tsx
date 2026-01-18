@@ -60,7 +60,7 @@ function StatItem({ label, value, subLabel, subValue, icon: Icon, color }: StatI
     const styles = colorStyles[color];
 
     return (
-        <div className="group flex items-center gap-3 p-3 transition-all duration-200 hover:bg-accent/50">
+        <div className="group flex items-center gap-3 p-3 transition-all duration-200 hover:bg-accent/50 rounded-xl hover:shadow-sm hover:-translate-y-0.5 cursor-default">
             <div className={cn(
                 'p-2.5 rounded-xl shrink-0 ring-1 transition-all duration-200',
                 'group-hover:scale-110 group-hover:ring-2',

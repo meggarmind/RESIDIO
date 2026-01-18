@@ -90,9 +90,9 @@ CREATE POLICY "Manage Milestones - Admins/Project Manager" ON public.project_mil
     );
 
 -- 6. Permissions Data
-INSERT INTO public.app_permissions (name, category) VALUES 
-('view_projects', 'projects'),
-('manage_projects', 'projects')
+INSERT INTO public.app_permissions (name, display_name, category) VALUES 
+('view_projects', 'View Projects', 'projects'),
+('manage_projects', 'Manage Projects', 'projects')
 ON CONFLICT (name) DO NOTHING;
 
 -- Assign permissions to roles

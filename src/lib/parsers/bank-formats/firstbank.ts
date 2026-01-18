@@ -21,9 +21,9 @@ export const FIRSTBANK_COLUMNS: ColumnMapping = {
 // Alternative column names that FirstBank might use
 export const FIRSTBANK_COLUMN_ALIASES: Record<keyof ColumnMapping, string[]> = {
   date: ['Transaction Date', 'Date', 'Trans Date', 'Value Date', 'POST DATE'],
-  description: ['Narration', 'Description', 'Details', 'Remarks', 'NARRATION'],
-  credit: ['Credit', 'Credit Amount', 'CR', 'CREDIT'],
-  debit: ['Debit', 'Debit Amount', 'DR', 'DEBIT'],
+  description: ['Narration', 'Description', 'Details', 'Remarks', 'NARRATION', 'Transaction Details'],
+  credit: ['Credit', 'Credit Amount', 'CR', 'CREDIT', 'Deposit'],
+  debit: ['Debit', 'Debit Amount', 'DR', 'DEBIT', 'Withdrawal'],
   reference: ['Reference', 'Ref', 'Transaction Ref', 'Reference No', 'REFERENCE'],
   balance: ['Balance', 'Running Balance', 'Available Balance', 'BALANCE'],
 };

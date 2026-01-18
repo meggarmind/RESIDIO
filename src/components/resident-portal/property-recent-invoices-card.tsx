@@ -204,7 +204,8 @@ export function PropertyRecentInvoicesCard({
             key={invoice.id}
             className={cn(
               'flex items-center justify-between gap-4 p-3 rounded-lg',
-              'transition-colors hover:bg-muted/50'
+              'transition-all duration-200',
+              'hover:bg-muted/50 hover:shadow-sm hover:-translate-y-0.5'
             )}
             style={{
               border: '1px solid var(--border)',
@@ -256,12 +257,15 @@ export function PropertyRecentInvoicesCard({
             {canPay(invoice) && (
               <Button
                 size="sm"
-                variant="outline"
+                variant={invoice.status === 'overdue' ? 'destructive' : 'default'}
                 onClick={(e) => {
                   e.stopPropagation();
                   onPayNow(invoice);
                 }}
-                className="shrink-0"
+                className={cn(
+                  "shrink-0 transition-all duration-200 shadow-sm",
+                  "hover:shadow-md hover:-translate-y-0.5"
+                )}
               >
                 <CreditCard className="w-4 h-4 mr-1" />
                 Pay Now

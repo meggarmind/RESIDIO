@@ -35,6 +35,8 @@ interface RolePermissionsDialogProps {
 const CATEGORY_LABELS: Record<string, string> = {
   residents: 'Residents',
   houses: 'Houses',
+  projects: 'Capital Projects',
+  finance: 'Finance & Expenditure',
   payments: 'Payments & Imports',
   billing: 'Billing',
   security: 'Security',
@@ -53,6 +55,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 const CATEGORY_ORDER: PermissionCategory[] = [
   'residents',
   'houses',
+  'projects',
+  'finance',
   'payments',
   'billing',
   'security',

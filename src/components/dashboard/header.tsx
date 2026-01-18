@@ -18,6 +18,12 @@ import { NotificationBell } from '@/components/notifications';
 import { GlobalSearchCommand } from './global-search-command';
 import { AdminBreadcrumb } from './admin-breadcrumb';
 import { useAiAssistant } from '@/hooks/use-ai-assistant';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from '@/lib/utils';
 import {
   Menu,
@@ -78,13 +84,25 @@ export function Header({ onMenuClick }: HeaderProps) {
           </Button>
 
           {/* System Status - Mini Indicator */}
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/5 border border-emerald-500/10 transition-all hover:bg-emerald-500/10">
-            <div className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </div>
-            <span className="text-[10px] font-medium text-emerald-600 uppercase tracking-wider">System Operational</span>
-          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link
+                  href="/settings/system"
+                  className="hidden lg:flex items-center justify-center h-8 w-8 rounded-full bg-emerald-500/5 border border-emerald-500/10 transition-all hover:bg-emerald-500/10 hover:border-emerald-500/20"
+                >
+                  <div className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </div>
+                  <span className="sr-only">System Operational</span>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-[10px] font-medium uppercase tracking-wider">
+                System Operational
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           {/* Global Search Trigger - Desktop */}
           <div

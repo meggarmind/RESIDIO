@@ -23,7 +23,6 @@ import {
   useConnectGmail,
   useDisconnectGmail,
 } from '@/hooks/use-gmail-connection';
-import { BankPasswordsSection } from './bank-passwords-section';
 
 // Wrapper component to handle Suspense for useSearchParams
 export default function EmailIntegrationPage() {
@@ -203,8 +202,25 @@ function EmailIntegrationContent() {
         </CardContent>
       </Card>
 
-      {/* Bank Account Passwords */}
-      <BankPasswordsSection />
+      {/* Bank Account Passwords - Moved to Bank Accounts Settings */}
+      <Card className="bg-muted/30">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">PDF Statement Passwords</p>
+              <p className="text-sm text-muted-foreground">
+                Manage PDF passwords in the Bank Accounts settings.
+              </p>
+            </div>
+            <Button variant="outline" asChild>
+              <a href="/settings/bank-accounts">
+                <Settings className="h-4 w-4 mr-2" />
+                Bank Accounts
+              </a>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quick Actions */}
       {connectionStatus?.connected && (

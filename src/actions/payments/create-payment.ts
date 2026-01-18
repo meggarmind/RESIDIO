@@ -9,7 +9,7 @@ import { authorizePermission } from '@/lib/auth/authorize'
 import { PERMISSIONS } from '@/lib/auth/action-roles'
 import type { PaymentRecord } from '@/types/database'
 
-// Extended schema to include import tracking fields and house association
+// Extended schema to include import tracking fields, house association, and verification
 const extendedPaymentSchema = paymentFormSchema.extend({
     import_id: z.string().uuid().optional(),
     import_row_id: z.string().uuid().optional(),
@@ -17,6 +17,9 @@ const extendedPaymentSchema = paymentFormSchema.extend({
     // Email import tracking (Phase 17)
     email_import_id: z.string().uuid().optional(),
     email_transaction_id: z.string().uuid().optional(),
+    // Unified Expenditure Engine: Verification fields
+    is_verified: z.boolean().optional(),
+    bank_row_id: z.string().uuid().optional(),
 })
 
 type CreatePaymentInput = z.infer<typeof extendedPaymentSchema>
@@ -43,6 +46,9 @@ export async function createPayment(data: CreatePaymentInput): Promise<CreatePay
         return { error: 'Invalid data', details: result.error.flatten() }
     }
 
+    // Determine verification status
+    const isVerified = result.data.is_verified ?? false
+
     // Create payment record
     const { data: paymentRecord, error } = await supabase.from('payment_records').insert({
         resident_id: result.data.resident_id,
@@ -60,6 +66,10 @@ export async function createPayment(data: CreatePaymentInput): Promise<CreatePay
         import_row_id: result.data.import_row_id,
         email_import_id: result.data.email_import_id,
         email_transaction_id: result.data.email_transaction_id,
+        // Unified Expenditure Engine: Verification fields
+        is_verified: isVerified,
+        verified_at: isVerified ? new Date().toISOString() : null,
+        bank_row_id: result.data.bank_row_id,
     }).select().single()
 
     if (error) {

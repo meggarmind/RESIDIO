@@ -1,8 +1,24 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2026-01-08 (UI/UX Review Phase 2)
+**Last Updated:** 2026-01-16 (Product Vibe Review)
 
-## Current Phase: Phase 16 - Community Communication ✅ COMPLETE
+## Current Phase: Phase 17 - Product Vibe Enhancements 🚧 IN PROGRESS
+
+### Recent Session Work (2026-01-18): API Test Fixes
+- [x] **Test Script Consolidation**: Improved `docs/api/api-tests/test_first_bank_pdf.ts` for ESM compatibility
+- [x] **Robustness**: Added `qpdf` dependency check and global rejection handling to standalone tests
+- [x] **Verification**: Validated First Bank PDF parsing against sample statement
+
+### Recent Session Work (2026-01-16): Product Vibe Review
+
+- [x] **Product Audit**: Analyzed Resident Experience, Security, and Finance clusters (`product_audit.md`)
+- [x] **Verified Email Integration**: Confirmed logic for First Bank parsing to support "Living Data"
+- [x] **Implementation Plan**: Created plan for Phase 1 (Resident Sovereignty)
+- [ ] **Smart Action Center**: Upgrade to context-aware suggestions
+- [ ] **Hybrid Payments**: Manual "Proof" flow + Placeholder Paystack integration
+- [ ] **Visitor Access**: Recent visitors quick-access carousel
+
+## Phase 16 - Community Communication ✅ COMPLETE
 
 ## 🗺️ Roadmap Alignment & Concurrent Tracks
 

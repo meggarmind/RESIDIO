@@ -40,12 +40,14 @@ import {
   TableIcon,
   BarChart3,
 } from 'lucide-react';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 import {
   useCreateImport,
   useCreateImportRows,
   useMatchImportRows,
   useImportRows,
   useImportRowSummary,
+  useImportBreakdown,
   useUnmatchRow,
   useSkipRow,
 } from '@/hooks/use-imports';
@@ -118,6 +120,8 @@ export function ImportPreview({
   const [isCreating, setIsCreating] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
   const [matchingComplete, setMatchingComplete] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [statusFilter, setStatusFilter] = useState<string>(ALL_VALUE);
   const [transactionTypeFilter, setTransactionTypeFilter] = useState<'all' | 'credit' | 'debit'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,7 +145,8 @@ export function ImportPreview({
     error: rowsError
   } = useImportRows(importId || '', {
     status: statusFilter === ALL_VALUE ? undefined : statusFilter as BankStatementRow['status'],
-    limit: 1000, // Fetch all rows for review stage - need to see all for manual matching
+    page,
+    limit: pageSize,
   });
   const {
     data: summaryData,
@@ -150,11 +155,13 @@ export function ImportPreview({
     isFetching: isFetchingSummary
   } = useImportRowSummary(importId || '');
 
-  // Fetch transaction tags (filtered by credit/debit based on transactionFilter)
   const { data: creditTags } = useTransactionTags({ transaction_type: 'credit' });
   const { data: debitTags } = useTransactionTags({ transaction_type: 'debit' });
+  const { data: breakdownData } = useImportBreakdown(importId || '');
 
-  const rows = rowsData || [];
+  const rows = rowsData?.data || [];
+  const totalCount = rowsData?.count || 0;
+  const totalPages = Math.ceil(totalCount / pageSize);
   const summary = summaryData;
 
   // Composite loading state
@@ -323,6 +330,11 @@ export function ImportPreview({
     return filtered;
   }, [rows, searchQuery, transactionTypeFilter]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, transactionTypeFilter, searchQuery]);
+
   const getStatusBadge = (status: string, transactionType: 'credit' | 'debit' | null, confidence?: string) => {
     // Handle pending status (no color variation needed)
     if (status === 'pending') {
@@ -439,8 +451,8 @@ export function ImportPreview({
           {isCreating
             ? 'Creating import...'
             : isMatching
-            ? 'Matching residents...'
-            : 'Loading data...'}
+              ? 'Matching residents...'
+              : 'Loading data...'}
         </p>
         <p className="text-sm text-muted-foreground">
           This may take a moment for large files
@@ -471,24 +483,27 @@ export function ImportPreview({
         <div className="space-y-4">
           {/* Main stats row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 border rounded-lg text-center">
+            <div className="p-4 border rounded-lg text-center min-h-[88px] flex flex-col justify-center">
               <p className="text-2xl font-bold">{summary.total}</p>
               <p className="text-sm text-muted-foreground">Total Rows</p>
+              <p className="text-xs text-transparent mt-1 select-none">&nbsp;</p>
             </div>
-            <div className="p-4 border rounded-lg text-center border-green-200 dark:border-green-800">
+            <div className="p-4 border rounded-lg text-center border-green-200 dark:border-green-800 min-h-[88px] flex flex-col justify-center">
               <p className="text-2xl font-bold text-green-600">{summary.matched}</p>
               <p className="text-sm text-muted-foreground">Matched</p>
               <p className="text-xs text-muted-foreground mt-1">
                 ({transactionCounts.creditMatched} CR / {transactionCounts.debitMatched} DR)
               </p>
             </div>
-            <div className="p-4 border rounded-lg text-center border-red-200 dark:border-red-800">
+            <div className="p-4 border rounded-lg text-center border-red-200 dark:border-red-800 min-h-[88px] flex flex-col justify-center">
               <p className="text-2xl font-bold text-red-600">{summary.unmatched}</p>
               <p className="text-sm text-muted-foreground">Unmatched</p>
+              <p className="text-xs text-transparent mt-1 select-none">&nbsp;</p>
             </div>
-            <div className="p-4 border rounded-lg text-center border-yellow-200 dark:border-yellow-800">
+            <div className="p-4 border rounded-lg text-center border-yellow-200 dark:border-yellow-800 min-h-[88px] flex flex-col justify-center">
               <p className="text-2xl font-bold text-yellow-600">{summary.pending}</p>
               <p className="text-sm text-muted-foreground">Pending</p>
+              <p className="text-xs text-transparent mt-1 select-none">&nbsp;</p>
             </div>
           </div>
 
@@ -501,12 +516,17 @@ export function ImportPreview({
                   <span className="font-medium text-green-700 dark:text-green-400">Credits (In)</span>
                 </div>
                 <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                  {transactionCounts.credit}
+                  {breakdownData?.credits.count ?? 0}
                 </Badge>
               </div>
               <p className="text-xl font-bold text-green-700 dark:text-green-400 mt-2">
-                ₦{transactionCounts.creditTotal.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
+                ₦{(breakdownData?.credits.total ?? 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}
               </p>
+              {transactionCounts.credit > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  This page: {transactionCounts.credit} (₦{transactionCounts.creditTotal.toLocaleString('en-NG', { minimumFractionDigits: 2 })})
+                </p>
+              )}
             </div>
             <div className="p-4 border rounded-lg border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20">
               <div className="flex items-center justify-between">
@@ -515,12 +535,17 @@ export function ImportPreview({
                   <span className="font-medium text-red-700 dark:text-red-400">Debits (Out)</span>
                 </div>
                 <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300">
-                  {transactionCounts.debit}
+                  {breakdownData?.debits.count ?? 0}
                 </Badge>
               </div>
               <p className="text-xl font-bold text-red-700 dark:text-red-400 mt-2">
-                ₦{transactionCounts.debitTotal.toLocaleString('en-NG', { minimumFractionDigits: 2 })}
+                ₦{(breakdownData?.debits.total ?? 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}
               </p>
+              {transactionCounts.debit > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  This page: {transactionCounts.debit} (₦{transactionCounts.debitTotal.toLocaleString('en-NG', { minimumFractionDigits: 2 })})
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -627,203 +652,222 @@ export function ImportPreview({
 
       {/* Rows Table */}
       {viewMode === 'table' && (
-      <div className="border rounded-lg overflow-hidden overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-16">#</TableHead>
-              <TableHead className="w-20">Type</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Resident</TableHead>
-              <TableHead className="w-[150px]">Tag</TableHead>
-              <TableHead className="w-24">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {displayRows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
-                  {searchQuery ? (
-                    <span className="text-muted-foreground">
-                      No rows match your search: &ldquo;{searchQuery}&rdquo;
-                    </span>
-                  ) : statusFilter !== ALL_VALUE ? (
-                    <span className="text-muted-foreground">
-                      No rows with status: {statusFilter}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">
-                      No rows to display
-                    </span>
-                  )}
-                </TableCell>
-              </TableRow>
-            ) : (
-              displayRows.map((row) => {
-                const availableTags = getTagsForRow(row as BankStatementRow);
-                const currentTagId = row.tag_id || NONE_TAG;
-                const isCredit = row.transaction_type === 'credit';
-                const isDebit = row.transaction_type === 'debit';
-
-                return (
-                  <TableRow
-                    key={row.id}
-                    className={cn(
-                      'hover:bg-muted/50 transition-colors',
-                      isCredit && 'border-l-4 border-l-green-500',
-                      isDebit && 'border-l-4 border-l-red-500'
-                    )}
-                  >
-                    <TableCell className="font-mono text-sm">{row.row_number}</TableCell>
-                    <TableCell>
-                      {row.transaction_type === 'credit' ? (
-                        <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
-                          <ArrowDownLeft className="h-3 w-3" />
-                          CR
-                        </Badge>
-                      ) : row.transaction_type === 'debit' ? (
-                        <Badge variant="outline" className="gap-1 bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800">
-                          <ArrowUpRight className="h-3 w-3" />
-                          DR
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">--</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {row.transaction_date
-                        ? new Date(row.transaction_date).toLocaleDateString()
-                        : '--'}
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate" title={row.description || ''}>
-                      {row.description || '--'}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      ₦{(row.amount || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(row.status, row.transaction_type)}
-                        {row.match_confidence && getConfidenceBadge(row.match_confidence)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {row.matched_resident_id ? (
-                        <span className="text-sm">
-                          {(row as any).resident?.first_name} {(row as any).resident?.last_name}
+        <>
+          <div className="border rounded-lg overflow-hidden max-h-[600px] overflow-y-auto relative">
+            <Table>
+              <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
+                <TableRow>
+                  <TableHead className="w-16">#</TableHead>
+                  <TableHead className="w-20">Type</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Resident</TableHead>
+                  <TableHead className="w-[150px]">Tag</TableHead>
+                  <TableHead className="w-24">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {displayRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-8">
+                      {searchQuery ? (
+                        <span className="text-muted-foreground">
+                          No rows match your search: &ldquo;{searchQuery}&rdquo;
+                        </span>
+                      ) : statusFilter !== ALL_VALUE ? (
+                        <span className="text-muted-foreground">
+                          No rows with status: {statusFilter}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">--</span>
+                        <span className="text-muted-foreground">
+                          No rows to display
+                        </span>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={currentTagId}
-                          onValueChange={(value) => handleTagChange(row.id, value)}
-                        >
-                          <SelectTrigger className="h-8 w-full">
-                            <SelectValue placeholder="Select tag" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NONE_TAG}>
-                              <span className="text-muted-foreground">No tag</span>
-                            </SelectItem>
-                            {availableTags.map((tag) => (
-                              <SelectItem key={tag.id} value={tag.id}>
-                                <div className="flex items-center gap-2">
-                                  <span className={`w-2 h-2 rounded-full ${tagColorVariants[tag.color].split(' ')[0]}`} />
-                                  {tag.name}
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {row.auto_tagged && row.tag_id && (
-                          <Badge
-                            variant="outline"
-                            className="h-5 px-1.5 text-xs bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800"
-                            title="Auto-tagged based on keyword match"
-                          >
-                            <Sparkles className="h-3 w-3 mr-0.5" />
-                            Auto
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {/* Manual Match Button */}
-                        {(row.status === 'unmatched' || row.status === 'pending') && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleManualMatch(row as BankStatementRow)}
-                            title="Manually assign resident"
-                          >
-                            <UserPlus className="h-4 w-4" />
-                          </Button>
-                        )}
-
-                        {/* Clear Match Button */}
-                        {row.status === 'matched' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleClearMatch(row.id)}
-                            title="Clear match"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
-
-                        {/* Skip Row Button */}
-                        {row.status !== 'skipped' && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleSkipRow(row.id)}
-                            title="Skip this transaction"
-                          >
-                            <SkipForward className="h-4 w-4" />
-                          </Button>
-                        )}
-
-                        {/* View Details Button */}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewDetails(row as BankStatementRow)}
-                          title="View full details"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
                   </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                ) : (
+                  displayRows.map((row) => {
+                    const availableTags = getTagsForRow(row as BankStatementRow);
+                    const currentTagId = row.tag_id || NONE_TAG;
+                    const isCredit = row.transaction_type === 'credit';
+                    const isDebit = row.transaction_type === 'debit';
+
+                    return (
+                      <TableRow
+                        key={row.id}
+                        className={cn(
+                          'hover:bg-muted/50 transition-colors',
+                          isCredit && 'border-l-4 border-l-green-500',
+                          isDebit && 'border-l-4 border-l-red-500'
+                        )}
+                      >
+                        <TableCell className="font-mono text-sm">{row.row_number}</TableCell>
+                        <TableCell>
+                          {row.transaction_type === 'credit' ? (
+                            <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
+                              <ArrowDownLeft className="h-3 w-3" />
+                              CR
+                            </Badge>
+                          ) : row.transaction_type === 'debit' ? (
+                            <Badge variant="outline" className="gap-1 bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800">
+                              <ArrowUpRight className="h-3 w-3" />
+                              DR
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">--</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {row.transaction_date
+                            ? new Date(row.transaction_date).toLocaleDateString()
+                            : '--'}
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={row.description || ''}>
+                          {row.description || '--'}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          ₦{(row.amount || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getStatusBadge(row.status, row.transaction_type)}
+                            {row.match_confidence && getConfidenceBadge(row.match_confidence)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {row.matched_resident_id ? (
+                            <span className="text-sm">
+                              {(row as any).resident?.first_name} {(row as any).resident?.last_name}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">--</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Select
+                              value={currentTagId}
+                              onValueChange={(value) => handleTagChange(row.id, value)}
+                            >
+                              <SelectTrigger className="h-8 w-full">
+                                <SelectValue placeholder="Select tag" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={NONE_TAG}>
+                                  <span className="text-muted-foreground">No tag</span>
+                                </SelectItem>
+                                {availableTags.map((tag) => (
+                                  <SelectItem key={tag.id} value={tag.id}>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`w-2 h-2 rounded-full ${(tagColorVariants[tag.color] || 'bg-gray-100').split(' ')[0]}`} />
+                                      {tag.name}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {row.auto_tagged && row.tag_id && (
+                              <Badge
+                                variant="outline"
+                                className="h-5 px-1.5 text-xs bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800"
+                                title="Auto-tagged based on keyword match"
+                              >
+                                <Sparkles className="h-3 w-3 mr-0.5" />
+                                Auto
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {/* Manual Match Button */}
+                            {(row.status === 'unmatched' || row.status === 'pending') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleManualMatch(row as BankStatementRow)}
+                                title="Manually assign resident"
+                              >
+                                <UserPlus className="h-4 w-4" />
+                              </Button>
+                            )}
+
+                            {/* Clear Match Button */}
+                            {row.status === 'matched' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleClearMatch(row.id)}
+                                title="Clear match"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+
+                            {/* Skip Row Button */}
+                            {row.status !== 'skipped' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleSkipRow(row.id)}
+                                title="Skip this transaction"
+                              >
+                                <SkipForward className="h-4 w-4" />
+                              </Button>
+                            )}
+
+                            {/* View Details Button */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewDetails(row as BankStatementRow)}
+                              title="View full details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Pagination Controls */}
+          <PaginationControls
+            currentPage={page}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+            pageSizeOptions={[10, 20, 50, 100, 200]}
+          />
+        </>
+
       )}
 
       {/* Warning for unmatched rows */}
-      {summary && summary.unmatched > 0 && (
-        <Alert variant="destructive" className="border-yellow-600 bg-yellow-50 text-yellow-900 dark:border-yellow-400 dark:bg-yellow-950 dark:text-yellow-100">
-          <AlertTriangle className="h-5 w-5" />
-          <AlertTitle className="font-semibold">Attention Required</AlertTitle>
-          <AlertDescription>
-            <strong>{summary.unmatched}</strong> transaction(s) have not been matched to residents and will be{' '}
-            <strong>skipped during processing</strong> unless you manually assign them.
-            Use the <UserPlus className="inline h-3.5 w-3.5" /> button to match these transactions.
-          </AlertDescription>
-        </Alert>
-      )}
+      {
+        summary && summary.unmatched > 0 && (
+          <Alert variant="destructive" className="border-yellow-600 bg-yellow-50 text-yellow-900 dark:border-yellow-400 dark:bg-yellow-950 dark:text-yellow-100">
+            <AlertTriangle className="h-5 w-5" />
+            <AlertTitle className="font-semibold">Attention Required</AlertTitle>
+            <AlertDescription>
+              <strong>{summary.unmatched}</strong> transaction(s) have not been matched to residents and will be{' '}
+              <strong>skipped during processing</strong> unless you manually assign them.
+              Use the <UserPlus className="inline h-3.5 w-3.5" /> button to match these transactions.
+            </AlertDescription>
+          </Alert>
+        )
+      }
 
       {/* Navigation Buttons */}
       <div className="flex justify-between pt-4">
@@ -850,6 +894,6 @@ export function ImportPreview({
         onOpenChange={setShowDetailsDialog}
         row={selectedRow}
       />
-    </div>
+    </div >
   );
 }

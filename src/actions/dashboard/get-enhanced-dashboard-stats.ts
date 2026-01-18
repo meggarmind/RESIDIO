@@ -99,48 +99,154 @@ export async function getEnhancedDashboardStats(): Promise<{
     const supabase = await createServerSupabaseClient();
 
     try {
-        const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-        const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-        const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const { data: { user } } = await supabase.auth.getUser();
 
-        // Parallel fetch all data
-        const [
-            financialData,
-            invoiceDistribution,
-            securityData,
-            levyData,
-            quickStatsData,
-            activityData,
-            trendsData
-        ] = await Promise.all([
-            fetchFinancialHealth(supabase, monthStart, monthEnd, prevMonthStart, prevMonthEnd),
-            fetchInvoiceDistribution(supabase),
-            fetchSecurityAlerts(supabase, now, sevenDaysFromNow),
-            fetchDevelopmentLevyStatus(supabase),
-            fetchQuickStats(supabase),
-            fetchRecentActivity(supabase),
-            fetchMonthlyTrends(supabase, now)
+        if (!user) {
+            console.error('[getEnhancedDashboardStats] No active session');
+            return { data: null, error: 'Unauthorized' };
+        }
+
+        console.log(`[getEnhancedDashboardStats] Fetching stats for user: ${user.id}`);
+
+        // Overall Action Timeout (15 seconds)
+        const totalTimeoutPromise = new Promise<{ data: EnhancedDashboardStats | null; error: string | null }>((_, reject) => {
+            setTimeout(() => reject(new Error('Total action timeout: getEnhancedDashboardStats took longer than 15s')), 15000);
+        });
+
+        return await Promise.race([
+            getStatsWithTimeout(supabase),
+            totalTimeoutPromise
         ]);
-
-        return {
-            data: {
-                financialHealth: financialData,
-                invoiceDistribution,
-                securityAlerts: securityData,
-                developmentLevy: levyData,
-                quickStats: quickStatsData,
-                recentActivity: activityData,
-                monthlyTrends: trendsData,
-                lastUpdated: now.toISOString()
-            },
-            error: null
-        };
     } catch (err) {
-        console.error('Enhanced dashboard stats error:', err);
-        return { data: null, error: 'Failed to fetch dashboard stats' };
+        console.error('[getEnhancedDashboardStats] FATAL:', err);
+        return {
+            data: null,
+            error: err instanceof Error ? err.message : 'Failed to fetch dashboard stats'
+        };
+    }
+}
+
+async function getStatsWithTimeout(supabase: any): Promise<{ data: EnhancedDashboardStats | null; error: string | null }> {
+    console.log('[getEnhancedDashboardStats] Starting data fetch sequence...');
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    // Parallel fetch all data with individual timeouts to prevent hanging
+    const TIMEOUT = 10000; // 10 seconds per sub-query
+
+    console.log('[getEnhancedDashboardStats] Executing sub-queries in parallel...');
+    const [
+        financialData,
+        invoiceDistribution,
+        securityData,
+        levyData,
+        quickStatsData,
+        activityData,
+        trendsData
+    ] = await Promise.all([
+        withTimeout(
+            fetchFinancialHealth(supabase, monthStart, monthEnd, prevMonthStart, prevMonthEnd),
+            TIMEOUT,
+            null,
+            'fetchFinancialHealth'
+        ),
+        withTimeout(
+            fetchInvoiceDistribution(supabase),
+            TIMEOUT,
+            null,
+            'fetchInvoiceDistribution'
+        ),
+        withTimeout(
+            fetchSecurityAlerts(supabase, now, sevenDaysFromNow),
+            TIMEOUT,
+            null,
+            'fetchSecurityAlerts'
+        ),
+        withTimeout(
+            fetchDevelopmentLevyStatus(supabase),
+            TIMEOUT,
+            null,
+            'fetchDevelopmentLevyStatus'
+        ),
+        withTimeout(
+            fetchQuickStats(supabase),
+            TIMEOUT,
+            null,
+            'fetchQuickStats'
+        ),
+        withTimeout(
+            fetchRecentActivity(supabase),
+            TIMEOUT,
+            null,
+            'fetchRecentActivity'
+        ),
+        withTimeout(
+            fetchMonthlyTrends(supabase, now),
+            TIMEOUT,
+            [],
+            'fetchMonthlyTrends'
+        )
+    ]);
+
+    console.log('[getEnhancedDashboardStats] Sub-queries complete. Aggregating results...');
+
+    // Check if all major components failed
+    if (!quickStatsData && !financialData && !invoiceDistribution) {
+        console.error('[getEnhancedDashboardStats] All vital components failed to load.');
+        return {
+            data: null,
+            error: 'Vital dashboard components failed to load. Please check database connectivity.'
+        };
+    }
+
+    return {
+        data: {
+            financialHealth: financialData || {
+                totalOutstanding: 0, totalCollected: 0, collectionRate: 0,
+                monthlyRevenue: 0, previousMonthRevenue: 0, revenueChange: 0,
+                totalWalletBalance: 0, overdueAmount: 0, overdueCount: 0
+            },
+            invoiceDistribution: invoiceDistribution || {
+                unpaid: 0, paid: 0, partiallyPaid: 0, overdue: 0, void: 0
+            },
+            securityAlerts: securityData || {
+                expiringCodesCount: 0, expiredCodesCount: 0, suspendedContactsCount: 0,
+                recentFlaggedEntries: 0, expiringCodes: []
+            },
+            developmentLevy: levyData || {
+                totalLeviesGenerated: 0, totalLevyAmount: 0, paidLevyAmount: 0,
+                pendingLevyAmount: 0, housesWithPendingLevy: 0
+            },
+            quickStats: quickStatsData || {
+                totalHouses: 0, occupiedHouses: 0, vacantHouses: 0,
+                totalResidents: 0, activeResidents: 0, pendingVerification: 0,
+                totalSecurityContacts: 0, activeSecurityContacts: 0
+            },
+            recentActivity: activityData || [],
+            monthlyTrends: trendsData || [],
+            lastUpdated: now.toISOString()
+        },
+        error: null
+    };
+}
+
+/**
+ * Helper to wrap a promise with a timeout
+ */
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T, label: string): Promise<T> {
+    const timeoutPromise = new Promise<T>((_, reject) => {
+        setTimeout(() => reject(new Error(`Timeout: ${label} took longer than ${timeoutMs}ms`)), timeoutMs);
+    });
+
+    try {
+        return await Promise.race([promise, timeoutPromise]);
+    } catch (err) {
+        console.error(`[withTimeout] ${label} failed or timed out:`, err);
+        return fallback;
     }
 }
 
@@ -375,12 +481,12 @@ async function fetchQuickStats(supabase: any): Promise<QuickStats> {
         { count: totalSecurityContacts },
         { data: contactsWithValidCodes }
     ] = await Promise.all([
-        supabase.from('houses').select('*', { count: 'exact', head: true }).eq('is_active', true),
-        supabase.from('houses').select('*', { count: 'exact', head: true }).eq('is_active', true).eq('is_occupied', true),
-        supabase.from('residents').select('*', { count: 'exact', head: true }),
-        supabase.from('residents').select('*', { count: 'exact', head: true }).eq('account_status', 'active'),
-        supabase.from('residents').select('*', { count: 'exact', head: true }).eq('verification_status', 'pending'),
-        supabase.from('security_contacts').select('*', { count: 'exact', head: true }),
+        supabase.from('houses').select('id', { count: 'exact', head: true }).eq('is_active', true),
+        supabase.from('houses').select('id', { count: 'exact', head: true }).eq('is_active', true).eq('is_occupied', true),
+        supabase.from('residents').select('id', { count: 'exact', head: true }),
+        supabase.from('residents').select('id', { count: 'exact', head: true }).eq('account_status', 'active'),
+        supabase.from('residents').select('id', { count: 'exact', head: true }).eq('verification_status', 'pending'),
+        supabase.from('security_contacts').select('id', { count: 'exact', head: true }),
         // Fix: Count contacts with at least one valid (non-expired) access code
         supabase
             .from('security_contacts')

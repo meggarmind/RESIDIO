@@ -1,6 +1,7 @@
 'use client';
 
 import { BankAccountsList } from '@/components/admin/bank-accounts-list';
+import { BankPasswordsSection } from '@/components/admin/bank-passwords-section';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function BankAccountsPage() {
@@ -23,6 +24,8 @@ export default function BankAccountsPage() {
           <BankAccountsList />
         </CardContent>
       </Card>
+
+      <BankPasswordsSection />
     </div>
   );
 }

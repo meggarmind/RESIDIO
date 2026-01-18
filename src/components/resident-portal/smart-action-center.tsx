@@ -18,6 +18,9 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAiAssistant } from '@/hooks/use-ai-assistant';
+import { useRouter } from 'next/navigation';
+import { useRef } from 'react';
 
 interface SmartAction {
   id: string;
@@ -103,7 +106,10 @@ export function SmartActionCenter({
   className,
   maxActions = 3,
 }: SmartActionCenterProps) {
+  const router = useRouter();
+  const { showSuggestion } = useAiAssistant();
   const [dismissedActions, setDismissedActions] = useState<string[]>([]);
+  const hasTriggeredRef = useRef(false);
 
   // Load dismissed actions from localStorage on mount
   useEffect(() => {
@@ -146,6 +152,40 @@ export function SmartActionCenter({
         href: '/portal/invoices', // Will show wallet top-up option
         variant: 'default',
         priority: 90,
+      });
+    }
+
+    // RULE ENGINE: Anticipatory Context
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 5 = Friday
+    const dayOfMonth = today.getDate();
+    const hour = today.getHours();
+
+    // Context: Friday Morning (Cleaner Code)
+    // TODO: Connect to real visitor history to confirm "Cleaner" frequency
+    if (dayOfWeek === 5 && hour < 12) {
+      actions.push({
+        id: 'cleaner_code',
+        title: 'Generate Cleaner Code',
+        description: 'It\'s Friday morning. Expecting your cleaner?',
+        icon: UserPlus,
+        href: '/portal/visitors', // We'll make this open the dialog directly later
+        variant: 'default',
+        priority: 85, // High priority on Friday mornings
+        badge: 'Suggested',
+      });
+    }
+
+    // Context: End of Month (Service Charge/bills)
+    if (dayOfMonth >= 25) {
+      actions.push({
+        id: 'prepare_bills',
+        title: 'Month End Approaching',
+        description: 'Review pending bills before the 1st',
+        icon: CreditCard,
+        href: '/portal/invoices',
+        variant: 'outline',
+        priority: 80,
       });
     }
 
@@ -219,6 +259,37 @@ export function SmartActionCenter({
     dismissedActions,
     maxActions,
   ]);
+
+  // PROACTIVE AI TRIGGER: Check for high-context actions and suggest them via the Assistant Bubble
+  useEffect(() => {
+    if (hasTriggeredRef.current) return;
+
+    // Priority 1: Friday Cleaner
+    const cleanerAction = suggestedActions.find(a => a.id === 'cleaner_code');
+    if (cleanerAction && !dismissedActions.includes('cleaner_code')) {
+      showSuggestion("It's Friday morning! Expecting your cleaner?", {
+        label: "Generate Code",
+        onAction: () => {
+          // We can either navigate or open the dialog directly if we had the context. 
+          // For now, navigate to visitors page.
+          router.push('/portal/visitors');
+        }
+      });
+      hasTriggeredRef.current = true;
+      return;
+    }
+
+    // Priority 2: Urgent Bills
+    const payAction = suggestedActions.find(a => a.id === 'pay_invoices');
+    if (payAction && !dismissedActions.includes('pay_invoices')) {
+      showSuggestion("You have urgent unpaid invoices. Want to clear them now?", {
+        label: "Pay Now",
+        onAction: () => router.push('/portal/invoices')
+      });
+      hasTriggeredRef.current = true;
+    }
+
+  }, [suggestedActions, showSuggestion, dismissedActions, router]);
 
   // Dismiss an action
   const dismissAction = (actionId: string) => {

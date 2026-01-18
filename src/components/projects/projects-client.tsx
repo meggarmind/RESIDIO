@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Plus, LayoutGrid, List as ListIcon } from 'lucide-react';
+import { Plus, Building2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
 
@@ -17,7 +18,13 @@ export function ProjectsClient({ initialProjects }: ProjectsClientProps) {
     const [projects] = useState(initialProjects);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 flex-1 px-4 py-8 md:px-8">
+            <EnhancedPageHeader
+                title="Capital Projects"
+                description="Monitor and manage major estate improvement works and infrastructure projects."
+                icon={Building2}
+            />
+
             <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold">Ongoing Projects</h2>
                 <Button className="gap-2">

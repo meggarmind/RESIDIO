@@ -13,7 +13,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -81,7 +83,7 @@ const oauthProviders = [
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loginState, setLoginState] = useState<'idle' | 'loading' | 'success'>('idle');
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
 
   const {
@@ -100,7 +102,7 @@ export default function LoginPage() {
   const rememberMe = watch('rememberMe');
 
   const onSubmit = async (data: LoginFormData) => {
-    setIsLoading(true);
+    setLoginState('loading');
     setError(null);
 
     const supabase = createClient();
@@ -112,7 +114,7 @@ export default function LoginPage() {
 
     if (signInError) {
       setError(signInError.message);
-      setIsLoading(false);
+      setLoginState('idle');
       return;
     }
 
@@ -145,6 +147,10 @@ export default function LoginPage() {
       // Admin roles route to dashboard, resident-only users route to portal
       const adminRoles = ['super_admin', 'chairman', 'vice_chairman', 'financial_officer', 'security_officer', 'secretary', 'project_manager'];
 
+      // Show success state before navigation
+      setLoginState('success');
+      await new Promise(resolve => setTimeout(resolve, 600));
+
       if (roleName && adminRoles.includes(roleName)) {
         router.push('/dashboard');
       } else if (roleName === 'resident' || profileWithRole?.resident_id) {
@@ -154,6 +160,8 @@ export default function LoginPage() {
         router.push('/portal');
       }
     } else {
+      setLoginState('success');
+      await new Promise(resolve => setTimeout(resolve, 600));
       router.push('/dashboard');
     }
 
@@ -204,8 +212,8 @@ export default function LoginPage() {
               type="email"
               placeholder="you@example.com"
               {...register('email')}
-              disabled={isLoading}
-              className="h-11"
+              disabled={loginState !== 'idle'}
+              className="h-12 rounded-xl input-tactile"
             />
             {errors.email && (
               <p className="text-sm text-destructive">{errors.email.message}</p>
@@ -219,8 +227,8 @@ export default function LoginPage() {
               type="password"
               placeholder="Enter your password"
               {...register('password')}
-              disabled={isLoading}
-              className="h-11"
+              disabled={loginState !== 'idle'}
+              className="h-12 rounded-xl input-tactile"
             />
             {errors.password && (
               <p className="text-sm text-destructive">{errors.password.message}</p>
@@ -232,7 +240,7 @@ export default function LoginPage() {
               id="rememberMe"
               checked={rememberMe}
               onCheckedChange={(checked) => setValue('rememberMe', checked === true)}
-              disabled={isLoading}
+              disabled={loginState !== 'idle'}
             />
             <Label
               htmlFor="rememberMe"
@@ -242,15 +250,49 @@ export default function LoginPage() {
             </Label>
           </div>
 
-          <Button type="submit" className="w-full h-11" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Signing in...
-              </>
-            ) : (
-              'Login'
+          <Button
+            type="submit"
+            className={cn(
+              "w-full h-12 relative overflow-hidden transition-all duration-300",
+              loginState === 'success' && "btn-success-state success-glow"
             )}
+            disabled={loginState !== 'idle'}
+          >
+            <AnimatePresence mode="wait">
+              {loginState === 'loading' && (
+                <motion.span
+                  key="loading"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex items-center gap-2"
+                >
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Signing in...
+                </motion.span>
+              )}
+              {loginState === 'success' && (
+                <motion.span
+                  key="success"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  className="flex items-center gap-2"
+                >
+                  <CheckCircle2 className="h-5 w-5" />
+                  Success
+                </motion.span>
+              )}
+              {loginState === 'idle' && (
+                <motion.span
+                  key="idle"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  Login
+                </motion.span>
+              )}
+            </AnimatePresence>
           </Button>
         </form>
 
@@ -292,9 +334,9 @@ export default function LoginPage() {
             <Button
               key={provider.id}
               variant="outline"
-              className="h-11"
+              className="h-12 rounded-xl hover-lift"
               onClick={() => handleOAuthLogin(provider.id)}
-              disabled={isLoading || oauthLoading !== null}
+              disabled={loginState !== 'idle' || oauthLoading !== null}
               title={`Sign in with ${provider.name}`}
             >
               {oauthLoading === provider.id ? (

@@ -11,6 +11,9 @@ type DashboardStats = {
     paidInvoices: number;
     paymentRate: number; // percentage
     activeAccessCodes: number;
+    // Unified Expenditure Engine: Verification stats
+    unverifiedPaymentsCount: number;
+    unverifiedPaymentsAmount: number;
     recentActivity: RecentActivityItem[];
 }
 
@@ -59,6 +62,20 @@ export async function getDashboardStats(): Promise<{ data: DashboardStats | null
 
         const paymentsThisMonth = paymentsData?.length ?? 0;
         const paymentsThisMonthAmount = paymentsData?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) ?? 0;
+
+        // 2b. Get unverified payments (Unified Expenditure Engine)
+        const { data: unverifiedPaymentsData, error: unverifiedPayError } = await supabase
+            .from('payment_records')
+            .select('amount')
+            .eq('is_verified', false)
+            .eq('status', 'paid');
+
+        if (unverifiedPayError) {
+            console.error('Error fetching unverified payments:', unverifiedPayError);
+        }
+
+        const unverifiedPaymentsCount = unverifiedPaymentsData?.length ?? 0;
+        const unverifiedPaymentsAmount = unverifiedPaymentsData?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) ?? 0;
 
         // 3. Calculate payment rate from invoices
         const { count: totalInvoices, error: invError } = await supabase
@@ -154,6 +171,9 @@ export async function getDashboardStats(): Promise<{ data: DashboardStats | null
                 paidInvoices: paidInvoices ?? 0,
                 paymentRate,
                 activeAccessCodes: activeAccessCodes ?? 0,
+                // Unified Expenditure Engine: Verification stats
+                unverifiedPaymentsCount,
+                unverifiedPaymentsAmount,
                 recentActivity: recentActivity.slice(0, 5)
             },
             error: null

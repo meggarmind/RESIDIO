@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -48,6 +48,7 @@ interface LogExpenseDialogProps {
     categories: any[];
     projects: any[];
     onSuccess: (newExpense: any) => void;
+    initialData?: Partial<ExpenseFormValues>;
 }
 
 interface ExpenseFormValues {
@@ -66,22 +67,26 @@ export function LogExpenseDialog({
     vendors,
     categories,
     projects,
-    onSuccess
+    onSuccess,
+    initialData
 }: LogExpenseDialogProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const form = useForm<ExpenseFormValues>({
         resolver: zodResolver(expenseSchema),
         defaultValues: {
-            amount: '',
-            category_id: '',
-            expense_date: new Date().toISOString().split('T')[0],
-            description: '',
-            vendor_id: '',
-            project_id: '',
-            status: 'paid',
+            amount: initialData?.amount || '',
+            category_id: initialData?.category_id || '',
+            expense_date: initialData?.expense_date || new Date().toISOString().split('T')[0],
+            description: initialData?.description || '',
+            vendor_id: initialData?.vendor_id || '',
+            project_id: initialData?.project_id || '',
+            status: initialData?.status || 'paid',
         },
     });
+
+    // Reset form when initialData changes or dialog opens
+    // This requires a useEffect which we will skip for now as simpler approach works for explicit opens
 
     async function onSubmit(data: ExpenseFormValues) {
         setIsSubmitting(true);
@@ -100,6 +105,21 @@ export function LogExpenseDialog({
             setIsSubmitting(false);
         }
     }
+
+    useEffect(() => {
+        if (open && initialData) {
+            form.reset({
+                amount: initialData.amount || '',
+                category_id: initialData.category_id || '',
+                expense_date: initialData.expense_date || new Date().toISOString().split('T')[0],
+                description: initialData.description || '',
+                vendor_id: initialData.vendor_id || '',
+                project_id: initialData.project_id || '',
+                status: initialData.status || 'paid',
+            });
+        }
+    }, [open, initialData, form]);
+
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>

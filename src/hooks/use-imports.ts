@@ -309,7 +309,7 @@ export function useImportRows(importId: string, params: ImportRowSearchParams = 
     queryFn: async () => {
       const result = await getImportRows(importId, params);
       if (result.error) throw new Error(result.error);
-      return result.data;
+      return result;
     },
     enabled: !!importId,
   });

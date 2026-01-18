@@ -14,6 +14,7 @@ import { AlertTriangle, Loader2, Save, Server, Clock, Database, ShieldAlert } fr
 import { toast } from 'sonner';
 import { useSystemSettings, useUpdateSettings, useUpdateSetting } from '@/hooks/use-settings';
 import { updateMaintenanceMode } from '@/actions/settings/update-maintenance-mode';
+import { CronHealthCard } from '@/components/dashboard/cron-health-card';
 
 // Helper to convert settings array to key-value object
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
@@ -240,6 +241,9 @@ export default function SystemSettingsPage() {
             </p>
           </CardContent>
         </Card>
+
+        {/* System Health Card */}
+        <CronHealthCard />
 
         {/* Save Button */}
         <div className="flex justify-end">

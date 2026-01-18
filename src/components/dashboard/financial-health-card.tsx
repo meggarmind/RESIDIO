@@ -99,7 +99,7 @@ function MetricItem({
     };
 
     return (
-        <div className="group flex items-start gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-all duration-200 hover:shadow-sm">
+        <div className="group flex items-start gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-default">
             <div className={cn(
                 'p-2 rounded-lg shrink-0 transition-all duration-200 group-hover:scale-110',
                 iconBgStyles[variant]
@@ -107,7 +107,7 @@ function MetricItem({
                 <Icon className={cn('h-4 w-4', iconColorStyles[variant])} />
             </div>
             <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                     {numericValue !== undefined ? (
                         <AnimatedCounter
                             value={numericValue}

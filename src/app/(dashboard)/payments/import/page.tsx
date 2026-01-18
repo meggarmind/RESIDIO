@@ -28,7 +28,7 @@ interface UIColumnMapping {
 
 interface ImportState {
   file: File | null;
-  fileType: 'csv' | 'xlsx';
+  fileType: 'csv' | 'xlsx' | 'pdf';
   bankAccountId: string;
   transactionFilter: 'credit' | 'debit' | 'all';
   rawData: Record<string, unknown>[];
@@ -168,13 +168,12 @@ export default function ImportWizardPage() {
           <div key={step} className="flex items-center">
             <div className="flex flex-col items-center">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
-                  isStepComplete(step)
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${isStepComplete(step)
                     ? 'bg-primary border-primary text-primary-foreground'
                     : isStepCurrent(step)
-                    ? 'border-primary text-primary'
-                    : 'border-muted text-muted-foreground'
-                }`}
+                      ? 'border-primary text-primary'
+                      : 'border-muted text-muted-foreground'
+                  }`}
               >
                 {isStepComplete(step) ? (
                   <CheckCircle className="h-5 w-5" />
@@ -183,9 +182,8 @@ export default function ImportWizardPage() {
                 )}
               </div>
               <span
-                className={`text-xs mt-1 ${
-                  isStepCurrent(step) ? 'text-primary font-medium' : 'text-muted-foreground'
-                }`}
+                className={`text-xs mt-1 ${isStepCurrent(step) ? 'text-primary font-medium' : 'text-muted-foreground'
+                  }`}
               >
                 {step === 'upload' && 'Upload'}
                 {step === 'mapping' && 'Mapping'}
@@ -196,9 +194,8 @@ export default function ImportWizardPage() {
             </div>
             {index < 4 && (
               <div
-                className={`w-16 h-0.5 mx-2 ${
-                  isStepComplete(step) ? 'bg-primary' : 'bg-muted'
-                }`}
+                className={`w-16 h-0.5 mx-2 ${isStepComplete(step) ? 'bg-primary' : 'bg-muted'
+                  }`}
               />
             )}
           </div>

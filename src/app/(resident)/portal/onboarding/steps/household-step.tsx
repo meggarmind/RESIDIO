@@ -118,57 +118,67 @@ export function HouseholdStep({ onNext, onBack }: HouseholdStepProps) {
                             </div>
                         ) : (
                             <div className="grid gap-3">
-                                {members.map((member) => (
-                                    <div key={member.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
-                                        <div className="flex items-center gap-3">
-                                            <Avatar className="h-10 w-10">
-                                                <AvatarFallback className="bg-primary/10 text-primary">
-                                                    {member.first_name[0]}{member.last_name[0]}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="font-medium">{member.first_name} {member.last_name}</p>
-                                                    <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 h-5 ${getRoleBadgeColor(member.resident_role)}`}>
-                                                        {formatRole(member.resident_role)}
-                                                    </Badge>
-                                                </div>
-                                                {member.relationship && (
-                                                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                                                        <User className="h-3 w-3" />
-                                                        {member.relationship}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
+                                {members.map((member) => {
+                                    const resident = member.resident;
+                                    if (!resident) return null;
 
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Remove Member?</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        Are you sure you want to remove {member.first_name} {member.last_name} from your household?
-                                                        This action cannot be undone.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction
-                                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                        onClick={() => removeMutation.mutate(member.id)}
-                                                    >
-                                                        Remove
-                                                    </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    </div>
-                                ))}
+                                    // Extract relationship from notes if present
+                                    const relationship = resident.notes?.startsWith('Relationship: ')
+                                        ? resident.notes.replace('Relationship: ', '')
+                                        : null;
+
+                                    return (
+                                        <div key={member.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <Avatar className="h-10 w-10">
+                                                    <AvatarFallback className="bg-primary/10 text-primary">
+                                                        {resident.first_name[0]}{resident.last_name[0]}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-medium">{resident.first_name} {resident.last_name}</p>
+                                                        <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 h-5 ${getRoleBadgeColor(member.resident_role)}`}>
+                                                            {formatRole(member.resident_role)}
+                                                        </Badge>
+                                                    </div>
+                                                    {relationship && (
+                                                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                                            <User className="h-3 w-3" />
+                                                            {relationship}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Remove Member?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            Are you sure you want to remove {resident.first_name} {resident.last_name} from your household?
+                                                            This action cannot be undone.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction
+                                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                            onClick={() => removeMutation.mutate(member.id)}
+                                                        >
+                                                            Remove
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
 

@@ -30,7 +30,7 @@ export const importRowStatusEnum = z.enum([
   'error',
 ]);
 
-export const fileTypeEnum = z.enum(['csv', 'xlsx']);
+export const fileTypeEnum = z.enum(['csv', 'xlsx', 'pdf']);
 
 // ============================================================
 // Column Mapping Schema
@@ -145,15 +145,15 @@ export type BatchMatchFormData = z.infer<typeof batchMatchSchema>;
 // ============================================================
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ACCEPTED_FILE_TYPES = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+const ACCEPTED_FILE_TYPES = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/pdf'];
 
 export const fileUploadSchema = z.object({
   file: z
     .instanceof(File)
     .refine((file) => file.size <= MAX_FILE_SIZE, 'File size must be less than 10MB')
     .refine(
-      (file) => ACCEPTED_FILE_TYPES.includes(file.type) || file.name.endsWith('.csv') || file.name.endsWith('.xlsx'),
-      'Only CSV and XLSX files are accepted'
+      (file) => ACCEPTED_FILE_TYPES.includes(file.type) || file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.pdf'),
+      'Only CSV, XLSX, and PDF files are accepted'
     ),
   bank_account_id: z.string().uuid('Please select a bank account'),
   transaction_filter: transactionFilterEnum.default('credit'),

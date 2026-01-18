@@ -159,12 +159,11 @@ export function Sidebar({ className }: SidebarProps) {
                       className={cn(
                         'flex items-center rounded-lg text-sm font-medium transition-all duration-200 relative group',
                         isExpanded ? 'gap-3 px-3 py-2' : 'justify-center px-2 py-2',
-                        (isActive || isParentOfActive) && 'before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-1 before:rounded-r-full'
+                        (isActive || isParentOfActive) && [
+                          'bg-primary/10 text-primary shadow-sm inner-border',
+                          'before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-1 before:rounded-r-full before:bg-primary'
+                        ]
                       )}
-                      style={{
-                        backgroundColor: isActive ? 'var(--accent-primary)' : (isParentOfActive ? 'var(--bg-hover)' : 'transparent'),
-                        color: isActive ? 'var(--text-on-accent)' : (isParentOfActive ? 'var(--accent-primary)' : 'var(--text-secondary)'),
-                      }}
                       onMouseEnter={(e) => {
                         if (!isActive && !isParentOfActive) {
                           e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
@@ -178,16 +177,9 @@ export function Sidebar({ className }: SidebarProps) {
                         }
                       }}
                     >
-                      {/* Active indicator custom style injection since pseudo-elements can't use inline styles easily for variable colors without CSS var injection */}
-                      {(isActive || isParentOfActive) && (
-                        <style jsx>{`
-                          .active-indicator-${item.id}::before {
-                            background-color: var(--accent-primary) !important;
-                          }
-                        `}</style>
-                      )}
 
-                      <item.icon className={cn('h-4 w-4 flex-shrink-0', (isActive || isParentOfActive) && `active-indicator-${item.id}`)} />
+
+                      <item.icon className={cn('h-4 w-4 flex-shrink-0', (isActive || isParentOfActive) ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
                       {isExpanded && (
                         <>
                           <span className="flex-1 truncate whitespace-nowrap">{item.title}</span>
@@ -418,7 +410,13 @@ export function Sidebar({ className }: SidebarProps) {
               </TooltipContent>
             </Tooltip>
           ) : (
-            <div className="flex items-center gap-3 px-3 py-2">
+            <Link
+              href="/profile" // Assuming a profile page exists
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                'text-muted-foreground hover:text-foreground hover:bg-muted/50' // Added hover styles
+              )}
+            >
               <div
                 className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium flex-shrink-0"
                 style={{
@@ -436,7 +434,7 @@ export function Sidebar({ className }: SidebarProps) {
                   {profile?.role_display_name || profile?.role?.replace('_', ' ')}
                 </p>
               </div>
-            </div>
+            </Link>
           )}
         </TooltipProvider>
       </div>

@@ -34,7 +34,9 @@ export type PermissionCategory =
   | 'report_subscriptions'
   | 'impersonation'  // Admin impersonation system
   | 'email_imports' // Gmail bank statement integration
-  | 'two_factor'; // Two-factor authentication
+  | 'two_factor'   // Two-factor authentication
+  | 'finance'       // Expenditure and Petty Cash
+  | 'projects';     // Capital Projects
 
 // Human-readable labels for new roles
 export const APP_ROLE_LABELS: Record<AppRoleName, string> = {
@@ -124,6 +126,24 @@ export type VisitorRecurrencePattern = 'daily' | 'weekly' | 'biweekly' | 'monthl
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 export type VehicleType = 'car' | 'motorcycle' | 'bicycle' | 'truck' | 'van' | 'bus' | 'other';
 export type EntryMethod = 'code' | 'photo' | 'manual' | 'vehicle_plate';
+
+// Unified Expenditure Engine Types
+export type ExpenseSourceType = 'manual' | 'bank_import' | 'petty_cash';
+export type ExpensePaymentMethod = 'bank_transfer' | 'cash' | 'cheque' | 'pos';
+export type ExpenseStatus = 'pending' | 'paid' | 'cancelled';
+
+export const EXPENSE_SOURCE_TYPE_LABELS: Record<ExpenseSourceType, string> = {
+  manual: 'Manual Entry',
+  bank_import: 'Bank Import',
+  petty_cash: 'Petty Cash',
+};
+
+export const EXPENSE_PAYMENT_METHOD_LABELS: Record<ExpensePaymentMethod, string> = {
+  bank_transfer: 'Bank Transfer',
+  cash: 'Cash',
+  cheque: 'Cheque',
+  pos: 'POS',
+};
 
 export const VISITOR_RECURRENCE_PATTERN_LABELS: Record<VisitorRecurrencePattern, string> = {
   daily: 'Daily',
@@ -340,7 +360,11 @@ export type AuditEntityType =
   | 'two_factor_backup_codes'      // 2FA backup codes
   | 'two_factor_policies'          // 2FA enforcement policies
   | 'two_factor_audit_log'         // 2FA audit trail
-  | 'visitor_vehicles';            // Visitor Vehicle Registration
+  | 'visitor_vehicles'             // Visitor Vehicle Registration
+  // Unified Expenditure Engine
+  | 'expenses'                     // Expense records
+  | 'payment_records'              // Payment records
+  | 'petty_cash_accounts';         // Petty cash account management
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -418,6 +442,10 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   two_factor_policies: '2FA Policy',                    // Two-Factor Authentication
   two_factor_audit_log: '2FA Audit Log',                // Two-Factor Authentication
   visitor_vehicles: 'Visitor Vehicle',                  // Visitor Management Enhancement
+  // Unified Expenditure Engine
+  expenses: 'Expense',                                  // Expense Management
+  payment_records: 'Payment Record',                    // Payment Records
+  petty_cash_accounts: 'Petty Cash Account',            // Petty Cash Management
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -716,13 +744,19 @@ export interface Database {
           import_row_id: string | null;
           method: string | null;
           notes: string | null;
+          // Verification fields (Unified Expenditure Engine)
+          is_verified: boolean;
+          verified_at: string | null;
+          verified_by: string | null;
+          bank_row_id: string | null;
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['payment_records']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+        Insert: Omit<Database['public']['Tables']['payment_records']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_verified'> & {
           id?: string;
           house_id?: string | null;
           split_payment_group_id?: string | null;
+          is_verified?: boolean;
         };
         Update: Partial<Database['public']['Tables']['payment_records']['Insert']>;
       };
@@ -901,6 +935,62 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['house_ownership_history']['Insert']>;
       };
+
+      // Unified Expenditure Engine: Expenses
+      expenses: {
+        Row: {
+          id: string;
+          category_id: string;
+          vendor_id: string | null;
+          project_id: string | null;
+          amount: number;
+          description: string | null;
+          expense_date: string;
+          status: ExpenseStatus;
+          receipt_url: string | null;
+          // Verification fields (Unified Expenditure Engine)
+          is_verified: boolean;
+          verified_at: string | null;
+          verified_by: string | null;
+          bank_row_id: string | null;
+          source_type: ExpenseSourceType;
+          payment_method: ExpensePaymentMethod;
+          petty_cash_account_id: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['expenses']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_verified'> & {
+          id?: string;
+          is_verified?: boolean;
+          source_type?: ExpenseSourceType;
+          payment_method?: ExpensePaymentMethod;
+        };
+        Update: Partial<Database['public']['Tables']['expenses']['Insert']>;
+      };
+
+      // Unified Expenditure Engine: Petty Cash Accounts
+      petty_cash_accounts: {
+        Row: {
+          id: string;
+          name: string;
+          current_balance: number;
+          initial_float: number;
+          last_replenishment_at: string | null;
+          last_replenishment_amount: number | null;
+          last_replenishment_by: string | null;
+          is_active: boolean;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+        };
+        Insert: Omit<Database['public']['Tables']['petty_cash_accounts']['Row'], 'id' | 'created_at' | 'updated_at' | 'current_balance'> & {
+          id?: string;
+          current_balance?: number;
+        };
+        Update: Partial<Database['public']['Tables']['petty_cash_accounts']['Insert']>;
+      };
     };
   };
 }
@@ -935,6 +1025,16 @@ export type HouseOwnershipHistoryUpdate = Database['public']['Tables']['house_ow
 export type PaymentRecord = Database['public']['Tables']['payment_records']['Row'];
 export type PaymentRecordInsert = Database['public']['Tables']['payment_records']['Insert'];
 export type PaymentRecordUpdate = Database['public']['Tables']['payment_records']['Update'];
+
+// Unified Expenditure Engine: Expense type aliases
+export type Expense = Database['public']['Tables']['expenses']['Row'];
+export type ExpenseInsert = Database['public']['Tables']['expenses']['Insert'];
+export type ExpenseUpdate = Database['public']['Tables']['expenses']['Update'];
+
+// Unified Expenditure Engine: Petty Cash Account type aliases
+export type PettyCashAccount = Database['public']['Tables']['petty_cash_accounts']['Row'];
+export type PettyCashAccountInsert = Database['public']['Tables']['petty_cash_accounts']['Insert'];
+export type PettyCashAccountUpdate = Database['public']['Tables']['petty_cash_accounts']['Update'];
 
 // Payment with joined house and resident details
 export interface PaymentRecordWithDetails extends PaymentRecord {

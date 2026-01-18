@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logAudit } from '@/lib/audit/logger';
 import type { BankStatementImport, BankStatementRow, PaymentRecord } from '@/types/database';
 import { createPayment } from '@/actions/payments/create-payment';
+import { createExpense } from '@/actions/expenses/create-expense';
 import { updateImportStatus } from './create-import';
 
 // ============================================================
@@ -13,6 +14,8 @@ import { updateImportStatus } from './create-import';
 type ProcessImportResult = {
   success: boolean;
   created_count: number;
+  created_payments_count: number;
+  created_expenses_count: number;
   skipped_count: number;
   error_count: number;
   errors: Array<{ row_id: string; error: string }>;
@@ -118,6 +121,8 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     return {
       success: false,
       created_count: 0,
+      created_payments_count: 0,
+      created_expenses_count: 0,
       skipped_count: 0,
       error_count: 1,
       errors: [{ row_id: '', error: 'Import not found' }],
@@ -125,11 +130,12 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     };
   }
 
-  // Check import status
   if (!['processing', 'awaiting_approval', 'approved'].includes(importData.status)) {
     return {
       success: false,
       created_count: 0,
+      created_payments_count: 0,
+      created_expenses_count: 0,
       skipped_count: 0,
       error_count: 1,
       errors: [{ row_id: '', error: `Cannot process import with status: ${importData.status}` }],
@@ -160,6 +166,8 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     return {
       success: false,
       created_count: 0,
+      created_payments_count: 0,
+      created_expenses_count: 0,
       skipped_count: 0,
       error_count: 1,
       errors: [{ row_id: '', error: rowsError.message }],
@@ -178,6 +186,8 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     return {
       success: true,
       created_count: 0,
+      created_payments_count: 0,
+      created_expenses_count: 0,
       skipped_count: importData.total_rows,
       error_count: 0,
       errors: [],
@@ -188,6 +198,8 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
   const result: ProcessImportResult = {
     success: true,
     created_count: 0,
+    created_payments_count: 0,
+    created_expenses_count: 0,
     skipped_count: 0,
     error_count: 0,
     errors: [],
@@ -196,8 +208,11 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 
   // Process each row
   for (const row of rows) {
-    // Skip if no resident matched
-    if (!row.matched_resident_id) {
+    // Debit transactions (expenses) don't need resident matching - skip that check for debits
+    const isDebit = row.transaction_type === 'debit';
+
+    // Skip if no resident matched (only for credits)
+    if (!isDebit && !row.matched_resident_id) {
       if (skip_unmatched) {
         result.skipped_count++;
         await supabase
@@ -226,8 +241,8 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
       continue;
     }
 
-    // Check for duplicates
-    if (skip_duplicates && row.transaction_date) {
+    // Check for duplicates (only for credits/payments)
+    if (!isDebit && skip_duplicates && row.transaction_date) {
       const dupCheck = await checkDuplicate(
         row.reference,
         row.amount,
@@ -245,34 +260,97 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
       }
     }
 
-    // Create payment
     try {
-      const paymentResult = await createPayment({
-        resident_id: row.matched_resident_id,
-        amount: row.amount,
-        payment_date: new Date(row.transaction_date || new Date()),
-        status: 'paid',
-        method: 'bank_transfer',
-        reference_number: row.reference || undefined,
-        notes: `Imported from bank statement: ${row.description}`,
-        import_id: import_id,
-        import_row_id: row.id,
-      });
+      if (isDebit) {
+        // ============================================================
+        // Handle DEBIT transaction - Create Expense
+        // ============================================================
 
-      if (paymentResult.error) {
-        throw new Error(paymentResult.error);
+        // Get expense category from tag if available
+        let categoryId: string | null = null;
+        if (row.tag_id) {
+          const { data: tagData } = await supabase
+            .from('transaction_tags')
+            .select('expense_category_id')
+            .eq('id', row.tag_id)
+            .single();
+
+          categoryId = tagData?.expense_category_id || null;
+        }
+
+        // Use miscellaneous category if no tag or tag has no category
+        if (!categoryId) {
+          const { data: miscCategory } = await supabase
+            .from('expense_categories')
+            .select('id')
+            .eq('name', 'Bank Import - Miscellaneous')
+            .single();
+
+          categoryId = miscCategory?.id || null;
+        }
+
+        if (!categoryId) {
+          throw new Error('No expense category found for bank import');
+        }
+
+        // Create the expense record
+        const expense = await createExpense({
+          amount: Math.abs(row.amount), // Ensure positive amount
+          category_id: categoryId,
+          expense_date: row.transaction_date || new Date().toISOString().split('T')[0],
+          description: row.description || 'Bank statement import',
+          status: 'paid',
+          source_type: 'bank_import',
+          payment_method: 'bank_transfer',
+          is_verified: true,
+          bank_row_id: row.id,
+        });
+
+        // Update row status with expense_id (we'll store in payment_id field for now)
+        await supabase
+          .from('bank_statement_rows')
+          .update({
+            status: 'created',
+            payment_id: expense.id, // Reuse payment_id field for the expense ID
+          })
+          .eq('id', row.id);
+
+        result.created_expenses_count++;
+        result.created_count++;
+      } else {
+        // ============================================================
+        // Handle CREDIT transaction - Create Payment (existing logic)
+        // ============================================================
+        const paymentResult = await createPayment({
+          resident_id: row.matched_resident_id!,
+          amount: row.amount,
+          payment_date: new Date(row.transaction_date || new Date()),
+          status: 'paid',
+          method: 'bank_transfer',
+          reference_number: row.reference || undefined,
+          notes: `Imported from bank statement: ${row.description}`,
+          import_id: import_id,
+          import_row_id: row.id,
+          is_verified: true, // Bank statement imports are auto-verified
+          bank_row_id: row.id,
+        });
+
+        if (paymentResult.error) {
+          throw new Error(paymentResult.error);
+        }
+
+        // Update row status
+        await supabase
+          .from('bank_statement_rows')
+          .update({
+            status: 'created',
+            payment_id: paymentResult.data?.id,
+          })
+          .eq('id', row.id);
+
+        result.created_payments_count++;
+        result.created_count++;
       }
-
-      // Update row status
-      await supabase
-        .from('bank_statement_rows')
-        .update({
-          status: 'created',
-          payment_id: paymentResult.data?.id,
-        })
-        .eq('id', row.id);
-
-      result.created_count++;
     } catch (error) {
       result.error_count++;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

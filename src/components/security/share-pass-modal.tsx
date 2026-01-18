@@ -38,7 +38,13 @@ export function SharePassModal({
     };
 
     const handleWhatsApp = () => {
-        window.open(`https://wa.me/?text=Here is your Residio access pass: ${accessCode}`, '_blank');
+        // Construct the dynamic image URL
+        const baseUrl = window.location.origin;
+        const imageUrl = `${baseUrl}/api/og/visitor-pass?visitorName=${encodeURIComponent(visitorName)}&code=${accessCode}&valid=Today`;
+
+        // Share text with the image URL which WhatsApp should preview
+        const shareText = `Here is your Residio access pass for ${visitorName}.\n\nAccess Code: *${accessCode}*\n\nView Pass: ${imageUrl}`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, '_blank');
     };
 
     return (
