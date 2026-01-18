@@ -144,7 +144,9 @@
 - [x] **UI Integration**: Added "Automated Schedule" toggle to Report Request Wizard (Review Step).
 - [x] **Schedule Options**: Enabled setting frequency, start date, and additional recipients directly from the wizard.
 - [x] **Configuration Preservation**: Existing report options (filters, charts, period) are now saved with the schedule.
-- [ ] **Verification**: Manual verification of schedule creation pending SQL migration.
+- [x] **Verification**: Manual verification of schedule creation completed.
+- [x] **Bug Fix**: Resolved premature report generation in Wizard by enforcing explicit button types and step checks.
+- [x] **Bug Fix**: Resolved `report_schedules_report_type_check` DB constraint violation for new report types.
 
 ## Phase 16 - Community Communication ✅ COMPLETE
 
