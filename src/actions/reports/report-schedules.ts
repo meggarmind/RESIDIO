@@ -23,6 +23,8 @@ export interface ReportSchedule {
     bank_account_ids: string[] | null;
     include_charts: boolean;
     include_summary: boolean;
+    configuration: Record<string, any> | null;
+    recipients: string[] | null;
     template_style: TemplateStyle;
     is_active: boolean;
     last_run_at: string | null;
@@ -66,6 +68,8 @@ export interface CreateScheduleInput {
     bank_account_ids?: string[];
     include_charts?: boolean;
     include_summary?: boolean;
+    configuration?: Record<string, any>;
+    recipients?: string[];
     template_style?: TemplateStyle;
 }
 
@@ -184,6 +188,8 @@ export async function createReportSchedule(input: CreateScheduleInput): Promise<
             bank_account_ids: input.bank_account_ids || null,
             include_charts: input.include_charts ?? true,
             include_summary: input.include_summary ?? true,
+            configuration: input.configuration || {},
+            recipients: input.recipients || [],
             template_style: input.template_style || 'modern',
             is_active: true,
             next_run_at: nextRunAt.toISOString(),

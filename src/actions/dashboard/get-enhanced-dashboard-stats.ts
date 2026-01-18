@@ -11,10 +11,12 @@ export interface FinancialHealthMetrics {
     totalOutstanding: number;
     totalCollected: number;
     collectionRate: number;
-    monthlyRevenue: number;
+    monthlyRevenue: number; // verified revenue
+    totalMonthlyRevenue: number; // all revenue including unverified
     previousMonthRevenue: number;
     revenueChange: number; // percentage change
-    totalWalletBalance: number;
+    totalWalletBalance: number; // deprecated - use portfolioValue
+    portfolioValue: number; // bank accounts + petty cash
     overdueAmount: number;
     overdueCount: number;
 }
@@ -208,8 +210,8 @@ async function getStatsWithTimeout(supabase: any): Promise<{ data: EnhancedDashb
         data: {
             financialHealth: financialData || {
                 totalOutstanding: 0, totalCollected: 0, collectionRate: 0,
-                monthlyRevenue: 0, previousMonthRevenue: 0, revenueChange: 0,
-                totalWalletBalance: 0, overdueAmount: 0, overdueCount: 0
+                monthlyRevenue: 0, totalMonthlyRevenue: 0, previousMonthRevenue: 0, revenueChange: 0,
+                totalWalletBalance: 0, portfolioValue: 0, overdueAmount: 0, overdueCount: 0
             },
             invoiceDistribution: invoiceDistribution || {
                 unpaid: 0, paid: 0, partiallyPaid: 0, overdue: 0, void: 0
@@ -285,35 +287,69 @@ async function fetchFinancialHealth(
     ) ?? 0;
     const overdueCount = overdueInvoices?.length ?? 0;
 
-    // Current month payments
+    // Current month payments - verified and total
     const { data: currentPayments } = await supabase
         .from('payment_records')
-        .select('amount')
+        .select('amount, is_verified, import_id, email_import_id')
         .gte('payment_date', monthStart.toISOString())
         .lte('payment_date', monthEnd.toISOString())
         .eq('status', 'paid');
 
-    const monthlyRevenue = currentPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) ?? 0;
+    const totalMonthlyRevenue = currentPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) ?? 0;
+    const monthlyRevenue = currentPayments?.reduce((sum: number, p: any) => {
+        // Count as verified if is_verified is true OR it came from a statement import
+        const isVerified = p.is_verified === true || p.import_id !== null || p.email_import_id !== null;
+        return isVerified ? sum + (Number(p.amount) || 0) : sum;
+    }, 0) ?? 0;
 
     // Previous month payments
     const { data: prevPayments } = await supabase
         .from('payment_records')
-        .select('amount')
+        .select('amount, is_verified, import_id, email_import_id')
         .gte('payment_date', prevMonthStart.toISOString())
         .lte('payment_date', prevMonthEnd.toISOString())
         .eq('status', 'paid');
 
-    const previousMonthRevenue = prevPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) ?? 0;
+    const previousMonthRevenue = prevPayments?.reduce((sum: number, p: any) => {
+        const isVerified = p.is_verified === true || p.import_id !== null || p.email_import_id !== null;
+        return isVerified ? sum + (Number(p.amount) || 0) : sum;
+    }, 0) ?? 0;
+
     const revenueChange = previousMonthRevenue > 0
         ? ((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 100
         : monthlyRevenue > 0 ? 100 : 0;
 
-    // Total wallet balance
+    // Total wallet balance (keeping for backward compatibility)
     const { data: wallets } = await supabase
         .from('resident_wallets')
         .select('balance');
 
     const totalWalletBalance = wallets?.reduce((sum: number, w: any) => sum + (Number(w.balance) || 0), 0) ?? 0;
+
+    // Portfolio Value: Bank accounts balance + Petty cash
+    // Calculate bank balance from completed statement rows (credits - debits)
+    const { data: bankRows } = await supabase
+        .from('bank_statement_rows')
+        .select(`
+            amount,
+            transaction_type,
+            bank_statement_imports!inner(status)
+        `)
+        .eq('bank_statement_imports.status', 'completed');
+
+    const bankBalance = bankRows?.reduce((sum: number, row: any) => {
+        const amount = Number(row.amount) || 0;
+        return row.transaction_type === 'credit' ? sum + amount : sum - amount;
+    }, 0) ?? 0;
+
+    // Get petty cash balance
+    const { data: pettyCash } = await supabase
+        .from('petty_cash_accounts')
+        .select('current_balance')
+        .eq('is_active', true);
+
+    const pettyCashBalance = pettyCash?.reduce((sum: number, pc: any) => sum + (Number(pc.current_balance) || 0), 0) ?? 0;
+    const portfolioValue = bankBalance + pettyCashBalance;
 
     const collectionRate = totalDue > 0 ? (totalCollected / totalDue) * 100 : 0;
 
@@ -322,9 +358,11 @@ async function fetchFinancialHealth(
         totalCollected,
         collectionRate,
         monthlyRevenue,
+        totalMonthlyRevenue,
         previousMonthRevenue,
         revenueChange,
         totalWalletBalance,
+        portfolioValue,
         overdueAmount,
         overdueCount
     };

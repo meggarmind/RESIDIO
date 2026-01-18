@@ -7,8 +7,7 @@ export const reportTypes = [
     { value: 'invoice_aging', label: 'Invoice Aging Report', description: 'Outstanding invoices by age brackets' },
     { value: 'transaction_log', label: 'Transaction Log', description: 'Detailed list of all transactions' },
     { value: 'debtors_report', label: 'Debtors Report', description: 'Detailed debtors list with aging buckets and contact info' },
-    { value: 'indebtedness_summary', label: 'Indebtedness Summary', description: 'Simple indebted/non-indebted status per house' },
-    { value: 'indebtedness_detail', label: 'Indebtedness Report', description: 'Detailed indebtedness with amounts per house' },
+    { value: 'indebtedness_summary', label: 'Indebtedness Report', description: 'Simple indebted/non-indebted status per house with optional amounts' },
     { value: 'development_levy', label: 'Development Levy Report', description: 'Development levy status per property' },
 ] as const;
 
@@ -43,7 +42,7 @@ export type AggregationType = typeof aggregationOptions[number]['value'];
 
 // Report Request Schema
 export const reportRequestSchema = z.object({
-    reportType: z.enum(['financial_overview', 'collection_report', 'invoice_aging', 'transaction_log', 'debtors_report', 'indebtedness_summary', 'indebtedness_detail', 'development_levy']),
+    reportType: z.enum(['financial_overview', 'collection_report', 'invoice_aging', 'transaction_log', 'debtors_report', 'indebtedness_summary', 'development_levy']),
     periodPreset: z.enum(['this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year', 'custom']),
     startDate: z.string().default(''),
     endDate: z.string().default(''),
@@ -54,6 +53,8 @@ export const reportRequestSchema = z.object({
     includeCharts: z.boolean().default(true),
     includeDetails: z.boolean().default(true),
     includeUnoccupied: z.boolean().default(false),
+    includeAmount: z.boolean().default(false),
+    paymentStatus: z.enum(['all', 'paid', 'unpaid']).default('all'),
 });
 
 export type ReportRequestFormData = z.infer<typeof reportRequestSchema>;

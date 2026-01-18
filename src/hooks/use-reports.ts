@@ -102,7 +102,7 @@ let generatedReports: GeneratedReport[] = [];
 const reportTypeLabels = REPORT_TYPE_LABELS;
 
 // Reports that are always "As of Today"
-const REALTIME_REPORTS: ReportRequestFormData['reportType'][] = ['debtors_report', 'indebtedness_summary', 'indebtedness_detail', 'development_levy', 'invoice_aging'];
+const REALTIME_REPORTS: ReportRequestFormData['reportType'][] = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
 
 export function useGenerateReport() {
     const queryClient = useQueryClient();

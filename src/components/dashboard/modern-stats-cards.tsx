@@ -307,20 +307,20 @@ export function ModernStatsCards({
         href="/approvals"
       />
 
-      {/* 3. Wallet Balance (Portfolio Stats) */}
+      {/* 3. Portfolio Value (Bank + Petty Cash) */}
       <CurrencyStat
         title="Portfolio Value"
-        value={financialHealth.totalWalletBalance}
-        label="Total Wallet Balance"
-        subLabel="vs last month"
+        value={financialHealth.portfolioValue}
+        label="Bank + Petty Cash"
+        subLabel="Total Estate Balance"
       />
 
-      {/* 4. Monthly Revenue (Primary Highlight Card) */}
+      {/* 4. Monthly Revenue (Verified with Total) */}
       <HighlightStat
         title="Monthly Revenue"
         value={financialHealth.monthlyRevenue}
-        label="collected this month"
-        details="Payment Analysis"
+        label="verified this month"
+        details={`₦${formatValue(financialHealth.totalMonthlyRevenue)} total`}
       />
 
       {/* 5. Suggestions Carousel (Replaced Occupancy) */}

@@ -186,6 +186,7 @@ export async function processEmailTransactions(
       queuedForReview: 0,
       skipped: 0,
       errored: 0,
+      expensesCreated: 0,
       error: auth.error || 'Unauthorized',
     };
   }
@@ -206,6 +207,7 @@ export async function processEmailTransactions(
       queuedForReview: 0,
       skipped: 0,
       errored: 0,
+      expensesCreated: 0,
       error: fetchError?.message || 'Failed to fetch transactions',
     };
   }

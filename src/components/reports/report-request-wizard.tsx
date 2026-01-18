@@ -41,6 +41,9 @@ import {
     LayoutList,
     ClipboardList,
     Construction,
+    CalendarClock,
+    Mail,
+    Repeat,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -55,6 +58,8 @@ import {
     type AggregationType,
 } from '@/lib/validators/reports';
 import { getBankAccountsForFilter } from '@/actions/reports/get-financial-overview';
+import { useCreateReportSchedule, type CreateScheduleInput } from '@/hooks/use-reports';
+import { toast } from 'sonner';
 
 // ============================================================
 // Types
@@ -125,12 +130,6 @@ const reportTypeConfig: Record<ReportType, {
         iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
         borderHover: 'hover:border-orange-500/50',
     },
-    indebtedness_detail: {
-        icon: ClipboardList,
-        gradient: 'from-rose-500/10 to-pink-500/5',
-        iconBg: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
-        borderHover: 'hover:border-rose-500/50',
-    },
     development_levy: {
         icon: Construction,
         gradient: 'from-indigo-500/10 to-blue-500/5',
@@ -154,10 +153,10 @@ const periodIcons: Record<PeriodPreset, React.ElementType> = {
 };
 
 // Reports that don't depend on bank accounts
-const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['indebtedness_summary', 'indebtedness_detail', 'development_levy'];
+const ACCOUNT_AGNOSTIC_REPORTS: ReportType[] = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
 
 // Reports that are always "As of Today" (skip date selection)
-const REALTIME_REPORTS: ReportType[] = ['debtors_report', 'indebtedness_summary', 'indebtedness_detail', 'development_levy', 'invoice_aging'];
+const REALTIME_REPORTS: ReportType[] = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
 
 // ============================================================
 // Stepper Component
@@ -542,30 +541,38 @@ const AccountSelectionStep = memo(function AccountSelectionStep({
 
 function OptionsStep({
     includeCharts,
-    includeDetails,
     includeUnoccupied,
+    includeAmount,
+    paymentStatus,
     aggregation,
     transactionType,
     reportType,
     onIncludeChartsChange,
-    onIncludeDetailsChange,
     onIncludeUnoccupiedChange,
+    onIncludeAmountChange,
+    onPaymentStatusChange,
     onAggregationChange,
     onTransactionTypeChange,
 }: {
     includeCharts: boolean;
-    includeDetails: boolean;
     includeUnoccupied: boolean;
+    includeAmount: boolean;
+    paymentStatus: 'all' | 'paid' | 'unpaid';
     aggregation: AggregationType;
     transactionType: 'all' | 'credit' | 'debit';
     reportType: ReportType;
     onIncludeChartsChange: (value: boolean) => void;
-    onIncludeDetailsChange: (value: boolean) => void;
     onIncludeUnoccupiedChange: (value: boolean) => void;
+    onIncludeAmountChange: (value: boolean) => void;
+    onPaymentStatusChange: (value: 'all' | 'paid' | 'unpaid') => void;
     onAggregationChange: (value: AggregationType) => void;
     onTransactionTypeChange: (value: 'all' | 'credit' | 'debit') => void;
 }) {
-    const isDebtReport = ['indebtedness_summary', 'indebtedness_detail', 'development_levy'].includes(reportType);
+    const isIndebtednessReport = reportType === 'indebtedness_summary';
+    const isDevelopmentLevyReport = reportType === 'development_levy';
+    const isDebtReport = isIndebtednessReport || isDevelopmentLevyReport;
+    // Real-time reports don't use aggregation or transaction type filtering
+    const isRealtimeReport = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'].includes(reportType);
     return (
         <div className="space-y-6">
             <div className="text-center mb-8">
@@ -594,18 +601,7 @@ function OptionsStep({
                         <Switch checked={includeCharts} onCheckedChange={onIncludeChartsChange} />
                     </div>
 
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                        <div className="space-y-0.5">
-                            <Label className="font-medium">Include Details</Label>
-                            <p className="text-sm text-muted-foreground">
-                                Show individual transaction rows
-                            </p>
-                        </div>
-                        <Switch
-                            checked={includeDetails}
-                            onCheckedChange={onIncludeDetailsChange}
-                        />
-                    </div>
+
 
                     {isDebtReport && (
                         <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-emerald-500/10">
@@ -621,54 +617,109 @@ function OptionsStep({
                             />
                         </div>
                     )}
+
+                    {isIndebtednessReport && (
+                        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-amber-500/10">
+                            <div className="space-y-0.5">
+                                <Label className="font-medium">Include Amounts</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Show outstanding indebtedness amounts per house
+                                </p>
+                            </div>
+                            <Switch
+                                checked={includeAmount}
+                                onCheckedChange={onIncludeAmountChange}
+                            />
+                        </div>
+                    )}
+
+                    {isDevelopmentLevyReport && (
+                        <div className="space-y-2">
+                            <Label className="font-medium">Payment Status</Label>
+                            <Select value={paymentStatus} onValueChange={onPaymentStatusChange}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Properties</SelectItem>
+                                    <SelectItem value="paid">Paid Only</SelectItem>
+                                    <SelectItem value="unpaid">Unpaid Only</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                                Filter properties by payment status
+                            </p>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
-            {/* Data Options */}
-            <Card>
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-base flex items-center gap-2">
-                        <TableProperties className="h-5 w-5 text-purple-500" />
-                        Data Grouping
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label>Aggregation Period</Label>
-                        <Select value={aggregation} onValueChange={onAggregationChange}>
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {aggregationOptions.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                        {option.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+            {/* Data Grouping - Only for time-based reports */}
+            {!isRealtimeReport && (
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                            <TableProperties className="h-5 w-5 text-purple-500" />
+                            Data Grouping
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                            <Label>Aggregation Period</Label>
+                            <Select value={aggregation} onValueChange={onAggregationChange}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {aggregationOptions.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
 
-                    <div className="space-y-2">
-                        <Label>Transaction Type</Label>
-                        <Select value={transactionType} onValueChange={onTransactionTypeChange}>
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Transactions</SelectItem>
-                                <SelectItem value="credit">Income Only (Credits)</SelectItem>
-                                <SelectItem value="debit">Expenses Only (Debits)</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </CardContent>
-            </Card>
+                        <div className="space-y-2">
+                            <Label>Transaction Type</Label>
+                            <Select value={transactionType} onValueChange={onTransactionTypeChange}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Transactions</SelectItem>
+                                    <SelectItem value="credit">Income Only (Credits)</SelectItem>
+                                    <SelectItem value="debit">Expenses Only (Debits)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }
 
-function ReviewStep({ formData }: { formData: Partial<ReportRequestFormData> }) {
+
+function ReviewStep({
+    formData,
+    scheduleEnabled,
+    onScheduleEnabledChange,
+    scheduleData,
+    onScheduleDataChange,
+}: {
+    formData: Partial<ReportRequestFormData>;
+    scheduleEnabled: boolean;
+    onScheduleEnabledChange: (value: boolean) => void;
+    scheduleData: {
+        name: string;
+        frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+        day_of_month?: number;
+        day_of_week?: number;
+        recipients?: string;
+    };
+    onScheduleDataChange: (data: typeof scheduleData) => void;
+}) {
     const reportType = reportTypes.find((r) => r.value === formData.reportType);
     const period = periodPresets.find((p) => p.value === formData.periodPreset);
     const config = reportTypeConfig[formData.reportType || 'financial_overview'];
@@ -679,6 +730,9 @@ function ReviewStep({ formData }: { formData: Partial<ReportRequestFormData> }) 
         formData.periodPreset === 'custom'
             ? { startDate: formData.startDate || '', endDate: formData.endDate || '' }
             : getDateRangeFromPreset(formData.periodPreset || 'this_month');
+
+    const REALTIME_REPORTS_REVIEW = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
+    const ACCOUNT_AGNOSTIC_REPORTS_REVIEW = ['debtors_report', 'indebtedness_summary', 'development_levy', 'invoice_aging'];
 
     return (
         <div className="space-y-6">
@@ -718,7 +772,7 @@ function ReviewStep({ formData }: { formData: Partial<ReportRequestFormData> }) 
                         </div>
                         <div>
                             <p className="text-sm text-muted-foreground">Time Period</p>
-                            {REALTIME_REPORTS.includes(formData.reportType as any) ? (
+                            {REALTIME_REPORTS_REVIEW.includes(formData.reportType as any) ? (
                                 <>
                                     <p className="font-semibold">Current (As of Today)</p>
                                     <p className="text-sm text-muted-foreground mt-0.5">
@@ -753,7 +807,7 @@ function ReviewStep({ formData }: { formData: Partial<ReportRequestFormData> }) 
                     <hr className="border-dashed" />
 
                     {/* Accounts */}
-                    {!ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType as any) && (
+                    {!ACCOUNT_AGNOSTIC_REPORTS_REVIEW.includes(formData.reportType as any) && (
                         <>
                             <div className="flex items-start gap-4">
                                 <div className="p-3 rounded-xl bg-amber-500/15 text-amber-600">
@@ -772,6 +826,109 @@ function ReviewStep({ formData }: { formData: Partial<ReportRequestFormData> }) 
                         </>
                     )}
 
+                    {/* Schedule Section */}
+                    <div className="flex items-start gap-4">
+                        <div className="p-3 rounded-xl bg-purple-500/15 text-purple-600">
+                            <CalendarClock className="h-6 w-6" />
+                        </div>
+                        <div className="flex-1 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm text-muted-foreground">Automated Schedule</p>
+                                    <p className="font-semibold">{scheduleEnabled ? 'Enabled' : 'Disabled'}</p>
+                                </div>
+                                <Switch
+                                    checked={scheduleEnabled}
+                                    onCheckedChange={onScheduleEnabledChange}
+                                />
+                            </div>
+
+                            {scheduleEnabled && (
+                                <div className="mt-4 space-y-4 p-4 rounded-lg bg-muted/50 border animate-in fade-in slide-in-from-top-2">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="scheduleName">Schedule Name</Label>
+                                        <Input
+                                            id="scheduleName"
+                                            value={scheduleData.name}
+                                            onChange={(e) => onScheduleDataChange({ ...scheduleData, name: e.target.value })}
+                                            placeholder="e.g. Monthly Financial Overview"
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Frequency</Label>
+                                            <Select
+                                                value={scheduleData.frequency}
+                                                onValueChange={(v) => onScheduleDataChange({ ...scheduleData, frequency: v as any })}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="daily">Daily</SelectItem>
+                                                    <SelectItem value="weekly">Weekly</SelectItem>
+                                                    <SelectItem value="monthly">Monthly</SelectItem>
+                                                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                                                    <SelectItem value="yearly">Yearly</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        {(scheduleData.frequency === 'monthly' || scheduleData.frequency === 'quarterly') && (
+                                            <div className="space-y-2">
+                                                <Label>Day of Month</Label>
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    max={28}
+                                                    value={scheduleData.day_of_month || 1}
+                                                    onChange={(e) => onScheduleDataChange({ ...scheduleData, day_of_month: parseInt(e.target.value) || 1 })}
+                                                />
+                                            </div>
+                                        )}
+                                        {scheduleData.frequency === 'weekly' && (
+                                            <div className="space-y-2">
+                                                <Label>Day of Week</Label>
+                                                <Select
+                                                    value={String(scheduleData.day_of_week || 1)}
+                                                    onValueChange={(v) => onScheduleDataChange({ ...scheduleData, day_of_week: parseInt(v) })}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="1">Monday</SelectItem>
+                                                        <SelectItem value="2">Tuesday</SelectItem>
+                                                        <SelectItem value="3">Wednesday</SelectItem>
+                                                        <SelectItem value="4">Thursday</SelectItem>
+                                                        <SelectItem value="5">Friday</SelectItem>
+                                                        <SelectItem value="6">Saturday</SelectItem>
+                                                        <SelectItem value="0">Sunday</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>Recipients (Comma separated emails)</Label>
+                                        <div className="relative">
+                                            <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                            <Input
+                                                className="pl-9"
+                                                placeholder="admin@example.com, stakeholder@example.com"
+                                                value={scheduleData.recipients || ''}
+                                                onChange={(e) => onScheduleDataChange({ ...scheduleData, recipients: e.target.value })}
+                                            />
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            You will always receive a copy.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                     {/* Options Summary */}
                     <div className="flex flex-wrap gap-2">
                         {formData.includeCharts && (
@@ -800,6 +957,11 @@ function ReviewStep({ formData }: { formData: Partial<ReportRequestFormData> }) 
                                 Unoccupied Included
                             </Badge>
                         )}
+                        {formData.includeAmount && (
+                            <Badge variant="secondary" className="gap-1.5 bg-amber-500/10 text-amber-600 border-amber-500/20">
+                                Amounts Included
+                            </Badge>
+                        )}
                     </div>
                 </CardContent>
             </Card>
@@ -811,10 +973,28 @@ function ReviewStep({ formData }: { formData: Partial<ReportRequestFormData> }) 
 // Main Wizard Component
 // ============================================================
 
-export function ReportRequestWizard({ onGenerate, isGenerating = false }: ReportRequestWizardProps) {
-    const [currentStep, setCurrentStep] = useState(1);
+export function ReportRequestWizard({
+    onGenerate,
+    isGenerating = false,
+}: ReportRequestWizardProps) {
+    const [step, setStep] = useState(1);
+    const [scheduleEnabled, setScheduleEnabled] = useState(false);
+    const [scheduleData, setScheduleData] = useState<{
+        name: string;
+        frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+        day_of_month?: number;
+        day_of_week?: number;
+        recipients?: string;
+    }>({
+        name: '',
+        frequency: 'monthly',
+        day_of_month: 1,
+        recipients: '',
+    });
 
-    const form = useForm({
+    const createSchedule = useCreateReportSchedule();
+
+    const { control, watch, handleSubmit, setValue } = useForm<ReportRequestFormData>({
         resolver: zodResolver(reportRequestSchema),
         defaultValues: {
             reportType: 'financial_overview' as const,
@@ -828,11 +1008,12 @@ export function ReportRequestWizard({ onGenerate, isGenerating = false }: Report
             includeCharts: true,
             includeDetails: true,
             includeUnoccupied: false,
+            includeAmount: false,
+            paymentStatus: 'all' as const,
         },
     });
 
-    const { watch, setValue, handleSubmit, getValues } = form;
-    const formValues = watch();
+    const formData = watch();
 
     // Watch periodPreset specifically to avoid unnecessary re-renders
     const periodPreset = watch('periodPreset');
@@ -849,45 +1030,55 @@ export function ReportRequestWizard({ onGenerate, isGenerating = false }: Report
         }
     }, [periodPreset, setValue]);
 
+    // Auto-update schedule name when report settings change
+    useEffect(() => {
+        if (!scheduleEnabled || scheduleData.name) return; // Don't overwrite if user typed something
+        const typeLabel = reportTypes.find(t => t.value === formData.reportType)?.label;
+        const periodLabel = periodPresets.find(p => p.value === formData.periodPreset)?.label;
+        if (typeLabel && periodLabel) {
+            setScheduleData(prev => ({ ...prev, name: `${typeLabel} (${periodLabel})` }));
+        }
+    }, [formData.reportType, formData.periodPreset, scheduleEnabled, scheduleData.name]);
+
     const handleNext = () => {
-        let nextStep = currentStep + 1;
+        let nextStep = step + 1;
+        const isAgnostic = ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType as any);
+        const isRealtime = REALTIME_REPORTS.includes(formData.reportType as any);
 
-        // Skip Date range for real-time reports
-        if (nextStep === 2 && REALTIME_REPORTS.includes(formValues.reportType || '')) {
-            nextStep++;
+        // Skip Step 2 (Period) if Realtime
+        if (nextStep === 2 && isRealtime) {
+            nextStep = 3;
         }
 
-        // Skip bank accounts for certain reports
-        if (nextStep === 3 && ACCOUNT_AGNOSTIC_REPORTS.includes(formValues.reportType || '')) {
-            nextStep++;
+        // Skip Step 3 (Accounts) if Agnostic
+        if (nextStep === 3 && isAgnostic) {
+            nextStep = 4;
         }
 
-        if (nextStep <= STEPS.length) {
-            setCurrentStep(nextStep);
-        }
+        setStep(Math.min(nextStep, 5));
     };
 
-    const handlePrev = () => {
-        let prevStep = currentStep - 1;
+    const handleBack = () => {
+        let prevStep = step - 1;
+        const isAgnostic = ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType as any);
+        const isRealtime = REALTIME_REPORTS.includes(formData.reportType as any);
 
-        // Skip bank accounts for certain reports
-        if (prevStep === 3 && ACCOUNT_AGNOSTIC_REPORTS.includes(formValues.reportType || '')) {
-            prevStep--;
+        // Skip Step 3 (Accounts) if Agnostic
+        if (prevStep === 3 && isAgnostic) {
+            prevStep = 2;
         }
 
-        // Skip Date range for real-time reports
-        if (prevStep === 2 && REALTIME_REPORTS.includes(formValues.reportType || '')) {
-            prevStep--;
+        // Skip Step 2 (Period) if Realtime
+        if (prevStep === 2 && isRealtime) {
+            prevStep = 1;
         }
 
-        if (prevStep >= 1) {
-            setCurrentStep(prevStep);
-        }
+        setStep(Math.max(prevStep, 1));
     };
 
     // Memoized handler that uses getValues() to avoid stale closure issues
     const handleAccountToggle = useCallback((accountId: string) => {
-        const current = getValues('bankAccountIds') || [];
+        const current = formData.bankAccountIds || [];
         if (current.includes(accountId)) {
             setValue(
                 'bankAccountIds',
@@ -896,7 +1087,7 @@ export function ReportRequestWizard({ onGenerate, isGenerating = false }: Report
         } else {
             setValue('bankAccountIds', [...current, accountId]);
         }
-    }, [getValues, setValue]);
+    }, [formData.bankAccountIds, setValue]);
 
     // Memoized select all handler
     const handleSelectAll = useCallback((accountIds: string[]) => {
@@ -904,20 +1095,75 @@ export function ReportRequestWizard({ onGenerate, isGenerating = false }: Report
     }, [setValue]);
 
     const onSubmit = async (data: ReportRequestFormData) => {
+        // Safety check: ensure we are on the final step
+        if (step !== 5) return;
+
+        if (scheduleEnabled) {
+            if (!scheduleData.name) {
+                toast.error('Please enter a schedule name');
+                return;
+            }
+
+            try {
+                // Parse recipients
+                const recipientsList = scheduleData.recipients
+                    ? scheduleData.recipients.split(',').map(e => e.trim()).filter(Boolean)
+                    : [];
+
+                // Create schedule
+                // Map formData to config (exclude base fields handled by schedule columns)
+                const {
+                    reportType, periodPreset, bankAccountIds, includeCharts, includeDetails,
+                    ...configParams
+                } = data;
+
+                await createSchedule.mutateAsync({
+                    name: scheduleData.name,
+                    report_type: data.reportType,
+                    frequency: scheduleData.frequency,
+                    period_preset: data.periodPreset === 'custom' ? 'this_month' : data.periodPreset, // Fallback for custom
+                    day_of_month: scheduleData.day_of_month,
+                    day_of_week: scheduleData.day_of_week,
+                    bank_account_ids: data.bankAccountIds.length > 0 ? data.bankAccountIds : undefined,
+                    include_charts: data.includeCharts,
+                    include_summary: data.includeDetails,
+                    recipients: recipientsList,
+                    configuration: {
+                        ...configParams,
+                        // Store custom dates if preset is custom (though schedules usually run on dynamic periods)
+                        customStartDate: data.periodPreset === 'custom' ? data.startDate : undefined,
+                        customEndDate: data.periodPreset === 'custom' ? data.endDate : undefined,
+                    },
+                    template_style: 'modern',
+                });
+
+                // After scheduling, do we also generate?
+                // The prompt says "allows user select if they want to schedule, and then takes them through scheduling... by default... sent to email".
+                // We should probably allow them to generate NOW as well.
+                // Let's assume the button generates AND schedules if enabled.
+            } catch (error) {
+                // Create schedule error handled by hook toast
+                return; // Stop if schedule fails
+            }
+        }
+
+        // Proceed to generate report immediately
         await onGenerate(data);
     };
 
     // Validation for each step
     const canProceed = () => {
-        switch (currentStep) {
+        switch (step) {
             case 1:
-                return !!formValues.reportType;
+                return !!formData.reportType;
             case 2:
-                if (formValues.periodPreset === 'custom') {
-                    return !!formValues.startDate && !!formValues.endDate;
+                if (REALTIME_REPORTS.includes(formData.reportType)) return true; // Period is skipped for realtime
+                if (formData.periodPreset === 'custom') {
+                    return !!formData.startDate && !!formData.endDate;
                 }
-                return !!formValues.periodPreset;
+                return !!formData.periodPreset;
             case 3:
+                if (ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType)) return true; // Accounts are skipped for agnostic
                 return true; // Accounts are optional (all = empty array)
             case 4:
                 return true;
@@ -933,29 +1179,29 @@ export function ReportRequestWizard({ onGenerate, isGenerating = false }: Report
             <Card className="overflow-hidden shadow-xl border-0 bg-gradient-to-b from-background to-muted/20">
                 <CardContent className="p-8">
                     {/* Step Indicator */}
-                    <StepIndicator steps={STEPS} currentStep={currentStep} reportType={formValues.reportType || ''} />
+                    <StepIndicator steps={STEPS} currentStep={step} reportType={formData.reportType || ''} />
 
                     {/* Step Content */}
                     <div className="min-h-[400px]">
-                        {currentStep === 1 && (
+                        {step === 1 && (
                             <ReportTypeStep
-                                value={formValues.reportType}
+                                value={formData.reportType}
                                 onChange={(type) => setValue('reportType', type)}
                             />
                         )}
 
-                        {currentStep === 2 && (
+                        {step === 2 && !REALTIME_REPORTS.includes(formData.reportType) && (
                             <PeriodSelectionStep
-                                preset={formValues.periodPreset}
-                                startDate={formValues.startDate || ''}
-                                endDate={formValues.endDate || ''}
+                                preset={formData.periodPreset}
+                                startDate={formData.startDate || ''}
+                                endDate={formData.endDate || ''}
                                 onPresetChange={(preset) => setValue('periodPreset', preset)}
                                 onStartDateChange={(date) => setValue('startDate', date)}
                                 onEndDateChange={(date) => setValue('endDate', date)}
                             />
                         )}
 
-                        {currentStep === 3 && (
+                        {step === 3 && !ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType) && (
                             <AccountSelectionStep
                                 selectedAccounts={selectedAccountIds}
                                 onAccountToggle={handleAccountToggle}
@@ -963,63 +1209,80 @@ export function ReportRequestWizard({ onGenerate, isGenerating = false }: Report
                             />
                         )}
 
-                        {currentStep === 4 && (
+                        {step === 4 && (
                             <OptionsStep
-                                includeCharts={formValues.includeCharts ?? true}
-                                includeDetails={formValues.includeDetails ?? true}
-                                includeUnoccupied={formValues.includeUnoccupied ?? false}
-                                aggregation={formValues.aggregation ?? 'monthly'}
-                                transactionType={formValues.transactionType ?? 'all'}
-                                reportType={formValues.reportType || 'financial_overview'}
+                                includeCharts={formData.includeCharts ?? true}
+                                includeUnoccupied={formData.includeUnoccupied ?? false}
+                                includeAmount={formData.includeAmount ?? false}
+                                paymentStatus={formData.paymentStatus ?? 'all'}
+                                aggregation={formData.aggregation ?? 'monthly'}
+                                transactionType={formData.transactionType ?? 'all'}
+                                reportType={formData.reportType || 'financial_overview'}
                                 onIncludeChartsChange={(v) => setValue('includeCharts', v)}
-                                onIncludeDetailsChange={(v) => setValue('includeDetails', v)}
                                 onIncludeUnoccupiedChange={(v) => setValue('includeUnoccupied', v)}
+                                onIncludeAmountChange={(v) => setValue('includeAmount', v)}
+                                onPaymentStatusChange={(v) => setValue('paymentStatus', v)}
                                 onAggregationChange={(v) => setValue('aggregation', v)}
                                 onTransactionTypeChange={(v) => setValue('transactionType', v)}
                             />
                         )}
 
-                        {currentStep === 5 && <ReviewStep formData={formValues} />}
+                        {step === 5 && (
+                            <ReviewStep
+                                formData={formData}
+                                scheduleEnabled={scheduleEnabled}
+                                onScheduleEnabledChange={setScheduleEnabled}
+                                scheduleData={scheduleData}
+                                onScheduleDataChange={setScheduleData}
+                            />
+                        )}
                     </div>
 
                     {/* Navigation */}
-                    <div className="flex justify-between mt-8 pt-6 border-t">
+                    <div className="flex justify-between pt-4">
                         <Button
-                            type="button"
                             variant="outline"
-                            onClick={handlePrev}
-                            disabled={currentStep === 1 || isGenerating}
-                            className="gap-2"
+                            type="button"
+                            onClick={handleBack}
+                            disabled={step === 1 || isGenerating || createSchedule.isPending}
                         >
-                            <ChevronLeft className="h-4 w-4" />
-                            Previous
+                            <ChevronLeft className="mr-2 h-4 w-4" />
+                            Back
                         </Button>
 
-                        {currentStep < STEPS.length ? (
-                            <Button
-                                type="button"
-                                onClick={handleNext}
-                                disabled={!canProceed()}
-                                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-                            >
+                        {step < 5 ? (
+                            <Button type="button" onClick={handleNext} disabled={!canProceed()}>
                                 Next
-                                <ChevronRight className="h-4 w-4" />
+                                <ChevronRight className="ml-2 h-4 w-4" />
                             </Button>
                         ) : (
                             <Button
-                                type="submit"
-                                disabled={isGenerating}
-                                className="gap-2 bg-emerald-600 hover:bg-emerald-700 min-w-[160px]"
+                                type="button"
+                                onClick={handleSubmit(onSubmit)}
+                                disabled={isGenerating || createSchedule.isPending}
+                                className={cn(
+                                    "min-w-[140px]",
+                                    scheduleEnabled ? "bg-purple-600 hover:bg-purple-700" : ""
+                                )}
                             >
-                                {isGenerating ? (
+                                {isGenerating || createSchedule.isPending ? (
                                     <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        Generating...
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        {createSchedule.isPending ? 'Scheduling...' : 'Generating...'}
                                     </>
                                 ) : (
                                     <>
-                                        <Sparkles className="h-4 w-4" />
-                                        Generate Report
+                                        {scheduleEnabled ? (
+                                            <>
+                                                <CalendarClock className="mr-2 h-4 w-4" />
+                                                Schedule & Generate
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Sparkles className="mr-2 h-4 w-4" />
+                                                Generate Report
+                                            </>
+                                        )}
                                     </>
                                 )}
                             </Button>

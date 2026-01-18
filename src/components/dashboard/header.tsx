@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [mounted, setMounted] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     setMounted(true);
@@ -107,6 +109,18 @@ export function Header({ onMenuClick }: HeaderProps) {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+
+
+            {/* Page Title / Greeting */}
+            <div className="hidden md:block ml-2">
+              {pathname === '/dashboard' && mounted && profile ? (
+                <h1 className="text-xl font-bold tracking-tight">
+                  {getGreeting()}, {profile.full_name?.split(' ')[0] || 'there'}
+                </h1>
+              ) : pathname === '/dashboard' ? (
+                <h1 className="text-xl font-bold tracking-tight">Dashboard</h1>
+              ) : null}
+            </div>
 
             <div className="hidden lg:block ml-2 overflow-hidden max-w-[200px] xl:max-w-none">
               <AdminBreadcrumb hideDashboard className="mb-0 whitespace-nowrap" />

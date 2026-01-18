@@ -10,10 +10,8 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 // Dashboard Components
-import { SecurityAlertsCard } from '@/components/dashboard/security-alerts-card';
-import { QuickActionsPanel } from '@/components/dashboard/quick-actions-panel';
+import { UnifiedActionsCard } from '@/components/dashboard/unified-actions-card';
 import { RecentActivityCard } from '@/components/dashboard/recent-activity-card';
-import { ContextualGreeting } from '@/components/dashboard/contextual-greeting';
 import { useSmartSuggestions } from '@/hooks/use-smart-suggestions';
 import { ModernStatsCards } from '@/components/dashboard/modern-stats-cards';
 import { ModernFinancialHealth } from '@/components/dashboard/modern-financial-health';
@@ -136,9 +134,6 @@ export default function DashboardPage() {
                 <ErrorHandler />
             </Suspense>
 
-            {/* Welcome Header - Unified to ContextualGreeting */}
-            <ContextualGreeting name={firstName} />
-
             {/* Top Stats Section */}
             <ModernStatsCards
                 financialHealth={stats?.financialHealth ?? null}
@@ -148,7 +143,7 @@ export default function DashboardPage() {
                 isLoading={isLoading}
             />
 
-            {/* Main Content Grid: Triple Column Sharing Row (2:1:1 split) */}
+            {/* Main Content Grid: Triple Column Sharing Row (2:2 split) */}
             <div className="grid gap-6 lg:grid-cols-4">
                 {/* Column 1 & 2: Financial Health (50%) */}
                 <div className="lg:col-span-2">
@@ -158,18 +153,14 @@ export default function DashboardPage() {
                     />
                 </div>
 
-                {/* Column 3: Security Alerts (25%) */}
-                <div className="lg:col-span-1">
-                    <SecurityAlertsCard
+                {/* Column 3 & 4: Unified Actions (50%) */}
+                <div className="lg:col-span-2">
+                    <UnifiedActionsCard
                         securityAlerts={stats?.securityAlerts ?? null}
+                        quickStats={stats?.quickStats ?? null}
+                        unverifiedPaymentsCount={0} // TODO: Add this to backend stats
                         isLoading={isLoading}
-                        compact
                     />
-                </div>
-
-                {/* Column 4: Quick Actions (25%) */}
-                <div className="lg:col-span-1">
-                    <QuickActionsPanel compact />
                 </div>
             </div>
 

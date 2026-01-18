@@ -44,10 +44,42 @@ export function ModernHeader({ onMenuClick }: ModernHeaderProps) {
     setMounted(true);
   }, []);
 
+  // Get greeting based on time of day
+  const getGreeting = (): string => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   // Get page title from pathname
   const getPageTitle = (path: string): string => {
     const segments = path.split('/').filter(Boolean);
-    if (segments.length === 0 || segments[0] === 'dashboard') return 'Dashboard';
+
+    // Debug logging
+    if (segments.length === 0 || segments[0] === 'dashboard') {
+      console.log('[ModernHeader] Dashboard detected:', {
+        path,
+        segments,
+        mounted,
+        hasProfile: !!profile,
+        profileName: profile?.full_name
+      });
+    }
+
+    // Show personalized greeting on dashboard (only when mounted and profile loaded)
+    if ((segments.length === 0 || segments[0] === 'dashboard') && mounted && profile) {
+      const firstName = profile.full_name?.split(' ')[0] || 'there';
+      const greeting = `${getGreeting()}, ${firstName}`;
+      console.log('[ModernHeader] Returning greeting:', greeting);
+      return greeting;
+    }
+
+    // Fallback to "Dashboard" while loading
+    if (segments.length === 0 || segments[0] === 'dashboard') {
+      console.log('[ModernHeader] Returning fallback: Dashboard');
+      return 'Dashboard';
+    }
 
     const pageMap: Record<string, string> = {
       analytics: 'Analytics',

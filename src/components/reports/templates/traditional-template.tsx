@@ -7,8 +7,7 @@ import type {
   InvoiceAgingData,
   TransactionLogData,
   DebtorsReportData,
-  IndebtednessSummaryData,
-  IndebtednessDetailData,
+  IndebtednessReportData,
   DevelopmentLevyData,
   ReportData
 } from '@/actions/reports/report-engine';
@@ -455,6 +454,7 @@ function InvoiceAgingTraditional({ data }: { data: InvoiceAgingData }) {
             <table style={{ ...parseStyles(styles.table) }}>
               <thead>
                 <tr>
+                  <th style={{ ...parseStyles(styles.th), width: '50px' }}>S/N</th>
                   <th style={{ ...parseStyles(styles.th) }}>Invoice #</th>
                   <th style={{ ...parseStyles(styles.th) }}>Resident</th>
                   <th style={{ ...parseStyles(styles.th) }}>House</th>
@@ -464,8 +464,9 @@ function InvoiceAgingTraditional({ data }: { data: InvoiceAgingData }) {
                 </tr>
               </thead>
               <tbody>
-                {bracket.invoices.map((inv) => (
+                {bracket.invoices.map((inv, idx) => (
                   <tr key={inv.invoiceId}>
+                    <td style={{ ...parseStyles(styles.td), textAlign: 'center', fontWeight: 'bold', color: '#666' }}>{idx + 1}</td>
                     <td style={{ ...parseStyles(styles.td) }}>{inv.invoiceNumber}</td>
                     <td style={{ ...parseStyles(styles.td) }}>{inv.residentName}</td>
                     <td style={{ ...parseStyles(styles.td) }}>{inv.houseNumber}</td>
@@ -519,6 +520,7 @@ function TransactionLogTraditional({ data }: { data: TransactionLogData }) {
         <table style={{ ...parseStyles(styles.table) }}>
           <thead>
             <tr>
+              <th style={{ ...parseStyles(styles.th), width: '50px' }}>S/N</th>
               <th style={{ ...parseStyles(styles.th) }}>Date</th>
               <th style={{ ...parseStyles(styles.th) }}>Description</th>
               <th style={{ ...parseStyles(styles.th) }}>Category</th>
@@ -527,8 +529,9 @@ function TransactionLogTraditional({ data }: { data: TransactionLogData }) {
             </tr>
           </thead>
           <tbody>
-            {data.transactions.map((txn) => (
+            {data.transactions.map((txn, idx) => (
               <tr key={txn.id}>
+                <td style={{ ...parseStyles(styles.td), textAlign: 'center', fontWeight: 'bold', color: '#666' }}>{idx + 1}</td>
                 <td style={{ ...parseStyles(styles.td), whiteSpace: 'nowrap' }}>{formatDate(txn.date)}</td>
                 <td style={{ ...parseStyles(styles.td), maxWidth: '250px' }}>
                   {txn.description}
@@ -546,7 +549,7 @@ function TransactionLogTraditional({ data }: { data: TransactionLogData }) {
           </tbody>
           <tfoot>
             <tr style={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
-              <td style={{ ...parseStyles(styles.td) }} colSpan={3}>TOTALS</td>
+              <td style={{ ...parseStyles(styles.td) }} colSpan={4}>TOTALS</td>
               <td style={{ ...parseStyles(styles.tdCredit) }}>{formatCurrency(data.summary.totalCredits)}</td>
               <td style={{ ...parseStyles(styles.tdDebit) }}>({formatCurrency(data.summary.totalDebits)})</td>
             </tr>
@@ -609,6 +612,7 @@ function DebtorsReportTraditional({ data }: { data: DebtorsReportData }) {
         <table style={{ ...parseStyles(styles.table) }}>
           <thead>
             <tr>
+              <th style={{ ...parseStyles(styles.th), width: '50px' }}>S/N</th>
               <th style={{ ...parseStyles(styles.th) }}>Debtor / Property</th>
               <th style={{ ...parseStyles(styles.th) }}>Contact Information</th>
               <th style={{ ...parseStyles(styles.thRight) }}>Invoices</th>
@@ -617,8 +621,9 @@ function DebtorsReportTraditional({ data }: { data: DebtorsReportData }) {
             </tr>
           </thead>
           <tbody>
-            {data.debtors.map((debtor) => (
+            {data.debtors.map((debtor, idx) => (
               <tr key={debtor.residentId}>
+                <td style={{ ...parseStyles(styles.td), textAlign: 'center', fontWeight: 'bold', color: '#666' }}>{idx + 1}</td>
                 <td style={{ ...parseStyles(styles.td) }}>
                   <strong>{debtor.residentName}</strong><br />
                   <small style={{ color: '#666' }}>{debtor.residentCode}</small><br />
@@ -654,7 +659,7 @@ function DebtorsReportTraditional({ data }: { data: DebtorsReportData }) {
           </tbody>
           <tfoot>
             <tr style={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
-              <td style={{ ...parseStyles(styles.td) }} colSpan={2}>TOTAL ({data.summary.totalDebtors} debtors)</td>
+              <td style={{ ...parseStyles(styles.td) }} colSpan={3}>TOTAL ({data.summary.totalDebtors} debtors)</td>
               <td style={{ ...parseStyles(styles.tdRight) }}>{data.debtors.reduce((sum, d) => sum + d.invoiceCount, 0)}</td>
               <td style={{ ...parseStyles(styles.tdRight) }}>{Math.round(data.summary.averageDaysOverdue)} avg</td>
               <td style={{ ...parseStyles(styles.tdDebit) }}>{formatCurrency(data.summary.totalOutstanding)}</td>
@@ -669,6 +674,7 @@ function DebtorsReportTraditional({ data }: { data: DebtorsReportData }) {
         <table style={{ ...parseStyles(styles.table) }}>
           <thead>
             <tr>
+              <th style={{ ...parseStyles(styles.th), width: '50px' }}>S/N</th>
               <th style={{ ...parseStyles(styles.th) }}>Debtor</th>
               <th style={{ ...parseStyles(styles.thRight) }}>0-30 Days</th>
               <th style={{ ...parseStyles(styles.thRight) }}>31-60 Days</th>
@@ -678,8 +684,9 @@ function DebtorsReportTraditional({ data }: { data: DebtorsReportData }) {
             </tr>
           </thead>
           <tbody>
-            {data.debtors.filter(d => d.totalOutstanding > 0).map((debtor) => (
+            {data.debtors.filter(d => d.totalOutstanding > 0).map((debtor, idx) => (
               <tr key={debtor.residentId}>
+                <td style={{ ...parseStyles(styles.td), textAlign: 'center', fontWeight: 'bold', color: '#666' }}>{idx + 1}</td>
                 <td style={{ ...parseStyles(styles.td) }}>
                   {debtor.residentName}<br />
                   <small style={{ color: '#666' }}>{debtor.houseNumber}</small>
@@ -722,7 +729,9 @@ function DebtorsReportTraditional({ data }: { data: DebtorsReportData }) {
 // Indebtedness Summary Template
 // ============================================================
 
-function IndebtednessSummaryTraditional({ data }: { data: IndebtednessSummaryData }) {
+function IndebtednessSummaryTraditional({ data }: { data: IndebtednessReportData }) {
+  const hasAmount = data.houses.some(h => h.outstandingAmount !== undefined);
+
   return (
     <>
       {/* Summary */}
@@ -737,6 +746,14 @@ function IndebtednessSummaryTraditional({ data }: { data: IndebtednessSummaryDat
             <span>Indebted Properties</span>
             <span style={{ color: '#8B0000', fontFamily: "'Courier New', monospace" }}>{data.summary.indebtedCount}</span>
           </div>
+          {data.summary.totalOutstanding !== undefined && (
+            <div style={{ ...parseStyles(styles.summaryRowLast) }}>
+              <span>Total Outstanding Balance</span>
+              <span style={{ color: '#8B0000', fontFamily: "'Courier New', monospace" }}>
+                {formatCurrency(data.summary.totalOutstanding)}
+              </span>
+            </div>
+          )}
           <div style={{ ...parseStyles(styles.summaryRow), borderBottom: 'none' }}>
             <span>Non-Indebted Properties</span>
             <span style={{ color: '#006400', fontFamily: "'Courier New', monospace" }}>{data.summary.nonIndebtedCount}</span>
@@ -746,13 +763,16 @@ function IndebtednessSummaryTraditional({ data }: { data: IndebtednessSummaryDat
 
       {/* Property List */}
       <div style={{ ...parseStyles(styles.section) }}>
-        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>Property Indebtedness Status</h2>
+        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>
+          {hasAmount ? "Property Indebtedness Details" : "Property Indebtedness Status"}
+        </h2>
         <table style={{ ...parseStyles(styles.table) }}>
           <thead>
             <tr>
               <th style={{ ...parseStyles(styles.th) }}>Property</th>
               <th style={{ ...parseStyles(styles.th) }}>Resident Name</th>
               <th style={{ ...parseStyles(styles.thRight) }}>Status</th>
+              {hasAmount && <th style={{ ...parseStyles(styles.thRight) }}>Amount</th>}
             </tr>
           </thead>
           <tbody>
@@ -769,9 +789,26 @@ function IndebtednessSummaryTraditional({ data }: { data: IndebtednessSummaryDat
                 }}>
                   {house.isIndebted ? 'INDEBTED' : 'CLEAR'}
                 </td>
+                {hasAmount && (
+                  <td style={{
+                    ...parseStyles(styles.tdRight),
+                    color: (house.outstandingAmount || 0) > 0 ? '#8B0000' : 'inherit',
+                    fontWeight: (house.outstandingAmount || 0) > 0 ? 'bold' : 'normal'
+                  }}>
+                    {formatCurrency(house.outstandingAmount || 0)}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
+          {hasAmount && data.summary.totalOutstanding !== undefined && (
+            <tfoot>
+              <tr style={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
+                <td style={{ ...parseStyles(styles.td) }} colSpan={3}>TOTAL OUTSTANDING</td>
+                <td style={{ ...parseStyles(styles.tdDebit) }}>{formatCurrency(data.summary.totalOutstanding)}</td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </>
@@ -779,68 +816,7 @@ function IndebtednessSummaryTraditional({ data }: { data: IndebtednessSummaryDat
 }
 
 // ============================================================
-// Indebtedness Detail Template
-// ============================================================
 
-function IndebtednessDetailTraditional({ data }: { data: IndebtednessDetailData }) {
-  return (
-    <>
-      {/* Summary */}
-      <div style={{ ...parseStyles(styles.section) }}>
-        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>Indebtedness Detail Summary</h2>
-        <div style={{ ...parseStyles(styles.summaryBox) }}>
-          <div style={{ ...parseStyles(styles.summaryRow) }}>
-            <span>Total Properties</span>
-            <span style={{ fontFamily: "'Courier New', monospace" }}>{data.summary.totalHouses}</span>
-          </div>
-          <div style={{ ...parseStyles(styles.summaryRow) }}>
-            <span>Debt-Bearing Properties</span>
-            <span style={{ color: '#8B0000', fontFamily: "'Courier New', monospace" }}>{data.summary.indebtedCount}</span>
-          </div>
-          <div style={{ ...parseStyles(styles.summaryRowLast) }}>
-            <span>Total Outstanding Debt</span>
-            <span style={{ color: '#8B0000', fontFamily: "'Courier New', monospace" }}>
-              {formatCurrency(data.summary.totalOutstanding)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Detailed List */}
-      <div style={{ ...parseStyles(styles.section) }}>
-        <h2 style={{ ...parseStyles(styles.sectionTitle) }}>Outstanding Balances by Property</h2>
-        <table style={{ ...parseStyles(styles.table) }}>
-          <thead>
-            <tr>
-              <th style={{ ...parseStyles(styles.th) }}>Property</th>
-              <th style={{ ...parseStyles(styles.th) }}>Resident Name</th>
-              <th style={{ ...parseStyles(styles.thRight) }}>Amount Outstanding</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.houses.filter(h => h.isIndebted).map((house) => (
-              <tr key={house.houseId}>
-                <td style={{ ...parseStyles(styles.td) }}>
-                  {house.houseNumber}, {house.streetName}
-                </td>
-                <td style={{ ...parseStyles(styles.td) }}>{house.primaryResidentName}</td>
-                <td style={{ ...parseStyles(styles.tdDebit) }}>
-                  {formatCurrency(house.outstandingAmount)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr style={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
-              <td style={{ ...parseStyles(styles.td) }} colSpan={2}>TOTAL OUTSTANDING</td>
-              <td style={{ ...parseStyles(styles.tdDebit) }}>{formatCurrency(data.summary.totalOutstanding)}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </>
-  );
-}
 
 // ============================================================
 // Development Levy Template
@@ -953,58 +929,75 @@ export const TraditionalTemplate = forwardRef<HTMLDivElement, TraditionalTemplat
 
     return (
       <div ref={ref} style={{ ...parseStyles(styles.container), position: 'relative' }}>
-        {/* Watermark */}
+        {/* Watermark - Fixed to page */}
         <div style={{ ...parseStyles(styles.watermark) }}>RESIDIO</div>
 
-        {/* Header */}
-        <header style={{ ...parseStyles(styles.header) }}>
-          <h1 style={{ ...parseStyles(styles.estateName) }}>{estateName}</h1>
-          <h2 style={{ ...parseStyles(styles.reportTitle) }}>{title}</h2>
-          {dateRange && (
-            <p style={{ ...parseStyles(styles.reportMeta) }}>
-              Period: {formatDate(dateRange.start)} to {formatDate(dateRange.end)}
-            </p>
-          )}
-          <p style={{ ...parseStyles(styles.reportMeta) }}>
-            Generated: {generatedDate}
-          </p>
-        </header>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          {/* Using thead to repeat on every page */}
+          <thead style={{ display: 'table-header-group' }}>
+            <tr>
+              <td>
+                <header style={{ ...parseStyles(styles.header) }}>
+                  <h1 style={{ ...parseStyles(styles.estateName) }}>{estateName}</h1>
+                  <h2 style={{ ...parseStyles(styles.reportTitle) }}>{title}</h2>
+                  {dateRange && (
+                    <p style={{ ...parseStyles(styles.reportMeta) }}>
+                      Period: {formatDate(dateRange.start)} to {formatDate(dateRange.end)}
+                    </p>
+                  )}
+                  <p style={{ ...parseStyles(styles.reportMeta) }}>
+                    Generated: {generatedDate}
+                  </p>
+                </header>
+              </td>
+            </tr>
+          </thead>
 
-        {/* Report Content */}
-        <main>
-          {report.type === 'financial_overview' && (
-            <FinancialOverviewTraditional data={report.data} />
-          )}
-          {report.type === 'collection_report' && (
-            <CollectionReportTraditional data={report.data} />
-          )}
-          {report.type === 'invoice_aging' && (
-            <InvoiceAgingTraditional data={report.data} />
-          )}
-          {report.type === 'transaction_log' && (
-            <TransactionLogTraditional data={report.data} />
-          )}
-          {report.type === 'debtors_report' && (
-            <DebtorsReportTraditional data={report.data} />
-          )}
-          {report.type === 'indebtedness_summary' && (
-            <IndebtednessSummaryTraditional data={report.data} />
-          )}
-          {report.type === 'indebtedness_detail' && (
-            <IndebtednessDetailTraditional data={report.data} />
-          )}
-          {report.type === 'development_levy' && (
-            <DevelopmentLevyTraditional data={report.data} />
-          )}
-        </main>
+          {/* Main Content */}
+          <tbody style={{ display: 'table-row-group' }}>
+            <tr>
+              <td>
+                <main style={{ paddingTop: '10px' }}>
+                  {report.type === 'financial_overview' && (
+                    <FinancialOverviewTraditional data={report.data} />
+                  )}
+                  {report.type === 'collection_report' && (
+                    <CollectionReportTraditional data={report.data} />
+                  )}
+                  {report.type === 'invoice_aging' && (
+                    <InvoiceAgingTraditional data={report.data} />
+                  )}
+                  {report.type === 'transaction_log' && (
+                    <TransactionLogTraditional data={report.data} />
+                  )}
+                  {report.type === 'debtors_report' && (
+                    <DebtorsReportTraditional data={report.data} />
+                  )}
+                  {report.type === 'indebtedness_summary' && (
+                    <IndebtednessSummaryTraditional data={report.data} />
+                  )}
+                  {report.type === 'development_levy' && (
+                    <DevelopmentLevyTraditional data={report.data} />
+                  )}
+                </main>
+              </td>
+            </tr>
+          </tbody>
 
-        {/* Footer */}
-        <footer style={{ ...parseStyles(styles.footer) }}>
-          <p>This is a computer-generated document. No signature is required.</p>
-          <p style={{ marginTop: '8px' }}>
-            {estateName} Financial Management System | Page 1 of 1
-          </p>
-        </footer>
+          {/* Footer - repeats on every page bottom if needed */}
+          <tfoot style={{ display: 'table-footer-group' }}>
+            <tr>
+              <td>
+                <footer style={{ ...parseStyles(styles.footer), marginTop: '20px' }}>
+                  <p>This is a computer-generated document. No signature is required.</p>
+                  <p style={{ marginTop: '8px' }}>
+                    {estateName} Financial Management System
+                  </p>
+                </footer>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     );
   }

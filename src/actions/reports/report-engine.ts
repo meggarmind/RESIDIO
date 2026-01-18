@@ -161,29 +161,17 @@ export interface HouseIndebtednessRow {
   primaryResidentName: string;
   primaryResidentId: string | null;
   isIndebted: boolean;
+  outstandingAmount?: number;
 }
 
-export interface IndebtednessSummaryData {
+export interface IndebtednessReportData {
   summary: {
     totalHouses: number;
     indebtedCount: number;
     nonIndebtedCount: number;
+    totalOutstanding?: number;
   };
   houses: HouseIndebtednessRow[];
-}
-
-export interface HouseIndebtednessDetailRow extends HouseIndebtednessRow {
-  outstandingAmount: number;
-}
-
-export interface IndebtednessDetailData {
-  summary: {
-    totalHouses: number;
-    indebtedCount: number;
-    nonIndebtedCount: number;
-    totalOutstanding: number;
-  };
-  houses: HouseIndebtednessDetailRow[];
 }
 
 // ============================================================
@@ -219,8 +207,7 @@ export type ReportData =
   | { type: 'invoice_aging'; data: InvoiceAgingData }
   | { type: 'transaction_log'; data: TransactionLogData }
   | { type: 'debtors_report'; data: DebtorsReportData }
-  | { type: 'indebtedness_summary'; data: IndebtednessSummaryData }
-  | { type: 'indebtedness_detail'; data: IndebtednessDetailData }
+  | { type: 'indebtedness_summary'; data: IndebtednessReportData }
   | { type: 'development_levy'; data: DevelopmentLevyData };
 
 export interface GenerateReportResult {
@@ -1028,10 +1015,11 @@ async function generateDebtorsReport(
 // Indebtedness Summary Report
 // ============================================================
 
-async function generateIndebtednessSummary(
+async function generateIndebtednessReport(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
-  includeUnoccupied: boolean = false
-): Promise<IndebtednessSummaryData> {
+  includeUnoccupied: boolean = false,
+  includeAmount: boolean = false
+): Promise<IndebtednessReportData> {
   // Get all active houses with street info and primary residents
   const { data: houses, error: housesError } = await supabase
     .from('houses')
@@ -1057,11 +1045,11 @@ async function generateIndebtednessSummary(
     .order('house_number');
 
   if (housesError) {
-    console.error('Error fetching houses for indebtedness summary:', housesError);
+    console.error('Error fetching houses for indebtedness report:', housesError);
     throw new Error(housesError.message);
   }
 
-  // Get outstanding amounts per house from invoices
+  // Get outstanding amounts per house from invoices if needed or for summary counts
   const { data: invoices, error: invoicesError } = await supabase
     .from('invoices')
     .select(`
@@ -1089,126 +1077,6 @@ async function generateIndebtednessSummary(
 
   // Process houses
   const rows: HouseIndebtednessRow[] = [];
-
-  for (const house of houses || []) {
-    const street = house.street as unknown as { id: string; name: string } | null;
-
-    // Find primary resident (billable role: tenant, resident_landlord, non_resident_landlord, developer)
-    const residentHouses = house.resident_houses as unknown as Array<{
-      resident_id: string;
-      resident_role: string;
-      is_active: boolean;
-      resident: { id: string; first_name: string; last_name: string } | null;
-    }>;
-
-    const primaryRoles = ['tenant', 'resident_landlord', 'non_resident_landlord', 'developer'];
-    const primaryAssignment = residentHouses?.find(
-      rh => rh.is_active && primaryRoles.includes(rh.resident_role)
-    );
-
-    if (!includeUnoccupied && !primaryAssignment) continue;
-
-    const outstanding = houseOutstanding.get(house.id) || 0;
-
-    rows.push({
-      houseId: house.id,
-      houseNumber: house.house_number,
-      streetName: street?.name || 'Unknown Street',
-      primaryResidentName: primaryAssignment?.resident
-        ? `${primaryAssignment.resident.first_name} ${primaryAssignment.resident.last_name}`
-        : 'No Primary Resident',
-      primaryResidentId: primaryAssignment?.resident?.id || null,
-      isIndebted: outstanding > 0,
-    });
-  }
-
-  // Sort by street name, then house number (numeric sort)
-  rows.sort((a, b) => {
-    const streetCompare = a.streetName.localeCompare(b.streetName);
-    if (streetCompare !== 0) return streetCompare;
-    // Extract numeric portion of house number for proper sorting
-    const numA = parseInt(a.houseNumber.replace(/\D/g, '')) || 0;
-    const numB = parseInt(b.houseNumber.replace(/\D/g, '')) || 0;
-    return numA - numB;
-  });
-
-  const indebtedCount = rows.filter(r => r.isIndebted).length;
-
-  return {
-    summary: {
-      totalHouses: rows.length,
-      indebtedCount,
-      nonIndebtedCount: rows.length - indebtedCount,
-    },
-    houses: rows,
-  };
-}
-
-// ============================================================
-// Indebtedness Detail Report
-// ============================================================
-
-async function generateIndebtednessDetail(
-  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
-  includeUnoccupied: boolean = false
-): Promise<IndebtednessDetailData> {
-  // Get all active houses with street info and primary residents
-  const { data: houses, error: housesError } = await supabase
-    .from('houses')
-    .select(`
-      id,
-      house_number,
-      street:streets (
-        id,
-        name
-      ),
-      resident_houses (
-        resident_id,
-        resident_role,
-        is_active,
-        resident:residents!resident_houses_resident_id_fkey (
-          id,
-          first_name,
-          last_name
-        )
-      )
-    `)
-    .eq('is_active', true)
-    .order('house_number');
-
-  if (housesError) {
-    console.error('Error fetching houses for indebtedness detail:', housesError);
-    throw new Error(housesError.message);
-  }
-
-  // Get outstanding amounts per house from invoices
-  const { data: invoices, error: invoicesError } = await supabase
-    .from('invoices')
-    .select(`
-      house_id,
-      amount_due,
-      amount_paid,
-      status
-    `)
-    .in('status', ['unpaid', 'partially_paid']);
-
-  if (invoicesError) {
-    console.error('Error fetching invoices:', invoicesError);
-    throw new Error(invoicesError.message);
-  }
-
-  // Calculate outstanding per house
-  const houseOutstanding = new Map<string, number>();
-  for (const invoice of invoices || []) {
-    if (invoice.house_id) {
-      const outstanding = (Number(invoice.amount_due) || 0) - (Number(invoice.amount_paid) || 0);
-      const current = houseOutstanding.get(invoice.house_id) || 0;
-      houseOutstanding.set(invoice.house_id, current + outstanding);
-    }
-  }
-
-  // Process houses
-  const rows: HouseIndebtednessDetailRow[] = [];
   let totalOutstanding = 0;
 
   for (const house of houses || []) {
@@ -1230,9 +1098,11 @@ async function generateIndebtednessDetail(
     if (!includeUnoccupied && !primaryAssignment) continue;
 
     const outstanding = houseOutstanding.get(house.id) || 0;
-    totalOutstanding += outstanding;
+    if (outstanding > 0) {
+      totalOutstanding += outstanding;
+    }
 
-    rows.push({
+    const row: HouseIndebtednessRow = {
       houseId: house.id,
       houseNumber: house.house_number,
       streetName: street?.name || 'Unknown Street',
@@ -1241,14 +1111,20 @@ async function generateIndebtednessDetail(
         : 'No Primary Resident',
       primaryResidentId: primaryAssignment?.resident?.id || null,
       isIndebted: outstanding > 0,
-      outstandingAmount: outstanding,
-    });
+    };
+
+    if (includeAmount) {
+      row.outstandingAmount = outstanding;
+    }
+
+    rows.push(row);
   }
 
   // Sort by street name, then house number (numeric sort)
   rows.sort((a, b) => {
     const streetCompare = a.streetName.localeCompare(b.streetName);
     if (streetCompare !== 0) return streetCompare;
+    // Extract numeric portion of house number for proper sorting
     const numA = parseInt(a.houseNumber.replace(/\D/g, '')) || 0;
     const numB = parseInt(b.houseNumber.replace(/\D/g, '')) || 0;
     return numA - numB;
@@ -1261,11 +1137,13 @@ async function generateIndebtednessDetail(
       totalHouses: rows.length,
       indebtedCount,
       nonIndebtedCount: rows.length - indebtedCount,
-      totalOutstanding,
+      totalOutstanding: includeAmount ? totalOutstanding : undefined,
     },
     houses: rows,
   };
 }
+
+
 
 // ============================================================
 // Development Levy Report
@@ -1273,7 +1151,8 @@ async function generateIndebtednessDetail(
 
 async function generateDevelopmentLevyReport(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
-  includeUnoccupied: boolean = false
+  includeUnoccupied: boolean = false,
+  paymentStatus: 'all' | 'paid' | 'unpaid' = 'all'
 ): Promise<DevelopmentLevyData> {
   // Get current development levy profile
   const { data: settingData } = await supabase
@@ -1282,7 +1161,7 @@ async function generateDevelopmentLevyReport(
     .eq('key', 'current_development_levy_profile_id')
     .single();
 
-  const devLevyProfileId = settingData?.value ? JSON.parse(settingData.value) : null;
+  const devLevyProfileId = settingData?.value || null;
 
   if (!devLevyProfileId) {
     // No development levy configured, return empty report
@@ -1441,8 +1320,23 @@ async function generateDevelopmentLevyReport(
     });
   }
 
+  // Filter by payment status if specified
+  let filteredRows = rows;
+  if (paymentStatus === 'paid') {
+    filteredRows = rows.filter(row => row.isPaid);
+  } else if (paymentStatus === 'unpaid') {
+    filteredRows = rows.filter(row => !row.isPaid);
+  }
+
+  // Recalculate summary based on filtered rows
+  const filteredPaidCount = filteredRows.filter(row => row.isPaid).length;
+  const filteredCollectedAmount = filteredRows
+    .filter(row => row.isPaid)
+    .reduce((sum, row) => sum + row.levyAmount, 0);
+  const filteredTotalAmount = filteredRows.reduce((sum, row) => sum + row.levyAmount, 0);
+
   // Sort by street name, then house number
-  rows.sort((a, b) => {
+  filteredRows.sort((a, b) => {
     const streetCompare = a.streetName.localeCompare(b.streetName);
     if (streetCompare !== 0) return streetCompare;
     const numA = parseInt(a.houseNumber.replace(/\D/g, '')) || 0;
@@ -1450,18 +1344,16 @@ async function generateDevelopmentLevyReport(
     return numA - numB;
   });
 
-  const totalAmount = rows.length * levyAmount;
-
   return {
     summary: {
-      totalHouses: rows.length,
-      paidCount,
-      unpaidCount: rows.length - paidCount,
-      totalAmount,
-      collectedAmount,
-      collectionRate: totalAmount > 0 ? (collectedAmount / totalAmount) * 100 : 0,
+      totalHouses: filteredRows.length,
+      paidCount: filteredPaidCount,
+      unpaidCount: filteredRows.length - filteredPaidCount,
+      totalAmount: filteredTotalAmount,
+      collectedAmount: filteredCollectedAmount,
+      collectionRate: filteredTotalAmount > 0 ? (filteredCollectedAmount / filteredTotalAmount) * 100 : 0,
     },
-    houses: rows,
+    houses: filteredRows,
   };
 }
 
@@ -1531,17 +1423,20 @@ export async function generateReport(
       }
 
       case 'indebtedness_summary': {
-        const data = await generateIndebtednessSummary(supabase, params.includeUnoccupied);
+        const data = await generateIndebtednessReport(
+          supabase,
+          params.includeUnoccupied,
+          params.includeAmount
+        );
         return { success: true, report: { type: 'indebtedness_summary', data } };
       }
 
-      case 'indebtedness_detail': {
-        const data = await generateIndebtednessDetail(supabase, params.includeUnoccupied);
-        return { success: true, report: { type: 'indebtedness_detail', data } };
-      }
-
       case 'development_levy': {
-        const data = await generateDevelopmentLevyReport(supabase, params.includeUnoccupied);
+        const data = await generateDevelopmentLevyReport(
+          supabase,
+          params.includeUnoccupied,
+          params.paymentStatus
+        );
         return { success: true, report: { type: 'development_levy', data } };
       }
 

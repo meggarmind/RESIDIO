@@ -7,6 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
     FileBarChart,
     Receipt,
     Clock,
@@ -21,13 +31,14 @@ import {
     CalendarClock,
     TrendingUp,
     Users,
+    Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ReportRequestWizard } from '@/components/reports/report-request-wizard';
 import { ReportViewer } from '@/components/reports/report-viewer';
 import { ReportSchedulesPanel } from '@/components/reports/report-schedules';
-import { useGenerateReport, useGeneratedReports, useReportSchedules, type GeneratedReport } from '@/hooks/use-reports';
+import { useGenerateReport, useGeneratedReports, useDeleteGeneratedReport, useReportSchedules, type GeneratedReport } from '@/hooks/use-reports';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -76,15 +87,9 @@ const reportTypeConfig: Record<
     },
     indebtedness_summary: {
         icon: Users,
-        label: 'Indebtedness Summary',
+        label: 'Indebtedness Report',
         gradient: 'from-orange-500 to-amber-500',
         iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
-    },
-    indebtedness_detail: {
-        icon: Users,
-        label: 'Indebtedness Report',
-        gradient: 'from-rose-500 to-pink-500',
-        iconBg: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
     },
     development_levy: {
         icon: Sparkles,
@@ -101,13 +106,21 @@ const reportTypeConfig: Record<
 function ReportCard({
     report,
     onView,
+    onDelete,
 }: {
     report: GeneratedReport;
     onView: (report: GeneratedReport) => void;
+    onDelete: (report: GeneratedReport) => void;
 }) {
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const config = reportTypeConfig[report.type];
     const Icon = config.icon;
     const timeAgo = formatDistanceToNow(new Date(report.generatedAt), { addSuffix: true });
+
+    const handleDelete = () => {
+        onDelete(report);
+        setShowDeleteDialog(false);
+    };
 
     return (
         <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5 hover:border-emerald-500/30">
@@ -148,9 +161,38 @@ function ReportCard({
                             <Eye className="h-3.5 w-3.5" />
                             View
                         </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setShowDeleteDialog(true)}
+                        >
+                            <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                     </div>
                 </div>
             </CardContent>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Report?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete "{report.title}"? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDelete}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Card>
     );
 }
@@ -262,6 +304,7 @@ export function ReportsPageClient() {
     const reports = reportsData?.data || [];
     const reportsCount = reportsData?.count || 0;
     const generateReport = useGenerateReport();
+    const deleteReport = useDeleteGeneratedReport();
 
     const handleGenerate = async (data: ReportRequestFormData) => {
         try {
@@ -280,6 +323,10 @@ export function ReportsPageClient() {
 
     const handleViewReport = (report: GeneratedReport) => {
         setSelectedReport(report);
+    };
+
+    const handleDeleteReport = async (report: GeneratedReport) => {
+        await deleteReport.mutateAsync(report.id);
     };
 
     const handleBackFromViewer = () => {
@@ -369,6 +416,7 @@ export function ReportsPageClient() {
                                             key={report.id}
                                             report={report}
                                             onView={handleViewReport}
+                                            onDelete={handleDeleteReport}
                                         />
                                     ))}
                                 </div>

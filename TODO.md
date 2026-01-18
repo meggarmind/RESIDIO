@@ -4,6 +4,22 @@
 
 ## Current Phase: Phase 17 - Product Vibe Enhancements 🚧 IN PROGRESS
 
+### Recent Session Work (2026-01-18): Merging Indebtedness Reports
+- [x] **Consolidation**: Merged "Indebtedness Summary" and "Indebtedness Report" into a single "Indebtedness Report".
+- [x] **New Option**: Added "Include Amount" toggle in `ReportRequestWizard` to conditionally show outstanding amounts.
+- [x] **Backend Refactor**: Unified `generateIndebtednessSummary` and `generateIndebtednessDetail` into `generateIndebtednessReport` in `report-engine.ts`.
+- [x] **UI Updates**: Updated `reportTypes`, `reportTypeConfig`, and `REPORT_TYPE_LABELS` to reflect the single report type.
+- [x] **Template Unification**: Merged summary and detail versions in both `ModernTemplate` and `TraditionalTemplate` for conditional rendering.
+- [x] **History Integrity**: Added fallback handling for existing reports that used the old `indebtedness_detail` type.
+- [x] **Bug Fix**: Resolved `ReferenceError: includeAmount is not defined` in `ReportRequestWizard`.
+- [x] **UI Refinements**: Removed unused "Include Details" option and hid "Data Grouping" section for real-time reports.
+- [x] **Serial Numbers**: Added S/N columns to all transaction-based report tables (Transaction Log, Invoice Aging, Debtors Report).
+- [x] **Delete Functionality**: Added delete button with confirmation dialog to report cards in History tab.
+- [x] **Bank Account Skip**: Updated wizard to skip bank account selection for Debtors, Invoice Aging, Indebtedness, and Development Levy reports.
+- [x] **Development Levy Fix**: Fixed JSON parsing error by removing unnecessary JSON.parse() call.
+- [x] **Chart Investigation**: Confirmed that templates don't currently render charts - the `includeCharts` option is a placeholder for future implementation.
+- [x] **Payment Status Filter**: Added paid/unpaid/all filter option to Development Levy Report for filtering properties by payment status.
+
 ### Recent Session Work (2026-01-18): Email Import Unification
 - [x] **Database Schema**: Added assignment columns (`matched_project_id`, `matched_petty_cash_account_id`, `matched_expense_category_id`, `tag_id`, `expense_id`) to `email_transactions` table.
 - [x] **Processing Logic**: Modified `matchEmailTransactions` to queue debit transactions for review instead of skipping them.
@@ -20,8 +36,7 @@
 - [x] **Frontend Update**: Import preview now shows category indicator for debits, tag selector for credits
 
 ### Recent Session Work (2026-01-18): New Financial Report Types
-- [x] **Indebtedness Summary Report**: Added report showing indebted/non-indebted status per house, sorted by street then house number
-- [x] **Indebtedness Detail Report**: Extended summary report with outstanding amount column
+- [x] **Indebtedness Report**: Consolidated summary and detailed versions into one unified report with "Include Amount" option.
 - [x] **Development Levy Report**: Added report showing development levy responsibility (NRL/Owner-Occupier), amount, and paid status per property
 - [x] **Report Engine**: Implemented 3 new generator functions with proper primary resident and responsible party logic
 - [x] **Report Templates**: Added 3 new modern template components with summary cards and data tables
@@ -42,12 +57,24 @@
 - [x] **Storage & Security**: Set up RLS-protected `payment-proofs` bucket with resident-isolated folders
 - [x] **Audit Trail**: Enhanced auditing for manual payment submissions and admin approvals
 - [x] **Theme Resilience**: Eliminated "green flash" on page load by moving theme logic to root layout and neutralizing CSS fallbacks
+### Recent Session Work (2026-01-18): Dashboard Debugging & Greeting Fix
+- [x] **Greeting Display**: Fixed greeting not showing by adding logic to classic `Header` component.
+- [x] **Theme Cleanup**: Removed unused "Modern" theme references and simplified layout to use classic components only.
+- [x] **Bug Fix**: Resolved `ReferenceError: pathname is not defined` in Header component.
+- [x] **Data Verification**: Confirmed accuracy of Portfolio Value calculation (Bank + Petty Cash).
+- [x] **Type Safety**: Fixed TypeScript error in `process-email-import.ts`.
+
 ### Recent Session Work (2026-01-18): Dashboard Redesign (High-Fidelity & Compaction)
 - [x] **Top Cards Redesign**: Implemented a 5-card row with specialized high-fidelity components.
     - Added a **rotating Suggestions Carousel** card (replacing the Occupancy card) to streamline the layout.
     - Integrated `useSmartSuggestions` to provide context-aware recommendations directly in the primary stats row.
     - **Bug Fix**: Resolved a Rules of Hooks violation in `DashboardPage` by ensuring all hooks are called at the top level.
 - [x] **Row Removal & Flow**: Removed the dedicated "Suggestions for you" row entirely, moving Financial Health, Security, and Quick Actions up for a more compact and efficient dashboard flow.
+- [x] **Unified Actions Card**: Merged Smart Action Center and Quick Actions Panel into a single card spanning 50% width with fixed 270px height (matching Financial Health card).
+    - Dynamic title showing pending count (e.g., "8 Need Attention") or "All Clear"
+    - Removed dedicated count display section for cleaner layout
+    - 6 quick action buttons distributed in 3-column grid filling available space
+    - Maintains visual consistency with alert indicators and color coding
 - [x] **Data Formatting**: Applied thousand comma separators and local currency symbols to all primary and secondary stats.
 
 ### Recent Session Work (2026-01-18): Dashboard Unification (3-Column Layout)
@@ -95,6 +122,12 @@
 - [ ] **Smart Action Center**: Upgrade to context-aware suggestions (URGENT)
 - [ ] **Visitor Access**: Recent visitors quick-access carousel
 
+### Recent Session Work (2026-01-18): PDF Report Header Repetition
+- [x] **Research & Planning**: Identified HTML-to-Print approach for Financial Reports and `@react-pdf/renderer` for Statements.
+- [x] **Template Optimization**: Implemented structural `<thead>` and `<tfoot>` wrappers in `TraditionalTemplate` and `ModernTemplate` to enable automatic header repetition on multi-page PDF reports.
+- [x] **Print Styles**: Verified and ensured `report-viewer.tsx` injects necessary CSS for `table-header-group` and `table-footer-group`.
+- [ ] **Verification**: Manually verify header repetition on a multi-page Indebtedness report.
+
 ### Recent Session Work (2026-01-18): Debt Reports Enhancements
 - [x] **Unoccupied Houses Filter**: Added `includeUnoccupied` flag to report request schema and wizard.
 - [x] **Report Engine**: Updated `generateIndebtednessSummary`, `generateIndebtednessDetail`, and `generateDevelopmentLevyReport` to support filtering houses without primary residents/responsible parties.
@@ -105,6 +138,13 @@
 - [x] **Naming Resilience**: Added logic to handle and fix existing reports with "undefined" in their names.
 - [x] **Print Optimization**: Updated CSS to remove browser-injected headers/footers (about:blank) from print outputs.
 - [x] **Real-Time Transition**: Transitioned `Debtors`, `Indebtedness`, and `Levy` reports to "As of Today" logic, skipping unnecessary wizard steps.
+
+### Recent Session Work (2026-01-18): Report Schedule Enhancement
+- [x] **Backend Update**: Updated `report-schedules.ts` to support rich `configuration` (JSONB) and `recipients` (Array).
+- [x] **UI Integration**: Added "Automated Schedule" toggle to Report Request Wizard (Review Step).
+- [x] **Schedule Options**: Enabled setting frequency, start date, and additional recipients directly from the wizard.
+- [x] **Configuration Preservation**: Existing report options (filters, charts, period) are now saved with the schedule.
+- [ ] **Verification**: Manual verification of schedule creation pending SQL migration.
 
 ## Phase 16 - Community Communication ✅ COMPLETE
 

@@ -7,8 +7,7 @@ import type {
   InvoiceAgingData,
   TransactionLogData,
   DebtorsReportData,
-  IndebtednessSummaryData,
-  IndebtednessDetailData,
+  IndebtednessReportData,
   DevelopmentLevyData,
   ReportData
 } from '@/actions/reports/report-engine';
@@ -641,6 +640,7 @@ function InvoiceAgingModern({ data }: { data: InvoiceAgingData }) {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
+                    <th style={{ ...modernTableHeader, width: '60px' }}>S/N</th>
                     <th style={modernTableHeader}>Invoice #</th>
                     <th style={modernTableHeader}>Resident</th>
                     <th style={modernTableHeader}>House</th>
@@ -654,6 +654,9 @@ function InvoiceAgingModern({ data }: { data: InvoiceAgingData }) {
                     <tr key={inv.invoiceId} style={{
                       backgroundColor: idx % 2 === 0 ? '#fff' : colors.slate[50],
                     }}>
+                      <td style={{ ...modernTableCell, textAlign: 'center', fontWeight: '500', color: colors.slate[400] }}>
+                        {idx + 1}
+                      </td>
                       <td style={{ ...modernTableCell, fontFamily: 'monospace', fontSize: '13px' }}>
                         {inv.invoiceNumber}
                       </td>
@@ -726,6 +729,7 @@ function TransactionLogModern({ data }: { data: TransactionLogData }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
+                <th style={{ ...modernTableHeader, width: '60px' }}>S/N</th>
                 <th style={modernTableHeader}>Date</th>
                 <th style={modernTableHeader}>Description</th>
                 <th style={modernTableHeader}>Category</th>
@@ -737,6 +741,9 @@ function TransactionLogModern({ data }: { data: TransactionLogData }) {
                 <tr key={txn.id} style={{
                   backgroundColor: idx % 2 === 0 ? '#fff' : colors.slate[50],
                 }}>
+                  <td style={{ ...modernTableCell, textAlign: 'center', fontWeight: '500', color: colors.slate[400] }}>
+                    {idx + 1}
+                  </td>
                   <td style={{ ...modernTableCell, whiteSpace: 'nowrap', fontSize: '13px' }}>
                     {formatDate(txn.date)}
                   </td>
@@ -899,6 +906,7 @@ function DebtorsReportModern({ data }: { data: DebtorsReportData }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
+                <th style={{ ...modernTableHeader, width: '60px' }}>S/N</th>
                 <th style={modernTableHeader}>Debtor</th>
                 <th style={modernTableHeader}>Contact</th>
                 <th style={modernTableHeader}>Property</th>
@@ -912,6 +920,9 @@ function DebtorsReportModern({ data }: { data: DebtorsReportData }) {
                 <tr key={debtor.residentId} style={{
                   backgroundColor: idx % 2 === 0 ? '#fff' : colors.slate[50],
                 }}>
+                  <td style={{ ...modernTableCell, textAlign: 'center', fontWeight: '500', color: colors.slate[400] }}>
+                    {idx + 1}
+                  </td>
                   <td style={modernTableCell}>
                     <div style={{ fontWeight: '500' }}>{debtor.residentName}</div>
                     <div style={{ fontSize: '12px', color: colors.slate[400] }}>{debtor.residentCode}</div>
@@ -1060,7 +1071,9 @@ function DebtorsReportModern({ data }: { data: DebtorsReportData }) {
 // Indebtedness Summary Template
 // ============================================================
 
-function IndebtednessSummaryModern({ data }: { data: IndebtednessSummaryData }) {
+function IndebtednessSummaryModern({ data }: { data: IndebtednessReportData }) {
+  const hasAmount = data.houses.some(h => h.outstandingAmount !== undefined);
+
   return (
     <>
       {/* Summary Cards */}
@@ -1081,6 +1094,13 @@ function IndebtednessSummaryModern({ data }: { data: IndebtednessSummaryData }) 
           subValue={`${((data.summary.indebtedCount / data.summary.totalHouses) * 100 || 0).toFixed(1)}% of total`}
           color="danger"
         />
+        {data.summary.totalOutstanding !== undefined && (
+          <StatCard
+            label="Total Outstanding"
+            value={formatCurrency(data.summary.totalOutstanding)}
+            color="danger"
+          />
+        )}
         <StatCard
           label="Non-Indebted"
           value={data.summary.nonIndebtedCount.toString()}
@@ -1090,7 +1110,7 @@ function IndebtednessSummaryModern({ data }: { data: IndebtednessSummaryData }) 
       </div>
 
       {/* Indebtedness Table */}
-      <DataCard title="Indebtedness Status by House">
+      <DataCard title={hasAmount ? "Indebtedness Details by House" : "Indebtedness Status by House"}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -1099,6 +1119,7 @@ function IndebtednessSummaryModern({ data }: { data: IndebtednessSummaryData }) 
                 <th style={modernTableHeader}>House #</th>
                 <th style={modernTableHeader}>Primary Resident</th>
                 <th style={{ ...modernTableHeader, textAlign: 'center' }}>Status</th>
+                {hasAmount && <th style={{ ...modernTableHeader, textAlign: 'right' }}>Amount</th>}
               </tr>
             </thead>
             <tbody>
@@ -1121,9 +1142,31 @@ function IndebtednessSummaryModern({ data }: { data: IndebtednessSummaryData }) 
                       {house.isIndebted ? 'Indebted' : 'Non-Indebted'}
                     </span>
                   </td>
+                  {hasAmount && (
+                    <td style={{
+                      ...modernTableCell,
+                      textAlign: 'right',
+                      fontWeight: (house.outstandingAmount || 0) > 0 ? '600' : '400',
+                      color: (house.outstandingAmount || 0) > 0 ? colors.danger : colors.slate[600],
+                    }}>
+                      {formatCurrency(house.outstandingAmount || 0)}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
+            {hasAmount && data.summary.totalOutstanding !== undefined && (
+              <tfoot>
+                <tr style={{ backgroundColor: colors.slate[100] }}>
+                  <td style={{ ...modernTableCell, fontWeight: '600' }} colSpan={4}>
+                    TOTAL
+                  </td>
+                  <td style={{ ...modernTableCell, textAlign: 'right', fontWeight: '700', color: colors.danger }}>
+                    {formatCurrency(data.summary.totalOutstanding)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </DataCard>
@@ -1135,99 +1178,7 @@ function IndebtednessSummaryModern({ data }: { data: IndebtednessSummaryData }) 
 // Indebtedness Detail Template
 // ============================================================
 
-function IndebtednessDetailModern({ data }: { data: IndebtednessDetailData }) {
-  return (
-    <>
-      {/* Summary Cards */}
-      <div style={{
-        display: 'flex',
-        gap: '16px',
-        flexWrap: 'wrap',
-        marginBottom: '32px',
-      }}>
-        <StatCard
-          label="Total Houses"
-          value={data.summary.totalHouses.toString()}
-          color="primary"
-        />
-        <StatCard
-          label="Indebted"
-          value={data.summary.indebtedCount.toString()}
-          subValue={`${((data.summary.indebtedCount / data.summary.totalHouses) * 100 || 0).toFixed(1)}% of total`}
-          color="danger"
-        />
-        <StatCard
-          label="Total Outstanding"
-          value={formatCurrency(data.summary.totalOutstanding)}
-          color="danger"
-        />
-        <StatCard
-          label="Non-Indebted"
-          value={data.summary.nonIndebtedCount.toString()}
-          color="success"
-        />
-      </div>
 
-      {/* Indebtedness Detail Table */}
-      <DataCard title="Indebtedness Details by House">
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={modernTableHeader}>Street</th>
-                <th style={modernTableHeader}>House #</th>
-                <th style={modernTableHeader}>Primary Resident</th>
-                <th style={{ ...modernTableHeader, textAlign: 'center' }}>Status</th>
-                <th style={{ ...modernTableHeader, textAlign: 'right' }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.houses.map((house, idx) => (
-                <tr key={house.houseId} style={{
-                  backgroundColor: idx % 2 === 0 ? '#fff' : colors.slate[50],
-                }}>
-                  <td style={modernTableCell}>{house.streetName}</td>
-                  <td style={{ ...modernTableCell, fontWeight: '500' }}>{house.houseNumber}</td>
-                  <td style={modernTableCell}>{house.primaryResidentName}</td>
-                  <td style={{ ...modernTableCell, textAlign: 'center' }}>
-                    <span style={{
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      padding: '4px 12px',
-                      borderRadius: '12px',
-                      backgroundColor: house.isIndebted ? `${colors.danger}15` : `${colors.success}15`,
-                      color: house.isIndebted ? colors.danger : colors.success,
-                    }}>
-                      {house.isIndebted ? 'Indebted' : 'Non-Indebted'}
-                    </span>
-                  </td>
-                  <td style={{
-                    ...modernTableCell,
-                    textAlign: 'right',
-                    fontWeight: house.outstandingAmount > 0 ? '600' : '400',
-                    color: house.outstandingAmount > 0 ? colors.danger : colors.slate[600],
-                  }}>
-                    {formatCurrency(house.outstandingAmount)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr style={{ backgroundColor: colors.slate[100] }}>
-                <td style={{ ...modernTableCell, fontWeight: '600' }} colSpan={4}>
-                  TOTAL
-                </td>
-                <td style={{ ...modernTableCell, textAlign: 'right', fontWeight: '700', color: colors.danger }}>
-                  {formatCurrency(data.summary.totalOutstanding)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </DataCard>
-    </>
-  );
-}
 
 // ============================================================
 // Development Levy Template
@@ -1420,115 +1371,129 @@ export const ModernTemplate = forwardRef<HTMLDivElement, ModernTemplateProps>(
           backgroundColor: colors.slate[50],
           color: colors.slate[800],
           lineHeight: 1.5,
-          minHeight: '100vh',
+          position: 'relative'
         }}
       >
-        {/* Header */}
-        <header style={{ marginBottom: '40px' }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            marginBottom: '24px',
-          }}>
-            <div>
-              <div style={{
-                fontSize: '12px',
-                fontWeight: '600',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                color: colors.primary,
-                marginBottom: '8px',
-              }}>
-                {estateName}
-              </div>
-              <h1 style={{
-                fontSize: '28px',
-                fontWeight: '700',
-                color: colors.slate[900],
-                margin: 0,
-                letterSpacing: '-0.5px',
-              }}>
-                {title}
-              </h1>
-            </div>
-            <div style={{
-              textAlign: 'right',
-              fontSize: '13px',
-              color: colors.slate[500],
-            }}>
-              {dateRange && (
-                <div style={{ marginBottom: '4px' }}>
-                  {formatDate(dateRange.start)} — {formatDate(dateRange.end)}
-                </div>
-              )}
-              <div>Generated: {generatedDate}</div>
-            </div>
-          </div>
-          <div style={{
-            height: '4px',
-            background: `linear-gradient(90deg, ${colors.primary} 0%, ${colors.primaryDark} 50%, ${colors.success} 100%)`,
-            borderRadius: '2px',
-          }} />
-        </header>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead style={{ display: 'table-header-group' }}>
+            <tr>
+              <td>
+                <header style={{ marginBottom: '40px' }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    marginBottom: '24px',
+                  }}>
+                    <div>
+                      <div style={{
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px',
+                        color: colors.primary,
+                        marginBottom: '8px',
+                      }}>
+                        {estateName}
+                      </div>
+                      <h1 style={{
+                        fontSize: '28px',
+                        fontWeight: '700',
+                        color: colors.slate[900],
+                        margin: 0,
+                        letterSpacing: '-0.5px',
+                      }}>
+                        {title}
+                      </h1>
+                    </div>
+                    <div style={{
+                      textAlign: 'right',
+                      fontSize: '13px',
+                      color: colors.slate[500],
+                    }}>
+                      {dateRange && (
+                        <div style={{ marginBottom: '4px' }}>
+                          {formatDate(dateRange.start)} — {formatDate(dateRange.end)}
+                        </div>
+                      )}
+                      <div>Generated: {generatedDate}</div>
+                    </div>
+                  </div>
+                  <div style={{
+                    height: '4px',
+                    background: `linear-gradient(90deg, ${colors.primary} 0%, ${colors.primaryDark} 50%, ${colors.success} 100%)`,
+                    borderRadius: '2px',
+                  }} />
+                </header>
+              </td>
+            </tr>
+          </thead>
 
-        {/* Report Content */}
-        <main>
-          {report.type === 'financial_overview' && (
-            <FinancialOverviewModern data={report.data} />
-          )}
-          {report.type === 'collection_report' && (
-            <CollectionReportModern data={report.data} />
-          )}
-          {report.type === 'invoice_aging' && (
-            <InvoiceAgingModern data={report.data} />
-          )}
-          {report.type === 'transaction_log' && (
-            <TransactionLogModern data={report.data} />
-          )}
-          {report.type === 'debtors_report' && (
-            <DebtorsReportModern data={report.data} />
-          )}
-          {report.type === 'indebtedness_summary' && (
-            <IndebtednessSummaryModern data={report.data} />
-          )}
-          {report.type === 'indebtedness_detail' && (
-            <IndebtednessDetailModern data={report.data} />
-          )}
-          {report.type === 'development_levy' && (
-            <DevelopmentLevyModern data={report.data} />
-          )}
-        </main>
+          <tbody style={{ display: 'table-row-group' }}>
+            <tr>
+              <td>
+                <main>
+                  {report.type === 'financial_overview' && (
+                    <FinancialOverviewModern data={report.data} />
+                  )}
+                  {report.type === 'collection_report' && (
+                    <CollectionReportModern data={report.data} />
+                  )}
+                  {report.type === 'invoice_aging' && (
+                    <InvoiceAgingModern data={report.data} />
+                  )}
+                  {report.type === 'transaction_log' && (
+                    <TransactionLogModern data={report.data} />
+                  )}
+                  {report.type === 'debtors_report' && (
+                    <DebtorsReportModern data={report.data} />
+                  )}
+                  {report.type === 'indebtedness_summary' && (
+                    <IndebtednessSummaryModern data={report.data} />
+                  )}
+                  {report.type === 'development_levy' && (
+                    <DevelopmentLevyModern data={report.data} />
+                  )}
+                </main>
+              </td>
+            </tr>
+          </tbody>
 
-        {/* Footer */}
-        <footer style={{
-          marginTop: '48px',
-          paddingTop: '24px',
-          borderTop: `1px solid ${colors.slate[200]}`,
-          textAlign: 'center',
-          fontSize: '12px',
-          color: colors.slate[400],
-        }}>
-          <div style={{ marginBottom: '8px' }}>
-            This report was automatically generated by {estateName} Financial Management System
-          </div>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            backgroundColor: colors.slate[100],
-            padding: '6px 16px',
-            borderRadius: '20px',
-          }}>
-            <div style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: colors.success,
-            }} />
-            <span>Data verified</span>
-          </div>
-        </footer>
+          <tfoot style={{ display: 'table-footer-group' }}>
+            <tr>
+              <td>
+                <footer style={{
+                  marginTop: '48px',
+                  paddingTop: '24px',
+                  borderTop: `1px solid ${colors.slate[200]}`,
+                  textAlign: 'center',
+                  fontSize: '12px',
+                  color: colors.slate[400],
+                }}>
+                  <div style={{ marginBottom: '8px' }}>
+                    This report was automatically generated by {estateName} Financial Management System
+                  </div>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    backgroundColor: colors.slate[100],
+                    padding: '6px 16px',
+                    borderRadius: '20px',
+                  }}>
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: colors.success,
+                    }} />
+                    <span>Data verified</span>
+                  </div>
+                </footer>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
     );
   }

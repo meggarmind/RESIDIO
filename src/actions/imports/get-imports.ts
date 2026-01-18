@@ -160,6 +160,19 @@ export async function getImport(
 // Get Import Rows
 // ============================================================
 
+type ImportRowSearchParams = {
+  status?: string;
+  has_match?: boolean;
+  page?: number;
+  limit?: number;
+}
+
+type GetImportRowsResponse = {
+  data: BankStatementRowWithResident[];
+  count: number;
+  error: string | null;
+}
+
 export async function getImportRows(
   import_id: string,
   params: ImportRowSearchParams = {}
