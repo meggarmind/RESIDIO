@@ -105,6 +105,14 @@ const NAV_HOUSES: NavItem = {
   permissions: [PERMISSIONS.HOUSES_VIEW],
 };
 
+const NAV_PERSONNEL: NavItem = {
+  id: 'personnel',
+  title: 'Personnel',
+  href: '/personnel',
+  icon: Users, // Or Briefcase? Users is already used for Residents. Maybe HardHat or Contact?
+  permissions: [PERMISSIONS.VENDORS_VIEW],
+};
+
 const NAV_PAYMENTS: NavItem = {
   id: 'payments',
   title: 'Payments',
@@ -243,7 +251,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'people-property',
     label: 'People & Property',
-    items: [NAV_RESIDENTS, NAV_HOUSES],
+    items: [NAV_RESIDENTS, NAV_HOUSES, NAV_PERSONNEL],
   },
   {
     id: 'financial',

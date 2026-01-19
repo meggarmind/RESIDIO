@@ -271,13 +271,23 @@ export function LogExpenseDialog({
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Category</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select
+                                            onValueChange={(value) => {
+                                                if (value === "unselected_reset") {
+                                                    field.onChange("");
+                                                } else {
+                                                    field.onChange(value);
+                                                }
+                                            }}
+                                            defaultValue={field.value}
+                                        >
                                             <FormControl>
                                                 <SelectTrigger>
                                                     <SelectValue placeholder="Select category" />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
+                                                <SelectItem value="unselected_reset">None</SelectItem>
                                                 {categories.map((cat) => (
                                                     <SelectItem key={cat.id} value={cat.id}>
                                                         {cat.name}

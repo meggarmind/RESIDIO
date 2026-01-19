@@ -9,6 +9,13 @@
 - [x] **Documentation**: Documented original schedule intent in walkthrough since JSON comments are not supported.
 
 
+### Recent Session Work (2026-01-19): Personnel & Petty Cash Integration
+- [x] **Personnel Management**: Implemented full directory for Staff, Contractors, Vendors, and Suppliers.
+- [x] **Database Update**: Expanded `vendors` table schema to include personnel-specific fields (`job_title`, `department`, `status`).
+- [x] **Petty Cash**: Created "Manage Accounts" UI for creating and editing digital float wallets.
+- [x] **Expense Logging**: Integrated new Personnel types into "Log Estate Expense" form and added "Reset Category" option.
+- [x] **Navigation**: Added "Personnel" link to sidebar under People & Property.
+
 ### Recent Session Work (2026-01-19): Portal Access Diagnostics
 - [x] **Investigation**: Diagnosed `/portal` redirect issue as expected authentication behavior (requires login + `resident_id`).
 - [x] **Diagnostic Tool**: Created `public/portal-diagnostic.html` for self-service authentication checks against cloud Supabase.

@@ -7,6 +7,7 @@ import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PettyCashMetrics } from '@/actions/finance/petty-cash';
 import { toast } from 'sonner';
+import { ManagePettyCashDialog } from './petty-cash/manage-accounts-dialog';
 
 interface PettyCashDashboardProps {
     data: PettyCashMetrics;
@@ -74,9 +75,12 @@ export function PettyCashDashboard({ data, onSnapLog, onTopUp }: PettyCashDashbo
                     <CardContent>
                         <div className="flex items-baseline justify-between">
                             <div className="text-3xl font-bold">{formatCurrency(totalBalance)}</div>
-                            <Button size="sm" className="gap-2" onClick={onTopUp}>
-                                <Plus className="h-4 w-4" /> Top Up
-                            </Button>
+                            <div className="flex gap-2">
+                                <ManagePettyCashDialog />
+                                <Button size="sm" className="gap-2" onClick={onTopUp}>
+                                    <Plus className="h-4 w-4" /> Top Up
+                                </Button>
+                            </div>
                         </div>
                         <div className="mt-4 flex items-center text-xs text-muted-foreground gap-4">
                             <span className="flex items-center gap-1">

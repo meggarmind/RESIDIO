@@ -188,6 +188,62 @@ export async function createPettyCashAccount(input: {
     return { data: data as PettyCashAccount, error: null };
 }
 
+export async function updatePettyCashAccount(
+    id: string,
+    input: { name?: string; initialFloat?: number; notes?: string; }
+): Promise<{ data: PettyCashAccount | null; error: string | null }> {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { data: null, error: 'Unauthorized' };
+
+    const { data, error } = await supabase
+        .from('petty_cash_accounts')
+        .update(input)
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Error updating petty cash account:', error);
+        return { data: null, error: 'Failed to update petty cash account' };
+    }
+
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'petty_cash_accounts',
+        entityId: id,
+        entityDisplay: `Petty Cash Update: ${data.name}`,
+        newValues: input,
+    });
+
+    revalidatePath('/expenditure');
+    return { data: data as PettyCashAccount, error: null };
+}
+
+export async function togglePettyCashAccountStatus(
+    id: string,
+    isActive: boolean
+): Promise<{ success: boolean; error: string | null }> {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: 'Unauthorized' };
+
+    const { error } = await supabase
+        .from('petty_cash_accounts')
+        .update({ is_active: isActive })
+        .eq('id', id);
+
+    if (error) {
+        console.error('Error toggling petty cash status:', error);
+        return { success: false, error: 'Failed to update status' };
+    }
+
+    revalidatePath('/expenditure');
+    return { success: true, error: null };
+}
+
 export async function replenishPettyCashAccount(
     accountId: string,
     amount: number,

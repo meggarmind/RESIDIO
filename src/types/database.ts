@@ -995,6 +995,35 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['petty_cash_accounts']['Insert']>;
       };
+
+      // Vendors (Personnel)
+      vendors: {
+        Row: {
+          id: string;
+          name: string;
+          type: 'staff' | 'vendor' | 'contractor' | 'supplier'; // default 'vendor'
+          status: 'active' | 'inactive' | 'terminated'; // default 'active'
+          category: string | null;
+          contact_person: string | null;
+          phone: string | null;
+          email: string | null;
+          bank_details: any; // JSONB
+          job_title: string | null;
+          department: string | null;
+          start_date: string | null;
+          end_date: string | null;
+          notes: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['vendors']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          type?: 'staff' | 'vendor' | 'contractor' | 'supplier';
+          status?: 'active' | 'inactive' | 'terminated';
+        };
+        Update: Partial<Database['public']['Tables']['vendors']['Insert']>;
+      };
     };
   };
 }
@@ -1039,6 +1068,24 @@ export type ExpenseUpdate = Database['public']['Tables']['expenses']['Update'];
 export type PettyCashAccount = Database['public']['Tables']['petty_cash_accounts']['Row'];
 export type PettyCashAccountInsert = Database['public']['Tables']['petty_cash_accounts']['Insert'];
 export type PettyCashAccountUpdate = Database['public']['Tables']['petty_cash_accounts']['Update'];
+
+// Personnel / Vendors
+export type Vendor = Database['public']['Tables']['vendors']['Row'];
+export type VendorInsert = Database['public']['Tables']['vendors']['Insert'];
+export type VendorUpdate = Database['public']['Tables']['vendors']['Update'];
+
+// Personnel Types (Mapped to Vendors table)
+export type PersonnelType = 'staff' | 'vendor' | 'contractor' | 'supplier';
+export type PersonnelStatus = 'active' | 'inactive' | 'terminated';
+
+export interface Personnel extends Vendor {
+  type: PersonnelType;
+  status: PersonnelStatus;
+  job_title: string | null;
+  department: string | null;
+  start_date: string | null;
+  end_date: string | null;
+}
 
 // Payment with joined house and resident details
 export interface PaymentRecordWithDetails extends PaymentRecord {
