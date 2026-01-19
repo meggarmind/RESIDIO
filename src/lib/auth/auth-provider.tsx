@@ -148,60 +148,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (isInitialized.current) return;
 
-        if (initialSession || (initialSession as any).user) {
-          const s = (initialSession as any).session || initialSession;
-          const u = (initialSession as any).user || s?.user;
+        if (initialSession || (initialSession as any)?.user) {
+          const s = (initialSession as any)?.session || initialSession;
+          const u = (initialSession as any)?.user || s?.user;
 
-          setSession(s);
-          setUser(u);
-          console.log('[AuthProvider] Identity retrieved on client:', !!u);
-
-          isInitialized.current = true;
           if (u) {
-            await fetchProfile(u.id).catch(e => console.error('[AuthProvider] fetchProfile failed:', e));
-          }
-          setIsLoading(false);
-        } else {
-          throw new Error('No client-side identity found');
-        }
-      } catch (err) {
-        console.error('[AuthProvider] Client-side auth failed, trying server-side rescue...', err);
+            setSession(s);
+            setUser(u);
+            console.log('[AuthProvider] Identity retrieved on client:', !!u);
 
-        try {
-          const { session: serverSession, error: serverError } = await getServerSession();
-
-          if (isInitialized.current) return;
-
-          if (serverSession?.user) {
-            console.log('[AuthProvider] Rescuing session from server action!');
-            setUser(serverSession.user);
-            // If server returned profile, use it immediately
-            if (serverSession.profile) {
-              console.log('[AuthProvider] Server provided profile, loading RBAC...');
-              // We still need to fetch permissions/role details for the full Profile object
-              await fetchProfile(serverSession.user.id);
-            } else {
-              await fetchProfile(serverSession.user.id);
-            }
             isInitialized.current = true;
+            await fetchProfile(u.id).catch(e => console.error('[AuthProvider] fetchProfile failed:', e));
             setIsLoading(false);
             return;
           }
-        } catch (rescueErr) {
-          console.error('[AuthProvider] Server-side rescue failed:', rescueErr);
         }
 
-        if (retries > 0 && !isInitialized.current) {
-          console.log('[AuthProvider] Retrying getInitialSession...');
-          return getInitialSession(retries - 1);
-        }
+        // No client session found - continue to server rescue
+      } catch (err) {
+        console.error('[AuthProvider] Client-side auth failed, trying server-side rescue...', err);
+      }
+
+      // Server-side rescue
+      try {
+        const { session: serverSession, error: serverError } = await getServerSession();
 
         if (isInitialized.current) return;
 
-        console.error('[AuthProvider] getInitialSession FATAL');
-        isInitialized.current = true;
-        setIsLoading(false);
+        if (serverSession?.user) {
+          console.log('[AuthProvider] Rescuing session from server action!');
+          setUser(serverSession.user);
+          // If server returned profile, use it immediately
+          if (serverSession.profile) {
+            await fetchProfile(serverSession.user.id);
+          } else {
+            await fetchProfile(serverSession.user.id);
+          }
+          isInitialized.current = true;
+          setIsLoading(false);
+          return;
+        }
+      } catch (rescueErr) {
+        console.error('[AuthProvider] Server-side rescue failed:', rescueErr);
       }
+
+      if (retries > 0 && !isInitialized.current) {
+        console.log('[AuthProvider] Retrying getInitialSession...');
+        return getInitialSession(retries - 1);
+      }
+
+      if (isInitialized.current) return;
+
+      console.log('[AuthProvider] No session found - initializing as Guest');
+      isInitialized.current = true;
+      setIsLoading(false);
     };
 
     getInitialSession();
@@ -222,31 +222,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (profileError) {
       console.error('Error fetching profile:', profileError);
+
+      // Fallback: Try to construct profile from user metadata if DB fails
+      console.log('[AuthProvider] Attempting value fallback from user metadata...');
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user && user.id === userId) {
+        const metadata = user.user_metadata || {};
+        const fallbackProfile: Profile = {
+          id: user.id,
+          email: user.email || '',
+          full_name: metadata.full_name || metadata.name || user.email?.split('@')[0] || 'User',
+          role: (metadata.role as UserRole) || 'resident',
+          role_id: null,
+          role_name: null,
+          role_display_name: null,
+          permissions: [],
+          resident_id: null,
+        };
+
+        console.warn('[AuthProvider] Using fallback profile:', fallbackProfile);
+        setProfile(fallbackProfile);
+        setCachedProfile(fallbackProfile);
+      }
       return;
     }
 
-    // Fetch role details and permissions in parallel (3x faster than sequential)
-    let appRole: { name: string; display_name: string } | null = null;
+    // Fetch role details and permissions
+    let appRole: { id: string; name: string; display_name: string } | null = null;
     let permissions: string[] = [];
+    let effectiveRoleId = profileData.role_id;
 
-    if (profileData?.role_id) {
-      console.log('[AuthProvider] Fetching role/permissions for:', profileData.role_id);
+    // Legacy fallback: If no role_id but has role string, try to find the role definition
+    if (!effectiveRoleId && profileData.role) {
+      console.log('[AuthProvider] Legacy profile detected (no role_id), looking up role:', profileData.role);
+      const { data: roleLookup } = await supabase
+        .from('app_roles')
+        .select('id')
+        .eq('name', profileData.role)
+        .single();
+
+      if (roleLookup) {
+        effectiveRoleId = roleLookup.id;
+        console.log('[AuthProvider] Resolved legacy role to ID:', effectiveRoleId);
+      }
+    }
+
+    if (effectiveRoleId) {
+      console.log('[AuthProvider] Fetching role/permissions for:', effectiveRoleId);
       // Run both queries in parallel since they only depend on role_id
-      // Add safety timeout to prevent hanging the app on slow RBAC queries
       try {
         const [roleResult, permissionsResult] = await Promise.race([
           Promise.all([
             // Fetch role details
             supabase
               .from('app_roles')
-              .select('name, display_name')
-              .eq('id', profileData.role_id)
+              .select('id, name, display_name')
+              .eq('id', effectiveRoleId)
               .single(),
             // Fetch permissions with nested select (combines 2 queries into 1)
             supabase
               .from('role_permissions')
               .select('permission:app_permissions!inner(name)')
-              .eq('role_id', profileData.role_id),
+              .eq('role_id', effectiveRoleId),
           ]),
           new Promise<any>((_, reject) => setTimeout(() => reject(new Error('RBAC fetch timeout')), 15000))
         ]);

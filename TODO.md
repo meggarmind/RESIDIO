@@ -4,6 +4,27 @@
 
 ## Current Phase: Phase 17 - Product Vibe Enhancements 🚧 IN PROGRESS
 
+### Recent Session Work (2026-01-19): Vercel Cron Fix
+- [x] **Configuration**: Updated `vercel.json` cron schedule for `process-notifications` to daily (`0 9 * * *`) to comply with Hobby plan limits.
+- [x] **Documentation**: Documented original schedule intent in walkthrough since JSON comments are not supported.
+
+
+### Recent Session Work (2026-01-19): Portal Access Diagnostics
+- [x] **Investigation**: Diagnosed `/portal` redirect issue as expected authentication behavior (requires login + `resident_id`).
+- [x] **Diagnostic Tool**: Created `public/portal-diagnostic.html` for self-service authentication checks against cloud Supabase.
+- [x] **Documentation**: Created solution walkthrough covering login, test account creation, and admin impersonation.
+- [x] **Verification**: Confirmed behavior is correct and provided user with resolution steps.
+
+### Recent Session Work (2026-01-19): House Assignment Validation & Premium UI
+- [x] **Bug Fix**: Resolved `TypeError: Cannot read properties of null` in `AuthProvider` by adding optional chaining to `initialSession` checks.
+- [x] **Legacy Support**: Updated `fetchProfile` to handle legacy admin profiles missing `role_id` by resolving role name to ID for permission loading.
+- [x] **Resilience**: Added fallback to `user_metadata` for User Badge/Profile when DB profile fetch fails, ensuring UI continuity.
+- [x] **Validation Logic**: Centralized house assignment rules in `validation.ts` enforcing Single Owner, Single Renter, and Mutual Exclusivity policies.
+- [x] **Server Actions**: Updated `assign-house.ts` and `create-resident.ts` to utilize shared validation logic, preventing invalid DB states.
+- [x] **Universal Premium UI**: Implemented "Tactile Depth" and "Success State Morphs" across login, billing, and access control components.
+- [x] **Visual Polish**: Enhanced dashboard stats, invoices, and sidebar with micro-interactions (`hover-lift`, `pulse-urgent`, `input-tactile`).
+- [x] **Verification**: Validated strict assignment rules (e.g. blocking Renter if Owner-Occupier exists) via integration tests.
+
 ### Recent Session Work (2026-01-18): Merging Indebtedness Reports
 - [x] **Consolidation**: Merged "Indebtedness Summary" and "Indebtedness Report" into a single "Indebtedness Report".
 - [x] **New Option**: Added "Include Amount" toggle in `ReportRequestWizard` to conditionally show outstanding amounts.
