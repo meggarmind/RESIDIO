@@ -4,6 +4,36 @@
 
 ## Current Phase: Phase 17 - Product Vibe Enhancements 🚧 IN PROGRESS
 
+### Recent Session Work (2026-01-19): Email Import Enhancements
+- [x] **Manual Fetch**: Implemented manual trigger for email sync across backend and UI.
+- [x] **Configurable Criteria**: Added support for custom sender whitelists, keyword filters, and history range (days back).
+- [x] **Credit/Debit Toggles**: Added options to specifically include/exclude Credit or Debit transaction alerts during import.
+- [x] **Database Schema**: Added `sync_criteria` JSONB column to `gmail_oauth_credentials` with default bank criteria.
+- [x] **UI/UX**: Created "Import Configuration" card in Email Integration settings with real-time feedback and validation.
+- [x] **Security**: Integrated permission checks (`EMAIL_IMPORTS_CONFIGURE`, `EMAIL_IMPORTS_TRIGGER`) for all new actions.
+- [x] **Integrity**: Updated `detectEmailType` to strictly respect user-defined credit/debit toggles during processing.
+- [x] **UI Update**: Renamed sidebar menu "Payments" to **Imports** and "Email Imports" to **Import Emails** for clearer categorization.
+- [x] **Parser Upgrade**: Enhanced `first-bank-alert.ts` to support structured email bodies and 2-digit years, and improved PDF handling.
+
+### Recent Session Work (2026-01-19): Estate Expense & Personnel Improvements
+- [x] **Bug Fix**: Resolved "Invalid UUID" crash in expense logging by sanitizing empty string inputs.
+- [x] **Bug Fix**: Resolved "Invalid Date" crash in personnel creation by sanitizing empty string inputs in `actions.ts`.
+- [x] **Bug Fix**: Resolved "Error fetching expenses: {}" by using unambiguous Supabase join syntax (`table!column`).
+- [x] **UI Update**: Added "(Optional)" indicators to all optional fields in `PersonnelDialog`.
+- [x] **UI Update**: Renamed "Vendor" to **Payee** in expenditure ledger and added logic to display Resident/Staff names.
+- [x] **Feature expansion**: Enabled expenses to be raised against Residents and Staff (EXCO).
+- [x] **Database Schema**: Added `resident_id` and `staff_id` columns to `expenses` table.
+- [x] **Backend**: Created `getStaff` action for fetching admin profiles and updated personnel actions with full type safety.
+
+### Recent Session Work (2026-01-19): Duplicate Import Prevention
+- [x] **Database Schema**: Enhanced `bank_statement_imports` with `file_hash`, `period_start`, and `period_end`.
+- [x] **Integrity**: Added `transaction_hash` to `bank_statement_rows`, `payment_records`, and `expenses` with unique constraints.
+- [x] **Robustness**: Implemented SHA-256 hashing for both file content and per-transaction uniqueness.
+- [x] **Duplicate Detection**: Integrated file-level hash checks and transaction-level exact and fuzzy matching.
+- [x] **UI/UX**: Updated Import Wizard to extract period dates, generate client-side file hashes, and highlight duplicate warnings with tooltips.
+- [x] **DevOps**: Applied database migrations to staging (`kzugmyjjqttardhfejzc`) and refined detection logic to eliminate false positives.
+
+
 ### Recent Session Work (2026-01-19): Vercel Cron Fix
 - [x] **Configuration**: Updated `vercel.json` cron schedule for `process-notifications` to daily (`0 9 * * *`) to comply with Hobby plan limits.
 - [x] **Documentation**: Documented original schedule intent in walkthrough since JSON comments are not supported.

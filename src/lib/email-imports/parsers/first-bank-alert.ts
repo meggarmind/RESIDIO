@@ -153,6 +153,10 @@ export function parseFirstBankAlert(
   body: string,
   subject?: string | null
 ): ParsedEmailTransaction | null {
+  // Try structured parser first
+  const structured = parseStructuredAlert(body, subject);
+  if (structured) return structured;
+
   const text = `${subject || ''} ${body}`.replace(/\s+/g, ' ');
 
   // Try credit patterns
@@ -290,4 +294,106 @@ export function isFirstBankAlert(body: string, subject?: string | null): boolean
   ];
 
   return indicators.some((ind) => text.includes(ind));
+}
+
+// ============================================================
+// Structured / Table Parser
+// ============================================================
+
+/**
+ * Parse structured alert (Key: Value format)
+ * Example:
+ * Date/Time
+ * 12-Jan-26 03:40 PM
+ * Account Number
+ * 202XXXX725
+ * Amount
+ * 15,000.00 CR
+ * Narration
+ * FIP:GTB/ANIH LANA/NIP
+ */
+function parseStructuredAlert(body: string, subject?: string | null): ParsedEmailTransaction | null {
+  // Normalize newlines and spaces
+  const lines = body.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+  const text = lines.join('\n');
+
+  // Helper to find value after a key
+  const findValue = (keyPattern: RegExp): string | null => {
+    for (let i = 0; i < lines.length; i++) {
+      if (keyPattern.test(lines[i])) {
+        // Value could be on the same line (Key: Value) or next line
+        const sameLineMatch = lines[i].match(new RegExp(`${keyPattern.source}[:\\s]*(.+)`, 'i'));
+        if (sameLineMatch && sameLineMatch[1] && sameLineMatch[1].trim().length > 1) {
+          return sameLineMatch[1].trim();
+        }
+        // Try next line
+        if (i + 1 < lines.length) {
+          return lines[i + 1].trim();
+        }
+      }
+    }
+    return null;
+  };
+
+  const amountStr = findValue(/(?:amount|amt)/i);
+  const dateStr = findValue(/(?:date\/time|date)/i);
+  const accountStr = findValue(/(?:account|acct)\s*(?:number|no)/i);
+  const narrationStr = findValue(/(?:narration|details|description|desc)/i);
+  const balanceStr = findValue(/(?:cleared|avail)?\s*balance/i);
+
+  if (!amountStr || !dateStr) return null;
+
+  // Parse Amount using generic helper from existing code (but need to handle CR/DR suffix)
+  let amount = parseAmount(amountStr.replace(/CR|DR/i, ''));
+  // Determine type from suffix or context
+  let type: 'credit' | 'debit' = 'credit'; // Default
+
+  if (amountStr.toUpperCase().includes('DR') || (subject && subject.toLowerCase().includes('debit'))) {
+    type = 'debit';
+  } else if (amountStr.toUpperCase().includes('CR') || (subject && subject.toLowerCase().includes('credit'))) {
+    type = 'credit';
+  }
+
+  // Parse Date
+  // Format: 12-Jan-26 03:40 PM
+  let date = parseDate(dateStr);
+  if (!date) {
+    // Try specific format for 2-digit year "12-Jan-26"
+    const twoDigitYearMatch = dateStr.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2})(?:\s+|$)/);
+    if (twoDigitYearMatch) {
+      const [, day, monthStr, year] = twoDigitYearMatch;
+      const months: Record<string, number> = {
+        jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+        jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+      };
+      const month = months[monthStr.toLowerCase()];
+      if (month !== undefined) {
+        date = new Date(2000 + parseInt(year), month, parseInt(day));
+      }
+    }
+  }
+
+  // Account
+  const accountLast4 = accountStr ? extractAccountNumber(accountStr) : null;
+
+  if (amount > 0) {
+    return {
+      amount,
+      transactionType: type,
+      description: narrationStr || 'Transaction Alert',
+      reference: extractReference(narrationStr || '') || extractReference(text) || null,
+      transactionDate: date || new Date(),
+      bankAccountLast4: accountLast4,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Extract simple account number if not using the exported complex one
+ */
+function extractAccountNumber(text: string): string | null {
+  const match = text.match(/[\dX*]{4,}(\d{4})/);
+  return match ? match[1] : null;
 }

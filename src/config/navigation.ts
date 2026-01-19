@@ -19,6 +19,7 @@ import {
   Mail,
   Receipt,
   Shield,
+  Briefcase,
   FileBarChart,
   FilePlus,
   FileText,
@@ -109,13 +110,13 @@ const NAV_PERSONNEL: NavItem = {
   id: 'personnel',
   title: 'Personnel',
   href: '/personnel',
-  icon: Users, // Or Briefcase? Users is already used for Residents. Maybe HardHat or Contact?
+  icon: Briefcase, // Or Briefcase? Users is already used for Residents. Maybe HardHat or Contact?
   permissions: [PERMISSIONS.VENDORS_VIEW],
 };
 
 const NAV_PAYMENTS: NavItem = {
   id: 'payments',
-  title: 'Payments',
+  title: 'Imports',
   href: '/payments',
   icon: CreditCard,
   permissions: [PERMISSIONS.PAYMENTS_VIEW],
@@ -129,7 +130,7 @@ const NAV_PAYMENTS: NavItem = {
     },
     {
       id: 'payments-email-imports',
-      title: 'Email Imports',
+      title: 'Import Email',
       href: '/payments/email-imports',
       icon: Mail,
       permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW],
