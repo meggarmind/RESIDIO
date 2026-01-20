@@ -39,7 +39,10 @@ const expenseSchema = z.object({
     category_id: z.string().min(1, 'Category is required'),
     expense_date: z.string().min(1, 'Date is required'),
     description: z.string().optional(),
+    payee_type: z.enum(['vendor', 'resident', 'staff', 'none']).default('vendor'),
     vendor_id: z.string().optional(),
+    resident_id: z.string().optional(),
+    staff_id: z.string().optional(),
     project_id: z.string().optional(),
     status: z.enum(['pending', 'paid', 'cancelled']),
     source_type: z.enum(['manual', 'petty_cash', 'bank_import']).default('manual'),
@@ -61,6 +64,8 @@ interface LogExpenseDialogProps {
     vendors: any[];
     categories: any[];
     projects: any[];
+    residents?: any[];
+    staff?: any[];
     pettyCashAccounts?: any[];
     onSuccess: (newExpense: any) => void;
     initialData?: Partial<ExpenseFormValues>;
@@ -71,7 +76,10 @@ interface ExpenseFormValues {
     category_id: string;
     expense_date: string;
     description?: string;
+    payee_type: 'vendor' | 'resident' | 'staff' | 'none';
     vendor_id?: string;
+    resident_id?: string;
+    staff_id?: string;
     project_id?: string;
     status: 'pending' | 'paid' | 'cancelled';
     source_type: 'manual' | 'petty_cash' | 'bank_import';
@@ -85,6 +93,8 @@ export function LogExpenseDialog({
     vendors,
     categories,
     projects,
+    residents = [],
+    staff = [],
     pettyCashAccounts = [],
     onSuccess,
     initialData
@@ -98,7 +108,10 @@ export function LogExpenseDialog({
             category_id: initialData?.category_id || '',
             expense_date: initialData?.expense_date || new Date().toISOString().split('T')[0],
             description: initialData?.description || '',
+            payee_type: initialData?.payee_type || 'vendor',
             vendor_id: initialData?.vendor_id || '',
+            resident_id: initialData?.resident_id || '',
+            staff_id: initialData?.staff_id || '',
             project_id: initialData?.project_id || '',
             status: initialData?.status || 'paid',
             source_type: initialData?.source_type || 'manual',
@@ -108,6 +121,7 @@ export function LogExpenseDialog({
     });
 
     const sourceType = form.watch('source_type');
+    const payeeType = form.watch('payee_type');
 
     // Auto-set payment method based on source
     useEffect(() => {
@@ -126,10 +140,21 @@ export function LogExpenseDialog({
     async function onSubmit(data: ExpenseFormValues) {
         setIsSubmitting(true);
         try {
-            const result = await createExpense({
-                ...data,
-                amount: Number(data.amount)
-            });
+            // Ensure we only send the relevant ID based on payee_type
+            const payload = { ...data, amount: Number(data.amount) };
+
+            if (data.payee_type !== 'vendor') payload.vendor_id = '';
+            if (data.payee_type !== 'resident') payload.resident_id = '';
+            if (data.payee_type !== 'staff') payload.staff_id = '';
+
+            // If type is 'none', clear all
+            if (data.payee_type === 'none') {
+                payload.vendor_id = '';
+                payload.resident_id = '';
+                payload.staff_id = '';
+            }
+
+            const result = await createExpense(payload);
             toast.success('Expense recorded successfully');
             onSuccess(result);
             onOpenChange(false);
@@ -148,7 +173,10 @@ export function LogExpenseDialog({
                 category_id: initialData.category_id || '',
                 expense_date: initialData.expense_date || new Date().toISOString().split('T')[0],
                 description: initialData.description || '',
+                payee_type: initialData.payee_type || 'vendor',
                 vendor_id: initialData.vendor_id || '',
+                resident_id: initialData.resident_id || '',
+                staff_id: initialData.staff_id || '',
                 project_id: initialData.project_id || '',
                 status: initialData.status || 'paid',
                 source_type: initialData.source_type || 'manual',
@@ -300,12 +328,40 @@ export function LogExpenseDialog({
                                 )}
                             />
 
+                            {/* Payee Type Selector */}
+                            <FormField
+                                control={form.control}
+                                name="payee_type"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Payee Type</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Who is this payment for?" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="vendor">External Vendor</SelectItem>
+                                                <SelectItem value="resident">Resident</SelectItem>
+                                                <SelectItem value="staff">Staff / EXCO</SelectItem>
+                                                <SelectItem value="none">No Payee</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+
+                        {/* Conditional Payee Selector */}
+                        {payeeType === 'vendor' && (
                             <FormField
                                 control={form.control}
                                 name="vendor_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Vendor (Optional)</FormLabel>
+                                        <FormLabel>Select Vendor</FormLabel>
                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                                             <FormControl>
                                                 <SelectTrigger>
@@ -313,7 +369,6 @@ export function LogExpenseDialog({
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                <SelectItem value="none">None</SelectItem>
                                                 {vendors.map((vendor) => (
                                                     <SelectItem key={vendor.id} value={vendor.id}>
                                                         {vendor.name}
@@ -325,7 +380,61 @@ export function LogExpenseDialog({
                                     </FormItem>
                                 )}
                             />
-                        </div>
+                        )}
+
+                        {payeeType === 'resident' && (
+                            <FormField
+                                control={form.control}
+                                name="resident_id"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Select Resident</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select resident" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {residents.map((resident) => (
+                                                    <SelectItem key={resident.id} value={resident.id}>
+                                                        {resident.first_name} {resident.last_name} ({resident.resident_code})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
+
+                        {payeeType === 'staff' && (
+                            <FormField
+                                control={form.control}
+                                name="staff_id"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Select Staff/EXCO</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Select staff member" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {staff.map((s) => (
+                                                    <SelectItem key={s.id} value={s.id}>
+                                                        {s.full_name} ({s.role})
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
 
                         <FormField
                             control={form.control}

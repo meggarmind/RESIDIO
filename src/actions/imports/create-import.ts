@@ -5,6 +5,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { autoTagTransaction } from '@/actions/reference/transaction-tags';
 import type { BankStatementImport, BankStatementRow, ColumnMapping, TransactionFilter, TransactionTagType } from '@/types/database';
 import type { ParsedRow } from '@/lib/validators/import';
+import { generateTransactionHash } from '@/lib/utils/hashing';
 
 // ============================================================
 // Response Types
@@ -32,6 +33,9 @@ type CreateImportParams = {
   transaction_filter?: TransactionFilter;
   total_rows: number;
   column_mapping: ColumnMapping;
+  file_hash?: string;
+  period_start?: string;
+  period_end?: string;
 }
 
 export async function createImport(params: CreateImportParams): Promise<CreateImportResponse> {
@@ -45,6 +49,9 @@ export async function createImport(params: CreateImportParams): Promise<CreateIm
     transaction_filter = 'credit',
     total_rows,
     column_mapping,
+    file_hash,
+    period_start,
+    period_end,
   } = params;
 
   // Verify bank account exists
@@ -59,6 +66,25 @@ export async function createImport(params: CreateImportParams): Promise<CreateIm
       data: null,
       error: 'Invalid bank account selected',
     };
+  }
+
+  // Check for duplicate file hash if provided
+  if (file_hash) {
+    const { data: existingImport } = await supabase
+      .from('bank_statement_imports')
+      .select('id, created_at')
+      .eq('file_hash', file_hash)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (existingImport) {
+      return {
+        data: null,
+        error: `This file has already been imported successfully on ${new Date(existingImport.created_at).toLocaleDateString()}`,
+      };
+    }
   }
 
   // Get current user
@@ -77,6 +103,9 @@ export async function createImport(params: CreateImportParams): Promise<CreateIm
       column_mapping,
       status: 'pending',
       created_by: user?.id,
+      file_hash,
+      period_start,
+      period_end,
     })
     .select()
     .single();
@@ -164,6 +193,12 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
     transaction_type: row.transaction_type,
     reference: row.reference,
     status: 'pending',
+    transaction_hash: row.description && row.amount && row.transaction_date ? generateTransactionHash({
+      date: row.transaction_date,
+      amount: row.amount,
+      description: row.description,
+      reference: row.reference,
+    }) : null,
   }));
 
   // Insert in batches of 100 for better performance

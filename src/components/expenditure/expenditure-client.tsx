@@ -38,7 +38,7 @@ export function ExpenditureClient({
                         <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Category</TableHead>
-                            <TableHead>Vendor</TableHead>
+                            <TableHead>Payee</TableHead>
                             <TableHead>Description</TableHead>
                             <TableHead className="text-right">Amount</TableHead>
                             <TableHead>Status</TableHead>
@@ -56,7 +56,12 @@ export function ExpenditureClient({
                                 <TableRow key={expense.id}>
                                     <TableCell>{new Date(expense.expense_date).toLocaleDateString()}</TableCell>
                                     <TableCell>{expense.category?.name}</TableCell>
-                                    <TableCell>{expense.vendor?.name || '-'}</TableCell>
+                                    <TableCell>
+                                        {expense.vendor?.name ||
+                                            (expense.resident ? `${expense.resident.first_name} ${expense.resident.last_name}` : null) ||
+                                            expense.staff?.full_name ||
+                                            '-'}
+                                    </TableCell>
                                     <TableCell className="max-w-xs truncate">{expense.description}</TableCell>
                                     <TableCell className="text-right font-medium">
                                         {formatCurrency(expense.amount)}

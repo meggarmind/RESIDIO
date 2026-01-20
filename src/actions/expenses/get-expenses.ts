@@ -16,10 +16,12 @@ export async function getExpenses(filters: GetExpensesFilters = {}) {
     let query = supabase
         .from('expenses')
         .select(`
-      *,
-      category:expense_categories(name),
-      vendor:vendors(name)
-    `)
+          *,
+          category:expense_categories(name),
+          vendor:vendors(name),
+          resident:residents!resident_id(first_name, last_name),
+          staff:profiles!staff_id(full_name)
+        `)
         .order('expense_date', { ascending: false });
 
     if (filters.startDate) {

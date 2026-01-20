@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -36,7 +36,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 
 import { createPersonnel, updatePersonnel } from '@/actions/personnel/actions';
-import { Personnel, PersonnelType, PersonnelStatus } from '@/types/database';
+import { Personnel } from '@/types/database';
 
 const personnelSchema = z.object({
     name: z.string().min(2, 'Name is required'),
@@ -90,11 +90,38 @@ export function PersonnelDialog({
             notes: personnel?.notes || '',
         },
     });
+    // Reset form when personnel changes
+    useEffect(() => {
+        form.reset({
+            name: personnel?.name || '',
+            type: personnel?.type || 'vendor',
+            status: personnel?.status || 'active',
+            contact_person: personnel?.contact_person || '',
+            email: personnel?.email || '',
+            phone: personnel?.phone || '',
+            job_title: personnel?.job_title || '',
+            start_date: personnel?.start_date || '',
+            end_date: personnel?.end_date || '',
+            notes: personnel?.notes || '',
+        });
+    }, [personnel, form]);
 
-    async function onSubmit(values: PersonnelFormValues) {
+    async function onSubmit(formData: PersonnelFormValues) {
         setIsSubmitting(true);
         try {
-            if (isEditing && personnel) {
+            const sanitize = (val?: string) => (!val || val.trim() === '') ? null : val;
+            const values = {
+                ...formData,
+                contact_person: sanitize(formData.contact_person),
+                email: sanitize(formData.email),
+                phone: sanitize(formData.phone),
+                job_title: sanitize(formData.job_title),
+                start_date: sanitize(formData.start_date),
+                end_date: sanitize(formData.end_date),
+                notes: sanitize(formData.notes),
+            } as Partial<Personnel>;
+
+            if (personnel) {
                 const { error } = await updatePersonnel(personnel.id, values);
                 if (error) throw new Error(error);
                 toast.success(`${values.name} updated successfully`);
@@ -177,7 +204,7 @@ export function PersonnelDialog({
                                 name="contact_person"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Contact Person</FormLabel>
+                                        <FormLabel>Contact Person (Optional)</FormLabel>
                                         <FormControl>
                                             <Input placeholder="e.g. Jane Smith" {...field} />
                                         </FormControl>
@@ -191,7 +218,7 @@ export function PersonnelDialog({
                                 name="email"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Email</FormLabel>
+                                        <FormLabel>Email (Optional)</FormLabel>
                                         <FormControl>
                                             <Input placeholder="email@example.com" {...field} />
                                         </FormControl>
@@ -205,7 +232,7 @@ export function PersonnelDialog({
                                 name="phone"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Phone</FormLabel>
+                                        <FormLabel>Phone (Optional)</FormLabel>
                                         <FormControl>
                                             <Input placeholder="080..." {...field} />
                                         </FormControl>
@@ -219,7 +246,7 @@ export function PersonnelDialog({
                                 name="job_title"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Job Title / Role</FormLabel>
+                                        <FormLabel>Job Title / Role (Optional)</FormLabel>
                                         <FormControl>
                                             <Input placeholder="e.g. Security Guard" {...field} />
                                         </FormControl>
@@ -258,7 +285,7 @@ export function PersonnelDialog({
                                 name="start_date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Start Date</FormLabel>
+                                        <FormLabel>Start Date (Optional)</FormLabel>
                                         <FormControl>
                                             <Input type="date" {...field} />
                                         </FormControl>
@@ -271,7 +298,7 @@ export function PersonnelDialog({
                                 name="end_date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>End Date</FormLabel>
+                                        <FormLabel>End Date (Optional)</FormLabel>
                                         <FormControl>
                                             <Input type="date" {...field} />
                                         </FormControl>
@@ -286,7 +313,7 @@ export function PersonnelDialog({
                             name="notes"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Notes</FormLabel>
+                                    <FormLabel>Notes (Optional)</FormLabel>
                                     <FormControl>
                                         <Textarea placeholder="Additional information..." {...field} />
                                     </FormControl>

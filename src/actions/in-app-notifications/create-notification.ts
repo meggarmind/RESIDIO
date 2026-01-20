@@ -132,10 +132,10 @@ export async function createNotificationsForHouses(
 
   const supabase = await createServerSupabaseClient();
 
-  // Get all active residents in the specified houses
+  // Get all active profiles in the specified houses
   const { data: residents, error: residentsError } = await supabase
     .from('resident_houses')
-    .select('resident_id')
+    .select('residents!resident_houses_resident_id_fkey(profile_id)')
     .in('house_id', houseIds)
     .eq('is_active', true);
 
@@ -148,12 +148,15 @@ export async function createNotificationsForHouses(
     return { count: 0, error: null };
   }
 
-  // Get unique resident IDs
-  const uniqueResidentIds = [...new Set(residents.map((r) => r.resident_id))];
+  // Get unique profile IDs
+  const uniqueProfileIds = [...new Set(residents
+    .map((r: any) => r.residents?.profile_id)
+    .filter(Boolean)
+  )] as string[];
 
-  const notifications = uniqueResidentIds.map((residentId) => ({
+  const notifications = uniqueProfileIds.map((profileId) => ({
     ...notification,
-    recipient_id: residentId,
+    recipient_id: profileId,
   }));
 
   return createBulkNotifications(notifications);
@@ -176,10 +179,10 @@ export async function createNotificationsForAllResidents(
 
   const supabase = await createServerSupabaseClient();
 
-  // Get all active residents
+  // Get all active profiles linked to residents
   const { data: residents, error: residentsError } = await supabase
     .from('residents')
-    .select('id')
+    .select('profile_id')
     .eq('account_status', 'active');
 
   if (residentsError) {
@@ -191,10 +194,13 @@ export async function createNotificationsForAllResidents(
     return { count: 0, error: null };
   }
 
-  const notifications = residents.map((resident) => ({
-    ...notification,
-    recipient_id: resident.id,
-  }));
+  const notifications = (residents || [])
+    .map((resident) => resident.profile_id)
+    .filter(Boolean)
+    .map((profileId) => ({
+      ...notification,
+      recipient_id: profileId as string,
+    }));
 
   return createBulkNotifications(notifications);
 }

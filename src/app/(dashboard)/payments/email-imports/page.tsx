@@ -23,6 +23,13 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  useGmailConnectionStatus,
+  useManualFetch,
+  useCancelImport,
+  useRetryImport,
+  useResetEmailImports,
+} from '@/hooks/use-gmail-connection';
+import {
   ArrowRight,
   CheckCircle2,
   Clock,
@@ -30,7 +37,10 @@ import {
   Inbox,
   Loader2,
   Mail,
+  RefreshCw,
+  RotateCcw,
   Settings,
+  X,
   XCircle,
 } from 'lucide-react';
 import { listEmailImports } from '@/actions/email-imports/create-email-import';
@@ -59,6 +69,12 @@ const STATUS_ICONS: Record<EmailImportStatus, React.ReactNode> = {
 export default function EmailImportsPage() {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const resetMutation = useResetEmailImports();
+
+  // Existing hooks
+  const cancelMutation = useCancelImport();
+  const retryMutation = useRetryImport();
+  const manualFetchMutation = useManualFetch();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['email-imports', statusFilter],
@@ -97,12 +113,23 @@ export default function EmailImportsPage() {
             View history of email import sessions and review queued transactions.
           </p>
         </div>
-        <Button variant="outline" asChild>
-          <a href="/settings/email-integration">
-            <Settings className="h-4 w-4 mr-2" />
-            Configure
-          </a>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => manualFetchMutation.mutate()}
+            disabled={manualFetchMutation.isPending}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${manualFetchMutation.isPending ? 'animate-spin' : ''}`} />
+            {manualFetchMutation.isPending ? 'Fetching...' : 'Manual Fetch'}
+          </Button>
+
+          <Button variant="outline" asChild>
+            <a href="/settings/email-integration">
+              <Settings className="h-4 w-4 mr-2" />
+              Configure
+            </a>
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -262,13 +289,51 @@ export default function EmailImportsPage() {
                       {formatDuration(importItem.started_at, importItem.completed_at)}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => router.push(`/payments/email-imports/${importItem.id}`)}
-                      >
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1 justify-end">
+                        {['fetching', 'parsing', 'matching', 'processing'].includes(importItem.status) && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Retry Processing"
+                              onClick={(e) => { e.stopPropagation(); retryMutation.mutate(importItem.id); }}
+                              disabled={retryMutation.isPending}
+                            >
+                              <RotateCcw className="h-4 w-4 text-orange-500" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Cancel Import"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => { e.stopPropagation(); cancelMutation.mutate(importItem.id); }}
+                              disabled={cancelMutation.isPending}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+
+                        {importItem.status === 'failed' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Retry Processing"
+                            onClick={(e) => { e.stopPropagation(); retryMutation.mutate(importItem.id); }}
+                            disabled={retryMutation.isPending}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        )}
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => router.push(`/payments/email-imports/${importItem.id}`)}
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -277,6 +342,6 @@ export default function EmailImportsPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </div >
   );
 }

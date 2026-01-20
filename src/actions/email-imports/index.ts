@@ -33,6 +33,7 @@ export {
 
 // Email Fetching
 export { fetchNewEmails } from './fetch-emails';
+export { resetEmailImports } from './reset-email-imports';
 
 // Email Parsing
 export { parseEmailMessage, parseAllPendingEmails } from './parse-email';

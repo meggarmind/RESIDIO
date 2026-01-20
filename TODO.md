@@ -4,6 +4,41 @@
 
 ## Current Phase: Phase 17 - Product Vibe Enhancements 🚧 IN PROGRESS
 
+### Recent Session Work (2026-01-20): Global Search Enhancement 🚧 IN PROGRESS
+See detailed progress in: `docs/features/global-search.md`
+
+- [x] **Bug Fix**: Fixed `phone` → `phone_primary` column mismatch causing resident search to silently fail
+- [x] **Documentation**: Created feature documentation with enhancement roadmap
+- [ ] **Phase 1**: Performance Optimization (Parallel queries, error handling)
+- [ ] **Phase 2**: API Consolidation (Unified `/api/search` endpoint)
+- [ ] **Phase 3**: Database Optimization (`pg_trgm` extension, trigram indexes)
+- [ ] **Phase 4**: Client Caching (React Query with 30s staleTime)
+- [ ] **Phase 5**: UX Enhancements (Result prioritization, recent searches)
+- [ ] **Phase 6**: Advanced Features (Search analytics on Analytics page)
+
+### Recent Session Work (2026-01-20): Personnel Modal Fix
+- [x] **Bug Fix**: Fix "Edit Personnel" modal data population issue by ensuring form resets when personnel data changes.
+
+### Recent Session Work (2026-01-20): Email Import Data Reset Fix
+- [x] **Bug Fix**: Resolved "DELETE requires a WHERE clause" error in `resetEmailImports` by adding explicit filters to all delete operations.
+- [x] **Data Integrity**: Added explicit deletion of `email_transactions` and `email_messages` to ensure complete data reset.
+- [x] **Audit**: Maintained audit logging for reset actions.
+- [x] **Stats Fix**: Resolved email import stats discrepancy by handling `pending` debit transactions and adding an "Unmatched" card to the UI.
+- [x] **UI Enhancement**: Enabled status filtering and implemented **Pagination** (10 items per page) in the Import Details page for better navigation and visibility.
+
+### Recent Session Work (2026-01-20): In-App Notification Integration
+- [x] **Centralized Notifier**: Created `admin-notifier.ts` utility to send targeted notifications based on permissions or roles.
+- [x] **Email Import Integration**: Added automatic notifications for admins when email transactions are queued for manual review.
+- [x] **Bank Import Integration**: Integrated triggers for bank imports awaiting approval and those needing manual matching review.
+- [x] **Approval System Integration**: Added notification triggers for all new general approval requests.
+- [x] **Verification**: Implemented unit tests for the notification helper and verified logic across modules.
+- [x] **Bug Fix**: Resolved critical "Invalid Recipient ID" error by migrating `in_app_notifications` to use `profile_id` instead of `resident_id`, enabling alerts for all system users (Admins & Residents).
+
+### Recent Session Work (2026-01-20): Email Import Matching Unification
+- [x] **Debit Auto-Matching**: Implemented keyword-based matching for debit transactions (expenses) in Email Imports.
+- [x] **Adaptive Learning**: Added "Save as Alias" functionality to manual email transaction review, enabling future auto-matches.
+- [x] **UI Enhancement**: Added alias creation checkbox to the email transaction processing dialog.
+
 ### Recent Session Work (2026-01-19): Email Import Enhancements
 - [x] **Manual Fetch**: Implemented manual trigger for email sync across backend and UI.
 - [x] **Configurable Criteria**: Added support for custom sender whitelists, keyword filters, and history range (days back).
@@ -13,7 +48,14 @@
 - [x] **Security**: Integrated permission checks (`EMAIL_IMPORTS_CONFIGURE`, `EMAIL_IMPORTS_TRIGGER`) for all new actions.
 - [x] **Integrity**: Updated `detectEmailType` to strictly respect user-defined credit/debit toggles during processing.
 - [x] **UI Update**: Renamed sidebar menu "Payments" to **Imports** and "Email Imports" to **Import Emails** for clearer categorization.
-- [x] **Parser Upgrade**: Enhanced `first-bank-alert.ts` to support structured email bodies and 2-digit years, and improved PDF handling.
+- [x] **Parser Upgrade**: Enhanced `first-bank-alert.ts` to support structured email bodies, HTML stripping, and improved FirstBank alert detection.
+- [x] **Infrastructure**: Created missing `email-imports` storage bucket and configured RLS policies for secure attachment handling.
+- [x] **Debug Component**: Integrated "System Debug Information" for enhanced engineering observability.
+- [x] **Bug Fix**: Resolved "Import Hang" by chaining parse/match/process pipeline after fetch.
+- [x] **Feature**: Added "Cancel" and "Retry" actions for stuck imports in the history table.
+- [x] **UX**: Moved "Email Integration" to "Billing & Finance" as "Import Integration".
+- [x] **UX**: Added "Manual Fetch" button to Email Imports page.
+- [x] **Dev**: Added "Debug Section" to Import Details page, toggleable via Settings.
 
 ### Recent Session Work (2026-01-19): Estate Expense & Personnel Improvements
 - [x] **Bug Fix**: Resolved "Invalid UUID" crash in expense logging by sanitizing empty string inputs.

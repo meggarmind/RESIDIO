@@ -311,7 +311,7 @@ export async function initiateOwnerMoveOut(
     await adminClient
         .from('in_app_notifications')
         .insert({
-            recipient_id: residentId,
+            recipient_id: resident.user_id,
             title: 'Move-Out Clearance Certificate',
             body: `Your clearance certificate (${certificateNumber}) has been generated. You are now a Property Owner.`,
             category: 'resident',

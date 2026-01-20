@@ -24,17 +24,8 @@ export async function markNotificationAsRead(id: string): Promise<{
     return { data: null, error: 'Unauthorized' };
   }
 
-  // Get resident ID for current user
-  const { data: resident } = await supabase
-    .from('residents')
-    .select('id')
-    .eq('profile_id', user.id)
-    .eq('account_status', 'active')
-    .single();
-
-  if (!resident) {
-    return { data: null, error: 'Resident not found' };
-  }
+  // No longer need to fetch resident record. Use current user's profile ID directly.
+  const resident = { id: user.id };
 
   const { data, error } = await supabase
     .from('in_app_notifications')
@@ -74,17 +65,8 @@ export async function markAllNotificationsAsRead(): Promise<{
     return { count: 0, error: 'Unauthorized' };
   }
 
-  // Get resident ID for current user
-  const { data: resident } = await supabase
-    .from('residents')
-    .select('id')
-    .eq('profile_id', user.id)
-    .eq('account_status', 'active')
-    .single();
-
-  if (!resident) {
-    return { count: 0, error: 'Resident not found' };
-  }
+  // No longer need to fetch resident record. Use current user's profile ID directly.
+  const resident = { id: user.id };
 
   const { data, error } = await supabase
     .from('in_app_notifications')
@@ -123,17 +105,8 @@ export async function deleteNotification(id: string): Promise<{
     return { success: false, error: 'Unauthorized' };
   }
 
-  // Get resident ID for current user
-  const { data: resident } = await supabase
-    .from('residents')
-    .select('id')
-    .eq('profile_id', user.id)
-    .eq('account_status', 'active')
-    .single();
-
-  if (!resident) {
-    return { success: false, error: 'Resident not found' };
-  }
+  // No longer need to fetch resident record. Use current user's profile ID directly.
+  const resident = { id: user.id };
 
   const { error } = await supabase
     .from('in_app_notifications')
@@ -168,17 +141,8 @@ export async function deleteReadNotifications(): Promise<{
     return { count: 0, error: 'Unauthorized' };
   }
 
-  // Get resident ID for current user
-  const { data: resident } = await supabase
-    .from('residents')
-    .select('id')
-    .eq('profile_id', user.id)
-    .eq('account_status', 'active')
-    .single();
-
-  if (!resident) {
-    return { count: 0, error: 'Resident not found' };
-  }
+  // No longer need to fetch resident record. Use current user's profile ID directly.
+  const resident = { id: user.id };
 
   // First count how many will be deleted
   const { count } = await supabase

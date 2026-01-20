@@ -1017,10 +1017,22 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['vendors']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+        Insert: {
           id?: string;
+          name: string;
           type?: 'staff' | 'vendor' | 'contractor' | 'supplier';
           status?: 'active' | 'inactive' | 'terminated';
+          category?: string | null;
+          contact_person?: string | null;
+          phone?: string | null;
+          email?: string | null;
+          bank_details?: any;
+          job_title?: string | null;
+          department?: string | null;
+          start_date?: string | null;
+          end_date?: string | null;
+          notes?: string | null;
+          is_active?: boolean;
         };
         Update: Partial<Database['public']['Tables']['vendors']['Insert']>;
       };
@@ -1085,6 +1097,26 @@ export interface Personnel extends Vendor {
   department: string | null;
   start_date: string | null;
   end_date: string | null;
+}
+
+export interface PersonnelInsert extends VendorInsert {
+  type: PersonnelType;
+  status: PersonnelStatus;
+  job_title?: string | null;
+  department?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  notes?: string | null;
+}
+
+export interface PersonnelUpdate extends VendorUpdate {
+  type?: PersonnelType;
+  status?: PersonnelStatus;
+  job_title?: string | null;
+  department?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  notes?: string | null;
 }
 
 // Payment with joined house and resident details
@@ -1652,6 +1684,9 @@ export interface BankStatementImport {
   approved_at: string | null;
   created_at: string;
   completed_at: string | null;
+  file_hash: string | null;
+  period_start: string | null;
+  period_end: string | null;
 }
 
 // Bank Statement Row type
@@ -1681,6 +1716,8 @@ export interface BankStatementRow {
   tagged_by: string | null;
   tagged_at: string | null;
   auto_tagged: boolean;
+  transaction_hash: string | null;
+  duplicate_reason: string | null;
 }
 
 // Bank Statement Import with related data
@@ -2815,6 +2852,16 @@ export interface EmailTransactionWithResident extends EmailTransaction {
   } | null;
 }
 
+// Gmail sync criteria configuration
+export interface GmailSyncCriteria {
+  senders: string[];
+  keywords: string[];
+  days_back: number;
+  include_credits: boolean;
+  include_debits: boolean;
+  show_debug_info?: boolean;
+}
+
 // Gmail connection status (for UI)
 export interface GmailConnectionStatus {
   connected: boolean;
@@ -2823,6 +2870,7 @@ export interface GmailConnectionStatus {
   lastSyncStatus: GmailSyncStatus | null;
   lastSyncMessage: string | null;
   lastSyncEmailsCount: number | null;
+  syncCriteria?: GmailSyncCriteria | null;
 }
 
 // Parsed transaction from email (before database insert)

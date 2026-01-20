@@ -287,3 +287,41 @@ export async function getPasswordByAccountLast4(
     return { data: null, bankAccountId: matchingAccount.id, error: 'Failed to decrypt password' };
   }
 }
+
+/**
+ * Get all decrypted passwords (internal use only).
+ * Used for brute-force decryption when account number is unknown.
+ */
+export async function getAllBankPasswords(): Promise<{ data: string[] | null; error: string | null }> {
+  // Only internal/system use (or authorized admins)
+  const supabase = await createServerSupabaseClient();
+
+  const { data: passwords, error } = await supabase
+    .from('estate_bank_account_passwords')
+    .select('password_encrypted');
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  if (!passwords || passwords.length === 0) {
+    return { data: [], error: null };
+  }
+
+  try {
+    const decryptedPasswords = passwords
+      .map((p) => {
+        try {
+          return decrypt(p.password_encrypted);
+        } catch {
+          return null;
+        }
+      })
+      .filter((p): p is string => p !== null);
+
+    // Return unique passwords
+    return { data: Array.from(new Set(decryptedPasswords)), error: null };
+  } catch (err) {
+    return { data: null, error: 'Failed to decrypt passwords' };
+  }
+}

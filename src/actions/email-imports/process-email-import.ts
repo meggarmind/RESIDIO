@@ -6,6 +6,7 @@
  * Matches email transactions to residents and processes them into payments.
  * Implements high-confidence auto-processing and admin review queue.
  */
+import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
@@ -13,6 +14,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { createMatcher } from '@/lib/matching/resident-matcher';
 import { createPayment } from '@/actions/payments/create-payment';
+import { extractSenderName } from '@/lib/email-imports/utils';
 import { createExpense } from '@/actions/expenses/create-expense';
 import { updateEmailImportStatus } from './create-email-import';
 import type {
@@ -114,42 +116,59 @@ export async function matchEmailTransactions(
     const emailTx = tx as EmailTransaction;
 
     // Only match credit transactions (payments coming in)
-    if (emailTx.transaction_type !== 'credit') {
-      // Debits are expenses or petty cash - queue for manual categorization
+    if (emailTx.transaction_type === 'credit') {
+      const result = matcher.match({
+        description: emailTx.description || '',
+        amount: Number(emailTx.amount) || 0,
+        reference: emailTx.reference || undefined,
+      });
+
+      // Update transaction with match result
       await adminClient
         .from('email_transactions')
         .update({
-          status: 'queued_for_review',
-          skip_reason: null, // Clear any previous skip reason
+          matched_resident_id: result.resident_id,
+          match_confidence: result.confidence,
+          match_method: result.method,
+          match_details: result.all_matches,
+          matched_at: new Date().toISOString(),
+          status: result.resident_id ? 'matched' : 'pending',
         })
         .eq('id', emailTx.id);
-      unmatched++;
-      continue;
-    }
 
-    const result = matcher.match({
-      description: emailTx.description || '',
-      amount: Number(emailTx.amount) || 0,
-      reference: emailTx.reference || undefined,
-    });
+      if (result.resident_id) {
+        matched++;
+      } else {
+        unmatched++;
+      }
+    } else if (emailTx.transaction_type === 'debit') {
+      // Try to auto-match debits to expense category
+      const { autoMatchExpenseCategory } = await import('@/actions/expenses/get-expense-categories');
+      const categoryMatch = await autoMatchExpenseCategory(emailTx.description || '');
 
-    // Update transaction with match result
-    await adminClient
-      .from('email_transactions')
-      .update({
-        matched_resident_id: result.resident_id,
-        match_confidence: result.confidence,
-        match_method: result.method,
-        match_details: result.all_matches,
-        matched_at: new Date().toISOString(),
-        status: result.resident_id ? 'matched' : 'pending',
-      })
-      .eq('id', emailTx.id);
-
-    if (result.resident_id) {
-      matched++;
-    } else {
-      unmatched++;
+      if (categoryMatch.category) {
+        await adminClient
+          .from('email_transactions')
+          .update({
+            matched_expense_category_id: categoryMatch.category.id,
+            match_confidence: 'high',
+            match_method: 'keyword',
+            matched_at: new Date().toISOString(),
+            status: 'matched',
+          })
+          .eq('id', emailTx.id);
+        matched++;
+      } else {
+        // Explicitly set confidence to 'none' for unmatched debits
+        await adminClient
+          .from('email_transactions')
+          .update({
+            match_confidence: 'none',
+            status: 'pending',
+          })
+          .eq('id', emailTx.id);
+        unmatched++;
+      }
     }
   }
 
@@ -198,7 +217,7 @@ export async function processEmailTransactions(
     .from('email_transactions')
     .select('*')
     .eq('email_import_id', importId)
-    .eq('status', 'matched');
+    .in('status', ['matched', 'pending']);
 
   if (fetchError || !transactions) {
     return {
@@ -284,6 +303,14 @@ export async function processEmailTransactions(
         result.errored++;
       }
     } else {
+      // Not processable automatically (low confidence or not alias/phone match)
+      // Queue for manual review if not already matched
+      if (emailTx.status !== 'queued_for_review' && emailTx.status !== 'skipped' && emailTx.status !== 'matched') {
+        await adminClient
+          .from('email_transactions')
+          .update({ status: 'queued_for_review' })
+          .eq('id', emailTx.id);
+      }
       result.queuedForReview++;
     }
   }
@@ -295,7 +322,7 @@ export async function processEmailTransactions(
     .select('*')
     .eq('email_import_id', importId)
     .eq('transaction_type', 'debit')
-    .in('status', ['matched', 'queued_for_review']);
+    .in('status', ['matched', 'queued_for_review', 'pending']);
 
   if (debitTransactions && debitTransactions.length > 0) {
     for (const tx of debitTransactions) {
@@ -315,65 +342,81 @@ export async function processEmailTransactions(
         continue;
       }
 
-      try {
-        if (emailTx.matched_petty_cash_account_id) {
-          // Petty Cash Replenishment
-          const { replenishPettyCashAccount } = await import('@/actions/finance/petty-cash');
-          const replenishResult = await replenishPettyCashAccount(
-            emailTx.matched_petty_cash_account_id,
-            Math.abs(Number(emailTx.amount)),
-            `Email import: ${emailTx.description || 'Bank Transfer'}`
-          );
+      // Determine if auto-processable (for debits this is just having a high confidence match via keyword or manually matched previously)
+      // If it was manually matched (e.g. status='matched' and match_method='manual'), it should be processed.
+      // If it was auto-matched (status='matched', method='keyword'), check autoProcessHighConfidence.
+      const isAutoMatch = emailTx.match_method === 'keyword';
+      const canAutoProcess = !isAutoMatch || (autoProcessHighConfidence && emailTx.match_confidence === 'high');
 
-          if (!replenishResult.success) {
-            throw new Error(replenishResult.error || 'Failed to replenish petty cash');
-          }
+      if (canAutoProcess) {
+        try {
+          if (emailTx.matched_petty_cash_account_id) {
+            // Petty Cash Replenishment
+            const { replenishPettyCashAccount } = await import('@/actions/finance/petty-cash');
+            const replenishResult = await replenishPettyCashAccount(
+              emailTx.matched_petty_cash_account_id,
+              Math.abs(Number(emailTx.amount)),
+              `Email import: ${emailTx.description || 'Bank Transfer'}`
+            );
 
-          await adminClient
-            .from('email_transactions')
-            .update({
-              status: 'processed',
-              processed_at: new Date().toISOString(),
-            })
-            .eq('id', emailTx.id);
+            if (!replenishResult.success) {
+              throw new Error(replenishResult.error || 'Failed to replenish petty cash');
+            }
 
-          result.expensesCreated++;
-        } else {
-          // Regular Expense
-          const expenseResult = await createExpenseFromTransaction(emailTx, auth.userId);
-
-          if (expenseResult.success) {
             await adminClient
               .from('email_transactions')
               .update({
-                status: 'processed',
-                expense_id: expenseResult.expenseId,
+                status: 'auto_processed',
                 processed_at: new Date().toISOString(),
               })
               .eq('id', emailTx.id);
 
+            result.autoProcessed++;
             result.expensesCreated++;
           } else {
-            await adminClient
-              .from('email_transactions')
-              .update({
-                status: 'error',
-                error_message: expenseResult.error,
-              })
-              .eq('id', emailTx.id);
+            // Regular Expense
+            const expenseResult = await createExpenseFromTransaction(emailTx, auth.userId);
 
-            result.errored++;
+            if (expenseResult.success) {
+              await adminClient
+                .from('email_transactions')
+                .update({
+                  status: 'auto_processed',
+                  expense_id: expenseResult.expenseId,
+                  processed_at: new Date().toISOString(),
+                })
+                .eq('id', emailTx.id);
+
+              result.autoProcessed++;
+              result.expensesCreated++;
+            } else {
+              await adminClient
+                .from('email_transactions')
+                .update({
+                  status: 'error',
+                  error_message: expenseResult.error,
+                })
+                .eq('id', emailTx.id);
+
+              result.errored++;
+            }
           }
+        } catch (error) {
+          await adminClient
+            .from('email_transactions')
+            .update({
+              status: 'error',
+              error_message: error instanceof Error ? error.message : 'Unknown error rendering debit',
+            })
+            .eq('id', emailTx.id);
+          result.errored++;
         }
-      } catch (error) {
-        await adminClient
-          .from('email_transactions')
-          .update({
-            status: 'error',
-            error_message: error instanceof Error ? error.message : 'Unknown error rendering debit',
-          })
-          .eq('id', emailTx.id);
-        result.errored++;
+      } else {
+        // Not auto-processable, ensure it is in review queue
+        if (emailTx.status !== 'queued_for_review') {
+          await adminClient.from('email_transactions').update({ status: 'queued_for_review' }).eq('id', emailTx.id);
+          result.queuedForReview++;
+        }
       }
     }
   }
@@ -402,6 +445,18 @@ export async function processEmailTransactions(
     },
   });
 
+  // Notify admins if there are transactions queued for review
+  if (result.queuedForReview > 0) {
+    await notifyAdmins({
+      title: 'Email Transactions Queued',
+      body: `${result.queuedForReview} transactions from import ${importId.slice(0, 8)} require manual review.`,
+      category: 'payment',
+      actionUrl: `/payments/email-imports/${importId}`,
+      priority: 'normal',
+      requiredPermission: PERMISSIONS.EMAIL_IMPORTS_PROCESS,
+    });
+  }
+
   return result;
 }
 
@@ -417,6 +472,9 @@ export async function processSingleTransaction(
     projectId?: string;
     pettyCashAccountId?: string;
     notes?: string;
+    saveAsAlias?: boolean;
+    aliasName?: string;
+    aliasNotes?: string;
   }
 ): Promise<{ success: boolean; paymentId?: string; expenseId?: string; error?: string }> {
   const auth = await authorizePermission(PERMISSIONS.EMAIL_IMPORTS_PROCESS);
@@ -440,7 +498,7 @@ export async function processSingleTransaction(
   const emailTx = transaction as EmailTransaction;
 
   // Validate transaction is processable
-  if (!['queued_for_review', 'matched', 'pending'].includes(emailTx.status)) {
+  if (!['queued_for_review', 'matched', 'pending', 'error'].includes(emailTx.status)) {
     return { success: false, error: `Cannot process transaction with status: ${emailTx.status}` };
   }
 
@@ -533,6 +591,33 @@ export async function processSingleTransaction(
     })
     .eq('id', transactionId);
 
+  // Handle Save as Alias
+  if (params.saveAsAlias && params.residentId) {
+    // Use provided aliasName first, fallback to extraction from description
+    const senderName = params.aliasName?.trim() ||
+      (emailTx.description ? extractSenderName(emailTx.description) : null);
+
+    if (senderName && senderName.length >= 2) {
+      // Check if alias already exists
+      const { data: existingAlias } = await adminClient
+        .from('resident_payment_aliases')
+        .select('id')
+        .eq('resident_id', params.residentId)
+        .ilike('alias_name', senderName)
+        .maybeSingle();
+
+      if (!existingAlias) {
+        await adminClient.from('resident_payment_aliases').insert({
+          resident_id: params.residentId,
+          alias_name: senderName,
+          notes: params.aliasNotes || `Auto-created from email import match`,
+          is_active: true,
+          created_by: auth.userId,
+        });
+      }
+    }
+  }
+
   // Audit log
   await logAudit({
     action: 'APPROVE',
@@ -543,6 +628,7 @@ export async function processSingleTransaction(
       resident_id: params.residentId,
       payment_id: paymentResult.paymentId,
       notes: params.notes,
+      saved_alias: params.saveAsAlias,
     },
   });
 
@@ -732,6 +818,7 @@ async function checkDuplicatePayment(
 
 export async function getReviewQueue(params?: {
   importId?: string;
+  status?: string;
   limit?: number;
   offset?: number;
 }): Promise<{
@@ -746,12 +833,14 @@ export async function getReviewQueue(params?: {
 
   const supabase = await createServerSupabaseClient();
 
+  const status = params?.status || 'queued_for_review';
+
   let query = supabase
     .from('email_transactions')
     .select('*, email_messages(subject, from_address), residents(first_name, last_name, resident_code)', {
       count: 'exact',
     })
-    .eq('status', 'queued_for_review')
+    .eq('status', status)
     .order('created_at', { ascending: false });
 
   if (params?.importId) {
@@ -774,3 +863,5 @@ export async function getReviewQueue(params?: {
 
   return { data: data as EmailTransaction[], count, error: null };
 }
+
+

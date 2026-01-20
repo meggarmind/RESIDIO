@@ -422,6 +422,34 @@ export async function parseFirstBankPdf(
         }
       }
 
+      if (password) {
+        // Try precise password first
+        try {
+          workingBuffer = await decryptPdf(pdfBuffer, password);
+        } catch (decryptError) {
+          console.warn('Primary password failed, trying fallback passwords...');
+          password = undefined; // Force fallback
+        }
+      }
+
+      // If no password found or primary failed, try ALL stored passwords
+      if (!password) {
+        const { getAllBankPasswords } = await import('@/actions/email-imports/bank-passwords');
+        const { data: allPasswords } = await getAllBankPasswords();
+
+        if (allPasswords && allPasswords.length > 0) {
+          for (const p of allPasswords) {
+            try {
+              workingBuffer = await decryptPdf(pdfBuffer, p);
+              password = p; // Found it!
+              break;
+            } catch {
+              // try next
+            }
+          }
+        }
+      }
+
       if (!password) {
         return {
           transactions: [],
@@ -430,15 +458,13 @@ export async function parseFirstBankPdf(
         };
       }
 
-      try {
-        workingBuffer = await decryptPdf(pdfBuffer, password);
-      } catch (decryptError) {
-        return {
-          transactions: [],
-          error: `Failed to decrypt PDF: ${decryptError instanceof Error ? decryptError.message : 'Invalid password'}`,
-          passwordRequired: true,
-        };
-      }
+      // If we are here, 'workingBuffer' is decrypted (either by primary or fallback loop)
+      // but if both failed, 'workingBuffer' is still encrypted.
+      // We need to double check if decryption actually succeeded or thrown in the loop.
+      // The loop updates workingBuffer on success. To be safe, we rely on 'password' being non-null AND the catch blocks.
+      // Actually, my logic above assigns 'workingBuffer' inside the try block.
+      // So if 'password' is set found in loop, 'workingBuffer' is good.
+
     }
 
     // Extract text from PDF

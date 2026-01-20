@@ -30,17 +30,8 @@ export async function getNotifications(params: NotificationListParams = {}): Pro
     return { data: [], count: 0, error: 'Unauthorized' };
   }
 
-  // Get resident ID for current user
-  const { data: resident } = await supabase
-    .from('residents')
-    .select('id')
-    .eq('profile_id', user.id)
-    .eq('account_status', 'active')
-    .single();
-
-  if (!resident) {
-    return { data: [], count: 0, error: null };
-  }
+  // No longer need to fetch resident record. Use current user's profile ID directly.
+  const resident = { id: user.id };
 
   const { limit = 20, offset = 0, category, unread_only } = params;
 
@@ -96,17 +87,8 @@ export async function getUnreadNotificationCount(): Promise<{
     return { count: 0, error: 'Unauthorized' };
   }
 
-  // Get resident ID for current user
-  const { data: resident } = await supabase
-    .from('residents')
-    .select('id')
-    .eq('profile_id', user.id)
-    .eq('account_status', 'active')
-    .single();
-
-  if (!resident) {
-    return { count: 0, error: null };
-  }
+  // No longer need to fetch resident record. Use current user's profile ID directly.
+  const resident = { id: user.id };
 
   const { count, error } = await supabase
     .from('in_app_notifications')
@@ -142,17 +124,8 @@ export async function getNotification(id: string): Promise<{
     return { data: null, error: 'Unauthorized' };
   }
 
-  // Get resident ID for current user
-  const { data: resident } = await supabase
-    .from('residents')
-    .select('id')
-    .eq('profile_id', user.id)
-    .eq('account_status', 'active')
-    .single();
-
-  if (!resident) {
-    return { data: null, error: 'Resident not found' };
-  }
+  // No longer need to fetch resident record. Use current user's profile ID directly.
+  const resident = { id: user.id };
 
   const { data, error } = await supabase
     .from('in_app_notifications')

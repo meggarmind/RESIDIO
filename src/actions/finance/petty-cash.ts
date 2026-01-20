@@ -108,22 +108,30 @@ export async function getPettyCashMetrics(): Promise<PettyCashMetrics> {
             status,
             is_verified,
             vendor:vendors(name),
+            resident:residents!resident_id(first_name, last_name),
+            staff:profiles!staff_id(full_name),
             petty_cash_account:petty_cash_accounts(name)
         `)
         .eq('source_type', 'petty_cash')
         .order('expense_date', { ascending: false })
         .limit(10);
 
-    const recentTransactions: PettyCashTransaction[] = (recent || []).map((exp) => ({
-        id: exp.id,
-        description: exp.description,
-        amount: Number(exp.amount) || 0,
-        expenseDate: exp.expense_date,
-        status: exp.status,
-        isVerified: exp.is_verified,
-        vendorName: (exp.vendor as unknown as { name: string } | null)?.name || null,
-        accountName: (exp.petty_cash_account as unknown as { name: string } | null)?.name || null,
-    }));
+    const recentTransactions: PettyCashTransaction[] = (recent || []).map((exp) => {
+        const vendorName = (exp.vendor as any)?.name;
+        const residentName = exp.resident ? `${(exp.resident as any).first_name} ${(exp.resident as any).last_name}` : null;
+        const staffName = (exp.staff as any)?.full_name;
+
+        return {
+            id: exp.id,
+            description: exp.description,
+            amount: Number(exp.amount) || 0,
+            expenseDate: exp.expense_date,
+            status: exp.status,
+            isVerified: exp.is_verified,
+            vendorName: vendorName || residentName || staffName || null,
+            accountName: (exp.petty_cash_account as unknown as { name: string } | null)?.name || null,
+        };
+    });
 
     return {
         accounts: accountSummaries,

@@ -11,7 +11,10 @@ import { decrypt, encrypt } from './oauth-encryption';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 // Gmail API scopes - read-only access
-export const GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
+export const GMAIL_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/userinfo.email',
+];
 
 // First Bank sender patterns
 export const FIRST_BANK_SENDERS = [
@@ -166,24 +169,33 @@ export async function getGmailClient(): Promise<gmail_v1.Gmail | null> {
 }
 
 /**
- * List messages from First Bank senders.
+ * List messages based on criteria (senders and keywords).
  */
-export async function listFirstBankMessages(
+export async function listMessagesByCriteria(
   gmail: gmail_v1.Gmail,
   options: {
     maxResults?: number;
     afterDate?: Date;
     pageToken?: string;
+    senders?: string[];
+    keywords?: string[];
   } = {}
 ): Promise<{
   messages: gmail_v1.Schema$Message[];
   nextPageToken?: string | null;
 }> {
-  const { maxResults = 50, afterDate, pageToken } = options;
+  const { maxResults = 50, afterDate, pageToken, senders, keywords } = options;
 
-  // Build search query for First Bank emails
-  const senderQuery = FIRST_BANK_SENDERS.map((s) => `from:${s}`).join(' OR ');
+  // Build search query
+  const searchSenders = senders && senders.length > 0 ? senders : FIRST_BANK_SENDERS;
+  const senderQuery = searchSenders.map((s) => `from:${s}`).join(' OR ');
   let query = `(${senderQuery})`;
+
+  // Add keywords if specified
+  if (keywords && keywords.length > 0) {
+    const keywordQuery = keywords.map((k) => `"${k}"`).join(' OR ');
+    query += ` (${keywordQuery})`;
+  }
 
   // Add date filter if specified
   if (afterDate) {

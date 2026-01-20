@@ -17,7 +17,7 @@ import {
   GMAIL_SCOPES,
 } from '@/lib/email-imports/gmail-client';
 import { encrypt, decrypt } from '@/lib/email-imports/oauth-encryption';
-import type { GmailConnectionStatus } from '@/types/database';
+import type { GmailConnectionStatus, GmailSyncCriteria } from '@/types/database';
 
 // ============================================================
 // Get Gmail OAuth Authorization URL
@@ -190,6 +190,7 @@ export async function getGmailConnectionStatus(): Promise<{
       lastSyncStatus: credentials.last_sync_status,
       lastSyncMessage: credentials.last_sync_message,
       lastSyncEmailsCount: credentials.last_sync_emails_count,
+      syncCriteria: credentials.sync_criteria as GmailSyncCriteria,
     },
     error: null,
   };
@@ -279,6 +280,41 @@ export async function updateGmailSyncStatus(params: {
   if (error) {
     return { error: error.message };
   }
+
+  return { error: null };
+}
+// ============================================================
+// Update Sync Criteria
+// ============================================================
+
+export async function updateSyncCriteria(criteria: any): Promise<{ error: string | null }> {
+  // Check permission
+  const auth = await authorizePermission(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
+  if (!auth.authorized) {
+    return { error: auth.error || 'Unauthorized' };
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  const { error } = await supabase
+    .from('gmail_oauth_credentials')
+    .update({
+      sync_criteria: criteria,
+    })
+    .eq('is_active', true);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  // Audit log
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'gmail_oauth_credentials',
+    entityId: 'active',
+    entityDisplay: 'Gmail Sync Criteria',
+    newValues: criteria,
+  });
 
   return { error: null };
 }

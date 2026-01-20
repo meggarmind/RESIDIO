@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { sanitizeSearchInput } from '@/lib/utils';
 import type { ResidentWithHouses } from '@/types/database';
 import type { ResidentSearchParams, ContactVerificationFilter } from '@/lib/validators/resident';
@@ -146,12 +146,12 @@ export async function getActiveResidents(): Promise<{
   data: Array<{ id: string; first_name: string; last_name: string; resident_code: string }>;
   error: string | null;
 }> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from('residents')
     .select('id, first_name, last_name, resident_code')
-    .eq('is_active', true)
+    .eq('account_status', 'active')
     .order('first_name');
 
   return {

@@ -67,6 +67,7 @@ export const settingsConfig: SettingsGroup[] = [
         items: [
             { title: "Billing Profiles", href: "/settings/billing", description: "Manage billing entities" },
             { title: "Bank Accounts", href: "/settings/bank-accounts", description: "Estate bank accounts" },
+            { title: "Import Integration", href: "/settings/email-integration", description: "Connect email providers" },
         ]
     },
     {
@@ -74,7 +75,6 @@ export const settingsConfig: SettingsGroup[] = [
         icon: Mail,
         items: [
             { title: "Email", href: "/settings/email", description: "Email settings" },
-            { title: "Email Integration", href: "/settings/email-integration", description: "Connect email providers" },
             { title: "Message Templates", href: "/settings/message-templates", description: "Pre-written messages" },
             { title: "Announcement Categories", href: "/settings/announcement-categories", description: "Organize announcements" },
         ]

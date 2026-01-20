@@ -12,7 +12,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import {
   getGmailClient,
-  listFirstBankMessages,
+  listMessagesByCriteria,
   getMessage,
   getAttachment,
   extractEmailMetadata,
@@ -21,6 +21,8 @@ import {
 } from '@/lib/email-imports/gmail-client';
 import { updateGmailSyncStatus } from './gmail-oauth';
 import { createEmailImport, updateEmailImportStatus } from './create-email-import';
+import { parseAllPendingEmails } from './parse-email';
+import { matchEmailTransactions, processEmailTransactions } from './process-email-import';
 import type { FetchEmailsOptions, FetchEmailsResult, EmailMessage } from '@/types/database';
 
 // ============================================================
@@ -29,10 +31,28 @@ import type { FetchEmailsOptions, FetchEmailsResult, EmailMessage } from '@/type
 
 function detectEmailType(
   subject: string | null,
-  body: string | null
-): 'transaction_alert' | 'statement_attachment' | 'unknown' {
+  body: string | null,
+  criteria?: { include_credits: boolean; include_debits: boolean }
+): 'transaction_alert' | 'statement_attachment' | 'unknown' | 'filtered' {
   const subjectLower = (subject || '').toLowerCase();
   const bodyLower = (body || '').toLowerCase();
+
+  // Transaction alert patterns
+  const isCredit =
+    subjectLower.includes('credit') ||
+    bodyLower.includes('credit alert') ||
+    bodyLower.includes('account credited') ||
+    bodyLower.includes('has been credited');
+
+  const isDebit =
+    subjectLower.includes('debit') ||
+    bodyLower.includes('debit alert') ||
+    bodyLower.includes('account debited') ||
+    bodyLower.includes('has been debited');
+
+  if ((isCredit && criteria?.include_credits === false) || (isDebit && criteria?.include_debits === false)) {
+    return 'filtered';
+  }
 
   // Transaction alert patterns
   const alertPatterns = [
@@ -249,14 +269,15 @@ export async function fetchNewEmails(
   const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Get connection email
+  // Get connection details and criteria
   const { data: credentials } = await supabase
     .from('gmail_oauth_credentials')
-    .select('email_address')
+    .select('email_address, sync_criteria')
     .eq('is_active', true)
     .single();
 
   const sourceEmail = credentials?.email_address || 'unknown';
+  const criteria = credentials?.sync_criteria as any || {};
 
   // Create import session
   const { data: importSession, error: importError } = await createEmailImport({
@@ -290,14 +311,17 @@ export async function fetchNewEmails(
   };
 
   try {
-    // Calculate "since" date
+    // Calculate "since" date based on criteria or options
+    const finalDaysBack = criteria.days_back || sinceDays;
     const sinceDate = new Date();
-    sinceDate.setDate(sinceDate.getDate() - sinceDays);
+    sinceDate.setDate(sinceDate.getDate() - finalDaysBack);
 
-    // Fetch message list from Gmail
-    const { messages } = await listFirstBankMessages(gmail, {
+    // Fetch message list from Gmail using criteria
+    const { messages } = await listMessagesByCriteria(gmail, {
       maxResults: maxEmails,
       afterDate: sinceDate,
+      senders: criteria.senders,
+      keywords: criteria.keywords,
     });
 
     if (!messages || messages.length === 0) {
@@ -331,7 +355,15 @@ export async function fetchNewEmails(
         const attachmentsMeta = extractAttachments(message);
 
         // Detect email type
-        const emailType = detectEmailType(metadata.subject, body.text || body.html);
+        const emailType = detectEmailType(metadata.subject, body.text || body.html, {
+          include_credits: criteria.include_credits !== false,
+          include_debits: criteria.include_debits !== false,
+        });
+
+        if (emailType === 'filtered') {
+          result.emailsSkipped++;
+          continue;
+        }
 
         // Fetch attachment data
         const attachmentsWithData = [];
@@ -401,19 +433,33 @@ export async function fetchNewEmails(
       emailsCount: result.emailsFetched,
     });
 
-    // Audit log
-    await logAudit({
-      action: 'GENERATE',
-      entityType: 'email_imports',
-      entityId: importId,
-      entityDisplay: `Email Fetch: ${result.emailsFetched} emails`,
-      newValues: {
-        trigger,
-        emails_fetched: result.emailsFetched,
-        emails_skipped: result.emailsSkipped,
-        emails_errored: result.emailsErrored,
-      },
-    });
+    // ============================================================
+    // PIPELINE CHAINING
+    // Trigger subsequent stages immediately for manual fetches
+    // ============================================================
+
+    if (result.emailsFetched > 0) {
+      try {
+        // 1. Parse
+        await parseAllPendingEmails(importId);
+
+        // 2. Match
+        await matchEmailTransactions(importId);
+
+        // 3. Process
+        await processEmailTransactions(importId);
+      } catch (pipelineError) {
+        console.error('Pipeline processing failed:', pipelineError);
+        // We don't fail the whole fetch result, but the import status will reflect where it stopped
+        // (the individual steps update status as they go)
+      }
+    } else {
+      // If no emails fetched, mark as completed immediately (was left as 'parsing' before)
+      await updateEmailImportStatus({
+        importId,
+        status: 'completed',
+      });
+    }
 
     return result;
   } catch (error) {

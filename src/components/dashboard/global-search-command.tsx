@@ -139,18 +139,23 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
         searchResults.push(...matchedActions);
 
         // 2. Search Residents
-        const { data: residents } = await supabase
+        // Note: Column is phone_primary in DB, not phone
+        const { data: residents, error: residentsError } = await supabase
           .from('residents')
-          .select('id, first_name, last_name, phone, email')
-          .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,phone.ilike.%${query}%,email.ilike.%${query}%`)
+          .select('id, first_name, last_name, phone_primary, email')
+          .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,phone_primary.ilike.%${query}%,email.ilike.%${query}%`)
           .limit(5);
+
+        if (residentsError) {
+          console.error('Resident search error:', residentsError);
+        }
 
         if (residents) {
           searchResults.push(
             ...residents.map((r) => ({
               id: r.id,
               title: `${r.first_name} ${r.last_name}`,
-              subtitle: r.phone || r.email || undefined,
+              subtitle: r.phone_primary || r.email || undefined,
               href: `/residents/${r.id}`,
               type: 'resident' as const,
             }))

@@ -56,7 +56,7 @@ export default function ImportWizardPage() {
 
   const handleUploadComplete = useCallback((data: {
     file: File;
-    fileType: 'csv' | 'xlsx';
+    fileType: 'csv' | 'xlsx' | 'pdf';
     bankAccountId: string;
     transactionFilter: 'credit' | 'debit' | 'all';
     rawData: Record<string, unknown>[];
@@ -169,10 +169,10 @@ export default function ImportWizardPage() {
             <div className="flex flex-col items-center">
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${isStepComplete(step)
-                    ? 'bg-primary border-primary text-primary-foreground'
-                    : isStepCurrent(step)
-                      ? 'border-primary text-primary'
-                      : 'border-muted text-muted-foreground'
+                  ? 'bg-primary border-primary text-primary-foreground'
+                  : isStepCurrent(step)
+                    ? 'border-primary text-primary'
+                    : 'border-muted text-muted-foreground'
                   }`}
               >
                 {isStepComplete(step) ? (
@@ -259,8 +259,9 @@ export default function ImportWizardPage() {
                 parsedRows={importState.parsedRows}
                 columnMapping={importState.columnMapping!}
                 bankAccountId={importState.bankAccountId}
+                file={importState.file}
                 fileName={importState.file?.name || 'unknown'}
-                fileType={importState.fileType}
+                fileType={importState.fileType as 'csv' | 'xlsx'}
                 onComplete={handleReviewComplete}
                 onBack={goBack}
               />

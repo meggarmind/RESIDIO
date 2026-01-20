@@ -395,7 +395,7 @@ export async function initiateRenterMoveOut(
   await adminClient
     .from('in_app_notifications')
     .insert({
-      recipient_id: residentId,
+      recipient_id: resident.user_id,
       title: 'Move-Out Clearance Certificate',
       body: `Your clearance certificate (${certificateNumber}) has been generated. Valid until ${validUntil.toLocaleDateString()}.`,
       category: 'resident',
@@ -431,7 +431,7 @@ export async function initiateRenterMoveOut(
 
     if (staffResidents && staffResidents.length > 0) {
       const notifications = staffResidents.map((sr) => ({
-        recipient_id: sr.id,
+        recipient_id: sr.user_id,
         title: 'Renter Move-Out Initiated',
         body: `${resident.first_name} ${resident.last_name} (${resident.resident_code}) has initiated move-out from ${houseAddress}. Certificate: ${certificateNumber}`,
         category: 'admin',
@@ -549,7 +549,7 @@ export async function confirmRenterMoveOut(
   // Get resident details
   const { data: resident } = await supabase
     .from('residents')
-    .select('first_name, last_name, resident_code')
+    .select('first_name, last_name, resident_code, user_id')
     .eq('id', residentId)
     .single();
 
@@ -690,7 +690,7 @@ export async function confirmRenterMoveOut(
   await adminClient
     .from('in_app_notifications')
     .insert({
-      recipient_id: residentId,
+      recipient_id: resident?.user_id,
       title: 'Move-Out Confirmed',
       body: `Your move-out has been confirmed by security. You are no longer associated with the property.`,
       category: 'resident',

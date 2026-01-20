@@ -108,6 +108,8 @@ export async function parseEmailMessage(
 ): Promise<{
   transactionsExtracted: number;
   error: string | null;
+  emailType: string | null;
+  errors: string[];
 }> {
   const adminClient = await createAdminClient();
 
@@ -122,12 +124,15 @@ export async function parseEmailMessage(
     return {
       transactionsExtracted: 0,
       error: fetchError?.message || 'Email message not found',
+      emailType: null,
+      errors: [fetchError?.message || 'Email message not found'],
     };
   }
 
   const emailMessage = message as EmailMessage;
   let transactionsExtracted = 0;
   const errors: string[] = [];
+  let emailType: string | null = emailMessage.email_type;
 
   try {
     // Parse based on email type
@@ -244,6 +249,7 @@ export async function parseEmailMessage(
               .from('email_messages')
               .update({ email_type: 'transaction_alert' })
               .eq('id', emailMessage.id);
+            emailType = 'transaction_alert';
           }
         }
       }
@@ -289,6 +295,7 @@ export async function parseEmailMessage(
             .from('email_messages')
             .update({ email_type: 'statement_attachment' })
             .eq('id', emailMessage.id);
+          emailType = 'statement_attachment';
         }
       }
     }
@@ -301,12 +308,15 @@ export async function parseEmailMessage(
         processing_error: errors.length > 0 ? errors.join('; ') : null,
         transactions_extracted: transactionsExtracted,
         processed_at: new Date().toISOString(),
+        email_type: emailType,
       })
       .eq('id', emailMessage.id);
 
     return {
       transactionsExtracted,
       error: errors.length > 0 ? errors.join('; ') : null,
+      emailType,
+      errors,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -323,6 +333,8 @@ export async function parseEmailMessage(
     return {
       transactionsExtracted: 0,
       error: errorMessage,
+      emailType: emailMessage.email_type,
+      errors: [errorMessage],
     };
   }
 }
@@ -370,6 +382,10 @@ export async function parseAllPendingEmails(
   let totalTransactions = 0;
   let errored = 0;
 
+  // Additional metrics
+  const emailTypeCounts: Record<string, number> = {};
+  const perEmailDetails: Array<{ id: string; type: string | null; transactions: number; errors: string[] }> = [];
+
   // Process each message
   for (const msg of messages) {
     const result = await parseEmailMessage(msg.id);
@@ -381,6 +397,16 @@ export async function parseAllPendingEmails(
     }
 
     totalTransactions += result.transactionsExtracted;
+
+    // Track per-email metrics
+    const typeKey = result.emailType || 'unknown';
+    emailTypeCounts[typeKey] = (emailTypeCounts[typeKey] || 0) + 1;
+    perEmailDetails.push({
+      id: msg.id,
+      type: result.emailType,
+      transactions: result.transactionsExtracted,
+      errors: result.errors,
+    });
   }
 
   // Update import status
@@ -390,6 +416,16 @@ export async function parseAllPendingEmails(
     emailsParsed: messagesParsed,
     emailsErrored: errored,
     transactionsExtracted: totalTransactions,
+    importSummary: {
+      parse_results: {
+        messages_processed: messagesParsed,
+        transactions_found: totalTransactions,
+        errors_encountered: errored,
+        parsed_at: new Date().toISOString(),
+      },
+      email_type_counts: emailTypeCounts,
+      per_email_details: perEmailDetails,
+    }
   });
 
   // Audit log

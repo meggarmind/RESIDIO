@@ -16,6 +16,8 @@ import {
 } from '@/actions/imports/bank-accounts';
 import { creditWallet, allocateWalletToInvoices } from '@/actions/billing/wallet';
 import { logAudit } from '@/lib/audit/logger';
+import { notifyAdmins } from '@/lib/notifications/admin-notifier';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 // Response types
 interface GetApprovalRequestsResponse {
@@ -508,6 +510,16 @@ export async function createApprovalRequest(params: {
   if (error) {
     return { success: false, error: error.message };
   }
+
+  // Notify admins of the new approval request
+  await notifyAdmins({
+    title: 'New Approval Request',
+    body: `A new ${params.request_type.replace(/_/g, ' ')} request has been created and requires review.`,
+    category: 'system',
+    actionUrl: `/approvals?id=${data.id}`,
+    priority: 'normal',
+    requiredPermission: PERMISSIONS.APPROVALS_VIEW,
+  });
 
   return { success: true, request_id: data.id, error: null };
 }

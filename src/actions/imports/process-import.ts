@@ -2,31 +2,15 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logAudit } from '@/lib/audit/logger';
-import type { BankStatementImport, BankStatementRow, PaymentRecord } from '@/types/database';
+import { updateImportStatus } from './create-import';
 import { createPayment } from '@/actions/payments/create-payment';
 import { createExpense } from '@/actions/expenses/create-expense';
-import { updateImportStatus } from './create-import';
-
+import Fuse from 'fuse.js';
+import type { BankStatementImport, BankStatementRow, PaymentRecord, Expense } from '@/types/database';
+import type { DuplicateCheckResult, ProcessImportOptions, ProcessImportResult } from './types';
+import { notifyAdmins } from '@/lib/notifications/admin-notifier';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 // ============================================================
-// Response Types
-// ============================================================
-
-type ProcessImportResult = {
-  success: boolean;
-  created_count: number;
-  created_payments_count: number;
-  created_expenses_count: number;
-  skipped_count: number;
-  error_count: number;
-  errors: Array<{ row_id: string; error: string }>;
-  import_id: string;
-}
-
-type DuplicateCheckResult = {
-  is_duplicate: boolean;
-  existing_payment?: PaymentRecord;
-  reason?: string;
-}
 
 // ============================================================
 // Check for Duplicate Payment
@@ -36,11 +20,62 @@ export async function checkDuplicate(
   reference: string | null,
   amount: number,
   date: string,
-  tolerance_days: number = 1
+  tolerance_days: number = 1,
+  transaction_hash?: string | null,
+  description?: string | null
 ): Promise<DuplicateCheckResult> {
   const supabase = await createServerSupabaseClient();
 
-  // Check by exact reference match first
+  // 1. Check by Deterministic Hash first (Strongest match)
+  if (transaction_hash) {
+    // Check in payment_records
+    const { data: byPayHash } = await supabase
+      .from('payment_records')
+      .select('id, reference_number')
+      .eq('transaction_hash', transaction_hash)
+      .maybeSingle();
+
+    if (byPayHash) {
+      return {
+        is_duplicate: true,
+        existing_payment_id: byPayHash.id,
+        reason: `Duplicate transaction hash in payments`,
+      };
+    }
+
+    // Check in expenses
+    const { data: byExpHash } = await supabase
+      .from('expenses')
+      .select('id, reference_number')
+      .eq('transaction_hash', transaction_hash)
+      .maybeSingle();
+
+    if (byExpHash) {
+      return {
+        is_duplicate: true,
+        existing_payment_id: byExpHash.id,
+        reason: `Duplicate transaction hash in expenses`,
+      };
+    }
+
+    // Check in bank_statement_rows (already processed)
+    const { data: byRowHash } = await supabase
+      .from('bank_statement_rows')
+      .select('id, status, payment_id')
+      .eq('transaction_hash', transaction_hash)
+      .eq('status', 'created')
+      .maybeSingle();
+
+    if (byRowHash) {
+      return {
+        is_duplicate: true,
+        existing_payment_id: byRowHash.payment_id || undefined,
+        reason: `Duplicate transaction hash (already imported)`,
+      };
+    }
+  }
+
+  // 2. Exact reference match (Existing logic)
   if (reference) {
     const { data: byRef } = await supabase
       .from('payment_records')
@@ -51,7 +86,7 @@ export async function checkDuplicate(
     if (byRef) {
       return {
         is_duplicate: true,
-        existing_payment: byRef as PaymentRecord,
+        existing_payment_id: byRef.id,
         reason: `Duplicate reference: ${reference}`,
       };
     }
@@ -75,29 +110,71 @@ export async function checkDuplicate(
   if (byAmountDate && byAmountDate.length > 0) {
     return {
       is_duplicate: true,
-      existing_payment: byAmountDate[0] as PaymentRecord,
+      existing_payment_id: byAmountDate[0].id,
       reason: `Potential duplicate: same amount (${amount}) within ${tolerance_days} days`,
     };
+  }
+
+  // 4. Fuzzy Match description (New capability)
+  if (description) {
+    const fuzzyMatch = await checkFuzzyDuplicate(description, amount, date);
+    if (fuzzyMatch) {
+      return {
+        is_duplicate: true,
+        is_fuzzy: true,
+        existing_payment_id: fuzzyMatch.id,
+        reason: `Fuzzy description match: "${fuzzyMatch.description}"`,
+      };
+    }
   }
 
   return { is_duplicate: false };
 }
 
+/**
+ * Checks for potential duplicates using fuzzy matching on the description.
+ */
+async function checkFuzzyDuplicate(
+  description: string,
+  amount: number,
+  date: string,
+  threshold: number = 0.3
+) {
+  const supabase = await createServerSupabaseClient();
+  const paymentDate = new Date(date);
+  const startDate = new Date(paymentDate);
+  startDate.setDate(startDate.getDate() - 7); // Wider window for fuzzy checks
+  const endDate = new Date(paymentDate);
+  endDate.setDate(endDate.getDate() + 7);
+
+  // Fetch candidate payments with same amount but different descriptions
+  const { data: candidates } = await supabase
+    .from('payment_records')
+    .select('id, description, payment_date')
+    .eq('amount', amount)
+    .gte('payment_date', startDate.toISOString().split('T')[0])
+    .lte('payment_date', endDate.toISOString().split('T')[0]);
+
+  if (!candidates || candidates.length === 0) return null;
+
+  const fuse = new Fuse(candidates, {
+    keys: ['description'],
+    threshold,
+    includeScore: true,
+  });
+
+  const results = fuse.search(description);
+
+  if (results.length > 0 && results[0].score! <= threshold) {
+    return candidates.find(c => c.id === results[0].item.id);
+  }
+
+  return null;
+}
+
 // ============================================================
 // Process Import - Create Payments
 // ============================================================
-
-type ProcessImportOptions = {
-  import_id: string;
-  /** atomic: all-or-nothing, individual: process each row independently */
-  mode?: 'atomic' | 'individual';
-  /** Skip rows flagged as duplicates */
-  skip_duplicates?: boolean;
-  /** Skip unmatched rows */
-  skip_unmatched?: boolean;
-  /** Days tolerance for duplicate detection */
-  duplicate_tolerance_days?: number;
-}
 
 export async function processImport(options: ProcessImportOptions): Promise<ProcessImportResult> {
   const supabase = await createServerSupabaseClient();
@@ -263,9 +340,11 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     if (!isDebit && row.matched_resident_id && skip_duplicates && row.transaction_date) {
       const dupCheck = await checkDuplicate(
         row.reference,
-        row.amount,
-        row.transaction_date,
-        duplicate_tolerance_days
+        row.amount || 0,
+        row.transaction_date || '',
+        duplicate_tolerance_days,
+        row.transaction_hash,
+        row.description
       );
 
       if (dupCheck.is_duplicate) {
@@ -455,6 +534,18 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     },
   });
 
+  // Notify admins if there are rows needing manual review or if import completes
+  if (result.skipped_count > 0 || result.error_count > 0) {
+    await notifyAdmins({
+      title: 'Bank Import Review Needed',
+      body: `Bank import ${import_id.slice(0, 8)} has ${result.skipped_count} skipped rows and ${result.error_count} errors.`,
+      category: 'payment',
+      actionUrl: `/payments/import/${import_id}`,
+      priority: 'normal',
+      requiredPermission: PERMISSIONS.IMPORTS_REVIEW,
+    });
+  }
+
   return result;
 }
 
@@ -590,6 +681,16 @@ export async function submitForApproval(import_id: string): Promise<{ error: str
   if (error) {
     return { error: error.message };
   }
+
+  // Notify admins that an import is awaiting approval
+  await notifyAdmins({
+    title: 'Bank Import Awaiting Approval',
+    body: `Bank import ${import_id.slice(0, 8)} has been submitted for approval.`,
+    category: 'payment',
+    actionUrl: `/payments/import/${import_id}`,
+    priority: 'high',
+    requiredPermission: PERMISSIONS.IMPORTS_APPROVE,
+  });
 
   return { error: null };
 }

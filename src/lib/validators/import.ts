@@ -105,6 +105,9 @@ export const createImportSchema = z.object({
   transaction_filter: transactionFilterEnum.default('credit'),
   column_mapping: columnMappingSchema,
   total_rows: z.number().int().min(0),
+  file_hash: z.string().optional(),
+  period_start: z.string().optional(),
+  period_end: z.string().optional(),
 });
 
 export type CreateImportFormData = z.infer<typeof createImportSchema>;
@@ -173,6 +176,7 @@ export const parsedRowSchema = z.object({
   amount: z.number().nullable(),
   transaction_type: z.enum(['credit', 'debit']).nullable(),
   reference: z.string().nullable(),
+  transaction_hash: z.string().optional(),
 });
 
 export type ParsedRow = z.infer<typeof parsedRowSchema>;

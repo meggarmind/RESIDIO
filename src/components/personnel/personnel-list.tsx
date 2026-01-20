@@ -234,7 +234,7 @@ export function PersonnelList() {
                 onOpenChange={setEditOpen}
                 personnel={editPersonnel}
                 onSuccess={fetchPersonnel}
-                trigger={<></>}
+                trigger={null}
             />
         </div>
     );

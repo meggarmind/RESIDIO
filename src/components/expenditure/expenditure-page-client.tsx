@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { PettyCashDashboard } from './petty-cash-dashboard';
 import { LogExpenseDialog } from './log-expense-dialog';
@@ -16,7 +16,10 @@ interface ExpenditurePageClientProps {
     categories: any[];
     projects: any[];
     pettyCashMetrics: PettyCashMetrics;
+
     pettyCashAccounts: any[];
+    residents: any[];
+    staff: any[];
 }
 
 export function ExpenditurePageClient({
@@ -25,13 +28,21 @@ export function ExpenditurePageClient({
     categories,
     projects,
     pettyCashMetrics,
-    pettyCashAccounts
+
+    pettyCashAccounts,
+    residents,
+    staff
 }: ExpenditurePageClientProps) {
     const router = useRouter();
     const [expenses, setExpenses] = useState(initialExpenses);
     const [isLogExpenseOpen, setIsLogExpenseOpen] = useState(false);
     const [isTransactionOpen, setIsTransactionOpen] = useState(false);
     const [dialogInitialData, setDialogInitialData] = useState<any>(null);
+
+    // Sync state with server-side data
+    useEffect(() => {
+        setExpenses(initialExpenses);
+    }, [initialExpenses]);
 
     const handleLogExpense = () => {
         setDialogInitialData(null);
@@ -80,6 +91,8 @@ export function ExpenditurePageClient({
                 categories={categories}
                 projects={projects}
                 pettyCashAccounts={pettyCashAccounts}
+                residents={residents}
+                staff={staff}
                 onSuccess={handleExpenseCreated}
                 initialData={dialogInitialData}
             />

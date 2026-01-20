@@ -169,6 +169,9 @@ export type CreateImportParams = {
   transaction_filter?: 'credit' | 'debit' | 'all';
   total_rows: number;
   column_mapping: ColumnMapping;
+  file_hash?: string;
+  period_start?: string;
+  period_end?: string;
 };
 
 export type CreateImportResponse = {
@@ -259,6 +262,8 @@ export type ProcessImportOptions = {
 export type ProcessImportResult = {
   success: boolean;
   created_count: number;
+  created_payments_count: number;
+  created_expenses_count: number;
   skipped_count: number;
   error_count: number;
   errors: Array<{ row_id: string; error: string }>;
@@ -269,6 +274,8 @@ export type DuplicateCheckResult = {
   is_duplicate: boolean;
   existing_payment_id?: string;
   match_fields?: string[];
+  reason?: string;
+  is_fuzzy?: boolean;
 };
 
 // ============================================================

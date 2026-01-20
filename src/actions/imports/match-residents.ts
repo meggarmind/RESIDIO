@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createMatcher, type ResidentMatchData } from '@/lib/matching';
 import type { BankStatementRow, MatchConfidence, MatchMethod, ResidentPaymentAlias } from '@/types/database';
+import { checkDuplicate } from './process-import';
 
 // ============================================================
 // Retry Helper with Exponential Backoff
@@ -180,6 +181,16 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
       reference: row.reference,
     });
 
+    // Check for duplicates (cross-referencing payment_records and expenses)
+    const dupCheck = await checkDuplicate(
+      row.reference,
+      row.amount || 0,
+      row.transaction_date || '',
+      1, // tolerance days
+      row.transaction_hash,
+      row.description
+    );
+
     const result: MatchRowResult = {
       row_id: row.id,
       resident_id: matchResult.resident_id,
@@ -199,7 +210,9 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
     // Update row in database
     const isDebit = row.transaction_type === 'debit';
     let status: string;
-    let additionalUpdates: Record<string, unknown> = {};
+    let additionalUpdates: Record<string, unknown> = {
+      duplicate_reason: dupCheck.is_duplicate ? dupCheck.reason : null,
+    };
 
     if (matchResult.resident_id) {
       // Credit matched to resident

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,12 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   ArrowLeft,
   ArrowDownLeft,
   ArrowUpRight,
@@ -39,8 +46,10 @@ import {
   Sparkles,
   TableIcon,
   BarChart3,
+  History,
 } from 'lucide-react';
 import { PaginationControls } from '@/components/ui/pagination-controls';
+import { generateFileHashClient } from '@/lib/utils/hashing-client';
 import {
   useCreateImport,
   useCreateImportRows,
@@ -103,6 +112,7 @@ interface ImportPreviewProps {
   bankAccountId: string;
   fileName: string;
   fileType: 'csv' | 'xlsx';
+  file: File | null;
   onComplete: (importId: string) => void;
   onBack: () => void;
 }
@@ -113,6 +123,7 @@ export function ImportPreview({
   bankAccountId,
   fileName,
   fileType,
+  file,
   onComplete,
   onBack,
 }: ImportPreviewProps) {
@@ -200,16 +211,41 @@ export function ImportPreview({
       setError(null);
 
       try {
-        // Create import record
-        // Note: transaction_type is auto-detected per-row during mapping stage
-        const importResult = await createImportMutation.mutateAsync({
+        // Prepare import parameters
+        const importParams: any = {
           file_name: fileName,
           file_type: fileType,
           bank_account_id: bankAccountId,
           transaction_filter: 'all', // All rows imported; type is per-row
           total_rows: parsedRows.length,
           column_mapping: uiToDbMapping(columnMapping),
-        });
+        };
+
+        // 1. Calculate statement period from parsed rows
+        if (parsedRows.length > 0) {
+          const dates = parsedRows
+            .map(r => r.transaction_date)
+            .filter((d): d is Date => d !== null)
+            .sort((a, b) => a.getTime() - b.getTime());
+
+          if (dates.length > 0) {
+            importParams.period_start = dates[0].toISOString().split('T')[0];
+            importParams.period_end = dates[dates.length - 1].toISOString().split('T')[0];
+          }
+        }
+
+        // 2. Generate file hash for duplicate detection
+        if (file) {
+          try {
+            const buffer = await file.arrayBuffer();
+            importParams.file_hash = await generateFileHashClient(buffer);
+          } catch (hashErr) {
+            console.error('Failed to generate file hash:', hashErr);
+          }
+        }
+
+        // 3. Create import record
+        const importResult = await createImportMutation.mutateAsync(importParams);
 
         if (!importResult.data?.id) {
           throw new Error('Failed to create import record');
@@ -462,16 +498,35 @@ export function ImportPreview({
   }
 
   if (error) {
+    const isDuplicateFile = error.toLowerCase().includes('already been imported') ||
+      error.toLowerCase().includes('identical file content') ||
+      error.toLowerCase().includes('duplicate key value violates unique constraint');
+
     return (
       <div className="space-y-4">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
+        <Alert variant={isDuplicateFile ? "warning" : "destructive"}>
+          {isDuplicateFile ? <History className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+          <AlertTitle>{isDuplicateFile ? "Duplicate File Detected" : "Error Initializing Import"}</AlertTitle>
+          <AlertDescription>
+            {error}
+            {isDuplicateFile && (
+              <p className="mt-2 text-sm">
+                This file has already been imported and processed. Please check your import history or upload a different file.
+              </p>
+            )}
+          </AlertDescription>
         </Alert>
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Upload
+          </Button>
+          {isDuplicateFile && (
+            <Button variant="default" asChild>
+              <Link href="/payments/imports">View Import History</Link>
+            </Button>
+          )}
+        </div>
       </div>
     );
   }
@@ -717,7 +772,27 @@ export function ImportPreview({
 
                         {/* Description */}
                         <TableCell className="px-1 max-w-[180px] truncate" title={row.description || ''}>
-                          {row.description || '--'}
+                          <div className="flex items-center gap-1.5 overflow-hidden">
+                            {row.duplicate_reason && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex-shrink-0">
+                                      {row.duplicate_reason.includes('Fuzzy') ? (
+                                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500 fill-amber-50" />
+                                      ) : (
+                                        <History className="h-3.5 w-3.5 text-red-500" />
+                                      )}
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs">{row.duplicate_reason}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            <span className="truncate">{row.description || '--'}</span>
+                          </div>
                         </TableCell>
 
                         {/* Amount */}

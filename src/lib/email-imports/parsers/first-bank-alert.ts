@@ -22,6 +22,34 @@
 import type { ParsedEmailTransaction } from '@/types/database';
 
 // ============================================================
+// HTML Stripping Utility
+// ============================================================
+
+/**
+ * Strip HTML tags from content and decode common HTML entities.
+ * Converts HTML to plain text for parsing.
+ */
+export function stripHtmlTags(html: string): string {
+  return html
+    // Replace <br>, <p>, <div>, <tr> with newlines for structure preservation
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(p|div|tr|li)[^>]*>/gi, '\n')
+    // Remove all remaining HTML tags
+    .replace(/<[^>]+>/g, '')
+    // Decode common HTML entities
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#x27;/gi, "'")
+    .replace(/&#x2F;/gi, '/')
+    // Clean up excessive whitespace
+    .replace(/\n\s*\n/g, '\n')
+    .trim();
+}
+// ============================================================
 // Regex Patterns for First Bank Alerts
 // ============================================================
 
@@ -280,7 +308,8 @@ function extractDescriptionFromText(text: string): string | null {
  * Check if email body looks like a First Bank alert
  */
 export function isFirstBankAlert(body: string, subject?: string | null): boolean {
-  const text = `${subject || ''} ${body}`.toLowerCase();
+  const plainText = stripHtmlTags(body);
+  const text = `${subject || ''} ${plainText}`.toLowerCase();
 
   const indicators = [
     'first bank',
@@ -313,8 +342,11 @@ export function isFirstBankAlert(body: string, subject?: string | null): boolean
  * FIP:GTB/ANIH LANA/NIP
  */
 function parseStructuredAlert(body: string, subject?: string | null): ParsedEmailTransaction | null {
+  // Strip HTML tags if present (emails are often stored as HTML)
+  const plainText = stripHtmlTags(body);
+
   // Normalize newlines and spaces
-  const lines = body.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+  const lines = plainText.split(/\r?\n/).map((l: string) => l.trim()).filter((l: string) => l.length > 0);
   const text = lines.join('\n');
 
   // Helper to find value after a key
@@ -338,7 +370,7 @@ function parseStructuredAlert(body: string, subject?: string | null): ParsedEmai
   const amountStr = findValue(/(?:amount|amt)/i);
   const dateStr = findValue(/(?:date\/time|date)/i);
   const accountStr = findValue(/(?:account|acct)\s*(?:number|no)/i);
-  const narrationStr = findValue(/(?:narration|details|description|desc)/i);
+  const narrationStr = findValue(/(?:narration|description|remarks)/i);
   const balanceStr = findValue(/(?:cleared|avail)?\s*balance/i);
 
   if (!amountStr || !dateStr) return null;
