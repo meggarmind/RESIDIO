@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getAnalyticsData } from '@/actions/analytics/get-analytics-data';
 import type { AnalyticsData } from '@/types/analytics';
+import { POLLING_INTERVALS } from '@/lib/config/polling';
 
 interface UseAnalyticsOptions {
   startDate: string;
@@ -24,9 +25,9 @@ export function useAnalytics({ startDate, endDate }: UseAnalyticsOptions) {
       return result.data;
     },
     // Auto-refresh every 2 minutes for real-time updates
-    refetchInterval: 120000,
+    refetchInterval: POLLING_INTERVALS.SLOW, // 120s -> 180s (SLOW)
     // Consider data fresh for 60 seconds
-    staleTime: 60000,
+    staleTime: POLLING_INTERVALS.STANDARD,
     // Keep previous data while fetching new date range
     placeholderData: (previousData) => previousData,
   });

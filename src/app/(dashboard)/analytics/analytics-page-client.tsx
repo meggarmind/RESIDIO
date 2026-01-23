@@ -13,6 +13,8 @@ import { AnalyticsHeader } from '@/components/analytics/analytics-header';
 import { KPISummaryCards } from '@/components/analytics/kpi-summary-cards';
 import { OccupancyGauge } from '@/components/analytics/occupancy-gauge';
 import { PaymentComplianceCard } from '@/components/analytics/payment-compliance-card';
+import { useSearchAnalytics } from '@/hooks/use-search-analytics';
+import { SearchAnalyticsCard } from '@/components/analytics/search-analytics-card';
 
 // Lazy load heavy chart components (recharts ~500KB)
 const RevenueTrendChart = dynamic(
@@ -56,6 +58,11 @@ function AnalyticsDashboard() {
     endDate: dateRange.endDate,
   });
 
+  const searchAnalytics = useSearchAnalytics({
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+  });
+
   // Error state
   if (error) {
     return (
@@ -95,6 +102,13 @@ function AnalyticsDashboard() {
 
       {/* Category Breakdown (Full Width) */}
       <CategoryBreakdownChart data={data?.invoiceCategories ?? null} isLoading={isLoading} />
+
+      {/* Search Analytics */}
+      <SearchAnalyticsCard
+        topSearches={searchAnalytics.data?.topSearches}
+        zeroResultSearches={searchAnalytics.data?.zeroResultSearches}
+        isLoading={searchAnalytics.isLoading}
+      />
 
       {/* Last Updated Indicator */}
       {data?.lastUpdated && (

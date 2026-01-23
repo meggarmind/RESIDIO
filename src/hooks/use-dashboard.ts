@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboardStats } from '@/actions/dashboard/get-dashboard-stats';
 import { getEnhancedDashboardStats } from '@/actions/dashboard/get-enhanced-dashboard-stats';
+import { POLLING_INTERVALS } from '@/lib/config/polling';
 
 export function useDashboardStats() {
     return useQuery({
@@ -13,8 +14,8 @@ export function useDashboardStats() {
             return result.data;
         },
         // Optimized: 30s → 60s (dashboard data doesn't change that frequently)
-        refetchInterval: 60000,
-        staleTime: 30000,
+        refetchInterval: POLLING_INTERVALS.STANDARD,
+        staleTime: POLLING_INTERVALS.REALTIME,
     });
 }
 
@@ -27,7 +28,7 @@ export function useEnhancedDashboardStats() {
             return result.data;
         },
         // Optimized: 60s → 180s (heavy query, data is relatively stable)
-        refetchInterval: 180000,
-        staleTime: 60000, // Consider data fresh for 1 minute
+        refetchInterval: POLLING_INTERVALS.SLOW,
+        staleTime: POLLING_INTERVALS.STANDARD, // Consider data fresh for 1 minute
     });
 }

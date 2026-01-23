@@ -7,6 +7,7 @@ import {
   verifyPaystackPayment,
   getPaystackTransactionStatus,
 } from '@/actions/paystack';
+import { POLLING_INTERVALS } from '@/lib/config/polling';
 
 /**
  * Hook to initialize a Paystack payment
@@ -106,13 +107,14 @@ export function usePaystackTransactionStatus(reference: string | null, options?:
       return result.status;
     },
     enabled: !!reference && options?.enabled !== false,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
+      const status = query.state.data;
       // Stop polling once we have a final status
-      if (data && ['success', 'failed', 'abandoned', 'reversed'].includes(data)) {
+      if (status && ['success', 'failed', 'abandoned', 'reversed'].includes(status)) {
         return false;
       }
       // Poll every 5 seconds for pending transactions
-      return 5000;
+      return POLLING_INTERVALS.FAST;
     },
     staleTime: 0, // Always fetch fresh status
   });

@@ -10,11 +10,23 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, Loader2, Save, Server, Clock, Database, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Loader2, Save, Server, Clock, Database, ShieldAlert, Trash2, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSystemSettings, useUpdateSettings, useUpdateSetting } from '@/hooks/use-settings';
 import { updateMaintenanceMode } from '@/actions/settings/update-maintenance-mode';
 import { CronHealthCard } from '@/components/dashboard/cron-health-card';
+import { pruneSystemData } from '@/actions/system/prune-data';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 // Helper to convert settings array to key-value object
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
@@ -34,7 +46,9 @@ export default function SystemSettingsPage() {
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
   const [auditLogRetentionDays, setAuditLogRetentionDays] = useState(365);
   const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState(60);
+  const [duplicateMatchingThreshold, setDuplicateMatchingThreshold] = useState(90);
   const [isDirty, setIsDirty] = useState(false);
+  const [isPruning, setIsPruning] = useState(false);
 
   // Load settings into form when data is fetched
   useEffect(() => {
@@ -44,6 +58,7 @@ export default function SystemSettingsPage() {
       setMaintenanceMessage((settingsObj.maintenance_message as string) || 'The system is currently under maintenance. Please try again later.');
       setAuditLogRetentionDays(Number(settingsObj.audit_log_retention_days) || 365);
       setSessionTimeoutMinutes(Number(settingsObj.session_timeout_minutes) || 60);
+      setDuplicateMatchingThreshold(Number(settingsObj.duplicate_matching_threshold) || 90);
       setIsDirty(false);
     }
   }, [systemSettings]);
@@ -71,11 +86,30 @@ export default function SystemSettingsPage() {
       maintenance_message: maintenanceMessage,
       audit_log_retention_days: auditLogRetentionDays,
       session_timeout_minutes: sessionTimeoutMinutes,
+      duplicate_matching_threshold: duplicateMatchingThreshold,
     }, {
       onSuccess: () => {
         setIsDirty(false);
       }
     });
+  };
+
+  const handlePruneData = async () => {
+    setIsPruning(true);
+    try {
+      const result = await pruneSystemData();
+      if (result.error) {
+        toast.error(result.error);
+      } else if (result.data) {
+        toast.success(
+          `Pruned ${result.data.notifications} notifications, ${result.data.auditLogs} audit logs, and ${result.data.searchLogs} search logs.`
+        );
+      }
+    } catch (error) {
+      toast.error('Failed to prune data');
+    } finally {
+      setIsPruning(false);
+    }
   };
 
   if (isLoading) {
@@ -242,6 +276,99 @@ export default function SystemSettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Duplicate Matching Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Copy className="h-5 w-5" />
+              Duplicate Matching
+            </CardTitle>
+            <CardDescription>
+              Configure the sensitivity for detecting duplicate transactions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="duplicate_threshold">Duplicate Confidence Threshold (%)</Label>
+                <p className="text-sm text-muted-foreground">
+                  Transactions with a match score above this percentage will be flagged as duplicates
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="duplicate_threshold"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={duplicateMatchingThreshold}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val >= 0 && val <= 100) {
+                      setDuplicateMatchingThreshold(val);
+                      setIsDirty(true);
+                    }
+                  }}
+                  className="w-24 text-center"
+                />
+                <span className="text-sm text-muted-foreground">%</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Higher values (e.g., 90-100%) require stricter matches. Lower values may flag more potential duplicates but increase false positives.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Data Management Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              Data Management
+            </CardTitle>
+            <CardDescription>
+              Manage system data storage and cleanup.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Prune Old Data</Label>
+                <p className="text-sm text-muted-foreground">
+                  Remove old notifications ({'>'}30 days read, {'>'}90 days unread), audit logs ({'>'}6 months), and search history ({'>'}30 days).
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Prune Data
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete old notifications, audit logs, and search history from the database to free up space.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handlePruneData}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      {isPruning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Yes, Prune Data
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* System Health Card */}
         <CronHealthCard />
 
@@ -257,6 +384,6 @@ export default function SystemSettingsPage() {
           </Button>
         </div>
       </div>
-    </div>
+    </div >
   );
 }

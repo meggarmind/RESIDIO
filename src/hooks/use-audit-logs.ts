@@ -7,6 +7,7 @@ import {
   getAuditStats,
   getAuditActors,
 } from '@/actions/audit';
+import { POLLING_INTERVALS } from '@/lib/config/polling';
 import type { AuditEntityType, AuditAction } from '@/types/database';
 
 // Type for audit log params (defined inline since it's from 'use server' file)
@@ -72,7 +73,7 @@ export function useAuditStats() {
       if (result.error) throw new Error(result.error);
       return result.data;
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: POLLING_INTERVALS.REALTIME, // Refresh every 30 seconds
   });
 }
 

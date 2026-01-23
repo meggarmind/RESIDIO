@@ -18,6 +18,7 @@ import {
 } from '@/actions/approvals/developer-owner-approvals';
 import type { ApprovalStatus, ApprovalRequestType } from '@/types/database';
 import { toast } from 'sonner';
+import { POLLING_INTERVALS } from '@/lib/config/polling';
 
 interface UseApprovalRequestsParams {
     status?: ApprovalStatus | 'all';
@@ -45,7 +46,7 @@ export function usePendingApprovalsCount() {
             if (result.error) throw new Error(result.error);
             return result.count;
         },
-        refetchInterval: 60000, // Refetch every minute
+        refetchInterval: POLLING_INTERVALS.STANDARD, // Refetch every minute
     });
 }
 
@@ -203,6 +204,6 @@ export function useMyPendingApprovals() {
             if (!result.success) throw new Error(result.error || 'Failed to fetch pending approvals');
             return result.data || [];
         },
-        refetchInterval: 60000, // Refresh every minute
+        refetchInterval: POLLING_INTERVALS.STANDARD, // Refresh every minute
     });
 }

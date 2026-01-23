@@ -58,6 +58,8 @@ export type HierarchicalSettingKey =
   // Reporting settings
   | 'default_report_format'
   | 'report_retention_days'
+  // Duplicate Matching
+  | 'duplicate_matching_threshold'
   // Portal settings
   | 'portal_session_timeout_minutes'
   | 'portal_show_payment_history'
@@ -153,6 +155,14 @@ export const SETTING_METADATA: Record<HierarchicalSettingKey, {
     label: 'Retention Period',
     description: 'Number of days to retain generated reports',
     category: 'reports',
+    type: 'number',
+  },
+
+  // Duplicate Matching
+  duplicate_matching_threshold: {
+    label: 'Duplicate Match Threshold',
+    description: 'Confidence threshold (0-100%) for blocking duplicate transactions',
+    category: 'security',
     type: 'number',
   },
 

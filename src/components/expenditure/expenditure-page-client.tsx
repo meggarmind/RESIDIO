@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { PettyCashDashboard } from './petty-cash-dashboard';
 import { LogExpenseDialog } from './log-expense-dialog';
 import { ExpenditureClient } from './expenditure-client';
+import { SnapLogDialog } from './snap-log-dialog';
 import { PettyCashTransactionDialog } from './petty-cash-transaction-dialog';
 import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { Receipt } from 'lucide-react';
@@ -36,6 +37,7 @@ export function ExpenditurePageClient({
     const router = useRouter();
     const [expenses, setExpenses] = useState(initialExpenses);
     const [isLogExpenseOpen, setIsLogExpenseOpen] = useState(false);
+    const [isSnapLogOpen, setIsSnapLogOpen] = useState(false);
     const [isTransactionOpen, setIsTransactionOpen] = useState(false);
     const [dialogInitialData, setDialogInitialData] = useState<any>(null);
 
@@ -47,6 +49,10 @@ export function ExpenditurePageClient({
     const handleLogExpense = () => {
         setDialogInitialData(null);
         setIsLogExpenseOpen(true);
+    };
+
+    const handleSnapLogTrigger = () => {
+        setIsSnapLogOpen(true);
     };
 
     const handleSnapLog = (receiptData: any) => {
@@ -81,6 +87,7 @@ export function ExpenditurePageClient({
                 <ExpenditureClient
                     expenses={expenses}
                     onLogExpense={handleLogExpense}
+                    onSnapLog={handleSnapLogTrigger}
                 />
             </div>
 
@@ -102,6 +109,12 @@ export function ExpenditurePageClient({
                 onOpenChange={setIsTransactionOpen}
                 accounts={pettyCashAccounts}
                 onSuccess={handleTransactionSuccess}
+            />
+
+            <SnapLogDialog
+                open={isSnapLogOpen}
+                onOpenChange={setIsSnapLogOpen}
+                onSnapLog={handleSnapLog}
             />
         </div>
     );

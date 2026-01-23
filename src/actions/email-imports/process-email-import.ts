@@ -328,6 +328,29 @@ export async function processEmailTransactions(
     for (const tx of debitTransactions) {
       const emailTx = tx as EmailTransaction;
 
+      // Check for duplicates if enabled
+      if (skipDuplicates && emailTx.transaction_date && emailTx.amount) {
+        const isDuplicate = await checkDuplicateExpense(
+          Math.abs(Number(emailTx.amount)),
+          emailTx.transaction_date,
+          emailTx.reference || null,
+          duplicateToleranceDays
+        );
+
+        if (isDuplicate) {
+          await adminClient
+            .from('email_transactions')
+            .update({
+              status: 'skipped',
+              skip_reason: 'Duplicate expense detected',
+            })
+            .eq('id', emailTx.id);
+
+          result.skipped++;
+          continue;
+        }
+      }
+
       // Check for assignments
       const hasAssignment = emailTx.matched_expense_category_id ||
         emailTx.matched_project_id ||
@@ -780,36 +803,35 @@ async function checkDuplicatePayment(
   reference: string | null,
   toleranceDays: number
 ): Promise<boolean> {
-  const supabase = await createServerSupabaseClient();
+  const { checkDuplicateGuardrail } = await import('@/lib/matching/duplicate-matcher');
+  const result = await checkDuplicateGuardrail({
+    amount,
+    date,
+    residentId,
+    reference: reference || undefined
+  }, 'payment', { toleranceDays });
 
-  // Check by reference first
-  if (reference) {
-    const { data: byRef } = await supabase
-      .from('payment_records')
-      .select('id')
-      .eq('reference_number', reference)
-      .single();
+  return result.isDuplicate;
+}
 
-    if (byRef) return true;
-  }
+// ============================================================
+// Helper: Check for Duplicate Expense
+// ============================================================
 
-  // Check by amount + resident + date within tolerance
-  const paymentDate = new Date(date);
-  const startDate = new Date(paymentDate);
-  startDate.setDate(startDate.getDate() - toleranceDays);
-  const endDate = new Date(paymentDate);
-  endDate.setDate(endDate.getDate() + toleranceDays);
+async function checkDuplicateExpense(
+  amount: number,
+  date: string,
+  reference: string | null,
+  toleranceDays: number
+): Promise<boolean> {
+  const { checkDuplicateGuardrail } = await import('@/lib/matching/duplicate-matcher');
+  const result = await checkDuplicateGuardrail({
+    amount,
+    date,
+    reference: reference || undefined
+  }, 'expense', { toleranceDays });
 
-  const { data: byAmountDate } = await supabase
-    .from('payment_records')
-    .select('id')
-    .eq('resident_id', residentId)
-    .eq('amount', amount)
-    .gte('payment_date', startDate.toISOString().split('T')[0])
-    .lte('payment_date', endDate.toISOString().split('T')[0])
-    .limit(1);
-
-  return (byAmountDate?.length || 0) > 0;
+  return result.isDuplicate;
 }
 
 // ============================================================

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getCronStatus } from '@/actions/system/cron-status';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,6 @@ import {
   CheckCircle,
   AlertTriangle,
   XCircle,
-  Clock,
   Activity,
   Calendar,
   Mail,
@@ -20,9 +19,11 @@ import {
   FileText,
   Megaphone,
   Info,
+  Clock,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
-import { toast } from 'sonner';
+import { POLLING_INTERVALS } from '@/lib/config/polling';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const statusIcons = {
   healthy: <CheckCircle className="h-5 w-5 text-green-600" />,
@@ -47,33 +48,21 @@ const jobIcons = {
 };
 
 export default function CronStatusPage() {
-  const [status, setStatus] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [lastRefresh, setLastRefresh] = useState(new Date());
-  const [autoRefresh, setAutoRefresh] = useState(true);
-
-  const fetchStatus = async () => {
-    setLoading(true);
-    const result = await getCronStatus();
-
-    if (result.data) {
-      setStatus(result.data);
-      setLastRefresh(new Date());
-    } else {
-      toast.error(result.error || 'Failed to fetch cron status');
-    }
-
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchStatus();
-
-    if (autoRefresh) {
-      const interval = setInterval(fetchStatus, 30000); // 30s refresh
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh]);
+  const {
+    data: status,
+    isLoading,
+    refetch,
+    isFetching,
+    dataUpdatedAt
+  } = useQuery({
+    queryKey: ['cron-status'],
+    queryFn: async () => {
+      const result = await getCronStatus();
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    refetchInterval: POLLING_INTERVALS.REALTIME,
+  });
 
   const overallBadgeColor =
     status?.overall === 'critical'
@@ -122,16 +111,16 @@ export default function CronStatusPage() {
 
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            Last refresh: {formatDistanceToNow(lastRefresh, { addSuffix: true })}
+            {dataUpdatedAt ? `Last refresh: ${formatDistanceToNow(dataUpdatedAt, { addSuffix: true })}` : 'Refreshing...'}
           </span>
-          <Button variant="outline" size="sm" onClick={fetchStatus} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
 
       {/* Job Status Cards */}
-      {loading && !status ? (
+      {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5].map((i) => (
             <Card key={i} className="animate-pulse">
@@ -209,13 +198,12 @@ export default function CronStatusPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Status Message:</p>
                   <p
-                    className={`text-xs font-medium ${
-                      job.status === 'critical'
+                    className={`text-xs font-medium ${job.status === 'critical'
                         ? 'text-red-700'
                         : job.status === 'warning'
                           ? 'text-yellow-700'
                           : 'text-green-700'
-                    }`}
+                      }`}
                   >
                     {job.message}
                   </p>

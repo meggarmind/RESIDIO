@@ -49,6 +49,20 @@ export async function createPayment(data: CreatePaymentInput): Promise<CreatePay
     // Determine verification status
     const isVerified = result.data.is_verified ?? false
 
+    // Check for duplicates
+    const { checkDuplicateGuardrail } = await import('@/lib/matching/duplicate-matcher');
+    const dupResult = await checkDuplicateGuardrail({
+        amount: result.data.amount,
+        date: result.data.payment_date,
+        residentId: result.data.resident_id,
+        reference: result.data.reference_number || undefined,
+        description: result.data.notes || undefined
+    }, 'payment');
+
+    if (dupResult.isDuplicate) {
+        return { error: `Duplicate Payment Detected: ${dupResult.reason}` };
+    }
+
     // Create payment record
     const { data: paymentRecord, error } = await supabase.from('payment_records').insert({
         resident_id: result.data.resident_id,

@@ -37,6 +37,19 @@ export async function createExpense(input: CreateExpenseInput) {
     // Helper to sanitize UUID inputs (convert empty strings to null)
     const sanitizeUuid = (id?: string) => (!id || id.trim() === '') ? null : id;
 
+    // Check for duplicates
+    const { checkDuplicateGuardrail } = await import('@/lib/matching/duplicate-matcher');
+    const dupResult = await checkDuplicateGuardrail({
+        amount: input.amount,
+        date: input.expense_date,
+        description: input.description,
+        reference: undefined // Expenses typically don't have strict reference unique check here, or input.reference if existed
+    }, 'expense');
+
+    if (dupResult.isDuplicate) {
+        throw new Error(`Duplicate Expense Detected: ${dupResult.reason}`);
+    }
+
     const { data, error } = await supabase
         .from('expenses')
         .insert([{

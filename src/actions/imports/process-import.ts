@@ -5,7 +5,6 @@ import { logAudit } from '@/lib/audit/logger';
 import { updateImportStatus } from './create-import';
 import { createPayment } from '@/actions/payments/create-payment';
 import { createExpense } from '@/actions/expenses/create-expense';
-import Fuse from 'fuse.js';
 import type { BankStatementImport, BankStatementRow, PaymentRecord, Expense } from '@/types/database';
 import type { DuplicateCheckResult, ProcessImportOptions, ProcessImportResult } from './types';
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
@@ -75,101 +74,76 @@ export async function checkDuplicate(
     }
   }
 
-  // 2. Exact reference match (Existing logic)
-  if (reference) {
-    const { data: byRef } = await supabase
-      .from('payment_records')
-      .select('*')
-      .eq('reference_number', reference)
-      .single();
+  // 2. System-wide Duplicate Guardrail (Reference, Amount, Date, Description)
+  // Uses centralized settings and logic
+  const { checkDuplicateGuardrail } = await import('@/lib/matching/duplicate-matcher');
+  const guardrailResult = await checkDuplicateGuardrail({
+    amount,
+    date,
+    reference: reference || undefined,
+    description: description || undefined,
+  }, 'payment', { toleranceDays: tolerance_days });
 
-    if (byRef) {
-      return {
-        is_duplicate: true,
-        existing_payment_id: byRef.id,
-        reason: `Duplicate reference: ${reference}`,
-      };
-    }
-  }
-
-  // Check by amount + date within tolerance
-  const paymentDate = new Date(date);
-  const startDate = new Date(paymentDate);
-  startDate.setDate(startDate.getDate() - tolerance_days);
-  const endDate = new Date(paymentDate);
-  endDate.setDate(endDate.getDate() + tolerance_days);
-
-  const { data: byAmountDate } = await supabase
-    .from('payment_records')
-    .select('*')
-    .eq('amount', amount)
-    .gte('payment_date', startDate.toISOString().split('T')[0])
-    .lte('payment_date', endDate.toISOString().split('T')[0])
-    .limit(1);
-
-  if (byAmountDate && byAmountDate.length > 0) {
+  if (guardrailResult.isDuplicate) {
     return {
       is_duplicate: true,
-      existing_payment_id: byAmountDate[0].id,
-      reason: `Potential duplicate: same amount (${amount}) within ${tolerance_days} days`,
+      existing_payment_id: guardrailResult.existingId,
+      reason: guardrailResult.reason || 'Duplicate detected by system guardrail',
     };
-  }
-
-  // 4. Fuzzy Match description (New capability)
-  if (description) {
-    const fuzzyMatch = await checkFuzzyDuplicate(description, amount, date);
-    if (fuzzyMatch) {
-      return {
-        is_duplicate: true,
-        is_fuzzy: true,
-        existing_payment_id: fuzzyMatch.id,
-        reason: `Fuzzy description match: "${fuzzyMatch.description}"`,
-      };
-    }
   }
 
   return { is_duplicate: false };
 }
 
+
+
 /**
- * Checks for potential duplicates using fuzzy matching on the description.
+ * Checks for duplicate expenses (Debits)
  */
-async function checkFuzzyDuplicate(
-  description: string,
+export async function checkDuplicateExpense(
   amount: number,
   date: string,
-  threshold: number = 0.3
-) {
+  tolerance_days: number = 2,
+  transaction_hash?: string | null,
+  description?: string | null
+): Promise<DuplicateCheckResult> {
   const supabase = await createServerSupabaseClient();
-  const paymentDate = new Date(date);
-  const startDate = new Date(paymentDate);
-  startDate.setDate(startDate.getDate() - 7); // Wider window for fuzzy checks
-  const endDate = new Date(paymentDate);
-  endDate.setDate(endDate.getDate() + 7);
 
-  // Fetch candidate payments with same amount but different descriptions
-  const { data: candidates } = await supabase
-    .from('payment_records')
-    .select('id, description, payment_date')
-    .eq('amount', amount)
-    .gte('payment_date', startDate.toISOString().split('T')[0])
-    .lte('payment_date', endDate.toISOString().split('T')[0]);
+  // 1. Check by Deterministic Hash
+  if (transaction_hash) {
+    const { data: byHash } = await supabase
+      .from('expenses')
+      .select('id, reference_number')
+      .eq('transaction_hash', transaction_hash)
+      .maybeSingle();
 
-  if (!candidates || candidates.length === 0) return null;
-
-  const fuse = new Fuse(candidates, {
-    keys: ['description'],
-    threshold,
-    includeScore: true,
-  });
-
-  const results = fuse.search(description);
-
-  if (results.length > 0 && results[0].score! <= threshold) {
-    return candidates.find(c => c.id === results[0].item.id);
+    if (byHash) {
+      return {
+        is_duplicate: true,
+        existing_payment_id: byHash.id,
+        reason: `Duplicate transaction hash in expenses`,
+      };
+    }
   }
 
-  return null;
+  // 2. System-wide Duplicate Guardrail
+  const { checkDuplicateGuardrail } = await import('@/lib/matching/duplicate-matcher');
+  const guardrailResult = await checkDuplicateGuardrail({
+    amount,
+    date,
+    reference: reference || undefined,
+    description: description || undefined,
+  }, 'expense', { toleranceDays: tolerance_days });
+
+  if (guardrailResult.isDuplicate) {
+    return {
+      is_duplicate: true,
+      existing_payment_id: guardrailResult.existingId,
+      reason: guardrailResult.reason || 'Duplicate detected by system guardrail',
+    };
+  }
+
+  return { is_duplicate: false };
 }
 
 // ============================================================
@@ -401,6 +375,29 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
         // Get expense category - use directly matched category
         // Note: Auto-matching happens during the matching phase (match-residents.ts)
         // Here we only use what was already matched or assigned
+        // Matcher for Petty Cash or Expenses already handled above? 
+        // Logic continues...
+
+        // Check for duplicates (Expenses)
+        if (skip_duplicates && row.transaction_date) {
+          const dupCheck = await checkDuplicateExpense(
+            Math.abs(row.amount),
+            row.transaction_date,
+            duplicate_tolerance_days, // Use configurable tolerance (default 1, plan said 2, passed via options)
+            row.transaction_hash,
+            row.description
+          );
+
+          if (dupCheck.is_duplicate) {
+            result.skipped_count++;
+            await supabase
+              .from('bank_statement_rows')
+              .update({ status: 'duplicate', error_message: dupCheck.reason })
+              .eq('id', row.id);
+            continue;
+          }
+        }
+
         let categoryId: string | null = row.matched_expense_category_id;
 
         // If no category assigned, use miscellaneous category as fallback

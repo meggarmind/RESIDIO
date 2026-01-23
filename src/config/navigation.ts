@@ -108,7 +108,7 @@ const NAV_HOUSES: NavItem = {
 
 const NAV_PERSONNEL: NavItem = {
   id: 'personnel',
-  title: 'Personnel',
+  title: 'Contractors & Staff',
   href: '/personnel',
   icon: Briefcase, // Or Briefcase? Users is already used for Residents. Maybe HardHat or Contact?
   permissions: [PERMISSIONS.VENDORS_VIEW],
@@ -116,7 +116,7 @@ const NAV_PERSONNEL: NavItem = {
 
 const NAV_PAYMENTS: NavItem = {
   id: 'payments',
-  title: 'Imports',
+  title: 'Transactions',
   href: '/payments',
   icon: CreditCard,
   permissions: [PERMISSIONS.PAYMENTS_VIEW],
@@ -140,7 +140,7 @@ const NAV_PAYMENTS: NavItem = {
 
 const NAV_BILLING: NavItem = {
   id: 'billing',
-  title: 'Billing',
+  title: 'Invoices & Dues',
   href: '/billing',
   icon: Receipt,
   permissions: [PERMISSIONS.BILLING_VIEW],

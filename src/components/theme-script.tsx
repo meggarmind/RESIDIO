@@ -38,7 +38,7 @@ export function ThemeScript() {
         // Determine mode (light/dark)
         var mode = localStorage.getItem("theme");
         var systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        var isDark = mode === "dark" || (!mode && systemDark);
+        var isDark = mode === "dark" || ((mode === "system" || !mode) && systemDark);
         
         var colors = isDark ? theme.dark : theme.light;
         var root = document.documentElement;

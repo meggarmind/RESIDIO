@@ -14,6 +14,7 @@ import { getInvoices, getResidentIndebtedness, getHousePaymentStatus, getResiden
 import { generateMonthlyInvoices } from '@/actions/billing/generate-invoices';
 import { toast } from 'sonner';
 import type { InvoiceStatus, InvoiceType } from '@/types/database';
+import { POLLING_INTERVALS } from '@/lib/config/polling';
 
 // Type for invoice filter params (defined inline since it's from 'use server' file)
 type GetInvoicesParams = {
@@ -34,7 +35,7 @@ export function useBillingProfiles() {
             if (result.error) throw new Error(result.error);
             return result.data;
         },
-        staleTime: 5 * 60 * 1000, // 5 minutes - billing profiles change infrequently
+        staleTime: POLLING_INTERVALS.BACKGROUND, // 5 minutes - billing profiles change infrequently
     });
 }
 
@@ -295,7 +296,7 @@ export function useDevelopmentLevyProfiles() {
             if (result.error) throw new Error(result.error);
             return result.data;
         },
-        staleTime: 5 * 60 * 1000, // 5 minutes - levy profiles change infrequently
+        staleTime: POLLING_INTERVALS.BACKGROUND, // 5 minutes - levy profiles change infrequently
     });
 }
 
@@ -393,7 +394,7 @@ export function useLatestGenerationLog() {
             if (result.error) throw new Error(result.error);
             return result.data;
         },
-        refetchInterval: 60000, // Refresh every minute
+        refetchInterval: POLLING_INTERVALS.STANDARD, // Refresh every minute
     });
 }
 
@@ -505,7 +506,7 @@ export function usePendingWaiverCount() {
             if (result.error) throw new Error(result.error);
             return result.count;
         },
-        refetchInterval: 60000, // Refresh every minute
+        refetchInterval: POLLING_INTERVALS.STANDARD, // Refresh every minute
     });
 }
 

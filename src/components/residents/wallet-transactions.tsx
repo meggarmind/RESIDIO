@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import {
   Table,
   TableBody,
@@ -29,6 +29,58 @@ interface WalletTransactionsProps {
   residentId: string;
   limit?: number;
 }
+
+const WalletTransactionRow = memo(function WalletTransactionRow({
+  transaction,
+}: {
+  transaction: any;
+}) {
+  const isCredit = transaction.type === 'credit';
+  const amountColor = isCredit
+    ? 'text-green-600 dark:text-green-400'
+    : 'text-red-600 dark:text-red-400';
+  const icon = isCredit ? (
+    <ArrowUpCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+  ) : (
+    <ArrowDownCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+  );
+
+  return (
+    <TableRow>
+      <TableCell className="text-sm">
+        {format(new Date(transaction.created_at), 'MMM d, yyyy')}
+        <br />
+        <span className="text-xs text-muted-foreground">
+          {format(new Date(transaction.created_at), 'h:mm a')}
+        </span>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className="capitalize">{transaction.type}</span>
+        </div>
+      </TableCell>
+      <TableCell className={`text-right font-semibold ${amountColor}`}>
+        {isCredit ? '+' : '-'}
+        {formatCurrency(Number(transaction.amount))}
+      </TableCell>
+      <TableCell className="text-right font-medium">
+        {formatCurrency(Number(transaction.balance_after))}
+      </TableCell>
+      <TableCell className="text-sm">{transaction.description || '-'}</TableCell>
+      <TableCell>
+        {transaction.reference_type && transaction.reference_id ? (
+          <ReferenceLink
+            type={transaction.reference_type}
+            id={transaction.reference_id}
+          />
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+});
 
 export function WalletTransactions({ residentId, limit = 50 }: WalletTransactionsProps) {
   const [filter, setFilter] = useState<'all' | 'credit' | 'debit'>('all');
@@ -88,53 +140,9 @@ export function WalletTransactions({ residentId, limit = 50 }: WalletTransaction
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTransactions.map((transaction) => {
-                  const isCredit = transaction.type === 'credit';
-                  const amountColor = isCredit
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-red-600 dark:text-red-400';
-                  const icon = isCredit ? (
-                    <ArrowUpCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                  ) : (
-                    <ArrowDownCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                  );
-
-                  return (
-                    <TableRow key={transaction.id}>
-                      <TableCell className="text-sm">
-                        {format(new Date(transaction.created_at), 'MMM d, yyyy')}
-                        <br />
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(transaction.created_at), 'h:mm a')}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {icon}
-                          <span className="capitalize">{transaction.type}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className={`text-right font-semibold ${amountColor}`}>
-                        {isCredit ? '+' : '-'}
-                        {formatCurrency(Number(transaction.amount))}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(Number(transaction.balance_after))}
-                      </TableCell>
-                      <TableCell className="text-sm">{transaction.description || '-'}</TableCell>
-                      <TableCell>
-                        {transaction.reference_type && transaction.reference_id ? (
-                          <ReferenceLink
-                            type={transaction.reference_type}
-                            id={transaction.reference_id}
-                          />
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {filteredTransactions.map((transaction) => (
+                  <WalletTransactionRow key={transaction.id} transaction={transaction} />
+                ))}
               </TableBody>
             </Table>
           </div>

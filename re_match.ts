@@ -1,4 +1,4 @@
-import { matchEmailTransactions } from './src/actions/email-imports/process-email-import.ts';
+import { matchEmailTransactions } from './src/actions/email-imports/process-email-import';
 
 async function run() {
     const importId = '3b39f59c-dfef-4c95-99fc-89b507df8e6d';

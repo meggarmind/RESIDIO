@@ -3,6 +3,7 @@
 import { PortalBreadcrumb } from '@/components/resident-portal/portal-breadcrumb';
 import { useLayoutTheme } from '@/contexts/layout-theme-context';
 import { cn } from '@/lib/utils';
+import { PullToRefresh } from '@/components/ui/pull-to-refresh';
 
 interface PortalLayoutContentProps {
   children: React.ReactNode;
@@ -26,8 +27,10 @@ export function PortalLayoutContent({ children }: PortalLayoutContentProps) {
         isExpanded && 'xl:max-w-7xl 2xl:max-w-[1600px]'
       )}
     >
-      <PortalBreadcrumb />
-      {children}
+      <PullToRefresh>
+        <PortalBreadcrumb />
+        {children}
+      </PullToRefresh>
     </div>
   );
 }

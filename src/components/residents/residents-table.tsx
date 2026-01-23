@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, memo } from 'react';
+import { useState, memo, useCallback, useMemo, useEffect } from 'react';
+import { useDebounce } from '@/hooks/use-debounce';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -127,32 +128,42 @@ export function ResidentsTable() {
   const [selectedRoles, setSelectedRoles] = useState<ResidentRole[]>([]);
   const [page, setPage] = useState(1);
 
-  const toggleRole = (role: ResidentRole) => {
+  /* eslint-disable react-hooks/exhaustive-deps */
+  const debouncedSearch = useDebounce(search, 300);
+
+  // Reset page when search term changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const toggleRole = useCallback((role: ResidentRole) => {
     setSelectedRoles(prev =>
       prev.includes(role)
         ? prev.filter(r => r !== role)
         : [...prev, role]
     );
-  };
+    // Reset page when filter changes
+    setPage(1);
+  }, []);
 
-  const params: Partial<ResidentSearchParams> = {
-    search: search || undefined,
+  const handleSearch = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    // Search is handled by debounce
+  }, []);
+
+  const params = useMemo<Partial<ResidentSearchParams>>(() => ({
+    search: debouncedSearch || undefined,
     status: status === ALL_VALUE ? undefined : status as AccountStatus,
     street_id: streetId === ALL_VALUE ? undefined : streetId,
     contact_verification: contactVerification === ALL_VALUE ? undefined : contactVerification as ContactVerificationFilter,
     resident_role: selectedRoles.length > 0 ? selectedRoles : undefined,
     page,
     limit: 20,
-  };
+  }), [debouncedSearch, status, streetId, contactVerification, selectedRoles, page]);
 
   const { data, isLoading, error } = useResidents(params);
   const { data: streets } = useStreets();
   const { data: verificationStats } = useContactVerificationStats();
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPage(1);
-  };
 
   if (error) {
     return (

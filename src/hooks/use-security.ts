@@ -83,7 +83,9 @@ import type {
   UpdateRecurringScheduleData,
   VisitorAnalyticsFilters,
 } from '@/lib/validators/security-contact';
+
 import type { SecurityRolePermissions } from '@/types/database';
+import { POLLING_INTERVALS } from '@/lib/config/polling';
 
 // ==================== Settings Hooks ====================
 
@@ -193,8 +195,8 @@ export function useActiveContactCount() {
       return result.count;
     },
     // Optimized: 60s → 120s (count doesn't change frequently)
-    refetchInterval: 120000,
-    staleTime: 60000,
+    refetchInterval: POLLING_INTERVALS.SLOW,
+    staleTime: POLLING_INTERVALS.STANDARD,
   });
 }
 
@@ -211,8 +213,8 @@ export function useExpiredContactCount() {
       return result.count;
     },
     // Optimized: 60s → 120s (count doesn't change frequently)
-    refetchInterval: 120000,
-    staleTime: 60000,
+    refetchInterval: POLLING_INTERVALS.SLOW,
+    staleTime: POLLING_INTERVALS.STANDARD,
   });
 }
 
@@ -228,8 +230,8 @@ export function useExpiringContactCount(days: number = 7) {
       return result.count;
     },
     // Optimized: 60s → 300s (expiring contacts are checked less frequently)
-    refetchInterval: 300000,
-    staleTime: 120000,
+    refetchInterval: POLLING_INTERVALS.BACKGROUND,
+    staleTime: POLLING_INTERVALS.SLOW,
   });
 }
 
@@ -245,8 +247,8 @@ export function useSuspendedContactCount() {
       return result.count;
     },
     // Optimized
-    refetchInterval: 120000,
-    staleTime: 60000,
+    refetchInterval: POLLING_INTERVALS.SLOW, // 120s
+    staleTime: POLLING_INTERVALS.STANDARD,
   });
 }
 
@@ -458,7 +460,7 @@ export function useTodayAccessLogs() {
       if (result.error) throw new Error(result.error);
       return result.data;
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: POLLING_INTERVALS.REALTIME, // Refresh every 30 seconds
   });
 }
 
@@ -482,8 +484,8 @@ export function useAccessLogStats() {
       return result;
     },
     // Optimized: 60s → 120s (stats aggregates don't need frequent updates)
-    refetchInterval: 120000,
-    staleTime: 60000,
+    refetchInterval: POLLING_INTERVALS.SLOW,
+    staleTime: POLLING_INTERVALS.STANDARD,
   });
 }
 
@@ -776,7 +778,7 @@ export function useVisitorAnalytics(filters: VisitorAnalyticsFilters = {}) {
       if (result.error) throw new Error(result.error);
       return { data: result.data, count: result.count };
     },
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: POLLING_INTERVALS.STANDARD, // Refresh every minute
   });
 }
 
@@ -788,7 +790,7 @@ export function useFrequentVisitors(minVisits: number = 5, days: number = 30, li
       if (result.error) throw new Error(result.error);
       return result.data;
     },
-    refetchInterval: 300000, // Refresh every 5 minutes
+    refetchInterval: POLLING_INTERVALS.BACKGROUND, // Refresh every 5 minutes
   });
 }
 

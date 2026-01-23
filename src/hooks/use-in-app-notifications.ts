@@ -21,6 +21,7 @@ import {
   deleteReadNotifications,
   adminDeleteNotification,
 } from '@/actions/in-app-notifications/update-notification';
+import { POLLING_INTERVALS } from '@/lib/config/polling';
 
 // =====================================================
 // Notification Queries
@@ -52,7 +53,7 @@ export function useUnreadNotificationCount() {
       return result.count;
     },
     // Refetch every 30 seconds to keep badge up to date
-    refetchInterval: 30000,
+    refetchInterval: POLLING_INTERVALS.REALTIME,
   });
 }
 

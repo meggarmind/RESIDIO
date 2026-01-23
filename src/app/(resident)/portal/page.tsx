@@ -21,6 +21,8 @@ import { MyPropertiesCard } from '@/components/resident-portal/my-properties-car
 import { NairaIcon } from '@/components/icons/naira-icon';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import { useUserRoles } from '@/hooks/use-user-roles';
+import { PortfolioDashboard } from '@/components/resident-portal/portfolio-dashboard';
 import {
   Building,
   Shield,
@@ -248,8 +250,16 @@ function ResidentPortalHomePageInner() {
     );
   }
 
+  // Check for dashboard mode (Home vs Portfolio)
+  const { mode } = useUserRoles();
+
   if (isLoading) {
     return <DashboardSkeleton />;
+  }
+
+  // Render Portfolio Dashboard if in 'portfolio' mode
+  if (mode === 'portfolio') {
+    return <PortfolioDashboard />;
   }
 
   return (

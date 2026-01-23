@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
+import { useDebounce } from 'use-debounce';
 import {
   CommandDialog,
   CommandEmpty,
@@ -17,15 +19,20 @@ import {
   CreditCard,
   Shield,
   FileText,
-  Search,
-  Plus,
   Zap,
-  FilePlus,
-  UserPlus,
+  Search,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { createClient } from '@/lib/supabase/client';
+
 import { useOS } from '@/hooks/use-os';
+import { useRecentSearches } from '@/hooks/use-recent-searches';
+
+interface SearchApiResponse {
+  residents: Array<{ id: string; first_name: string; last_name: string; phone_primary: string; email: string }>;
+  houses: Array<{ id: string; house_number: string; street_name: string | null }>;
+  payments: Array<{ id: string; reference_number: string; amount: number }>;
+  contacts: Array<{ id: string; full_name: string; phone_primary: string }>;
+  documents: Array<{ id: string; title: string; category: string | null }>;
+}
 
 interface SearchResult {
   id: string;
@@ -108,206 +115,98 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
   const router = useRouter();
   const os = useOS();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
 
-  // Debounced search
-  useEffect(() => {
-    // If empty query, show Quick Actions only? Or show nothing?
-    // Let's show nothing initially, or maybe recent searches in future.
-    if (!query || query.length < 2) {
-      if (query.length === 0) {
-        // Show Quick Actions by default when empty
-        setResults(QUICK_ACTIONS);
-      } else {
-        setResults([]);
+  // Recent Searches
+  const { searches, addSearch, removeSearch, isMounted } = useRecentSearches();
+
+  // Debounce query for API calls
+  const [debouncedQuery] = useDebounce(query, 300);
+
+  // Filter Quick Actions locally (immediate feedback)
+  const quickActionResults = query.length === 0
+    ? QUICK_ACTIONS
+    : QUICK_ACTIONS.filter(action =>
+      action.title.toLowerCase().includes(query.toLowerCase()) ||
+      (action.subtitle && action.subtitle.toLowerCase().includes(query.toLowerCase()))
+    );
+
+  // Fetch from Unified Search API with Caching
+  const { data: apiResults = [], isLoading: isApiLoading } = useQuery({
+    queryKey: ['global-search', debouncedQuery],
+    queryFn: async () => {
+      if (debouncedQuery.length < 2) return [];
+
+      const response = await fetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}`);
+      if (!response.ok) throw new Error('Search API failed');
+
+      const data: SearchApiResponse = await response.json();
+      const results: SearchResult[] = [];
+
+      // Process Residents
+      if (data.residents) {
+        results.push(...data.residents.map(r => ({
+          id: r.id,
+          title: `${r.first_name} ${r.last_name}`,
+          subtitle: r.phone_primary || r.email || undefined,
+          href: `/residents/${r.id}`,
+          type: 'resident' as const
+        })));
       }
-      return;
-    }
 
-    const timeout = setTimeout(async () => {
-      setIsLoading(true);
-      try {
-        const supabase = createClient();
-        const searchResults: SearchResult[] = [];
-
-        // 1. Filter Quick Actions locally (sync - no await needed)
-        const matchedActions = QUICK_ACTIONS.filter(action =>
-          action.title.toLowerCase().includes(query.toLowerCase()) ||
-          (action.subtitle && action.subtitle.toLowerCase().includes(query.toLowerCase()))
-        );
-        searchResults.push(...matchedActions);
-
-        // 2. Execute ALL database searches in parallel for maximum performance
-        // This reduces total search time from sequential (~1500ms) to parallel (~300ms)
-        const [
-          residentsResult,
-          housesByNumberResult,
-          streetsResult,
-          paymentsResult,
-          contactsResult,
-          documentsResult,
-        ] = await Promise.all([
-          // Search Residents (by name, phone, email)
-          supabase
-            .from('residents')
-            .select('id, first_name, last_name, phone_primary, email')
-            .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,phone_primary.ilike.%${query}%,email.ilike.%${query}%`)
-            .limit(5),
-          // Search Houses by house_number
-          supabase
-            .from('houses')
-            .select('id, house_number, street_id, streets(name)')
-            .ilike('house_number', `%${query}%`)
-            .limit(5),
-          // Find streets matching the query
-          supabase
-            .from('streets')
-            .select('id')
-            .ilike('name', `%${query}%`)
-            .limit(10),
-          // Search Payments by reference
-          supabase
-            .from('payments')
-            .select('id, payment_reference, amount')
-            .or(`payment_reference.ilike.%${query}%`)
-            .limit(5),
-          // Search Security Contacts by name
-          supabase
-            .from('security_contacts')
-            .select('id, name, phone')
-            .ilike('name', `%${query}%`)
-            .limit(5),
-          // Search Documents by title
-          supabase
-            .from('documents')
-            .select('id, title, category')
-            .ilike('title', `%${query}%`)
-            .limit(5),
-        ]);
-
-        // Process Residents
-        if (residentsResult.error) {
-          console.error('Resident search error:', residentsResult.error);
-        } else if (residentsResult.data) {
-          searchResults.push(
-            ...residentsResult.data.map((r) => ({
-              id: r.id,
-              title: `${r.first_name} ${r.last_name}`,
-              subtitle: r.phone_primary || r.email || undefined,
-              href: `/residents/${r.id}`,
-              type: 'resident' as const,
-            }))
-          );
-        }
-
-        // Process Houses - need additional query if streets matched
-        const housesByNumber = housesByNumberResult.data || [];
-        const matchingStreetIds = (streetsResult.data || []).map(s => s.id);
-
-        if (housesByNumberResult.error) {
-          console.error('House search error:', housesByNumberResult.error);
-        }
-        if (streetsResult.error) {
-          console.error('Street search error:', streetsResult.error);
-        }
-
-        // If we found matching streets, also get houses on those streets
-        let housesByStreet: typeof housesByNumber = [];
-        if (matchingStreetIds.length > 0) {
-          const { data, error } = await supabase
-            .from('houses')
-            .select('id, house_number, street_id, streets(name)')
-            .in('street_id', matchingStreetIds)
-            .limit(5);
-          if (error) {
-            console.error('Houses by street search error:', error);
-          }
-          housesByStreet = data || [];
-        }
-
-        // Merge and deduplicate house results
-        const houseMap = new Map<string, (typeof housesByNumber)[number]>();
-        [...housesByNumber, ...housesByStreet].forEach(h => {
-          if (!houseMap.has(h.id)) houseMap.set(h.id, h);
-        });
-        const houses = Array.from(houseMap.values()).slice(0, 5);
-
-        if (houses.length > 0) {
-          searchResults.push(
-            ...houses.map((h) => {
-              const streetData = h.streets as { name: string } | { name: string }[] | null;
-              const streetName = Array.isArray(streetData)
-                ? streetData[0]?.name
-                : streetData?.name;
-
-              return {
-                id: h.id,
-                title: `House ${h.house_number}`,
-                subtitle: streetName || undefined,
-                href: `/houses/${h.id}`,
-                type: 'house' as const,
-              };
-            })
-          );
-        }
-
-        // Process Payments
-        if (paymentsResult.error) {
-          console.error('Payment search error:', paymentsResult.error);
-        } else if (paymentsResult.data) {
-          searchResults.push(
-            ...paymentsResult.data.map((p) => ({
-              id: p.id,
-              title: p.payment_reference || 'Payment',
-              subtitle: `₦${Number(p.amount).toLocaleString()}`,
-              href: `/payments/${p.id}`,
-              type: 'payment' as const,
-            }))
-          );
-        }
-
-        // Process Security Contacts
-        if (contactsResult.error) {
-          console.error('Security contact search error:', contactsResult.error);
-        } else if (contactsResult.data) {
-          searchResults.push(
-            ...contactsResult.data.map((c) => ({
-              id: c.id,
-              title: c.name,
-              subtitle: c.phone || undefined,
-              href: `/security/contacts/${c.id}`,
-              type: 'security' as const,
-            }))
-          );
-        }
-
-        // Process Documents
-        if (documentsResult.error) {
-          console.error('Document search error:', documentsResult.error);
-        } else if (documentsResult.data) {
-          searchResults.push(
-            ...documentsResult.data.map((d) => ({
-              id: d.id,
-              title: d.title,
-              subtitle: d.category || undefined,
-              href: `/documents/${d.id}`,
-              type: 'document' as const,
-            }))
-          );
-        }
-
-        setResults(searchResults);
-      } catch (error) {
-        console.error('Search error:', error);
-        setResults([]);
-      } finally {
-        setIsLoading(false);
+      // Process Houses
+      if (data.houses) {
+        results.push(...data.houses.map(h => ({
+          id: h.id,
+          title: `House ${h.house_number}`,
+          subtitle: h.street_name || undefined,
+          href: `/houses/${h.id}`,
+          type: 'house' as const
+        })));
       }
-    }, 300); // 300ms debounce
 
-    return () => clearTimeout(timeout);
-  }, [query]);
+      // Process Payments
+      if (data.payments) {
+        results.push(...data.payments.map(p => ({
+          id: p.id,
+          title: p.reference_number || 'Payment',
+          subtitle: `₦${Number(p.amount).toLocaleString()}`,
+          href: `/payments/${p.id}`,
+          type: 'payment' as const
+        })));
+      }
+
+      // Process Security Contacts
+      if (data.contacts) {
+        results.push(...data.contacts.map(c => ({
+          id: c.id,
+          title: c.full_name,
+          subtitle: c.phone_primary || undefined,
+          href: `/security/contacts/${c.id}`,
+          type: 'security' as const
+        })));
+      }
+
+      // Process Documents
+      if (data.documents) {
+        results.push(...data.documents.map(d => ({
+          id: d.id,
+          title: d.title,
+          subtitle: d.category || undefined,
+          href: `/documents/${d.id}`,
+          type: 'document' as const
+        })));
+      }
+
+      return results;
+    },
+    enabled: debouncedQuery.length >= 2,
+    staleTime: 30000, // 30 seconds cache
+    gcTime: 1000 * 60 * 5, // 5 minutes garbage collection
+  });
+
+  // Combine results
+  const results = [...quickActionResults, ...apiResults];
+  const isLoading = isApiLoading && debouncedQuery.length >= 2;
 
   // Group results by type
   // Order: Actions first, then others
@@ -328,11 +227,24 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
   // Handle selection
   const handleSelect = useCallback(
     (href: string) => {
+      // Find the item to save it to recent (search safely in results)
+      const selectedItem = results.find(r => r.href === href);
+      console.log('Selected:', href, selectedItem);
+
+      if (selectedItem) {
+        addSearch({
+          type: selectedItem.type,
+          title: selectedItem.title,
+          subtitle: selectedItem.subtitle,
+          href: selectedItem.href,
+        });
+      }
+
       onOpenChange(false);
       setQuery('');
       router.push(href);
     },
-    [router, onOpenChange]
+    [router, onOpenChange, results, addSearch]
   );
 
   // Close on Escape & Open on Shortcut
@@ -402,11 +314,71 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
           <CommandEmpty>No results found for &quot;{query}&quot;</CommandEmpty>
         )}
 
+        {/* Recent Searches */}
+        {!isLoading && query.length === 0 && isMounted && searches.length > 0 && (
+          <CommandGroup heading="Recent Searches">
+            {searches.map((item) => {
+              const Icon = typeIcons[item.type as keyof typeof typeIcons] || Search;
+              return (
+                <CommandItem
+                  key={`recent-${item.id}`}
+                  value={`${item.title} ${item.subtitle || ''}`}
+                  onSelect={() => handleSelect(item.href)}
+                  className="cursor-pointer group"
+                >
+                  <div className="flex items-center flex-1">
+                    <Icon className="mr-3 h-4 w-4 text-muted-foreground/70" />
+                    <div className="flex flex-col flex-1">
+                      <span className="font-medium text-muted-foreground group-aria-selected:text-foreground">
+                        {item.title}
+                      </span>
+                      {item.subtitle && (
+                        <span className="text-xs text-muted-foreground/60 group-aria-selected:text-muted-foreground">
+                          {item.subtitle}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeSearch(item.id);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-muted rounded transition-opacity"
+                  >
+                    <span className="sr-only">Remove</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-muted-foreground"
+                    >
+                      <line x1="18" x2="6" y1="6" y2="18" />
+                      <line x1="6" x2="18" y1="6" y2="18" />
+                    </svg>
+                  </button>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        )}
+
         {/* Start Helper State */}
-        {!isLoading && query.length < 2 && results.length === 0 && (
+        {!isLoading && query.length < 2 && results.length === 0 && searches.length === 0 && (
           <div className="py-6 text-center text-sm text-muted-foreground">
             Type at least 2 characters to search
           </div>
+        )}
+
+        {/* Helper State (when no recent searches) */}
+        {!isLoading && query.length < 2 && results.length === 0 && searches.length > 0 && (
+          <div className="hidden" /> // Hide helper when showing recents
         )}
 
         {/* Render groups in specific order */}

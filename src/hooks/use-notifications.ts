@@ -51,6 +51,7 @@ import {
   sendDirectNotification,
   sendBulkNotification,
 } from '@/actions/notifications';
+import { POLLING_INTERVALS } from '@/lib/config/polling';
 import type {
   NotificationTemplate,
   NotificationSchedule,
@@ -356,7 +357,7 @@ export function useQueueStatistics() {
       if (error) throw new Error(error);
       return data;
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: POLLING_INTERVALS.REALTIME, // Refresh every 30 seconds
   });
 }
 

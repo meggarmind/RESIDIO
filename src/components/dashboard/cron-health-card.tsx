@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { POLLING_INTERVALS } from '@/lib/config/polling';
 
 interface CronJob {
     name: string;
@@ -93,8 +94,8 @@ export function CronHealthCard() {
     } = useQuery({
         queryKey: ['cron-health'],
         queryFn: fetchCronHealth,
-        refetchInterval: 60000,
-        staleTime: 30000,
+        refetchInterval: POLLING_INTERVALS.STANDARD,
+        staleTime: POLLING_INTERVALS.REALTIME,
         enabled: mounted, // Only run after mount to avoid hydration mismatch
     });
 

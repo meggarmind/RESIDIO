@@ -61,7 +61,6 @@ export async function middleware(request: NextRequest) {
         }
     );
 
-    const { data: { user } } = await supabase.auth.getUser();
     const pathname = request.nextUrl.pathname;
 
     // Check if route requires authentication
@@ -71,36 +70,27 @@ export async function middleware(request: NextRequest) {
     );
     const isExemptRoute = maintenanceExemptRoutes.some(route => pathname.startsWith(route));
 
-    // PERFORMANCE OPTIMIZATION: Fetch profile + maintenance setting in parallel
+    // PERFORMANCE OPTIMIZATION: Parallelize User Auth and Maintenance Check
+    // This reduces the initial waterfall latency by running the system check while validating the session
+    const [userAuth, maintenanceResult] = await Promise.all([
+        supabase.auth.getUser(),
+        !isExemptRoute
+            ? supabase.from('system_settings').select('value').eq('key', 'maintenance_mode').single()
+            : Promise.resolve({ data: null, error: null })
+    ]);
+
+    const user = userAuth.data.user;
+    const isMaintenanceMode = maintenanceResult.data?.value === true;
+
     let profile: { role_id: string | null; resident_id: string | null; role: string | null } | null = null;
-    let isMaintenanceMode = false;
 
     if (user) {
-        const [profileResult, maintenanceResult] = await Promise.all([
-            supabase
-                .from('profiles')
-                .select('role_id, resident_id, role')
-                .eq('id', user.id)
-                .single(),
-            isExemptRoute
-                ? Promise.resolve({ data: null })
-                : supabase
-                    .from('system_settings')
-                    .select('value')
-                    .eq('key', 'maintenance_mode')
-                    .single(),
-        ]);
-
-        profile = profileResult.data;
-        isMaintenanceMode = maintenanceResult.data?.value === true;
-    } else if (!isExemptRoute) {
-        const { data: maintenanceSetting } = await supabase
-            .from('system_settings')
-            .select('value')
-            .eq('key', 'maintenance_mode')
+        const { data } = await supabase
+            .from('profiles')
+            .select('role_id, resident_id, role')
+            .eq('id', user.id)
             .single();
-
-        isMaintenanceMode = maintenanceSetting?.value === true;
+        profile = data;
     }
 
     // Handle maintenance mode
