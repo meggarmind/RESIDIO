@@ -270,13 +270,17 @@ export type ProcessImportResult = {
   import_id: string;
 };
 
+
 export type DuplicateCheckResult = {
   is_duplicate: boolean;
   existing_payment_id?: string;
   match_fields?: string[];
   reason?: string;
   is_fuzzy?: boolean;
+  existing_status?: 'pending' | 'paid' | 'cancelled';
+  is_expense?: boolean;
 };
+
 
 // ============================================================
 // Aliases Types

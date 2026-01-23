@@ -5,6 +5,12 @@
 ## Current Phase: Phase 18 - UX & Portal Refinement 🚧 IN PROGRESS
 See detailed feature spec: `docs/features/role-aware-portal.md`
 
+### Recent Session Work (2026-01-23): Expense Reconciliation Automation
+- [x] **New Feature**: Added manual "Mark as Paid" action to the Expenditure Ledger for pending expenses.
+- [x] **Automation**: Updated Bank Import engine to automatically reconcile "Pending" manual expenses when a matching bank transaction is found.
+- [x] **Logic**: Enhanced duplicate detection to differentiate between true duplicates (skip) and pending matches (reconcile).
+- [x] **Audit**: Implemented specific audit logging for status updates and auto-reconciliation events.
+
 ### Recent Session Work (2026-01-23): Billing Page Updates
 - [x] **UI/UX**: Moved Overdue Invoices summary from banner to a 5th statistics card for better layout consistency.
 - [x] **Pagination**: Updated Invoices table pagination to support 10, 20, and 50 items per page.

@@ -83,9 +83,6 @@ export default function EmailImportDetailPage() {
   const importId = params.importId as string;
   const { data: connectionStatus, isLoading: connectionLoading } = useGmailConnectionStatus();
 
-  console.log('DEBUG: connectionStatus', connectionStatus);
-  console.log('DEBUG: show_debug_info', connectionStatus?.syncCriteria?.show_debug_info);
-
   const [statusFilter, setStatusFilter] = useState<string>('queued_for_review');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);

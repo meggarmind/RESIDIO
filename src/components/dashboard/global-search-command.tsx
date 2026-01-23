@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
@@ -205,7 +205,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
   });
 
   // Combine results
-  const results = [...quickActionResults, ...apiResults];
+  const results = useMemo(() => [...quickActionResults, ...apiResults], [quickActionResults, apiResults]);
   const isLoading = isApiLoading && debouncedQuery.length >= 2;
 
   // Group results by type

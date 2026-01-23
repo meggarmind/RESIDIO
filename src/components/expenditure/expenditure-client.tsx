@@ -15,6 +15,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { MoreHorizontal, CheckCircle2, XCircle } from 'lucide-react';
+import { updateExpenseStatus } from '@/actions/expenses/update-expense';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 interface ExpenditureClientProps {
     expenses: any[];
@@ -69,6 +79,7 @@ export function ExpenditureClient({
                             <TableHead>Description</TableHead>
                             <TableHead className="text-right">Amount</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -97,6 +108,11 @@ export function ExpenditureClient({
                                         <Badge variant={expense.status === 'paid' ? 'success' : 'secondary'}>
                                             {expense.status}
                                         </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        {expense.status === 'pending' && (
+                                            <ExpenseActions expense={expense} />
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -147,5 +163,40 @@ export function ExpenditureClient({
                 </div>
             </CardContent>
         </Card >
+    );
+}
+
+function ExpenseActions({ expense }: { expense: any }) {
+    const router = useRouter();
+
+    const handleUpdateStatus = async (status: 'paid' | 'cancelled') => {
+        try {
+            await updateExpenseStatus(expense.id, status);
+            toast.success(`Expense marked as ${status}`);
+            router.refresh();
+        } catch (error) {
+            toast.error('Failed to update status');
+        }
+    };
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                    <span className="sr-only">Open menu</span>
+                    <MoreHorizontal className="h-4 w-4" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleUpdateStatus('paid')}>
+                    <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
+                    Mark as Paid
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleUpdateStatus('cancelled')}>
+                    <XCircle className="mr-2 h-4 w-4 text-red-600" />
+                    Cancel Expense
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }

@@ -5,6 +5,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { updateImportStatus } from './create-import';
 import { createPayment } from '@/actions/payments/create-payment';
 import { createExpense } from '@/actions/expenses/create-expense';
+import { updateExpenseStatus } from '@/actions/expenses/update-expense';
 import type { BankStatementImport, BankStatementRow, PaymentRecord, Expense } from '@/types/database';
 import type { DuplicateCheckResult, ProcessImportOptions, ProcessImportResult } from './types';
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
@@ -113,7 +114,7 @@ export async function checkDuplicateExpense(
   if (transaction_hash) {
     const { data: byHash } = await supabase
       .from('expenses')
-      .select('id, reference_number')
+      .select('id, reference_number, status')
       .eq('transaction_hash', transaction_hash)
       .maybeSingle();
 
@@ -122,6 +123,8 @@ export async function checkDuplicateExpense(
         is_duplicate: true,
         existing_payment_id: byHash.id,
         reason: `Duplicate transaction hash in expenses`,
+        existing_status: byHash.status,
+        is_expense: true,
       };
     }
   }
@@ -131,15 +134,24 @@ export async function checkDuplicateExpense(
   const guardrailResult = await checkDuplicateGuardrail({
     amount,
     date,
-    reference: reference || undefined,
+    reference: undefined, // Expenses typically don't use 'reference' for dup checks the same way, or passed undefined if not available
     description: description || undefined,
   }, 'expense', { toleranceDays: tolerance_days });
 
-  if (guardrailResult.isDuplicate) {
+  if (guardrailResult.isDuplicate && guardrailResult.existingId) {
+    // Fetch status for guardrail match
+    const { data: existingExpense } = await supabase
+      .from('expenses')
+      .select('status')
+      .eq('id', guardrailResult.existingId)
+      .single();
+
     return {
       is_duplicate: true,
       existing_payment_id: guardrailResult.existingId,
       reason: guardrailResult.reason || 'Duplicate detected by system guardrail',
+      existing_status: existingExpense?.status,
+      is_expense: true,
     };
   }
 
@@ -389,6 +401,36 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
           );
 
           if (dupCheck.is_duplicate) {
+            // Check if we can reconcile a pending expense
+            if (dupCheck.existing_status === 'pending' && dupCheck.existing_payment_id) {
+              // Reconcile: Update status to 'paid' and link
+              await updateExpenseStatus(dupCheck.existing_payment_id, 'paid');
+
+              // Log the reconciliation
+              await logAudit({
+                action: 'VERIFY',
+                entityType: 'expenses',
+                entityId: dupCheck.existing_payment_id,
+                entityDisplay: `Auto-reconciled via Bank Import: ${row.description}`,
+                newValues: { status: 'paid', bank_row_id: row.id },
+              });
+
+              // Mark row as created (acting as the verification proof)
+              await supabase
+                .from('bank_statement_rows')
+                .update({
+                  status: 'created',
+                  payment_id: dupCheck.existing_payment_id,
+                  error_message: 'Auto-reconciled with existing pending expense'
+                })
+                .eq('id', row.id);
+
+              result.created_expenses_count++;
+              result.created_count++;
+              continue; // Move to next row
+            }
+
+            // Otherwise, it's a true duplicate (already paid)
             result.skipped_count++;
             await supabase
               .from('bank_statement_rows')
