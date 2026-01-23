@@ -2,19 +2,68 @@
 
 **Last Updated:** 2026-01-16 (Product Vibe Review)
 
-## Current Phase: Phase 17 - Product Vibe Enhancements 🚧 IN PROGRESS
+## Current Phase: Phase 18 - UX & Portal Refinement 🚧 IN PROGRESS
+See detailed feature spec: `docs/features/role-aware-portal.md`
+
+### Recent Session Work (2026-01-23): Billing Page Updates
+- [x] **UI/UX**: Moved Overdue Invoices summary from banner to a 5th statistics card for better layout consistency.
+- [x] **Pagination**: Updated Invoices table pagination to support 10, 20, and 50 items per page.
+- [x] **UI Refinement**: Relocated "Items per page" selector to the bottom pagination row for better usability.
+- [x] **Header Integration**: Integrated Search, Resident, Status, and Type filters directly into the invoice table header to reduce whitespace.
+- [x] **Documentation**: Created `docs/design/data-table-layout.md` defining the UI standard for data tables.
+
+### Recent Session Work (2026-01-22): Duplicate Matching System
+- [x] **System Settings**: Implemented `duplicate_matching_threshold` (0-100%) in System Settings with reactive UI.
+- [x] **Core Logic**: Created centralized `duplicate-matcher` service using Fuse.js for fuzzy description matching and strict amount/date checks.
+- [x] **Guardrails**: Integrated duplicate checks into `createPayment`, `createExpense`, and `processImport` actions to block potential duplicates at the source.
+- [x] **Verification**: Implemented comprehensive unit tests for scoring algorithms (Exact vs Fuzzy) with 100% pass rate.
+- [x] **Documentation**: Created `docs/features/duplicate-transaction-matcher.md` detailing architecture and configuration.
+
+### Recent Session Work (2026-01-21): Role-Aware Portal & Global Search
+- [x] **Global Search**: Implemented `ResidentGlobalSearch` with context-aware actions ("My Home" vs "My Portfolio").
+- [x] **UI Integration**: Replaced dummy search input in `PortalHeader` with functional `Cmd+K` trigger.
+- [x] **Documentation**: Created `docs/features/role-aware-portal.md` with hybrid view architecture
+- [x] **Navigation**: Rename Imports → Transactions, Personnel → Contractors & Staff, Billing → Invoices & Dues
+- [x] **Context Switcher**: Implement "My Home" vs "My Portfolio" toggle for mixed-role users
+- [x] **Landlord Features**: Implement Portfolio Dashboard and Compliance Status widgets
+- [x] **UX Polish**: Enhance global search (`ResidentGlobalSearch`) and auto-theme sync
+- [x] **Mobile UX**: Add Pull-to-Refresh gesture for Resident Portal
+
+### Recent Session Work (2026-01-21): Performance Optimization - Phase 1 "Snap" Update
+- [x] **Dashboard Architecture**: Refactored `DashboardLayout` from Client to Server Component to enable SSR.
+- [x] **Time to Interactive**: Implemented `loading.tsx` with `DashboardSkeleton` for instant feedback (no white screen).
+- [x] **Middleware Optimization**: Parallelized Database Auth Request and Maintenance Mode Check to reduce navigation latency.
+- [x] **State Management**: Extracted client-side state (User Menu, Mobile Nav, Theme) to isolated islands (`DashboardShell`, `DashboardProviders`).
+- [x] **Memoization**: Applied `React.memo` to high-volume rendering lists (`WalletTransactions`, `ResidentRow`) to prevent unnecessary re-renders.
+- [x] **Input Optimization**: Implemented debouncing (300ms) for main search inputs to improve typing responsiveness.
+- [x] **Unified Search**: Verified `api/search` handles global parallel queries efficiently.
+
+### Recent Session Work (2026-01-21): Performance Optimization - Phase 3 "Ecosystem" Update
+- [x] **Smart Polling**: Standardized polling intervals (FAST, REALTIME, STANDARD, SLOW, BACKGROUND) in `src/lib/config/polling.ts`.
+- [x] **Hook Optimization**: Refactored ~20 `useQuery` hooks to use centralized polling constants, reducing ad-hoc configuration.
+- [x] **Cron Monitor**: Refactored `CronStatusPage` to use efficient React Query polling instead of `setInterval`.
+- [x] **Data Hygiene**: Implemented `pruneSystemData` server action to archive/delete old notifications, audit logs, and search history.
+- [x] **System Settings**: Added "Data Management" card with destructive pruning action.
+
+## Current Phase: Phase 17 - Product Vibe Enhancements ⏸️ PAUSED
+
+### Recent Session Work (2026-01-20): Payment Alias System Fix
+- [x] **Bug Fix**: Resolved empty alias display ("") in transaction processing dialog caused by `extractSenderName` not handling Nigerian bank formats
+- [x] **Enhanced Extraction**: Updated `extractSenderName` to handle formats like `FBNMOBILEISIMAH NKECHI/Nk`, `FIPPBL/CHUKWUEMEKA`, ALL CAPS names, and slash-separated formats
+- [x] **Hybrid UI**: Implemented editable alias input field in process dialog - pre-populated from smart extraction, user-modifiable before saving
+- [x] **Backend**: Updated `processSingleTransaction` to accept explicit `aliasName` parameter with fallback to extraction
 
 ### Recent Session Work (2026-01-20): Global Search Enhancement 🚧 IN PROGRESS
 See detailed progress in: `docs/features/global-search.md`
 
 - [x] **Bug Fix**: Fixed `phone` → `phone_primary` column mismatch causing resident search to silently fail
 - [x] **Documentation**: Created feature documentation with enhancement roadmap
-- [ ] **Phase 1**: Performance Optimization (Parallel queries, error handling)
-- [ ] **Phase 2**: API Consolidation (Unified `/api/search` endpoint)
-- [ ] **Phase 3**: Database Optimization (`pg_trgm` extension, trigram indexes)
-- [ ] **Phase 4**: Client Caching (React Query with 30s staleTime)
-- [ ] **Phase 5**: UX Enhancements (Result prioritization, recent searches)
-- [ ] **Phase 6**: Advanced Features (Search analytics on Analytics page)
+- [x] **Phase 1**: Performance Optimization (Parallel queries, error handling)
+- [x] **Phase 2**: API Consolidation (Unified `/api/search` endpoint)
+- [x] **Phase 3**: Database Optimization (`pg_trgm` extension, trigram indexes)
+- [x] **Phase 4**: Client Caching (React Query with 30s staleTime)
+- [x] **Phase 5**: UX Enhancements (Recent searches, result prioritization)
+- [x] **Phase 6**: Advanced Features (Search analytics on Analytics page)
 
 ### Recent Session Work (2026-01-20): Personnel Modal Fix
 - [x] **Bug Fix**: Fix "Edit Personnel" modal data population issue by ensuring form resets when personnel data changes.

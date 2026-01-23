@@ -1593,7 +1593,7 @@ export type TransactionFilter = 'credit' | 'debit' | 'all';
 export type MatchConfidence = 'high' | 'medium' | 'low' | 'none' | 'manual';
 
 // Match methods for resident matching
-export type MatchMethod = 'alias' | 'phone' | 'name' | 'house_number' | 'manual';
+export type MatchMethod = 'alias' | 'phone' | 'name' | 'house_number' | 'manual' | 'keyword';
 
 // Import row status
 export type ImportRowStatus = 'pending' | 'matched' | 'unmatched' | 'duplicate' | 'created' | 'skipped' | 'error';

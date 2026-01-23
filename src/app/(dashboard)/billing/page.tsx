@@ -20,18 +20,18 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
 import { formatCurrency } from '@/lib/utils';
-import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertCircle, Clock, CheckCircle2, Receipt, TrendingUp, TrendingDown } from 'lucide-react';
+import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertCircle, Clock, CheckCircle2, Receipt, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { getResidents } from '@/actions/residents/get-residents';
-import { INVOICE_TYPE_LABELS, type InvoiceType } from '@/types/database';
+import { INVOICE_TYPE_LABELS, type InvoiceType, type InvoiceStatus } from '@/types/database';
 import {
-  EnhancedStatCard,
-  EnhancedTableCard,
-  EnhancedPageHeader,
-  EnhancedAlertBanner,
+    EnhancedStatCard,
+    EnhancedTableCard,
+    EnhancedPageHeader,
+    EnhancedAlertBanner,
 } from '@/components/dashboard/enhanced-stat-card';
 import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { cn } from '@/lib/utils';
@@ -65,7 +65,7 @@ export default function BillingPage() {
     const { data, isLoading, refetch } = useInvoices({
         page,
         limit,
-        status: status === 'all' ? undefined : (status as any),
+        status: status === 'all' ? undefined : (status as InvoiceStatus),
         invoiceType: invoiceType === 'all' ? undefined : (invoiceType as InvoiceType),
         residentId: residentId === 'all' ? undefined : residentId,
         search: search || undefined,
@@ -156,7 +156,7 @@ export default function BillingPage() {
             />
 
             {/* Stats Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
                 <EnhancedStatCard
                     title="Total Invoices"
                     value={totalCount}
@@ -193,6 +193,16 @@ export default function BillingPage() {
                     accentColor="default"
                     className="stagger-4"
                 />
+                <EnhancedStatCard
+                    title="Overdue"
+                    value={overdueStats ? formatCurrency(overdueStats.totalAmount) : formatCurrency(0)}
+                    icon={AlertCircle}
+                    isLoading={!overdueStats}
+                    description={overdueStats ? `${overdueStats.count} overdue invoice${overdueStats.count !== 1 ? 's' : ''}` : 'Loading...'}
+                    accentColor="warning"
+                    className="stagger-5 cursor-pointer"
+                    onClick={() => setStatus('unpaid')}
+                />
             </div>
 
             {/* Last Generation Info */}
@@ -223,172 +233,92 @@ export default function BillingPage() {
                 />
             )}
 
-            {/* Overdue Alert Banner */}
-            {overdueStats && overdueStats.count > 0 && (
-                <EnhancedAlertBanner
-                    type="warning"
-                    icon={AlertCircle}
-                    title={`${overdueStats.count} overdue invoice${overdueStats.count !== 1 ? 's' : ''} totaling ${formatCurrency(overdueStats.totalAmount)}`}
-                    description="Click 'Check Overdue' to view details and send reminders."
-                    action={
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className={cn(
-                                'border-amber-300 text-amber-700 hover:bg-amber-100',
-                                'dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900',
-                                isModern && 'rounded-xl'
-                            )}
-                            onClick={() => setStatus('unpaid')}
-                        >
-                            View Unpaid
-                        </Button>
-                    }
-                />
-            )}
 
-            {/* Filters */}
-            <Card className={cn(
-                isModern && 'rounded-xl border-gray-200 dark:border-[#334155] bg-white dark:bg-[#1E293B]'
-            )}>
-                <CardContent className="pt-6">
-                    <div className="flex flex-wrap gap-4 items-end">
-                        <div className="flex-1 min-w-[200px]">
-                            <label className={cn(
-                                'text-sm font-medium mb-2 block',
-                                isModern && 'text-gray-700 dark:text-gray-300'
-                            )}>
-                                Search Invoice
-                            </label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    placeholder="Invoice number..."
-                                    value={search}
-                                    onChange={(e) => {
-                                        setSearch(e.target.value);
-                                        setPage(1);
-                                    }}
-                                    className={cn(
-                                        'pl-9',
-                                        isModern && 'rounded-xl border-gray-200 dark:border-[#334155]'
-                                    )}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="w-[200px]">
-                            <label className={cn(
-                                'text-sm font-medium mb-2 block',
-                                isModern && 'text-gray-700 dark:text-gray-300'
-                            )}>
-                                Resident
-                            </label>
-                            <Select value={residentId} onValueChange={(value) => {
-                                setResidentId(value);
-                                setPage(1);
-                            }}>
-                                <SelectTrigger className={cn(isModern && 'rounded-xl')}>
-                                    <SelectValue placeholder="All residents" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All residents</SelectItem>
-                                    {residents.map((resident) => (
-                                        <SelectItem key={resident.id} value={resident.id}>
-                                            {resident.first_name} {resident.last_name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="w-[160px]">
-                            <label className={cn(
-                                'text-sm font-medium mb-2 block',
-                                isModern && 'text-gray-700 dark:text-gray-300'
-                            )}>
-                                Status
-                            </label>
-                            <Select value={status} onValueChange={(value) => {
-                                setStatus(value);
-                                setPage(1);
-                            }}>
-                                <SelectTrigger className={cn(isModern && 'rounded-xl')}>
-                                    <SelectValue placeholder="All statuses" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All statuses</SelectItem>
-                                    <SelectItem value="unpaid">Unpaid</SelectItem>
-                                    <SelectItem value="paid">Paid</SelectItem>
-                                    <SelectItem value="partially_paid">Partially Paid</SelectItem>
-                                    <SelectItem value="void">Void</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="w-[160px]">
-                            <label className={cn(
-                                'text-sm font-medium mb-2 block',
-                                isModern && 'text-gray-700 dark:text-gray-300'
-                            )}>
-                                Type
-                            </label>
-                            <Select value={invoiceType} onValueChange={(value) => {
-                                setInvoiceType(value);
-                                setPage(1);
-                            }}>
-                                <SelectTrigger className={cn(isModern && 'rounded-xl')}>
-                                    <SelectValue placeholder="All types" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All types</SelectItem>
-                                    <SelectItem value="SERVICE_CHARGE">Service Charge</SelectItem>
-                                    <SelectItem value="LEVY">Levy</SelectItem>
-                                    <SelectItem value="ADJUSTMENT">Adjustment</SelectItem>
-                                    <SelectItem value="OTHER">Other</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="w-[120px]">
-                            <label className={cn(
-                                'text-sm font-medium mb-2 block',
-                                isModern && 'text-gray-700 dark:text-gray-300'
-                            )}>
-                                Per Page
-                            </label>
-                            <Select value={limit.toString()} onValueChange={(value) => {
-                                setLimit(Number(value));
-                                setPage(1);
-                            }}>
-                                <SelectTrigger className={cn(isModern && 'rounded-xl')}>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="20">20</SelectItem>
-                                    <SelectItem value="50">50</SelectItem>
-                                    <SelectItem value="100">100</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {(status !== 'all' || invoiceType !== 'all' || residentId !== 'all' || search) && (
-                            <Button
-                                variant="outline"
-                                onClick={handleClearFilters}
-                                className={cn(isModern && 'rounded-xl')}
-                            >
-                                Clear Filters
-                            </Button>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
 
             {/* Invoices Table */}
             <EnhancedTableCard
                 title="Invoices"
                 description="All billing records"
+                actions={
+                    <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative w-[180px]">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                                placeholder="Invoice number..."
+                                value={search}
+                                onChange={(e) => {
+                                    setSearch(e.target.value);
+                                    setPage(1);
+                                }}
+                                className={cn(
+                                    'pl-8 h-9 text-sm',
+                                    isModern && 'rounded-xl border-gray-200 dark:border-[#334155]'
+                                )}
+                            />
+                        </div>
+
+                        <Select value={residentId} onValueChange={(value) => {
+                            setResidentId(value);
+                            setPage(1);
+                        }}>
+                            <SelectTrigger className={cn("w-[140px] h-9 text-sm", isModern && 'rounded-xl')}>
+                                <SelectValue placeholder="Residents" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All residents</SelectItem>
+                                {residents.map((resident) => (
+                                    <SelectItem key={resident.id} value={resident.id}>
+                                        {resident.first_name} {resident.last_name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <Select value={status} onValueChange={(value) => {
+                            setStatus(value);
+                            setPage(1);
+                        }}>
+                            <SelectTrigger className={cn("w-[110px] h-9 text-sm", isModern && 'rounded-xl')}>
+                                <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Status</SelectItem>
+                                <SelectItem value="unpaid">Unpaid</SelectItem>
+                                <SelectItem value="paid">Paid</SelectItem>
+                                <SelectItem value="partially_paid">Partial</SelectItem>
+                                <SelectItem value="void">Void</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <Select value={invoiceType} onValueChange={(value) => {
+                            setInvoiceType(value);
+                            setPage(1);
+                        }}>
+                            <SelectTrigger className={cn("w-[110px] h-9 text-sm", isModern && 'rounded-xl')}>
+                                <SelectValue placeholder="Type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Types</SelectItem>
+                                <SelectItem value="SERVICE_CHARGE">Service</SelectItem>
+                                <SelectItem value="LEVY">Levy</SelectItem>
+                                <SelectItem value="ADJUSTMENT">Adjust</SelectItem>
+                                <SelectItem value="OTHER">Other</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        {(status !== 'all' || invoiceType !== 'all' || residentId !== 'all' || search) && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleClearFilters}
+                                className={cn("h-9 px-2 text-muted-foreground hover:text-foreground", isModern && 'rounded-xl')}
+                                title="Clear Filters"
+                            >
+                                <RefreshCw className="h-4 w-4" />
+                            </Button>
+                        )}
+                    </div>
+                }
             >
                 <div className={cn(
                     'rounded-xl border overflow-hidden shadow-soft animate-slide-up',
@@ -425,9 +355,7 @@ export default function BillingPage() {
                                 ))
                             ) : invoices.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="h-24 text-center">
-                                        No invoices found. Click "Generate Monthly Invoices" to create them.
-                                    </TableCell>
+                                    No invoices found. Click &quot;Generate Monthly Invoices&quot; to create them.
                                 </TableRow>
                             ) : (
                                 invoices.map((invoice) => (
@@ -490,13 +418,36 @@ export default function BillingPage() {
             </EnhancedTableCard>
 
             {/* Pagination */}
-            {totalPages > 1 && (
+            {totalCount > 0 && (
                 <div className="flex items-center justify-between">
-                    <div className={cn(
-                        'text-sm text-muted-foreground',
-                        isModern && 'text-gray-500 dark:text-gray-400'
-                    )}>
-                        Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, totalCount)} of {totalCount} invoices
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <span className={cn(
+                                'text-sm text-muted-foreground whitespace-nowrap',
+                                isModern && 'text-gray-500 dark:text-gray-400'
+                            )}>
+                                Rows per page
+                            </span>
+                            <Select value={limit.toString()} onValueChange={(value) => {
+                                setLimit(Number(value));
+                                setPage(1);
+                            }}>
+                                <SelectTrigger className={cn("h-8 w-[70px]", isModern && 'rounded-xl')}>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="10">10</SelectItem>
+                                    <SelectItem value="20">20</SelectItem>
+                                    <SelectItem value="50">50</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className={cn(
+                            'text-sm text-muted-foreground',
+                            isModern && 'text-gray-500 dark:text-gray-400'
+                        )}>
+                            Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, totalCount)} of {totalCount} invoices
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button

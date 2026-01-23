@@ -21,6 +21,7 @@ interface EnhancedStatCardProps {
   accentColor?: 'default' | 'success' | 'warning' | 'danger' | 'info';
   className?: string;
   animate?: boolean;
+  onClick?: () => void;
 }
 
 /**
@@ -48,6 +49,7 @@ export function EnhancedStatCard({
   accentColor = 'default',
   className,
   animate = true,
+  onClick,
 }: EnhancedStatCardProps) {
   const { themeId } = useVisualTheme();
   const isModern = themeId === 'modern';
@@ -116,17 +118,18 @@ export function EnhancedStatCard({
         'relative overflow-hidden group',
         isModern
           ? cn(
-              'rounded-2xl border-gray-200/80 dark:border-[#334155]/80',
-              'bg-white/90 dark:bg-[#1E293B]/90',
-              'backdrop-blur-sm',
-              'hover:border-[#0EA5E9]/30 dark:hover:border-[#0EA5E9]/20',
-              'shadow-soft hover:shadow-elevated',
-              'transition-all duration-300 ease-out'
-            )
+            'rounded-2xl border-gray-200/80 dark:border-[#334155]/80',
+            'bg-white/90 dark:bg-[#1E293B]/90',
+            'backdrop-blur-sm',
+            'hover:border-[#0EA5E9]/30 dark:hover:border-[#0EA5E9]/20',
+            'shadow-soft hover:shadow-elevated',
+            'transition-all duration-300 ease-out'
+          )
           : 'hover:shadow-md transition-all duration-200',
         animate && 'animate-slide-up',
         className
       )}
+      onClick={onClick}
     >
       {/* Modern theme gradient accent line with animation */}
       {isModern && (
@@ -238,11 +241,11 @@ export function EnhancedTableCard({
         'overflow-hidden',
         isModern
           ? cn(
-              'rounded-2xl border-gray-200/80 dark:border-[#334155]/80',
-              'bg-white/95 dark:bg-[#1E293B]/95',
-              'backdrop-blur-sm shadow-soft',
-              'hover:shadow-elevated transition-shadow duration-300'
-            )
+            'rounded-2xl border-gray-200/80 dark:border-[#334155]/80',
+            'bg-white/95 dark:bg-[#1E293B]/95',
+            'backdrop-blur-sm shadow-soft',
+            'hover:shadow-elevated transition-shadow duration-300'
+          )
           : 'hover:shadow-md transition-shadow duration-200',
         animate && 'animate-slide-up',
         className
