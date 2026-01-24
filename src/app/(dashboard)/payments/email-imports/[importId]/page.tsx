@@ -434,7 +434,7 @@ export default function EmailImportDetailPage() {
           <div className="flex items-center gap-2 mb-4">
             {statusFilter !== 'queued_for_review' && (
               <Badge variant="secondary" className="gap-1">
-                Status: {STATUS_BADGES[statusFilter]?.label || statusFilter}
+                Status: {STATUS_BADGES[statusFilter as keyof typeof STATUS_BADGES]?.label || statusFilter}
                 <button
                   onClick={() => {
                     setStatusFilter('queued_for_review');

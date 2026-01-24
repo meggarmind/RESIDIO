@@ -5,6 +5,29 @@
 ## Current Phase: Phase 18 - UX & Portal Refinement 🚧 IN PROGRESS
 See detailed feature spec: `docs/features/role-aware-portal.md`
 
+### Recent Session Work (2026-01-24): Style Guide Compliance (Layout 2) - Part 2
+- [x] **Announcements Table Refactor**: Applied Complex Registry Standard (`docs/design/data-table-layout2.md`) to Announcements table.
+  - **EnhancedTableCard**: Integrated the table into an EnhancedTableCard with title and description.
+  - **Integrated Toolbar**: Moved search, category filter, New Announcement button, and status tabs inside the card.
+  - **Modern Table Styling**: Added `animate-slide-up`, `interactive={false}`, and refined typography.
+  - **Windowed Pagination**: Implemented the sliding window pagination pattern (up to 5 page numbers) with rows per page selector.
+- [x] **Documents Table Refactor**: Applied Complex Registry Standard to Documents table.
+  - **EnhancedTableCard Integration**: Updated the parent page to provide context through EnhancedTableCard.
+  - **Standardized Toolbar**: Unified toolbar layout with search, category filtering, and view mode toggles.
+  - **Table Layout**: Applied modern table styling to the list view and added `animate-slide-up` to both grid and list views.
+  - **Responsive Pagination**: Integrated the standardized windowed pagination system.
+- [x] **Approvals Queue Refactor**: Refactored the Approvals registry to follow the Style Guide.
+  - **Enhanced Layout**: Integrated `EnhancedPageHeader` and `EnhancedTableCard` for a consistent premium feel.
+  - **Integrated Filters**: Moved status filters into a compact toolbar inside the registry card.
+  - **New Pagination**: Added the standardized windowed pagination system (previously missing).
+  - **Compact Actions**: Redesigned the actions column for a more professional, spacing-efficient layout.
+- [x] **Code Quality**: Fixed structural nesting issues and ensured 100% linting compliance across all modified components.
+- [x] **Property Registry Refactor**: Applied Complex Registry Standard (`docs/design/data-table-layout2.md`) to Property Registry table in `/houses`.
+  - **Integrated Toolbar**: Integrated search and filters into the table card with debounced search.
+  - **Active Filter Badges**: Added removable badges for active filters with "Clear all" action.
+  - **Enhanced Styling**: Updated table wrapper and row visuals for modern look.
+  - **Windowed Pagination**: Implemented windowed pagination with rows per page selector (10, 20, 50, 100).
+
 ### Recent Session Work (2026-01-24): Email Import Display Fix
 - [x] **UI Fix**: Updated Transactions table in Email Imports to visually distinguish credit/debit transactions with color coding (Green/Red) and signs (+/-).
 - [x] **Style Guide Compliance (Layout 2)**: Refactored Transactions table to adopt Complex Registry Standard (`docs/design/data-table-layout2.md`).

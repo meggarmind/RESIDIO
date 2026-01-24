@@ -34,11 +34,10 @@ import {
   Pencil,
   X,
   ChevronLeft,
-  ChevronRight,
-  Filter
+  ChevronRight
 } from 'lucide-react';
 import type { HouseSearchParams } from '@/lib/validators/house';
-import { getPropertyShortname, cn } from '@/lib/utils'; // Added cn import
+import { getPropertyShortname } from '@/lib/utils'; // Added cn import
 
 const ALL_VALUE = '_all';
 

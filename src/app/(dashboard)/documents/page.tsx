@@ -84,7 +84,7 @@ export default function DocumentsPage() {
       </div>
 
       {/* Documents Table */}
-      <EnhancedTableCard>
+      <EnhancedTableCard title="Documents Repository" description="Full registry of active estate documents and files.">
         {totalDocs === 0 && !isLoading ? (
           <ModernDocumentsEmptyState />
         ) : (

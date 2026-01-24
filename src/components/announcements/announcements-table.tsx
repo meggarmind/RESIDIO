@@ -60,9 +60,13 @@ import {
   X,
   Pin,
   Clock,
+  ArrowLeft,
+  ArrowRight,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { toast } from 'sonner';
+import { EnhancedTableCard } from '@/components/dashboard/enhanced-stat-card';
+import { cn } from '@/lib/utils';
 import type { Announcement, AnnouncementStatus, AnnouncementListParams } from '@/types/database';
 
 const ALL_VALUE = '_all';
@@ -81,7 +85,7 @@ const AnnouncementRow = memo(function AnnouncementRow({
   onDelete: (id: string) => void;
 }) {
   return (
-    <TableRow>
+    <TableRow className="hover:bg-gray-50 dark:hover:bg-[#0F172A]">
       <TableCell>
         <div className="flex items-start gap-3">
           <div className="p-2 rounded-lg bg-muted">
@@ -116,7 +120,7 @@ const AnnouncementRow = memo(function AnnouncementRow({
       <TableCell>
         <TargetAudienceBadge audience={announcement.target_audience || 'all'} />
       </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
+      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
         {announcement.published_at
           ? format(new Date(announcement.published_at), 'MMM d, yyyy')
           : announcement.scheduled_for
@@ -128,7 +132,7 @@ const AnnouncementRow = memo(function AnnouncementRow({
             )
             : '-'}
       </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
+      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
         {announcement.created_at
           ? formatDistanceToNow(new Date(announcement.created_at), { addSuffix: true })
           : '-'}
@@ -226,12 +230,14 @@ export function AnnouncementsTable() {
     page: 1,
     limit: 20,
   });
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<AnnouncementStatus | 'all'>('all');
+  const [pageSize, setPageSize] = useState(20);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useAnnouncements({
     ...params,
     status: statusFilter === 'all' ? undefined : statusFilter,
+    limit: pageSize,
   });
   const { data: categories } = useAnnouncementCategories();
 
@@ -282,6 +288,13 @@ export function AnnouncementsTable() {
     setParams((prev) => ({ ...prev, search: value || undefined, page: 1 }));
   };
 
+  const setPage = (page: number) => {
+    setParams((prev) => ({ ...prev, page }));
+  };
+
+  const totalCount = data?.count || 0;
+  const totalPages = Math.ceil(totalCount / pageSize);
+
   const handleCategoryChange = (value: string) => {
     setParams((prev) => ({
       ...prev,
@@ -291,126 +304,202 @@ export function AnnouncementsTable() {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <Tabs
-          value={statusFilter}
-          onValueChange={(v) => setStatusFilter(v as AnnouncementStatus | 'all')}
-        >
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="draft">Drafts</TabsTrigger>
-            <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-            <TabsTrigger value="published">Published</TabsTrigger>
-            <TabsTrigger value="archived">Archived</TabsTrigger>
-          </TabsList>
-        </Tabs>
+    <EnhancedTableCard title="Announcements Management">
+      <div className="space-y-4 p-4">
+        {/* Integrated Toolbar */}
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 justify-between">
+            <div className="flex flex-1 gap-2">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search announcements..."
+                  value={params.search || ''}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="pl-9"
+                />
+                {params.search && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+                    onClick={() => handleSearch('')}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search announcements..."
-              className="pl-8 w-[200px]"
-              value={params.search || ''}
-              onChange={(e) => handleSearch(e.target.value)}
-            />
-            {params.search && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1 h-6 w-6"
-                onClick={() => handleSearch('')}
+              <Select
+                value={params.category_id || ALL_VALUE}
+                onValueChange={handleCategoryChange}
               >
-                <X className="h-3 w-3" />
-              </Button>
-            )}
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_VALUE}>All Categories</SelectItem>
+                  {categories?.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button asChild>
+              <Link href="/announcements/new">
+                <Plus className="mr-2 h-4 w-4" />
+                New Announcement
+              </Link>
+            </Button>
           </div>
 
-          <Select
-            value={params.category_id || ALL_VALUE}
-            onValueChange={handleCategoryChange}
+          <Tabs
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as AnnouncementStatus | 'all')}
+            className="w-full"
           >
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_VALUE}>All Categories</SelectItem>
-              {categories?.map((category) => (
-                <SelectItem key={category.id} value={category.id}>
-                  {category.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Button asChild>
-            <Link href="/announcements/new">
-              <Plus className="mr-2 h-4 w-4" />
-              New
-            </Link>
-          </Button>
+            <TabsList className="w-full justify-start overflow-x-auto h-auto p-1 bg-muted/50">
+              <TabsTrigger value="all" className="px-4 py-2">All</TabsTrigger>
+              <TabsTrigger value="draft" className="px-4 py-2">Drafts</TabsTrigger>
+              <TabsTrigger value="scheduled" className="px-4 py-2">Scheduled</TabsTrigger>
+              <TabsTrigger value="published" className="px-4 py-2">Published</TabsTrigger>
+              <TabsTrigger value="archived" className="px-4 py-2">Archived</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
+
+        {/* Content */}
+        {isLoading ? (
+          <TableSkeleton />
+        ) : error ? (
+          <div className="text-center py-8 text-destructive">
+            Failed to load announcements: {error.message}
+          </div>
+        ) : !data?.data.length ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <Megaphone className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium">No announcements found</p>
+            <p className="text-sm">Create your first announcement to get started</p>
+            <Button asChild className="mt-4">
+              <Link href="/announcements/new">
+                <Plus className="mr-2 h-4 w-4" />
+                Create Announcement
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="rounded-xl border overflow-hidden shadow-soft animate-slide-up">
+              <Table variant="modern">
+                <TableHeader>
+                  <TableRow interactive={false}>
+                    <TableHead className="min-w-[300px]">Announcement</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Audience</TableHead>
+                    <TableHead>Published</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.data.map((announcement) => (
+                    <AnnouncementRow
+                      key={announcement.id}
+                      announcement={announcement}
+                      onPublish={handlePublish}
+                      onUnpublish={handleUnpublish}
+                      onArchive={handleArchive}
+                      onDelete={setDeleteId}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Windowed Pagination Footer */}
+            <div className="mt-4 flex flex-col sm:flex-row gap-4 justify-between items-center px-2">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">Rows per page</span>
+                  <Select
+                    value={pageSize.toString()}
+                    onValueChange={(val) => {
+                      setPageSize(Number(val));
+                      setParams((prev) => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[70px] rounded-xl">
+                      <SelectValue placeholder={pageSize.toString()} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-sm text-muted-foreground whitespace-nowrap">
+                  Showing {((params.page || 1) - 1) * pageSize + 1} to{' '}
+                  {Math.min((params.page || 1) * pageSize, totalCount)} of {totalCount} announcements
+                </p>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((params.page || 1) - 1)}
+                    disabled={(params.page || 1) === 1}
+                    className="h-8 w-9 p-0 rounded-lg"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum: number;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if ((params.page || 1) <= 3) {
+                        pageNum = i + 1;
+                      } else if ((params.page || 1) >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = (params.page || 1) - 2 + i;
+                      }
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={(params.page || 1) === pageNum ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setPage(pageNum)}
+                          className="h-8 w-9 p-0 rounded-lg"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((params.page || 1) + 1)}
+                    disabled={(params.page || 1) >= totalPages}
+                    className="h-8 w-9 p-0 rounded-lg"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Table */}
-      {isLoading ? (
-        <TableSkeleton />
-      ) : error ? (
-        <div className="text-center py-8 text-destructive">
-          Failed to load announcements: {error.message}
-        </div>
-      ) : !data?.data.length ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <Megaphone className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p className="text-lg font-medium">No announcements found</p>
-          <p className="text-sm">Create your first announcement to get started</p>
-          <Button asChild className="mt-4">
-            <Link href="/announcements/new">
-              <Plus className="mr-2 h-4 w-4" />
-              Create Announcement
-            </Link>
-          </Button>
-        </div>
-      ) : (
-        <>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[300px]">Announcement</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Audience</TableHead>
-                  <TableHead>Published</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.data.map((announcement) => (
-                  <AnnouncementRow
-                    key={announcement.id}
-                    announcement={announcement}
-                    onPublish={handlePublish}
-                    onUnpublish={handleUnpublish}
-                    onArchive={handleArchive}
-                    onDelete={setDeleteId}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Pagination info */}
-          <div className="text-sm text-muted-foreground text-center">
-            Showing {data.data.length} of {data.count} announcements
-          </div>
-        </>
-      )}
-
-      {/* Delete Confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -431,6 +520,6 @@ export function AnnouncementsTable() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </EnhancedTableCard>
   );
 }

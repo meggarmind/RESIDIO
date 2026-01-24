@@ -54,9 +54,12 @@ import {
   LayoutGrid,
   List,
   X,
+  ArrowLeft,
+  ArrowRight,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import type { DocumentWithRelations, DocumentListParams } from '@/types/database';
 import { DocumentGrid } from './document-card';
 import Link from 'next/link';
@@ -91,7 +94,7 @@ const DocumentRow = memo(function DocumentRow({
   };
 
   return (
-    <TableRow>
+    <TableRow className="hover:bg-gray-50 dark:hover:bg-[#0F172A]">
       <TableCell>
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-muted">
@@ -113,13 +116,13 @@ const DocumentRow = memo(function DocumentRow({
       <TableCell>
         <CategoryBadge category={document.category} />
       </TableCell>
-      <TableCell className="text-muted-foreground">
+      <TableCell className="text-muted-foreground whitespace-nowrap">
         {formatFileSize(document.file_size_bytes)}
       </TableCell>
-      <TableCell className="text-muted-foreground">
+      <TableCell className="text-muted-foreground whitespace-nowrap">
         {document.uploader?.full_name || '-'}
       </TableCell>
-      <TableCell className="text-muted-foreground">
+      <TableCell className="text-muted-foreground whitespace-nowrap">
         {formatDistanceToNow(new Date(document.created_at), { addSuffix: true })}
       </TableCell>
       <TableCell className="text-right">
@@ -189,11 +192,15 @@ export function DocumentsTable({
   });
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [pageSize, setPageSize] = useState(20);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentWithRelations | null>(null);
   const [deleteDoc, setDeleteDoc] = useState<DocumentWithRelations | null>(null);
 
-  const { data, isLoading, refetch } = useDocuments(params);
+  const { data, isLoading, refetch } = useDocuments({
+    ...params,
+    limit: pageSize,
+  });
   const { data: categories = [] } = useDocumentCategories();
   const deleteMutation = useDeleteDocument();
   const archiveMutation = useArchiveDocument();
@@ -254,170 +261,230 @@ export function DocumentsTable({
     }
   }, [deleteDoc, deleteMutation]);
 
+  const setPage = (page: number) => {
+    setParams((prev) => ({ ...prev, page }));
+  };
+
   const documents = data?.data ?? [];
   const totalCount = data?.count ?? 0;
-  const totalPages = Math.ceil(totalCount / (params.limit ?? 20));
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between">
-        <div className="flex flex-1 gap-2">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search documents..."
-              value={search}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="pl-9"
-            />
-            {search && (
+      {/* Integrated Toolbar */}
+      <div className="flex flex-col gap-3 px-4 pt-4">
+        <div className="flex flex-col sm:flex-row gap-2 justify-between">
+          <div className="flex flex-1 gap-2">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search documents..."
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="pl-9"
+              />
+              {search && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+                  onClick={() => handleSearch('')}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+
+            <Select
+              value={params.category_id ?? ALL_VALUE}
+              onValueChange={handleCategoryChange}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>All Categories</SelectItem>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex gap-2">
+            <div className="border rounded-lg p-1 flex bg-muted/50">
               <Button
-                variant="ghost"
+                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
                 size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
-                onClick={() => handleSearch('')}
+                className="h-8 w-8"
+                onClick={() => setViewMode('list')}
               >
-                <X className="h-3 w-3" />
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setViewMode('grid')}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {canUpload && (
+              <Button onClick={() => setUploadOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Upload
               </Button>
             )}
           </div>
-
-          <Select
-            value={params.category_id ?? ALL_VALUE}
-            onValueChange={handleCategoryChange}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_VALUE}>All Categories</SelectItem>
-              {categories.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id}>
-                  {cat.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex gap-2">
-          <div className="border rounded-lg p-1 flex">
-            <Button
-              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setViewMode('list')}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setViewMode('grid')}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {canUpload && (
-            <Button onClick={() => setUploadOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Upload
-            </Button>
-          )}
         </div>
       </div>
 
       {/* Content */}
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Skeleton key={i} className="h-16 w-full" />
-          ))}
-        </div>
-      ) : viewMode === 'grid' ? (
-        <DocumentGrid
-          documents={documents}
-          onView={handleView}
-          onDownload={handleDownload}
-          onEdit={canEdit ? handleEdit : undefined}
-          onDelete={canDelete ? (doc) => setDeleteDoc(doc) : undefined}
-          onArchive={canEdit ? handleArchive : undefined}
-          canEdit={canEdit}
-          canDelete={canDelete}
-        />
-      ) : documents.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p>No documents found</p>
-          {canUpload && (
-            <Button className="mt-4" onClick={() => setUploadOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Upload First Document
-            </Button>
-          )}
-        </div>
-      ) : (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Document</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead>Uploaded By</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {documents.map((doc) => (
-                <DocumentRow
-                  key={doc.id}
-                  document={doc}
-                  onView={handleView}
-                  onDownload={handleDownload}
-                  onEdit={handleEdit}
-                  onDelete={(d) => setDeleteDoc(d)}
-                  onArchive={handleArchive}
-                  canEdit={canEdit}
-                  canDelete={canDelete}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-between items-center">
-          <p className="text-sm text-muted-foreground">
-            Showing {((params.page ?? 1) - 1) * (params.limit ?? 20) + 1} to{' '}
-            {Math.min((params.page ?? 1) * (params.limit ?? 20), totalCount)} of {totalCount}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={(params.page ?? 1) <= 1}
-              onClick={() => setParams((p) => ({ ...p, page: (p.page ?? 1) - 1 }))}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={(params.page ?? 1) >= totalPages}
-              onClick={() => setParams((p) => ({ ...p, page: (p.page ?? 1) + 1 }))}
-            >
-              Next
-            </Button>
+      <div className="px-4 pb-4">
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
           </div>
-        </div>
-      )}
+        ) : viewMode === 'grid' ? (
+          <div className="animate-slide-up">
+            <DocumentGrid
+              documents={documents}
+              onView={handleView}
+              onDownload={handleDownload}
+              onEdit={canEdit ? handleEdit : undefined}
+              onDelete={canDelete ? (doc) => setDeleteDoc(doc) : undefined}
+              onArchive={canEdit ? handleArchive : undefined}
+              canEdit={canEdit}
+              canDelete={canDelete}
+            />
+          </div>
+        ) : documents.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium">No documents found</p>
+            {canUpload && (
+              <Button className="mt-4" onClick={() => setUploadOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Upload First Document
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-xl border overflow-hidden shadow-soft animate-slide-up">
+              <Table variant="modern">
+                <TableHeader>
+                  <TableRow interactive={false}>
+                    <TableHead>Document</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead>Uploaded By</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {documents.map((doc) => (
+                    <DocumentRow
+                      key={doc.id}
+                      document={doc}
+                      onView={handleView}
+                      onDownload={handleDownload}
+                      onEdit={handleEdit}
+                      onDelete={(d) => setDeleteDoc(d)}
+                      onArchive={handleArchive}
+                      canEdit={canEdit}
+                      canDelete={canDelete}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Windowed Pagination Footer */}
+            <div className="mt-4 flex flex-col sm:flex-row gap-4 justify-between items-center px-2">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">Rows per page</span>
+                  <Select
+                    value={pageSize.toString()}
+                    onValueChange={(val) => {
+                      setPageSize(Number(val));
+                      setParams(prev => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[70px] rounded-xl">
+                      <SelectValue placeholder={pageSize.toString()} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-sm text-muted-foreground whitespace-nowrap">
+                  Showing {((params.page || 1) - 1) * pageSize + 1} to {Math.min((params.page || 1) * pageSize, totalCount)} of {totalCount} documents
+                </p>
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((params.page || 1) - 1)}
+                    disabled={(params.page || 1) === 1}
+                    className="h-8 w-9 p-0 rounded-lg"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum: number;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if ((params.page || 1) <= 3) {
+                        pageNum = i + 1;
+                      } else if ((params.page || 1) >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = (params.page || 1) - 2 + i;
+                      }
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={(params.page || 1) === pageNum ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setPage(pageNum)}
+                          className="h-8 w-9 p-0 rounded-lg"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((params.page || 1) + 1)}
+                    disabled={(params.page || 1) >= totalPages}
+                    className="h-8 w-9 p-0 rounded-lg"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Modals */}
       <DocumentUploadForm
