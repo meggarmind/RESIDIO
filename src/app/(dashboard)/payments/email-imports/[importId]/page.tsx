@@ -39,13 +39,13 @@ import {
   ArrowRight,
   Ban,
   Check,
-  CheckCircle2,
-  Clock,
   Eye,
   Search,
   Settings,
   User,
+  X,
 } from 'lucide-react';
+import { EnhancedTableCard } from '@/components/dashboard/enhanced-stat-card';
 import { toast } from 'sonner';
 import { getEmailImport } from '@/actions/email-imports/create-email-import';
 import {
@@ -119,7 +119,10 @@ export default function EmailImportDetailPage() {
       if (result.error) throw new Error(result.error);
       return result;
     },
-  });
+  })
+
+  // Calculate total pages
+  const totalPages = Math.ceil((transactionsData?.count || 0) / pageSize);
 
   // Fetch residents for selection
   const { data: residents } = useQuery({
@@ -387,171 +390,284 @@ export default function EmailImportDetailPage() {
       )}
 
       {/* Transactions Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Transactions</CardTitle>
-              <CardDescription>Review and process queued transactions</CardDescription>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 w-48"
-                />
-              </div>
+      <EnhancedTableCard
+        title="Transactions"
+        description="Review and process queued transactions"
+      >
+        {/* Integrated Toolbar */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-4">
+          {/* Primary Search - flex-1 for maximum visibility */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by description, amount, or resident..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {/* Filter Dropdown */}
+          <Select
+            value={statusFilter}
+            onValueChange={(val) => {
+              setStatusFilter(val);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="queued_for_review">Queued for Review</SelectItem>
+              <SelectItem value="pending">Pending (Unmatched)</SelectItem>
+              <SelectItem value="matched">Matched (Pending)</SelectItem>
+              <SelectItem value="auto_processed">Auto-Processed</SelectItem>
+              <SelectItem value="processed">Processed</SelectItem>
+              <SelectItem value="skipped">Skipped</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Active Filter Badges */}
+        {(statusFilter !== 'queued_for_review' || searchQuery) && (
+          <div className="flex items-center gap-2 mb-4">
+            {statusFilter !== 'queued_for_review' && (
+              <Badge variant="secondary" className="gap-1">
+                Status: {STATUS_BADGES[statusFilter]?.label || statusFilter}
+                <button
+                  onClick={() => {
+                    setStatusFilter('queued_for_review');
+                    setPage(1);
+                  }}
+                  className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {searchQuery && (
+              <Badge variant="secondary" className="gap-1">
+                Search: {searchQuery}
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => {
+                setStatusFilter('queued_for_review');
+                setSearchQuery('');
+                setPage(1);
+              }}
+            >
+              Clear all
+            </Button>
+          </div>
+        )}
+
+        {/* Table Wrapper */}
+        <div className="rounded-xl border overflow-hidden shadow-soft animate-slide-up">
+          <Table>
+            <TableHeader>
+              <TableRow interactive={false}>
+                <TableHead>Date</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Matched Resident</TableHead>
+                <TableHead>Confidence</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {txLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-16 rounded-full" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
+                    <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
+                  </TableRow>
+                ))
+              ) : !transactionsData?.data || transactionsData.data.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    No transactions found in this status
+                  </TableCell>
+                </TableRow>
+              ) : (
+                transactionsData.data.map((tx: EmailTransaction & { residents?: { first_name: string; last_name: string; resident_code: string } }) => (
+                  <TableRow key={tx.id} className="hover:bg-gray-50 dark:hover:bg-[#0F172A]">
+                    <TableCell className="text-muted-foreground font-mono text-sm">
+                      {formatDate(tx.transaction_date)}
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate font-medium" title={tx.description || ''}>
+                      {tx.description || '-'}
+                    </TableCell>
+                    <TableCell className="font-mono">
+                      <span className={
+                        tx.transaction_type === 'debit' ? 'text-red-600 dark:text-red-400' :
+                          tx.transaction_type === 'credit' ? 'text-green-600 dark:text-green-400' :
+                            ''
+                      }>
+                        {tx.transaction_type === 'debit' ? '-' :
+                          tx.transaction_type === 'credit' ? '+' : ''}
+                        {formatCurrency(tx.amount)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {tx.residents ? (
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm">
+                            {tx.residents.first_name} {tx.residents.last_name}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            ({tx.residents.resident_code})
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground italic">Unmatched</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {tx.match_confidence && (
+                        <Badge className={`${CONFIDENCE_COLORS[tx.match_confidence]} text-white rounded-full`}>
+                          {tx.match_confidence}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_BADGES[tx.status]?.variant || 'secondary'} className="rounded-full">
+                        {STATUS_BADGES[tx.status]?.label || tx.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {['queued_for_review', 'pending', 'matched'].includes(tx.status) && (
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 text-green-600"
+                            onClick={() => handleOpenProcessDialog(tx)}
+                            title="Process"
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 text-red-600"
+                            onClick={() => handleOpenSkipDialog(tx)}
+                            title="Skip"
+                          >
+                            <Ban className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                      {!['queued_for_review', 'pending', 'matched'].includes(tx.status) && (
+                        <div className="flex justify-end">
+                          <Button variant="ghost" size="sm" className="h-8 w-8">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </EnhancedTableCard>
+
+      {/* Pagination Footer */}
+      {transactionsData?.count && transactionsData.count > 0 && (
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-center">
+          {/* Left Section - Settings */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Rows per page</span>
               <Select
-                value={statusFilter}
+                value={pageSize.toString()}
                 onValueChange={(val) => {
-                  setStatusFilter(val);
+                  setPageSize(Number(val));
                   setPage(1);
                 }}
               >
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Filter" />
+                <SelectTrigger className="h-8 w-[70px] rounded-xl">
+                  <SelectValue placeholder={pageSize.toString()} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="queued_for_review">Queued for Review</SelectItem>
-                  <SelectItem value="pending">Pending (Unmatched)</SelectItem>
-                  <SelectItem value="matched">Matched (Pending processing)</SelectItem>
-                  <SelectItem value="auto_processed">Auto-Processed</SelectItem>
-                  <SelectItem value="processed">Processed</SelectItem>
-                  <SelectItem value="skipped">Skipped</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <p className="text-sm text-muted-foreground">
+              Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, transactionsData.count)} of {transactionsData.count} transactions
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {txLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <Skeleton key={i} className="h-16 w-full" />
-                ))}
-              </div>
-            ) : !transactionsData?.data || transactionsData.data.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No transactions in this status
-              </div>
-            ) : (
-              <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Matched Resident</TableHead>
-                      <TableHead>Confidence</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {transactionsData.data.map((tx: EmailTransaction & { residents?: { first_name: string; last_name: string; resident_code: string } }) => (
-                      <TableRow key={tx.id}>
-                        <TableCell>{formatDate(tx.transaction_date)}</TableCell>
-                        <TableCell className="max-w-48 truncate" title={tx.description || ''}>
-                          {tx.description || '-'}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {formatCurrency(tx.amount)}
-                        </TableCell>
-                        <TableCell>
-                          {tx.residents ? (
-                            <span className="flex items-center gap-2">
-                              <User className="h-4 w-4 text-muted-foreground" />
-                              {tx.residents.first_name} {tx.residents.last_name}
-                              <span className="text-xs text-muted-foreground">
-                                ({tx.residents.resident_code})
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">Unmatched</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {tx.match_confidence && (
-                            <Badge className={`${CONFIDENCE_COLORS[tx.match_confidence]} text-white`}>
-                              {tx.match_confidence}
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={STATUS_BADGES[tx.status]?.variant || 'secondary'}>
-                            {STATUS_BADGES[tx.status]?.label || tx.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {['queued_for_review', 'pending', 'matched'].includes(tx.status) && (
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleOpenProcessDialog(tx)}
-                              >
-                                <Check className="h-4 w-4 mr-1" />
-                                Process
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleOpenSkipDialog(tx)}
-                              >
-                                <Ban className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )}
-                          {!['queued_for_review', 'pending', 'matched'].includes(tx.status) && (
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
 
-                {/* Pagination Controls */}
-                <div className="flex items-center justify-between py-4">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, transactionsData.count || 0)} of {transactionsData.count || 0} transactions
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                    >
-                      <ArrowLeft className="h-4 w-4 mr-2" />
-                      Previous
-                    </Button>
-                    <div className="text-sm font-medium w-20 text-center">
-                      Page {page}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(p => p + 1)}
-                      disabled={!transactionsData.count || page * pageSize >= transactionsData.count}
-                    >
-                      Next
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
+          {/* Right Section - Navigation */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="h-8 w-9 p-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum: number;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (page <= 3) {
+                  pageNum = i + 1;
+                } else if (page >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = page - 2 + i;
+                }
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={page === pageNum ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setPage(pageNum)}
+                    className="h-8 w-9 p-0"
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => p + 1)}
+              disabled={page * pageSize >= (transactionsData.count || 0)}
+              className="h-8 w-9 p-0"
+            >
+              <ArrowRight className="h-4 w-4" />
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
       {/* Process Dialog */}
       <Dialog open={isProcessDialogOpen} onOpenChange={setIsProcessDialogOpen}>

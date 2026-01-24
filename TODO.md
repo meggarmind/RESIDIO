@@ -5,6 +5,45 @@
 ## Current Phase: Phase 18 - UX & Portal Refinement 🚧 IN PROGRESS
 See detailed feature spec: `docs/features/role-aware-portal.md`
 
+### Recent Session Work (2026-01-24): Email Import Display Fix
+- [x] **UI Fix**: Updated Transactions table in Email Imports to visually distinguish credit/debit transactions with color coding (Green/Red) and signs (+/-).
+- [x] **Style Guide Compliance (Layout 2)**: Refactored Transactions table to adopt Complex Registry Standard (`docs/design/data-table-layout2.md`).
+  - **Integrated Toolbar**: Moved toolbar inside card content with flex-1 search input and descriptive placeholder
+  - **Active Filter Badges**: Added removable badges for active filters with individual close buttons and "Clear all" action
+  - **Enhanced Search**: Implemented flex-1 search input with placeholder "Search by description, amount, or resident..."
+  - **Table Layout**: Added `animate-slide-up` to table wrapper, `interactive={false}` to header row, right-aligned actions column
+  - **Responsive Pagination**: Updated to flex-col sm:flex-row layout with gap-1 for navigation buttons and "Rows per page" label
+  - **Windowed Pagination**: Implemented sliding window pagination displaying up to 5 page numbers (matches Invoices table pattern)
+  - **Code Quality**: Removed unused imports (CheckCircle2, Clock, RefreshCw) to pass linting
+- [x] **Personnel Directory Layout 2 Refactor**: Applied Complex Registry Standard to Personnel Directory table in `/personnel`.
+  - **Integrated Toolbar**: Moved search and type filter inside table with flex-1 search and descriptive placeholder
+  - **Active Filter Badges**: Added removable badges for type filter and search term with "Clear all" button
+  - **Windowed Pagination**: Implemented client-side pagination with sliding window (up to 5 page numbers), rows per page selector (10, 20, 50)
+  - **Icon-Only Actions**: Replaced dropdown menu with direct Edit/Delete icon buttons with tooltips
+  - **Enhanced Styling**: Added `animate-slide-up`, `interactive={false}`, rounded-full badges, and responsive layout
+  - **Code Quality**: Removed unused imports to pass linting (1 pre-existing warning remains)
+- [x] **Expense Ledger Layout 2 Refactor**: Applied Complex Registry Standard to Expense Ledger table in `/expenditure`.
+  - **EnhancedTableCard**: Replaced basic Card component with EnhancedTableCard for consistency
+  - **Integrated Toolbar**: Added search + 3 filters (Status, Category, Payee Type) with action buttons (Snap & Log, Log Expense)
+  - **Search Functionality**: NEW - Debounced search by description, payee, or category
+  - **Filter Options**: NEW - Filter by status (Pending/Paid/Cancelled), category, and payee type (Vendor/Resident/Staff)
+  - **Active Filter Badges**: Removable badges for all active filters with "Clear all" button
+  - **Filtering Logic**: Implemented useMemo-optimized filtering with AND logic for multiple filters
+  - **Windowed Pagination**: Implemented sliding window (up to 5 page numbers) with rows per page selector (10, 20, 50)
+  - **Enhanced Styling**: Added `animate-slide-up`, `interactive={false}`, rounded-full badges, responsive layout
+  - **TypeScript**: Added proper Expense interface and type annotations
+  - **Code Quality**: Passes linting with no errors or warnings
+- [x] **Layout 2 Style Guide Updates**: Updated `docs/design/data-table-layout2.md` to clarify scope and standards.
+  - **Scope Clarification**: Added explicit section stating the guide covers styling of existing elements, not data/column requirements
+  - **Removed Actions Column Requirement**: Clarified Actions column is optional based on functionality needs
+  - **Status Badge Standards**: Added standardized color conventions (success=green, destructive=red, secondary=gray)
+  - **Updated Expense Ledger**: Removed separate Actions column, moved actions inline with status badge
+  - **Code Quality**: All changes verified with linting
+
+### Recent Session Work (2026-01-24): Resident Registry Compliance Review
+- [x] **Documentation**: Created `docs/styles/data-table-layout2.md` auditing `ResidentsTable` compliance with UI standards.
+- [x] **Analysis**: Identified structural deviations (toolbar placement) and standard compliance (table wrapper, pagination) to guide future refactoring.
+
 ### Recent Session Work (2026-01-23): Expense Reconciliation Automation
 - [x] **New Feature**: Added manual "Mark as Paid" action to the Expenditure Ledger for pending expenses.
 - [x] **Automation**: Updated Bank Import engine to automatically reconcile "Pending" manual expenses when a matching bank transaction is found.

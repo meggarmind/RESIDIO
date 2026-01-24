@@ -31,8 +31,8 @@ interface ProfileStepProps {
 }
 
 export function ProfileStep({ onNext, onBack }: ProfileStepProps) {
-    const { user } = useAuth();
-    const { data: resident, isLoading: isLoadingResident } = useResident(user?.resident_id || undefined);
+    const { residentId } = useAuth();
+    const { data: resident, isLoading: isLoadingResident } = useResident(residentId || undefined);
     const updateResident = useUpdateResident();
     const [isSubmitting, setIsSubmitting] = useState(false);
 

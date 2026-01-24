@@ -180,7 +180,7 @@ function PaymentCallbackContent() {
   return (
     <div className="min-h-[60vh] flex items-center justify-center p-4">
       <PaymentResult
-        status={status === 'abandoned' ? 'cancelled' : status || 'pending'}
+        status={status === 'abandoned' ? 'cancelled' : status === 'reversed' ? 'failed' : status || 'pending'}
         title={config.title}
         description={config.description}
         amount={paymentDetails?.amount}

@@ -127,6 +127,7 @@ export function ResidentsTable() {
   const [contactVerification, setContactVerification] = useState<ContactVerificationFilter | typeof ALL_VALUE>(ALL_VALUE);
   const [selectedRoles, setSelectedRoles] = useState<ResidentRole[]>([]);
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
 
   /* eslint-disable react-hooks/exhaustive-deps */
   const debouncedSearch = useDebounce(search, 300);
@@ -157,9 +158,10 @@ export function ResidentsTable() {
     street_id: streetId === ALL_VALUE ? undefined : streetId,
     contact_verification: contactVerification === ALL_VALUE ? undefined : contactVerification as ContactVerificationFilter,
     resident_role: selectedRoles.length > 0 ? selectedRoles : undefined,
+    resident_role: selectedRoles.length > 0 ? selectedRoles : undefined,
     page,
-    limit: 20,
-  }), [debouncedSearch, status, streetId, contactVerification, selectedRoles, page]);
+    limit,
+  }), [debouncedSearch, status, streetId, contactVerification, selectedRoles, page, limit]);
 
   const { data, isLoading, error } = useResidents(params);
   const { data: streets } = useStreets();
@@ -435,27 +437,83 @@ export function ResidentsTable() {
       </div>
 
       {/* Pagination */}
-      {data && data.count > 20 && (
-        <div className="flex justify-between items-center">
-          <p className="text-sm text-muted-foreground">
-            Showing {(page - 1) * 20 + 1} to {Math.min(page * 20, data.count)} of {data.count} residents
-          </p>
+      {data && (
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-center">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">Rows per page</span>
+              <Select
+                value={limit.toString()}
+                onValueChange={(v) => {
+                  setLimit(Number(v));
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="h-8 w-[70px] rounded-xl">
+                  <SelectValue placeholder={limit.toString()} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Showing {(page - 1) * limit + 1} to {Math.min(page * limit, data.count)} of {data.count} residents
+            </p>
+          </div>
+
           <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
               disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="h-9 w-9 p-0"
             >
-              Previous
+              <span className="sr-only">Previous page</span>
+              <ChevronDown className="h-4 w-4 rotate-90" />
             </Button>
+
+            {Array.from({ length: Math.min(5, Math.ceil(data.count / limit)) }, (_, i) => {
+              // Simple windowing logic - in a real app would need complex truncation for large page counts
+              // For now, let's do a simple sliding window around current page
+              const totalPages = Math.ceil(data.count / limit);
+              let pageNum;
+
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (page <= 3) {
+                pageNum = i + 1;
+              } else if (page >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = page - 2 + i;
+              }
+
+              return (
+                <Button
+                  key={pageNum}
+                  variant={page === pageNum ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPage(pageNum)}
+                  className={`h-9 w-9 p-0 ${page === pageNum ? 'bg-primary text-primary-foreground' : ''}`}
+                >
+                  {pageNum}
+                </Button>
+              );
+            })}
+
             <Button
               variant="outline"
               size="sm"
-              disabled={page * 20 >= data.count}
+              disabled={page * limit >= data.count}
               onClick={() => setPage((p) => p + 1)}
+              className="h-9 w-9 p-0"
             >
-              Next
+              <span className="sr-only">Next page</span>
+              <ChevronDown className="h-4 w-4 -rotate-90" />
             </Button>
           </div>
         </div>
