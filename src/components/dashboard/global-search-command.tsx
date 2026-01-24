@@ -250,15 +250,25 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
   // Close on Escape & Open on Shortcut
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      // Toggle search
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         onOpenChange(!open);
+      }
+
+      // Quick select with ⌘1-5
+      if (open && (e.metaKey || e.ctrlKey) && /^[1-5]$/.test(e.key)) {
+        e.preventDefault();
+        const index = parseInt(e.key) - 1;
+        if (results[index]) {
+          handleSelect(results[index].href);
+        }
       }
     };
 
     document.addEventListener('keydown', down);
     return () => document.removeEventListener('keydown', down);
-  }, [open, onOpenChange]);
+  }, [open, onOpenChange, results, handleSelect]);
 
   const shortcutKey = os === 'mac' ? '⌘' : 'Ctrl';
 
@@ -382,36 +392,54 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
         )}
 
         {/* Render groups in specific order */}
-        {groupOrder.map((type) => {
-          const items = groupedResults[type];
-          if (!items || items.length === 0) return null;
+        {(() => {
+          let globalIndex = 0;
+          return groupOrder.map((type) => {
+            const items = groupedResults[type];
+            if (!items || items.length === 0) return null;
 
-          const Icon = typeIcons[type as keyof typeof typeIcons];
-          const label = typeLabels[type as keyof typeof typeLabels];
+            const Icon = typeIcons[type as keyof typeof typeIcons];
+            const label = typeLabels[type as keyof typeof typeLabels];
 
-          return (
-            <CommandGroup key={type} heading={label}>
-              {items.map((item) => (
-                <CommandItem
-                  key={`${type}-${item.id}`}
-                  value={`${item.title} ${item.subtitle || ''}`}
-                  onSelect={() => handleSelect(item.href)}
-                  className="cursor-pointer"
-                >
-                  <Icon className="mr-3 h-4 w-4 text-muted-foreground" />
-                  <div className="flex flex-col flex-1">
-                    <span className="font-medium">{item.title}</span>
-                    {item.subtitle && (
-                      <span className="text-xs text-muted-foreground">
-                        {item.subtitle}
-                      </span>
-                    )}
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          );
-        })}
+            return (
+              <CommandGroup key={type} heading={label}>
+                {items.map((item) => {
+                  globalIndex++;
+                  const shortcutIndex = globalIndex <= 5 ? globalIndex : null;
+
+                  return (
+                    <CommandItem
+                      key={`${type}-${item.id}`}
+                      value={`${item.title} ${item.subtitle || ''}`}
+                      onSelect={() => handleSelect(item.href)}
+                      className="cursor-pointer group flex items-center justify-between"
+                    >
+                      <div className="flex items-center flex-1">
+                        <Icon className="mr-3 h-4 w-4 text-muted-foreground" />
+                        <div className="flex flex-col flex-1">
+                          <span className="font-medium">{item.title}</span>
+                          {item.subtitle && (
+                            <span className="text-xs text-muted-foreground">
+                              {item.subtitle}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {shortcutIndex && (
+                        <div className="flex items-center gap-1 opacity-0 group-aria-selected:opacity-100 transition-opacity">
+                          <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                            {shortcutKey}{shortcutIndex}
+                          </kbd>
+                        </div>
+                      )}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            );
+          });
+        })()}
       </CommandList>
 
       {/* Keyboard shortcut hint */}

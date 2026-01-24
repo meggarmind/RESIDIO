@@ -1,5 +1,7 @@
 'use client';
 
+import dynamic from 'next/dynamic';
+
 import {
   Dialog,
   DialogContent,
@@ -13,8 +15,13 @@ import { CreditCard, Info, Copy, CheckCircle2, Upload, FileText, Camera } from '
 import { useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
-import { PaystackButton } from 'react-paystack';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+const PaystackButton = dynamic(
+  () => import('react-paystack').then((mod) => mod.PaystackButton),
+  { ssr: false }
+);
 import { useAuth } from '@/lib/auth/auth-provider';
 import { checkPaymentEmails } from '@/actions/email-imports/check-payment';
 import { submitPaymentProof } from '@/actions/payments/submit-payment-proof';

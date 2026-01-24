@@ -151,6 +151,12 @@ See detailed progress in: `docs/features/global-search.md`
 - [x] **Verification**: Implemented unit tests for the notification helper and verified logic across modules.
 - [x] **Bug Fix**: Resolved critical "Invalid Recipient ID" error by migrating `in_app_notifications` to use `profile_id` instead of `resident_id`, enabling alerts for all system users (Admins & Residents).
 
+### Recent Session Work (2026-01-24): Phase 17 - Product Vibe Enhancements
+- [x] **Global Search Refinements**: Implemented weighted scoring for search results and Ctrl+1-5 keyboard shortcuts for quick selection.
+- [x] **Global Search Refinements**: Implemented weighted scoring for search results and Ctrl+1-5 keyboard shortcuts for quick selection.
+- [x] **Visitor Quick Access**: Created a horizontal carousel for residents to quickly generate access codes for frequent visitors.
+- [x] **Portal Integration**: Integrated the new visitor carousel into the resident portal page.
+
 ### Recent Session Work (2026-01-20): Email Import Matching Unification
 - [x] **Debit Auto-Matching**: Implemented keyword-based matching for debit transactions (expenses) in Email Imports.
 - [x] **Adaptive Learning**: Added "Save as Alias" functionality to manual email transaction review, enabling future auto-matches.

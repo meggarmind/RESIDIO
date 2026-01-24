@@ -80,6 +80,7 @@ export interface MonthlyTrend {
     paymentsReceived: number;
 }
 
+
 export interface EnhancedDashboardStats {
     financialHealth: FinancialHealthMetrics;
     invoiceDistribution: InvoiceStatusDistribution;
@@ -648,3 +649,4 @@ async function fetchMonthlyTrends(supabase: any, now: Date): Promise<MonthlyTren
 
     return results;
 }
+

@@ -12,6 +12,7 @@ import { DashboardSkeleton } from '@/components/dashboard/dashboard-skeleton';
 
 // Dashboard Components
 import { UnifiedActionsCard } from '@/components/dashboard/unified-actions-card';
+// ... (imports remain)
 import { RecentActivityCard } from '@/components/dashboard/recent-activity-card';
 import { useSmartSuggestions } from '@/hooks/use-smart-suggestions';
 import { ModernStatsCards } from '@/components/dashboard/modern-stats-cards';

@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 
                 // Generate the report
                 const reportResult = await generateReport({
-                    reportType: schedule.report_type,
+                    reportType: (schedule.report_type === 'indebtedness_detail' ? 'indebtedness_summary' : schedule.report_type) as any,
                     periodPreset: schedule.period_preset || 'last_month',
                     startDate: dateRange.startDate,
                     endDate: dateRange.endDate,

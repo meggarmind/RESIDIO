@@ -18,6 +18,7 @@ import { AnnouncementsFeed, type AnnouncementFeedItem } from '@/components/resid
 import { WalletTopUpDialog } from '@/components/resident-portal/wallet-topup-dialog';
 import { VisitorAccessDialog } from '@/components/resident-portal/visitor-access-dialog';
 import { MyPropertiesCard } from '@/components/resident-portal/my-properties-card';
+import { VisitorQuickAccessCarousel } from '@/components/resident-portal/visitor-quick-access-carousel';
 import { NairaIcon } from '@/components/icons/naira-icon';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
@@ -364,6 +365,14 @@ function ResidentPortalHomePageInner() {
               href="/portal/visitors"
             />
           </div>
+        </motion.div>
+
+        {/* Quick Access Carousel */}
+        <motion.div variants={sectionVariants} initial="hidden" animate="visible" custom={2.2}>
+          <VisitorQuickAccessCarousel
+            contacts={contactsData?.data || []}
+            isLoading={contactsLoading}
+          />
         </motion.div>
 
         {/* Latest Announcements (Horizontal Card) */}

@@ -1,6 +1,11 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
+interface ScoredResult {
+    _score: number;
+    [key: string]: any;
+}
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
@@ -95,21 +100,28 @@ export async function GET(request: Request) {
         });
         const houses = Array.from(houseMap.values()).slice(0, 5);
 
-        // Flatten house streets for simplified response
-        const formattedHouses = houses.map((h) => {
-            const streetData = h.streets as { name: string } | { name: string }[] | null;
-            const streetName = Array.isArray(streetData)
-                ? streetData[0]?.name
-                : streetData?.name;
 
-            return {
-                id: h.id,
-                house_number: h.house_number,
-                street_name: streetName || null,
-            };
-        });
+        // Helper to calculate relevance score
+        const calculateScore = (target: string, query: string) => {
+            const t = target.toLowerCase();
+            const q = query.toLowerCase();
+            if (t === q) return 100; // Exact match
+            if (t.startsWith(q)) return 80; // Prefix match
+            if (t.includes(` ${q}`)) return 60; // Word start match
+            return 40; // Mid-string match
+        };
 
-        // Handle Documents category flattening
+        // Process Residents with scoring
+        const residents = (residentsResult.data || []).map(r => ({
+            ...r,
+            _score: Math.max(
+                calculateScore(`${r.first_name} ${r.last_name}`, query),
+                calculateScore(r.first_name, query),
+                calculateScore(r.last_name, query)
+            )
+        }));
+
+        // Handle Documents category flattening and scoring
         const formattedDocuments = (documentsResult.data || []).map((d) => {
             const categoryData = d.category as { name: string } | { name: string }[] | null;
             const categoryName = Array.isArray(categoryData)
@@ -120,6 +132,37 @@ export async function GET(request: Request) {
                 id: d.id,
                 title: d.title,
                 category: categoryName || null,
+                _score: calculateScore(d.title, query)
+            };
+        });
+
+        // Search Payments by reference scoring
+        const payments = (paymentsResult.data || []).map(p => ({
+            ...p,
+            _score: calculateScore(p.reference_number || '', query)
+        }));
+
+        // Search Security Contacts scoring
+        const contacts = (contactsResult.data || []).map(c => ({
+            ...c,
+            _score: calculateScore(c.full_name, query)
+        }));
+
+        // Flatten house streets for simplified response and scoring
+        const formattedHouses = houses.map((h) => {
+            const streetData = h.streets as { name: string } | { name: string }[] | null;
+            const streetName = Array.isArray(streetData)
+                ? streetData[0]?.name
+                : streetData?.name;
+
+            return {
+                id: h.id,
+                house_number: h.house_number,
+                street_name: streetName || null,
+                _score: Math.max(
+                    calculateScore(h.house_number, query),
+                    calculateScore(streetName || '', query)
+                )
             };
         });
 
@@ -132,14 +175,13 @@ export async function GET(request: Request) {
 
         // Calculate total results
         const totalResults =
-            (residentsResult.data?.length || 0) +
+            residents.length +
             formattedHouses.length +
-            (paymentsResult.data?.length || 0) +
-            (contactsResult.data?.length || 0) +
+            payments.length +
+            contacts.length +
             formattedDocuments.length;
 
-        // Log search query (non-blocking if possible, but await to ensure execution in lambda)
-        // Only log if query is substantial to avoid noise
+        // Log search query
         if (query.length >= 2) {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
@@ -151,12 +193,13 @@ export async function GET(request: Request) {
             }
         }
 
+        // Return sorted results within each group (or keep grouped but scored)
         return NextResponse.json({
-            residents: residentsResult.data || [],
-            houses: formattedHouses,
-            payments: paymentsResult.data || [],
-            contacts: contactsResult.data || [],
-            documents: formattedDocuments,
+            residents: (residents as ScoredResult[]).sort((a, b) => b._score - a._score),
+            houses: (formattedHouses as ScoredResult[]).sort((a, b) => b._score - a._score),
+            payments: (payments as ScoredResult[]).sort((a, b) => b._score - a._score),
+            contacts: (contacts as ScoredResult[]).sort((a, b) => b._score - a._score),
+            documents: (formattedDocuments as ScoredResult[]).sort((a, b) => b._score - a._score),
         });
 
     } catch (error) {
