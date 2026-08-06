@@ -204,7 +204,6 @@ export async function createPettyCashAccount(input: {
 export async function updatePettyCashAccount(
     id: string,
     input: { name?: string; initialFloat?: number; notes?: string; }
-input: { name?: string; initialFloat?: number; notes?: string; }
 ): Promise<{ data: PettyCashAccount | null; error: string | null }> {
     const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
     if (!authorized) return { data: null, error: 'Unauthorized' };

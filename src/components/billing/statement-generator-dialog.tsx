@@ -155,7 +155,7 @@ export function StatementGeneratorDialog({
         try {
             // Build URL with query parameters
             const params = new URLSearchParams({
-                residentId,
+                residentId: residentId ?? '',
                 fromDate: from,
                 toDate: to,
             });

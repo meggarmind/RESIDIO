@@ -16,7 +16,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { NotificationBell } from '@/components/notifications';
 import { GlobalSearchCommand } from './global-search-command';
-import { Menu, LogOut, User, Home, Search, UserPlus, Activity, Command, Sparkles } from 'lucide-react';
+import { Menu, LogOut, User, Home, Search, UserPlus, Activity, Command, Sparkles, Receipt, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AdminBreadcrumb } from './admin-breadcrumb';
 

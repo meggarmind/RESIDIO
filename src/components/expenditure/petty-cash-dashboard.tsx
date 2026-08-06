@@ -100,7 +100,7 @@ export function PettyCashDashboard({ data, onSnapLog, onTopUp }: PettyCashDashbo
                             ) : (
                                 recentTransactions.slice(0, 2).map((tx) => (
                                     <div key={tx.id} className="flex items-center justify-between text-xs">
-                                        <div className="truncate max-w-[100px] font-medium" title={tx.description}>
+                                        <div className="truncate max-w-[100px] font-medium" title={tx.description ?? undefined}>
                                             {tx.description || 'Expense'}
                                         </div>
                                         <div className="text-destructive font-medium whitespace-nowrap">

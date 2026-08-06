@@ -26,7 +26,7 @@ export interface CreateExpenseInput {
 }
 
 export async function createExpense(input: CreateExpenseInput) {
-    const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
+    const { authorized, userId } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
     if (!authorized) throw new Error('Unauthorized');
 
     const supabase = await createServerSupabaseClient();
@@ -70,7 +70,7 @@ export async function createExpense(input: CreateExpenseInput) {
             is_verified: isVerified,
             verified_at: isVerified ? new Date().toISOString() : null,
             bank_row_id: sanitizeUuid(input.bank_row_id),
-            created_by: user.id
+            created_by: userId
         }])
         .select(`
             *,

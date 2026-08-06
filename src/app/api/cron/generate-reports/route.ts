@@ -70,6 +70,9 @@ export async function GET(request: NextRequest) {
                     aggregation: 'monthly',
                     includeCharts: schedule.include_charts,
                     includeDetails: schedule.include_summary,
+                    includeUnoccupied: false,
+                    includeAmount: false,
+                    paymentStatus: 'all',
                 });
 
                 if (!reportResult.success || !reportResult.report) {

@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+
+export const dynamic = 'force-dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -12,6 +14,20 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 type TwoFactorMethod = 'sms' | 'authenticator' | 'email';
 
 export default function Verify2FAPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <Verify2FAForm />
+    </Suspense>
+  );
+}
+
+function Verify2FAForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();

@@ -36,6 +36,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 
 import { createPersonnel, updatePersonnel } from '@/actions/personnel/actions';
+import type { PersonnelInsert } from '@/types/database';
 import { Personnel } from '@/types/database';
 
 const personnelSchema = z.object({

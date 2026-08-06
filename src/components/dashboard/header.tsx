@@ -250,7 +250,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {residentId || profile?.role === 'super_administrator' || profile?.role === 'admin' ? (
+                  {residentId || ['super_admin', 'admin'].includes(profile?.role ?? '') ? (
                     <DropdownMenuItem asChild>
                       <Link href="/portal" className="cursor-pointer font-medium flex items-center w-full">
                         <User className="mr-2 h-4 w-4" />

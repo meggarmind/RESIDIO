@@ -129,7 +129,7 @@ export type EntryMethod = 'code' | 'photo' | 'manual' | 'vehicle_plate';
 
 // Unified Expenditure Engine Types
 export type ExpenseSourceType = 'manual' | 'bank_import' | 'petty_cash';
-export type ExpensePaymentMethod = 'bank_transfer' | 'cash' | 'cheque' | 'pos';
+export type ExpensePaymentMethod = 'bank_transfer' | 'cash' | 'card' | 'cheque' | 'pos' | 'other';
 export type ExpenseStatus = 'pending' | 'paid' | 'cancelled';
 
 export const EXPENSE_SOURCE_TYPE_LABELS: Record<ExpenseSourceType, string> = {
@@ -141,8 +141,10 @@ export const EXPENSE_SOURCE_TYPE_LABELS: Record<ExpenseSourceType, string> = {
 export const EXPENSE_PAYMENT_METHOD_LABELS: Record<ExpensePaymentMethod, string> = {
   bank_transfer: 'Bank Transfer',
   cash: 'Cash',
+  card: 'Card',
   cheque: 'Cheque',
   pos: 'POS',
+  other: 'Other',
 };
 
 export const VISITOR_RECURRENCE_PATTERN_LABELS: Record<VisitorRecurrencePattern, string> = {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
@@ -102,7 +102,7 @@ export function LogExpenseDialog({
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const form = useForm<ExpenseFormValues>({
-        resolver: zodResolver(expenseSchema),
+        resolver: zodResolver(expenseSchema) as Resolver<ExpenseFormValues>,
         defaultValues: {
             amount: initialData?.amount || '',
             category_id: initialData?.category_id || '',
