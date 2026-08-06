@@ -1,6 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. It is the active instruction file for **Claude Code** sessions.
+
+> **Setup, commands, stack, architecture, and design system are canonical in `AGENTS.md`** — it is the shared single source of truth used by both Claude Code and OpenCode. This `CLAUDE.md` holds only what is Claude-specific or additive (integration contract, MCP tools, session workflow). If something exists in both, `AGENTS.md` wins; don't duplicate.
+
+Shared coordination file: `SESSION_STATE.md` — read/update it at session start/end.
 
 ## Project Overview
 
@@ -534,13 +538,11 @@ Before marking a feature complete, verify:
 
 ### Module Integration Status
 
-**Last Verified**: 2026-01-04
+**Last Compiled**: 2026-08-06
 
-All server actions performing write operations (CREATE, UPDATE, DELETE) are successfully integrated with:
-- ✅ Roles & Permissions Module (`authorizePermission()`)
-- ✅ Audit Log Module (`logAudit()`)
+Integration is enforced by the structural test `src/__tests__/integration/module-integration.test.ts` (not a static "100%" declaration). It scans all write actions under `src/actions/**` and fails if any lack `authorizePermission()` or `logAudit()`, unless they are listed in that file's `PERMISSION_ALLOWLIST` / `AUDIT_ALLOWLIST`.
 
-**Integration Coverage**: 100% (19/19 verified files)
+⚠️ **KNOWN GAPS (test currently fails out of the box):** 17 actions missing permission checks + 4 missing audit logging. Affected modules: `paystack/*` (webhook-handler, verify-payment, initialize-payment), `two-factor/verify`, `system/prune-data`, `personnel/actions`, `expenses/*`, `email-imports/*`, `finance/*` (petty-cash, manual-verification), `payments/verify-paystack-payment`, `payments/submit-payment-proof`, `billing/pay-*-with-wallet`, `projects/create-project`. Fix these (add `authorizePermission` + `logAudit`) or add them to the allowlist until fixed. See `SESSION_STATE.md`.
 
 #### Integration Patterns
 

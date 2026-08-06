@@ -52,6 +52,17 @@ archived/
 # TestSprite temporary files
 testsprite_tests/tmp/
 
+# Playwright artifacts (reports, traces, screenshots)
+/playwright-report/
+/test-results/
+
+# Scratch / ad-hoc files in repo root
+/re_match.ts
+/testFile.txt
+/testsprite/
+/testsprite_tests/
+/.playwright-mcp/
+
 # Logs
 *.log
 logs/

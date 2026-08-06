@@ -1,5 +1,9 @@
 # Action Plan: PDF Import Extension
 
+> Status note (2026-08-06): This plan covers the PDF import extension only and is largely complete.
+> The **live project state** (current phase, git state, test baseline, next steps) now lives in
+> **`SESSION_STATE.md`** — read/update that for coordination instead of relying on this file.
+
 Created: 2026-01-17T22:50:00Z
 Status: IN PROGRESS
 
