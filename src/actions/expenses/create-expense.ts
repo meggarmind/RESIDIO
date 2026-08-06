@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
 import type { ExpenseSourceType, ExpensePaymentMethod } from '@/types/database';
@@ -24,10 +26,10 @@ export interface CreateExpenseInput {
 }
 
 export async function createExpense(input: CreateExpenseInput) {
-    const supabase = await createServerSupabaseClient();
+    const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
+    if (!authorized) throw new Error('Unauthorized');
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Unauthorized');
+    const supabase = await createServerSupabaseClient();
 
     // Determine verification status based on source
     // Petty cash and bank imports are auto-verified

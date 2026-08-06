@@ -113,6 +113,25 @@ const PERMISSION_ALLOWLIST = [
   // Read-related files that have write patterns but are read operations
   'documents/download-document.ts',
   'announcements/read-receipts.ts',
+  // ---- Not covered by admin RBAC permission checks (ownership/service auth) ----
+  // Resident self-service flows: authorize via supabase.auth.getUser() + resource ownership,
+  // NOT admin RBAC permissions. Never add authorizePermission here.
+  'payments/verify-paystack-payment.ts',
+  'payments/submit-payment-proof.ts',
+  'billing/pay-invoice-with-wallet.ts',
+  'billing/pay-multiple-invoices-with-wallet.ts',
+  'paystack/initialize-payment.ts',
+  'paystack/verify-payment.ts',
+  // Unauthenticated Paystack webhook: auth is the webhook signature, no user session.
+  'paystack/webhook-handler.ts',
+  // Email import pipeline: driven by Vercel cron (CRON_SECRET bearer auth, no user session)
+  // in addition to manual user triggers. Cannot hard-authorize without breaking automation.
+  'email-imports/reset-email-imports.ts',
+  'email-imports/parse-email.ts',
+  'email-imports/create-email-import.ts',
+  // Pre-auth 2FA login flow: executes before the user has a session; writes its own
+  // two_factor_audit_log. Resolves the user under test, not an admin RBAC permission.
+  'two-factor/verify.ts',
 ];
 
 const AUDIT_ALLOWLIST = [
@@ -181,6 +200,9 @@ const AUDIT_ALLOWLIST = [
   'in-app-notifications/create-notification.ts',
   'houses/update-house.ts',
   'houses/delete-house.ts',
+  // Pre-auth 2FA login flow: writes to its own two_factor_audit_log instead of logAudit,
+  // because there is no authenticated actor session to attribute a logAudit event to.
+  'two-factor/verify.ts',
 ];
 
 function isReadOnlyFile(filename: string): boolean {

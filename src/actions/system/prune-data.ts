@@ -1,10 +1,16 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 import { revalidatePath } from 'next/cache';
 import { subDays, subMonths } from 'date-fns';
 
 export async function pruneSystemData() {
+    const { authorized } = await authorizePermission(PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION);
+    if (!authorized) throw new Error('Unauthorized');
+
     const supabase = await createServerSupabaseClient();
 
     // Calculate cutoff dates
@@ -70,6 +76,15 @@ export async function pruneSystemData() {
 
         results.success = true;
         revalidatePath('/settings/system');
+
+        await logAudit({
+            action: 'DELETE',
+            entityType: 'system_settings',
+            entityId: 'prune-data',
+            entityDisplay: 'Pruned system data (notifications, audit, search logs)',
+            newValues: results as unknown as Record<string, unknown>,
+            description: `Pruned ${results.notifications} notifications, ${results.auditLogs} audit logs, ${results.searchLogs} search logs`,
+        });
 
         return { data: results, error: null };
     } catch (error: any) {

@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
 
@@ -23,6 +25,11 @@ export async function manuallyVerifyPayment(
     paymentId: string,
     notes?: string
 ): Promise<ManualVerifyResult> {
+    const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
+    if (!authorized) {
+        return { success: false, error: 'Unauthorized' };
+    }
+
     const supabase = await createServerSupabaseClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -92,6 +99,11 @@ export async function manuallyVerifyExpense(
     expenseId: string,
     notes?: string
 ): Promise<ManualVerifyResult> {
+    const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
+    if (!authorized) {
+        return { success: false, error: 'Unauthorized' };
+    }
+
     const supabase = await createServerSupabaseClient();
 
     const { data: { user } } = await supabase.auth.getUser();

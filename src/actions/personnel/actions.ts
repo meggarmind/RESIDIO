@@ -1,6 +1,9 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 import { Personnel, PersonnelInsert, PersonnelType, PersonnelUpdate } from '@/types/database';
 import { revalidatePath } from 'next/cache';
 
@@ -44,10 +47,10 @@ export async function getPersonnel(
 const sanitizeValue = (val?: string | null) => (!val || val.trim() === '') ? null : val;
 
 export async function createPersonnel(input: PersonnelInsert): Promise<{ data: Personnel | null; error: string | null }> {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authorized } = await authorizePermission(PERMISSIONS.VENDORS_MANAGE);
+    if (!authorized) return { data: null, error: 'Unauthorized' };
 
-    if (!user) return { data: null, error: 'Unauthorized' };
+    const supabase = await createServerSupabaseClient();
 
     // Build payload, explicitly setting nulls for empty optional fields
     const payload: Record<string, any> = {
@@ -83,6 +86,14 @@ export async function createPersonnel(input: PersonnelInsert): Promise<{ data: P
     revalidatePath('/personnel');
     revalidatePath('/expenditure'); // Because they show up in Log Expense
 
+    await logAudit({
+        action: 'CREATE',
+        entityType: 'vendors',
+        entityId: (data as { id: string }).id,
+        entityDisplay: `Personnel: ${payload.name}`,
+        newValues: payload,
+    });
+
     return { data: data as unknown as Personnel, error: null };
 }
 
@@ -90,10 +101,10 @@ export async function updatePersonnel(
     id: string,
     input: PersonnelUpdate
 ): Promise<{ data: Personnel | null; error: string | null }> {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authorized } = await authorizePermission(PERMISSIONS.VENDORS_MANAGE);
+    if (!authorized) return { data: null, error: 'Unauthorized' };
 
-    if (!user) return { data: null, error: 'Unauthorized' };
+    const supabase = await createServerSupabaseClient();
 
     // Build payload, only including fields that need to be updated
     const payload: Record<string, any> = {};
@@ -128,14 +139,22 @@ export async function updatePersonnel(
     revalidatePath('/personnel');
     revalidatePath('/expenditure');
 
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'vendors',
+        entityId: id,
+        entityDisplay: `Personnel: ${payload.name ?? id}`,
+        newValues: payload,
+    });
+
     return { data: data as unknown as Personnel, error: null };
 }
 
 export async function deletePersonnel(id: string): Promise<{ success: boolean; error: string | null }> {
-    const supabase = await createServerSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { authorized } = await authorizePermission(PERMISSIONS.VENDORS_MANAGE);
+    if (!authorized) return { success: false, error: 'Unauthorized' };
 
-    if (!user) return { success: false, error: 'Unauthorized' };
+    const supabase = await createServerSupabaseClient();
 
     const { error } = await supabase
         .from('vendors')
@@ -149,6 +168,13 @@ export async function deletePersonnel(id: string): Promise<{ success: boolean; e
 
     revalidatePath('/personnel');
     revalidatePath('/expenditure');
+
+    await logAudit({
+        action: 'DELETE',
+        entityType: 'vendors',
+        entityId: id,
+        entityDisplay: `Personnel: ${id}`,
+    });
 
     return { success: true, error: null };
 }

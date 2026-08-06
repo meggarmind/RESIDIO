@@ -368,7 +368,10 @@ export type AuditEntityType =
   // Unified Expenditure Engine
   | 'expenses'                     // Expense records
   | 'payment_records'              // Payment records
-  | 'petty_cash_accounts';         // Petty cash account management
+  | 'petty_cash_accounts'          // Petty cash account management
+  // Personnel & Projects
+  | 'vendors'                      // Personnel (staff, contractors, vendors, suppliers)
+  | 'projects';
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   CREATE: 'Created',
@@ -450,6 +453,9 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   expenses: 'Expense',                                  // Expense Management
   payment_records: 'Payment Record',                    // Payment Records
   petty_cash_accounts: 'Petty Cash Account',            // Petty Cash Management
+  // Personnel & Projects
+  vendors: 'Personnel',                                  // Personnel (vendors table)
+  projects: 'Project',                                  // Capital Project
 };
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {

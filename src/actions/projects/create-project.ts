@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 import { revalidatePath } from 'next/cache';
 
 export async function createProject(formData: {
@@ -27,6 +28,14 @@ export async function createProject(formData: {
         console.error('Error creating project:', error);
         throw new Error('Failed to create project');
     }
+
+    await logAudit({
+        action: 'CREATE',
+        entityType: 'projects',
+        entityId: data.id,
+        entityDisplay: `Project: ${formData.name}`,
+        newValues: formData as unknown as Record<string, unknown>,
+    });
 
     revalidatePath('/projects');
     return data;

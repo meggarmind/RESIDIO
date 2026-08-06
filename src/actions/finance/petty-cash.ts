@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
 import type { PettyCashAccount } from '@/types/database';
@@ -156,6 +158,9 @@ export async function createPettyCashAccount(input: {
     initialFloat: number;
     notes?: string;
 }): Promise<{ data: PettyCashAccount | null; error: string | null }> {
+    const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
+    if (!authorized) return { data: null, error: 'Unauthorized' };
+
     const supabase = await createServerSupabaseClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -199,7 +204,11 @@ export async function createPettyCashAccount(input: {
 export async function updatePettyCashAccount(
     id: string,
     input: { name?: string; initialFloat?: number; notes?: string; }
+input: { name?: string; initialFloat?: number; notes?: string; }
 ): Promise<{ data: PettyCashAccount | null; error: string | null }> {
+    const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
+    if (!authorized) return { data: null, error: 'Unauthorized' };
+
     const supabase = await createServerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -233,6 +242,9 @@ export async function togglePettyCashAccountStatus(
     id: string,
     isActive: boolean
 ): Promise<{ success: boolean; error: string | null }> {
+    const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
+    if (!authorized) return { success: false, error: 'Unauthorized' };
+
     const supabase = await createServerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -257,6 +269,9 @@ export async function replenishPettyCashAccount(
     amount: number,
     notes?: string
 ): Promise<{ success: boolean; error?: string }> {
+    const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
+    if (!authorized) return { success: false, error: 'Unauthorized' };
+
     const supabase = await createServerSupabaseClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -318,6 +333,9 @@ export async function recordCashCollection(
     amount: number,
     description: string
 ): Promise<{ success: boolean; error?: string }> {
+    const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
+    if (!authorized) return { success: false, error: 'Unauthorized' };
+
     const supabase = await createServerSupabaseClient();
 
     const { data: { user } } = await supabase.auth.getUser();
