@@ -8,6 +8,7 @@ export const reportTypes = [
     { value: 'transaction_log', label: 'Transaction Log', description: 'Detailed list of all transactions' },
     { value: 'debtors_report', label: 'Debtors Report', description: 'Detailed debtors list with aging buckets and contact info' },
     { value: 'indebtedness_summary', label: 'Indebtedness Report', description: 'Simple indebted/non-indebted status per house with optional amounts' },
+    { value: 'indebtedness_detail', label: 'Indebtedness Detail Report', description: 'Detailed breakdown of indebtedness per property' },
     { value: 'development_levy', label: 'Development Levy Report', description: 'Development levy status per property' },
 ] as const;
 

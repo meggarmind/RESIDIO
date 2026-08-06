@@ -870,7 +870,7 @@ function DevelopmentLevyTraditional({ data }: { data: DevelopmentLevyData }) {
                 </td>
                 <td style={{ ...parseStyles(styles.td) }}>
                   {house.responsibleResidentName}<br />
-                  <small style={{ color: '#666' }}>{house.residentRole.replace(/_/g, ' ')}</small>
+                  <small style={{ color: '#666' }}>{house.responsibleResidentRole ? house.responsibleResidentRole.replace(/_/g, ' ') : 'Resident'}</small>
                 </td>
                 <td style={{ ...parseStyles(styles.tdRight) }}>{formatCurrency(house.levyAmount)}</td>
                 <td style={{

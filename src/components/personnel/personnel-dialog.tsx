@@ -76,7 +76,7 @@ export function PersonnelDialog({
     const isEditing = !!personnel;
 
     const form = useForm<PersonnelFormValues>({
-        resolver: zodResolver(personnelSchema),
+        resolver: zodResolver(personnelSchema as any),
         defaultValues: {
             name: personnel?.name || '',
             type: personnel?.type || 'vendor',
@@ -126,7 +126,7 @@ export function PersonnelDialog({
                 if (error) throw new Error(error);
                 toast.success(`${values.name} updated successfully`);
             } else {
-                const { error } = await createPersonnel(values);
+                const { error } = await createPersonnel(values as PersonnelInsert);
                 if (error) throw new Error(error);
                 toast.success(`${values.name} created successfully`);
             }

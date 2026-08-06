@@ -17,7 +17,7 @@ import {
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useInvoices, useResidentIndebtedness } from '@/hooks/use-billing';
 import { InvoiceStatusPopover } from './invoice-status-popover';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, cn } from '@/lib/utils';
 
 /**
  * Invoice Status Indicator Component

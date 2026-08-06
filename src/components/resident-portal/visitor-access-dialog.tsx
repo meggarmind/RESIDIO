@@ -122,6 +122,7 @@ export function VisitorAccessDialog({ open, onOpenChange }: VisitorAccessDialogP
         full_name: data.full_name,
         phone_primary: data.phone_primary,
         phone_secondary: data.vehicle_registration || undefined,
+        is_recurring: false,
         relationship: 'Visitor',
         notes: data.vehicle_registration
           ? `Vehicle: ${data.vehicle_registration}. Valid for ${hours} hours.`

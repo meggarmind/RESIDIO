@@ -108,8 +108,7 @@ export async function isPdfEncrypted(pdfBuffer: Buffer): Promise<boolean> {
     const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
     const data = new Uint8Array(pdfBuffer);
-    // Use disableWorker for Node.js environment
-    const loadingTask = pdfjsLib.getDocument({ data, disableWorker: true });
+    const loadingTask = pdfjsLib.getDocument({ data });
 
     await loadingTask.promise;
     return false; // Successfully loaded without password, not encrypted
@@ -135,8 +134,7 @@ export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
     const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
     const data = new Uint8Array(pdfBuffer);
-    // Use disableWorker for Node.js environment
-    const loadingTask = pdfjsLib.getDocument({ data, disableWorker: true });
+    const loadingTask = pdfjsLib.getDocument({ data });
 
     const pdfDoc = await loadingTask.promise;
     const pages: string[] = [];

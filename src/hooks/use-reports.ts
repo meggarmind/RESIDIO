@@ -181,11 +181,11 @@ export function useGenerateReport() {
 function mapDbReportToGeneratedReport(dbReport: DBGeneratedReport): GeneratedReport {
     return {
         id: dbReport.id,
-        type: dbReport.report_type,
+        type: dbReport.report_type as ReportRequestFormData['reportType'],
         title: dbReport.name,
         generatedAt: dbReport.created_at,
         parameters: {
-            reportType: dbReport.report_type,
+            reportType: dbReport.report_type as ReportRequestFormData['reportType'],
             periodPreset: (dbReport.period_preset || 'custom') as ReportRequestFormData['periodPreset'],
             startDate: dbReport.period_start,
             endDate: dbReport.period_end,
@@ -195,6 +195,9 @@ function mapDbReportToGeneratedReport(dbReport: DBGeneratedReport): GeneratedRep
             aggregation: 'monthly',
             includeCharts: true,
             includeDetails: true,
+            includeUnoccupied: false,
+            includeAmount: false,
+            paymentStatus: 'all',
         },
         data: dbReport.report_data as ReportData,
         // Versioning fields

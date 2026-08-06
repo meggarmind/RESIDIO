@@ -8,7 +8,7 @@ import { formatCurrency } from '@/lib/utils';
 import type { ResidentHouse, House } from '@/types/database';
 
 interface PropertyPortfolioCardProps {
-    properties: ResidentHouse[];
+    properties: (ResidentHouse & { house?: { house_number?: string; street?: { name?: string } } })[];
     isLoading?: boolean;
 }
 

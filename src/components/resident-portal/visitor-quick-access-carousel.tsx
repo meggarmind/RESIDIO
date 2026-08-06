@@ -47,6 +47,7 @@ export function VisitorQuickAccessCarousel({ contacts, isLoading }: VisitorQuick
                 full_name: visitor.full_name,
                 phone_primary: visitor.phone_primary,
                 phone_secondary: visitor.phone_secondary || undefined,
+                is_recurring: false,
                 relationship: 'Visitor',
                 notes: `Quick Access Code (Auto-generated). Valid for ${hours} hours.`,
             });

@@ -1623,6 +1623,7 @@ export const MATCH_METHOD_LABELS: Record<MatchMethod, string> = {
   name: 'Name Match',
   house_number: 'House Number',
   manual: 'Manual Assignment',
+  keyword: 'Keyword Match',
 };
 
 export const IMPORT_ROW_STATUS_LABELS: Record<ImportRowStatus, string> = {

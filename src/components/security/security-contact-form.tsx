@@ -66,7 +66,7 @@ export function SecurityContactForm({
   const updateMutation = useUpdateSecurityContact();
 
   const form = useForm<CreateSecurityContactData>({
-    resolver: zodResolver(createSecurityContactSchema),
+    resolver: zodResolver(createSecurityContactSchema as any),
     defaultValues: {
       resident_id: effectiveResidentId || contact?.resident_id || '',
       category_id: contact?.category_id || '',

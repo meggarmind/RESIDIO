@@ -158,7 +158,6 @@ export function ResidentsTable() {
     street_id: streetId === ALL_VALUE ? undefined : streetId,
     contact_verification: contactVerification === ALL_VALUE ? undefined : contactVerification as ContactVerificationFilter,
     resident_role: selectedRoles.length > 0 ? selectedRoles : undefined,
-    resident_role: selectedRoles.length > 0 ? selectedRoles : undefined,
     page,
     limit,
   }), [debouncedSearch, status, streetId, contactVerification, selectedRoles, page, limit]);

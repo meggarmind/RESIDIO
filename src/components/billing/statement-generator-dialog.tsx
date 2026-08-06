@@ -38,11 +38,13 @@ interface House {
 }
 
 interface StatementGeneratorDialogProps {
-    residentId: string;
+    residentId?: string;
     residentName?: string;
     houses?: House[];
     trigger?: React.ReactNode;
     defaultHouseId?: string;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 }
 
 // Preset date ranges
@@ -67,11 +69,15 @@ export function StatementGeneratorDialog({
     houses = [],
     trigger,
     defaultHouseId,
+    open: controlledOpen,
+    onOpenChange: setControlledOpen,
 }: StatementGeneratorDialogProps) {
     const { themeId } = useVisualTheme();
     const isModern = themeId === 'modern';
 
-    const [open, setOpen] = useState(false);
+    const [internalOpen, setInternalOpen] = useState(false);
+    const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+    const setOpen = setControlledOpen || setInternalOpen;
     const [isGenerating, setIsGenerating] = useState(false);
     const [preset, setPreset] = useState<DatePreset>('last_3_months');
     const [houseId, setHouseId] = useState<string>(defaultHouseId || 'all');

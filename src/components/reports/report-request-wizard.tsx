@@ -130,6 +130,12 @@ const reportTypeConfig: Record<ReportType, {
         iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
         borderHover: 'hover:border-orange-500/50',
     },
+    indebtedness_detail: {
+        icon: LayoutList,
+        gradient: 'from-yellow-500/10 to-orange-500/5',
+        iconBg: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400',
+        borderHover: 'hover:border-yellow-500/50',
+    },
     development_levy: {
         icon: Construction,
         gradient: 'from-indigo-500/10 to-blue-500/5',
@@ -995,7 +1001,7 @@ export function ReportRequestWizard({
     const createSchedule = useCreateReportSchedule();
 
     const { control, watch, handleSubmit, setValue } = useForm<ReportRequestFormData>({
-        resolver: zodResolver(reportRequestSchema),
+        resolver: zodResolver(reportRequestSchema as any),
         defaultValues: {
             reportType: 'financial_overview' as const,
             periodPreset: 'this_month' as const,
@@ -1186,7 +1192,7 @@ export function ReportRequestWizard({
                         {step === 1 && (
                             <ReportTypeStep
                                 value={formData.reportType}
-                                onChange={(type) => setValue('reportType', type)}
+                                onChange={(type) => setValue('reportType', type as ReportRequestFormData['reportType'])}
                             />
                         )}
 

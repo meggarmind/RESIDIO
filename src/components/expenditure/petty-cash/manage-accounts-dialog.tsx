@@ -68,7 +68,7 @@ export function ManagePettyCashDialog() {
 
     // Form for Add/Edit
     const form = useForm<AccountFormValues>({
-        resolver: zodResolver(accountSchema),
+        resolver: zodResolver(accountSchema as any),
         defaultValues: {
             name: '',
             initialFloat: 0,
