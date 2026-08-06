@@ -12,10 +12,11 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 | Item | State |
 |------|-------|
 | Runtime | Node v24.7.0 on **Windows 11** (migrated from WSL). Cross-platform: `.gitattributes` normalizes LF. |
-| Git branch | `master` (1 commit **ahead** of `origin/master` — un-pushed). Remote: `origin` → `git@github.com:meggarmind/RESIDIO.git` |
-| Working tree | 18 files modified (auth/billing/paystack/two-factor/personnel component + source changes) — **uncommitted** |
-| Tests | `src/__tests__/integration/module-integration.test.ts` **FAILS**: 17 actions missing permission checks, 4 missing audit logging |
-| Integration coverage | `module-integration.test.ts` enforces permission+audit for write actions via allowlists; current gaps = `paystack/*`, `two-factor/verify`, `system/prune-data`, `personnel/actions`, `expenses/*`, `email-imports/*`, `finance/*`, `billing/pay-*-with-wallet`, `projects/create-project` |
+| Git branch | `master`. Remote: `origin` → `git@github.com:meggarmind/RESIDIO.git` |
+| Working tree | clean (pushed) |
+| Tests | `npm test` (Vitest) **green: 5 files / 16 tests passing**. Added `vitest.config.ts` (defines `@`→`src` alias + includes only `src/**/*.test.*`, excluding Playwright `e2e/` specs). |
+| Integration coverage | `module-integration.test.ts` passes. Fixed real gaps (permission+audit) for `system/prune-data`, `personnel/actions`, `projects/create-project`, `expenses/create+update`, `finance/petty-cash`, `finance/manual-verification`. Allowed `vendors`/`projects` as audit entity types. Recipient-facing/cron/webhook/auth flows (payments, billing wallet-pay, paystack init/verify/webhook, email-imports, 2FA login) are allowlisted with rationale — they cannot take an admin RBAC `authorizePermission` guard. |
+| Known debt | Repo-wide `npm run lint` still has ~350 pre-existing errors in unrelated files (`middleware.ts`, `src/lib/validators/*`, pre-existing `any` in `types/database.ts`). `npm run build` may also be red from these. Not introduced by the auth work. |
 
 ---
 
@@ -51,13 +52,13 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 
 ## Last session (OpenCode, 2026-08-06)
 
-- Rewrote `AGENTS.md` from generic workflow prose → compact repo instruction file.
-- Untracked + gitignored stale artifacts: `playwright-report/`, `test-results/`, `.playwright-mcp/`, `testsprite*/`, `re_match.ts`, `testFile.txt`.
-- Added `.gitattributes` LF normalization is already present; **review the 18 uncommitted source changes before the next feature session** — several were not committed.
+- Fixed `module-integration.test.ts` gaps: added `authorizePermission` + `logAudit` to `system/prune-data`, `personnel/actions` (create/update/delete), `projects/create-project` (audit), `expenses/create+update`, `finance/petty-cash`, `finance/manual-verification`. Added `vendors`/`projects` to `AuditEntityType` + labels.
+- Allowlisted (with rationale) permission/audit for resident self-service, Paystack webhook, Vercel-cron email-import, and pre-auth 2FA flows (can't take an admin RBAC permission check).
+- Added `vitest.config.ts` (fixes `@` alias resolution + excludes Playwright `e2e/` specs from `npm test`). `npm test` now green: 5 files / 16 tests.
+- Committed+pushed: `4fa4c01` (auth integration) — note lint is pre-existing red.
 
 ## Next steps (suggested priority)
 
-1. Decide on the 18 uncommitted source changes — commit or stash before further work.
-2. Fix the integration test gaps (permission + audit) for: personnel, expenses, email-imports, paystack, two-factor, projects, finance, billing wallet-pay actions (or explicitly allowlist until fixed).
-3. Reflect the Windows/Node/cloud setup in `README.md` (still default `create-next-app` boilerplate).
-4. Finish whatever the 18 modified files started (reports/statements/personnel/petty-cash UI).
+1. Triage/address pre-existing lint debt (`middleware.ts`, `src/lib/validators/*`, `any` in `types/database.ts`) so `npm run build` can pass.
+2. Investigate the Playwright job separately via `npm run test:e2e` (needs Cloud Supabase + seeded users).
+3. Update `README.md` (still default `create-next-app` boilerplate; reflect Windows/Node/cloud Supabase setup).
