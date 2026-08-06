@@ -1,6 +1,19 @@
 # AGENTS.md
 
-Residio is a Next.js 16 (App Router) + TypeScript app for residential estate access management: resident/roster management, payments, billing (invoices, levies, wallet), security contacts, documents, and an external access-control API.
+Residio is a Next.js 16 (App Router) + TypeScript app for residential estate access management: resident/roster management, payments, billing (invoices, levies, wallet), security contacts, expenses, and an external access-control API.
+
+## 🎯 Product Focus — READ FIRST (top priority guardrail)
+
+**All forward work is focused on the ADMIN DASHBOARD. The Resident Portal / self-service surfaces (`src/app/(resident)/**`, `src/components/resident-portal/**`) are NOT scheduled for rollout in the foreseeable future.**
+
+Implications for every agent:
+
+- Prioritize, design, and build for the **admin** experience (management, finance, security, operations, reporting).
+- **Do not invest in self-service/portal work** (resident payments, portal wallet, portal announcements/documents/profile, impersonation UX, onboarding wizard, resident-facing email flows). Keep existing portal code stable/local only; do not polish, extend, or re-roll it.
+- When a task touches portal code, ask yourself: is this *admin* value? If it is resident-facing only, de-prioritize or flag to the user before building.
+- Keep `SESSION_STATE.md`, `TODO.md`, and the module-integration allowlists consistent with this direction.
+
+> If this direction changed, the user will say so explicitly. Until then, assume admin-dashboard-first.
 
 ## Quick commands
 

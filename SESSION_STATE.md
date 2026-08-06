@@ -5,6 +5,8 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 > Replaces the stale `HANDOFF_SUMMARY.md` / `NEXT_SESSION_HANDOFF_PROMPT.md` (theme re-engineering, Jan 2026 — both are historical, no longer current).
 
+> **🎯 PRODUCT FOCUS — READ BEFORE ANY TASK (set 2026-08-06): ALL work targets the ADMIN DASHBOARD.** Resident Portal / self-service (`src/app/(resident)/**`, `src/components/resident-portal/**`) is **not planned for rollout** in the foreseeable future. Do not invest in portal/self-service work; keep it stable/local only. When a task touches portal code, ask: is this admin value? Ensure TODO.md/AGENTS.md/CLAUDE.md stay aligned with this direction.
+
 ---
 
 ## Current snapshot (verified 2026-08-06)
@@ -52,13 +54,13 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 
 ## Last session (OpenCode, 2026-08-06)
 
-- Fixed `module-integration.test.ts` gaps: added `authorizePermission` + `logAudit` to `system/prune-data`, `personnel/actions` (create/update/delete), `projects/create-project` (audit), `expenses/create+update`, `finance/petty-cash`, `finance/manual-verification`. Added `vendors`/`projects` to `AuditEntityType` + labels.
-- Allowlisted (with rationale) permission/audit for resident self-service, Paystack webhook, Vercel-cron email-import, and pre-auth 2FA flows (can't take an admin RBAC permission check).
-- Added `vitest.config.ts` (fixes `@` alias resolution + excludes Playwright `e2e/` specs from `npm test`). `npm test` now green: 5 files / 16 tests.
-- Committed+pushed: `4fa4c01` (auth integration) — note lint is pre-existing red.
+- Dotenv issue: **`/dev` fixed.** Added `.env.local` (gitignored): `NEXT_PUBLIC_ENV_MODE=cloud`, `NEXT_PUBLIC_SUPABASE_URL_CLOUD`, `NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD` = the kzugmyjjqttardhfejzc cloud project; user added `SUPABASE_SERVICE_ROLE_KEY_CLOUD`. Pages load (login +200; root redirects to /dashboard).
+- **Product focus set:** Admin Dashboard only; Resident Portal/self-service not planned for rollout. Baked this guardrail into `AGENTS.md`, `CLAUDE.md`, `TODO.md`, `SESSION_STATE.md`.
+- Committed+pushed: `5b7cae6` (vitest config). Lint/build remain pre-existing-red.
 
 ## Next steps (suggested priority)
 
-1. Triage/address pre-existing lint debt (`middleware.ts`, `src/lib/validators/*`, `any` in `types/database.ts`) so `npm run build` can pass.
-2. Investigate the Playwright job separately via `npm run test:e2e` (needs Cloud Supabase + seeded users).
+0. **Product focus (set):** Admin Dashboard only. No self-service/portal rollout.
+1. Triage/address pre-existing lint debt (`middleware.ts`, `src/lib/validators/*`, `any` in `types/database.ts`) so `npm run build` can pass — highest-priority admin-platform blocker.
+2. Investigate the Playwright job separately via `npm run test:e2e` (needs admin@residio.test/password123 against Cloud Supabase).
 3. Update `README.md` (still default `create-next-app` boilerplate; reflect Windows/Node/cloud Supabase setup).

@@ -10,6 +10,8 @@ Shared coordination file: `SESSION_STATE.md` — read/update it at session start
 
 Residio is a residential estate access management web application. It automates resident access control by managing payment status, security contact lists, and providing APIs for external systems (e.g., security barriers).
 
+> **🎯 Product focus — READ FIRST:** All forward work is on the **Admin Dashboard**. Resident Portal / self-service (`src/app/(resident)/**`, `src/components/resident-portal/**`) is **NOT planned for rollout** in the foreseeable future. Do not invest in portal/self-service work (portal wallet, resident payments, announcements/documents/profile, impersonation UX, onboarding). Keep that code stable/local only, and always prioritize admin value. See `AGENTS.md` (the canonical source of this direction).
+
 **Current Status**: See `TODO.md` for current phase (dynamically tracked)
 
 ---
@@ -542,7 +544,7 @@ Before marking a feature complete, verify:
 
 Integration is enforced by the structural test `src/__tests__/integration/module-integration.test.ts` (not a static "100%" declaration). It scans all write actions under `src/actions/**` and fails if any lack `authorizePermission()` or `logAudit()`, unless they are listed in that file's `PERMISSION_ALLOWLIST` / `AUDIT_ALLOWLIST`.
 
-⚠️ **KNOWN GAPS (test currently fails out of the box):** 17 actions missing permission checks + 4 missing audit logging. Affected modules: `paystack/*` (webhook-handler, verify-payment, initialize-payment), `two-factor/verify`, `system/prune-data`, `personnel/actions`, `expenses/*`, `email-imports/*`, `finance/*` (petty-cash, manual-verification), `payments/verify-paystack-payment`, `payments/submit-payment-proof`, `billing/pay-*-with-wallet`, `projects/create-project`. Fix these (add `authorizePermission` + `logAudit`) or add them to the allowlist until fixed. See `SESSION_STATE.md`.
+✅ **Current status (2026-08-06): `npm test` green** — the integration module passes. Real gaps were fixed (permission+audit) for `system/prune-data`, `personnel/actions`, `projects/create-project`, `expenses/create+update`, `finance/petty-cash`, `finance/manual-verification`. Recipient-facing / cron / webhook / pre-auth flows (`payments/*`, `billing/pay-*-with-wallet`, `paystack/init+verify+webhook`, `email-imports/*`, `two-factor/verify`) are **intentionally allowlisted** because they cannot take an admin RBAC `authorizePermission` guard (resident-self-service auth, `CRON_SECRET` automation, or signature verification). Don't re-add hard permission checks there. Re-run `npm test` after any new write action.
 
 #### Integration Patterns
 

@@ -2,6 +2,8 @@
 
 > Estate management web application for OPERA (Owners and Property-holders Residents Estate Association)
 
+**🎯 Product focus:** All forward work targets the **Admin Dashboard**. Resident Portal / self-service (see `src/app/(resident)/**`) is **not** scheduled for rollout in the foreseeable future; treat it as stable/local only.
+
 Residio automates resident access control by managing payment status, security contact lists, billing, and provides APIs for external systems (e.g., security barriers).
 
 ---

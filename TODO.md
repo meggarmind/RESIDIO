@@ -1,6 +1,8 @@
 # TODO.md - Residio Project Status
 
-**Last Updated:** 2026-01-16 (Product Vibe Review)
+> **🎯 PRODUCT FOCUS (2026-08-06): ADMIN DASHBOARD ONLY.** Resident Portal / self-service (`src/app/(resident)/**`, resident-portal components) is **NOT planned for rollout** in the foreseeable future. De-prioritize all self-service work listed below (portal wallet, resident payments, announcements/documents/profile, impersonation, onboarding). Keep it stable/local only; do not extend or polish it. Prioritize admin management/finance/security/operations/reporting instead.
+
+**Last Updated:** 2026-08-06 (Admin Dashboard focus set)
 
 ## Current Phase: Phase 18 - UX & Portal Refinement 🚧 IN PROGRESS
 See detailed feature spec: `docs/features/role-aware-portal.md`
