@@ -19,6 +19,46 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: 'hsl(215.4 16.3% 46.9%)', // gray
 };
 
+interface PriorityTooltipPayload {
+  payload: { name: string; value: number; percentage: number };
+}
+
+function PriorityTooltip({ active, payload }: { active?: boolean; payload?: PriorityTooltipPayload[] }) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-card border rounded-lg p-2 shadow-lg text-sm">
+        <p className="font-medium">{data.name}</p>
+        <p className="text-muted-foreground">
+          {data.value} announcements ({data.percentage}%)
+        </p>
+      </div>
+    );
+  }
+  return null;
+}
+
+interface PriorityLegendPayload {
+  color: string;
+  value: string;
+}
+
+function PriorityLegend({ payload }: { payload?: PriorityLegendPayload[] }) {
+  return (
+    <div className="flex flex-wrap justify-center gap-3 mt-2">
+      {payload?.map((entry, index) => (
+        <div key={index} className="flex items-center gap-1.5 text-xs">
+          <div
+            className="w-2.5 h-2.5 rounded-full"
+            style={{ backgroundColor: entry.color }}
+          />
+          <span className="text-muted-foreground">{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Priority Distribution Chart
  *
@@ -56,39 +96,6 @@ export function PriorityDistributionChart({ data, isLoading }: PriorityDistribut
     color: PRIORITY_COLORS[item.priority] || PRIORITY_COLORS.normal,
   }));
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-card border rounded-lg p-2 shadow-lg text-sm">
-          <p className="font-medium">{data.name}</p>
-          <p className="text-muted-foreground">
-            {data.value} announcements ({data.percentage}%)
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  // Custom legend
-  const CustomLegend = ({ payload }: any) => {
-    return (
-      <div className="flex flex-wrap justify-center gap-3 mt-2">
-        {payload.map((entry: any, index: number) => (
-          <div key={index} className="flex items-center gap-1.5 text-xs">
-            <div
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: entry.color }}
-            />
-            <span className="text-muted-foreground">{entry.value}</span>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -120,8 +127,8 @@ export function PriorityDistributionChart({ data, isLoading }: PriorityDistribut
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip content={<CustomTooltip />} />
-              <Legend content={<CustomLegend />} />
+              <Tooltip content={<PriorityTooltip />} />
+              <Legend content={<PriorityLegend />} />
             </PieChart>
           </ResponsiveContainer>
         </div>

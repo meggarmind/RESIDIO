@@ -38,7 +38,7 @@ import {
 } from '@/components/dashboard/enhanced-stat-card';
 import { ModernSkeleton, ModernStatsCardSkeleton } from '@/components/dashboard/modern-skeleton';
 import { useVisualTheme } from '@/contexts/visual-theme-context';
-import { cn } from '@/lib/utils';
+import { cn, embed } from '@/lib/utils';
 
 export default function SecurityPage() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -323,7 +323,7 @@ export default function SecurityPage() {
                             <UserCheck className="h-4 w-4 text-emerald-600" />
                           )}
                           <span className="font-medium">
-                            {(log.contact as any)?.full_name || 'Unknown'}
+                            {embed(log.contact)?.full_name || 'Unknown'}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -519,7 +519,7 @@ export default function SecurityPage() {
                   Access Logs
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Today's check-in and check-out records
+                  Today&apos;s check-in and check-out records
                 </p>
               </div>
               <Button
@@ -554,7 +554,7 @@ export default function SecurityPage() {
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="font-medium">
-                              {(log.contact as any)?.full_name || 'Unknown Contact'}
+                              {embed(log.contact)?.full_name || 'Unknown Contact'}
                             </span>
                             {log.flagged && (
                               <Badge
@@ -566,7 +566,7 @@ export default function SecurityPage() {
                             )}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            Visiting: {(log.resident as any)?.first_name} {(log.resident as any)?.last_name}
+                            Visiting: {embed(log.resident)?.first_name} {embed(log.resident)?.last_name}
                           </div>
                           {log.gate_location && (
                             <div className="text-xs text-muted-foreground">

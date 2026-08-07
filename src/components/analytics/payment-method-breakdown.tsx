@@ -20,6 +20,58 @@ const COLORS = [
   'hsl(var(--muted-foreground))', // gray
 ];
 
+function formatTooltipValue(value: number) {
+  return new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+interface MethodTooltipPayload {
+  payload: { category: string; amount: number; percentage: number; count: number };
+}
+
+function MethodTooltip({ active, payload }: { active?: boolean; payload?: MethodTooltipPayload[] }) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-card border rounded-lg p-2 shadow-lg text-sm">
+        <p className="font-medium">{data.category}</p>
+        <p className="text-muted-foreground">
+          {formatTooltipValue(data.amount)} ({data.percentage}%)
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {data.count} transactions
+        </p>
+      </div>
+    );
+  }
+  return null;
+}
+
+interface MethodLegendPayload {
+  color: string;
+  value: string;
+}
+
+function MethodLegend({ payload }: { payload?: MethodLegendPayload[] }) {
+  return (
+    <div className="flex flex-wrap justify-center gap-3 mt-2">
+      {payload?.map((entry, index) => (
+        <div key={index} className="flex items-center gap-1.5 text-xs">
+          <div
+            className="w-2.5 h-2.5 rounded-full"
+            style={{ backgroundColor: entry.color }}
+          />
+          <span className="text-muted-foreground">{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Payment Method Breakdown Component
  *
@@ -47,52 +99,6 @@ export function PaymentMethodBreakdown({ data, isLoading }: PaymentMethodBreakdo
       </Card>
     );
   }
-
-  // Format currency for tooltip
-  const formatTooltipValue = (value: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-card border rounded-lg p-2 shadow-lg text-sm">
-          <p className="font-medium">{data.category}</p>
-          <p className="text-muted-foreground">
-            {formatTooltipValue(data.amount)} ({data.percentage}%)
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {data.count} transactions
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  // Custom legend
-  const CustomLegend = ({ payload }: any) => {
-    return (
-      <div className="flex flex-wrap justify-center gap-3 mt-2">
-        {payload.map((entry: any, index: number) => (
-          <div key={index} className="flex items-center gap-1.5 text-xs">
-            <div
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ backgroundColor: entry.color }}
-            />
-            <span className="text-muted-foreground">{entry.value}</span>
-          </div>
-        ))}
-      </div>
-    );
-  };
 
   return (
     <Card className="animate-fade-in-up">
@@ -128,8 +134,8 @@ export function PaymentMethodBreakdown({ data, isLoading }: PaymentMethodBreakdo
                   />
                 ))}
               </Pie>
-              <Tooltip content={<CustomTooltip />} />
-              <Legend content={<CustomLegend />} />
+              <Tooltip content={<MethodTooltip />} />
+              <Legend content={<MethodLegend />} />
             </PieChart>
           </ResponsiveContainer>
         </div>
