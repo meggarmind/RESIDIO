@@ -143,33 +143,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         console.log('[AuthProvider] Calling getSession()...');
         // Use a race to avoid hanging the entire app
-        const { data: { session: initialSession }, error: sessionError } = await Promise.race([
+        const initialResult = await Promise.race([
           supabase.auth.getSession(),
-          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('getSession timeout')), 10000))
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('getSession timeout')), 10000))
         ]).catch(async (err) => {
           console.warn('[AuthProvider] getSession timed out/failed, trying getUser()...');
           return await Promise.race([
             supabase.auth.getUser(),
-            new Promise<any>((_, reject) => setTimeout(() => reject(new Error('getUser timeout')), 10000))
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('getUser timeout')), 10000))
           ]);
         });
 
         if (isInitialized.current) return;
 
-        if (initialSession || (initialSession as any)?.user) {
-          const s = (initialSession as any)?.session || initialSession;
-          const u = (initialSession as any)?.user || s?.user;
+        // Normalize across getSession() ({ data: { session } }) and getUser() ({ data: { user } })
+        const authData = initialResult as { data?: { session?: Session | null; user?: User | null } };
+        const initialSession = authData.data?.session ?? null;
+        const user = authData.data?.user ?? initialSession?.user ?? null;
 
-          if (u) {
-            setSession(s);
-            setUser(u);
-            console.log('[AuthProvider] Identity retrieved on client:', !!u);
+        if (user) {
+          setSession(initialSession);
+          setUser(user);
+          console.log('[AuthProvider] Identity retrieved on client:', !!user);
 
-            isInitialized.current = true;
-            await fetchProfile(u.id).catch(e => console.error('[AuthProvider] fetchProfile failed:', e));
-            setIsLoading(false);
-            return;
-          }
+          isInitialized.current = true;
+          await fetchProfile(user.id).catch(e => console.error('[AuthProvider] fetchProfile failed:', e));
+          setIsLoading(false);
+          return;
         }
 
         // No client session found - continue to server rescue
@@ -304,14 +304,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               .select('permission:app_permissions!inner(name)')
               .eq('role_id', effectiveRoleId),
           ]),
-          new Promise<any>((_, reject) => setTimeout(() => reject(new Error('RBAC fetch timeout')), 15000))
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('RBAC fetch timeout')), 15000))
         ]);
 
         appRole = roleResult.data;
         // Extract permission names from nested result
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        permissions = (permissionsResult.data as any[] ?? [])
-          .map((rp) => rp.permission?.name)
+        permissions = (permissionsResult.data ?? [])
+          .map((rp) => {
+            // Supabase types the to-one embed as an array; normalize for both shapes
+            const perm = Array.isArray(rp.permission) ? rp.permission[0] : rp.permission;
+            return perm?.name;
+          })
           .filter((name): name is string => name != null);
       } catch (err) {
         console.error('[AuthProvider] RBAC fetch failed or timed out:', err);
