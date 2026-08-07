@@ -119,9 +119,13 @@ export async function getPettyCashMetrics(): Promise<PettyCashMetrics> {
         .limit(10);
 
     const recentTransactions: PettyCashTransaction[] = (recent || []).map((exp) => {
-        const vendorName = (exp.vendor as any)?.name;
-        const residentName = exp.resident ? `${(exp.resident as any).first_name} ${(exp.resident as any).last_name}` : null;
-        const staffName = (exp.staff as any)?.full_name;
+        const vendor = exp.vendor as unknown as { name?: string } | { name?: string }[] | null | undefined;
+        const resident = exp.resident as unknown as { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null | undefined;
+        const staff = exp.staff as unknown as { full_name?: string } | { full_name?: string }[] | null | undefined;
+        const vendorName = Array.isArray(vendor) ? vendor[0]?.name : vendor?.name;
+        const residentObj = Array.isArray(resident) ? resident[0] : resident;
+        const residentName = residentObj ? `${residentObj.first_name} ${residentObj.last_name}` : null;
+        const staffName = Array.isArray(staff) ? staff[0]?.full_name : staff?.full_name;
 
         return {
             id: exp.id,

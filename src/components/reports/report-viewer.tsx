@@ -84,9 +84,18 @@ function VersionHistorySheet({
                     "p-4 rounded-lg border transition-all cursor-pointer hover:bg-muted/50",
                     version.id === currentVersionId ? "border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500/20" : "border-border"
                   )}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => {
                     onSelectVersion(version);
                     onOpenChange(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onSelectVersion(version);
+                      onOpenChange(false);
+                    }
                   }}
                 >
                   <div className="flex items-center justify-between mb-1">

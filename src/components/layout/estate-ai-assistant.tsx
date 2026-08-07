@@ -125,7 +125,7 @@ export function EstateAiAssistant() {
                                 placeholder="Ask me anything..."
                                 className="flex-1 bg-background border-muted"
                             />
-                            <Button type="submit" size="icon" disabled={!inputValue.trim()}>
+                            <Button type="submit" size="icon" disabled={!inputValue.trim()} aria-label="Send message">
                                 <Send className="w-4 h-4" />
                             </Button>
                         </form>

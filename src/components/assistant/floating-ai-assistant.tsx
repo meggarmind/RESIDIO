@@ -53,10 +53,10 @@ export function FloatingAiAssistant() {
                         <div className="flex items-center justify-between p-3 border-b bg-muted/50">
                             <span className="font-semibold text-sm">Estate Assistant</span>
                             <div className="flex items-center gap-1">
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsMinimized(true)}>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setIsMinimized(true)} aria-label="Minimize assistant">
                                     <Minimize2 className="h-3 w-3" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={toggleOpen}>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={toggleOpen} aria-label="Close assistant">
                                     <X className="h-3 w-3" />
                                 </Button>
                             </div>
@@ -80,7 +80,15 @@ export function FloatingAiAssistant() {
                     >
                         <div
                             onClick={handleSuggestionClick}
-                            className="cursor-pointer flex items-center gap-3 p-3 bg-background border shadow-lg rounded-xl max-w-xs hover:bg-muted/50 transition-colors"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleSuggestionClick();
+                                }
+                            }}
+                            role="button"
+                            tabIndex={0}
+                            className="cursor-pointer flex items-center gap-3 p-3 bg-background border shadow-lg rounded-xl max-w-xs hover:bg-muted/50 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                         >
                             <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                                 <Sparkles className="h-4 w-4" />
@@ -90,7 +98,7 @@ export function FloatingAiAssistant() {
                                 <span className="text-sm font-medium leading-tight">{suggestion.text}</span>
                             </div>
                             {suggestion.action && (
-                                <Button size="icon" variant="ghost" className="h-6 w-6 ml-1 rounded-full">
+                                <Button size="icon" variant="ghost" className="h-6 w-6 ml-1 rounded-full" aria-label="Apply suggestion">
                                     <ArrowRight className="h-3 w-3" />
                                 </Button>
                             )}
