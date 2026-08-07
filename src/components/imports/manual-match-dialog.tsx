@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
@@ -36,8 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Loader2, Search, Check, ChevronsUpDown, User, Building, Wallet, Banknote } from 'lucide-react';
+import { Loader2, Check, ChevronsUpDown, User, Building, Wallet, Banknote } from 'lucide-react';
 import { useManualMatch, useCreatePaymentAlias } from '@/hooks/use-imports';
 import { useResidents } from '@/hooks/use-residents';
 import { useQuery } from '@tanstack/react-query';
@@ -47,6 +45,20 @@ import { getExpenseCategories } from '@/actions/expenses/get-expense-categories'
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { BankStatementRow, Resident } from '@/types/database';
+import type { ManualMatchParams } from '@/actions/imports/types';
+
+// Extract a sender/payee name hint from a bank statement description.
+function extractSenderName(description?: string | null): string {
+  if (!description) return '';
+  // Pattern: "TRANSFER FROM Name Here"
+  const fromMatch = description.match(/(?:TRANSFER\s+)?FROM\s+([A-Z\s.]+?)(?:\s+TO|\s+REF|$)/i);
+  if (fromMatch) return fromMatch[1].trim();
+  // Pattern: "Name Here - description"
+  const dashMatch = description.match(/^([A-Z\s.]+?)\s*-/i);
+  if (dashMatch) return dashMatch[1].trim();
+  // Return first meaningful words
+  return description.split(/\s+/).slice(0, 3).join(' ');
+}
 
 interface ManualMatchDialogProps {
   open: boolean;
@@ -113,8 +125,11 @@ export function ManualMatchDialog({
 
   const residents = residentsData?.data || [];
 
-  // Reset state when row changes
-  useEffect(() => {
+  // Reset state when the dialog opens or the row changes (adjust state during
+  // render rather than in an effect to satisfy the React compiler).
+  const [prevDialogKey, setPrevDialogKey] = useState<{ open: boolean; id?: string }>({ open: false });
+  if (prevDialogKey.open !== open || (open && prevDialogKey.id !== row?.id)) {
+    setPrevDialogKey({ open, id: row?.id });
     if (open) {
       if (row?.matched_resident_id) {
         setActiveTab('resident');
@@ -132,28 +147,16 @@ export function ManualMatchDialog({
         setActiveTab('resident');
       }
     }
-  }, [open, row]);
+  }
 
   // Extract sender name from description for alias
-  const senderName = useMemo(() => {
-    if (!row?.description) return '';
-    // Try to extract name from common patterns
-    const desc = row.description;
-    // Pattern: "TRANSFER FROM Name Here"
-    const fromMatch = desc.match(/(?:TRANSFER\s+)?FROM\s+([A-Z\s.]+?)(?:\s+TO|\s+REF|$)/i);
-    if (fromMatch) return fromMatch[1].trim();
-    // Pattern: "Name Here - description"
-    const dashMatch = desc.match(/^([A-Z\s.]+?)\s*-/i);
-    if (dashMatch) return dashMatch[1].trim();
-    // Return first meaningful words
-    return desc.split(/\s+/).slice(0, 3).join(' ');
-  }, [row?.description]);
+  const senderName = extractSenderName(row?.description);
 
   const handleMatch = async () => {
     if (!row) return;
 
     try {
-      const params: any = { row_id: row.id };
+      const params: ManualMatchParams = { row_id: row.id };
 
       if (activeTab === 'resident') {
         if (!selectedResident) return;
@@ -373,7 +376,7 @@ export function ManualMatchDialog({
                       <div className="p-2 text-center text-sm text-muted-foreground">Loading...</div>
                     ) : (projects || []).length === 0 ? (
                       <div className="p-2 text-center text-sm text-muted-foreground">No active projects</div>
-                    ) : (projects || []).map((p: any) => (
+                    ) : (projects || []).map((p) => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -397,7 +400,7 @@ export function ManualMatchDialog({
                       <div className="p-2 text-center text-sm text-muted-foreground">Loading...</div>
                     ) : (pettyCashAccounts || []).length === 0 ? (
                       <div className="p-2 text-center text-sm text-muted-foreground">No accounts found</div>
-                    ) : (pettyCashAccounts || []).map((acc: any) => (
+                    ) : (pettyCashAccounts || []).map((acc) => (
                       <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -423,7 +426,7 @@ export function ManualMatchDialog({
                       <div className="p-2 text-center text-sm text-muted-foreground">Loading...</div>
                     ) : (expenseCategories || []).length === 0 ? (
                       <div className="p-2 text-center text-sm text-muted-foreground">No categories found</div>
-                    ) : (expenseCategories || []).map((cat: any) => (
+                    ) : (expenseCategories || []).map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                     ))}
                   </SelectContent>

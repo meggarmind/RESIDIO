@@ -89,7 +89,7 @@ const PaymentRow = memo(function PaymentRow({
             <TableCell className="text-xs font-mono">{payment.reference_number || '-'}</TableCell>
             <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="icon" asChild>
+                    <Button variant="ghost" size="icon" asChild aria-label="View payment">
                         <Link href={`/payments/${payment.id}`}>
                             <Eye className="h-4 w-4" />
                         </Link>
@@ -99,6 +99,7 @@ const PaymentRow = memo(function PaymentRow({
                         size="icon"
                         className="text-destructive hover:text-destructive"
                         onClick={() => onDelete(payment.id)}
+                        aria-label="Delete payment"
                     >
                         <Trash2 className="h-4 w-4" />
                     </Button>
