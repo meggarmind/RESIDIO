@@ -320,15 +320,15 @@ export async function generateLeviesForHouse(
                     log.info(`Auto-debited ₦${debitResult.amountDebited} from wallet for ${invoiceNumber}`);
                 }
 
-            } catch (profileError: any) {
-                result.errors.push(`Profile ${profile.name}: ${profileError.message}`);
+            } catch (profileError) {
+                result.errors.push(`Profile ${profile.name}: ${profileError instanceof Error ? profileError.message : String(profileError)}`);
             }
         }
 
-    } catch (error: any) {
+    } catch (error) {
         result.success = false;
-        result.errors.push(`Unexpected error: ${error.message}`);
-    }
+        result.errors.push(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`);
+        }
 
     revalidatePath('/billing');
     return result;
@@ -395,9 +395,9 @@ export async function generateRetroactiveLevies(): Promise<LevyGenerationResult>
             });
         }
 
-    } catch (error: any) {
+    } catch (error) {
         result.success = false;
-        result.errors.push(`Unexpected error: ${error.message}`);
+        result.errors.push(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     revalidatePath('/billing');

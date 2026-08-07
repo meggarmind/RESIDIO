@@ -455,7 +455,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
+          <Button variant="ghost" size="icon" asChild aria-label="Go back">
             <Link href={`/houses/${id}`}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
@@ -532,7 +532,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
+          <Button variant="ghost" size="icon" asChild aria-label="Go back">
             <Link href="/houses">
               <ArrowLeft className="h-4 w-4" />
             </Link>

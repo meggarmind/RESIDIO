@@ -95,7 +95,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
+          <Button variant="ghost" size="icon" asChild aria-label="Go back">
             <Link href={`/residents/${id}`}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
@@ -125,7 +125,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
+          <Button variant="ghost" size="icon" asChild aria-label="Go back">
             <Link href="/residents">
               <ArrowLeft className="h-4 w-4" />
             </Link>

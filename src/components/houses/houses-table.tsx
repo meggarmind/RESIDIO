@@ -75,12 +75,12 @@ const HouseRow = memo(function HouseRow({ house }: { house: HouseData }) {
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" asChild aria-label="View house">
             <Link href={`/houses/${house.id}`}>
               <Eye className="h-4 w-4 text-muted-foreground" />
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" asChild aria-label="Edit house">
             <Link href={`/houses/${house.id}?edit=true`}>
               <Pencil className="h-4 w-4 text-muted-foreground" />
             </Link>

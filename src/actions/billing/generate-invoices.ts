@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 import { debitWalletForInvoice } from '@/actions/billing/wallet';
 import { sendInvoiceEmail } from '@/actions/email/send-invoice-email';
@@ -99,7 +100,7 @@ function findBillableResident(residentHouses: ResidentHouseLink[], includeVacant
  * Priority: House override > House Type default
  */
 async function getEffectiveBillingProfile(
-    supabase: any,
+    supabase: SupabaseClient,
     house: { id: string; billing_profile_id: string | null; house_type_id: string | null }
 ): Promise<BillingProfileWithItems | null> {
     // If house has a direct override, use that
@@ -480,13 +481,13 @@ export async function generateMonthlyInvoices(
                     }
                 }
 
-            } catch (houseError: any) {
-                result.errors.push(`House ${houseLabel}: ${houseError.message}`);
+            } catch (houseError) {
+                result.errors.push(`House ${houseLabel}: ${houseError instanceof Error ? houseError.message : String(houseError)}`);
             }
         }
-    } catch (error: any) {
+    } catch (error) {
         result.success = false;
-        result.errors.push(`Unexpected error: ${error.message}`);
+        result.errors.push(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     // Calculate duration
@@ -541,8 +542,8 @@ export async function generateMonthlyInvoices(
                 },
             });
         }
-    } catch (logError: any) {
-        log.error('Failed to log generation:', logError.message);
+    } catch (logError) {
+        log.error('Failed to log generation:', logError instanceof Error ? logError.message : String(logError));
     }
 
     // Send admin alert if there were errors (non-blocking)

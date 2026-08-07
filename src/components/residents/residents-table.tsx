@@ -94,12 +94,12 @@ const ResidentRow = memo(function ResidentRow({ resident }: { resident: Resident
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="icon" asChild>
+          <Button variant="ghost" size="icon" asChild aria-label="View resident">
             <Link href={`/residents/${resident.id}`}>
               <Eye className="h-4 w-4" />
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" asChild>
+          <Button variant="ghost" size="icon" asChild aria-label="Edit resident">
             <Link href={`/residents/${resident.id}?edit=true`}>
               <Pencil className="h-4 w-4" />
             </Link>
