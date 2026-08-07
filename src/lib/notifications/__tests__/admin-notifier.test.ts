@@ -8,10 +8,20 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 describe('Admin Notifier Utility', () => {
-    let mockSupabase: any;
+    let mockSupabase: { from: ReturnType<typeof vi.fn> };
 
-    const createMockQuery = (data: any = [], error: any = null) => {
-        const query: any = {
+    const createMockQuery = (data: unknown = [], error: unknown = null) => {
+        const query: {
+            data: unknown;
+            error: unknown;
+            select: ReturnType<typeof vi.fn>;
+            eq: ReturnType<typeof vi.fn>;
+            in: ReturnType<typeof vi.fn>;
+            insert: ReturnType<typeof vi.fn>;
+            single: ReturnType<typeof vi.fn>;
+            maybeSingle: ReturnType<typeof vi.fn>;
+            then: ReturnType<typeof vi.fn>;
+        } = {
             data,
             error,
             select: vi.fn().mockReturnThis(),
@@ -30,7 +40,7 @@ describe('Admin Notifier Utility', () => {
         mockSupabase = {
             from: vi.fn().mockImplementation(() => createMockQuery()),
         };
-        (createAdminClient as any).mockResolvedValue(mockSupabase);
+        vi.mocked(createAdminClient).mockResolvedValue(mockSupabase as unknown as ReturnType<typeof createAdminClient>);
     });
 
     it('should notify admins by role if no permission is provided', async () => {
@@ -77,7 +87,7 @@ describe('Admin Notifier Utility', () => {
             title: 'Permission Test',
             body: 'Body',
             category: 'payment',
-            requiredPermission: 'email_imports.process' as any,
+            requiredPermission: 'email_imports.process',
         });
 
         expect(result.success).toBe(true);

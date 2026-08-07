@@ -49,10 +49,23 @@ vi.mock('@/lib/matching/resident-matcher', () => ({
 }));
 
 describe('Email Import Processing', () => {
-    let mockSupabase: any;
+    let mockSupabase: { from: ReturnType<typeof vi.fn> };
 
-    const createMockQuery = (data: any = [], error: any = null) => {
-        const query: any = {
+    const createMockQuery = (data: unknown = [], error: unknown = null) => {
+        const query: {
+            data: unknown;
+            error: unknown;
+            select: ReturnType<typeof vi.fn>;
+            eq: ReturnType<typeof vi.fn>;
+            in: ReturnType<typeof vi.fn>;
+            update: ReturnType<typeof vi.fn>;
+            insert: ReturnType<typeof vi.fn>;
+            single: ReturnType<typeof vi.fn>;
+            order: ReturnType<typeof vi.fn>;
+            limit: ReturnType<typeof vi.fn>;
+            range: ReturnType<typeof vi.fn>;
+            then: ReturnType<typeof vi.fn>;
+        } = {
             data,
             error,
             select: vi.fn().mockReturnThis(),
@@ -74,9 +87,9 @@ describe('Email Import Processing', () => {
         mockSupabase = {
             from: vi.fn().mockImplementation(() => createMockQuery()),
         };
-        (createAdminClient as any).mockResolvedValue(mockSupabase);
-        (createServerSupabaseClient as any).mockResolvedValue(mockSupabase);
-        (authorizePermission as any).mockResolvedValue({ authorized: true, userId: 'user_123' });
+        vi.mocked(createAdminClient).mockResolvedValue(mockSupabase as unknown as Awaited<ReturnType<typeof createAdminClient>>);
+        vi.mocked(createServerSupabaseClient).mockResolvedValue(mockSupabase as unknown as Awaited<ReturnType<typeof createServerSupabaseClient>>);
+        vi.mocked(authorizePermission).mockResolvedValue({ authorized: true, userId: 'user_123' } as unknown as Awaited<ReturnType<typeof authorizePermission>>);
     });
 
     describe('matchEmailTransactions', () => {
@@ -128,7 +141,7 @@ describe('Email Import Processing', () => {
             mockSupabase.from.mockImplementation((table: string) => {
                 if (table === 'email_transactions') {
                     const query = createMockQuery();
-                    query.eq.mockImplementation((col: string, val: any) => {
+                    query.eq.mockImplementation((col: string, val: unknown) => {
                         if (val === 'matched') return createMockQuery(mockCredits);
                         if (val === 'debit') {
                             const debitQuery = createMockQuery();
@@ -142,8 +155,8 @@ describe('Email Import Processing', () => {
                 return createMockQuery();
             });
 
-            (createPayment as any).mockResolvedValue({ success: true, data: { id: 'pay_123' } });
-            (createExpense as any).mockResolvedValue({ id: 'exp_123' });
+            vi.mocked(createPayment).mockResolvedValue({ success: true, data: { id: 'pay_123' } } as unknown as Awaited<ReturnType<typeof createPayment>>);
+            vi.mocked(createExpense).mockResolvedValue({ id: 'exp_123' } as unknown as Awaited<ReturnType<typeof createExpense>>);
 
             const result = await processEmailTransactions('import_123');
 
