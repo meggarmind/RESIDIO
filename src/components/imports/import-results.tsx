@@ -98,17 +98,17 @@ export function ImportResults({ result, onStartOver }: ImportResultsProps) {
 
       {/* Result Stats */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="p-6 border rounded-lg text-center bg-green-50 dark:bg-green-950/20">
+        <div className="p-6 border rounded-xl text-center bg-green-50 dark:bg-green-950/20 shadow-sm">
           <CheckCircle2 className="h-8 w-8 mx-auto text-green-600 mb-2" />
           <p className="text-3xl font-bold text-green-600">{result.created_count}</p>
           <p className="text-sm text-muted-foreground">Payments Created</p>
         </div>
-        <div className="p-6 border rounded-lg text-center bg-orange-50 dark:bg-orange-950/20">
+        <div className="p-6 border rounded-xl text-center bg-orange-50 dark:bg-orange-950/20 shadow-sm">
           <AlertTriangle className="h-8 w-8 mx-auto text-orange-600 mb-2" />
           <p className="text-3xl font-bold text-orange-600">{result.skipped_count}</p>
           <p className="text-sm text-muted-foreground">Rows Skipped</p>
         </div>
-        <div className="p-6 border rounded-lg text-center bg-red-50 dark:bg-red-950/20">
+        <div className="p-6 border rounded-xl text-center bg-red-50 dark:bg-red-950/20 shadow-sm">
           <XCircle className="h-8 w-8 mx-auto text-red-600 mb-2" />
           <p className="text-3xl font-bold text-red-600">{result.error_count}</p>
           <p className="text-sm text-muted-foreground">Errors</p>

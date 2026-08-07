@@ -404,7 +404,7 @@ export default function ApprovalsPage() {
 
                     {actionDialog.request && (
                         <div className="space-y-4">
-                            <div className="bg-muted p-4 rounded-lg space-y-2">
+                            <div className="bg-muted p-4 rounded-xl space-y-2">
                                 <div className="text-sm">
                                     <span className="text-muted-foreground">Entity:</span>{' '}
                                     <span className="font-medium">{actionDialog.request.entity_name}</span>
@@ -426,7 +426,7 @@ export default function ApprovalsPage() {
                                 </div>
 
                                 {actionDialog.request.request_type === 'manual_payment_verification' && (
-                                    <div className="mt-4 border rounded-md overflow-hidden bg-white">
+                                    <div className="mt-4 border rounded-xl overflow-hidden bg-white">
                                         <div className="bg-muted px-3 py-2 text-xs font-medium border-b flex items-center justify-between">
                                             <span>PAYMENT RECEIPT</span>
                                             {proofUrl && (
@@ -492,10 +492,14 @@ export default function ApprovalsPage() {
                             variant={actionDialog.action === 'approve' ? 'default' : 'destructive'}
                             onClick={confirmAction}
                             disabled={approveMutation.isPending || rejectMutation.isPending}
+                            className="btn-hover-lift"
                         >
-                            {approveMutation.isPending || rejectMutation.isPending
-                                ? 'Processing...'
-                                : actionDialog.action === 'approve'
+                            {approveMutation.isPending || rejectMutation.isPending ? (
+                                <span className="flex items-center gap-2">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Processing...
+                                </span>
+                            ) : actionDialog.action === 'approve'
                                     ? 'Confirm Approval'
                                     : 'Confirm Rejection'}
                         </Button>

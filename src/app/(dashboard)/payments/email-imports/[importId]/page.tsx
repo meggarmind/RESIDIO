@@ -507,7 +507,7 @@ export default function EmailImportDetailPage() {
                 </TableRow>
               ) : (
                 transactionsData.data.map((tx: EmailTransaction & { residents?: { first_name: string; last_name: string; resident_code: string } }) => (
-                  <TableRow key={tx.id} className="hover:bg-gray-50 dark:hover:bg-[#0F172A]">
+                  <TableRow key={tx.id} className="hover:bg-muted/50 transition-colors">
                     <TableCell className="text-muted-foreground font-mono text-sm">
                       {formatDate(tx.transaction_date)}
                     </TableCell>

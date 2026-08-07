@@ -60,7 +60,20 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 - Committed (not yet pushed): `00d3ef9` (build fixes), `575220c` (low-risk lint), `7ff59f9` (session doc). Working tree now clean.
 - `npm run build` GREEN, `tsc` clean, `npm test` 5/16 green, `npm run lint` 351→323 errors.
 
-## Last session (OpenCode, 2026-08-07 — e2e cleanup, part 2)
+## Last session (OpenCode, 2026-08-07 — UI/UX Phase 3)
+
+- **Phase 3 (Payment Flow + PDF Import Polish) complete.** Merged PDF import final steps into UI/UX Review Phase 3 and completed it.
+- **3a — PDF upload visual polish** (`statement-upload.tsx`): AnimatePresence dropzone (spring-animated upload icon on drag, scale/opacity transitions for file-selected state), file-type-specific icons with colored icon tiles, `input-tactile` on password input, smooth height-reveal animation on password section, `btn-hover-lift` on continue button.
+- **3a — Wizard stepper polish** (`payments/import/page.tsx`): framer-motion animated step circles (spring scale on active), animated connector bars (backgroundColor transition from muted→primary), shadow on card container, fixed description to mention PDF format.
+- **3a — Import preview/result stat tiles** (`import-preview.tsx`, `import-confirmation.tsx`, `import-results.tsx`): Upgraded all stat cards from `rounded-lg` to `rounded-xl`, added `shadow-sm` and `bg-muted/20` backgrounds, consistent border/semantic color treatment across bank import preview, confirmation, and results screens.
+- **3b — PDF Import Test CLI** (`scripts/test-pdf-import.ts`): New CLI script testing 6 areas — pdfjs-dist worker loading, text extraction, coordinate-based transaction parsing, encryption detection, invalid-PDF error handling, and full pipeline against sample PDF. All 6 tests pass. Run with `npx tsx scripts/test-pdf-import.ts [path-to-pdf]`.
+- **3c — Manual verification**: Deferred. Sample PDF in `docs/legacydata/` is encrypted and requires Next.js request scope for password retrieval (cookies). Needs manual testing through web UI at `/payments/import`.
+- **3d — Payment form polish** (`payment-form.tsx`): Added `btn-hover-lift` to submit button (was already well-polished with framer-motion submit states, success glow, property selector with icons).
+- **3e — Approvals queue polish** (`approvals/page.tsx`): Upgraded dialog containers from `rounded-lg` to `rounded-xl`, added `btn-hover-lift` to confirm button, added Loader2 spinner to processing state (was text-only).
+- **3f — Import preview consistency**: Aligned bank import table wrapper from `rounded-lg` to `rounded-xl` (matching email import's `rounded-xl`), updated email import row hover from hardcoded `gray-50`/`#0F172A` to theme-aware `hover:bg-muted/50 transition-colors`.
+- **Verification**: `tsc` clean, `npm test` 16/16 green, `npm run build` GREEN (exit 0). New file: `scripts/test-pdf-import.ts`. Modified files: `statement-upload.tsx`, `payments/import/page.tsx`, `import-preview.tsx`, `import-confirmation.tsx`, `import-results.tsx`, `payment-form.tsx`, `approvals/page.tsx`, `email-imports/[importId]/page.tsx`, `ACTIONPLAN.md`, `TODO.md`, `SESSION_STATE.md`.
+
+## Previous session (OpenCode, 2026-08-07 — e2e cleanup, part 2)
 
 - **Fixed two sign-in RBAC races in `auth-provider.tsx`** (committed `fddd39f`): (A) after the app boots logged-out (Guest path sets `isInitialized=true`), a real `SIGNED_IN` was skipped — `fetchProfile` never ran, leaving `profile=null` and the sidebar nav filtered to Dashboard+System until a manual reload. Now always fetches profile on `SIGNED_IN`. (B) the metadata fallback (used when the `profiles` SELECT fails, e.g. `security@residio.test` has no `profiles` row) returned empty permissions and early-returned; it now continues into legacy role lookup + RBAC so role-less rows still get permissions.
 - **Dashboard e2e now 6/6** (`dashboard.spec.ts`): wait for permission-filtered nav to settle before asserting sidebar hrefs (TC2.2/2.3/2.6); raised stat-card timeout for cold-start (TC2.1).
@@ -76,3 +89,4 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 2. **E2E is now green-ish (48/8/5).** Re-run `npm run test:e2e` to confirm the hardened `loginAs` clears the remaining mid-run timing flakes; if a genuine failure surfaces, fix the assertion/data not the harness. (Requires Cloud Supabase, seeded per `supabase/seed.sql`.)
 3. **Lint debt** (user chose low-risk-first; big refactors paused). Remaining ~323 errors = `no-explicit-any` (237) + `no-unused-vars` + 18 `no-unescaped-entities` (resident-portal, de-prioritized) + 9 `ban-ts-comment` + 1 `rules-of-hooks`. Decide whether to grind the `any`/`unused-vars` refactor.
 4. Update `README.md` (still default `create-next-app` boilerplate; reflect Windows/Node/cloud Supabase).
+5. **UI/UX Phase 4 (Page Improvements)** or **Phase 5 (Accessibility & Polish)** — Phase 3 complete. See `ACTIONPLAN.md`.

@@ -372,12 +372,12 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
 
                 <div className="flex gap-4">
                     <Button
-                        type="submit"
-                        disabled={submitState !== 'idle'}
-                        className={cn(
-                            "min-w-[160px] transition-all duration-300",
-                            submitState === 'success' && "btn-success-state success-glow"
-                        )}
+type="submit"
+                    disabled={submitState !== 'idle'}
+                    className={cn(
+                        "min-w-[160px] transition-all duration-300 btn-hover-lift",
+                        submitState === 'success' && "btn-success-state success-glow"
+                    )}
                     >
                         <AnimatePresence mode="wait">
                             {submitState === 'loading' && (

@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,6 +12,7 @@ import { ColumnMapper } from '@/components/imports/column-mapper';
 import { ImportPreview } from '@/components/imports/import-preview';
 import { ImportConfirmation } from '@/components/imports/import-confirmation';
 import { ImportResults } from '@/components/imports/import-results';
+import { cn } from '@/lib/utils';
 import type { ParsedRow } from '@/lib/validators/import';
 import type { ProcessImportResult } from '@/actions/imports/types';
 
@@ -167,23 +169,32 @@ export default function ImportWizardPage() {
         {(['upload', 'mapping', 'review', 'confirm', 'results'] as WizardStep[]).map((step, index) => (
           <div key={step} className="flex items-center">
             <div className="flex flex-col items-center">
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${isStepComplete(step)
-                  ? 'bg-primary border-primary text-primary-foreground'
-                  : isStepCurrent(step)
-                    ? 'border-primary text-primary'
-                    : 'border-muted text-muted-foreground'
-                  }`}
+              <motion.div
+                initial={false}
+                animate={{
+                  scale: isStepCurrent(step) ? 1.1 : 1,
+                }}
+                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                className={cn(
+                  'w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors duration-300',
+                  isStepComplete(step)
+                    ? 'bg-primary border-primary text-primary-foreground shadow-md'
+                    : isStepCurrent(step)
+                      ? 'border-primary text-primary bg-primary/5 shadow-sm'
+                      : 'border-muted text-muted-foreground'
+                )}
               >
                 {isStepComplete(step) ? (
                   <CheckCircle className="h-5 w-5" />
                 ) : (
-                  <span>{index + 1}</span>
+                  <span className="text-sm font-medium">{index + 1}</span>
                 )}
-              </div>
+              </motion.div>
               <span
-                className={`text-xs mt-1 ${isStepCurrent(step) ? 'text-primary font-medium' : 'text-muted-foreground'
-                  }`}
+                className={cn(
+                  'text-xs mt-1.5 transition-colors duration-200',
+                  isStepCurrent(step) ? 'text-primary font-semibold' : 'text-muted-foreground'
+                )}
               >
                 {step === 'upload' && 'Upload'}
                 {step === 'mapping' && 'Mapping'}
@@ -193,9 +204,13 @@ export default function ImportWizardPage() {
               </span>
             </div>
             {index < 4 && (
-              <div
-                className={`w-16 h-0.5 mx-2 ${isStepComplete(step) ? 'bg-primary' : 'bg-muted'
-                  }`}
+              <motion.div
+                initial={false}
+                animate={{
+                  backgroundColor: isStepComplete(step) ? 'hsl(var(--primary))' : 'hsl(var(--muted))',
+                }}
+                transition={{ duration: 0.4 }}
+                className="w-16 h-0.5 mx-2"
               />
             )}
           </div>
@@ -203,7 +218,7 @@ export default function ImportWizardPage() {
       </div>
 
       {/* Step Content */}
-      <Card className="max-w-5xl mx-auto">
+      <Card className="max-w-5xl mx-auto shadow-sm">
         {currentStep === 'upload' && (
           <>
             <CardHeader>
@@ -212,7 +227,7 @@ export default function ImportWizardPage() {
                 Upload Bank Statement
               </CardTitle>
               <CardDescription>
-                Upload a CSV or Excel file containing bank transactions
+                Upload a bank statement in CSV, Excel, or PDF format
               </CardDescription>
             </CardHeader>
             <CardContent>

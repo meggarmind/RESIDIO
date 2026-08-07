@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -14,12 +15,13 @@ import {
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, File, X, Loader2, AlertCircle, Lock } from 'lucide-react';
+import { Upload, File, X, Loader2, AlertCircle, Lock, FileText, CheckCircle2 } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/use-imports';
 import { parseCSVFile } from '@/lib/parsers/csv-parser';
 import { parseXLSXFile } from '@/lib/parsers/xlsx-parser';
 import { parsePdfStatement } from '@/actions/imports/parse-pdf-statement';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface StatementUploadProps {
   onComplete: (data: {
@@ -168,6 +170,13 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const getFileIcon = (name: string) => {
+    const ext = name.split('.').pop()?.toLowerCase();
+    if (ext === 'pdf') return <FileText className="h-5 w-5 text-red-500" />;
+    if (ext === 'xlsx' || ext === 'xls') return <File className="h-5 w-5 text-emerald-500" />;
+    return <File className="h-5 w-5 text-primary" />;
+  };
+
   return (
     <div className="space-y-6">
       {/* File Dropzone */}
@@ -177,72 +186,122 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
           Upload a bank statement in CSV, Excel, or PDF format
         </p>
 
-        {!file ? (
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${isDragActive
-              ? 'border-primary bg-primary/5'
-              : 'border-muted-foreground/25 hover:border-primary/50'
-              }`}
-          >
-            <input {...getInputProps()} />
-            <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm font-medium">
-              {isDragActive ? 'Drop the file here' : 'Drag & drop or click to upload'}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Supports CSV, Excel, and PDF files (.csv, .xlsx, .xls, .pdf)
-            </p>
-          </div>
-        ) : (
-          <div className="border rounded-lg p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <File className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium">{file.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {formatFileSize(file.size)}
+        <AnimatePresence mode="wait">
+          {!file ? (
+            <motion.div
+              key="dropzone"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div
+                {...getRootProps()}
+                className={cn(
+                  'relative border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all duration-300',
+                  'hover:shadow-md hover:border-primary/40',
+                  isDragActive
+                    ? 'border-primary bg-primary/5 shadow-lg scale-[1.01]'
+                    : 'border-muted-foreground/20 hover:bg-muted/30'
+                )}
+              >
+                <input {...getInputProps()} />
+                <motion.div
+                  animate={isDragActive ? { scale: 1.15, rotate: -5 } : { scale: 1, rotate: 0 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                >
+                  <div className={cn(
+                    'w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 transition-colors duration-300',
+                    isDragActive ? 'bg-primary/15' : 'bg-muted'
+                  )}>
+                    <Upload className={cn(
+                      'h-7 w-7 transition-colors duration-300',
+                      isDragActive ? 'text-primary' : 'text-muted-foreground'
+                    )} />
+                  </div>
+                </motion.div>
+                <p className="text-sm font-semibold mb-1">
+                  {isDragActive ? 'Drop the file here' : 'Drag & drop or click to upload'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Supports CSV, Excel, and PDF files (.csv, .xlsx, .xls, .pdf)
                 </p>
               </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleRemoveFile}
-              className="text-muted-foreground hover:text-destructive"
+            </motion.div>
+          ) : (
+            <motion.div
+              key="file-selected"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.2 }}
             >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
+              <div className="border rounded-xl p-4 flex items-center justify-between bg-muted/20 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shadow-inner">
+                    {getFileIcon(file.name)}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatFileSize(file.size)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <CheckCircle2 className="h-4 w-4 text-green-500 mr-1" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleRemoveFile}
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* PDF Password Input - Only show if password is required and not using saved password */}
-      {isPdfFile && passwordRequired && (
-        <div className="space-y-2">
-          <Label htmlFor="pdf-password" className="text-base font-medium flex items-center gap-2">
-            <Lock className="h-4 w-4" />
-            PDF Password
-            <span className="text-destructive text-sm">(Required)</span>
-          </Label>
-          <p className="text-sm text-muted-foreground">
-            This PDF is password-protected. Enter the password to continue.
-          </p>
-          <Input
-            id="pdf-password"
-            type="password"
-            placeholder="Enter PDF password"
-            value={pdfPassword}
-            onChange={(e) => setPdfPassword(e.target.value)}
-            className="max-w-md"
-          />
-          <p className="text-xs text-muted-foreground">
-            Tip: You can save passwords for each bank account in Settings → Bank Accounts.
-          </p>
-        </div>
-      )}
+      <AnimatePresence>
+        {isPdfFile && passwordRequired && (
+          <motion.div
+            key="password"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="overflow-hidden"
+          >
+            <div className="space-y-2 pt-2">
+              <Label htmlFor="pdf-password" className="text-base font-medium flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <Lock className="h-3.5 w-3.5 text-amber-600" />
+                </div>
+                PDF Password
+                <span className="text-destructive text-sm">(Required)</span>
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                This PDF is password-protected. Enter the password to continue.
+              </p>
+              <Input
+                id="pdf-password"
+                type="password"
+                placeholder="Enter PDF password"
+                value={pdfPassword}
+                onChange={(e) => setPdfPassword(e.target.value)}
+                className="max-w-md input-tactile"
+              />
+              <p className="text-xs text-muted-foreground">
+                Tip: You can save passwords for each bank account in Settings → Bank Accounts.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Bank Account Selection */}
       <div className="space-y-2">
@@ -316,6 +375,10 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
           onClick={handleContinue}
           disabled={!file || !bankAccountId || isParsing}
           size="lg"
+          className={cn(
+            'btn-hover-lift min-w-[200px] shadow-sm',
+            isParsing && 'pointer-events-none'
+          )}
         >
           {isParsing ? (
             <>

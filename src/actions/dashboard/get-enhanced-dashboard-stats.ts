@@ -1,7 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { formatAuditLog, type AuditLogEntry } from '@/lib/audit/audit-formatter';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { formatAuditLog } from '@/lib/audit/audit-formatter';
 
 // ─────────────────────────────────────────────────────────────────
 // Enhanced Dashboard Stats Types
@@ -130,7 +131,7 @@ export async function getEnhancedDashboardStats(): Promise<{
     }
 }
 
-async function getStatsWithTimeout(supabase: any): Promise<{ data: EnhancedDashboardStats | null; error: string | null }> {
+async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: EnhancedDashboardStats | null; error: string | null }> {
     console.log('[getEnhancedDashboardStats] Starting data fetch sequence...');
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -259,7 +260,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: 
 // ─────────────────────────────────────────────────────────────────
 
 async function fetchFinancialHealth(
-    supabase: any,
+    supabase: SupabaseClient,
     monthStart: Date,
     monthEnd: Date,
     prevMonthStart: Date,
@@ -369,7 +370,7 @@ async function fetchFinancialHealth(
     };
 }
 
-async function fetchInvoiceDistribution(supabase: any): Promise<InvoiceStatusDistribution> {
+async function fetchInvoiceDistribution(supabase: SupabaseClient): Promise<InvoiceStatusDistribution> {
     // Use parallel COUNT queries instead of fetching all invoices
     // This is ~100x faster for large invoice tables
     const [unpaid, paid, partiallyPaid, overdueData, voided] = await Promise.all([
@@ -390,7 +391,7 @@ async function fetchInvoiceDistribution(supabase: any): Promise<InvoiceStatusDis
 }
 
 async function fetchSecurityAlerts(
-    supabase: any,
+    supabase: SupabaseClient,
     now: Date,
     sevenDaysFromNow: Date
 ): Promise<SecurityAlerts> {
@@ -497,7 +498,7 @@ async function fetchSecurityAlerts(
     };
 }
 
-async function fetchDevelopmentLevyStatus(supabase: any): Promise<DevelopmentLevyStatus> {
+async function fetchDevelopmentLevyStatus(supabase: SupabaseClient): Promise<DevelopmentLevyStatus> {
     // Get development levy billing profiles
     const { data: levyProfiles } = await supabase
         .from('billing_profiles')
@@ -544,7 +545,7 @@ async function fetchDevelopmentLevyStatus(supabase: any): Promise<DevelopmentLev
     };
 }
 
-async function fetchQuickStats(supabase: any): Promise<QuickStats> {
+async function fetchQuickStats(supabase: SupabaseClient): Promise<QuickStats> {
     const [
         { count: totalHouses },
         { count: occupiedHouses },
@@ -584,7 +585,7 @@ async function fetchQuickStats(supabase: any): Promise<QuickStats> {
     };
 }
 
-async function fetchRecentActivity(supabase: any): Promise<RecentActivityItem[]> {
+async function fetchRecentActivity(supabase: SupabaseClient): Promise<RecentActivityItem[]> {
     const activity: RecentActivityItem[] = [];
 
     // Get from audit logs (most comprehensive)
@@ -606,7 +607,7 @@ async function fetchRecentActivity(supabase: any): Promise<RecentActivityItem[]>
     return (auditLogs || []).map((log: any) => formatAuditLog(log)).slice(0, 8);
 }
 
-async function fetchMonthlyTrends(supabase: any, now: Date): Promise<MonthlyTrend[]> {
+async function fetchMonthlyTrends(supabase: SupabaseClient, now: Date): Promise<MonthlyTrend[]> {
     // Pre-generate all 6 month ranges
     const monthRanges = Array.from({ length: 6 }, (_, i) => {
         const monthIndex = 5 - i; // Reversed so oldest first

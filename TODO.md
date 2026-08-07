@@ -507,17 +507,18 @@ Comprehensive navigation review and improvements based on frontend-developer age
 
 #### UI/UX Review Plan (Multi-Session)
 
-Full 5-phase improvement plan created from frontend-developer agent review:
+Full 5-phase improvement plan created from frontend-developer agent review.
+**PDF import final steps merged into Phase 3.**
 
 | Phase | Focus | Status |
 |-------|-------|--------|
 | Phase 1 | Navigation & Structure | ✅ Complete |
 | Phase 2 | Card Component System | ✅ Complete |
-| Phase 3 | Payment Flow Enhancement | ⏳ Pending |
+| Phase 3 | Payment Flow + PDF Import Polish | ⏳ Pending |
 | Phase 4 | Page Improvements | ⏳ Pending |
 | Phase 5 | Accessibility & Polish | ⏳ Pending |
 
-Plan file: `.claude/plans/structured-honking-brooks.md`
+Plan file: `ACTIONPLAN.md`
 
 ---
 

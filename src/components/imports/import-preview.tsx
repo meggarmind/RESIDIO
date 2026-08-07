@@ -538,24 +538,24 @@ export function ImportPreview({
         <div className="space-y-4">
           {/* Main stats row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 border rounded-lg text-center min-h-[88px] flex flex-col justify-center">
+            <div className="p-4 border rounded-xl text-center min-h-[88px] flex flex-col justify-center bg-muted/20 shadow-sm">
               <p className="text-2xl font-bold">{summary.total}</p>
               <p className="text-sm text-muted-foreground">Total Rows</p>
               <p className="text-xs text-transparent mt-1 select-none">&nbsp;</p>
             </div>
-            <div className="p-4 border rounded-lg text-center border-green-200 dark:border-green-800 min-h-[88px] flex flex-col justify-center">
+            <div className="p-4 border rounded-xl text-center border-green-200 dark:border-green-800 min-h-[88px] flex flex-col justify-center bg-green-50/30 dark:bg-green-950/20 shadow-sm">
               <p className="text-2xl font-bold text-green-600">{summary.matched}</p>
               <p className="text-sm text-muted-foreground">Matched</p>
               <p className="text-xs text-muted-foreground mt-1">
                 ({transactionCounts.creditMatched} CR / {transactionCounts.debitMatched} DR)
               </p>
             </div>
-            <div className="p-4 border rounded-lg text-center border-red-200 dark:border-red-800 min-h-[88px] flex flex-col justify-center">
+            <div className="p-4 border rounded-xl text-center border-red-200 dark:border-red-800 min-h-[88px] flex flex-col justify-center bg-red-50/30 dark:bg-red-950/20 shadow-sm">
               <p className="text-2xl font-bold text-red-600">{summary.unmatched}</p>
               <p className="text-sm text-muted-foreground">Unmatched</p>
               <p className="text-xs text-transparent mt-1 select-none">&nbsp;</p>
             </div>
-            <div className="p-4 border rounded-lg text-center border-yellow-200 dark:border-yellow-800 min-h-[88px] flex flex-col justify-center">
+            <div className="p-4 border rounded-xl text-center border-yellow-200 dark:border-yellow-800 min-h-[88px] flex flex-col justify-center bg-yellow-50/30 dark:bg-yellow-950/20 shadow-sm">
               <p className="text-2xl font-bold text-yellow-600">{summary.pending}</p>
               <p className="text-sm text-muted-foreground">Pending</p>
               <p className="text-xs text-transparent mt-1 select-none">&nbsp;</p>
@@ -564,7 +564,7 @@ export function ImportPreview({
 
           {/* Credit/Debit breakdown row */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 border rounded-lg border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20">
+            <div className="p-4 border rounded-xl border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ArrowDownLeft className="h-5 w-5 text-green-600" />
@@ -583,7 +583,7 @@ export function ImportPreview({
                 </p>
               )}
             </div>
-            <div className="p-4 border rounded-lg border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20">
+            <div className="p-4 border rounded-xl border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ArrowUpRight className="h-5 w-5 text-red-600" />
@@ -708,7 +708,7 @@ export function ImportPreview({
       {/* Rows Table */}
       {viewMode === 'table' && (
         <>
-          <div className="border rounded-lg overflow-hidden max-h-[600px] overflow-y-auto relative">
+          <div className="border rounded-xl overflow-hidden max-h-[600px] overflow-y-auto relative">
             <Table className="text-xs">
               <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
                 <TableRow>
