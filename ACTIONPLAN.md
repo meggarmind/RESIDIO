@@ -46,19 +46,25 @@ This phase merges the PDF import final steps with the payment flow UI improvemen
 - [x] Payment flow tactile polish (btn-hover-lift on submit, spinner on approval confirm)
 - [x] Import preview consistent across bank and email imports (rounded-xl, theme-aware hover, shadow-sm stat tiles)
 
-## Phase 4: Page Improvements ⏳ PENDING
+## Phase 4: Page Improvements ✅ COMPLETE
 
-- [ ] Audit individual pages for layout consistency and spacing
-- [ ] Apply card variant system to any remaining inconsistent cards
-- [ ] Standardize form layouts and field spacing
-- [ ] Verify responsive behavior on mobile viewports
+- [x] 4a: Audit individual pages for layout consistency and spacing
+- [x] 4b: Apply card variant system to remaining inconsistent cards
+- [x] 4c: Standardize form layouts and field spacing
+- [~] 4d: Verify responsive behavior on mobile viewports (deferred — needs browser testing)
 
-## Phase 5: Accessibility & Polish ⏳ PENDING
+### Details
+- Spacing: removed double-padding on /billing, expenditure and projects islands, fixed space-y-8→6 on settings pages
+- Headers: migrated 7 pages from plain h1 to EnhancedPageHeader (payments/new, residents/new, houses/new, security/contacts, announcements, notifications, reports)
+- Card variants: applied variant='featured' interactive animate to project and report cards, variant='stat' animate to audit-logs stat cards
+- Forms: added max-w-* constraints to resident/house/security-contact forms, added md: prefix to grid-cols-2 across 6 dialog/page forms, standardized space-y-4→6, normalized submit row to Submit→Cancel pattern, normalized grid class ordering
 
-- [ ] Audit color contrast ratios (OKLCH)
-- [ ] Verify keyboard navigation across all interactive elements
-- [ ] Add missing `aria-labels` and `role` attributes
-- [ ] Test screen reader compatibility for key flows
+## Phase 5: Accessibility & Polish ✅ COMPLETE
+
+- [x] 5a: Audit color contrast ratios (OKLCH) — fixed --border light theme (0.922→0.85 for WCAG 1.4.11)
+- [x] 5b: Verify keyboard navigation across all interactive elements — added role/tabIndex/onKeyDown to report version selector, AI assistant suggestion bubble
+- [x] 5c: Add missing aria-labels and role attributes — 20+ icon-only buttons across tables, detail pages, dropdown triggers, AI assistant
+- [~] 5d: Test screen reader compatibility for key flows (deferred — needs browser testing)
 
 ---
 
@@ -68,3 +74,4 @@ This phase merges the PDF import final steps with the payment flow UI improvemen
 - 2026-01-08: Completed Phase 1 (Navigation) and Phase 2 (Card System).
 - 2026-08-07: Merged PDF import final steps (old Steps 7-9) into Phase 3.
 - 2026-08-07: Completed Phase 3 — visual polish (dropzone, wizard stepper, stat tiles), test CLI, payment form/approvals polish, import preview consistency.
+- 2026-08-07: Completed Phases 4 & 5 — page layout consistency (spacing, EnhancedPageHeader migration, card variants), form standardization (max-w, md:grid-cols-2, space-y-6, submit rows), accessibility (aria-labels on 20+ icon-only buttons, keyboard nav on interactive divs, OKLCH border contrast fix).

@@ -89,4 +89,4 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 2. **E2E is now green-ish (48/8/5).** Re-run `npm run test:e2e` to confirm the hardened `loginAs` clears the remaining mid-run timing flakes; if a genuine failure surfaces, fix the assertion/data not the harness. (Requires Cloud Supabase, seeded per `supabase/seed.sql`.)
 3. **Lint debt** (user chose low-risk-first; big refactors paused). Remaining ~323 errors = `no-explicit-any` (237) + `no-unused-vars` + 18 `no-unescaped-entities` (resident-portal, de-prioritized) + 9 `ban-ts-comment` + 1 `rules-of-hooks`. Decide whether to grind the `any`/`unused-vars` refactor.
 4. Update `README.md` (still default `create-next-app` boilerplate; reflect Windows/Node/cloud Supabase).
-5. **UI/UX Phase 4 (Page Improvements)** or **Phase 5 (Accessibility & Polish)** — Phase 3 complete. See `ACTIONPLAN.md`.
+5. **UI/UX Phases 4 & 5 complete.** See `ACTIONPLAN.md`. Layout consistency (spacing, headers, card variants), form standardization, accessibility (aria-labels, keyboard nav, OKLCH contrast fix). Remaining: 4d (responsive — needs browser) and 5d (screen reader — needs browser).

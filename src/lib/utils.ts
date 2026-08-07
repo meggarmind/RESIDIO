@@ -180,3 +180,12 @@ export function maskPhone(phone: string | null | undefined): string {
 
   return `${prefix}${'*'.repeat(maskedLength > 0 ? maskedLength : 4)}${suffix}`;
 }
+
+/**
+ * Normalize a Supabase embedded relation. The untyped client types to-one
+ * embeds (e.g. `resident:residents(...)`) as an array, but at runtime they
+ * arrive as a single object. Returns the object for both shapes.
+ */
+export function embed<T>(value: T | T[] | null | undefined): T | null | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}

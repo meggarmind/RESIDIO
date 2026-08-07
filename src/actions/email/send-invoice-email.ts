@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import { getSettingValue } from '@/actions/settings/get-settings';
+import { embed } from '@/lib/utils';
 import { InvoiceGeneratedEmail } from '@/emails';
 
 interface SendInvoiceEmailResult {
@@ -57,7 +58,7 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
     return { success: false, error: 'Invoice not found' };
   }
 
-  const resident = invoice.resident as any;
+  const resident = embed(invoice.resident);
   if (!resident?.email) {
     return { success: false, error: 'Resident has no email address' };
   }
@@ -65,8 +66,8 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
   // Get estate settings
   const estateSettings = await getEstateEmailSettings();
 
-  const house = invoice.house as any;
-  const items = (invoice.invoice_items || []).map((item: any) => ({
+  const house = embed(invoice.house);
+  const items = (invoice.invoice_items || []).map((item) => ({
     name: item.description,
     amount: item.amount,
   }));
