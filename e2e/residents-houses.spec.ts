@@ -163,7 +163,10 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row to view details (rows navigate via the view icon link, not row-click)
-            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            // Only a row that actually contains the view link is a real data row
+            // (loading skeleton rows render without one); wait for data to arrive.
+            const houseRow = page.locator('table tbody tr:has(a[href^="/houses/"]:not([href*="edit"]))').first();
+            await expect(houseRow).toBeVisible({ timeout: 15000 });
             if (await houseRow.count() > 0) {
                 await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
 
@@ -183,7 +186,10 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row
-            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            // Only a row that actually contains the view link is a real data row
+            // (loading skeleton rows render without one); wait for data to arrive.
+            const houseRow = page.locator('table tbody tr:has(a[href^="/houses/"]:not([href*="edit"]))').first();
+            await expect(houseRow).toBeVisible({ timeout: 15000 });
             if (await houseRow.count() > 0) {
                 await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
@@ -207,7 +213,10 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row
-            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            // Only a row that actually contains the view link is a real data row
+            // (loading skeleton rows render without one); wait for data to arrive.
+            const houseRow = page.locator('table tbody tr:has(a[href^="/houses/"]:not([href*="edit"]))').first();
+            await expect(houseRow).toBeVisible({ timeout: 15000 });
             if (await houseRow.count() > 0) {
                 await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
@@ -242,7 +251,10 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row
-            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            // Only a row that actually contains the view link is a real data row
+            // (loading skeleton rows render without one); wait for data to arrive.
+            const houseRow = page.locator('table tbody tr:has(a[href^="/houses/"]:not([href*="edit"]))').first();
+            await expect(houseRow).toBeVisible({ timeout: 15000 });
             if (await houseRow.count() > 0) {
                 await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
@@ -280,7 +292,10 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row
-            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            // Only a row that actually contains the view link is a real data row
+            // (loading skeleton rows render without one); wait for data to arrive.
+            const houseRow = page.locator('table tbody tr:has(a[href^="/houses/"]:not([href*="edit"]))').first();
+            await expect(houseRow).toBeVisible({ timeout: 15000 });
             if (await houseRow.count() > 0) {
                 await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
@@ -303,7 +318,10 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row
-            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            // Only a row that actually contains the view link is a real data row
+            // (loading skeleton rows render without one); wait for data to arrive.
+            const houseRow = page.locator('table tbody tr:has(a[href^="/houses/"]:not([href*="edit"]))').first();
+            await expect(houseRow).toBeVisible({ timeout: 15000 });
             if (await houseRow.count() > 0) {
                 await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
@@ -329,7 +347,10 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row
-            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            // Only a row that actually contains the view link is a real data row
+            // (loading skeleton rows render without one); wait for data to arrive.
+            const houseRow = page.locator('table tbody tr:has(a[href^="/houses/"]:not([href*="edit"]))').first();
+            await expect(houseRow).toBeVisible({ timeout: 15000 });
             if (await houseRow.count() > 0) {
                 await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });

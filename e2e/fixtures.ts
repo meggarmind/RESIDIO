@@ -17,8 +17,15 @@ export async function loginAs(page: Page, userType: keyof typeof TEST_USERS) {
     await page.fill('input[type="password"]', user.password);
     // Press Enter to submit form - more reliable than clicking through overlays
     await page.press('input[type="password"]', 'Enter');
-    // Wait for either dashboard or portal redirect (admin is linked to resident)
-    await page.waitForURL(/\/(dashboard|portal)/, { timeout: 30000 });
+    // Wait for either dashboard or portal redirect (admin is linked to resident).
+    // Under a cold dev server the redirect can stall even though the session cookie
+    // is already set; recover by reloading once and waiting again.
+    try {
+        await page.waitForURL(/\/(dashboard|portal)/, { timeout: 45000 });
+    } catch {
+        await page.reload();
+        await page.waitForURL(/\/(dashboard|portal)/, { timeout: 45000 });
+    }
 }
 
 // Helper for portal tests - login and navigate to portal

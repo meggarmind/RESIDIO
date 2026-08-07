@@ -193,12 +193,25 @@ BEGIN
   ON CONFLICT (id) DO NOTHING;
 
   -- 8. Resident Houses
+  -- NOTE: validate_residency_exclusivity() forbids one person residing in two units,
+  -- and validate_unit_occupancy_state() forbids mixing resident_landlord + tenant in
+  -- the same unit. Use distinct residents per unit.
   INSERT INTO public.resident_houses (resident_id, house_id, resident_role, is_primary)
-  VALUES (v_resident_id, v_house1_id, 'landlord', true)
+  VALUES (v_resident_id, v_house1_id, 'resident_landlord', true)
   ON CONFLICT (resident_id, house_id) DO NOTHING;
 
+  -- Tenant for house2 (separate person so exclusivity is not violated)
+  INSERT INTO public.residents (
+    id, resident_code, first_name, last_name, email, phone_primary,
+    resident_type, verification_status, account_status
+  ) VALUES (
+    '66666666-6666-6666-6666-666666666602',
+    'RES200', 'Ada', 'Tenant', 'ada.tenant@residio.test', '+2348000000002',
+    'primary', 'verified', 'active'
+  ) ON CONFLICT (id) DO NOTHING;
+
   INSERT INTO public.resident_houses (resident_id, house_id, resident_role, is_primary)
-  VALUES (v_resident_id, v_house2_id, 'tenant', false)
+  VALUES ('66666666-6666-6666-6666-666666666602', v_house2_id, 'tenant', true)
   ON CONFLICT (resident_id, house_id) DO NOTHING;
 
   -- 9. Wallet
