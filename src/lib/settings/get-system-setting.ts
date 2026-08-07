@@ -17,7 +17,7 @@ export async function getSystemSetting<T = unknown>(
     .from('system_settings')
     .select('value')
     .eq('key', key)
-    .single() as { data: { value: any } | null };
+    .single() as { data: { value: unknown } | null };
 
   if (data?.value) {
     // Value is stored as JSONB, but simple values are stored as strings
@@ -47,7 +47,7 @@ export async function getSystemSettings(
   const { data } = await supabase
     .from('system_settings')
     .select('key, value')
-    .in('key', keys) as { data: Array<{ key: string; value: any }> | null };
+    .in('key', keys) as { data: Array<{ key: string; value: unknown }> | null };
 
   const result = new Map<string, unknown>();
 

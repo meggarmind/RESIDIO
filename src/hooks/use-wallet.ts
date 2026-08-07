@@ -45,7 +45,7 @@ export function useCreditWallet() {
       queryClient.invalidateQueries({ queryKey: ['wallet-transactions', variables.residentId] });
       toast.success('Wallet credited successfully');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to credit wallet');
     },
   });
@@ -74,7 +74,7 @@ export function useDebitWallet() {
       queryClient.invalidateQueries({ queryKey: ['wallet-transactions', variables.residentId] });
       toast.success('Wallet debited successfully');
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error.message || 'Failed to debit wallet');
     },
   });

@@ -239,9 +239,13 @@ export async function generateMonthlyInvoices(
     try {
         // Get system settings
         const billVacantHouses = await getSystemSetting(supabase, 'bill_vacant_houses') === true;
+        const billUnderRenovation = await getSystemSetting(supabase, 'bill_under_renovation_houses') === true;
+        const billUnderConstruction = await getSystemSetting(supabase, 'bill_under_construction_houses') === true;
         const dueWindowSetting = await getSystemSetting(supabase, 'invoice_due_window_days');
         const dueWindowDays = parseInt(String(dueWindowSetting).replace(/"/g, '')) || 30;
         log.info(`Bill vacant houses: ${billVacantHouses}`);
+        log.info(`Bill under-renovation houses: ${billUnderRenovation}`);
+        log.info(`Bill under-construction houses: ${billUnderConstruction}`);
         log.info(`Due window days: ${dueWindowDays}`);
 
         // 1. Find all active houses (both occupied and vacant)
@@ -253,6 +257,7 @@ export async function generateMonthlyInvoices(
                 house_type_id,
                 billing_profile_id,
                 is_occupied,
+                property_status,
                 street:streets(name)
             `)
             .eq('is_active', true);
@@ -309,8 +314,25 @@ export async function generateMonthlyInvoices(
                     continue;
                 }
 
+                const status = (house as { property_status?: string }).property_status || 'occupied';
+
+                if (status === 'under_renovation' && !billUnderRenovation) {
+                    result.skipped++;
+                    result.skipReasons.push({ house: houseLabel, reason: 'Under renovation (billing disabled)' });
+                    continue;
+                }
+                if (status === 'under_construction' && !billUnderConstruction) {
+                    result.skipped++;
+                    result.skipReasons.push({ house: houseLabel, reason: 'Under construction (billing disabled)' });
+                    continue;
+                }
+
                 if (!allResidentLinks || allResidentLinks.length === 0) {
-                    // Vacant house - check if we should bill
+                    if (status === 'under_renovation' || status === 'under_construction') {
+                        result.skipped++;
+                        result.skipReasons.push({ house: houseLabel, reason: `${status === 'under_renovation' ? 'Under renovation' : 'Under construction'} (no active residents)` });
+                        continue;
+                    }
                     if (!billVacantHouses) {
                         result.skipped++;
                         result.skipReasons.push({ house: houseLabel, reason: 'Vacant (no active residents)' });
@@ -318,10 +340,14 @@ export async function generateMonthlyInvoices(
                     }
                 }
 
+                const vacantBillingEnabled = billVacantHouses ||
+                    (status === 'under_renovation' && billUnderRenovation) ||
+                    (status === 'under_construction' && billUnderConstruction);
+
                 // Find billable resident using priority logic
                 const residentLink = findBillableResident(
                     (allResidentLinks || []) as unknown as ResidentHouseLink[],
-                    billVacantHouses
+                    vacantBillingEnabled
                 );
 
                 if (!residentLink) {

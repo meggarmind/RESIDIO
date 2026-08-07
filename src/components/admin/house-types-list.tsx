@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useHouseTypes, useCreateHouseType, useUpdateHouseType } from '@/hooks/use-reference';
 import { useBillingProfiles } from '@/hooks/use-billing';
+import type { HouseType } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -81,7 +82,7 @@ export function HouseTypesList() {
 
     const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
-    const openEdit = (type: any) => {
+    const openEdit = (type: HouseType) => {
         setEditingId(type.id);
         setNewName(type.name);
         setNewDesc(type.description || '');
@@ -161,7 +162,7 @@ export function HouseTypesList() {
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="none">None</SelectItem>
-                                                {billingProfiles?.map((profile: any) => (
+                                                {billingProfiles?.map((profile) => (
                                                     <SelectItem key={profile.id} value={profile.id}>
                                                         {profile.name}
                                                     </SelectItem>

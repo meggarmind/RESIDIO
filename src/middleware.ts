@@ -148,8 +148,11 @@ export async function middleware(request: NextRequest) {
         `)
                 .eq('role_id', profile.role_id);
 
-            const userPermissions = (rolePerms as any[] ?? [])
-                .map((rp) => (rp.permission as any)?.name)
+            const userPermissions = (rolePerms ?? [])
+                .map((rp) => {
+                    const perm = Array.isArray(rp.permission) ? rp.permission[0] : rp.permission;
+                    return perm?.name;
+                })
                 .filter((name): name is string => name != null);
 
             const hasPermission = requiredPermissions.some(p => userPermissions.includes(p));

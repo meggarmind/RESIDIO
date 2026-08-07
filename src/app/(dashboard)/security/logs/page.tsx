@@ -269,7 +269,7 @@ export default function AccessLogsPage() {
             </div>
           ) : logs.length > 0 ? (
             <div className="space-y-4">
-              {logs.map((log: AccessLog & { contact?: any; resident?: any }) => (
+              {logs.map((log: AccessLog & { contact?: { full_name?: string } | null; resident?: { first_name?: string; last_name?: string; resident_code?: string } | null }) => (
                 <div
                   key={log.id}
                   className={`flex items-start justify-between p-4 border rounded-lg ${

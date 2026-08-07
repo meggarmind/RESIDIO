@@ -30,10 +30,21 @@ interface WalletTransactionsProps {
   limit?: number;
 }
 
+type TransactionRow = {
+  id: string;
+  type: string;
+  created_at: string;
+  amount: number;
+  balance_after: number;
+  description?: string | null;
+  reference_type?: string | null;
+  reference_id?: string | null;
+};
+
 const WalletTransactionRow = memo(function WalletTransactionRow({
   transaction,
 }: {
-  transaction: any;
+  transaction: TransactionRow;
 }) {
   const isCredit = transaction.type === 'credit';
   const amountColor = isCredit
@@ -102,7 +113,7 @@ export function WalletTransactions({ residentId, limit = 50 }: WalletTransaction
             <CardTitle>Transaction History</CardTitle>
             <CardDescription>Wallet credits and debits</CardDescription>
           </div>
-          <Select value={filter} onValueChange={(v) => setFilter(v as any)}>
+          <Select value={filter} onValueChange={(v) => setFilter(v as 'all' | 'credit' | 'debit')}>
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="Filter" />
             </SelectTrigger>

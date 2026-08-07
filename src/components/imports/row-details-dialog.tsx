@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { embed } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -48,6 +49,9 @@ export function RowDetailsDialog({
     }
   };
 
+  const joinedRow = row as BankStatementRow & {
+    resident?: { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[];
+  };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
@@ -129,7 +133,7 @@ export function RowDetailsDialog({
                     <div className="flex justify-between items-center">
                       <span className="text-sm font-medium">Resident:</span>
                       <span className="text-sm">
-                        {(row as any).resident?.first_name} {(row as any).resident?.last_name}
+                        {embed(joinedRow.resident)?.first_name} {embed(joinedRow.resident)?.last_name}
                       </span>
                     </div>
 

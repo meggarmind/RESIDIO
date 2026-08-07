@@ -69,6 +69,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { ParsedRow } from '@/lib/validators/import';
 import type { BankStatementRow, ColumnMapping, TransactionTag, TransactionTagColor } from '@/types/database';
+import type { CreateImportParams } from '@/actions/imports/types';
 
 const ALL_VALUE = '_all';
 const NONE_TAG = '_none';
@@ -212,7 +213,7 @@ export function ImportPreview({
 
       try {
         // Prepare import parameters
-        const importParams: any = {
+        const importParams: Record<string, unknown> = {
           file_name: fileName,
           file_type: fileType,
           bank_account_id: bankAccountId,
@@ -245,7 +246,7 @@ export function ImportPreview({
         }
 
         // 3. Create import record
-        const importResult = await createImportMutation.mutateAsync(importParams);
+        const importResult = await createImportMutation.mutateAsync(importParams as unknown as CreateImportParams);
 
         if (!importResult.data?.id) {
           throw new Error('Failed to create import record');
@@ -746,7 +747,16 @@ export function ImportPreview({
                     const currentTagId = row.tag_id || NONE_TAG;
                     const isCredit = row.transaction_type === 'credit';
                     const isDebit = row.transaction_type === 'debit';
-                    const r = row as any;
+                    const r = row as BankStatementRow & {
+                      matched_resident_id?: string | null;
+                      matched_project_id?: string | null;
+                      matched_petty_cash_account_id?: string | null;
+                      matched_expense_category_id?: string | null;
+                      resident?: { first_name?: string; last_name?: string } | null;
+                      project?: { name?: string } | null;
+                      petty_cash_account?: { name?: string } | null;
+                      expense_category?: { name?: string } | null;
+                    };
 
                     return (
                       <TableRow

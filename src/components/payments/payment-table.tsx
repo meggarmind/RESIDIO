@@ -26,6 +26,7 @@ import { Trash2, Eye, CheckCircle, Download, X, Receipt, Plus, ChevronDown, Cloc
 import { PaymentStatusBadge } from './payment-status-badge';
 import { useDeletePayment, useBulkUpdatePayments } from '@/hooks/use-payments';
 import { formatCurrency } from '@/lib/utils';
+import type { PaymentRecord } from '@/types/database';
 import { toast } from 'sonner';
 import {
     DropdownMenu,
@@ -36,8 +37,13 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+type PaymentRowWithResident = PaymentRecord & {
+    reference_number: string | null;
+    resident?: { first_name?: string; last_name?: string; resident_code?: string } | null;
+};
+
 interface PaymentTableProps {
-    data: any[];
+    data: PaymentRowWithResident[];
     showResident?: boolean;
     residentId?: string;
 }
@@ -51,7 +57,7 @@ const PaymentRow = memo(function PaymentRow({
     onToggleSelection,
     onDelete,
 }: {
-    payment: any;
+    payment: PaymentRowWithResident;
     showResident: boolean;
     isSelected: boolean;
     onToggleSelection: (id: string) => void;

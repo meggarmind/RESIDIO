@@ -67,7 +67,7 @@ export function useUpdateSetting() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ key, value }: { key: string; value: any }) => {
+        mutationFn: async ({ key, value }: { key: string; value: unknown }) => {
             const result = await updateSetting(key, value);
             if (result.error) throw new Error(result.error);
             return result.data;
@@ -86,7 +86,7 @@ export function useUpdateSettings() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (settings: Record<string, any>) => {
+        mutationFn: async (settings: Record<string, unknown>) => {
             const result = await updateSettings(settings);
             if (!result.success) throw new Error(result.error || 'Failed to update settings');
             return result;

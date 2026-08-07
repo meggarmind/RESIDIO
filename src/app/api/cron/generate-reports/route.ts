@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDueSchedules, markScheduleExecuted, saveGeneratedReport } from '@/actions/reports/report-schedules';
 import { generateReport } from '@/actions/reports/report-engine';
-import { getDateRangeFromPreset } from '@/lib/validators/reports';
+import { getDateRangeFromPreset, type ReportRequestFormData } from '@/lib/validators/reports';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 
 export const runtime = 'nodejs';
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 
                 // Generate the report
                 const reportResult = await generateReport({
-                    reportType: (schedule.report_type === 'indebtedness_detail' ? 'indebtedness_summary' : schedule.report_type) as any,
+                    reportType: (schedule.report_type === 'indebtedness_detail' ? 'indebtedness_summary' : schedule.report_type as string) as ReportRequestFormData['reportType'],
                     periodPreset: schedule.period_preset || 'last_month',
                     startDate: dateRange.startDate,
                     endDate: dateRange.endDate,
@@ -165,32 +165,33 @@ export async function GET(request: NextRequest) {
 }
 
 // Build a quick summary from report data for display
-function buildReportSummary(reportData: any): Record<string, unknown> {
+function buildReportSummary(reportData: unknown): Record<string, unknown> {
+    const rd = reportData as { type: string; data?: Record<string, unknown> };
     const summary: Record<string, unknown> = {
         generated_at: new Date().toISOString(),
     };
 
-    if (reportData.type === 'financial_overview' && reportData.data) {
-        const data = reportData.data;
+    if (rd.type === 'financial_overview' && rd.data) {
+        const data = rd.data;
         summary.total_income = data.totalIncome;
         summary.total_expenses = data.totalExpenses;
         summary.net_balance = data.netBalance;
         summary.transaction_count = data.transactionCount;
-    } else if (reportData.type === 'collection_report' && reportData.data) {
-        const data = reportData.data;
+    } else if (rd.type === 'collection_report' && rd.data) {
+        const data = rd.data;
         summary.total_billed = data.totalBilled;
         summary.total_collected = data.totalCollected;
         summary.collection_rate = data.collectionRate;
-        summary.resident_count = data.residents?.length || 0;
-    } else if (reportData.type === 'invoice_aging' && reportData.data) {
-        const data = reportData.data;
+        summary.resident_count = (data.residents as unknown[] | undefined)?.length || 0;
+    } else if (rd.type === 'invoice_aging' && rd.data) {
+        const data = rd.data;
         summary.total_outstanding = data.totalOutstanding;
         summary.current_amount = data.currentAmount;
         summary.overdue_amount = data.overdueAmount;
         summary.invoice_count = data.invoiceCount;
-    } else if (reportData.type === 'transaction_log' && reportData.data) {
-        const data = reportData.data;
-        summary.total_transactions = data.transactions?.length || 0;
+    } else if (rd.type === 'transaction_log' && rd.data) {
+        const data = rd.data;
+        summary.total_transactions = (data.transactions as unknown[] | undefined)?.length || 0;
         summary.total_credits = data.totalCredits;
         summary.total_debits = data.totalDebits;
     }
