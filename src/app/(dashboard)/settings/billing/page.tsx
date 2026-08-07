@@ -79,7 +79,7 @@ export default function BillingSettingsPage() {
         }
         acc[s.key] = value;
         return acc;
-    }, {} as Record<string, any>) || {};
+    }, {} as Record<string, unknown>) || {};
 
     const handleSettingToggle = (key: string, currentValue: boolean) => {
         updateSettingMutation.mutate({ key, value: !currentValue });
@@ -737,7 +737,7 @@ export default function BillingSettingsPage() {
                                         <span className="text-muted-foreground">None (disabled)</span>
                                     </SelectItem>
                                     {developmentLevyProfiles?.filter(p => p.is_active).map((profile) => {
-                                        const total = profile.items?.reduce((sum: number, item: any) => sum + (item.amount || 0), 0) || 0;
+                                        const total = profile.items?.reduce((sum: number, item: { amount?: number }) => sum + (item.amount || 0), 0) || 0;
                                         return (
                                             <SelectItem key={profile.id} value={profile.id}>
                                                 {profile.name} - {formatCurrency(total)}
@@ -806,7 +806,7 @@ export default function BillingSettingsPage() {
                 </div>
 
                 <div className="grid gap-4">
-                    {profiles?.map((profile: any) => {
+                    {profiles?.map((profile) => {
                         const roleLabels = getRoleLabels(profile.applicable_roles);
                         const isCurrentDevLevy = profile.is_development_levy && profile.id === currentDevLevyId;
                         return (
@@ -899,7 +899,7 @@ export default function BillingSettingsPage() {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="space-y-2">
-                                        {profile.items?.map((item: any) => (
+                                        {profile.items?.map((item: { id: string; name: string; amount: number; frequency?: string }) => (
                                             <div key={item.id} className="flex justify-between text-sm border-b last:border-0 pb-2 last:pb-0">
                                                 <span>{item.name}</span>
                                                 <span className="font-medium">

@@ -149,9 +149,9 @@ export function CronHealthCard() {
         );
     }
 
-    const overallStatus = data?.status || (data as any)?.overall || 'unknown';
+    const overallStatus = data?.status || (data as { overall?: string }).overall || 'unknown';
     const jobs = data?.jobs || [];
-    const lastChecked = data?.lastChecked || (data as any)?.timestamp;
+    const lastChecked = data?.lastChecked || (data as { timestamp?: string }).timestamp;
 
     // Filter to show only critical jobs first, then by importance
     const prioritizedJobs = [...jobs].sort((a, b) => {

@@ -66,7 +66,7 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
     }
 
     return {
-        data: (data as any) || [],
+        data: data || [],
         total: count || 0,
         error: null,
     };
@@ -91,7 +91,7 @@ export async function getInvoiceById(id: string): Promise<{ data: InvoiceWithDet
         return { data: null, error: error.message };
     }
 
-    return { data: data as any, error: null };
+    return { data: data as unknown as InvoiceWithDetails, error: null };
 }
 
 type ResidentIndebtedness = {

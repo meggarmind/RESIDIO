@@ -97,13 +97,13 @@ function findBillableResident(residentHouses: ResidentHouseLink[], includeVacant
 }
 
 // Get system setting
-async function getSetting(key: string, defaultValue: any): Promise<any> {
+async function getSetting<T = unknown>(key: string, defaultValue: T): Promise<T> {
     const { data } = await supabase
         .from('system_settings')
         .select('value')
         .eq('key', key)
         .single();
-    return data?.value ?? defaultValue;
+    return (data?.value ?? defaultValue) as T;
 }
 
 // Main generation function

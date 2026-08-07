@@ -12,7 +12,7 @@ interface QueueFilters {
   offset?: number;
 }
 
-interface QueueStats {
+export interface QueueStats {
   byChannel: Record<string, number>;
   byCategory: Record<string, number>;
   recentFailures: number;

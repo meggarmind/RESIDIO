@@ -579,7 +579,7 @@ export interface Database {
           id: string;
           category: string;
           key: string;
-          value: any; // JSONB type - can be string, number, boolean, object, or array
+          value: unknown; // JSONB type - can be string, number, boolean, object, or array
           description: string | null;
           is_public: boolean;
           created_at: string;
@@ -1015,7 +1015,7 @@ export interface Database {
           contact_person: string | null;
           phone: string | null;
           email: string | null;
-          bank_details: any; // JSONB
+          bank_details: unknown; // JSONB
           job_title: string | null;
           department: string | null;
           start_date: string | null;
@@ -1034,7 +1034,7 @@ export interface Database {
           contact_person?: string | null;
           phone?: string | null;
           email?: string | null;
-          bank_details?: any;
+          bank_details?: unknown;
           job_title?: string | null;
           department?: string | null;
           start_date?: string | null;

@@ -6,6 +6,7 @@ import {
   getQueueStats,
   deleteQueuedNotification,
   clearQueue,
+  type QueueStats,
 } from '@/actions/notifications/queue-management';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,16 +49,26 @@ const channelIcons = {
   whatsapp: <Phone className="h-4 w-4" />,
 };
 
+interface QueueNotificationRow {
+  id: string;
+  recipient_email: string | null;
+  recipient_phone: string | null;
+  channel: string;
+  category: string;
+  subject: string | null;
+  scheduled_at: string;
+  profiles?: { first_name?: string; last_name?: string } | null;
+}
+
 export default function NotificationQueuePage() {
-  const [stats, setStats] = useState<any>(null);
-  const [queue, setQueue] = useState<any[]>([]);
+  const [stats, setStats] = useState<QueueStats | null>(null);
+  const [queue, setQueue] = useState<QueueNotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<{ channel: string; category: string }>({ channel: 'all', category: 'all' });
   const [deleting, setDeleting] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
 
   const fetchData = async () => {
-    setLoading(true);
     const channelFilter = filters.channel !== 'all' ? filters.channel : undefined;
     const categoryFilter = filters.category !== 'all' ? filters.category : undefined;
     const [statsResult, queueResult] = await Promise.all([
@@ -78,7 +89,9 @@ export default function NotificationQueuePage() {
   };
 
   useEffect(() => {
-    fetchData();
+    void (async () => {
+      await fetchData();
+    })();
   }, [filters]);
 
   const handleDelete = async (id: string) => {
@@ -300,7 +313,7 @@ export default function NotificationQueuePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {queue.map((notification: any) => (
+                  {queue.map((notification) => (
                     <TableRow key={notification.id}>
                       <TableCell>
                         <div>

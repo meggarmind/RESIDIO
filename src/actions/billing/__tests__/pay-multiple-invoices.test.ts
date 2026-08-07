@@ -19,7 +19,16 @@ vi.mock('../wallet', () => ({
 }));
 
 describe('payMultipleInvoicesWithWallet', () => {
-    let mockSupabase: any;
+    let mockSupabase: {
+        auth: { getUser: ReturnType<typeof vi.fn> };
+        from: ReturnType<typeof vi.fn>;
+        select: ReturnType<typeof vi.fn>;
+        eq: ReturnType<typeof vi.fn>;
+        in: ReturnType<typeof vi.fn>;
+        single: ReturnType<typeof vi.fn>;
+        update: ReturnType<typeof vi.fn>;
+        insert: ReturnType<typeof vi.fn>;
+    };
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -35,7 +44,7 @@ describe('payMultipleInvoicesWithWallet', () => {
             update: vi.fn().mockReturnThis(),
             insert: vi.fn().mockReturnThis(),
         };
-        (createServerSupabaseClient as any).mockResolvedValue(mockSupabase);
+        vi.mocked(createServerSupabaseClient).mockResolvedValue(mockSupabase as unknown as Awaited<ReturnType<typeof createServerSupabaseClient>>);
     });
 
     it('should fail if no invoices are provided', async () => {
