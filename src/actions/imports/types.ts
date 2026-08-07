@@ -228,7 +228,10 @@ export type MatchResidentsResponse = {
 
 export type ManualMatchParams = {
   row_id: string;
-  resident_id: string;
+  resident_id?: string | null;
+  project_id?: string | null;
+  petty_cash_account_id?: string | null;
+  expense_category_id?: string | null;
   save_as_alias?: boolean;
   alias_notes?: string;
 };

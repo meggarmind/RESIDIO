@@ -114,7 +114,7 @@ export function SecurityContactForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-2xl">
         {/* Resident Selection */}
         {!effectiveResidentId && (
           <FormField
@@ -204,7 +204,7 @@ export function SecurityContactForm({
         />
 
         {/* Basic Information */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid gap-4 md:grid-cols-2">
           <FormField
             control={form.control}
             name="full_name"
@@ -252,7 +252,7 @@ export function SecurityContactForm({
         {/* Identification */}
         <div className="border-t pt-4">
           <h3 className="text-sm font-medium mb-3">Identification (Optional)</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <FormField
               control={form.control}
               name="id_type"
@@ -348,7 +348,7 @@ export function SecurityContactForm({
         {/* Next of Kin */}
         <div className="border-t pt-4">
           <h3 className="text-sm font-medium mb-3">Next of Kin (Optional)</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <FormField
               control={form.control}
               name="next_of_kin_name"
@@ -395,16 +395,16 @@ export function SecurityContactForm({
         />
 
         {/* Actions */}
-        <div className="flex justify-end gap-3">
+        <div className="flex gap-4 pt-4">
+          <Button type="submit" disabled={isPending} className="btn-hover-lift">
+            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isEditing ? 'Update Contact' : 'Create Contact'}
+          </Button>
           {onCancel && (
             <Button type="button" variant="outline" onClick={onCancel}>
               Cancel
             </Button>
           )}
-          <Button type="submit" disabled={isPending}>
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEditing ? 'Update Contact' : 'Create Contact'}
-          </Button>
         </div>
       </form>
     </Form>

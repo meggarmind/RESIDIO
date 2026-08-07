@@ -179,7 +179,7 @@ export function BillingProfileEditDialog({
                                     )}
                                 />
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
                                         name="target_type"
@@ -225,7 +225,7 @@ export function BillingProfileEditDialog({
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
                                         name="is_one_time"
@@ -285,7 +285,7 @@ export function BillingProfileEditDialog({
                                                 <FormDescription>
                                                     Select which resident roles this billing profile applies to
                                                 </FormDescription>
-                                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                                <div className="grid grid-cols-2 gap-4 mt-2">
                                                     {BILLABLE_ROLE_OPTIONS.map((role) => (
                                                         <FormField
                                                             key={role.value}

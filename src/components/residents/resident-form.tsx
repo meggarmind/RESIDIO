@@ -257,7 +257,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-3xl">
         {/* Personal Information */}
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Personal Information</h3>

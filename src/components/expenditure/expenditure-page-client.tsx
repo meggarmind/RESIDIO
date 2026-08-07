@@ -10,17 +10,26 @@ import { PettyCashTransactionDialog } from './petty-cash-transaction-dialog';
 import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { Receipt } from 'lucide-react';
 import { PettyCashMetrics } from '@/actions/finance/petty-cash';
+import type { getExpenses } from '@/actions/expenses/get-expenses';
+import type { getVendors } from '@/actions/vendors/get-vendors';
+import type { getExpenseCategories } from '@/actions/expenses/get-expense-categories';
+import type { getProjects } from '@/actions/projects/get-projects';
+import type { getPettyCashAccounts } from '@/actions/finance/petty-cash';
+import type { getActiveResidents } from '@/actions/residents/get-residents';
+import type { getStaff } from '@/actions/settings/get-staff';
+import type { Expense } from '@/types/database';
+import type { ExpenseFormValues } from './log-expense-dialog';
 
 interface ExpenditurePageClientProps {
-    initialExpenses: any[];
-    vendors: any[];
-    categories: any[];
-    projects: any[];
+    initialExpenses: Awaited<ReturnType<typeof getExpenses>>;
+    vendors: Awaited<ReturnType<typeof getVendors>>;
+    categories: Awaited<ReturnType<typeof getExpenseCategories>>;
+    projects: Awaited<ReturnType<typeof getProjects>>;
     pettyCashMetrics: PettyCashMetrics;
 
-    pettyCashAccounts: any[];
-    residents: any[];
-    staff: any[];
+    pettyCashAccounts: Awaited<ReturnType<typeof getPettyCashAccounts>>;
+    residents: NonNullable<Awaited<ReturnType<typeof getActiveResidents>>['data']>;
+    staff: Awaited<ReturnType<typeof getStaff>>;
 }
 
 export function ExpenditurePageClient({
@@ -39,7 +48,7 @@ export function ExpenditurePageClient({
     const [isLogExpenseOpen, setIsLogExpenseOpen] = useState(false);
     const [isSnapLogOpen, setIsSnapLogOpen] = useState(false);
     const [isTransactionOpen, setIsTransactionOpen] = useState(false);
-    const [dialogInitialData, setDialogInitialData] = useState<any>(null);
+    const [dialogInitialData, setDialogInitialData] = useState<Partial<ExpenseFormValues> | null>(null);
 
     // Sync state with server-side data
     useEffect(() => {
@@ -55,12 +64,12 @@ export function ExpenditurePageClient({
         setIsSnapLogOpen(true);
     };
 
-    const handleSnapLog = (receiptData: any) => {
+    const handleSnapLog = (receiptData: Partial<ExpenseFormValues>) => {
         setDialogInitialData(receiptData);
         setIsLogExpenseOpen(true);
     };
 
-    const handleExpenseCreated = (newExpense: any) => {
+    const handleExpenseCreated = (newExpense: Expense) => {
         setExpenses([newExpense, ...expenses]);
         router.refresh(); // Refresh to update balances etc
     };
@@ -101,7 +110,7 @@ export function ExpenditurePageClient({
                 residents={residents}
                 staff={staff}
                 onSuccess={handleExpenseCreated}
-                initialData={dialogInitialData}
+                initialData={dialogInitialData ?? undefined}
             />
 
             <PettyCashTransactionDialog

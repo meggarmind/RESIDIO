@@ -128,7 +128,7 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-2xl">
         <div className="grid gap-4 md:grid-cols-2">
           <FormField
             control={form.control}

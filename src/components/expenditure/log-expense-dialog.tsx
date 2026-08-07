@@ -33,6 +33,15 @@ import { toast } from 'sonner';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { Wallet, Building2, CreditCard } from 'lucide-react';
+import type { Expense } from '@/types/database';
+import type {
+    VendorOption,
+    CategoryOption,
+    ProjectOption,
+    PettyCashOption,
+    ResidentOption,
+    StaffOption,
+} from '@/types/expenditure';
 
 const expenseSchema = z.object({
     amount: z.string().min(1, 'Amount is required'),
@@ -61,17 +70,17 @@ const expenseSchema = z.object({
 interface LogExpenseDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    vendors: any[];
-    categories: any[];
-    projects: any[];
-    residents?: any[];
-    staff?: any[];
-    pettyCashAccounts?: any[];
-    onSuccess: (newExpense: any) => void;
+    vendors: VendorOption[];
+    categories: CategoryOption[];
+    projects: ProjectOption[];
+    residents?: ResidentOption[];
+    staff?: StaffOption[];
+    pettyCashAccounts?: PettyCashOption[];
+    onSuccess: (newExpense: Expense) => void;
     initialData?: Partial<ExpenseFormValues>;
 }
 
-interface ExpenseFormValues {
+export interface ExpenseFormValues {
     amount: string;
     category_id: string;
     expense_date: string;
@@ -207,7 +216,7 @@ export function LogExpenseDialog({
                                         <RadioGroup
                                             onValueChange={field.onChange}
                                             defaultValue={field.value}
-                                            className="grid grid-cols-2 gap-4"
+                                            className="grid grid-cols-1 md:grid-cols-2 gap-4"
                                         >
                                             <FormItem>
                                                 <FormControl>
@@ -251,7 +260,7 @@ export function LogExpenseDialog({
                                             <SelectContent>
                                                 {pettyCashAccounts.map((account) => (
                                                     <SelectItem key={account.id} value={account.id}>
-                                                        {account.name} (Bal: ₦{account.currentBalance?.toLocaleString()})
+                                                        {account.name} (Bal: ₦{account.current_balance?.toLocaleString()})
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
@@ -262,7 +271,7 @@ export function LogExpenseDialog({
                             />
                         )}
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormField
                                 control={form.control}
                                 name="amount"
@@ -292,7 +301,7 @@ export function LogExpenseDialog({
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormField
                                 control={form.control}
                                 name="category_id"
