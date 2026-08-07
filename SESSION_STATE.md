@@ -57,7 +57,7 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 ## Last session (OpenCode, 2026-08-07)
 
 - **Build blocker cleared.** Fixed 22 tsc errors across 7 files: RHF `Resolver` generic mismatch in `log-expense-dialog.tsx` (15-error cascade) via explicit cast; missing lucide/type imports (`Receipt`/`FileText`/`PersonnelInsert`); `ExpensePaymentMethod` union lacked `card`/`other` (added + labels); wrong role literal in `header.tsx`; `URLSearchParams` typing; `title` null in `petty-cash-dashboard`; missing report options in `cron/generate-reports`. Opted `(dashboard)` subtree (`force-dynamic` in layout) + `/verify-2fa` (Suspense boundary around `useSearchParams`) out of static prerender.
-- Committed+pushed: `00d3ef9` (build fixes), `575220c` (low-risk lint). **Not yet pushed:** this doc update. Working tree now clean.
+- Committed (not yet pushed): `00d3ef9` (build fixes), `575220c` (low-risk lint), `7ff59f9` (session doc). Working tree now clean.
 - `npm run build` GREEN, `tsc` clean, `npm test` 5/16 green, `npm run lint` 351→323 errors.
 
 ## Next steps (suggested priority)
