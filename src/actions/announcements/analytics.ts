@@ -136,7 +136,6 @@ export async function getAnnouncementMetrics(
           announcement.target_houses
         );
         totalReached += targetCount;
-        // @ts-ignore - count aggregation
         const readCount = announcement.announcement_read_receipts?.[0]?.count || 0;
         totalReads += readCount;
       }
@@ -258,13 +257,12 @@ export async function getCategoryEngagement(
     >();
 
     for (const announcement of announcements) {
-      // @ts-ignore - category relation
+      // @ts-expect-error - category relation
       const categoryName = announcement.category?.name || 'Uncategorized';
       const targetCount = await calculateTargetCount(
         announcement.target_audience,
         announcement.target_houses
       );
-      // @ts-ignore - count aggregation
       const readCount = announcement.announcement_read_receipts?.[0]?.count || 0;
 
       const existing = categoryMap.get(categoryName) || {
@@ -386,7 +384,6 @@ export async function getTopAnnouncements(
     const withEngagement = await Promise.all(
       announcements.map(async (a) => {
         const targetCount = await calculateTargetCount(a.target_audience, a.target_houses);
-        // @ts-ignore - count aggregation
         const readCount = a.announcement_read_receipts?.[0]?.count || 0;
         const engagementRate =
           targetCount > 0 ? Math.round((readCount / targetCount) * 1000) / 10 : 0;
@@ -394,7 +391,7 @@ export async function getTopAnnouncements(
         return {
           id: a.id,
           title: a.title,
-          // @ts-ignore - category relation
+          // @ts-expect-error - category relation
           category_name: a.category?.name || null,
           priority: a.priority || 'normal',
           published_at: a.published_at,

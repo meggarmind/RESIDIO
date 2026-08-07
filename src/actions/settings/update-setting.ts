@@ -15,7 +15,7 @@ type UpdateSettingResponse = {
 /**
  * Updates a system setting value
  */
-export async function updateSetting(key: string, value: any): Promise<UpdateSettingResponse> {
+export async function updateSetting(key: string, value: string | number | boolean): Promise<UpdateSettingResponse> {
     const supabase = await createServerSupabaseClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -76,7 +76,7 @@ export async function updateSetting(key: string, value: any): Promise<UpdateSett
 /**
  * Updates multiple settings at once
  */
-export async function updateSettings(settings: Record<string, any>): Promise<{ success: boolean; error: string | null }> {
+export async function updateSettings(settings: Record<string, string | number | boolean>): Promise<{ success: boolean; error: string | null }> {
     const supabase = await createServerSupabaseClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -132,8 +132,8 @@ export async function updateSettings(settings: Record<string, any>): Promise<{ s
 
     // Audit log for bulk update
     if (updatedKeys.length > 0) {
-        const oldValues: Record<string, any> = {};
-        const newValues: Record<string, any> = {};
+        const oldValues: Record<string, string | number | boolean> = {};
+        const newValues: Record<string, string | number | boolean> = {};
         for (const key of updatedKeys) {
             oldValues[key] = oldValuesMap.get(key);
             newValues[key] = settings[key];
@@ -170,7 +170,7 @@ export async function setCurrentDevelopmentLevyProfileId(profileId: string | nul
  */
 export async function createSetting(
     key: string,
-    value: any,
+    value: string | number | boolean,
     description?: string,
     category?: string
 ): Promise<UpdateSettingResponse> {

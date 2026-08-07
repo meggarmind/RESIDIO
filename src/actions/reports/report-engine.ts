@@ -297,7 +297,7 @@ async function generateFinancialOverview(
 
   // 2. Fetch Expenses (Manual / Petty Cash)
   // Only fetching if we are interested in 'debit' or 'all' transactions
-  let expensesData: any[] = [];
+  let expensesData: Record<string, unknown>[] = [];
   if (transactionType === 'all' || transactionType === 'debit') {
     let expensesQuery = supabase
       .from('expenses')
@@ -416,7 +416,7 @@ async function generateFinancialOverview(
   for (const expense of expensesData) {
     const amount = Number(expense.amount) || 0;
     const category = expense.expense_categories as unknown as { id: string; name: string; color: string } | null;
-    const categoryId = expense.category_id || null;
+    const categoryId = (expense.category_id as string | null) || null;
     const categoryName = category?.name || 'Uncategorized Expense';
     const categoryColor = category?.color || 'orange'; // Default valid color for expense
 
@@ -440,7 +440,7 @@ async function generateFinancialOverview(
 
     // Monthly trend for expenses
     if (expense.expense_date) {
-      const monthKey = expense.expense_date.substring(0, 7);
+      const monthKey = String(expense.expense_date).substring(0, 7);
       const monthData = monthlyData.get(monthKey) || { credits: 0, debits: 0 };
       monthData.debits += amount;
       monthlyData.set(monthKey, monthData);
@@ -621,6 +621,18 @@ async function generateCollectionReport(
 // Invoice Aging Report
 // ============================================================
 
+interface AgingInvoice {
+  invoiceId: string;
+  invoiceNumber: string;
+  residentName: string;
+  houseNumber: string;
+  amountDue: number;
+  amountPaid: number;
+  outstanding: number;
+  dueDate: string;
+  daysOverdue: number;
+}
+
 async function generateInvoiceAging(
   supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>
 ): Promise<InvoiceAgingData> {
@@ -654,10 +666,10 @@ async function generateInvoiceAging(
 
   // Define aging brackets
   const brackets = [
-    { name: 'Current (0-30 days)', min: 0, max: 30, invoices: [] as any[], total: 0 },
-    { name: '31-60 days', min: 31, max: 60, invoices: [] as any[], total: 0 },
-    { name: '61-90 days', min: 61, max: 90, invoices: [] as any[], total: 0 },
-    { name: 'Over 90 days', min: 91, max: Infinity, invoices: [] as any[], total: 0 },
+    { name: 'Current (0-30 days)', min: 0, max: 30, invoices: [] as AgingInvoice[], total: 0 },
+    { name: '31-60 days', min: 31, max: 60, invoices: [] as AgingInvoice[], total: 0 },
+    { name: '61-90 days', min: 61, max: 90, invoices: [] as AgingInvoice[], total: 0 },
+    { name: 'Over 90 days', min: 91, max: Infinity, invoices: [] as AgingInvoice[], total: 0 },
   ];
 
   let totalOutstanding = 0;
@@ -679,13 +691,13 @@ async function generateInvoiceAging(
 
     const invoiceData = {
       invoiceId: invoice.id,
-      invoiceNumber: invoice.invoice_number,
+      invoiceNumber: invoice.invoice_number ?? '',
       residentName: resident ? `${resident.first_name} ${resident.last_name}` : 'Unknown',
       houseNumber: house?.house_number || 'N/A',
       amountDue,
       amountPaid,
       outstanding,
-      dueDate: invoice.due_date,
+      dueDate: invoice.due_date ?? '',
       daysOverdue,
     };
 

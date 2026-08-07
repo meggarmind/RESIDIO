@@ -11,6 +11,13 @@ import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import { sendEmail } from '@/lib/email/send-email';
 import type { ResidentRole } from '@/types/database';
 
+// Supabase embeds a to-one join (street:streets(...)) as an object at runtime but
+// the untyped client types it as an array; normalize to the street name string.
+function streetName(street: unknown): string {
+    const s = Array.isArray(street) ? street[0] : street;
+    return (s as { name?: string } | null)?.name ?? '';
+}
+
 export type MoveOutDestination = 'leaving_estate' | 'moving_within_estate';
 
 export interface RenterClearanceCheck {
@@ -67,8 +74,6 @@ export type MoveOutRenterResponse = {
 export async function checkRenterClearance(
   residentId: string
 ): Promise<{ data: RenterClearanceCheck | null; error: string | null }> {
-  const supabase = await createServerSupabaseClient();
-
   // Get wallet balance
   const { data: wallet } = await getOrCreateWallet(residentId);
   const walletBalance = wallet?.balance || 0;
@@ -147,7 +152,7 @@ export async function getAvailableHousesForMoveIn(excludeHouseId?: string): Prom
   const result = houses
     ?.filter((h) => h.id !== excludeHouseId)
     .map((house) => {
-      const activeLinks = (house.resident_houses as any[])?.filter((rh) => rh.is_active) || [];
+      const activeLinks = house.resident_houses?.filter((rh) => rh.is_active) || [];
       const hasOwnerOccupier = activeLinks.some(
         (rh) => rh.resident_role === 'resident_landlord'
       );
@@ -160,7 +165,7 @@ export async function getAvailableHousesForMoveIn(excludeHouseId?: string): Prom
         id: house.id,
         house_number: house.house_number,
         short_name: house.short_name,
-        street_name: (house.street as any)?.name || null,
+        street_name: streetName(house.street) || null,
         hasOwnerOccupier,
         hasRenter,
         canAcceptRenter,
@@ -313,7 +318,7 @@ export async function initiateRenterMoveOut(
 
     destinationHouseDetails = {
       id: destHouse.id,
-      address: `${destHouse.short_name || destHouse.house_number}, ${(destHouse.street as any)?.name || ''}`,
+      address: `${destHouse.short_name || destHouse.house_number}, ${streetName(destHouse.street)}`,
       role: destinationRole,
     };
   }
@@ -341,7 +346,7 @@ export async function initiateRenterMoveOut(
 
   // Create clearance certificate record
   const certificateNumber = generateCertificateNumber();
-  const houseAddress = `${house.short_name || house.house_number}, ${(house.street as any)?.name || ''}`;
+  const houseAddress = `${house.short_name || house.house_number}, ${streetName(house.street)}`;
 
   const certificate: ClearanceCertificate = {
     id: crypto.randomUUID(),
@@ -532,7 +537,7 @@ export async function confirmRenterMoveOut(
     return { success: false, error: 'No pending move-out found for this resident' };
   }
 
-  const metadata = pendingRecord.metadata as any;
+  const metadata = pendingRecord.metadata;
   if (metadata?.certificate_number !== certificateNumber) {
     return { success: false, error: 'Certificate number mismatch' };
   }
@@ -554,7 +559,7 @@ export async function confirmRenterMoveOut(
     .single();
 
   // Get count of secondary residents to remove
-  const { data: secondaryResidents, error: secondaryError } = await supabase
+  const { data: secondaryResidents } = await supabase
     .from('resident_houses')
     .select('id, resident_id, resident_role')
     .eq('house_id', houseId)
@@ -755,7 +760,7 @@ export async function getPendingMoveOut(
     return { data: null, error: null }; // No pending move-out
   }
 
-  const metadata = data.metadata as any;
+  const metadata = data.metadata;
   const today = new Date();
   const validUntil = new Date(metadata?.valid_until || today);
   const isExpired = validUntil < today;
@@ -769,10 +774,10 @@ export async function getPendingMoveOut(
     .single();
 
   const houseAddress = house
-    ? `${house.short_name || house.house_number}, ${(house.street as any)?.name || ''}`
+    ? `${house.short_name || house.house_number}, ${streetName(house.street)}`
     : '';
 
-  const residentData = data.resident as any;
+  const residentData = data.resident;
 
   const certificate: ClearanceCertificate = {
     id: data.id,
