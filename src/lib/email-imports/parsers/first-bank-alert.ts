@@ -376,7 +376,7 @@ function parseStructuredAlert(body: string, subject?: string | null): ParsedEmai
   if (!amountStr || !dateStr) return null;
 
   // Parse Amount using generic helper from existing code (but need to handle CR/DR suffix)
-  let amount = parseAmount(amountStr.replace(/CR|DR/i, ''));
+  const amount = parseAmount(amountStr.replace(/CR|DR/i, ''));
   // Determine type from suffix or context
   let type: 'credit' | 'debit' = 'credit'; // Default
 

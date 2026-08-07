@@ -212,7 +212,7 @@ export default function EmailSettingsPage() {
             <Info className="h-4 w-4" />
             <AlertDescription className="text-xs">
               When debug mode is enabled, emails are saved to the email logs with status
-              "DEBUG_MODE" and include the original recipient in metadata. This is useful for
+              “DEBUG_MODE” and include the original recipient in metadata. This is useful for
               testing email templates and notifications during development without spamming
               residents.
             </AlertDescription>

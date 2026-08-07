@@ -414,7 +414,7 @@ export async function manualMatchRow(params: ManualMatchParams): Promise<ManualM
  */
 function extractSenderName(description: string): string | null {
   // Remove common banking prefixes
-  let cleaned = description
+  const cleaned = description
     .replace(/^(NIP\/|WTRNS\/|WEB\/|MOBILE\/|USSD\/)/i, '')
     .replace(/transfer (from|to)/gi, '')
     .trim();

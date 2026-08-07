@@ -154,7 +154,7 @@ export default function SecurityPage() {
         />
 
         <EnhancedStatCard
-          title="Today's Check-ins"
+          title="Today’s Check-ins"
           value={todayCheckIns}
           icon={UserCheck}
           isLoading={logsLoading}

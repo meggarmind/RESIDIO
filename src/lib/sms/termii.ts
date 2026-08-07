@@ -29,7 +29,7 @@ export function isSmsConfigured(): boolean {
  */
 export function normalizePhoneNumber(phone: string): string {
   // Remove all non-digit characters except leading +
-  let normalized = phone.replace(/[^\d+]/g, '');
+  const normalized = phone.replace(/[^\d+]/g, '');
 
   // If starts with +, keep it
   if (normalized.startsWith('+')) {

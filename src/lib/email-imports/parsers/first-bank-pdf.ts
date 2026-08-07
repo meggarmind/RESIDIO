@@ -193,7 +193,7 @@ export function parseTransactionsFromText(text: string): ParsedEmailTransaction[
   // Split the text into items with coordinates
   const items: { x: number, y: number, text: string }[] = [];
   let match;
-  let lastIndex = 0;
+  const lastIndex = 0;
 
   while ((match = coordRegex.exec(text)) !== null) {
     const x = parseInt(match[1]);
@@ -201,8 +201,8 @@ export function parseTransactionsFromText(text: string): ParsedEmailTransaction[
 
     // Find where THIS item's text ends (next coordinate start or end of string)
     const textStart = match.index + match[0].length;
-    let nextMatch = coordRegex.exec(text);
-    let textEnd = nextMatch ? nextMatch.index : text.length;
+    const nextMatch = coordRegex.exec(text);
+    const textEnd = nextMatch ? nextMatch.index : text.length;
 
     // Backtrack current regex pointer if we found nextMatch
     if (nextMatch) coordRegex.lastIndex = nextMatch.index;

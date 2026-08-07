@@ -350,7 +350,7 @@ async function generateFinancialOverview(
   const creditCategoryMap = new Map<string | null, CategoryBreakdown>();
   const debitCategoryMap = new Map<string | null, CategoryBreakdown>();
   const monthlyData = new Map<string, { credits: number; debits: number }>();
-  let totalTransactionCount = (rows?.length || 0) + expensesData.length;
+  const totalTransactionCount = (rows?.length || 0) + expensesData.length;
 
   // Process Bank Rows
   for (const row of rows || []) {

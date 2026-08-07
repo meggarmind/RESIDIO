@@ -129,7 +129,7 @@ export function ResidentsTable() {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
 
-  /* eslint-disable react-hooks/exhaustive-deps */
+   
   const debouncedSearch = useDebounce(search, 300);
 
   // Reset page when search term changes

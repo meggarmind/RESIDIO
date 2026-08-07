@@ -103,7 +103,7 @@ function VersionHistorySheet({
                   </div>
                   {version.editNotes ? (
                     <p className="text-sm text-muted-foreground bg-muted/50 p-2 rounded mt-2 italic">
-                      "{version.editNotes}"
+                      “{version.editNotes}”
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground italic">
@@ -257,7 +257,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
     // If Aging: export all invoices flat
 
     let csvContent = "";
-    let filename = `${report.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.csv`;
+    const filename = `${report.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.csv`;
 
     try {
       const reportData = report.data as Record<string, any>;

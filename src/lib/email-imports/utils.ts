@@ -63,7 +63,7 @@ export function extractSenderName(description: string): string | null {
     }
 
     // Step 2: Remove bank prefixes (like FBNMOBILE from FBNMOBILEISIMAH)
-    let workingStr = cleaned.toUpperCase();
+    const workingStr = cleaned.toUpperCase();
     for (const prefix of BANK_PREFIXES) {
         if (workingStr.startsWith(prefix)) {
             // Remove the prefix

@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
  * - Dark mode compatible
  */
 
-interface ModernSkeletonProps extends React.HTMLAttributes<HTMLDivElement> {}
+type ModernSkeletonProps = React.HTMLAttributes<HTMLDivElement>
 
 /**
  * Base Modern Skeleton with shimmer effect

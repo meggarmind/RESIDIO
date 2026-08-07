@@ -713,7 +713,7 @@ export default function InvoiceRemindersPage() {
           </p>
           <p>
             <strong>Processing:</strong> The system runs daily at 8 AM and checks for
-            invoices matching each active step's timing criteria.
+            invoices matching each active step’s timing criteria.
           </p>
         </CardContent>
       </Card>

@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useState } from 'react';
+import Link from 'next/link';
 
 // Wrapper component to handle Suspense for useSearchParams
 export default function EmailIntegrationPage() {
@@ -263,10 +264,10 @@ function EmailIntegrationContent() {
           <CardContent>
             <div className="flex flex-wrap gap-4">
               <Button variant="outline" asChild>
-                <a href="/payments/email-imports">
+                <Link href="/payments/email-imports">
                   <Clock className="h-4 w-4 mr-2" />
                   View Import History
-                </a>
+                </Link>
               </Button>
               <Button
                 variant="outline"

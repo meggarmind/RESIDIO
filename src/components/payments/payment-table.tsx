@@ -43,7 +43,7 @@ interface PaymentTableProps {
 }
 
 // Memoized row component to prevent unnecessary re-renders
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const PaymentRow = memo(function PaymentRow({
     payment,
     showResident,

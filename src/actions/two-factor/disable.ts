@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import type { TwoFactorMethod } from '@/types/database';
+import { createHmac } from 'crypto';
 
 /**
  * Disable 2FA for the current user
@@ -285,12 +286,11 @@ function validateTOTP(code: string, secret: string): boolean {
  * Generate a TOTP code for a specific time
  */
 function generateTOTPCode(secret: string, timeCounter: number): string {
-  const crypto = require('crypto');
   const key = base32Decode(secret);
   const timeBuffer = Buffer.alloc(8);
   timeBuffer.writeBigInt64BE(BigInt(timeCounter));
 
-  const hmac = crypto.createHmac('sha1', key);
+  const hmac = createHmac('sha1', key);
   hmac.update(timeBuffer);
   const hash = hmac.digest();
 

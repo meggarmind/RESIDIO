@@ -1112,7 +1112,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                   </>
                 )}
                 <span className="block text-sm text-muted-foreground">
-                  The house status will change to "Vacant - Landlord assigned".
+                  The house status will change to “Vacant - Landlord assigned”.
                 </span>
               </div>
             </AlertDialogDescription>

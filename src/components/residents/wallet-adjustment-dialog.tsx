@@ -135,7 +135,7 @@ export function WalletAdjustmentDialog({
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogHeader>
             <DialogTitle>Adjust Wallet Balance</DialogTitle>
-            <DialogDescription>Make a manual credit or debit to the resident's wallet</DialogDescription>
+            <DialogDescription>Make a manual credit or debit to the resident’s wallet</DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">

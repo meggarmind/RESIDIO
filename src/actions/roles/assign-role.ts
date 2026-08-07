@@ -85,7 +85,7 @@ export async function searchResidentsForRoleAssignment(
     .map(r => r.profile_id) || [];
 
   // Fetch profiles with roles if any have linked profiles
-  let profileRoles: Map<string, { role_id: string | null; role_name: string | null; role_display_name: string | null }> = new Map();
+  const profileRoles: Map<string, { role_id: string | null; role_name: string | null; role_display_name: string | null }> = new Map();
 
   if (profileIds.length > 0) {
     const { data: profiles } = await supabase

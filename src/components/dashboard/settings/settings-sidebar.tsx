@@ -14,7 +14,7 @@ import {
     CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 
-interface SettingsSidebarProps extends React.HTMLAttributes<HTMLElement> { }
+type SettingsSidebarProps = React.HTMLAttributes<HTMLElement>
 
 export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
     const pathname = usePathname();
