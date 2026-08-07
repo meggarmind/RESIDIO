@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { embed } from '@/lib/utils';
 
 type DashboardStats = {
     totalResidents: number;
@@ -127,13 +128,13 @@ export async function getDashboardStats(): Promise<{ data: DashboardStats | null
             console.error('Error fetching recent payments:', recentPayError);
         }
 
-        recentPayments?.forEach((p: any) => {
+        recentPayments?.forEach((p) => {
             recentActivity.push({
                 id: p.id,
                 type: 'payment',
                 description: `Payment of ₦${Number(p.amount).toLocaleString()} recorded`,
                 timestamp: p.payment_date,
-                actorName: p.resident ? `${p.resident.first_name} ${p.resident.last_name}` : undefined
+                actorName: p.resident ? `${embed(p.resident)?.first_name} ${embed(p.resident)?.last_name}` : undefined
             });
         });
 
@@ -148,7 +149,7 @@ export async function getDashboardStats(): Promise<{ data: DashboardStats | null
             console.error('Error fetching recent residents:', recentResError);
         }
 
-        recentResidents?.forEach((r: any) => {
+        recentResidents?.forEach((r) => {
             recentActivity.push({
                 id: r.id,
                 type: 'resident',

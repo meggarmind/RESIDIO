@@ -53,7 +53,7 @@ export async function createPersonnel(input: PersonnelInsert): Promise<{ data: P
     const supabase = await createServerSupabaseClient();
 
     // Build payload, explicitly setting nulls for empty optional fields
-    const payload: Record<string, any> = {
+    const payload: Record<string, unknown> = {
         name: input.name,
         type: input.type || 'vendor',
         status: input.status || 'active',
@@ -107,7 +107,7 @@ export async function updatePersonnel(
     const supabase = await createServerSupabaseClient();
 
     // Build payload, only including fields that need to be updated
-    const payload: Record<string, any> = {};
+    const payload: Record<string, unknown> = {};
 
     if (input.name !== undefined) payload.name = input.name;
     if (input.type !== undefined) payload.type = input.type;

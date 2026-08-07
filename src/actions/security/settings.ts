@@ -42,19 +42,19 @@ export async function getSecuritySettings(): Promise<SecuritySettingsResponse> {
   }
 
   // Parse settings from database
-  const settings: Record<string, any> = {};
+  const settings: Record<string, unknown> = {};
   for (const row of data || []) {
     settings[row.key] = row.value;
   }
 
   return {
     data: {
-      role_permissions: settings.security_role_permissions || DEFAULT_SECURITY_PERMISSIONS,
-      max_contacts_per_resident: settings.security_max_contacts_per_resident ?? null,
-      mandatory_fields: settings.security_mandatory_fields || ['full_name', 'phone_primary', 'category_id'],
-      code_format: settings.security_code_format || 'alphanumeric',
-      expiry_warning_days: settings.security_expiry_warning_days || [7, 3, 1],
-      auto_expire_contacts: settings.security_auto_expire_contacts ?? true,
+      role_permissions: settings.security_role_permissions as SecurityRolePermissions | undefined || DEFAULT_SECURITY_PERMISSIONS,
+      max_contacts_per_resident: (settings.security_max_contacts_per_resident as number | null | undefined) ?? null,
+      mandatory_fields: (settings.security_mandatory_fields as string[] | undefined) || ['full_name', 'phone_primary', 'category_id'],
+      code_format: (settings.security_code_format as 'numeric' | 'alphanumeric' | undefined) || 'alphanumeric',
+      expiry_warning_days: (settings.security_expiry_warning_days as number[] | undefined) || [7, 3, 1],
+      auto_expire_contacts: (settings.security_auto_expire_contacts as boolean | undefined) ?? true,
     },
     error: null,
   };
@@ -140,7 +140,7 @@ export async function updateSecurityRolePermissions(
  */
 export async function updateSecuritySetting(
   key: string,
-  value: any
+  value: string | number | boolean
 ): Promise<UpdateSecuritySettingsResponse> {
   const supabase = await createServerSupabaseClient();
 

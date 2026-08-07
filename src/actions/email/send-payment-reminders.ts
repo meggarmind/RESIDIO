@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
+import { embed } from '@/lib/utils';
 import { getSettingValue } from '@/actions/settings/get-settings';
 import { updateSetting } from '@/actions/settings/update-setting';
 import { logAudit } from '@/lib/audit/logger';
@@ -97,8 +98,8 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
 
     // Send reminders for each invoice
     for (const invoice of invoices || []) {
-      const resident = invoice.resident as any;
-      const house = invoice.house as any;
+      const resident = embed(invoice.resident);
+      const house = embed(invoice.house);
 
       // Skip if no email
       if (!resident?.email) {
@@ -134,7 +135,7 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
           dueDate: formattedDueDate,
           daysUntilDue: daysAhead,
           houseNumber: house?.house_number || '',
-          streetName: house?.street?.name,
+          streetName: embed(house?.street)?.name,
           ...estateSettings,
         }),
         emailType: 'payment_reminder',

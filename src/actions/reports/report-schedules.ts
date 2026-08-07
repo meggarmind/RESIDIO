@@ -23,7 +23,7 @@ export interface ReportSchedule {
     bank_account_ids: string[] | null;
     include_charts: boolean;
     include_summary: boolean;
-    configuration: Record<string, any> | null;
+    configuration: Record<string, unknown> | null;
     recipients: string[] | null;
     template_style: TemplateStyle;
     is_active: boolean;
@@ -68,7 +68,7 @@ export interface CreateScheduleInput {
     bank_account_ids?: string[];
     include_charts?: boolean;
     include_summary?: boolean;
-    configuration?: Record<string, any>;
+    configuration?: Record<string, unknown>;
     recipients?: string[];
     template_style?: TemplateStyle;
 }

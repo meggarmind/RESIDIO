@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { embed } from '@/lib/utils';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -234,7 +235,7 @@ export async function approveLateFeeWaiver(
     return { success: false, error: 'Waiver request has already been processed' };
   }
 
-  const invoice = waiver.invoice as any;
+  const invoice = embed(waiver.invoice);
   const metadata = (invoice.metadata as Record<string, unknown>) || {};
 
   // Calculate the amount to waive
@@ -346,7 +347,7 @@ export async function rejectLateFeeWaiver(
     return { success: false, error: 'Failed to update waiver status' };
   }
 
-  const invoice = waiver.invoice as any;
+  const invoice = embed(waiver.invoice);
 
   // Log audit
   await logAudit({
