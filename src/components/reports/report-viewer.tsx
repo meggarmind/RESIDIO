@@ -151,6 +151,17 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
     ? { startDate: report.parameters.startDate || '', endDate: report.parameters.endDate || '' }
     : getDateRangeFromPreset(report.parameters.periodPreset);
 
+  // Robust label getter that handles the "undefined" issue
+  const getDisplayTitle = useCallback(() => {
+    const label = REPORT_TYPE_LABELS[report.type as keyof typeof REPORT_TYPE_LABELS] || 'Report';
+    if (!report.title || report.title.startsWith('undefined')) {
+      // Reconstruct title from label and date string if possible
+      const datePart = report.title?.split(' - ')[1] || '';
+      return datePart ? `${label} - ${datePart}` : label;
+    }
+    return report.title;
+  }, [report.type, report.title]);
+
   // Handle PDF export via print - using safe DOM manipulation
   const handleExportPDF = useCallback(async () => {
     if (!printRef.current || isPrinting) return;
@@ -244,7 +255,7 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
       console.error('Export failed:', error);
       setIsPrinting(false);
     }
-  }, [isPrinting, report.title, estateName, template]);
+  }, [isPrinting, estateName, template, getDisplayTitle]);
 
   // Handle CSV Export
   const handleExportCSV = useCallback(() => {
@@ -260,12 +271,11 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
     const filename = `${report.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.csv`;
 
     try {
-      const reportData = report.data as Record<string, any>;
-      if (report.type === 'transaction_log' && reportData.transactions) {
+      if (report.data.type === 'transaction_log' && report.data.data.transactions) {
         const headers = ["Date", "Description", "Amount", "Type", "Category", "Bank Account", "Reference"];
         csvContent = [
           headers.join(","),
-          ...reportData.transactions.map((t: any) => [
+          ...report.data.data.transactions.map((t) => [
             t.date,
             `"${t.description.replace(/"/g, '""')}"`,
             t.amount,
@@ -275,22 +285,22 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
             t.reference || ""
           ].join(","))
         ].join("\n");
-      } else if (report.type === 'financial_overview' && reportData.monthlyTrend) {
+      } else if (report.data.type === 'financial_overview' && report.data.data.monthlyTrend) {
         const headers = ["Month", "Credits", "Debits", "Net"];
         csvContent = [
           headers.join(","),
-          ...reportData.monthlyTrend.map((m: any) => [
+          ...report.data.data.monthlyTrend.map((m) => [
             m.month,
             m.credits,
             m.debits,
             m.net
           ].join(","))
         ].join("\n");
-      } else if (report.type === 'collection_report' && reportData.byResident) {
+      } else if (report.data.type === 'collection_report' && report.data.data.byResident) {
         const headers = ["Resident", "House", "Invoiced", "Paid", "Outstanding", "Oldest Unpaid"];
         csvContent = [
           headers.join(","),
-          ...reportData.byResident.map((r: any) => [
+          ...report.data.data.byResident.map((r) => [
             `"${r.residentName}"`,
             `"${r.houseNumber} ${r.streetName}"`,
             r.totalInvoiced,
@@ -299,11 +309,11 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
             r.oldestUnpaidDate || ""
           ].join(","))
         ].join("\n");
-      } else if (report.type === 'invoice_aging' && reportData.byBracket) {
+      } else if (report.data.type === 'invoice_aging' && report.data.data.byBracket) {
         const headers = ["Bracket", "Invoice #", "Resident", "Amount Due", "Outstanding", "Days Overdue"];
         const rows: string[] = [];
-        reportData.byBracket.forEach((b: any) => {
-          b.invoices.forEach((inv: any) => {
+        report.data.data.byBracket.forEach((b) => {
+          b.invoices.forEach((inv) => {
             rows.push([
               `"${b.bracket}"`,
               inv.invoiceNumber,
@@ -315,11 +325,11 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
           });
         });
         csvContent = [headers.join(","), ...rows].join("\n");
-      } else if (report.type === 'debtors_report' && reportData.debtors) {
+      } else if (report.data.type === 'debtors_report' && report.data.data.debtors) {
         const headers = ["Resident Name", "Resident Code", "House", "Street", "Phone Primary", "Phone Secondary", "Email", "Invoice Count", "Days Overdue", "0-30 Days", "31-60 Days", "61-90 Days", "Over 90 Days", "Total Outstanding"];
         csvContent = [
           headers.join(","),
-          ...reportData.debtors.map((d: any) => [
+          ...report.data.data.debtors.map((d) => [
             `"${d.residentName}"`,
             d.residentCode,
             `"${d.houseNumber}"`,
@@ -362,19 +372,6 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
   }, []);
 
   // Report title based on type
-  // Report title based on type - now using central labels
-  const reportTypeLabels = REPORT_TYPE_LABELS;
-
-  // Robust label getter that handles the "undefined" issue
-  const getDisplayTitle = useCallback(() => {
-    const label = reportTypeLabels[report.type as keyof typeof reportTypeLabels] || 'Report';
-    if (!report.title || report.title.startsWith('undefined')) {
-      // Reconstruct title from label and date string if possible
-      const datePart = report.title?.split(' - ')[1] || '';
-      return datePart ? `${label} - ${datePart}` : label;
-    }
-    return report.title;
-  }, [report.type, report.title]);
 
   return (
     <div className={`flex flex-col ${isFullscreen ? 'fixed inset-0 z-50 bg-background' : ''}`}>
@@ -489,11 +486,10 @@ export function ReportViewer({ report, onBack, estateName = 'Residio Estate' }: 
             // This requires parent support.
             // For now, I'll assume `onSelectVersion` is passed (I added it to interface).
             // However, I need to make sure ReportsPageClient passes it.
-            // If not passed, maybe we can't switch.
-            // But I'll add the call.
-            // @ts-ignore
+            // onSelectVersion is optional on this prop path
+            // @ts-expect-error - optional prop may be undefined here
             if (typeof onSelectVersion === 'function') {
-              // @ts-ignore
+              // @ts-expect-error - optional prop may be undefined here
               onSelectVersion(v);
             } else {
               console.warn("onSelectVersion not provided");
