@@ -124,7 +124,7 @@ function ReportCard({
     };
 
     return (
-        <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5 hover:border-emerald-500/30">
+        <Card variant="featured" interactive animate className="group overflow-hidden">
             {/* Top gradient accent */}
             <div className={cn('h-1 bg-gradient-to-r', config.gradient)} />
 

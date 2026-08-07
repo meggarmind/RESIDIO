@@ -61,7 +61,7 @@ export default function AuditLogsPage() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card variant="stat" animate>
           <CardHeader className="pb-2">
             <CardDescription>Today</CardDescription>
             <CardTitle className="text-2xl">
@@ -76,7 +76,7 @@ export default function AuditLogsPage() {
             <p className="text-xs text-muted-foreground">Events logged today</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="stat" animate>
           <CardHeader className="pb-2">
             <CardDescription>This Week</CardDescription>
             <CardTitle className="text-2xl">
@@ -91,7 +91,7 @@ export default function AuditLogsPage() {
             <p className="text-xs text-muted-foreground">Events in the last 7 days</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card variant="stat" animate>
           <CardHeader className="pb-2">
             <CardDescription>This Month</CardDescription>
             <CardTitle className="text-2xl">
