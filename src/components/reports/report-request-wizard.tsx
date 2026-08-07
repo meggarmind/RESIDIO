@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, memo } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -169,8 +169,8 @@ const REALTIME_REPORTS: ReportType[] = ['debtors_report', 'indebtedness_summary'
 // ============================================================
 
 function StepIndicator({ steps, currentStep, reportType }: { steps: Step[]; currentStep: number; reportType: string }) {
-    const isAgnostic = ACCOUNT_AGNOSTIC_REPORTS.includes(reportType as any);
-    const isRealtime = REALTIME_REPORTS.includes(reportType as any);
+    const isAgnostic = ACCOUNT_AGNOSTIC_REPORTS.includes(reportType as ReportType);
+    const isRealtime = REALTIME_REPORTS.includes(reportType as ReportType);
     const progressPercent = ((currentStep - 1) / (steps.length - 1)) * 100;
 
     return (
@@ -778,7 +778,7 @@ function ReviewStep({
                         </div>
                         <div>
                             <p className="text-sm text-muted-foreground">Time Period</p>
-                            {REALTIME_REPORTS_REVIEW.includes(formData.reportType as any) ? (
+                            {REALTIME_REPORTS_REVIEW.includes(formData.reportType ?? '') ? (
                                 <>
                                     <p className="font-semibold">Current (As of Today)</p>
                                     <p className="text-sm text-muted-foreground mt-0.5">
@@ -813,7 +813,7 @@ function ReviewStep({
                     <hr className="border-dashed" />
 
                     {/* Accounts */}
-                    {!ACCOUNT_AGNOSTIC_REPORTS_REVIEW.includes(formData.reportType as any) && (
+                    {!ACCOUNT_AGNOSTIC_REPORTS_REVIEW.includes(formData.reportType ?? '') && (
                         <>
                             <div className="flex items-start gap-4">
                                 <div className="p-3 rounded-xl bg-amber-500/15 text-amber-600">
@@ -866,7 +866,7 @@ function ReviewStep({
                                             <Label>Frequency</Label>
                                             <Select
                                                 value={scheduleData.frequency}
-                                                onValueChange={(v) => onScheduleDataChange({ ...scheduleData, frequency: v as any })}
+                                                onValueChange={(v) => onScheduleDataChange({ ...scheduleData, frequency: v as 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' })}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue />
@@ -1001,7 +1001,7 @@ export function ReportRequestWizard({
     const createSchedule = useCreateReportSchedule();
 
     const { control, watch, handleSubmit, setValue } = useForm<ReportRequestFormData>({
-        resolver: zodResolver(reportRequestSchema as any),
+        resolver: zodResolver(reportRequestSchema) as Resolver<ReportRequestFormData>,
         defaultValues: {
             reportType: 'financial_overview' as const,
             periodPreset: 'this_month' as const,
@@ -1048,8 +1048,8 @@ export function ReportRequestWizard({
 
     const handleNext = () => {
         let nextStep = step + 1;
-        const isAgnostic = ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType as any);
-        const isRealtime = REALTIME_REPORTS.includes(formData.reportType as any);
+        const isAgnostic = ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType);
+        const isRealtime = REALTIME_REPORTS.includes(formData.reportType);
 
         // Skip Step 2 (Period) if Realtime
         if (nextStep === 2 && isRealtime) {
@@ -1066,8 +1066,8 @@ export function ReportRequestWizard({
 
     const handleBack = () => {
         let prevStep = step - 1;
-        const isAgnostic = ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType as any);
-        const isRealtime = REALTIME_REPORTS.includes(formData.reportType as any);
+        const isAgnostic = ACCOUNT_AGNOSTIC_REPORTS.includes(formData.reportType);
+        const isRealtime = REALTIME_REPORTS.includes(formData.reportType);
 
         // Skip Step 3 (Accounts) if Agnostic
         if (prevStep === 3 && isAgnostic) {
