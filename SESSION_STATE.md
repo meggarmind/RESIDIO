@@ -15,10 +15,12 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 |------|-------|
 | Runtime | Node v24.7.0 on **Windows 11** (migrated from WSL). Cross-platform: `.gitattributes` normalizes LF. |
 | Git branch | `master`. Remote: `origin` → `git@github.com:meggarmind/RESIDIO.git` |
-| Working tree | clean (pushed) |
+| Working tree | clean; latest commits **not yet pushed** (`575220c`, `00d3ef9`) |
 | Tests | `npm test` (Vitest) **green: 5 files / 16 tests passing**. Added `vitest.config.ts` (defines `@`→`src` alias + includes only `src/**/*.test.*`, excluding Playwright `e2e/` specs). |
-| Integration coverage | `module-integration.test.ts` passes. Fixed real gaps (permission+audit) for `system/prune-data`, `personnel/actions`, `projects/create-project`, `expenses/create+update`, `finance/petty-cash`, `finance/manual-verification`. Allowed `vendors`/`projects` as audit entity types. Recipient-facing/cron/webhook/auth flows (payments, billing wallet-pay, paystack init/verify/webhook, email-imports, 2FA login) are allowlisted with rationale — they cannot take an admin RBAC `authorizePermission` guard. |
-| Known debt | Repo-wide `npm run lint` still has ~350 pre-existing errors in unrelated files (`middleware.ts`, `src/lib/validators/*`, pre-existing `any` in `types/database.ts`). `npm run build` may also be red from these. Not introduced by the auth work. |
+| Build | **`npm run build` GREEN (exit 0)** — first time; 39 page-groups, dashboard + api dynamic. `npx tsc --noEmit` clean (was 22 errors/7 files). |
+| Lint | `npm run lint`: **323 errors / 489 warnings** (down from 351). Cleared safe buckets: RHF/ts fixes + static-prerender opts (`00d3ef9`); low-risk batch — empty-type→alias, `require()`→ESM, `<a>`→`<Link>`, typographic quotes in admin copy (`575220c`). Remaining 323 = mostly `no-unused-vars` + `no-explicit-any` (237); 18 `no-unescaped` resident-portal (out of scope). |
+| Integration coverage | `module-integration.test.ts` passes. Fixed real gaps (permission+audit) for `system/prune-data`, `personnel/actions`, `projects/create-project`, `expenses/create+update`, `finance/petty-cash`, `finance/manual-verification`. Allowed `vendors`/`projects` as audit entity types. Recipient-facing/cron/webhook/auth flows (payments, billing wallet-pay, paystack init/verify/webhook, email-imports, 2FA login) are allowlisted with rationale — they cannot take an admin RBAC `authorizePermission` guard. Note: this test reports "70 permission / 51 audit gaps" but PASSES — gap summary includes allowlisted-but-still-missing entries, not a failure signal. |
+| Known debt | **Build blocker cleared.** Build/tsc green. Lint debt remains: ~323 errors, dominated by `@typescript-eslint/no-explicit-any` (237) and `no-unused-vars` (443 incl warnings). These are the "bigger refactor" paused pending user direction. |
 
 ---
 
@@ -52,15 +54,15 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 
 ---
 
-## Last session (OpenCode, 2026-08-06)
+## Last session (OpenCode, 2026-08-07)
 
-- Dotenv issue: **`/dev` fixed.** Added `.env.local` (gitignored): `NEXT_PUBLIC_ENV_MODE=cloud`, `NEXT_PUBLIC_SUPABASE_URL_CLOUD`, `NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD` = the kzugmyjjqttardhfejzc cloud project; user added `SUPABASE_SERVICE_ROLE_KEY_CLOUD`. Pages load (login +200; root redirects to /dashboard).
-- **Product focus set:** Admin Dashboard only; Resident Portal/self-service not planned for rollout. Baked this guardrail into `AGENTS.md`, `CLAUDE.md`, `TODO.md`, `SESSION_STATE.md`.
-- Committed+pushed: `5b7cae6` (vitest config). Lint/build remain pre-existing-red.
+- **Build blocker cleared.** Fixed 22 tsc errors across 7 files: RHF `Resolver` generic mismatch in `log-expense-dialog.tsx` (15-error cascade) via explicit cast; missing lucide/type imports (`Receipt`/`FileText`/`PersonnelInsert`); `ExpensePaymentMethod` union lacked `card`/`other` (added + labels); wrong role literal in `header.tsx`; `URLSearchParams` typing; `title` null in `petty-cash-dashboard`; missing report options in `cron/generate-reports`. Opted `(dashboard)` subtree (`force-dynamic` in layout) + `/verify-2fa` (Suspense boundary around `useSearchParams`) out of static prerender.
+- Committed+pushed: `00d3ef9` (build fixes), `575220c` (low-risk lint). **Not yet pushed:** this doc update. Working tree now clean.
+- `npm run build` GREEN, `tsc` clean, `npm test` 5/16 green, `npm run lint` 351→323 errors.
 
 ## Next steps (suggested priority)
 
 0. **Product focus (set):** Admin Dashboard only. No self-service/portal rollout.
-1. Triage/address pre-existing lint debt (`middleware.ts`, `src/lib/validators/*`, `any` in `types/database.ts`) so `npm run build` can pass — highest-priority admin-platform blocker.
+1. **Lint debt (user chose low-risk-first; big refactors paused).** Easy admin edits done. Remaining 323 errors = `no-explicit-any` (237) + `no-unused-vars` (~many) + 18 `no-unescaped-entities` but only in resident-portal (de-prioritized) + 9 `ban-ts-comment` + 1 `rules-of-hooks`. Decide whether to grind the `any`/`unused-vars` refactor (high-value, high-churn).
 2. Investigate the Playwright job separately via `npm run test:e2e` (needs admin@residio.test/password123 against Cloud Supabase).
-3. Update `README.md` (still default `create-next-app` boilerplate; reflect Windows/Node/cloud Supabase setup).
+3. Update `README.md` (still default `create-next-app` boilerplate; reflect Windows/Node/cloud Supabase).
