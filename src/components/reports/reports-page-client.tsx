@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { ReportRequestWizard } from '@/components/reports/report-request-wizard';
 import { ReportViewer } from '@/components/reports/report-viewer';
 import { ReportSchedulesPanel } from '@/components/reports/report-schedules';
@@ -348,18 +349,12 @@ export function ReportsPageClient() {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Financial Reports</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Generate detailed financial reports and analytics for your estate
-                    </p>
-                </div>
-
-                {/* Quick Stats */}
-                <QuickStatsCard />
-            </div>
+            <EnhancedPageHeader
+                title="Financial Reports"
+                description="Generate detailed financial reports and analytics for your estate"
+                icon={FileBarChart}
+                actions={<QuickStatsCard />}
+            />
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

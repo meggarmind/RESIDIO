@@ -70,7 +70,7 @@ export function ExpenditurePageClient({
     };
 
     return (
-        <div className="space-y-6 flex-1 px-4 py-8 md:px-8">
+        <div className="space-y-6">
             <EnhancedPageHeader
                 title="Estate Expenditure"
                 description="Track and manage all estate expenses, vendors, and project costs."

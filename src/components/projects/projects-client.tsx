@@ -18,7 +18,7 @@ export function ProjectsClient({ initialProjects }: ProjectsClientProps) {
     const [projects] = useState(initialProjects);
 
     return (
-        <div className="space-y-6 flex-1 px-4 py-8 md:px-8">
+        <div className="space-y-6">
             <EnhancedPageHeader
                 title="Capital Projects"
                 description="Monitor and manage major estate improvement works and infrastructure projects."

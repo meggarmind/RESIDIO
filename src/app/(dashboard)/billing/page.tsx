@@ -108,7 +108,7 @@ export default function BillingPage() {
     const totalAmount = invoices.reduce((sum, inv) => sum + (Number(inv.amount_due) || 0), 0);
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-6">
             <EnhancedPageHeader
                 title="Billing & Invoices"
                 description="Manage monthly invoices and billing runs"

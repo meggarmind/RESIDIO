@@ -2,7 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { formatAuditLog } from '@/lib/audit/audit-formatter';
+import { formatAuditLog, type AuditLogEntry } from '@/lib/audit/audit-formatter';
 
 // ─────────────────────────────────────────────────────────────────
 // Enhanced Dashboard Stats Types
@@ -272,8 +272,8 @@ async function fetchFinancialHealth(
         .select('amount_due, amount_paid, status')
         .neq('status', 'void');
 
-    const totalDue = invoices?.reduce((sum: number, i: any) => sum + (Number(i.amount_due) || 0), 0) ?? 0;
-    const totalCollected = invoices?.reduce((sum: number, i: any) => sum + (Number(i.amount_paid) || 0), 0) ?? 0;
+    const totalDue = invoices?.reduce((sum: number, i) => sum + (Number(i.amount_due) || 0), 0) ?? 0;
+    const totalCollected = invoices?.reduce((sum: number, i) => sum + (Number(i.amount_paid) || 0), 0) ?? 0;
     const totalOutstanding = totalDue - totalCollected;
 
     // Get overdue invoices
@@ -284,7 +284,7 @@ async function fetchFinancialHealth(
         .lt('due_date', new Date().toISOString().split('T')[0]);
 
     const overdueAmount = overdueInvoices?.reduce(
-        (sum: number, i: any) => sum + ((Number(i.amount_due) || 0) - (Number(i.amount_paid) || 0)),
+        (sum: number, i) => sum + ((Number(i.amount_due) || 0) - (Number(i.amount_paid) || 0)),
         0
     ) ?? 0;
     const overdueCount = overdueInvoices?.length ?? 0;
@@ -297,8 +297,8 @@ async function fetchFinancialHealth(
         .lte('payment_date', monthEnd.toISOString())
         .eq('status', 'paid');
 
-    const totalMonthlyRevenue = currentPayments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) ?? 0;
-    const monthlyRevenue = currentPayments?.reduce((sum: number, p: any) => {
+    const totalMonthlyRevenue = currentPayments?.reduce((sum: number, p) => sum + (Number(p.amount) || 0), 0) ?? 0;
+    const monthlyRevenue = currentPayments?.reduce((sum: number, p) => {
         // Count as verified if is_verified is true OR it came from a statement import
         const isVerified = p.is_verified === true || p.import_id !== null || p.email_import_id !== null;
         return isVerified ? sum + (Number(p.amount) || 0) : sum;
@@ -312,7 +312,7 @@ async function fetchFinancialHealth(
         .lte('payment_date', prevMonthEnd.toISOString())
         .eq('status', 'paid');
 
-    const previousMonthRevenue = prevPayments?.reduce((sum: number, p: any) => {
+    const previousMonthRevenue = prevPayments?.reduce((sum: number, p) => {
         const isVerified = p.is_verified === true || p.import_id !== null || p.email_import_id !== null;
         return isVerified ? sum + (Number(p.amount) || 0) : sum;
     }, 0) ?? 0;
@@ -326,7 +326,7 @@ async function fetchFinancialHealth(
         .from('resident_wallets')
         .select('balance');
 
-    const totalWalletBalance = wallets?.reduce((sum: number, w: any) => sum + (Number(w.balance) || 0), 0) ?? 0;
+    const totalWalletBalance = wallets?.reduce((sum: number, w) => sum + (Number(w.balance) || 0), 0) ?? 0;
 
     // Portfolio Value: Bank accounts balance + Petty cash
     // Calculate bank balance from completed statement rows (credits - debits)
@@ -339,7 +339,7 @@ async function fetchFinancialHealth(
         `)
         .eq('bank_statement_imports.status', 'completed');
 
-    const bankBalance = bankRows?.reduce((sum: number, row: any) => {
+    const bankBalance = bankRows?.reduce((sum: number, row) => {
         const amount = Number(row.amount) || 0;
         return row.transaction_type === 'credit' ? sum + amount : sum - amount;
     }, 0) ?? 0;
@@ -350,7 +350,7 @@ async function fetchFinancialHealth(
         .select('current_balance')
         .eq('is_active', true);
 
-    const pettyCashBalance = pettyCash?.reduce((sum: number, pc: any) => sum + (Number(pc.current_balance) || 0), 0) ?? 0;
+    const pettyCashBalance = pettyCash?.reduce((sum: number, pc) => sum + (Number(pc.current_balance) || 0), 0) ?? 0;
     const portfolioValue = bankBalance + pettyCashBalance;
 
     const collectionRate = totalDue > 0 ? (totalCollected / totalDue) * 100 : 0;
@@ -453,7 +453,7 @@ async function fetchSecurityAlerts(
     let expiredContactsCount = 0;
     for (const contact of allActiveContacts) {
         const codes = contact.access_codes || [];
-        const hasValidCode = codes.some((code: any) => {
+        const hasValidCode = codes.some((code) => {
             if (!code.is_active) return false;
             if (!code.valid_until) return true; // No expiry = always valid
             return new Date(code.valid_until) > now;
@@ -475,15 +475,15 @@ async function fetchSecurityAlerts(
         .gt('access_codes.valid_until', nowStr)
         .lte('access_codes.valid_until', sevenDaysFromNowStr);
 
-    const formattedExpiringCodes = (expiringCodesResult.data ?? []).map((contact: any) => {
+    const formattedExpiringCodes = (expiringCodesResult.data ?? []).map((contact) => {
         // Find the best code to show (one that's expiring soonest but not yet expired)
         const code = contact.access_codes[0];
         return {
             id: contact.id,
             code: code.code,
             contactName: contact.full_name || 'Unknown',
-            residentName: contact.resident
-                ? `${contact.resident.first_name} ${contact.resident.last_name}`
+            residentName: Array.isArray(contact.resident) && contact.resident[0]
+                ? `${contact.resident[0].first_name} ${contact.resident[0].last_name}`
                 : 'Unknown',
             validUntil: code.valid_until
         };
@@ -525,15 +525,15 @@ async function fetchDevelopmentLevyStatus(supabase: SupabaseClient): Promise<Dev
         .neq('status', 'void');
 
     const totalLeviesGenerated = levyInvoices?.length ?? 0;
-    const totalLevyAmount = levyInvoices?.reduce((sum: number, i: any) => sum + (Number(i.amount_due) || 0), 0) ?? 0;
-    const paidLevyAmount = levyInvoices?.reduce((sum: number, i: any) => sum + (Number(i.amount_paid) || 0), 0) ?? 0;
+    const totalLevyAmount = levyInvoices?.reduce((sum: number, i) => sum + (Number(i.amount_due) || 0), 0) ?? 0;
+    const paidLevyAmount = levyInvoices?.reduce((sum: number, i) => sum + (Number(i.amount_paid) || 0), 0) ?? 0;
     const pendingLevyAmount = totalLevyAmount - paidLevyAmount;
 
     // Count unique houses with pending levy
     const housesWithPendingLevy = new Set(
         levyInvoices
-            ?.filter((i: any) => i.status !== 'paid' && (Number(i.amount_due) - Number(i.amount_paid)) > 0)
-            .map((i: any) => i.house_id)
+            ?.filter((i) => i.status !== 'paid' && (Number(i.amount_due) - Number(i.amount_paid)) > 0)
+            .map((i) => i.house_id)
     ).size;
 
     return {
@@ -586,8 +586,6 @@ async function fetchQuickStats(supabase: SupabaseClient): Promise<QuickStats> {
 }
 
 async function fetchRecentActivity(supabase: SupabaseClient): Promise<RecentActivityItem[]> {
-    const activity: RecentActivityItem[] = [];
-
     // Get from audit logs (most comprehensive)
     const { data: auditLogs } = await supabase
         .from('audit_logs')
@@ -604,7 +602,8 @@ async function fetchRecentActivity(supabase: SupabaseClient): Promise<RecentActi
         .order('created_at', { ascending: false })
         .limit(10);
 
-    return (auditLogs || []).map((log: any) => formatAuditLog(log)).slice(0, 8);
+    const auditLogRows: AuditLogEntry[] = (auditLogs || []) as unknown as AuditLogEntry[];
+    return auditLogRows.slice(0, 8).map((log) => formatAuditLog(log));
 }
 
 async function fetchMonthlyTrends(supabase: SupabaseClient, now: Date): Promise<MonthlyTrend[]> {
@@ -637,7 +636,7 @@ async function fetchMonthlyTrends(supabase: SupabaseClient, now: Date): Promise<
             ]);
 
             const payments = paymentsResult.data;
-            const revenue = payments?.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0) ?? 0;
+            const revenue = payments?.reduce((sum: number, p) => sum + (Number(p.amount) || 0), 0) ?? 0;
 
             return {
                 month: monthName,

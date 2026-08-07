@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ResidentForm, type HouseState } from '@/components/residents/resident-form';
+import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { Users, Loader2 } from 'lucide-react';
 
 function NewResidentContent() {
@@ -13,10 +14,11 @@ function NewResidentContent() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Add New Resident</h1>
-        <p className="text-muted-foreground">Register a new community member.</p>
-      </div>
+      <EnhancedPageHeader
+        title="Add New Resident"
+        description="Register a new community member."
+        icon={Users}
+      />
 
       <Card>
         <CardHeader>

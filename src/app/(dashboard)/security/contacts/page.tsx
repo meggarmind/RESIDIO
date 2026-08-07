@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Shield, Download, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { SecurityContactsTable } from '@/components/security/security-contacts-table';
+import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { useCurrentUserSecurityPermissions, useExportSecurityContactsCSV } from '@/hooks/use-security';
 import { toast } from 'sonner';
 
@@ -37,42 +38,37 @@ export default function SecurityContactsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Shield className="h-8 w-8" />
-            Security Contacts
-          </h1>
-          <p className="text-muted-foreground">
-            Manage authorized visitors and staff for residents
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {canExportContacts && (
-            <Button
-              variant="outline"
-              onClick={handleExport}
-              disabled={exportMutation.isPending}
-            >
-              {exportMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" />
-              )}
-              Export
-            </Button>
-          )}
-          {canRegisterContacts && (
-            <Button asChild>
-              <Link href="/security/contacts/new">
-                <Plus className="mr-2 h-4 w-4" />
-                Register Contact
-              </Link>
-            </Button>
-          )}
-        </div>
-      </div>
+      <EnhancedPageHeader
+        title="Security Contacts"
+        description="Manage authorized visitors and staff for residents"
+        icon={Shield}
+        actions={
+          <div className="flex items-center gap-2">
+            {canExportContacts && (
+              <Button
+                variant="outline"
+                onClick={handleExport}
+                disabled={exportMutation.isPending}
+              >
+                {exportMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Export
+              </Button>
+            )}
+            {canRegisterContacts && (
+              <Button asChild>
+                <Link href="/security/contacts/new">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Register Contact
+                </Link>
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       {/* Contacts Table */}
       <SecurityContactsTable />

@@ -184,7 +184,7 @@ export default function BillingSettingsPage() {
     };
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             {/* Billing Settings Section */}
             <div>
                 <h3 className="text-lg font-medium">Billing Settings</h3>

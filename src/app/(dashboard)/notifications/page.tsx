@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import type { InAppNotification } from '@/types/database';
 
 // Map notification categories to icons
@@ -253,37 +254,33 @@ export default function NotificationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Bell className="h-8 w-8" />
-            Notifications
-          </h1>
-          <p className="text-muted-foreground">
-            Stay updated with announcements, alerts, and important updates.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {unreadCount > 0 && (
+      <EnhancedPageHeader
+        title="Notifications"
+        description="Stay updated with announcements, alerts, and important updates."
+        icon={Bell}
+        actions={
+          <div className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <Button
+                variant="outline"
+                onClick={handleMarkAllAsRead}
+                disabled={markAllAsReadMutation.isPending}
+              >
+                <CheckCheck className="h-4 w-4 mr-2" />
+                Mark all as read
+              </Button>
+            )}
             <Button
               variant="outline"
-              onClick={handleMarkAllAsRead}
-              disabled={markAllAsReadMutation.isPending}
+              onClick={() => setClearReadConfirm(true)}
+              disabled={deleteReadMutation.isPending}
             >
-              <CheckCheck className="h-4 w-4 mr-2" />
-              Mark all as read
+              <Trash2 className="h-4 w-4 mr-2" />
+              Clear read
             </Button>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => setClearReadConfirm(true)}
-            disabled={deleteReadMutation.isPending}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Clear read
-          </Button>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'all' | 'unread')}>
         <TabsList>

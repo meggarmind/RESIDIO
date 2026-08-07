@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { AnnouncementsTable } from '@/components/announcements';
 import { EmergencyContactsCard } from '@/components/announcements/emergency-contacts-card';
+import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import {
   useSendMultiChannelEmergencyBroadcast,
   useEmergencyContactDirectory,
@@ -172,25 +173,23 @@ export default function AnnouncementsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Announcements</h1>
-          <p className="text-muted-foreground">
-            Create and manage community announcements and communications.
-          </p>
-        </div>
-
-        {canSendEmergency && (
-          <Button
-            variant="destructive"
-            onClick={() => setEmergencyDialogOpen(true)}
-            className="gap-2"
-          >
-            <AlertTriangle className="h-4 w-4" />
-            Emergency Broadcast
-          </Button>
-        )}
-      </div>
+      <EnhancedPageHeader
+        title="Announcements"
+        description="Create and manage community announcements and communications."
+        icon={Megaphone}
+        actions={
+          canSendEmergency ? (
+            <Button
+              variant="destructive"
+              onClick={() => setEmergencyDialogOpen(true)}
+              className="gap-2"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              Emergency Broadcast
+            </Button>
+          ) : undefined
+        }
+      />
 
       {/* Emergency Contacts Card */}
       {canSendEmergency && emergencyContacts && emergencyContacts.length > 0 && (
