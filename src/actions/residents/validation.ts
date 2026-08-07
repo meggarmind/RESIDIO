@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ResidentRole } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { isPrimaryRole } from '@/lib/validators/resident';
+import { embed } from '@/lib/utils';
 
 type ValidationResult = {
     valid: boolean;
@@ -50,9 +51,10 @@ export async function validateHouseAssignment(
     const existingResidents = activePrimaryResidents || [];
 
     // Helper to get name
-    const getName = (record: any) => {
-        const r = record.resident;
-        return r ? `${(r as any).first_name} ${(r as any).last_name} ` : 'someone';
+    const getName = (record: unknown) => {
+        const r = embed((record as { resident?: unknown }).resident as
+            { first_name: string; last_name: string }[] | { first_name: string; last_name: string } | null | undefined);
+        return r ? `${r.first_name} ${r.last_name} ` : 'someone';
     };
 
     // 1. Single Owner Policy

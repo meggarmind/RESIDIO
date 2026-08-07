@@ -99,7 +99,7 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<SendInvoiceEm
       periodStart: invoice.period_start ? formatDate(invoice.period_start) : undefined,
       periodEnd: invoice.period_end ? formatDate(invoice.period_end) : undefined,
       houseNumber: house?.house_number || '',
-      streetName: house?.street?.name,
+      streetName: embed(house?.street)?.name,
       items,
       ...estateSettings,
     }),

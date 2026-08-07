@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
+import { embed } from '@/lib/utils';
 import { PaymentReceiptEmail } from '@/emails';
 import { format } from 'date-fns';
 
@@ -102,8 +103,8 @@ export async function getPaymentRecipients(paymentId: string): Promise<{
   const coResidents: Recipient[] = [];
   const seenIds = new Set<string>();
 
-  (housemates || []).forEach((rh: any) => {
-    const r = rh.resident;
+  (housemates || []).forEach((rh) => {
+    const r = embed(rh.resident);
     if (r && r.email && !seenIds.has(r.id)) {
       seenIds.add(r.id);
       coResidents.push({
@@ -186,7 +187,7 @@ export async function sendPaymentReceiptEmail(
     };
   }
 
-  const resident = payment.resident as any;
+  const resident = embed(payment.resident);
   if (!resident) {
     return { success: false, error: 'Resident not found' };
   }
@@ -212,7 +213,7 @@ export async function sendPaymentReceiptEmail(
   // Get estate settings
   const estateSettings = await getEstateEmailSettings();
 
-  const house = payment.house as any;
+  const house = embed(payment.house);
   const receiptNumber = payment.reference_number || `RCP-${payment.id.slice(0, 8).toUpperCase()}`;
 
   // Format dates
@@ -240,7 +241,7 @@ export async function sendPaymentReceiptEmail(
       paymentDate: formatDate(payment.payment_date),
       paymentMethod: payment.method || undefined,
       houseNumber: house?.house_number,
-      streetName: house?.street?.name,
+      streetName: embed(house?.street)?.name,
       residentCode: resident.resident_code,
       periodStart: payment.period_start ? formatDate(payment.period_start) : undefined,
       periodEnd: payment.period_end ? formatDate(payment.period_end) : undefined,
