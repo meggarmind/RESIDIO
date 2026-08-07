@@ -103,6 +103,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.log('[AuthProvider] Satisfying initialization via onAuthStateChange');
             isInitialized.current = true;
             fetchProfile(newSession.user.id).finally(() => setIsLoading(false));
+          } else if (event === 'SIGNED_IN') {
+            // Race guard: the app can boot while logged out (Guest path sets
+            // isInitialized=true), then the user signs in on a later page.
+            // The guard above would skip the profile fetch entirely, leaving
+            // profile=null and permission-filtered UI (sidebar nav) empty until
+            // a manual reload. Always refresh the profile on a real sign-in.
+            console.log('[AuthProvider] Sign-in after guest init - fetching profile');
+            fetchProfile(newSession.user.id).finally(() => setIsLoading(false));
           }
         } else if (event === 'SIGNED_OUT') {
           setSession(null);
@@ -214,16 +222,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = useCallback(async (userId: string) => {
     // Fetch profile including resident_id for portal access
-    const { data: profileData, error: profileError } = await supabase
+    const { data: profileDataRaw, error: profileError } = await supabase
       .from('profiles')
       .select('id, email, full_name, role, role_id, resident_id')
       .eq('id', userId)
       .single();
+    let profileData = profileDataRaw;
 
     if (profileError) {
       console.error('Error fetching profile:', profileError);
 
-      // Fallback: Try to construct profile from user metadata if DB fails
+      // Fallback: Try to construct profile from user metadata if DB fails.
+      // Do NOT return early here - continue into the shared role/RBAC resolution
+      // below so users without a profiles row (or with a transient fetch error)
+      // still get their role permissions resolved.
       console.log('[AuthProvider] Attempting value fallback from user metadata...');
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -244,9 +256,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn('[AuthProvider] Using fallback profile:', fallbackProfile);
         setProfile(fallbackProfile);
         setCachedProfile(fallbackProfile);
+        profileData = fallbackProfile;
+      } else {
+        return;
       }
-      return;
     }
+
+    // Guard: after the fallback branch we must have a usable profile to resolve
+    // role/RBAC against; bail out otherwise rather than crashing.
+    if (!profileData) return;
 
     // Fetch role details and permissions
     let appRole: { id: string; name: string; display_name: string } | null = null;

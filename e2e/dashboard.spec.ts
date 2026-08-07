@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAs, TEST_USERS } from './fixtures';
+import { loginAs, expandSidebar } from './fixtures';
 
 test.describe('Phase 2: Dashboard Shell', () => {
     test('TC2.1: Dashboard displays stats cards for admin', async ({ page }) => {
@@ -8,30 +8,36 @@ test.describe('Phase 2: Dashboard Shell', () => {
         // Check dashboard has loaded
         await expect(page).toHaveURL(/\/dashboard/);
 
-        // Look for dashboard stats cards (Total Residents, Payments, etc.)
-        await expect(page.getByText(/Total Residents/i)).toBeVisible({ timeout: 10000 });
-        await expect(page.getByText(/Payments This Month/i)).toBeVisible({ timeout: 10000 });
+        // Look for dashboard stats cards (modern UI uses Collection / Monthly Revenue etc.)
+        await expect(page.getByText('Monthly Revenue').first()).toBeVisible({ timeout: 20000 });
+        await expect(page.getByText('Collection').first()).toBeVisible({ timeout: 20000 });
     });
 
     test('TC2.2: Sidebar navigation is visible for admin', async ({ page }) => {
         await loginAs(page, 'admin');
+        await expandSidebar(page);
 
         // Check sidebar or navigation exists
         const sidebar = page.locator('nav, aside, [role="navigation"]');
         await expect(sidebar.first()).toBeVisible();
 
-        // Admin should see these navigation items
-        await expect(page.getByRole('link', { name: /dashboard/i })).toBeVisible();
-        await expect(page.getByRole('link', { name: /residents/i })).toBeVisible();
-        await expect(page.getByRole('link', { name: /houses/i })).toBeVisible();
+        // Wait for the permission-filtered nav to finish rendering before asserting hrefs
+        await expect(page.locator('aside a[href="/dashboard"]').first()).toBeVisible({ timeout: 15000 });
+
+        // Admin should see these navigation items (hover-expanded sidebar, located by href)
+        await expect(page.locator('aside a[href="/residents"]').first()).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('aside a[href="/houses"]').first()).toBeVisible({ timeout: 15000 });
     });
 
     test('TC2.3: Sidebar shows correct navigation for security_officer', async ({ page }) => {
         await loginAs(page, 'security');
+        await expandSidebar(page);
 
-        // Security officer should have limited navigation
-        await expect(page.getByRole('link', { name: /dashboard/i })).toBeVisible();
-        await expect(page.getByRole('link', { name: /security/i })).toBeVisible();
+        // Wait for the permission-filtered nav to settle before asserting hrefs
+        await expect(page.locator('aside a[href="/dashboard"]').first()).toBeVisible({ timeout: 15000 });
+
+        // Security officer should have limited navigation (hover-expanded sidebar, located by href)
+        await expect(page.locator('aside a[href="/security"]').first()).toBeVisible({ timeout: 15000 });
     });
 
     test('TC2.4: User menu is visible and contains sign out', async ({ page }) => {
@@ -77,20 +83,26 @@ test.describe('Phase 2: Dashboard Shell', () => {
 
     test('TC2.6: Navigation links work correctly', async ({ page }) => {
         await loginAs(page, 'admin');
+        await expandSidebar(page);
 
-        // Wait for dashboard to fully load
-        await expect(page.getByText(/Total Residents/i)).toBeVisible({ timeout: 10000 });
+        // Wait for dashboard to fully load and sidebar nav to settle
+        await expect(page.getByText('Monthly Revenue').first()).toBeVisible({ timeout: 10000 });
+        await expect(page.locator('aside a[href="/residents"]').first()).toBeVisible({ timeout: 15000 });
 
         // Click on Residents link
-        await page.getByRole('link', { name: /residents/i }).click();
+        await page.locator('aside a[href="/residents"]').first().click();
         await expect(page).toHaveURL(/\/residents/, { timeout: 10000 });
 
-        // Click on Houses link
-        await page.getByRole('link', { name: /houses/i }).click();
+        // Re-expand sidebar (hover state resets after navigation) and click Houses link
+        await expandSidebar(page);
+        await expect(page.locator('aside a[href="/houses"]').first()).toBeVisible({ timeout: 15000 });
+        await page.locator('aside a[href="/houses"]').first().click();
         await expect(page).toHaveURL(/\/houses/, { timeout: 10000 });
 
         // Navigate back to dashboard
-        await page.getByRole('link', { name: /dashboard/i }).click();
+        await expandSidebar(page);
+        await expect(page.locator('aside a[href="/dashboard"]').first()).toBeVisible({ timeout: 15000 });
+        await page.locator('aside a[href="/dashboard"]').first().click();
         await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
     });
 });

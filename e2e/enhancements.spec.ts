@@ -92,8 +92,14 @@ test.describe('Phase 4: Enhancements', () => {
             await page.waitForLoadState('networkidle');
             await expect(page.locator('main, [role="main"]')).toBeVisible({ timeout: 10000 });
 
+            // Settings nav groups are collapsible and start closed; open "Billing & Finance" first
+            const billingGroup = page.getByRole('button', { name: /billing.*finance/i });
+            await billingGroup.first().waitFor({ timeout: 10000 });
+            if (await billingGroup.first().getAttribute('aria-expanded') !== 'true') {
+                await billingGroup.first().click();
+            }
+
             // Look for billing link in settings nav (not the main sidebar) - link text is "Billing Profiles"
-            // Use specific href to avoid matching the main sidebar /billing link
             await expect(
                 page.locator('a[href="/settings/billing"]')
             ).toBeVisible({ timeout: 10000 });
@@ -101,6 +107,14 @@ test.describe('Phase 4: Enhancements', () => {
 
         test('TC4.10: Settings navigation contains streets link', async ({ page }) => {
             await page.goto('/settings');
+            await page.waitForLoadState('networkidle');
+
+            // Settings nav groups are collapsible and start closed; open "Estate Configuration" first
+            const estateGroup = page.getByRole('button', { name: /estate configuration/i });
+            await estateGroup.first().waitFor({ timeout: 10000 });
+            if (await estateGroup.first().getAttribute('aria-expanded') !== 'true') {
+                await estateGroup.first().click();
+            }
 
             // Look for streets link in settings (references was split into separate pages)
             await expect(

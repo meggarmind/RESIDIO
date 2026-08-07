@@ -23,8 +23,8 @@ test.describe('Phase 3: Resident & House Management', () => {
             // Wait for table to load first
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
-            // Click on "Add House" button specifically
-            const addButton = page.getByRole('button', { name: /add house/i });
+            // Click on "Add House" button specifically (modern UI labels it "Add")
+            const addButton = page.getByRole('button', { name: /^add$/i });
             await addButton.click();
 
             // Should be on new house page
@@ -162,10 +162,10 @@ test.describe('Phase 3: Resident & House Management', () => {
             // Wait for houses table to load
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
-            // Click on first house row to view details
-            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
-            if (await firstHouseRow.count() > 0) {
-                await firstHouseRow.click();
+            // Click on first house row to view details (rows navigate via the view icon link, not row-click)
+            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await houseRow.count() > 0) {
+                await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
 
                 // Should navigate to house detail page
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
@@ -183,9 +183,9 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row
-            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
-            if (await firstHouseRow.count() > 0) {
-                await firstHouseRow.click();
+            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await houseRow.count() > 0) {
+                await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
 
                 // Look for remove/trash button in residents list
@@ -207,9 +207,9 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row
-            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
-            if (await firstHouseRow.count() > 0) {
-                await firstHouseRow.click();
+            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await houseRow.count() > 0) {
+                await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
 
                 // Find remove button for secondary resident
@@ -242,9 +242,9 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row
-            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
-            if (await firstHouseRow.count() > 0) {
-                await firstHouseRow.click();
+            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await houseRow.count() > 0) {
+                await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
 
                 // Count residents before
@@ -280,9 +280,9 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row
-            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
-            if (await firstHouseRow.count() > 0) {
-                await firstHouseRow.click();
+            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await houseRow.count() > 0) {
+                await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
 
                 // Look for tenant with Move Out button
@@ -303,9 +303,9 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row
-            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
-            if (await firstHouseRow.count() > 0) {
-                await firstHouseRow.click();
+            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await houseRow.count() > 0) {
+                await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
 
                 // Find Move Out button (for tenant - opens wizard)
@@ -329,9 +329,9 @@ test.describe('Phase 3: Resident & House Management', () => {
             await expect(page.locator('table, [role="table"]')).toBeVisible({ timeout: 10000 });
 
             // Click on first house row
-            const firstHouseRow = page.locator('table tbody tr, [role="row"]').first();
-            if (await firstHouseRow.count() > 0) {
-                await firstHouseRow.click();
+            const houseRow = page.locator('table tbody tr, [role="row"]').first();
+            if (await houseRow.count() > 0) {
+                await houseRow.locator('a[href^="/houses/"]:not([href*="edit"])').first().click();
                 await expect(page).toHaveURL(/\/houses\/[a-zA-Z0-9-]+/, { timeout: 10000 });
 
                 // Find Move Out button

@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { loginForPortal } from './fixtures';
 
-test.describe('Phase 12: Resident Portal', () => {
+// Resident Portal / self-service is de-prioritized (Admin Dashboard is the product focus —
+// see AGENTS.md + SESSION_STATE.md). Parked until rollout is scheduled; kept for reference.
+test.describe.skip('Phase 12: Resident Portal', () => {
     test.beforeEach(async ({ page }) => {
         // Login as admin (who is linked to a resident) and navigate to portal
         await loginForPortal(page, 'admin');

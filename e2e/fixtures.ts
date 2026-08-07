@@ -38,3 +38,12 @@ export async function loginForPortal(page: Page, userType: keyof typeof TEST_USE
         await page.waitForLoadState('networkidle');
     }
 }
+
+// The classic dashboard sidebar defaults to COLLAPSED (icon-only) on desktop; it only
+// reveals text labels while hovered (onMouseEnter => hover-expand). Call this before
+// asserting/clicking sidebar links, and again after each client-side navigation.
+export async function expandSidebar(page: Page) {
+    const aside = page.locator('aside').first();
+    await aside.hover();
+    await page.waitForTimeout(250);
+}
