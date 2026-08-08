@@ -29,59 +29,36 @@ const LayoutThemeContext = createContext<LayoutThemeContextType | undefined>(und
 const STORAGE_KEY = 'residio-layout-theme';
 
 export function LayoutThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<LayoutTheme>('auto');
-  const [mounted, setMounted] = useState(false);
-  const isDesktop = useIsDesktop();
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    setMounted(true);
+  const [theme, setThemeState] = useState<LayoutTheme>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY) as LayoutTheme | null;
-      if (stored && ['auto', 'compact', 'expanded'].includes(stored)) {
-        setThemeState(stored);
-      }
-    } catch {
-      // localStorage not available (SSR or privacy mode)
-    }
-  }, []);
+      if (stored && ['auto', 'compact', 'expanded'].includes(stored)) return stored;
+    } catch { /* SSR */ }
+    return 'auto';
+  });
+  const isDesktop = useIsDesktop();
 
   const setTheme = useCallback((newTheme: LayoutTheme) => {
     setThemeState(newTheme);
-    try {
-      localStorage.setItem(STORAGE_KEY, newTheme);
-    } catch {
-      // localStorage not available
-    }
+    try { localStorage.setItem(STORAGE_KEY, newTheme); } catch { /* SSR */ }
   }, []);
 
-  // Resolve effective theme based on preference and viewport
   const effectiveTheme = useMemo((): 'compact' | 'expanded' => {
-    if (theme === 'auto') {
-      return isDesktop ? 'expanded' : 'compact';
-    }
+    if (theme === 'auto') return isDesktop ? 'expanded' : 'compact';
     return theme;
   }, [theme, isDesktop]);
 
   const isExpanded = effectiveTheme === 'expanded';
 
-  // Apply class to document for CSS-based theming
+  // Apply class to document for CSS-based theming (external store write, not setState)
   useEffect(() => {
-    if (!mounted) return;
-
     document.documentElement.classList.remove('layout-compact', 'layout-expanded');
     document.documentElement.classList.add(`layout-${effectiveTheme}`);
-  }, [effectiveTheme, mounted]);
+  }, [effectiveTheme]);
 
-  // Prevent hydration mismatch by using consistent initial value
   const value = useMemo(
-    () => ({
-      theme,
-      effectiveTheme: mounted ? effectiveTheme : 'compact',
-      setTheme,
-      isExpanded: mounted ? isExpanded : false,
-    }),
-    [theme, effectiveTheme, setTheme, isExpanded, mounted]
+    () => ({ theme, effectiveTheme, setTheme, isExpanded }),
+    [theme, effectiveTheme, setTheme, isExpanded]
   );
 
   return (

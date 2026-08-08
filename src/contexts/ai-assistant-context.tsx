@@ -47,21 +47,18 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [isTyping, setIsTyping] = useState(false);
-    const [isDismissed, setIsDismissed] = useState(false);
+
+    // Load dismissal from localStorage via lazy initializer (no effect)
+    const [isDismissed, setIsDismissed] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('ai-assistant-dismissed') === 'true';
+        }
+        return false;
+    });
 
     // Suggestion state
     const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
     const [isSuggestionVisible, setIsSuggestionVisible] = useState(false);
-
-    // Load dismissal + disable state from localStorage on mount (no network)
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const dismissed = localStorage.getItem('ai-assistant-dismissed');
-            if (dismissed === 'true') {
-                setIsDismissed(true);
-            }
-        }
-    }, []);
 
     const disabledByAdmin = settings?.find(s => s.key === 'disable_ai_assistant')?.value === 'true';
     const estateName = settings?.find(s => s.key === 'estate_name')?.value as string || 'Estate';
@@ -70,12 +67,23 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
 
     const toggleOpen = useCallback(() => {
         setIsOpen(prev => {
-            if (!prev && !hasRequestedSettings) {
-                setHasRequestedSettings(true);
+            const opening = !prev;
+            if (opening) {
+                if (!hasRequestedSettings) setHasRequestedSettings(true);
+                // Add greeting on open if no messages yet
+                if (messages.length === 0 && profile) {
+                    const firstName = profile.full_name.split(' ')[0];
+                    setMessages([{
+                        id: 'greeting',
+                        text: `Hello ${firstName}! I am your ${assistantName}. How can I help you today?`,
+                        sender: 'assistant',
+                        timestamp: new Date(),
+                    }]);
+                }
             }
-            return !prev;
+            return opening;
         });
-    }, [hasRequestedSettings]);
+    }, [hasRequestedSettings, messages.length, profile, assistantName]);
 
     const dismissAssistant = useCallback(() => {
         setIsDismissed(true);
@@ -92,7 +100,7 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
         }
     }, []);
 
-    const showSuggestion = useCallback((text: string, action?: Suggestion['action']) => {
+    const showSuggestion = (text: string, action?: Suggestion['action']) => {
         if (isDismissed || isOpen || disabledByAdmin) return; // Don't show if disabled or chat open
 
         setSuggestion({ text, action });
@@ -102,7 +110,7 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
         setTimeout(() => {
             setIsSuggestionVisible(false);
         }, 8000);
-    }, [isDismissed, isOpen]);
+    };
 
     const dismissSuggestion = useCallback(() => {
         setIsSuggestionVisible(false);
@@ -135,20 +143,6 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
             setIsTyping(false);
         }, 1500);
     }, [estateName]);
-
-    // Initial greeting
-    useEffect(() => {
-        if (isOpen && messages.length === 0 && profile) {
-            const firstName = profile.full_name.split(' ')[0];
-            const greeting: Message = {
-                id: 'greeting',
-                text: `Hello ${firstName}! I am your ${assistantName}. How can I help you today?`,
-                sender: 'assistant',
-                timestamp: new Date(),
-            };
-            setMessages([greeting]);
-        }
-    }, [isOpen, messages.length, profile, assistantName]);
 
     return (
         <AiAssistantContext.Provider
