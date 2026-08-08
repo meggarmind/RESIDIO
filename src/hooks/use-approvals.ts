@@ -46,6 +46,7 @@ export function usePendingApprovalsCount() {
             if (result.error) throw new Error(result.error);
             return result.count;
         },
+        staleTime: 5 * 60 * 1000, // 5 minutes — sidebar data doesn't need instant refresh
         refetchInterval: POLLING_INTERVALS.STANDARD, // Refetch every minute
     });
 }

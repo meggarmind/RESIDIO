@@ -34,13 +34,16 @@ interface AiAssistantContextType {
     isSuggestionVisible: boolean;
     showSuggestion: (text: string, action?: Suggestion['action']) => void;
     dismissSuggestion: () => void;
+    disabledByAdmin: boolean;
 }
 
 const AiAssistantContext = createContext<AiAssistantContextType | undefined>(undefined);
 
 export function AiAssistantProvider({ children }: { children: React.ReactNode }) {
     const { profile } = useAuth();
-    const { data: settings } = useGeneralSettings();
+    // Lazy: only fetch settings when the assistant is first opened, not on mount
+    const [hasRequestedSettings, setHasRequestedSettings] = useState(false);
+    const { data: settings } = useGeneralSettings(hasRequestedSettings);
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [isTyping, setIsTyping] = useState(false);
@@ -50,7 +53,7 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
     const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
     const [isSuggestionVisible, setIsSuggestionVisible] = useState(false);
 
-    // Load dismissal state from localStorage
+    // Load dismissal + disable state from localStorage on mount (no network)
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const dismissed = localStorage.getItem('ai-assistant-dismissed');
@@ -60,13 +63,19 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
         }
     }, []);
 
+    const disabledByAdmin = settings?.find(s => s.key === 'disable_ai_assistant')?.value === 'true';
     const estateName = settings?.find(s => s.key === 'estate_name')?.value as string || 'Estate';
     const assistantNameSetting = settings?.find(s => s.key === 'assistant_name')?.value as string;
     const assistantName = assistantNameSetting || `${estateName} Assistant`;
 
     const toggleOpen = useCallback(() => {
-        setIsOpen(prev => !prev);
-    }, []);
+        setIsOpen(prev => {
+            if (!prev && !hasRequestedSettings) {
+                setHasRequestedSettings(true);
+            }
+            return !prev;
+        });
+    }, [hasRequestedSettings]);
 
     const dismissAssistant = useCallback(() => {
         setIsDismissed(true);
@@ -84,7 +93,7 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
     }, []);
 
     const showSuggestion = useCallback((text: string, action?: Suggestion['action']) => {
-        if (isDismissed || isOpen) return; // Don't show if disabled or if chat is already open
+        if (isDismissed || isOpen || disabledByAdmin) return; // Don't show if disabled or chat open
 
         setSuggestion({ text, action });
         setIsSuggestionVisible(true);
@@ -158,6 +167,7 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
                 isSuggestionVisible,
                 showSuggestion,
                 dismissSuggestion,
+                disabledByAdmin,
             }}
         >
             {children}

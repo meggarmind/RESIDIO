@@ -41,14 +41,16 @@ export function useBillingSettings() {
     });
 }
 
-export function useGeneralSettings() {
+export function useGeneralSettings(enabled = true) {
     return useQuery({
         queryKey: ['settings', 'general'],
         queryFn: async () => {
             const result = await getSettings('general');
             if (result.error) throw new Error(result.error);
             return result.data;
-        }
+        },
+        staleTime: 5 * 60 * 1000, // 5 minutes — settings rarely change; don't refetch on every nav
+        enabled,
     });
 }
 

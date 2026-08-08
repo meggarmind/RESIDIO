@@ -74,6 +74,7 @@ export default function DashboardPage() {
             </Suspense>
 
             {/* Top Stats Section */}
+            <Suspense fallback={<div className="grid gap-4 md:grid-cols-4"><Skeleton className="h-28 rounded-xl" /><Skeleton className="h-28 rounded-xl" /><Skeleton className="h-28 rounded-xl" /><Skeleton className="h-28 rounded-xl" /></div>}>
             <ModernStatsCards
                 financialHealth={stats?.financialHealth ?? null}
                 quickStats={stats?.quickStats ?? null}
@@ -81,38 +82,45 @@ export default function DashboardPage() {
                 suggestions={suggestions}
                 isLoading={isLoading}
             />
+            </Suspense>
 
-            {/* Main Content Grid: Triple Column Sharing Row (2:2 split) */}
+            {/* Main Content Grid: Financial Health + Unified Actions */}
             <div className="grid gap-6 lg:grid-cols-4">
-                {/* Column 1 & 2: Financial Health (50%) */}
                 <div className="lg:col-span-2">
+                    <Suspense fallback={<Skeleton className="h-64 rounded-xl" />}>
                     <ModernFinancialHealth
                         financialHealth={stats?.financialHealth ?? null}
                         isLoading={isLoading}
                     />
+                    </Suspense>
                 </div>
 
-                {/* Column 3 & 4: Unified Actions (50%) */}
                 <div className="lg:col-span-2">
+                    <Suspense fallback={<Skeleton className="h-64 rounded-xl" />}>
                     <UnifiedActionsCard
                         securityAlerts={stats?.securityAlerts ?? null}
                         quickStats={stats?.quickStats ?? null}
-                        unverifiedPaymentsCount={0} // TODO: Add this to backend stats
+                        unverifiedPaymentsCount={0}
                         isLoading={isLoading}
                     />
+                    </Suspense>
                 </div>
             </div>
 
             {/* Bottom Grid: Pending Payments & Recent Activity */}
             <div className="grid gap-6 lg:grid-cols-2">
+                <Suspense fallback={<Skeleton className="h-64 rounded-xl" />}>
                 <ModernPendingPayments
                     distribution={stats?.invoiceDistribution ?? null}
                     isLoading={isLoading}
                 />
+                </Suspense>
+                <Suspense fallback={<Skeleton className="h-64 rounded-xl" />}>
                 <ModernRecentActivity
                     activities={stats?.recentActivity ?? null}
                     isLoading={isLoading}
                 />
+                </Suspense>
             </div>
 
             {/* Last Updated */}

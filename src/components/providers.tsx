@@ -14,14 +14,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60 * 1000, // 1 minute - data considered fresh
-            gcTime: 5 * 60 * 1000, // 5 minutes - garbage collection time
+            staleTime: 5 * 60 * 1000, // 5 minutes — data stays fresh across navigations
+            gcTime: 10 * 60 * 1000,   // 10 minutes — garbage collection
             refetchOnWindowFocus: false,
-            // PERFORMANCE: Prevent unnecessary refetches during page navigation
-            refetchOnMount: false, // Don't refetch if data exists (use staleTime to determine freshness)
-            refetchOnReconnect: false, // Don't refetch when network reconnects
-            retry: 1, // Only retry once on failure
-            retryDelay: 1000, // Wait 1 second before retry
+            refetchOnMount: false,     // Don't refetch on mount if data is still fresh
+            refetchOnReconnect: false,
+            retry: 1,
+            retryDelay: 1000,
           },
         },
       })
