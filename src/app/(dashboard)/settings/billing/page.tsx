@@ -212,6 +212,40 @@ export default function BillingSettingsPage() {
 
                         <div className="flex items-center justify-between">
                             <div className="space-y-0.5">
+                                <Label htmlFor="bill_under_renovation_houses">Bill Houses Under Renovation</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Bill non-resident landlords for properties under renovation
+                                </p>
+                            </div>
+                            <Switch
+                                id="bill_under_renovation_houses"
+                                checked={settingsMap.bill_under_renovation_houses === true}
+                                onCheckedChange={() => handleSettingToggle('bill_under_renovation_houses', settingsMap.bill_under_renovation_houses === true)}
+                                disabled={updateSettingMutation.isPending}
+                            />
+                        </div>
+
+                        <Separator />
+
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
+                                <Label htmlFor="bill_under_construction_houses">Bill Houses Under Construction</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Bill non-resident landlords for properties under construction
+                                </p>
+                            </div>
+                            <Switch
+                                id="bill_under_construction_houses"
+                                checked={settingsMap.bill_under_construction_houses === true}
+                                onCheckedChange={() => handleSettingToggle('bill_under_construction_houses', settingsMap.bill_under_construction_houses === true)}
+                                disabled={updateSettingMutation.isPending}
+                            />
+                        </div>
+
+                        <Separator />
+
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-0.5">
                                 <Label htmlFor="auto_generate_levies">Auto-Generate Levies</Label>
                                 <p className="text-sm text-muted-foreground">
                                     Automatically generate one-time levies when a house is created

@@ -24,7 +24,7 @@ import { NotesTimeline } from '@/components/notes';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell, StickyNote } from 'lucide-react';
+import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell, StickyNote, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ResidentDetailPageProps {
@@ -189,6 +189,10 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
             <Shield className="h-4 w-4 mr-1" />
             Security
           </TabsTrigger>
+          <TabsTrigger value="emergency">
+            <AlertCircle className="h-4 w-4 mr-1" />
+            Emergency
+          </TabsTrigger>
           <TabsTrigger value="notifications">
             <Bell className="h-4 w-4 mr-1" />
             Notifications
@@ -272,11 +276,47 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
             {/* Cross-Property Payment Summary */}
             <CrossPropertyPaymentSummary residentId={id} />
 
-            {/* Emergency Contact */}
-            {(resident.emergency_contact_name || resident.emergency_contact_phone || resident.emergency_contact_resident) && (
+            {/* Notes */}
+            {resident.notes && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Emergency Contact</CardTitle>
+                  <CardTitle>Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm">{resident.notes}</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Wallet Transactions */}
+          <WalletTransactions residentId={id} />
+        </TabsContent>
+
+        <TabsContent value="payments" className="mt-6">
+          <ResidentPayments residentId={id} />
+        </TabsContent>
+
+        <TabsContent value="aliases" className="mt-6">
+          <PaymentAliases
+            residentId={id}
+            residentName={`${resident.first_name} ${resident.last_name}`}
+          />
+        </TabsContent>
+
+        <TabsContent value="security" className="mt-6">
+          <ResidentSecurityContacts residentId={id} />
+        </TabsContent>
+
+        <TabsContent value="emergency" className="mt-6">
+          <div className="max-w-2xl">
+            {resident.emergency_contact_name || resident.emergency_contact_phone || resident.emergency_contact_resident ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5" />
+                    Emergency Contact
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {resident.emergency_contact_resident ? (
@@ -332,38 +372,16 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
                   )}
                 </CardContent>
               </Card>
-            )}
-
-            {/* Notes */}
-            {resident.notes && (
+            ) : (
               <Card>
-                <CardHeader>
-                  <CardTitle>Notes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm">{resident.notes}</p>
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-40" />
+                  <p className="font-medium">No emergency contact on file</p>
+                  <p className="text-sm mt-1">An emergency contact can be added from the Edit Resident form.</p>
                 </CardContent>
               </Card>
             )}
           </div>
-
-          {/* Wallet Transactions */}
-          <WalletTransactions residentId={id} />
-        </TabsContent>
-
-        <TabsContent value="payments" className="mt-6">
-          <ResidentPayments residentId={id} />
-        </TabsContent>
-
-        <TabsContent value="aliases" className="mt-6">
-          <PaymentAliases
-            residentId={id}
-            residentName={`${resident.first_name} ${resident.last_name}`}
-          />
-        </TabsContent>
-
-        <TabsContent value="security" className="mt-6">
-          <ResidentSecurityContacts residentId={id} />
         </TabsContent>
 
         <TabsContent value="notifications" className="mt-6">

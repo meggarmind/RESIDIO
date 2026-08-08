@@ -11,6 +11,7 @@ export const houseFormSchema = z.object({
   date_added_to_portal: z.string().optional(), // Date house was added to Residio (defaults to today)
   billing_profile_id: z.string().uuid().optional().nullable().or(z.literal('')), // Override billing profile from house type
   number_of_plots: z.number().int().min(1, 'Must have at least 1 plot'), // Number of plots (for Development Levy)
+  property_status: z.enum(['occupied', 'vacant', 'under_renovation', 'under_construction']).optional(),
 });
 
 export type HouseFormData = z.infer<typeof houseFormSchema>;
@@ -41,6 +42,7 @@ export const houseSearchSchema = z.object({
   street_id: z.string().uuid().optional(),
   house_type_id: z.string().uuid().optional(),
   is_occupied: z.boolean().optional(),
+  property_status: z.enum(['occupied', 'vacant', 'under_renovation', 'under_construction']).optional(),
   page: z.number().min(1).default(1),
   limit: z.number().min(1).max(100).default(20),
 });

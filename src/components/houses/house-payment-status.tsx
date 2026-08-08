@@ -223,19 +223,19 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
         {/* Invoice Status Breakdown */}
         <div className="flex flex-wrap gap-2">
           {status.paidCount > 0 && (
-            <Badge variant="success" className="gap-1">
+            <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border-transparent">
               <CheckCircle2 className="h-3 w-3" />
               {status.paidCount} Paid
             </Badge>
           )}
           {status.partiallyPaidCount > 0 && (
-            <Badge variant="warning" className="gap-1">
+            <Badge className="gap-1 bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 border-transparent">
               <Clock className="h-3 w-3" />
               {status.partiallyPaidCount} Partial
             </Badge>
           )}
           {status.unpaidCount > 0 && (
-            <Badge variant="secondary" className="gap-1">
+            <Badge className="gap-1 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent">
               <AlertCircle className="h-3 w-3" />
               {status.unpaidCount} Unpaid
             </Badge>
@@ -326,7 +326,7 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
                         <p className="text-xs text-muted-foreground">outstanding</p>
                       </>
                     ) : (
-                      <Badge variant="success" className="text-xs">
+                      <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 border-transparent">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         Paid
                       </Badge>
