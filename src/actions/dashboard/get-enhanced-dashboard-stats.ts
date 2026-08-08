@@ -468,7 +468,7 @@ async function fetchSecurityAlerts(
     // We fetch a bit more for formatting, but we need the count of distinct contacts
     const { count: expiringContactsCount } = await supabase
         .from('security_contacts')
-        .select('id', { count: 'exact', head: true })
+        .select('id, access_codes!inner(id)', { count: 'exact', head: true })
         .eq('status', 'active')
         .eq('access_codes.is_active', true)
         .not('access_codes.valid_until', 'is', null)
