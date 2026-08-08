@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { embed } from '@/lib/utils';
 import type {
   ApprovalRequest,
   ApprovalRequestWithDetails,
@@ -146,7 +147,7 @@ export async function getApprovalRequests(params: {
           .single();
 
         if (payment) {
-          const res = payment.resident as any;
+          const res = embed(payment.resident);
           entity_name = `₦${payment.amount.toLocaleString()} - ${res?.first_name} ${res?.last_name}`;
         } else {
           entity_name = 'Deleted Payment';

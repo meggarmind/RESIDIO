@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { embed } from '@/lib/utils';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { InAppNotification } from '@/types/database';
@@ -150,7 +151,7 @@ export async function createNotificationsForHouses(
 
   // Get unique profile IDs
   const uniqueProfileIds = [...new Set(residents
-    .map((r: any) => r.residents?.profile_id)
+    .map((r) => embed(r.residents)?.profile_id)
     .filter(Boolean)
   )] as string[];
 

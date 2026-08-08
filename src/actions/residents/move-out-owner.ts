@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
+import { embed } from '@/lib/utils';
 import { revalidatePath } from 'next/cache';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -215,7 +216,7 @@ export async function initiateOwnerMoveOut(
 
     // Create clearance certificate
     const certificateNumber = generateCertificateNumber();
-    const houseAddress = `${house.short_name || house.house_number}, ${(house.street as any)?.name || ''}`;
+    const houseAddress = `${house.short_name || house.house_number}, ${embed(house.street)?.name || ''}`;
 
     const certificate: OwnerClearanceCertificate = {
         id: crypto.randomUUID(),

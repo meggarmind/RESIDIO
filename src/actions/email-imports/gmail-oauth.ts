@@ -287,7 +287,7 @@ export async function updateGmailSyncStatus(params: {
 // Update Sync Criteria
 // ============================================================
 
-export async function updateSyncCriteria(criteria: any): Promise<{ error: string | null }> {
+export async function updateSyncCriteria(criteria: Record<string, unknown>): Promise<{ error: string | null }> {
   // Check permission
   const auth = await authorizePermission(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
   if (!auth.authorized) {

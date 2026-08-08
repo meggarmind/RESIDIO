@@ -328,7 +328,7 @@ export async function manualMatchRow(params: ManualMatchParams): Promise<ManualM
   }
 
   // Determine assignment values (ensure mutual exclusivity)
-  const updateData: any = {
+  const updateData: Record<string, unknown> = {
     match_confidence: 'manual',
     match_method: 'manual',
     status: 'matched',

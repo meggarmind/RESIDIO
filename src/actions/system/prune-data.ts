@@ -87,8 +87,8 @@ export async function pruneSystemData() {
         });
 
         return { data: results, error: null };
-    } catch (error: any) {
+    } catch (error) {
         console.error('Prune data error:', error);
-        return { data: null, error: error.message };
+        return { data: null, error: error instanceof Error ? error.message : String(error) };
     }
 }

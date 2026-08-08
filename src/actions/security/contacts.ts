@@ -329,7 +329,7 @@ export async function updateSecurityContact(
   }
 
   // Build update object (only include non-empty fields)
-  const updateObject: Record<string, any> = {};
+  const updateObject: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(updateData)) {
     if (value !== undefined && value !== '') {
       updateObject[key] = value;

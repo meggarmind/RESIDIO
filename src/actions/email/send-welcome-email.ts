@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
+import { embed } from '@/lib/utils';
 import { getSettingValue } from '@/actions/settings/get-settings';
 import { WelcomeResidentEmail } from '@/emails';
 
@@ -55,7 +56,7 @@ export async function sendWelcomeEmail(residentId: string): Promise<SendWelcomeE
   const estateSettings = await getEstateEmailSettings();
 
   // Get first house info if available
-  const firstHouse = (resident.resident_houses as any)?.[0]?.house;
+  const firstHouse = embed(embed(resident.resident_houses)?.house);
 
   const result = await sendEmail({
     to: {
@@ -68,7 +69,7 @@ export async function sendWelcomeEmail(residentId: string): Promise<SendWelcomeE
       residentName: `${resident.first_name} ${resident.last_name}`,
       residentCode: resident.resident_code,
       houseNumber: firstHouse?.house_number,
-      streetName: firstHouse?.street?.name,
+      streetName: embed(firstHouse?.street)?.name,
       ...estateSettings,
     }),
     emailType: 'welcome',

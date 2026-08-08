@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { embed } from '@/lib/utils';
 
 export interface ResidentPropertyForPayment {
   houseId: string;
@@ -87,7 +88,7 @@ export async function getResidentPropertiesForPayment(
     if (seenHouseIds.has(rh.house_id)) return;
     seenHouseIds.add(rh.house_id);
 
-    const house = rh.house as any;
+    const house = embed(rh.house);
     if (!house) return;
 
     const outstanding = houseOutstanding.get(rh.house_id) || { amount: 0, count: 0 };
@@ -96,7 +97,7 @@ export async function getResidentPropertiesForPayment(
     properties.push({
       houseId: rh.house_id,
       houseNumber: house.house_number,
-      streetName: house.street?.name || 'Unknown Street',
+      streetName: embed(house.street)?.name || 'Unknown Street',
       isCurrent,
       outstandingAmount: outstanding.amount,
       unpaidInvoiceCount: outstanding.count,

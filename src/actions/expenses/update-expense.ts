@@ -29,7 +29,7 @@ export async function updateExpenseStatus(expenseId: string, status: ExpenseStat
     }
 
     // Prepare update data
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
         status,
         updated_at: new Date().toISOString(),
     };

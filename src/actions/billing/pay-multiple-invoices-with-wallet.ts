@@ -156,7 +156,7 @@ export async function payMultipleInvoicesWithWallet(
             error: null
         };
 
-    } catch (error: any) {
+    } catch (error) {
         // Attempt Rollback (Wallet only for now)
         await supabase
             .from('resident_wallets')
@@ -171,7 +171,7 @@ export async function payMultipleInvoicesWithWallet(
             totalPaid: 0,
             newWalletBalance: initialWalletBalance,
             countPaid: paidInvoiceIds.length,
-            error: error.message || 'Bulk payment failed'
+            error: error instanceof Error ? error.message : String(error) || 'Bulk payment failed'
         };
     }
 }

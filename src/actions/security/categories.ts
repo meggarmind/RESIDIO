@@ -93,7 +93,7 @@ export async function updateSecurityContactCategory(
   }
 
   // Build update object (only include non-undefined fields)
-  const updateObject: Record<string, any> = {};
+  const updateObject: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(updateData)) {
     if (value !== undefined) {
       updateObject[key] = value === '' ? null : value;
