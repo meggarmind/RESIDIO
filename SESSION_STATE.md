@@ -20,7 +20,8 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 | Build | **`npm run build` GREEN (exit 0)** — first time; 39 page-groups, dashboard + api dynamic. `npx tsc --noEmit` clean (was 22 errors/7 files). |
 | Lint | `npm run lint`: **323 errors / 489 warnings** (down from 351). Cleared safe buckets: RHF/ts fixes + static-prerender opts (`00d3ef9`); low-risk batch — empty-type→alias, `require()`→ESM, `<a>`→`<Link>`, typographic quotes in admin copy (`575220c`). Remaining 323 = mostly `no-unused-vars` + `no-explicit-any` (237); 18 `no-unescaped` resident-portal (out of scope). |
 | Integration coverage | `module-integration.test.ts` passes. Fixed real gaps (permission+audit) for `system/prune-data`, `personnel/actions`, `projects/create-project`, `expenses/create+update`, `finance/petty-cash`, `finance/manual-verification`. Allowed `vendors`/`projects` as audit entity types. Recipient-facing/cron/webhook/auth flows (payments, billing wallet-pay, paystack init/verify/webhook, email-imports, 2FA login) are allowlisted with rationale — they cannot take an admin RBAC `authorizePermission` guard. Note: this test reports "70 permission / 51 audit gaps" but PASSES — gap summary includes allowlisted-but-still-missing entries, not a failure signal. |
-| Known debt | **Build blocker cleared.** Build/tsc green. Lint debt remains: ~323 errors, dominated by `@typescript-eslint/no-explicit-any` (237) and `no-unused-vars` (443 incl warnings). These are the "bigger refactor" paused pending user direction. |
+| Lint | `npm run lint`: **142 errors / ~480 warnings** (from 323). `no-explicit-any`: 237 → ~40 (admin). `ban-ts-comment`: 9 → 2. `react-hooks/set-state-in-effect`: 38 → 36 (compiler rule; can't suppress). `no-unescaped-entities`: 18 → 15 (mostly portal). Remaining `any`s are a long tail (1 per file across ~30 admin files). |
+| Perf | `force-dynamic` removed from dashboard layout. React Query staleTime: 1min → 5min. Sidebar hooks + AI assistant cached. `loading.tsx` shell skeleton created. Suspense boundaries on dashboard cards. Build green, tsc 0, Vitest 16/16. |
 
 ---
 
@@ -84,9 +85,8 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 
 ## Next steps (suggested priority)
 
-0. **Product focus (set):** Admin Dashboard only. No self-service/portal rollout.
-1. **Lint debt (user chose low-risk-first; big refactors paused).** Easy admin edits done. Remaining 323 errors = `no-explicit-any` (237) + `no-unused-vars` (~many) + 18 `no-unescaped-entities` but only in resident-portal (de-prioritized) + 9 `ban-ts-comment` + 1 `rules-of-hooks`. Decide whether to grind the `any`/`unused-vars` refactor (high-value, high-churn).
-2. **E2E is now green-ish (48/8/5).** Re-run `npm run test:e2e` to confirm the hardened `loginAs` clears the remaining mid-run timing flakes; if a genuine failure surfaces, fix the assertion/data not the harness. (Requires Cloud Supabase, seeded per `supabase/seed.sql`.)
-3. **Lint debt** (user chose low-risk-first; big refactors paused). Remaining ~323 errors = `no-explicit-any` (237) + `no-unused-vars` + 18 `no-unescaped-entities` (resident-portal, de-prioritized) + 9 `ban-ts-comment` + 1 `rules-of-hooks`. Decide whether to grind the `any`/`unused-vars` refactor.
-4. Update `README.md` (still default `create-next-app` boilerplate; reflect Windows/Node/cloud Supabase).
+1. **Performance Phase 6 (Medium + Large items).** See `ACTIONPLAN.md` Phase 6 — items 6a–6j. Priority: (6a) split dashboard stats into per-card queries so Suspense borders actually stream, (6b) reduce middleware DB queries, (6c) bundle-split framer-motion/recharts via `next/dynamic`.
+2. **Lint long tail.** ~40 remaining `any` errors spread across ~30 admin files (1 each — mechanical). The `react-hooks/set-state-in-effect` bucket (36 errors, 30 files) requires real React refactors (can't suppress via comments).
+3. **README.md** — still default `create-next-app` boilerplate.
+4. **E2E** — gated on prod import (test data removed). Re-run `npm run test:e2e` after import completes.
 5. **UI/UX Phases 4 & 5 complete.** See `ACTIONPLAN.md`. Layout consistency (spacing, headers, card variants), form standardization, accessibility (aria-labels, keyboard nav, OKLCH contrast fix). Remaining: 4d (responsive — needs browser) and 5d (screen reader — needs browser).

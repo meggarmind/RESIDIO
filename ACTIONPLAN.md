@@ -68,6 +68,36 @@ This phase merges the PDF import final steps with the payment flow UI improvemen
 
 ---
 
+## Phase 6: Performance Optimization ⏳ PLANNED
+
+Based on the 2026-08-08 performance audit. Quick wins implemented; remaining work below.
+
+### Quick Wins ✅ COMPLETE
+
+- [x] Remove blanket `force-dynamic` from `(dashboard)/layout.tsx` — all admin pages now static-pre-renderable
+- [x] Raise React Query defaults: `staleTime` 1min → 5min
+- [x] Add `staleTime: 5min` to `usePendingApprovalsCount` + `useGeneralSettings` (sidebar hooks)
+- [x] Lazy-load AI assistant settings on first open (not mount); add `disable_ai_assistant` setting
+- [x] Create `(dashboard)/loading.tsx` shell skeleton (no more blank-screen transitions)
+- [x] Add `<Suspense>` boundaries around dashboard card groups
+
+### Medium Effort ⏳ PENDING
+
+- [ ] **Dashboard data fetching overhaul:** Replace `fetchFinancialHealth` row-level fetch with aggregate SQL (SUM/COUNT). Split `getEnhancedDashboardStats` into per-card queries so `<Suspense>` boundaries actually stream. Add `staleTime: 5min` to the dashboard hook.
+- [ ] **Middleware DB query reduction:** Move `profiles` + `role_permissions` queries into `Promise.all` with auth check. Consider caching `role_id` in session JWT metadata (avoid 2-4 DB roundtrips per request).
+- [ ] **Add `Suspense` + `loading.tsx` to remaining route groups:** `/payments`, `/residents`, `/houses` — each block on their respective data queries with no fallback.
+
+### Larger Investment ⏳ PENDING
+
+- [ ] **Bundle splitting:** `next/dynamic` + `ssr: false` for `framer-motion` (~130KB) and `recharts` (~500KB) chart components. Lazy-load heavy admin dialogs (log-expense, personnel, etc.).
+- [ ] **Per-query caching config:** Audit all `useQuery` hooks and add domain-appropriate `staleTime` values (list data 30-60s, config data 5min, dashboard 5min).
+- [ ] **Monthly trend aggregation:** Replace `fetchMonthlyTrends`'s 12 parallel queries with a cron-updated materialized view / aggregation table (`dashboard_monthly_summaries`).
+- [ ] **`window.location.reload()` → React Query invalidation** in error recovery paths.
+
+### Change Log (Performance)
+
+- 2026-08-08: Performance audit completed; Quick Wins implemented. Medium/Large items added to backlog.
+
 ## Change Log
 
 - 2026-01-08: Initialized UI/UX Review Phases from frontend-developer agent review.
