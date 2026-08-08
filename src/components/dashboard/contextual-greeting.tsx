@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Sun, Moon, Cloud, Bell, User } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
 
 interface ContextualGreetingProps {
     name: string;
@@ -20,30 +19,10 @@ const MOCK_ALERTS = [
 ];
 
 export function ContextualGreeting({ name, className }: ContextualGreetingProps) {
-    const [mounted, setMounted] = useState(false);
-    const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>('morning');
-    const [primaryAlert, setPrimaryAlert] = useState(MOCK_ALERTS[0]);
+    const [primaryAlert] = useState(() => MOCK_ALERTS[Math.floor(Math.random() * MOCK_ALERTS.length)]);
 
-    useEffect(() => {
-        setMounted(true);
-        const hour = new Date().getHours();
-        if (hour < 12) setTimeOfDay('morning');
-        else if (hour < 17) setTimeOfDay('afternoon');
-        else setTimeOfDay('evening');
-
-        // Randomly select an alert for demo purposes
-        // In real app, this would prioritize critical alerts
-        setPrimaryAlert(MOCK_ALERTS[Math.floor(Math.random() * MOCK_ALERTS.length)]);
-    }, []);
-
-    if (!mounted) {
-        return (
-            <div className={cn('space-y-2', className)}>
-                <Skeleton className="h-8 w-64" />
-                <Skeleton className="h-5 w-48" />
-            </div>
-        );
-    }
+    const hour = new Date().getHours();
+    const timeOfDay: TimeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
 
     const greeting = {
         morning: 'Good morning',

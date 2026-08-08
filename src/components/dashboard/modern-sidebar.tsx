@@ -47,18 +47,13 @@ export function ModernSidebar({ className }: ModernSidebarProps) {
   const { logoUrl } = useEstateLogo();
 
   // Collapsible state - persisted in sessionStorage
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    try { return sessionStorage.getItem('modern-sidebar-collapsed') === 'true'; }
+    catch { return false; }
+  });
 
   // Expandable submenu state
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
-
-  // Load collapsed state from sessionStorage
-  useEffect(() => {
-    const saved = sessionStorage.getItem('modern-sidebar-collapsed');
-    if (saved === 'true') {
-      setIsCollapsed(true);
-    }
-  }, []);
 
   // Toggle collapse state
   const toggleCollapse = () => {
