@@ -1,44 +1,24 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore, useCallback } from 'react';
 
-/**
- * Custom hook for responsive design - detects if viewport matches a media query
- *
- * @param query - CSS media query string (e.g., '(min-width: 768px)')
- * @returns boolean indicating if the media query matches
- *
- * @example
- * const isDesktop = useMediaQuery('(min-width: 768px)');
- * const isLargeScreen = useMediaQuery('(min-width: 1024px)');
- */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
+  const subscribe = useCallback(
+    (callback: () => void) => {
+      if (typeof window === 'undefined') return () => {};
+      const mq = window.matchMedia(query);
+      mq.addEventListener('change', callback);
+      return () => mq.removeEventListener('change', callback);
+    },
+    [query]
+  );
 
-  useEffect(() => {
-    // Check if window is available (SSR safety)
-    if (typeof window === 'undefined') return;
-
-    const mediaQuery = window.matchMedia(query);
-
-    // Set initial value
-    setMatches(mediaQuery.matches);
-
-    // Handler for changes
-    const handleChange = (event: MediaQueryListEvent) => {
-      setMatches(event.matches);
-    };
-
-    // Add listener
-    mediaQuery.addEventListener('change', handleChange);
-
-    // Cleanup
-    return () => {
-      mediaQuery.removeEventListener('change', handleChange);
-    };
+  const getSnapshot = useCallback(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia(query).matches;
   }, [query]);
 
-  return matches;
+  return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }
 
 /**

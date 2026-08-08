@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export interface RecentSearch {
     id: string;
@@ -12,37 +12,26 @@ export interface RecentSearch {
 const MAX_RECENT_SEARCHES = 5;
 const STORAGE_KEY = 'residio-recent-searches';
 
-export function useRecentSearches() {
-    const [searches, setSearches] = useState<RecentSearch[]>([]);
-    const [isMounted, setIsMounted] = useState(false);
-
-    useEffect(() => {
-        setIsMounted(true);
+function loadStoredSearches(): RecentSearch[] {
+    try {
         const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            try {
-                setSearches(JSON.parse(stored));
-            } catch (e) {
-                console.error('Failed to parse recent searches', e);
-            }
-        }
-    }, []);
+        if (stored) return JSON.parse(stored);
+    } catch { /* ignore */ }
+    return [];
+}
+
+export function useRecentSearches() {
+    const [searches, setSearches] = useState<RecentSearch[]>(loadStoredSearches);
 
     const addSearch = (search: Omit<RecentSearch, 'id' | 'timestamp'>) => {
         setSearches((prev) => {
-            // Create new search item
             const newSearch = {
                 ...search,
                 id: crypto.randomUUID(),
                 timestamp: Date.now()
             };
-
-            // Remove duplicates (same href)
             const filtered = prev.filter((s) => s.href !== search.href);
-
-            // Add new to top, limit to MAX
             const updated = [newSearch, ...filtered].slice(0, MAX_RECENT_SEARCHES);
-
             localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
             return updated;
         });
@@ -61,11 +50,5 @@ export function useRecentSearches() {
         localStorage.removeItem(STORAGE_KEY);
     };
 
-    return {
-        searches,
-        addSearch,
-        removeSearch,
-        clearSearches,
-        isMounted
-    };
+    return { searches, addSearch, removeSearch, clearSearches, isMounted: true };
 }

@@ -1,32 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 
 export type OS = 'mac' | 'windows' | 'linux' | 'ios' | 'android' | 'other';
 
+function detectOS(): OS {
+    if (typeof window === 'undefined') return 'other';
+    const ua = window.navigator.userAgent.toLowerCase();
+    const platform = window.navigator.platform.toLowerCase();
+
+    if (platform.includes('mac') || ua.includes('mac')) return 'mac';
+    if (platform.includes('win') || ua.includes('win')) return 'windows';
+    if (platform.includes('linux') || ua.includes('linux')) return 'linux';
+    if (ua.includes('iphone') || ua.includes('ipad')) return 'ios';
+    if (ua.includes('android')) return 'android';
+    return 'other';
+}
+
 export function useOS(): OS {
-    const [os, setOs] = useState<OS>('other');
-
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-
-        const userAgent = window.navigator.userAgent.toLowerCase();
-        const platform = window.navigator.platform.toLowerCase();
-
-        if (platform.includes('mac') || userAgent.includes('mac')) {
-            setOs('mac');
-        } else if (platform.includes('win') || userAgent.includes('win')) {
-            setOs('windows');
-        } else if (platform.includes('linux') || userAgent.includes('linux')) {
-            setOs('linux');
-        } else if (userAgent.includes('iphone') || userAgent.includes('ipad')) {
-            setOs('ios');
-        } else if (userAgent.includes('android')) {
-            setOs('android');
-        } else {
-            setOs('other');
-        }
-    }, []);
-
-    return os;
+    return useMemo(() => detectOS(), []);
 }
