@@ -6,7 +6,7 @@ import { PaymentSearchParams } from '@/lib/validators/payment';
 
 export async function getPayments(params: PaymentSearchParams) {
   const supabase = await createServerSupabaseClient();
-  const { status, resident_id, query: searchQuery, start_date, end_date, page = 1, limit = 20 } = params;
+  const { status, resident_id, query: searchQuery, start_date, end_date, sort_by, sort_order, page = 1, limit = 20 } = params;
 
   let query = supabase
     .from('payment_records')
@@ -34,8 +34,18 @@ export async function getPayments(params: PaymentSearchParams) {
 
   const from = (page - 1) * limit;
   const to = from + limit - 1;
+  query = query.range(from, to);
 
-  query = query.range(from, to).order('payment_date', { ascending: false });
+  const ascending = sort_order !== 'desc';
+  if (sort_by === 'amount') {
+    query = query.order('amount', { ascending });
+  } else if (sort_by === 'status') {
+    query = query.order('status', { ascending });
+  } else if (sort_by === 'payment_date') {
+    query = query.order('payment_date', { ascending });
+  } else {
+    query = query.order('payment_date', { ascending: false });
+  }
 
   const { data, error, count } = await query;
 

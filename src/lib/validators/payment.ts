@@ -46,6 +46,8 @@ export const paymentSearchSchema = z.object({
     query: z.string().optional(),
     start_date: z.string().optional(),
     end_date: z.string().optional(), // ISO strings for range query
+    sort_by: z.enum(['payment_date', 'amount', 'status']).optional(),
+    sort_order: z.enum(['asc', 'desc']).optional(),
     page: z.coerce.number().min(1).default(1),
     limit: z.coerce.number().min(1).max(100).default(20),
 });

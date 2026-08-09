@@ -22,7 +22,7 @@ import {
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Trash2, Eye, CheckCircle, Download, X, Receipt, Plus, ChevronDown, Clock, AlertCircle } from 'lucide-react';
+import { Trash2, Eye, CheckCircle, Download, X, Receipt, Plus, ChevronDown, ChevronUp, ChevronsUpDown, Clock, AlertCircle } from 'lucide-react';
 import { PaymentStatusBadge } from './payment-status-badge';
 import { useDeletePayment, useBulkUpdatePayments } from '@/hooks/use-payments';
 import { formatCurrency } from '@/lib/utils';
@@ -46,6 +46,10 @@ interface PaymentTableProps {
     data: PaymentRowWithResident[];
     showResident?: boolean;
     residentId?: string;
+    clickableRows?: boolean;
+    sortBy?: 'payment_date' | 'amount' | 'status';
+    sortOrder?: 'asc' | 'desc';
+    onSort?: (column: 'payment_date' | 'amount' | 'status') => void;
 }
 
 // Memoized row component to prevent unnecessary re-renders
@@ -56,22 +60,31 @@ const PaymentRow = memo(function PaymentRow({
     isSelected,
     onToggleSelection,
     onDelete,
+    clickableRows,
+    onNavigate,
 }: {
     payment: PaymentRowWithResident;
     showResident: boolean;
     isSelected: boolean;
     onToggleSelection: (id: string) => void;
     onDelete: (id: string) => void;
+    clickableRows?: boolean;
+    onNavigate?: (id: string) => void;
 }) {
     return (
-        <TableRow>
-            <TableCell>
-                <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => onToggleSelection(payment.id)}
-                    aria-label={`Select payment ${payment.reference_number}`}
-                />
-            </TableCell>
+        <TableRow
+            className={clickableRows ? 'cursor-pointer hover:bg-muted/50 transition-colors' : undefined}
+            onClick={clickableRows ? () => onNavigate?.(payment.id) : undefined}
+        >
+            {!clickableRows && (
+                <TableCell>
+                    <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => onToggleSelection(payment.id)}
+                        aria-label={`Select payment ${payment.reference_number}`}
+                    />
+                </TableCell>
+            )}
             <TableCell>{format(new Date(payment.payment_date), 'MMM d, yyyy')}</TableCell>
             {showResident && (
                 <TableCell>
@@ -95,16 +108,21 @@ const PaymentRow = memo(function PaymentRow({
             <TableCell className="text-xs font-mono">{payment.reference_number || '-'}</TableCell>
             <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="icon" asChild aria-label="View payment">
-                        <Link href={`/payments/${payment.id}`}>
-                            <Eye className="h-4 w-4" />
-                        </Link>
-                    </Button>
+                    {!clickableRows && (
+                        <Button variant="ghost" size="icon" asChild aria-label="View payment">
+                            <Link href={`/payments/${payment.id}`}>
+                                <Eye className="h-4 w-4" />
+                            </Link>
+                        </Button>
+                    )}
                     <Button
                         variant="ghost"
                         size="icon"
                         className="text-destructive hover:text-destructive"
-                        onClick={() => onDelete(payment.id)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(payment.id);
+                        }}
                         aria-label="Delete payment"
                     >
                         <Trash2 className="h-4 w-4" />
@@ -115,7 +133,7 @@ const PaymentRow = memo(function PaymentRow({
     );
 });
 
-export function PaymentTable({ data, showResident = true, residentId }: PaymentTableProps) {
+export function PaymentTable({ data, showResident = true, residentId, clickableRows = false, sortBy, sortOrder, onSort }: PaymentTableProps) {
     const router = useRouter();
     const deleteMutation = useDeletePayment();
     const bulkUpdateMutation = useBulkUpdatePayments();
@@ -123,6 +141,10 @@ export function PaymentTable({ data, showResident = true, residentId }: PaymentT
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleNavigate = useCallback((id: string) => {
+        router.push(`/payments/${id}`);
+    }, [router]);
 
     // Memoized handlers to prevent unnecessary re-renders of PaymentRow
     const handleDelete = useCallback(async (id: string) => {
@@ -261,18 +283,62 @@ export function PaymentTable({ data, showResident = true, residentId }: PaymentT
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[50px]">
-                                <Checkbox
-                                    checked={allSelected}
-                                    onCheckedChange={toggleSelectAll}
-                                    aria-label="Select all"
-                                />
+                            {!clickableRows && (
+                                <TableHead className="w-[50px]">
+                                    <Checkbox
+                                        checked={allSelected}
+                                        onCheckedChange={toggleSelectAll}
+                                        aria-label="Select all"
+                                    />
+                                </TableHead>
+                            )}
+                            <TableHead>
+                                {onSort ? (
+                                    <button
+                                        className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
+                                        onClick={() => onSort('payment_date')}
+                                    >
+                                        Date
+                                        {sortBy === 'payment_date' ? (
+                                            sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                                        ) : (
+                                            <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                                        )}
+                                    </button>
+                                ) : 'Date'}
                             </TableHead>
-                            <TableHead>Date</TableHead>
                             {showResident && <TableHead>Resident</TableHead>}
-                            <TableHead>Amount</TableHead>
+                            <TableHead>
+                                {onSort ? (
+                                    <button
+                                        className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
+                                        onClick={() => onSort('amount')}
+                                    >
+                                        Amount
+                                        {sortBy === 'amount' ? (
+                                            sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                                        ) : (
+                                            <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                                        )}
+                                    </button>
+                                ) : 'Amount'}
+                            </TableHead>
                             <TableHead>Method</TableHead>
-                            <TableHead>Status</TableHead>
+                            <TableHead>
+                                {onSort ? (
+                                    <button
+                                        className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
+                                        onClick={() => onSort('status')}
+                                    >
+                                        Status
+                                        {sortBy === 'status' ? (
+                                            sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                                        ) : (
+                                            <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                                        )}
+                                    </button>
+                                ) : 'Status'}
+                            </TableHead>
                             <TableHead>Ref</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -286,6 +352,8 @@ export function PaymentTable({ data, showResident = true, residentId }: PaymentT
                                 isSelected={selectedIds.has(payment.id)}
                                 onToggleSelection={toggleSelection}
                                 onDelete={handleDelete}
+                                clickableRows={clickableRows}
+                                onNavigate={handleNavigate}
                             />
                         ))}
                     </TableBody>
