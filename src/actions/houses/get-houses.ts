@@ -23,7 +23,7 @@ type GetHousesWithRolesResponse = {
 
 export async function getHouses(params: Partial<HouseSearchParams> = {}): Promise<GetHousesResponse> {
   const supabase = await createServerSupabaseClient();
-  const { search, street_id, house_type_id, is_occupied, page = 1, limit = 20 } = params;
+  const { search, street_id, house_type_id, is_occupied, sort_by, sort_order, page = 1, limit = 20 } = params;
 
   let query = supabase
     .from('houses')
@@ -49,10 +49,22 @@ export async function getHouses(params: Partial<HouseSearchParams> = {}): Promis
     query = query.eq('is_occupied', is_occupied);
   }
 
-  // Pagination
+  // Pagination + sorting
   const from = (page - 1) * limit;
   const to = from + limit - 1;
-  query = query.range(from, to).order('house_number');
+  query = query.range(from, to);
+  const ascending = sort_order !== 'desc';
+  if (sort_by === 'short_name') {
+    query = query.order('short_name', { ascending });
+  } else if (sort_by === 'house_number') {
+    query = query.order('house_number', { ascending });
+  } else if (sort_by === 'street') {
+    query = query.order('name', { ascending, referencedTable: 'street' });
+  } else if (sort_by === 'house_type') {
+    query = query.order('name', { ascending, referencedTable: 'house_type' });
+  } else {
+    query = query.order('house_number');
+  }
 
   const { data, error, count } = await query;
 

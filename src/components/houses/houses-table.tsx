@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, memo, useMemo } from 'react';
+import { useState, memo, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -30,14 +30,16 @@ import {
   Home,
   Plus,
   Search,
-  Eye,
   Pencil,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
 } from 'lucide-react';
 import type { HouseSearchParams } from '@/lib/validators/house';
-import { getPropertyShortname } from '@/lib/utils'; // Added cn import
+import { getPropertyShortname } from '@/lib/utils';
 
 const ALL_VALUE = '_all';
 
@@ -52,9 +54,12 @@ interface HouseData {
 }
 
 // Memoized row component
-const HouseRow = memo(function HouseRow({ house }: { house: HouseData }) {
+const HouseRow = memo(function HouseRow({ house, onNavigate }: { house: HouseData; onNavigate: (id: string) => void }) {
   return (
-    <TableRow className="group">
+    <TableRow
+      className="group cursor-pointer hover:bg-muted/50 transition-colors"
+      onClick={() => onNavigate(house.id)}
+    >
       <TableCell>
         <span className="font-mono text-sm font-semibold bg-muted px-2 py-1 rounded text-foreground/80 group-hover:bg-background transition-colors border">
           {getPropertyShortname(house)}
@@ -75,12 +80,14 @@ const HouseRow = memo(function HouseRow({ house }: { house: HouseData }) {
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" asChild aria-label="View house">
-            <Link href={`/houses/${house.id}`}>
-              <Eye className="h-4 w-4 text-muted-foreground" />
-            </Link>
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" asChild aria-label="Edit house">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 hover:bg-muted"
+            asChild
+            aria-label="Edit house"
+            onClick={(e) => e.stopPropagation()}
+          >
             <Link href={`/houses/${house.id}?edit=true`}>
               <Pencil className="h-4 w-4 text-muted-foreground" />
             </Link>
@@ -99,6 +106,22 @@ export function HousesTable() {
   const [isOccupied, setIsOccupied] = useState<string>(ALL_VALUE);
   const [limit, setLimit] = useState(20);
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState<'short_name' | 'house_number' | 'street' | 'house_type' | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = useCallback((column: 'short_name' | 'house_number' | 'street' | 'house_type') => {
+    if (sortBy === column) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+    setPage(1);
+  }, []);
+
+  const handleNavigate = useCallback((id: string) => {
+    router.push(`/houses/${id}`);
+  }, [router]);
 
   // Debounce search to prevent excessive API calls
   const debouncedSearch = useDebounce(search, 300);
@@ -108,6 +131,8 @@ export function HousesTable() {
     street_id: streetId === ALL_VALUE ? undefined : streetId,
     house_type_id: houseTypeId === ALL_VALUE ? undefined : houseTypeId,
     is_occupied: isOccupied === ALL_VALUE ? undefined : isOccupied === 'true',
+    sort_by: sortBy,
+    sort_order: sortBy ? sortOrder : undefined,
     page,
     limit,
   };
@@ -273,10 +298,58 @@ export function HousesTable() {
         <Table>
           <TableHeader className="bg-muted/40">
             <TableRow className="hover:bg-transparent border-b">
-              <TableHead className="w-[100px]">ID</TableHead>
-              <TableHead>House</TableHead>
-              <TableHead>Street</TableHead>
-              <TableHead>Type</TableHead>
+              <TableHead className="w-[100px]">
+                <button
+                  className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
+                  onClick={() => handleSort('short_name')}
+                >
+                  ID
+                  {sortBy === 'short_name' ? (
+                    sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
+                  onClick={() => handleSort('house_number')}
+                >
+                  House
+                  {sortBy === 'house_number' ? (
+                    sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
+                  onClick={() => handleSort('street')}
+                >
+                  Street
+                  {sortBy === 'street' ? (
+                    sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
+                  onClick={() => handleSort('house_type')}
+                >
+                  Type
+                  {sortBy === 'house_type' ? (
+                    sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  )}
+                </button>
+              </TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -320,7 +393,7 @@ export function HousesTable() {
               </TableRow>
             ) : (
               data?.data.map((house) => (
-                <HouseRow key={house.id} house={house} />
+                <HouseRow key={house.id} house={house} onNavigate={handleNavigate} />
               ))
             )}
           </TableBody>

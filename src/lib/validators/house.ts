@@ -43,6 +43,8 @@ export const houseSearchSchema = z.object({
   house_type_id: z.string().uuid().optional(),
   is_occupied: z.boolean().optional(),
   property_status: z.enum(['occupied', 'vacant', 'under_renovation', 'under_construction']).optional(),
+  sort_by: z.enum(['short_name', 'house_number', 'street', 'house_type']).optional(),
+  sort_order: z.enum(['asc', 'desc']).optional(),
   page: z.number().min(1).default(1),
   limit: z.number().min(1).max(100).default(20),
 });
