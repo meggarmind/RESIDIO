@@ -355,7 +355,9 @@ export default function BillingPage() {
                                 ))
                             ) : invoices.length === 0 ? (
                                 <TableRow>
-                                    No invoices found. Click &quot;Generate Monthly Invoices&quot; to create them.
+                                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                                        No invoices found. Click &quot;Generate Monthly Invoices&quot; to create them.
+                                    </TableCell>
                                 </TableRow>
                             ) : (
                                 invoices.map((invoice) => (
