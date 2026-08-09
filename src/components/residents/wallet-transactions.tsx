@@ -176,7 +176,7 @@ function ReferenceLink({ type, id }: { type: string; id: string }) {
 
   if (type === 'invoice') {
     return (
-      <Link href={`/billing/invoices/${id}`} className="text-xs text-primary hover:underline flex items-center gap-1">
+      <Link href={`/billing/${id}`} className="text-xs text-primary hover:underline flex items-center gap-1">
         <FileText className="h-3 w-3" />
         Invoice
       </Link>

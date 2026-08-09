@@ -186,7 +186,7 @@ export function InvoiceDistributionCard({ distribution, isLoading }: InvoiceDist
                         Invoice Status
                     </div>
                     <Button variant="ghost" size="sm" asChild className="text-xs h-7 px-2">
-                        <Link href="/billing/invoices">
+                        <Link href="/billing">
                             Details
                             <ChevronRight className="h-3.5 w-3.5 ml-1" />
                         </Link>

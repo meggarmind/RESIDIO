@@ -78,7 +78,7 @@ const QUICK_ACTIONS: SearchResult[] = [
     id: 'create-invoice',
     title: 'Create Invoice',
     subtitle: 'Generate a new invoice for a resident',
-    href: '/billing/invoices/new',
+    href: '/billing',
     type: 'action',
   },
   {

@@ -29,7 +29,7 @@ export function useSmartSuggestions() {
             title: 'End of Month Approaching',
             description: 'Utility bills are typically generated on the 25th. Would you like to draft them now?',
             actionLabel: 'Draft Invoices',
-            actionUrl: '/billing/invoices/new',
+            actionUrl: '/billing',
             priority: 'medium',
             type: 'finance',
         },
