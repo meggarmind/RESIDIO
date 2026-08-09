@@ -178,6 +178,8 @@ export const residentSearchSchema = z.object({
   resident_role: z.array(residentRoleEnum).optional(),
   street_id: z.string().uuid().optional(),
   house_id: z.string().uuid().optional(),
+  sort_by: z.enum(['resident_code', 'first_name', 'house_number']).optional(),
+  sort_order: z.enum(['asc', 'desc']).optional(),
   page: z.number().min(1).default(1),
   limit: z.number().min(1).max(100).default(20),
 });

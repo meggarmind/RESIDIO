@@ -42,7 +42,7 @@ function getContactVerificationStatus(resident: ResidentWithHouses): ContactVeri
 
 export async function getResidents(params: Partial<ResidentSearchParams> = {}): Promise<GetResidentsResponse> {
   const supabase = await createServerSupabaseClient();
-  const { search, status, verification, contact_verification, type, street_id, house_id, resident_role, page = 1, limit = 20 } = params;
+  const { search, status, verification, contact_verification, type, street_id, house_id, resident_role, sort_by, sort_order, page = 1, limit = 20 } = params;
 
   // Join with resident_houses and houses for filtering
   // If we filter by house-related fields, we use inner join (via !inner)
@@ -115,10 +115,20 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
   // For now, we'll keep it as JS filtering but we should warn that it affects pagination
   // UNLESS we calculate it in a view or use a more complex query.
 
-  // Pagination
+  // Pagination + sorting
   const from = (page - 1) * limit;
   const to = from + limit - 1;
-  query = query.range(from, to).order('created_at', { ascending: false });
+  const ascending = sort_order !== 'desc';
+  if (sort_by === 'resident_code') {
+    query = query.range(from, to).order('resident_code', { ascending });
+  } else if (sort_by === 'first_name') {
+    query = query.range(from, to).order('first_name', { ascending }).order('last_name', { ascending });
+  } else if (sort_by === 'house_number') {
+    // house_number lives on the joined houses table — sort by it via referencedTable
+    query = query.range(from, to).order('house_number', { ascending, referencedTable: 'resident_houses.house' });
+  } else {
+    query = query.range(from, to).order('created_at', { ascending: false });
+  }
 
   const { data, error, count } = await query;
 

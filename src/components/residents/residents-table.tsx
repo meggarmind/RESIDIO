@@ -34,7 +34,7 @@ import { AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/st
 import { ContactVerificationBadge } from '@/components/residents/contact-verification-badge';
 import { useResidents, useContactVerificationStats } from '@/hooks/use-residents';
 import { useStreets } from '@/hooks/use-reference';
-import { Users, Plus, Search, Eye, Pencil, UserPlus, ChevronDown, X, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { Users, Plus, Search, Pencil, UserPlus, ChevronDown, ChevronUp, ChevronsUpDown, X, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 import type { ResidentSearchParams, ContactVerificationFilter } from '@/lib/validators/resident';
 import type { AccountStatus, ResidentRole, ResidentWithHouses } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
@@ -43,7 +43,7 @@ const ALL_VALUE = '_all';
 
 // Memoized row component to prevent unnecessary re-renders
 // This significantly improves performance for large resident lists
-const ResidentRow = memo(function ResidentRow({ resident }: { resident: ResidentWithHouses }) {
+const ResidentRow = memo(function ResidentRow({ resident, onNavigate }: { resident: ResidentWithHouses; onNavigate: (id: string) => void }) {
   // Show first active house assignment
   const activeHouse = resident.resident_houses?.find((rh) => rh.is_active);
   const address = activeHouse
@@ -51,7 +51,10 @@ const ResidentRow = memo(function ResidentRow({ resident }: { resident: Resident
     : '-';
 
   return (
-    <TableRow>
+    <TableRow
+      className="cursor-pointer hover:bg-muted/50 transition-colors"
+      onClick={() => onNavigate(resident.id)}
+    >
       <TableCell>
         <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
           {resident.resident_code}
@@ -93,13 +96,14 @@ const ResidentRow = memo(function ResidentRow({ resident }: { resident: Resident
         />
       </TableCell>
       <TableCell className="text-right">
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="icon" asChild aria-label="View resident">
-            <Link href={`/residents/${resident.id}`}>
-              <Eye className="h-4 w-4" />
-            </Link>
-          </Button>
-          <Button variant="ghost" size="icon" asChild aria-label="Edit resident">
+        <div className="flex justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            aria-label="Edit resident"
+            onClick={(e) => e.stopPropagation()}
+          >
             <Link href={`/residents/${resident.id}?edit=true`}>
               <Pencil className="h-4 w-4" />
             </Link>
@@ -128,6 +132,22 @@ export function ResidentsTable() {
   const [selectedRoles, setSelectedRoles] = useState<ResidentRole[]>([]);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
+  const [sortBy, setSortBy] = useState<'resident_code' | 'first_name' | 'house_number' | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = useCallback((column: 'resident_code' | 'first_name' | 'house_number') => {
+    if (sortBy === column) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+    setPage(1);
+  }, []);
+
+  const handleNavigate = useCallback((id: string) => {
+    router.push(`/residents/${id}`);
+  }, [router]);
 
    
   const debouncedSearch = useDebounce(search, 300);
@@ -158,9 +178,11 @@ export function ResidentsTable() {
     street_id: streetId === ALL_VALUE ? undefined : streetId,
     contact_verification: contactVerification === ALL_VALUE ? undefined : contactVerification as ContactVerificationFilter,
     resident_role: selectedRoles.length > 0 ? selectedRoles : undefined,
+    sort_by: sortBy,
+    sort_order: sortBy ? sortOrder : undefined,
     page,
     limit,
-  }), [debouncedSearch, status, streetId, contactVerification, selectedRoles, page, limit]);
+  }), [debouncedSearch, status, streetId, contactVerification, selectedRoles, sortBy, sortOrder, page, limit]);
 
   const { data, isLoading, error } = useResidents(params);
   const { data: streets } = useStreets();
@@ -372,10 +394,46 @@ export function ResidentsTable() {
         <Table variant="modern">
           <TableHeader>
             <TableRow interactive={false}>
-              <TableHead>Code</TableHead>
-              <TableHead>Name</TableHead>
+              <TableHead>
+                <button
+                  className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
+                  onClick={() => handleSort('resident_code')}
+                >
+                  Code
+                  {sortBy === 'resident_code' ? (
+                    sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  )}
+                </button>
+              </TableHead>
+              <TableHead>
+                <button
+                  className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
+                  onClick={() => handleSort('first_name')}
+                >
+                  Name
+                  {sortBy === 'first_name' ? (
+                    sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  )}
+                </button>
+              </TableHead>
               <TableHead>Phone</TableHead>
-              <TableHead>Address</TableHead>
+              <TableHead>
+                <button
+                  className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
+                  onClick={() => handleSort('house_number')}
+                >
+                  Address
+                  {sortBy === 'house_number' ? (
+                    sortOrder === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  )}
+                </button>
+              </TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Verified</TableHead>
@@ -428,7 +486,7 @@ export function ResidentsTable() {
               </TableRow>
             ) : (
               data?.data.map((resident) => (
-                <ResidentRow key={resident.id} resident={resident} />
+                <ResidentRow key={resident.id} resident={resident} onNavigate={handleNavigate} />
               ))
             )}
           </TableBody>
