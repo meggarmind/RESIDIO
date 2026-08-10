@@ -23,6 +23,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { OccupancyBadge } from '@/components/residents/status-badge';
+import { HouseQuickView } from '@/components/houses/house-quick-view';
 import { useHouses } from '@/hooks/use-houses';
 import { useStreets, useHouseTypes } from '@/hooks/use-reference';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -37,6 +38,7 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
+  Eye,
 } from 'lucide-react';
 import type { HouseSearchParams } from '@/lib/validators/house';
 import { getPropertyShortname } from '@/lib/utils';
@@ -54,7 +56,7 @@ interface HouseData {
 }
 
 // Memoized row component
-const HouseRow = memo(function HouseRow({ house, onNavigate }: { house: HouseData; onNavigate: (id: string) => void }) {
+const HouseRow = memo(function HouseRow({ house, onNavigate, onPreview }: { house: HouseData; onNavigate: (id: string) => void; onPreview: (id: string) => void }) {
   return (
     <TableRow
       className="group cursor-pointer hover:bg-muted/50 transition-colors"
@@ -84,6 +86,18 @@ const HouseRow = memo(function HouseRow({ house, onNavigate }: { house: HouseDat
             variant="ghost"
             size="icon"
             className="h-8 w-8 hover:bg-muted"
+            aria-label="Preview house"
+            onClick={(event) => {
+              event.stopPropagation();
+              onPreview(house.id);
+            }}
+          >
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 hover:bg-muted"
             asChild
             aria-label="Edit house"
             onClick={(e) => e.stopPropagation()}
@@ -108,6 +122,7 @@ export function HousesTable() {
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<'short_name' | 'house_number' | 'street' | 'house_type' | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [previewHouseId, setPreviewHouseId] = useState<string | null>(null);
 
   const handleSort = useCallback((column: 'short_name' | 'house_number' | 'street' | 'house_type') => {
     if (sortBy === column) {
@@ -117,7 +132,7 @@ export function HousesTable() {
       setSortOrder('asc');
     }
     setPage(1);
-  }, []);
+  }, [sortBy]);
 
   const handleNavigate = useCallback((id: string) => {
     router.push(`/houses/${id}`);
@@ -393,7 +408,7 @@ export function HousesTable() {
               </TableRow>
             ) : (
               data?.data.map((house) => (
-                <HouseRow key={house.id} house={house} onNavigate={handleNavigate} />
+                <HouseRow key={house.id} house={house} onNavigate={handleNavigate} onPreview={setPreviewHouseId} />
               ))
             )}
           </TableBody>
@@ -479,6 +494,12 @@ export function HousesTable() {
           </Button>
         </div>
       </div>
+
+      <HouseQuickView
+        houseId={previewHouseId}
+        open={previewHouseId !== null}
+        onOpenChange={(open) => !open && setPreviewHouseId(null)}
+      />
     </div>
   );
 }

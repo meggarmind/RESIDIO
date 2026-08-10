@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { HouseForm } from '@/components/houses/house-form';
 import { HousePaymentStatus } from '@/components/houses/house-payment-status';
 import { YearlyPaymentTable } from '@/components/houses/yearly-payment-table';
@@ -44,17 +45,17 @@ import { useHouse, useDeleteHouse, useOwnershipHistory } from '@/hooks/use-house
 import { useResidents, useAssignHouse, useUnassignHouse, useMoveOutLandlord, useUpdateResidentHouse, useSwapResidentRoles, useTransferOwnership, useRemoveOwnership, usePendingMoveOut, useConfirmRenterMoveOut } from '@/hooks/use-residents';
 import { MoveOutWizard } from '@/components/residents/move-out-wizard';
 import { OwnerMoveOutWizard } from '@/components/residents/owner-move-out-wizard';
-import { Home, Pencil, Trash2, Users, ArrowLeft, Plus, Link2, Loader2, DoorOpen, AlertTriangle, SquarePen, ArrowUp, ArrowRightLeft, History, Calendar, UserMinus, StickyNote } from 'lucide-react';
+import { Home, Pencil, Trash2, Users, ArrowLeft, Plus, Link2, Loader2, DoorOpen, AlertTriangle, SquarePen, ArrowUp, ArrowRightLeft, History, Calendar, UserMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ResidentRole, ResidentHouse, Resident } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } from '@/types/database';
 import { requiresSponsor } from '@/lib/validators/resident';
-import { NotesTimeline } from '@/components/notes';
-import { useAuth } from '@/lib/auth/auth-provider';
-import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 // House state for Add New form context
 type HouseState = 'empty' | 'has_tenant' | 'has_resident_landlord' | 'has_non_resident_landlord';
+
+const HOUSE_DETAIL_TABS = ['overview', 'residents', 'billing', 'history'] as const;
+type HouseDetailTab = (typeof HOUSE_DETAIL_TABS)[number];
 
 interface HouseDetailPageProps {
   params: Promise<{ id: string }>;
@@ -65,6 +66,23 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isEditing = searchParams.get('edit') === 'true';
+  const tabFromUrl = searchParams.get('tab');
+  const activeTab: HouseDetailTab = HOUSE_DETAIL_TABS.includes(tabFromUrl as HouseDetailTab)
+    ? tabFromUrl as HouseDetailTab
+    : 'overview';
+
+  const handleTabChange = (tab: string) => {
+    const nextParams = new URLSearchParams(searchParams.toString());
+
+    if (tab === 'overview') {
+      nextParams.delete('tab');
+    } else {
+      nextParams.set('tab', tab);
+    }
+
+    const query = nextParams.toString();
+    router.replace(`/houses/${id}${query ? `?${query}` : ''}`, { scroll: false });
+  };
 
   // Link Existing Resident dialog state
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
@@ -565,16 +583,24 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
         </div>
       </div>
 
-      {/* House Stats Overview */}
-      <HouseStatsCards
-        occupancyStatus={house.is_occupied ? 'occupied' : 'vacant'}
-        totalResidents={activeResidents.length}
-        pendingDues={0} // Mocked for now, pending backend integration
-        lastInspectionDate="2025-12-01"
-      />
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-4">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="residents">Residents & Ownership</TabsTrigger>
+          <TabsTrigger value="billing">Billing</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
+        <TabsContent value="overview" className="space-y-6">
+          <HouseStatsCards
+            occupancyStatus={house.is_occupied ? 'occupied' : 'vacant'}
+            totalResidents={activeResidents.length}
+            pendingDues={0} // Mocked for now, pending backend integration
+            lastInspectionDate="2025-12-01"
+          />
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Home className="h-5 w-5" />
@@ -611,9 +637,12 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
               </>
             )}
           </CardContent>
-        </Card>
+            </Card>
+          </div>
+        </TabsContent>
 
-        <Card>
+        <TabsContent value="residents" className="space-y-6">
+          <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -886,17 +915,17 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
               </div>
             )}
           </CardContent>
-        </Card>
-      </div>
+          </Card>
+        </TabsContent>
 
-      {/* Payment Status */}
-      <HousePaymentStatus houseId={id} />
+        <TabsContent value="billing" className="space-y-6">
+          <HousePaymentStatus houseId={id} />
 
-      {/* Yearly Payment Summary */}
-      <YearlyPaymentTable houseId={id} />
+          <YearlyPaymentTable houseId={id} />
+        </TabsContent>
 
-      {/* Ownership & Occupancy History */}
-      <Card>
+        <TabsContent value="history" className="space-y-6">
+          <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
@@ -1022,7 +1051,9 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
             </div>
           )}
         </CardContent>
-      </Card>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Remove Resident Confirmation Dialog */}
       <AlertDialog

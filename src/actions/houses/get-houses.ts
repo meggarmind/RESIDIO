@@ -21,6 +21,11 @@ type GetHousesWithRolesResponse = {
   error: string | null;
 }
 
+const naturalSortCollator = new Intl.Collator('en', {
+  numeric: true,
+  sensitivity: 'base',
+});
+
 export async function getHouses(params: Partial<HouseSearchParams> = {}): Promise<GetHousesResponse> {
   const supabase = await createServerSupabaseClient();
   const { search, street_id, house_type_id, is_occupied, sort_by, sort_order, page = 1, limit = 20 } = params;
@@ -49,27 +54,44 @@ export async function getHouses(params: Partial<HouseSearchParams> = {}): Promis
     query = query.eq('is_occupied', is_occupied);
   }
 
-  // Pagination + sorting
+  // Numeric-aware sorting must happen before pagination so every registry page
+  // preserves the natural sequence (1, 2, 11) rather than text order (1, 11, 2).
   const from = (page - 1) * limit;
   const to = from + limit - 1;
-  query = query.range(from, to);
   const ascending = sort_order !== 'desc';
-  if (sort_by === 'short_name') {
-    query = query.order('short_name', { ascending });
-  } else if (sort_by === 'house_number') {
-    query = query.order('house_number', { ascending });
-  } else if (sort_by === 'street') {
-    query = query.order('name', { ascending, referencedTable: 'street' });
-  } else if (sort_by === 'house_type') {
-    query = query.order('name', { ascending, referencedTable: 'house_type' });
-  } else {
-    query = query.order('house_number');
+  const needsNaturalSort = !sort_by || sort_by === 'short_name' || sort_by === 'house_number';
+
+  if (!needsNaturalSort) {
+    if (sort_by === 'street') {
+      query = query.order('name', { ascending, referencedTable: 'street' });
+    } else if (sort_by === 'house_type') {
+      query = query.order('name', { ascending, referencedTable: 'house_type' });
+    }
+    query = query.range(from, to);
   }
 
   const { data, error, count } = await query;
+  const houses = (data as HouseWithStreet[]) ?? [];
+
+  if (!needsNaturalSort) {
+    return {
+      data: houses,
+      count: count ?? 0,
+      error: error?.message ?? null,
+    };
+  }
+
+  const naturalSortField = sort_by === 'short_name' ? 'short_name' : 'house_number';
+  const sortedHouses = houses.toSorted((a, b) => {
+    const aValue = naturalSortField === 'short_name' ? a.short_name || a.house_number : a.house_number;
+    const bValue = naturalSortField === 'short_name' ? b.short_name || b.house_number : b.house_number;
+    const comparison = naturalSortCollator.compare(aValue, bValue);
+
+    return comparison === 0 ? a.id.localeCompare(b.id) : ascending ? comparison : -comparison;
+  });
 
   return {
-    data: (data as HouseWithStreet[]) ?? [],
+    data: sortedHouses.slice(from, to + 1),
     count: count ?? 0,
     error: error?.message ?? null,
   };

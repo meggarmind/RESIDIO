@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, memo, useCallback, useMemo, useEffect } from 'react';
+import { useState, memo, useCallback, useMemo } from 'react';
 import { useDebounce } from '@/hooks/use-debounce';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -32,9 +32,10 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { ContactVerificationBadge } from '@/components/residents/contact-verification-badge';
+import { ResidentQuickView } from '@/components/residents/resident-quick-view';
 import { useResidents, useContactVerificationStats } from '@/hooks/use-residents';
 import { useStreets } from '@/hooks/use-reference';
-import { Users, Plus, Search, Pencil, UserPlus, ChevronDown, ChevronUp, ChevronsUpDown, X, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { Users, Plus, Search, Pencil, UserPlus, ChevronDown, ChevronUp, ChevronsUpDown, X, CheckCircle2, AlertCircle, Clock, Eye } from 'lucide-react';
 import type { ResidentSearchParams, ContactVerificationFilter } from '@/lib/validators/resident';
 import type { AccountStatus, ResidentRole, ResidentWithHouses } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
@@ -43,7 +44,7 @@ const ALL_VALUE = '_all';
 
 // Memoized row component to prevent unnecessary re-renders
 // This significantly improves performance for large resident lists
-const ResidentRow = memo(function ResidentRow({ resident, onNavigate }: { resident: ResidentWithHouses; onNavigate: (id: string) => void }) {
+const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview }: { resident: ResidentWithHouses; onNavigate: (id: string) => void; onPreview: (id: string) => void }) {
   // Show first active house assignment
   const activeHouse = resident.resident_houses?.find((rh) => rh.is_active);
   const address = activeHouse
@@ -100,6 +101,17 @@ const ResidentRow = memo(function ResidentRow({ resident, onNavigate }: { reside
           <Button
             variant="ghost"
             size="icon"
+            aria-label="Preview resident"
+            onClick={(event) => {
+              event.stopPropagation();
+              onPreview(resident.id);
+            }}
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             asChild
             aria-label="Edit resident"
             onClick={(e) => e.stopPropagation()}
@@ -134,6 +146,7 @@ export function ResidentsTable() {
   const [limit, setLimit] = useState(20);
   const [sortBy, setSortBy] = useState<'resident_code' | 'first_name' | 'house_number' | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [previewResidentId, setPreviewResidentId] = useState<string | null>(null);
 
   const handleSort = useCallback((column: 'resident_code' | 'first_name' | 'house_number') => {
     if (sortBy === column) {
@@ -143,7 +156,7 @@ export function ResidentsTable() {
       setSortOrder('asc');
     }
     setPage(1);
-  }, []);
+  }, [sortBy]);
 
   const handleNavigate = useCallback((id: string) => {
     router.push(`/residents/${id}`);
@@ -151,11 +164,6 @@ export function ResidentsTable() {
 
    
   const debouncedSearch = useDebounce(search, 300);
-
-  // Reset page when search term changes
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch]);
 
   const toggleRole = useCallback((role: ResidentRole) => {
     setSelectedRoles(prev =>
@@ -206,7 +214,10 @@ export function ResidentsTable() {
             <Input
               placeholder="Search by name, phone, or code..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               className="pl-9"
             />
           </div>
@@ -486,7 +497,7 @@ export function ResidentsTable() {
               </TableRow>
             ) : (
               data?.data.map((resident) => (
-                <ResidentRow key={resident.id} resident={resident} onNavigate={handleNavigate} />
+                <ResidentRow key={resident.id} resident={resident} onNavigate={handleNavigate} onPreview={setPreviewResidentId} />
               ))
             )}
           </TableBody>
@@ -575,6 +586,12 @@ export function ResidentsTable() {
           </div>
         </div>
       )}
+
+      <ResidentQuickView
+        residentId={previewResidentId}
+        open={previewResidentId !== null}
+        onOpenChange={(open) => !open && setPreviewResidentId(null)}
+      />
     </div>
   );
 }
