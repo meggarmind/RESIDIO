@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getOrCreateWallet, getWalletTransactions, creditWallet, debitWallet } from '@/actions/billing/wallet';
+import { getOrCreateWallet, getWalletTransactions, getYearlyWalletTransactions, creditWallet, debitWallet } from '@/actions/billing/wallet';
 import { toast } from 'sonner';
 
 // Hook to get or create wallet for a resident
@@ -18,6 +18,18 @@ export function useWalletTransactions(residentId: string, limit = 50) {
   return useQuery({
     queryKey: ['wallet-transactions', residentId, limit],
     queryFn: () => getWalletTransactions(residentId, limit),
+    enabled: !!residentId,
+  });
+}
+
+export function useYearlyWalletTransactions(residentId: string) {
+  return useQuery({
+    queryKey: ['yearly-wallet-transactions', residentId],
+    queryFn: async () => {
+      const result = await getYearlyWalletTransactions(residentId);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
     enabled: !!residentId,
   });
 }

@@ -6,7 +6,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 
-type WalletTransaction = {
+export type WalletTransaction = {
     id: string;
     wallet_id: string;
     type: 'credit' | 'debit';
@@ -384,5 +384,75 @@ export async function getWalletTransactions(
         return { data: [], error: error.message };
     }
 
-    return { data: data || [], error: null };
+  return { data: data || [], error: null };
+}
+
+export interface YearlyWalletTransactionSummary {
+    year: number;
+    total_credits: number;
+    total_debits: number;
+    net_change: number;
+    closing_balance: number;
+    transactions: WalletTransaction[];
+}
+
+/**
+ * Get the resident wallet ledger grouped by calendar year for the expandable
+ * Transaction History view on the resident detail page.
+ */
+export async function getYearlyWalletTransactions(
+    residentId: string
+): Promise<{ data: YearlyWalletTransactionSummary[]; error: string | null }> {
+    const supabase = await createServerSupabaseClient();
+
+    const { data: wallet } = await getOrCreateWallet(residentId);
+    if (!wallet) {
+        return { data: [], error: null };
+    }
+
+    const { data, error } = await supabase
+        .from('wallet_transactions')
+        .select('*')
+        .eq('wallet_id', wallet.id)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        return { data: [], error: error.message };
+    }
+
+    const byYear = new Map<number, YearlyWalletTransactionSummary>();
+    for (const transaction of data || []) {
+        const year = new Date(transaction.created_at).getFullYear();
+        if (!byYear.has(year)) {
+            byYear.set(year, {
+                year,
+                total_credits: 0,
+                total_debits: 0,
+                net_change: 0,
+                closing_balance: 0,
+                transactions: [],
+            });
+        }
+
+        const summary = byYear.get(year)!;
+        const amount = Number(transaction.amount) || 0;
+        if (transaction.type === 'credit') {
+            summary.total_credits += amount;
+            summary.net_change += amount;
+        } else {
+            summary.total_debits += amount;
+            summary.net_change -= amount;
+        }
+        summary.transactions.push(transaction);
+    }
+
+    for (const summary of byYear.values()) {
+        // Entries are descending, so the first entry holds the year-end balance.
+        summary.closing_balance = Number(summary.transactions[0]?.balance_after) || 0;
+    }
+
+    return {
+        data: [...byYear.values()].sort((a, b) => b.year - a.year),
+        error: null,
+    };
 }
