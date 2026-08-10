@@ -75,7 +75,9 @@ export function AdminBreadcrumb({ hideDashboard = false, className }: AdminBread
     if (segment === 'dashboard') continue; // Skip 'dashboard' as it's represented by first item
 
     currentPath += `/${segment}`;
-    const fullPath = currentPath.startsWith('/dashboard') ? currentPath : `/dashboard${currentPath}`;
+    // Route groups such as `(dashboard)` are not part of the browser URL.
+    // Build links from the actual pathname segments rather than prefixing /dashboard.
+    const fullPath = currentPath;
 
     let label: string;
 
