@@ -40,7 +40,8 @@ import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { ReportRequestWizard } from '@/components/reports/report-request-wizard';
 import { ReportViewer } from '@/components/reports/report-viewer';
 import { ReportSchedulesPanel } from '@/components/reports/report-schedules';
-import { useGenerateReport, useGeneratedReports, useDeleteGeneratedReport, useReportSchedules, type GeneratedReport } from '@/hooks/use-reports';
+import { useGenerateReport, useGeneratedReports, useDeleteGeneratedReport, useReportSchedules, useReportArchive, type GeneratedReport } from '@/hooks/use-reports';
+import type { ArchivedReport } from '@/actions/reports/get-report-archive';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -376,7 +377,7 @@ export function ReportsPageClient() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                <TabsList className="grid w-full max-w-lg grid-cols-3">
+                <TabsList className="grid w-full max-w-2xl grid-cols-4">
                     <TabsTrigger value="new" className="gap-2">
                         <Plus className="h-4 w-4" />
                         New Report
@@ -396,6 +397,10 @@ export function ReportsPageClient() {
                     <TabsTrigger value="schedules" className="gap-2">
                         <CalendarClock className="h-4 w-4" />
                         Schedules
+                    </TabsTrigger>
+                    <TabsTrigger value="archive" className="gap-2">
+                        <Download className="h-4 w-4" />
+                        Archive
                     </TabsTrigger>
                 </TabsList>
 
@@ -457,7 +462,73 @@ export function ReportsPageClient() {
                         </CardContent>
                     </Card>
                 </TabsContent>
+                {/* Archive Tab */}
+                <TabsContent value="archive" className="mt-6">
+                    <ArchivePanel />
+                </TabsContent>
             </Tabs>
+        </div>
+    );
+}
+
+// ============================================================
+// Archive Panel
+// ============================================================
+
+function ArchivePanel() {
+    const { data: archiveData, isLoading } = useReportArchive();
+    const archives = archiveData?.data || [];
+
+    const handleDownload = (archive: ArchivedReport) => {
+        const link = document.createElement('a');
+        link.href = `/api/reports/download?type=${archive.report_type}`;
+        link.download = `${archive.report_type}-${archive.generated_at?.split('T')[0] || 'report'}.pdf`;
+        link.click();
+    };
+
+    if (isLoading) return <ReportsListSkeleton />;
+
+    if (archives.length === 0) return (
+        <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+                <Download className="h-12 w-12 mx-auto mb-3 opacity-40" />
+                <p className="font-medium">No archived reports yet</p>
+                <p className="text-sm mt-1">Generated PDFs will appear here once created.</p>
+            </CardContent>
+        </Card>
+    );
+
+    return (
+        <div className="space-y-3">
+            {archives.map((archive) => {
+                const config = reportTypeConfig[archive.report_type as keyof typeof reportTypeConfig];
+                const Icon = config?.icon || FileText;
+
+                return (
+                    <Card key={archive.id} variant="featured" interactive>
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className={cn('p-2.5 rounded-lg', config?.iconBg || 'bg-muted')}>
+                                        <Icon className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-sm">{config?.label || archive.report_type}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {formatDistanceToNow(new Date(archive.generated_at), { addSuffix: true })}
+                                            {archive.file_size_bytes && ` - ${(archive.file_size_bytes / 1024).toFixed(0)} KB`}
+                                        </p>
+                                    </div>
+                                </div>
+                                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleDownload(archive)}>
+                                    <Download className="h-3.5 w-3.5" />
+                                    Download
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                );
+            })}
         </div>
     );
 }

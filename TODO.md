@@ -2,7 +2,7 @@
 
 > **🎯 PRODUCT FOCUS (2026-08-06): ADMIN DASHBOARD ONLY.** Resident Portal / self-service (`src/app/(resident)/**`, resident-portal components) is **NOT planned for rollout** in the foreseeable future. De-prioritize all self-service work listed below (portal wallet, resident payments, announcements/documents/profile, impersonation, onboarding). Keep it stable/local only; do not extend or polish it. Prioritize admin management/finance/security/operations/reporting instead.
 
-**Last Updated:** 2026-08-11 (legacy tracker reconciliation/import)
+**Last Updated:** 2026-08-12 (legacy tracker reconciliation/import)
 
 ## Current Phase: Finance, Performance & Communications Fast-Track
 The project is fast-tracked around financial operations, financial statements/imports/reports, critical performance work, and estate operational WhatsApp/SMS integrations. Portal/self-service work remains out of scope.
@@ -58,7 +58,9 @@ The project is fast-tracked around financial operations, financial statements/im
   - [x] **GLB 16–19 move-in batch:** Corrected ten documented move-in dates without changing existing role decisions.
   - [x] **GLB 20-series move-in batch:** Corrected five documented move-in dates while preserving Hassan Ogwe ownership links.
   - [x] **KOA 1A–9 move-in batch:** Corrected seven documented move-in dates without changing existing role decisions.
-  - [x] **KOA 10–19 move-in batch:** Corrected 20 validated tracker move-in dates without changing existing role decisions.
+  - [x] **KOA 10–19 move-in batch:** Corrected and read-back verified all reviewed tracker move-in dates, including normalized database labels `18F1` and `18F2`, without changing existing role decisions.
+  - [x] **IBB-29B primary/alias conversion:** Replaced the active Villanova Realty alias-only assignment with Ubah Karl Chinedu and retained Villanova Realty as a payment alias; legacy and duplicate placeholder records are preserved with explanatory notes rather than deleted.
+  - [x] **Confirmed alias audit:** Audited remaining tracker aliases; retained existing spelling/unit variants and added Prince Vovo Yvest (IBB-18F-3) and Susan Onome Opiri (OJO.K-16C).
 
 ### Residents & Houses Workflow UX (Admin Dashboard)
 - [x] **Registry Navigation**: Added sortable columns and direct record navigation to the Residents and Houses registries.

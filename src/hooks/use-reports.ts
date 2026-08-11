@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFinancialOverview, getBankAccountsForFilter } from '@/actions/reports/get-financial-overview';
 import { generateReport, type ReportData } from '@/actions/reports/report-engine';
+import { getReportArchive, type ArchivedReport } from '@/actions/reports/get-report-archive';
 import { getTransactionTags } from '@/actions/reference/transaction-tags';
 import {
     getReportSchedules,
@@ -384,15 +385,27 @@ export function useCreateReportVersion() {
 
 export function useReportVersionHistory(reportId: string | null) {
     return useQuery({
-        queryKey: ['report-versions', reportId],
+        queryKey: ['reportVersionHistory', reportId],
         queryFn: async () => {
             if (!reportId) return [];
             const result = await getReportVersionHistory(reportId);
             if (result.error) throw new Error(result.error);
-            return result.data?.map(mapDbReportToGeneratedReport) || [];
+            return result.data;
         },
         enabled: !!reportId,
         staleTime: 30 * 1000,
+    });
+}
+
+export function useReportArchive() {
+    return useQuery({
+        queryKey: ['reportArchive'],
+        queryFn: async () => {
+            const result = await getReportArchive();
+            if (result.error) throw new Error(result.error);
+            return { data: result.data, count: result.count };
+        },
+        staleTime: 60 * 1000,
     });
 }
 

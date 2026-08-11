@@ -9,7 +9,7 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Current snapshot (verified 2026-08-11)
+## Current snapshot (verified 2026-08-12)
 
 | Item | State |
 |------|-------|
@@ -24,7 +24,7 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 | Perf | `force-dynamic` removed from dashboard layout. React Query staleTime: 1min → 5min. Sidebar hooks + AI assistant cached. `loading.tsx` shell skeleton created. Suspense boundaries on dashboard cards. Build green, tsc 0, Vitest 16/16. |
 | Delivery priority | **Fast-track:** P0 finance/statements/imports/reports, P0 critical performance backlog, P1 WhatsApp/SMS operational integrations. WhatsApp issues #2–#5 are complete; issue #6 is next. Payment gateway is deferred; portal/self-service remains deprioritized. |
 | Database documentation | **Verified 2026-08-10:** configured cloud Supabase REST access is working (HTTP 200). The architecture inventory now covers 30 later tables confirmed through zero-row live API requests; `docs/architecture/db-visual.sql` is explicitly marked as an incomplete historical snapshot. |
-| Legacy import review | **Reconciliation/import in progress 2026-08-11:** all 136 ledger entries match exactly one existing house; the scoped database contains 2,259 payment records, 208 resident-house assignments, and 48 payment aliases. Alias-only assignments were deactivated while their residents were retained with explanatory notes. OJO.K-2, OJO.K-8, OJO.K-9B, IBB-33, GLB-5B, and the held-back spelling/alias cases were reconciled from user-confirmed source data. The payment manifest has 203/203 matched house/year totals after two idempotent legacy-payment imports. The corporate-tenant migration is live; all six user-named corporate transactors are verified as corporate tenants (four paired with confirmed individual landlords and two intentionally owner-unassigned); Hassan Ogwe is linked as non-resident landlord for the twelve reviewed GLB 19*/20* rentals. |
+| Legacy import review | **Reconciliation/import in progress 2026-08-12:** all 136 ledger entries match exactly one existing house; the refreshed scoped snapshot contains 2,259 payment records, 221 resident-house assignments, 191 residents, and 53 payment aliases. Alias-only assignments were deactivated while their residents were retained with explanatory notes. OJO.K-2, OJO.K-8, OJO.K-9B, IBB-29B, IBB-33, GLB-5B, and the held-back spelling/alias cases were reconciled from user-confirmed source data. The payment manifest has 203/203 matched house/year totals after two idempotent legacy-payment imports. The corporate-tenant migration is live; all six user-named corporate transactors are verified as corporate tenants (four paired with confirmed individual landlords and two intentionally owner-unassigned); Hassan Ogwe is linked as non-resident landlord for the twelve reviewed GLB 19*/20* rentals. |
 
 ---
 
@@ -136,7 +136,10 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 - **GLB 16–19 move-in batch (Codex, 2026-08-11):** Corrected documented tracker starts for 16, 16BQ, 17AFLT1, 19, 19?, 19AF-1/2/3, 19BF-2, and 19CF-3 while preserving existing roles and Hassan Ogwe links.
 - **GLB 20-series move-in batch (Codex, 2026-08-11):** Corrected the primary tenant move-ins at 20F-1, 20F-3, 20F-4, 20F-5, and 20F-9 while retaining Hassan Ogwe’s ownership links and the documented 20F-9 credit context.
 - **KOA 1A–9 move-in batch (Codex, 2026-08-11):** Corrected documented tracker starts for 1A, 1B, 2, 5, 6, 8, and 9 while preserving existing roles, aliases, and linked-resident decisions.
-- **KOA 10–19 move-in batch (Codex, 2026-08-12):** Applied 20 validated tracker move-in dates directly after the initial batch script did not persist all intended values; roles, aliases, and ownership links were preserved.
+- **KOA 10–19 move-in batch (Codex, 2026-08-12):** Applied and read-back verified the user-confirmed tracker move-in dates for the KOA 10–19 set without altering established roles, aliases, or ownership links. A final label-level check confirmed the two normalized database labels `18F1` and `18F2`; both now carry the correct 2022-10-01 move-in date.
+- **IBB-29B alias conversion (Codex, 2026-08-12):** Replaced the active alias-only Villanova Realty assignment with user-confirmed primary Ubah Karl Chinedu, preserving the former corporate record as inactive with a conversion note and adding Villanova Realty as a payment alias. Ubah uses the approved `LEGACY-NO-PHONE-UBAH-KARL-CHINEDU` placeholder. A duplicate unassigned placeholder created during the interrupted first attempt was retained and marked inactive rather than deleted.
+- **Alias audit (Codex, 2026-08-12):** Audited remaining confirmed tracker aliases. Existing spelling/unit variants were retained; added the only two missing aliases: Prince Vovo Yvest for IBB-18F-3 / Lana Anih and Susan Onome Opiri for OJO.K-16C / Susan Onome Badiru. Refreshed snapshot count: 53 payment aliases.
+- **Alias correction (Codex, 2026-08-12):** User corrected IBB-18F-3’s alias spelling from the initial transcription. The ledger and live payment alias now use **Prince Wowo West** for Lana Anih.
 
 - **Handoff consolidation (2026-08-10):** Deleted obsolete `HANDOFF_SUMMARY.md` and `NEXT_SESSION_HANDOFF_PROMPT.md`. `SESSION_STATE.md` is now documented as the sole live handoff in `AGENTS.md`, `CLAUDE.md`, and project-management guidance. Agents must update `SESSION_STATE.md`, `TODO.md`, and active `ACTIONPLAN.md` progress automatically after substantive work, even without an explicit user request. Documentation-only change; no test suite run.
 

@@ -129,6 +129,8 @@ const PERMISSION_ALLOWLIST = [
   'email-imports/reset-email-imports.ts',
   'email-imports/parse-email.ts',
   'email-imports/create-email-import.ts',
+  // Report schedule delivery: driven by Vercel cron (no user session)
+  'reports/process-schedules.ts',
   // Pre-auth 2FA login flow: executes before the user has a session; writes its own
   // two_factor_audit_log. Resolves the user under test, not an admin RBAC permission.
   'two-factor/verify.ts',
