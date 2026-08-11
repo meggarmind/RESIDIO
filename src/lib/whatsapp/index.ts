@@ -13,6 +13,16 @@ export {
 } from '@/lib/whatsapp/inbound';
 export { createWhatsAppSimulator, type WhatsAppSimulator } from '@/lib/whatsapp/simulator';
 export {
+  createSupabaseWhatsAppFinancialRepository,
+  handleFinancialMessage,
+  type FinancialAnswer,
+  type FinancialHouse,
+  type FinancialMenuItem,
+  type WhatsAppFinancialHandlerOptions,
+  type WhatsAppFinancialRepository,
+  type WhatsAppFinancialSession,
+} from '@/lib/whatsapp/financial';
+export {
   createSupabaseWhatsAppIdentityRepository,
   handleResidentMessage,
   generateWhatsAppLinkCode,

@@ -257,6 +257,10 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
 export interface WhatsAppIdentityHandlerOptions {
   repository: WhatsAppIdentityRepository;
   send?: (message: WhatsAppTextMessage) => Promise<{ success: boolean; error?: string }>;
+  onIdentified?: (
+    message: WhatsAppInboundMessage,
+    identity: WhatsAppResidentIdentity
+  ) => Promise<void>;
 }
 
 export interface WhatsAppIdentityResult {
@@ -353,6 +357,10 @@ export async function handleResidentMessage(
   const optedIn = await options.repository.getOptIn(matchedIdentity.id, phoneNumber);
   if (isStartCommand(text)) {
     await options.repository.setOptIn(matchedIdentity.id, phoneNumber, true, 'in_chat');
+    if (options.onIdentified && matchedIdentity.financialEligible) {
+      await options.onIdentified(message, matchedIdentity);
+      return { status: 'identified', residentId: matchedIdentity.id, optedIn: true, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };
+    }
     await sendReply(
       message,
       `You're connected as ${matchedIdentity.firstName} ${matchedIdentity.lastName}. Estate WhatsApp alerts are now enabled.`,
@@ -370,11 +378,15 @@ export async function handleResidentMessage(
     return { status: 'identified', residentId: matchedIdentity.id, optedIn: false, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };
   }
 
-  await sendReply(
-    message,
-    `You're connected as ${matchedIdentity.firstName} ${matchedIdentity.lastName}. Estate announcements and notices will be sent here.`,
-    options.send
-  );
+  if (options.onIdentified && matchedIdentity.financialEligible) {
+    await options.onIdentified(message, matchedIdentity);
+  } else {
+    await sendReply(
+      message,
+      `You're connected as ${matchedIdentity.firstName} ${matchedIdentity.lastName}. Estate announcements and notices will be sent here.`,
+      options.send
+    );
+  }
   return { status: 'identified', residentId: matchedIdentity.id, optedIn: true, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };
 }
 

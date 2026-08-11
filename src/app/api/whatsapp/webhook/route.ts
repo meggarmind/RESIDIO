@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   createSupabaseProcessedMessageStore,
   createSupabaseWhatsAppIdentityRepository,
+  createSupabaseWhatsAppFinancialRepository,
+  handleFinancialMessage,
   handleResidentMessage,
   handleInboundMessage,
   getWhatsAppConfig,
@@ -53,6 +55,14 @@ export async function POST(request: NextRequest) {
     onMessage: async (message) => {
       await handleResidentMessage(message, {
         repository: createSupabaseWhatsAppIdentityRepository(),
+        onIdentified: async (identifiedMessage, identity) => {
+          if (!identity.financialEligible) {
+            return;
+          }
+          await handleFinancialMessage(identifiedMessage, identity, {
+            repository: createSupabaseWhatsAppFinancialRepository(),
+          });
+        },
       });
     },
   });

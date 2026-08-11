@@ -4054,6 +4054,8 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           verification_status: Database["public"]["Enums"]["verification_status"]
+          whatsapp_pin_hash: string | null
+          whatsapp_pin_set_at: string | null
         }
         Insert: {
           account_status?: Database["public"]["Enums"]["account_status"]
@@ -4091,6 +4093,8 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           verification_status?: Database["public"]["Enums"]["verification_status"]
+          whatsapp_pin_hash?: string | null
+          whatsapp_pin_set_at?: string | null
         }
         Update: {
           account_status?: Database["public"]["Enums"]["account_status"]
@@ -4128,6 +4132,8 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           verification_status?: Database["public"]["Enums"]["verification_status"]
+          whatsapp_pin_hash?: string | null
+          whatsapp_pin_set_at?: string | null
         }
         Relationships: [
           {
@@ -4983,6 +4989,54 @@ export type Database = {
           },
         ]
       }
+      whatsapp_disclosure_logs: {
+        Row: {
+          created_at: string
+          house_id: string | null
+          id: string
+          menu_item: string
+          metadata: Json | null
+          phone_number: string
+          pin_authenticated: boolean
+          resident_id: string
+        }
+        Insert: {
+          created_at?: string
+          house_id?: string | null
+          id?: string
+          menu_item: string
+          metadata?: Json | null
+          phone_number: string
+          pin_authenticated?: boolean
+          resident_id: string
+        }
+        Update: {
+          created_at?: string
+          house_id?: string | null
+          id?: string
+          menu_item?: string
+          metadata?: Json | null
+          phone_number?: string
+          pin_authenticated?: boolean
+          resident_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_disclosure_logs_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_disclosure_logs_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_link_tokens: {
         Row: {
           created_at: string
@@ -5132,6 +5186,57 @@ export type Database = {
           received_at?: string
         }
         Relationships: []
+      }
+      whatsapp_sessions: {
+        Row: {
+          created_at: string
+          current_node: string
+          expires_at: string
+          id: string
+          phone_number: string
+          pin_authenticated: boolean
+          resident_id: string | null
+          selected_house_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_node?: string
+          expires_at: string
+          id?: string
+          phone_number: string
+          pin_authenticated?: boolean
+          resident_id?: string | null
+          selected_house_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_node?: string
+          expires_at?: string
+          id?: string
+          phone_number?: string
+          pin_authenticated?: boolean
+          resident_id?: string | null
+          selected_house_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_sessions_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_sessions_selected_house_id_fkey"
+            columns: ["selected_house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
