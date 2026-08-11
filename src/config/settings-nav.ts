@@ -40,6 +40,7 @@ export const settingsConfig: SettingsGroup[] = [
             { title: "General", href: "/settings", description: "Estate information and basics" },
             { title: "Appearance", href: "/settings/appearance", description: "Theme and display settings" },
             { title: "Notifications", href: "/settings/notifications", description: "Manage alerts and channels" },
+            { title: "WhatsApp Operations", href: "/settings/whatsapp", description: "Review consent and pending contacts" },
         ]
     },
     {

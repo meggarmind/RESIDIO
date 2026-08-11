@@ -342,32 +342,37 @@ export async function handleResidentMessage(
     return { status: rosterMatches.length > 1 ? 'ambiguous' : 'pending', residentId: null, optedIn: false, financialEligible: false };
   }
 
-  const optedIn = await options.repository.getOptIn(identity.id, phoneNumber);
+  const matchedIdentity = identity;
+  if (!matchedIdentity) {
+    return { status: 'pending', residentId: null, optedIn: false, financialEligible: false };
+  }
+
+  const optedIn = await options.repository.getOptIn(matchedIdentity.id, phoneNumber);
   if (isStartCommand(text)) {
-    await options.repository.setOptIn(identity.id, phoneNumber, true, 'in_chat');
+    await options.repository.setOptIn(matchedIdentity.id, phoneNumber, true, 'in_chat');
     await sendReply(
       message,
-      `You're connected as ${identity.firstName} ${identity.lastName}. Estate WhatsApp alerts are now enabled.`,
+      `You're connected as ${matchedIdentity.firstName} ${matchedIdentity.lastName}. Estate WhatsApp alerts are now enabled.`,
       options.send
     );
-    return { status: 'identified', residentId: identity.id, optedIn: true, financialEligible: identity.financialEligible };
+    return { status: 'identified', residentId: matchedIdentity.id, optedIn: true, financialEligible: matchedIdentity.financialEligible };
   }
 
   if (!optedIn) {
     await sendReply(
       message,
-      `You're connected as ${identity.firstName} ${identity.lastName}. Reply YES to receive estate WhatsApp alerts, or STOP to decline them.`,
+      `You're connected as ${matchedIdentity.firstName} ${matchedIdentity.lastName}. Reply YES to receive estate WhatsApp alerts, or STOP to decline them.`,
       options.send
     );
-    return { status: 'identified', residentId: identity.id, optedIn: false, financialEligible: identity.financialEligible };
+    return { status: 'identified', residentId: matchedIdentity.id, optedIn: false, financialEligible: matchedIdentity.financialEligible };
   }
 
   await sendReply(
     message,
-    `You're connected as ${identity.firstName} ${identity.lastName}. Estate announcements and notices will be sent here.`,
+    `You're connected as ${matchedIdentity.firstName} ${matchedIdentity.lastName}. Estate announcements and notices will be sent here.`,
     options.send
   );
-  return { status: 'identified', residentId: identity.id, optedIn: true, financialEligible: identity.financialEligible };
+  return { status: 'identified', residentId: matchedIdentity.id, optedIn: true, financialEligible: matchedIdentity.financialEligible };
 }
 
 export function generateWhatsAppLinkCode(): string {
