@@ -20,6 +20,7 @@ import type {
 import { isChannelImplemented } from './types';
 import { truncateForPreview } from './templates';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { normalizePhoneNumber } from '@/lib/sms/termii';
 
 /**
  * Channel-specific sender function signature
@@ -166,11 +167,13 @@ async function sendViaWhatsApp(
     return { success: false, error: 'No recipient phone number provided' };
   }
 
+  const normalizedRecipientPhone = normalizePhoneNumber(item.recipient_phone);
+
   const { data: optIn, error: optInError } = await createAdminClient()
     .from('whatsapp_optins')
     .select('id')
     .eq('resident_id', item.recipient_id)
-    .eq('phone_number', item.recipient_phone)
+    .eq('phone_number', normalizedRecipientPhone)
     .eq('opted_in', true)
     .maybeSingle();
 
@@ -183,7 +186,7 @@ async function sendViaWhatsApp(
   }
 
   const result = await sendWhatsAppMessage({
-    to: item.recipient_phone,
+    to: normalizedRecipientPhone,
     body: item.body,
   });
 

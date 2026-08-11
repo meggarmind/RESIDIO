@@ -186,7 +186,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       const supabase = createAdminClient();
       const { data, error } = await supabase
         .from('payment_records')
-        .select('amount, payment_date, reference, method')
+        .select('amount, payment_date, reference_number, method')
         .eq('resident_id', residentId)
         .eq('house_id', houseId)
         .eq('status', 'paid')
@@ -196,8 +196,8 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       if (error) throw error;
       if (!data) return { body: 'No paid payment record was found for this property.' };
       return {
-        body: `Last payment: ${formatNaira(Number(data.amount))} on ${new Date(data.payment_date).toLocaleDateString('en-NG')}${data.reference ? ` (ref ${data.reference})` : ''}.`,
-        metadata: { reference: data.reference, method: data.method },
+        body: `Last payment: ${formatNaira(Number(data.amount))} on ${new Date(data.payment_date).toLocaleDateString('en-NG')}${data.reference_number ? ` (ref ${data.reference_number})` : ''}.`,
+        metadata: { reference_number: data.reference_number, method: data.method },
       };
     },
 
@@ -239,6 +239,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
 
 export interface WhatsAppFinancialHandlerOptions {
   repository: WhatsAppFinancialRepository;
+  optedIn: boolean;
   send?: (message: WhatsAppTextMessage) => Promise<{ success: boolean; error?: string }>;
 }
 
@@ -256,9 +257,17 @@ export async function handleFinancialMessage(
   identity: WhatsAppResidentIdentity,
   options: WhatsAppFinancialHandlerOptions
 ): Promise<void> {
+  if (!options.optedIn) {
+    await sendFinancialReply(message, 'Please reply YES first to enable WhatsApp access to financial standing.', options.send);
+    return;
+  }
+
   const phoneNumber = normalizePhoneNumber(message.from);
   const text = message.text?.trim() || '';
   let session = await options.repository.getSession(phoneNumber);
+  if (session && Date.parse(session.expiresAt) <= Date.now()) {
+    session = null;
+  }
   if (!session || session.residentId !== identity.id) {
     session = {
       phoneNumber,
@@ -341,7 +350,7 @@ export async function handleFinancialMessage(
   await options.repository.logDisclosure({
     residentId: identity.id,
     phoneNumber,
-    houseId: item === 'wallet' ? null : houseId,
+    houseId,
     menuItem: item,
     pinAuthenticated: session.pinAuthenticated,
     metadata: answer.metadata,

@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
+import { revalidatePath } from 'next/cache';
 
 type ActionResult<T> = {
   success: boolean;
@@ -96,7 +97,7 @@ export async function getWhatsAppPendingContacts(): Promise<ActionResult<unknown
   const adminClient = createAdminClient();
   const { data, error } = await adminClient
     .from('whatsapp_pending_contacts')
-    .select('id, phone_number, status, resident_id, first_seen_at, last_seen_at, created_at, updated_at, resident:residents(first_name, last_name, resident_code)')
+    .select('id, phone_number, status, source, resident_id, first_seen_at, last_seen_at, created_at, updated_at, resident:residents(first_name, last_name, resident_code)')
     .order('last_seen_at', { ascending: false });
 
   return {
@@ -104,4 +105,57 @@ export async function getWhatsAppPendingContacts(): Promise<ActionResult<unknown
     data: data || [],
     error: error?.message || null,
   };
+}
+
+export async function getWhatsAppForcePin(): Promise<ActionResult<boolean>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_VIEW);
+  if (!authorization.authorized) {
+    return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+  }
+
+  const { data, error } = await createAdminClient()
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'whatsapp_force_pin')
+    .maybeSingle();
+
+  return {
+    success: !error,
+    data: data?.value === true || data?.value === 'true',
+    error: error?.message || null,
+  };
+}
+
+export async function setWhatsAppForcePin(enabled: boolean): Promise<ActionResult<boolean>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_MANAGE);
+  if (!authorization.authorized) {
+    return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+  }
+
+  const adminClient = createAdminClient();
+  const { data: oldSetting } = await adminClient
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'whatsapp_force_pin')
+    .maybeSingle();
+  const { error } = await adminClient
+    .from('system_settings')
+    .update({ value: enabled.toString() })
+    .eq('key', 'whatsapp_force_pin');
+
+  if (error) {
+    return { success: false, data: null, error: 'Failed to update WhatsApp PIN policy' };
+  }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'system_settings',
+    entityId: 'whatsapp_force_pin',
+    entityDisplay: 'WhatsApp force-PIN policy',
+    oldValues: { value: oldSetting?.value },
+    newValues: { value: enabled },
+  });
+  revalidatePath('/settings/whatsapp');
+
+  return { success: true, data: enabled, error: null };
 }

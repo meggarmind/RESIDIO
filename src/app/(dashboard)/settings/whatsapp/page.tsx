@@ -1,6 +1,7 @@
-import { getWhatsAppOptIns, getWhatsAppPendingContacts } from '@/actions/whatsapp/identity';
+import { getWhatsAppForcePin, getWhatsAppOptIns, getWhatsAppPendingContacts } from '@/actions/whatsapp/identity';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
 
 type ResidentSummary = {
   first_name: string;
@@ -37,9 +38,10 @@ function formatDate(value: string): string {
 }
 
 export default async function WhatsAppOperationsPage() {
-  const [optInResult, pendingResult] = await Promise.all([
+  const [optInResult, pendingResult, forcePinResult] = await Promise.all([
     getWhatsAppOptIns(),
     getWhatsAppPendingContacts(),
+    getWhatsAppForcePin(),
   ]);
   const optIns = (optInResult.data || []) as OptInRow[];
   const pendingContacts = (pendingResult.data || []) as PendingRow[];
@@ -54,6 +56,19 @@ export default async function WhatsAppOperationsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Financial PIN policy</CardTitle>
+            <CardDescription>Require a PIN before any financial answer.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              Residents can still set a personal PIN when this is off.
+            </p>
+            <ForcePinToggle initialValue={forcePinResult.data === true} />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Opt-ins</CardTitle>

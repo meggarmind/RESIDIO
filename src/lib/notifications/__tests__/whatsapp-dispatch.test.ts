@@ -69,7 +69,7 @@ describe('WhatsApp notification dispatch', () => {
 
     expect(result).toEqual({ success: true, externalId: 'wamid.outbound-1', error: undefined });
     expect(sendWhatsAppMessage).toHaveBeenCalledWith({
-      to: '2348000000000',
+      to: '+2348000000000',
       body: 'Reminder',
     });
   });

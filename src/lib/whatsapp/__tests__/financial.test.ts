@@ -45,7 +45,7 @@ describe('WhatsApp financial menu', () => {
     const repo = repository();
     const send = vi.fn().mockResolvedValue({ success: true });
 
-    await handleFinancialMessage(message('1'), identity, { repository: repo, send });
+    await handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send });
 
     expect(repo.getBalance).toHaveBeenCalledWith('resident-1', 'house-1');
     expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({
@@ -64,7 +64,7 @@ describe('WhatsApp financial menu', () => {
     ]);
     const send = vi.fn().mockResolvedValue({ success: true });
 
-    await handleFinancialMessage(message('1'), identity, { repository: repo, send });
+    await handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send });
 
     expect(repo.getBalance).not.toHaveBeenCalled();
     expect(send.mock.calls[0]?.[0].body).toContain('1. OAK-1');
@@ -77,7 +77,7 @@ describe('WhatsApp financial menu', () => {
     vi.mocked(repo.getPinHash).mockResolvedValueOnce('03ac674216f3e15c761ee1a5e255f067953623c8c0a0b7e6f3b1c5f5f6e6f6f7');
     const send = vi.fn().mockResolvedValue({ success: true });
 
-    await handleFinancialMessage(message('1'), identity, { repository: repo, send });
+    await handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send });
 
     expect(repo.getBalance).not.toHaveBeenCalled();
     expect(send.mock.calls[0]?.[0].body).toContain('PIN');
@@ -88,7 +88,7 @@ describe('WhatsApp financial menu', () => {
     vi.mocked(repo.getForcePin).mockResolvedValue(true);
     const send = vi.fn().mockResolvedValue({ success: true });
 
-    await handleFinancialMessage(message('1'), identity, { repository: repo, send });
+    await handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send });
 
     expect(repo.getBalance).not.toHaveBeenCalled();
     expect(send.mock.calls[0]?.[0].body).toContain('4–6 digit PIN');
@@ -98,10 +98,52 @@ describe('WhatsApp financial menu', () => {
     const repo = repository();
     const send = vi.fn().mockResolvedValue({ success: true });
 
-    await handleFinancialMessage(message('PIN 1234'), identity, { repository: repo, send });
+    await handleFinancialMessage(message('PIN 1234'), identity, { repository: repo, optedIn: true, send });
 
     expect(repo.setPinHash).toHaveBeenCalledWith('resident-1', expect.any(String));
     expect(repo.saveSession).toHaveBeenCalledWith(expect.objectContaining({ pinAuthenticated: true }));
     expect(send.mock.calls[0]?.[0].body).toContain('PIN set');
+  });
+
+  it('routes all four menu queries through authoritative readers', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    for (const command of ['1', '2', '3', '4']) {
+      await handleFinancialMessage(message(command), identity, { repository: repo, optedIn: true, send });
+    }
+
+    expect(repo.getBalance).toHaveBeenCalled();
+    expect(repo.getLastPayment).toHaveBeenCalled();
+    expect(repo.getNextDue).toHaveBeenCalled();
+    expect(repo.getWallet).toHaveBeenCalledWith('resident-1');
+    expect(repo.logDisclosure).toHaveBeenCalledTimes(4);
+  });
+
+  it('rejects financial handling when consent is absent', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: false, send });
+
+    expect(repo.getBalance).not.toHaveBeenCalled();
+    expect(repo.logDisclosure).not.toHaveBeenCalled();
+  });
+
+  it('resets an expired session before processing a new query', async () => {
+    const repo = repository();
+    vi.mocked(repo.getSession).mockResolvedValue({
+      phoneNumber: '+2348000000000',
+      residentId: 'resident-1',
+      currentNode: 'menu',
+      selectedHouseId: 'house-1',
+      pinAuthenticated: true,
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    });
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send });
+
+    expect(send.mock.calls[0]?.[0].body).toContain('PIN 1234');
   });
 });

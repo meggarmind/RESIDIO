@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
           }
           await handleFinancialMessage(identifiedMessage, identity, {
             repository: createSupabaseWhatsAppFinancialRepository(),
+            optedIn: true,
           });
         },
       });
