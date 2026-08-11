@@ -2,6 +2,8 @@
 
 This document describes the Residio database architecture, including core entities, relationships, triggers, and enums.
 
+> **Schema status (verified 2026-08-10):** The cloud Supabase REST API is reachable with the configured project credentials. The table inventory below was reconciled against `src/types/database.generated.ts` and zero-row requests to the live API for the tables added after the checked-in SQL snapshot. `db-visual.sql` is a useful historical DDL snapshot, but it is not a complete current-schema source; it omits later finance, project, payment, assistant, and operations tables. For implementation work, treat cloud schema/MCP and the generated types as authoritative, then refresh this document.
+
 ---
 
 ## Directory Structure
@@ -89,16 +91,36 @@ supabase/
 | `resident_houses` | Junction table (many-to-many) for property assignments with roles, sponsor links, live-in flags, and tags |
 | `verification_tokens` | OTP tokens for email/phone contact verification |
 
-### Financial
+### Financial, Billing & Treasury
 
 | Table | Description |
 |-------|-------------|
 | `payment_records` | Payment history with status tracking |
-| `wallets` | Resident wallet balances |
+| `resident_wallets` | One wallet balance per resident |
 | `wallet_transactions` | Wallet credit/debit history |
 | `billing_profiles` | Fee schedules and billing configurations |
+| `billing_items` | Reusable billable line-item definitions |
 | `invoices` | Generated invoices per resident |
 | `invoice_items` | Line items within invoices |
+| `invoice_generation_log` | Invoice-generation run history |
+| `house_levy_history` | Levy changes applied to a property |
+| `estate_bank_accounts` | Estate bank-account registry |
+| `bank_statement_imports` | Bank-statement import sessions |
+| `bank_statement_rows` | Parsed statement transactions |
+| `paystack_transactions` | Payment-gateway transaction references |
+| `petty_cash_accounts` | Operational petty-cash accounts |
+| `transaction_tags` | Credit/debit categorisation tags |
+
+### Finance Operations & Projects
+
+| Table | Description |
+|-------|-------------|
+| `expense_categories` | Expense classification reference data |
+| `expenses` | Estate expenditure records, optionally linked to projects/vendors |
+| `vendors` | Suppliers, contractors, and personnel records |
+| `budgets` | Category budgets with a defined period |
+| `projects` | Capital-project register |
+| `project_milestones` | Progress milestones for projects |
 
 ### Security
 
@@ -108,6 +130,7 @@ supabase/
 | `security_contact_categories` | Configurable contact categories |
 | `access_codes` | Permanent and one-time access codes |
 | `access_logs` | Check-in/check-out recording |
+| `visitor_vehicles` | Vehicles registered to security contacts |
 
 ### Community & Communication
 
@@ -119,6 +142,10 @@ supabase/
 | `in_app_notifications` | Real-time alerts for residents |
 | `notification_templates` | Legacy: Message templates with variables |
 | `message_templates` | Phase 16: Modern reusable communication templates |
+| `notification_preferences` | Per-recipient notification-channel preferences |
+| `notification_schedules` | Scheduled notification delivery definitions |
+| `notification_queue` | Pending notification work |
+| `notification_history` | Notification delivery/audit history |
 | `report_subscriptions` | Resident preferences for automated reporting |
 
 ### Documents
@@ -137,9 +164,19 @@ supabase/
 | `email_imports` | Session tracking for automated bank imports |
 | `email_messages` | Individual emails fetched and classification |
 | `email_transactions` | Transactions extracted from email alerts/PDFs |
-| `bank_statement_imports` | Legacy: Manual statement import sessions |
+| `email_logs` | Outbound email activity and delivery diagnostics |
 | `resident_payment_aliases` | Mapping for automated resident matching |
 | `estate_bank_account_passwords` | Encrypted passwords for bank PDF decryption |
+
+### Reporting, Search & Assistant
+
+| Table | Description |
+|-------|-------------|
+| `report_schedules` | Definitions for scheduled reports |
+| `generated_reports` | Generated report artefacts and metadata |
+| `search_logs` | Global-search activity telemetry |
+| `ai_settings` | Estate Assistant configuration |
+| `ai_conversation_logs` | Estate Assistant conversation audit records |
 
 ### System
 
@@ -147,11 +184,15 @@ supabase/
 |-------|-------------|
 | `audit_logs` | Immutable activity logs across all modules |
 | `system_settings` | Core application configuration |
+| `hierarchical_settings` | Scoped setting overrides |
 | `impersonation_sessions` | Admin-resident portal preview sessions |
 | `approval_requests` | Maker-checker workflow queue |
+| `escalation_states` | Approval/escalation workflow state |
 | `entity_notes` | Polymorphic notes for residents and houses |
 | `late_fee_log` | Application history for automated late fees |
 | `late_fee_waivers` | Resident requests for fee removal |
+| `house_ownership_history` | Property ownership transition history |
+| `two_factor_audit_log` | Two-factor authentication audit events |
 
 ---
 
@@ -225,7 +266,7 @@ Residents can verify their email and phone via OTP:
 ### `create_wallet_for_resident()`
 - **Fires**: AFTER INSERT on `residents`
 - **Purpose**: Auto-creates wallet with zero balance
-- **Logic**: Inserts into `wallets` with `resident_id`
+- **Logic**: Inserts into `resident_wallets` with `resident_id`
 
 ### `create_profile_for_user()`
 - **Fires**: AFTER INSERT on `auth.users`
@@ -344,8 +385,8 @@ graph TD
     subgraph Resident_Management [Residents]
         residents --> resident_houses
         houses --> resident_houses
-        residents --> wallets
-        wallets --> wallet_transactions
+        residents --> resident_wallets
+        resident_wallets --> wallet_transactions
         residents --> entity_notes
     end
 
@@ -384,7 +425,7 @@ graph TD
 Database types are defined in two files:
 
 - `src/types/database.ts` - Manual type definitions with convenience aliases
-- `src/types/database.generated.ts` - Auto-generated from schema via `npm run db:types`
+- `src/types/database.generated.ts` - Generated schema snapshot used by the application
 
 ### Convenience Type Aliases
 
@@ -404,11 +445,13 @@ export type AuditLog = Tables<'audit_logs'>;
 
 ## Migrations
 
-All migrations are stored in `supabase/migrations/` with timestamp prefixes.
+All migrations are stored in `supabase/migrations/` with timestamp prefixes. The application is cloud-only: inspect and apply database changes through the configured Supabase MCP connection, not a local Supabase instance.
 
-To regenerate TypeScript types after schema changes:
+After a cloud schema change, regenerate and review TypeScript types using the cloud project configuration before committing `src/types/database.generated.ts`. Do not rely on the package's legacy `db:types` script while it still uses `--local`.
+
+To compare a checked-in type snapshot with the live schema:
 ```bash
-npm run db:types
+# Use Supabase MCP schema inspection, then regenerate types from the cloud project.
 ```
 
 For detailed migration commands, see [Supabase Integration](../api/supabase-integration.md#mcp-tools-reference).

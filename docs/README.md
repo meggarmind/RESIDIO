@@ -50,6 +50,7 @@ See [Development Environment](setup/development-environment.md) for detailed set
 
 ### Features
 - [Analytics Dashboard](features/analytics.md) - Revenue trends, collection rates, and performance tracking
+- [Legacy Financial Tracker Format](features/legacy-financial-tracker-format.md) - Canonical tracker workbook and import requirements
 - [Document Management](features/document-management.md) - Categories, storage, and access control
 - [Announcements System](features/announcements.md) - Community communication, scheduling, and read receipts
 - [Admin Impersonation](features/admin-impersonation.md) - Secure resident portal preview for admins

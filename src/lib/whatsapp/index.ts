@@ -12,6 +12,16 @@ export {
   handleInboundMessage,
 } from '@/lib/whatsapp/inbound';
 export { createWhatsAppSimulator, type WhatsAppSimulator } from '@/lib/whatsapp/simulator';
+export {
+  createSupabaseWhatsAppIdentityRepository,
+  handleResidentMessage,
+  generateWhatsAppLinkCode,
+  hashWhatsAppLinkCode,
+  type WhatsAppIdentityHandlerOptions,
+  type WhatsAppIdentityRepository,
+  type WhatsAppIdentityResult,
+  type WhatsAppResidentIdentity,
+} from '@/lib/whatsapp/identity';
 export type {
   InboundMessageHandlerOptions,
   InboundMessageResult,

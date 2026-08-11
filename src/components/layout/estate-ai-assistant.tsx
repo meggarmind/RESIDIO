@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Plus, Minus, Send, MessageCircle, X } from 'lucide-react';
-import { useAiAssistant, Message } from '@/hooks/use-ai-assistant';
+import { Sparkles, Plus, Minus, Send, X } from 'lucide-react';
+import { useAiAssistant } from '@/hooks/use-ai-assistant';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -13,8 +13,10 @@ export function EstateAiAssistant() {
     const {
         isOpen,
         toggleOpen,
+        closeAssistant,
         isDismissed,
         disabledByAdmin,
+        isSettingsLoading,
         dismissAssistant,
         messages,
         sendMessage,
@@ -43,7 +45,7 @@ export function EstateAiAssistant() {
         }
     }, [messages, isTyping]);
 
-    if (isDismissed || disabledByAdmin) return null;
+    if (isSettingsLoading || isDismissed || disabledByAdmin) return null;
 
     return (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
@@ -74,8 +76,8 @@ export function EstateAiAssistant() {
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={dismissAssistant}
-                                    title="Close Assistant"
+                                    onClick={closeAssistant}
+                                    title="Close conversation"
                                     className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/10"
                                 >
                                     <X className="w-4 h-4" />

@@ -135,6 +135,10 @@ export const PERMISSIONS = {
   NOTIFICATIONS_SEND: 'notifications.send',
   NOTIFICATIONS_MANAGE: 'notifications.manage',
 
+  // WhatsApp Assistant operations
+  WHATSAPP_VIEW: 'whatsapp.view',
+  WHATSAPP_MANAGE: 'whatsapp.manage',
+
   // Report Subscriptions Module (Phase 16)
   REPORT_SUBSCRIPTIONS_VIEW: 'report_subscriptions.view',
   REPORT_SUBSCRIPTIONS_MANAGE: 'report_subscriptions.manage',

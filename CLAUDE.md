@@ -4,6 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > **Setup, commands, stack, architecture, and design system are canonical in `AGENTS.md`** — it is the shared single source of truth used by both Claude Code and OpenCode. This `CLAUDE.md` holds only what is Claude-specific or additive (integration contract, MCP tools, session workflow). If something exists in both, `AGENTS.md` wins; don't duplicate.
 
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live as GitHub issues in `meggarmind/RESIDIO`, accessed via the `gh` CLI; external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
 Shared coordination file: `SESSION_STATE.md` — read/update it at session start/end.
 
 ## Project Overview
@@ -293,7 +307,7 @@ npm run db:types         # Generate TypeScript types from cloud schema
 |-----------|--------|
 | `pause_session` | Execute session handoff procedure |
 | `end_session` | Execute session handoff procedure |
-| `resume_session` | Read `NEXT_SESSION_HANDOFF_PROMPT.md` and follow as prompt |
+| `resume_session` | Read `SESSION_STATE.md`, then continue from its current snapshot and next steps |
 | `sync_dev_inbox` | Run Notion sync, check prompts folder, process prompts |
 | `sync_up` | Git commit & push, evaluate pending work |
 

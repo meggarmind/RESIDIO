@@ -366,6 +366,9 @@ export type AuditEntityType =
   | 'two_factor_backup_codes'      // 2FA backup codes
   | 'two_factor_policies'          // 2FA enforcement policies
   | 'two_factor_audit_log'         // 2FA audit trail
+  | 'whatsapp_optins'              // WhatsApp consent records
+  | 'whatsapp_pending_contacts'    // Unrostered WhatsApp numbers
+  | 'whatsapp_link_tokens'          // One-time WhatsApp linking tokens
   | 'visitor_vehicles'             // Visitor Vehicle Registration
   // Unified Expenditure Engine
   | 'expenses'                     // Expense records
@@ -450,6 +453,9 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   two_factor_backup_codes: '2FA Backup Code',           // Two-Factor Authentication
   two_factor_policies: '2FA Policy',                    // Two-Factor Authentication
   two_factor_audit_log: '2FA Audit Log',                // Two-Factor Authentication
+  whatsapp_optins: 'WhatsApp Opt-in',                    // WhatsApp Assistant
+  whatsapp_pending_contacts: 'WhatsApp Pending Contact', // WhatsApp Assistant
+  whatsapp_link_tokens: 'WhatsApp Link Token',           // WhatsApp Assistant
   visitor_vehicles: 'Visitor Vehicle',                  // Visitor Management Enhancement
   // Unified Expenditure Engine
   expenses: 'Expense',                                  // Expense Management

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   createSupabaseProcessedMessageStore,
+  createSupabaseWhatsAppIdentityRepository,
+  handleResidentMessage,
   handleInboundMessage,
   getWhatsAppConfig,
   verifyWhatsAppSignature,
@@ -48,6 +50,11 @@ export async function POST(request: NextRequest) {
 
   const result = await handleInboundMessage(payload, {
     store: createSupabaseProcessedMessageStore(),
+    onMessage: async (message) => {
+      await handleResidentMessage(message, {
+        repository: createSupabaseWhatsAppIdentityRepository(),
+      });
+    },
   });
 
   if (!result.accepted) {

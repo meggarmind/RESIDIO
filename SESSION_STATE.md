@@ -9,7 +9,7 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Current snapshot (verified 2026-08-10)
+## Current snapshot (verified 2026-08-11)
 
 | Item | State |
 |------|-------|
@@ -22,9 +22,9 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 | Integration coverage | `module-integration.test.ts` passes. Fixed real gaps (permission+audit) for `system/prune-data`, `personnel/actions`, `projects/create-project`, `expenses/create+update`, `finance/petty-cash`, `finance/manual-verification`. Allowed `vendors`/`projects` as audit entity types. Recipient-facing/cron/webhook/auth flows (payments, billing wallet-pay, paystack init/verify/webhook, email-imports, 2FA login) are allowlisted with rationale — they cannot take an admin RBAC `authorizePermission` guard. Note: this test reports "70 permission / 51 audit gaps" but PASSES — gap summary includes allowlisted-but-still-missing entries, not a failure signal. |
 | Lint | `npm run lint`: **142 errors / ~480 warnings** (from 323). `no-explicit-any`: 237 → ~40 (admin). `ban-ts-comment`: 9 → 2. `react-hooks/set-state-in-effect`: 38 → 36 (compiler rule; can't suppress). `no-unescaped-entities`: 18 → 15 (mostly portal). Remaining `any`s are a long tail (1 per file across ~30 admin files). |
 | Perf | `force-dynamic` removed from dashboard layout. React Query staleTime: 1min → 5min. Sidebar hooks + AI assistant cached. `loading.tsx` shell skeleton created. Suspense boundaries on dashboard cards. Build green, tsc 0, Vitest 16/16. |
-| Delivery priority | **Fast-track:** P0 finance/statements/imports/reports, P0 critical performance backlog, P1 WhatsApp/SMS operational integrations. Payment gateway is deferred; portal/self-service remains deprioritized. |
+| Delivery priority | **Fast-track:** P0 finance/statements/imports/reports, P0 critical performance backlog, P1 WhatsApp/SMS operational integrations. WhatsApp issue #2 is complete; issue #3 is next. Payment gateway is deferred; portal/self-service remains deprioritized. |
 | Database documentation | **Verified 2026-08-10:** configured cloud Supabase REST access is working (HTTP 200). The architecture inventory now covers 30 later tables confirmed through zero-row live API requests; `docs/architecture/db-visual.sql` is explicitly marked as an incomplete historical snapshot. |
-| Legacy import review | **Started 2026-08-10:** `docs/importdata/legacy-record-ledger.md` is the no-write, no-query review ledger. A blue cell is the move-in-month source; without blue, earliest paid month is both move-in and first billing month. Database matching/reconciliation is suspended until the consolidated bulk-import file is ready. L-0001 has pre-suspension evidence; L-0002–L-0125 are translated from source only. L-0013–L-0016 are tenants under Tim Akenroye’s 12-series landlord ownership; L-0017–L-0018 apply Christian Philips ownership; L-0022–L-0027 are 16-series landlords; L-0038–L-0072 cover IBB batches; L-0073–L-0107 cover GLB batches; L-0108–L-0125 cover KOA batch records. IBB source landlord/self-occupied labels are intentionally ignored unless a landlord is explicitly confirmed. House 5 acquisition text is notes-only. |
+| Legacy import review | **Reconciliation/import in progress 2026-08-11:** all 136 ledger entries match exactly one existing house; the scoped database contains 2,257 payment records and 195 resident-house assignments. Two verified alias batches created 38 `resident_payment_aliases`; alias-only assignments were deactivated while their residents were retained with explanatory notes. OJO.K-2 and the combined OJO.K-9B resident row were corrected from user-confirmed source data. |
 
 ---
 
@@ -58,7 +58,20 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 
 ---
 
-## Last session (OpenCode, 2026-08-10)
+## Last session (OpenCode, 2026-08-11)
+
+- **WhatsApp Channel Foundation (#2):** Implemented direct Meta Cloud API provider boundary, safe configuration handling, signed webhook at `/api/whatsapp/webhook`, in-memory simulator, notification dispatcher wiring, and cloud `whatsapp_processed_messages` table with RLS and 24-hour deduplication expiry. SMS was removed from `IMPLEMENTED_CHANNELS` because it is not operational.
+- **Verification:** Cloud migration applied and RLS verified. `npm test -- --run` passed 8 files / 30 tests; `npx tsc --noEmit` passed; targeted WhatsApp/notification lint passed; full repository lint remains failing on pre-existing unrelated errors; `npm run build` passed.
+- **Review hardening:** Added route handshake/signature tests, simulator send coverage, release-on-handler-failure retry behavior, expired-ID cleanup, and regenerated `src/types/database.generated.ts` from cloud schema.
+- **Issue tracking:** Closed [GitHub issue #2](https://github.com/meggarmind/RESIDIO/issues/2). Next implementation slice is [#3 Resident Identity and Consent](https://github.com/meggarmind/RESIDIO/issues/3).
+
+- **WhatsApp Assistant design and planning:** Ran a domain-modeling grilling session. Recorded the agreed domain language in `CONTEXT.md` and created ADR-0001 for the deliberate WhatsApp resident-facing exception to the web-portal guardrail and ADR-0002 for direct Meta Cloud API delivery behind a provider-agnostic module.
+- **WhatsApp PRD:** Published [PRD #1](https://github.com/meggarmind/RESIDIO/issues/1) with the `ready-for-agent` label.
+- **WhatsApp vertical slices:** Published dependency-ordered issues [#2](https://github.com/meggarmind/RESIDIO/issues/2) through [#8](https://github.com/meggarmind/RESIDIO/issues/8), all labeled `ready-for-agent`: channel foundation, identity/consent, core financial standing, statements, outbound messaging, operations console, and pilot controls.
+- **Channel reality recorded:** SMS is not implemented despite existing code advertising it as implemented; issue #6 explicitly requires resolving that discrepancy accurately while adding WhatsApp.
+- **Verification:** GitHub issue list confirmed #1–#8 and labels. No application tests were run because this session only created planning/documentation and GitHub issues.
+
+- **Database architecture audit (Codex, 2026-08-10):** Confirmed read access to cloud Supabase. Reconciled `docs/architecture/database-schema.md` with generated types and the live API, corrected `wallets` to `resident_wallets`, and documented later finance, projects, operations, notifications, reporting, search, and assistant tables. No schema or application data was changed.
 
 - **Database architecture audit (Codex, 2026-08-10):** Confirmed read access to cloud Supabase. Reconciled `docs/architecture/database-schema.md` with generated types and the live API, corrected `wallets` to `resident_wallets`, and documented later finance, projects, operations, notifications, reporting, search, and assistant tables. No schema or application data was changed.
 - **Legacy tracker review (Codex, 2026-08-10):** Created `docs/importdata/legacy-record-ledger.md` and reconciled L-0001 / OJO.K-2 through read-only queries. It proposes a name/alias correction, tenant→resident-landlord assignment correction from 2015-01-01, and one missing Dec 2025 NGN 30,000 payment. No database write was made; the only open decision is archive vs delete for an alias-only secondary record.
@@ -76,6 +89,13 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 - **Legacy tracker clarification (Codex, 2026-08-11):** Canonicalized all previous `Alh Hassan` landlord references to **Hassan Ogwe**, confirmed `resident_landlord`, and added GLB-21 as his resident-landlord record from 2015-01-01. No database query or write was made.
 - **Legacy tracker review (Codex, 2026-08-11):** Added KOA L-0108–L-0125 (Houses 1A–16) with user-confirmed linked secondary, alias, and landlord assignments for Houses 5, 10-series, 15-series, and 16. No database query or write was made.
 - **Legacy tracker clarification (Codex, 2026-08-11):** Confirmed Omokehinde Patrick and Escodak Investments as payment aliases; Anwuli Okafor as a KOA-13A linked secondary resident; and Odera Okafor as ignored/skipped. No database query or write was made.
+- **Legacy tracker review (Codex, 2026-08-11):** Added KOA L-0126–L-0136 (Houses 17–19), preserving blue-cell dates, payment history, the House 19 renovation fee, and one outstanding source-name classification. No database query or write was made.
+- **Legacy tracker clarification (Codex, 2026-08-11):** Confirmed Abodunde Olayemi as the KOA-17 payment alias. No database query or write was made.
+- **Legacy tracker review (Codex, 2026-08-11):** User declared the supplied legacy tracker complete. The no-write review pass is closed at L-0136; remaining houses will be added later or manually. Database reconciliation/import remains suspended pending explicit authorization.
+- **Legacy tracker reconciliation (Codex, 2026-08-11):** User authorized the next phase. A read-only cloud Supabase snapshot was generated for all OJO.K, IBB, GLB, and KOA houses: 136/136 legacy labels now have a single existing-house match. Current records contain 193 resident-house assignments, 2,257 payment records, and no payment aliases across the scoped houses. Import writes remain pending a safe policy for new residents without phone numbers and preservation of legacy alias-only resident records.
+- **Legacy tracker import (Codex, 2026-08-11):** User approved `LEGACY-NO-PHONE` placeholders for genuinely new residents and preservation of alias-only resident rows. Applied and re-verified five safe alias conversions (OJO.K-2, IBB-18F-3, GLB-5A, GLB-9A, KOA-6). The records remain in place with a conversion note, their incorrect active assignments are inactive, and seven payment aliases exist. OJO.K-2 was also corrected to Chukwuemeka Francis Abara and `resident_landlord` from 2015-01-01. Continue with the remaining confirmed alias/ownership/history reconciliation; payment rows require deduplication against the existing 2,257 records.
+- **Legacy tracker import (Codex, 2026-08-11):** Applied a second, dry-run-validated alias batch: 31 additional user-confirmed aliases were created (38 total). Nine entries were intentionally left unresolved because their confirmed canonical resident was not currently active at the house; they require historical-owner/tenant reconciliation rather than unsafe alias attachment.
+- **Legacy tracker import (Codex, 2026-08-11):** Applied and verified the user-confirmed OJO.K-9B split: corrected the combined record to tenant Ernest Obaseki, created linked secondary Daisy Obaseki and non-resident landlord Olumide Olawole Agu with `LEGACY-NO-PHONE` placeholders, and added the Ernest Agho Johnbull payment alias. Snapshot after write: 188 residents, 195 assignments, 39 aliases, 2,257 payments in the four-street scope.
 
 - **Handoff consolidation (2026-08-10):** Deleted obsolete `HANDOFF_SUMMARY.md` and `NEXT_SESSION_HANDOFF_PROMPT.md`. `SESSION_STATE.md` is now documented as the sole live handoff in `AGENTS.md`, `CLAUDE.md`, and project-management guidance. Agents must update `SESSION_STATE.md`, `TODO.md`, and active `ACTIONPLAN.md` progress automatically after substantive work, even without an explicit user request. Documentation-only change; no test suite run.
 

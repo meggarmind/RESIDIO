@@ -1,5 +1,7 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
+-- Snapshot status (2026-08-10): this export is incomplete relative to the live cloud schema.
+-- Use database-schema.md plus Supabase MCP/live schema inspection for current implementation work.
 
 CREATE TABLE public.access_codes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

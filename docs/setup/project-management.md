@@ -22,8 +22,9 @@ This document covers git configuration, documentation update cadence, session wo
 
 | Document | Frequency | Trigger |
 |----------|-----------|---------|
-| `TODO.md` | Every 30 minutes | During active development |
-| `HANDOFF_SUMMARY.md` | At session end | User requests close, or context ~10% |
+| `SESSION_STATE.md` | Every substantive session | Before finishing any work, including unprompted progress tracking |
+| `TODO.md` | When backlog status changes | Complete, defer, discover, or reprioritize work |
+| `ACTIONPLAN.md` | When an active plan changes | Complete, revise, or invalidate a plan step |
 | `README.md` | Hourly | Or at session end |
 
 ---
@@ -58,7 +59,7 @@ When the user types any of these keyphrases, execute the associated action:
 |-----------|--------|
 | `pause_session` | Execute session handoff procedure |
 | `end_session` | Execute session handoff procedure |
-| `resume_session` | Read `NEXT_SESSION_HANDOFF_PROMPT.md` and follow as prompt |
+| `resume_session` | Read `SESSION_STATE.md`, then continue from its current snapshot and next steps |
 | `sync_dev_inbox` | Run Notion sync, check prompts folder, process prompts |
 | `sync_up` | Execute sync-up procedure |
 
@@ -68,26 +69,18 @@ When the user types any of these keyphrases, execute the associated action:
 
 When triggered by `pause_session` or `end_session`:
 
-### Step 1: Update TODO.md
-- Current state
-- Any troubleshooting in progress
+### Step 1: Update `SESSION_STATE.md`
+- Verified project baseline: branch, working-tree state, and test/build/lint outcomes
+- Work completed, decisions made, troubleshooting in progress, and next steps
 
-### Step 2: Update CLAUDE.md
+### Step 2: Update `TODO.md` and `ACTIONPLAN.md`
+- Mark completed work, add discovered follow-ups, and reprioritize the backlog as needed
+- Update active plan steps where the session changed them
+
+### Step 3: Update CLAUDE.md
 - Only if new patterns or conventions were established
 
-### Step 3: Update HANDOFF_SUMMARY.md
-Include:
-- Overall goal for this session
-- Key decisions made or approaches attempted
-- Specific code changes (brief descriptions, no large code blocks)
-- Current state of in-progress tasks
-- Next steps or remaining tasks (primary focus for next session)
-
-### Step 4: Create/Update NEXT_SESSION_HANDOFF_PROMPT.md
-- Complete prompt with 100% of information needed for next session
-- Must enable seamless transition
-
-### Step 5: Update Notion Project Review
+### Step 4: Update Notion Project Review
 Use `mcp__notion__notion-update-page`:
 - Page ID: `2c92bfe3-ea0c-81df-b05f-ffcef90414fa`
 - URL: https://www.notion.so/2c92bfe3ea0c81dfb05fffcef90414fa

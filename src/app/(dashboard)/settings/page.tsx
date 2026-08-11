@@ -6,12 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, CheckCircle2, Loader2, History, Save, Globe, Facebook, Instagram, Twitter, Upload, X, ImageIcon } from 'lucide-react';
 import { backfillOwnershipHistory } from '@/actions/settings/backfill-ownership-history';
 import { toast } from 'sonner';
-import { useGeneralSettings, useUpdateSettings, useUploadEstateLogo, useRemoveEstateLogo } from '@/hooks/use-settings';
+import { useGeneralSettings, useUpdateSetting, useUpdateSettings, useUploadEstateLogo, useRemoveEstateLogo } from '@/hooks/use-settings';
 
 // Type for backfill result (defined inline since it's from 'use server' file)
 type BackfillResult = {
@@ -56,6 +57,7 @@ export default function SettingsPage() {
 
   const { data: generalSettings, isLoading: isLoadingSettings } = useGeneralSettings();
   const updateSettings = useUpdateSettings();
+  const updateSetting = useUpdateSetting();
   const uploadLogo = useUploadEstateLogo();
   const removeLogo = useRemoveEstateLogo();
 
@@ -149,6 +151,10 @@ export default function SettingsPage() {
     }
   };
 
+  const settingsObj = settingsToObject(generalSettings);
+  const isAssistantDisabled = String(settingsObj.disable_ai_assistant) === 'true';
+  const isAssistantGreetingEnabled = String(settingsObj.ai_assistant_greeting_enabled) !== 'false';
+
   return (
     <div className="space-y-6">
       <div>
@@ -201,19 +207,6 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="assistant-name">AI Assistant Name</Label>
-                  <Input
-                    id="assistant-name"
-                    placeholder="Estate Assistant"
-                    value={estateForm.assistant_name}
-                    onChange={(e) => handleInputChange('assistant_name', e.target.value)}
-                  />
-                  <p className="text-[0.8rem] text-muted-foreground">
-                    Customize the name of your floating AI assistant. Defaults to &quot;[Estate Name] Assistant&quot; if left blank.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
                   <Label htmlFor="estate-address">Address</Label>
                   <Input
                     id="estate-address"
@@ -248,6 +241,69 @@ export default function SettingsPage() {
                       />
                     </div>
                   </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Estate Assistant</CardTitle>
+            <CardDescription>
+              Control the floating assistant available throughout the admin dashboard.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {isLoadingSettings ? (
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between gap-6">
+                  <div className="space-y-1">
+                    <Label htmlFor="assistant-visible">Show Estate Assistant</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Make the floating assistant visible for all dashboard users.
+                    </p>
+                  </div>
+                  <Switch
+                    id="assistant-visible"
+                    checked={!isAssistantDisabled}
+                    onCheckedChange={(checked) => updateSetting.mutate({ key: 'disable_ai_assistant', value: !checked })}
+                    disabled={updateSetting.isPending}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-6">
+                  <div className="space-y-1">
+                    <Label htmlFor="assistant-greeting">Send an opening greeting</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Start a new conversation with a personalized greeting.
+                    </p>
+                  </div>
+                  <Switch
+                    id="assistant-greeting"
+                    checked={isAssistantGreetingEnabled}
+                    onCheckedChange={(checked) => updateSetting.mutate({ key: 'ai_assistant_greeting_enabled', value: checked })}
+                    disabled={updateSetting.isPending}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="assistant-name">Assistant name</Label>
+                  <Input
+                    id="assistant-name"
+                    placeholder="Estate Assistant"
+                    value={estateForm.assistant_name}
+                    onChange={(e) => handleInputChange('assistant_name', e.target.value)}
+                  />
+                  <p className="text-[0.8rem] text-muted-foreground">
+                    Defaults to &quot;[Estate Name] Assistant&quot; when left blank.
+                  </p>
                 </div>
               </>
             )}

@@ -69,3 +69,10 @@ Follow `DESIGN_AGENTS.md` (the repo's design standard) for all UI work: OKLCH co
 - `docs/api/supabase-integration.md` — data-layer & MCP patterns
 - `CLAUDE.md` — auth/audit integration contract, MCP tools, session workflow
 - `TODO.md` / `ACTIONPLAN.md` — current phase and in-progress plan; update `ACTIONPLAN.md` as you complete steps.
+
+## Progress tracking
+
+- `SESSION_STATE.md` is the live cross-agent handoff and current verified baseline. Read it before substantive work and update its snapshot, last-session entry, and next steps before finishing, whether or not the user explicitly asks.
+- Maintain `TODO.md` as the product backlog: mark completed items, add newly discovered follow-up work, and keep priorities aligned with the current delivery focus.
+- Update `ACTIONPLAN.md` whenever work completes, changes, or invalidates an active plan step.
+- Record the work actually performed, decisions, verification results, known failures, and remaining work. Do not create separate handoff files; `SESSION_STATE.md` is the sole live handoff.

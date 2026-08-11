@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useGeneralSettings } from '@/hooks/use-settings';
 
@@ -22,6 +22,7 @@ export interface Suggestion {
 interface AiAssistantContextType {
     isOpen: boolean;
     toggleOpen: () => void;
+    closeAssistant: () => void;
     isDismissed: boolean;
     dismissAssistant: () => void;
     restoreAssistant: () => void;
@@ -35,15 +36,15 @@ interface AiAssistantContextType {
     showSuggestion: (text: string, action?: Suggestion['action']) => void;
     dismissSuggestion: () => void;
     disabledByAdmin: boolean;
+    isSettingsLoading: boolean;
 }
 
 const AiAssistantContext = createContext<AiAssistantContextType | undefined>(undefined);
 
 export function AiAssistantProvider({ children }: { children: React.ReactNode }) {
     const { profile } = useAuth();
-    // Lazy: only fetch settings when the assistant is first opened, not on mount
-    const [hasRequestedSettings, setHasRequestedSettings] = useState(false);
-    const { data: settings } = useGeneralSettings(hasRequestedSettings);
+    // Visibility is an estate-wide control, so load it before rendering the floater.
+    const { data: settings, isLoading: isSettingsLoading } = useGeneralSettings();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [isTyping, setIsTyping] = useState(false);
@@ -60,7 +61,8 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
     const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
     const [isSuggestionVisible, setIsSuggestionVisible] = useState(false);
 
-    const disabledByAdmin = settings?.find(s => s.key === 'disable_ai_assistant')?.value === 'true';
+    const disabledByAdmin = String(settings?.find(s => s.key === 'disable_ai_assistant')?.value) === 'true';
+    const greetingEnabled = String(settings?.find(s => s.key === 'ai_assistant_greeting_enabled')?.value) !== 'false';
     const estateName = settings?.find(s => s.key === 'estate_name')?.value as string || 'Estate';
     const assistantNameSetting = settings?.find(s => s.key === 'assistant_name')?.value as string;
     const assistantName = assistantNameSetting || `${estateName} Assistant`;
@@ -69,9 +71,8 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
         setIsOpen(prev => {
             const opening = !prev;
             if (opening) {
-                if (!hasRequestedSettings) setHasRequestedSettings(true);
                 // Add greeting on open if no messages yet
-                if (messages.length === 0 && profile) {
+                if (greetingEnabled && messages.length === 0 && profile) {
                     const firstName = profile.full_name.split(' ')[0];
                     setMessages([{
                         id: 'greeting',
@@ -83,9 +84,14 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
             }
             return opening;
         });
-    }, [hasRequestedSettings, messages.length, profile, assistantName]);
+    }, [greetingEnabled, messages.length, profile, assistantName]);
+
+    const closeAssistant = useCallback(() => {
+        setIsOpen(false);
+    }, []);
 
     const dismissAssistant = useCallback(() => {
+        setIsOpen(false);
         setIsDismissed(true);
         if (typeof window !== 'undefined') {
             localStorage.setItem('ai-assistant-dismissed', 'true');
@@ -149,6 +155,7 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
             value={{
                 isOpen,
                 toggleOpen,
+                closeAssistant,
                 isDismissed,
                 dismissAssistant,
                 restoreAssistant,
@@ -162,6 +169,7 @@ export function AiAssistantProvider({ children }: { children: React.ReactNode })
                 showSuggestion,
                 dismissSuggestion,
                 disabledByAdmin,
+                isSettingsLoading,
             }}
         >
             {children}

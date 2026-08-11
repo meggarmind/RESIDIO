@@ -1,10 +1,26 @@
-# Action Plan: UI/UX Review Phases
+# Action Plan: Finance, Performance & Communications Fast-Track
 
 > The **live project state** (current phase, git state, test baseline, next steps) lives in
 > **`SESSION_STATE.md`** — read/update that for coordination instead of relying on this file.
 
 Created: 2026-01-08T00:00:00Z
 Status: IN PROGRESS
+
+## Fast-Track Priorities
+
+1. **P0 Finance:** Financial statements, automatic statement import, reconciliation, billing, payments, and reports.
+2. **P0 Performance:** Complete Phase 6 before expanding heavy admin workflows.
+3. **P1 Communications:** WhatsApp and SMS integrations for estate/admin operational communications.
+
+Payment gateway integration is explicitly deferred and is not part of the current finance fast-track.
+
+**Schema baseline:** On 2026-08-10, the cloud Supabase inventory was reconciled with the architecture documentation. Finance, reporting, operations, and assistant tables are documented; the legacy DDL export is flagged as incomplete.
+
+**Legacy import control:** Review legacy tracker records in `docs/importdata/legacy-record-ledger.md` before any database write. Each entry must preserve source facts, separate candidate matches from confirmed matches, and identify unresolved occupancy/payment context.
+
+**Legacy import reconciliation (2026-08-11):** The review pass is complete at L-0136 and the user authorized reconciliation. A read-only Supabase snapshot and house-match report in `docs/importdata/` confirm all 136 reviewed records map uniquely to existing houses. Next: build a write manifest for resident/alias/history/payment changes, then apply only after the required phone-data and historical-alias preservation policies are settled.
+
+Portal/self-service work remains out of scope. Finance and communications integrations must remain admin/estate operational capabilities, not new resident portal surfaces.
 
 ## PDF Import Dependencies & APIs
 
@@ -68,7 +84,7 @@ This phase merges the PDF import final steps with the payment flow UI improvemen
 
 ---
 
-## Phase 6: Performance Optimization ⏳ PLANNED
+## Phase 6: Performance Optimization 🔴 CRITICAL / IN PROGRESS
 
 Based on the 2026-08-08 performance audit. Quick wins implemented; remaining work below.
 
@@ -97,9 +113,22 @@ Based on the 2026-08-08 performance audit. Quick wins implemented; remaining wor
 ### Change Log (Performance)
 
 - 2026-08-08: Performance audit completed; Quick Wins implemented. Medium/Large items added to backlog.
+- 2026-08-10: Performance backlog elevated to critical for the finance and communications fast-track.
+
+## Phase 7: WhatsApp Assistant Planning ✅ PRD / ISSUES PUBLISHED
+
+- [x] Domain-modeling grilling completed; canonical terms recorded in `CONTEXT.md`.
+- [x] ADR-0001 recorded the deliberate WhatsApp resident-facing exception; ADR-0002 recorded direct Meta Cloud API delivery.
+- [x] PRD published as GitHub issue [#1](https://github.com/meggarmind/RESIDIO/issues/1).
+- [x] Vertical slices published as GitHub issues [#2](https://github.com/meggarmind/RESIDIO/issues/2)–[#8](https://github.com/meggarmind/RESIDIO/issues/8), dependency-ordered and labeled `ready-for-agent`.
+- [x] Implement issue #2 first: WhatsApp Channel Foundation is complete and closed.
+- [ ] Implement issue #3 next: Resident Identity and Consent.
+- [ ] Resolve the SMS implementation-status discrepancy before marking outbound channel work complete.
 
 ## Change Log
 
+- 2026-08-10: Estate Assistant close behavior corrected; added global visibility, display-name, and greeting controls under General Settings.
+- 2026-08-11: WhatsApp Assistant PRD and seven dependency-ordered implementation issues published; domain glossary and ADRs added.
 - 2026-01-08: Initialized UI/UX Review Phases from frontend-developer agent review.
 - 2026-01-08: Completed Phase 1 (Navigation) and Phase 2 (Card System).
 - 2026-08-07: Merged PDF import final steps (old Steps 7-9) into Phase 3.

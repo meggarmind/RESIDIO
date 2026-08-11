@@ -2,7 +2,7 @@
 
 > **🎯 PRODUCT FOCUS (2026-08-06): ADMIN DASHBOARD ONLY.** Resident Portal / self-service (`src/app/(resident)/**`, resident-portal components) is **NOT planned for rollout** in the foreseeable future. De-prioritize all self-service work listed below (portal wallet, resident payments, announcements/documents/profile, impersonation, onboarding). Keep it stable/local only; do not extend or polish it. Prioritize admin management/finance/security/operations/reporting instead.
 
-**Last Updated:** 2026-08-10 (Finance, performance, and communications fast-track)
+**Last Updated:** 2026-08-11 (WhatsApp Assistant PRD and issue slices)
 
 ## Current Phase: Finance, Performance & Communications Fast-Track
 The project is fast-tracked around financial operations, financial statements/imports/reports, critical performance work, and estate operational WhatsApp/SMS integrations. Portal/self-service work remains out of scope.
@@ -23,8 +23,11 @@ The project is fast-tracked around financial operations, financial statements/im
 - [x] **Cloud Access Confirmed**: Verified read access to the configured Supabase REST API without exposing credentials or application data.
 - [x] **Schema Inventory Reconciled**: Updated `docs/architecture/database-schema.md` for current admin/operations tables and marked `db-visual.sql` as an incomplete historical snapshot.
 
-### In Progress: Legacy Tracker Review
-- [ ] **Review Ledger**: Translate each legacy property record into `docs/importdata/legacy-record-ledger.md` without database queries. Use blue move-in cells where present; without blue, use the earliest paid month as both move-in and first billing month. Perform database matching, duplicate detection, and payment reconciliation only after the consolidated bulk-import file is complete.
+### In Progress: Legacy Tracker Reconciliation and Import
+- [x] **Review Ledger**: Translated all supplied legacy property records into `docs/importdata/legacy-record-ledger.md` (L-0001–L-0136). Blue cells establish move-in; without blue, earliest paid month establishes move-in and first billing.
+- [x] **Property reconciliation**: Read-only cloud snapshot and `docs/importdata/house-reconciliation-report.json` confirm a unique existing-house match for every ledger entry.
+- [ ] **Bulk import manifest**: Reconcile residents, historical assignments, aliases, and payments; preserve source anomalies and avoid duplicate postings.
+- [ ] **Bulk write**: Apply the approved manifest only after resolving the new-resident phone-data and alias-only historical-record handling policies.
 
 ### Residents & Houses Workflow UX (Admin Dashboard)
 - [x] **Registry Navigation**: Added sortable columns and direct record navigation to the Residents and Houses registries.
@@ -42,6 +45,18 @@ The project is fast-tracked around financial operations, financial statements/im
 - Financial statement import must cover automated ingestion, parsing, duplicate detection, matching, review, reconciliation, and auditability.
 - Reports should prioritize statements, indebtedness/debtors, invoice aging, development levies, financial overview, exports, and scheduled delivery.
 - WhatsApp/SMS means estate operational communications; it does not reopen resident portal or self-service scope.
+
+### WhatsApp Assistant Delivery Queue
+- [x] **Design and domain model:** Completed grilling session; glossary terms recorded in `CONTEXT.md`.
+- [x] **PRD:** Published as [GitHub issue #1](https://github.com/meggarmind/RESIDIO/issues/1).
+- [x] **Channel foundation:** Implemented and closed [issue #2](https://github.com/meggarmind/RESIDIO/issues/2).
+- [ ] **Identity and consent:** [Issue #3](https://github.com/meggarmind/RESIDIO/issues/3), blocked by #2.
+- [ ] **Core financial standing:** [Issue #4](https://github.com/meggarmind/RESIDIO/issues/4), blocked by #3.
+- [ ] **Period-based statements:** [Issue #5](https://github.com/meggarmind/RESIDIO/issues/5), blocked by #4.
+- [ ] **Outbound estate messaging:** [Issue #6](https://github.com/meggarmind/RESIDIO/issues/6), blocked by #2 and #3.
+- [ ] **Operations console:** [Issue #7](https://github.com/meggarmind/RESIDIO/issues/7), blocked by #3, #4, and #6.
+- [ ] **Pilot and estate-wide controls:** [Issue #8](https://github.com/meggarmind/RESIDIO/issues/8), blocked by #2–#7.
+- [ ] **SMS status:** Correct the stale implemented-channel claim; SMS is not currently operational.
 
 ### Recent Session Work (2026-01-24): Style Guide Compliance (Layout 2) - Part 2
 - [x] **Announcements Table Refactor**: Applied Complex Registry Standard (`docs/design/data-table-layout2.md`) to Announcements table.
