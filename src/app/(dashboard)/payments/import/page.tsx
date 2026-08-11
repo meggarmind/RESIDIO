@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,12 +10,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Upload, Table, Users, CheckCircle, Loader2 } from 'lucide-react';
 import { StatementUpload } from '@/components/imports/statement-upload';
 import { ColumnMapper } from '@/components/imports/column-mapper';
-import { ImportPreview } from '@/components/imports/import-preview';
 import { ImportConfirmation } from '@/components/imports/import-confirmation';
 import { ImportResults } from '@/components/imports/import-results';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { ParsedRow } from '@/lib/validators/import';
 import type { ProcessImportResult } from '@/actions/imports/types';
+
+const ImportPreview = dynamic(
+  () => import('@/components/imports/import-preview').then((m) => ({ default: m.ImportPreview })),
+  { loading: () => <Skeleton className="h-96 w-full rounded-xl" />, ssr: false }
+);
 
 type WizardStep = 'upload' | 'mapping' | 'review' | 'confirm' | 'results';
 

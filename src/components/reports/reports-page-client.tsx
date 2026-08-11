@@ -32,6 +32,7 @@ import {
     TrendingUp,
     Users,
     Trash2,
+    Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -161,6 +162,23 @@ function ReportCard({
                         >
                             <Eye className="h-3.5 w-3.5" />
                             View
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-1.5"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const params = new URLSearchParams({ type: report.type, preset: 'last_month' });
+                                const url = `/api/reports/download?${params.toString()}`;
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `${report.type}-${new Date().toISOString().split('T')[0]}.pdf`;
+                                a.click();
+                            }}
+                        >
+                            <Download className="h-3.5 w-3.5" />
+                            PDF
                         </Button>
                         <Button
                             variant="ghost"

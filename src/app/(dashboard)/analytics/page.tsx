@@ -1,34 +1,26 @@
-import { redirect } from 'next/navigation';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { AnalyticsPageClient } from './analytics-page-client';
+import dynamic from 'next/dynamic';
+import { Skeleton } from '@/components/ui/skeleton';
 
-/**
- * Analytics Dashboard Page
- *
- * Server component that handles RBAC before rendering the client dashboard.
- * Restricted to: admin, chairman, financial_secretary
- */
-export default async function AnalyticsPage() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  // Redirect unauthenticated users
-  if (!user) {
-    redirect('/login');
+const FinancialDashboard = dynamic(
+  () => import('./financial-dashboard').then((m) => ({ default: m.FinancialDashboard })),
+  {
+    loading: () => (
+      <div className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2"><Skeleton className="h-80 rounded-xl" /></div>
+          <Skeleton className="h-80 rounded-xl" />
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Skeleton className="h-72 rounded-xl" />
+          <Skeleton className="h-72 rounded-xl" />
+        </div>
+      </div>
+    ),
+    ssr: false,
   }
+);
 
-  // Get user's role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  // Only allow admin, chairman, financial_secretary
-  const allowedRoles = ['admin', 'chairman', 'financial_secretary'];
-  if (!profile || !allowedRoles.includes(profile.role || '')) {
-    redirect('/dashboard?error=unauthorized');
-  }
-
-  return <AnalyticsPageClient />;
+export default function AnalyticsPage() {
+  return <FinancialDashboard />;
 }

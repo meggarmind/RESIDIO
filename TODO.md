@@ -2,7 +2,7 @@
 
 > **🎯 PRODUCT FOCUS (2026-08-06): ADMIN DASHBOARD ONLY.** Resident Portal / self-service (`src/app/(resident)/**`, resident-portal components) is **NOT planned for rollout** in the foreseeable future. De-prioritize all self-service work listed below (portal wallet, resident payments, announcements/documents/profile, impersonation, onboarding). Keep it stable/local only; do not extend or polish it. Prioritize admin management/finance/security/operations/reporting instead.
 
-**Last Updated:** 2026-08-11 (WhatsApp Assistant PRD and issue slices)
+**Last Updated:** 2026-08-11 (legacy tracker reconciliation/import)
 
 ## Current Phase: Finance, Performance & Communications Fast-Track
 The project is fast-tracked around financial operations, financial statements/imports/reports, critical performance work, and estate operational WhatsApp/SMS integrations. Portal/self-service work remains out of scope.
@@ -26,8 +26,39 @@ The project is fast-tracked around financial operations, financial statements/im
 ### In Progress: Legacy Tracker Reconciliation and Import
 - [x] **Review Ledger**: Translated all supplied legacy property records into `docs/importdata/legacy-record-ledger.md` (L-0001–L-0136). Blue cells establish move-in; without blue, earliest paid month establishes move-in and first billing.
 - [x] **Property reconciliation**: Read-only cloud snapshot and `docs/importdata/house-reconciliation-report.json` confirm a unique existing-house match for every ledger entry.
-- [ ] **Bulk import manifest**: Reconcile residents, historical assignments, aliases, and payments; preserve source anomalies and avoid duplicate postings.
-- [ ] **Bulk write**: Apply the approved manifest only after resolving the new-resident phone-data and alias-only historical-record handling policies.
+- [x] **Resident and alias reconciliation**: Applied user-confirmed name, assignment, relationship, and alias corrections. Alias-only resident records are preserved with notes and inactive house assignments; new people use `LEGACY-NO-PHONE` placeholders.
+- [x] **Confirmed occupancy history**: Applied and read-back verified OJO.K-8’s 2015–2024 landlord/tenant/vacancy timeline.
+- [x] **Payment comparison and import**: Generated `docs/importdata/legacy-payment-reconciliation.json` and `.csv`; 203 of 203 comparable house/year totals now match after importing OJO.K-2 Dec-2025 NGN30,000 and OJO.K-8 Mar-2024 NGN60,000 with legacy provenance.
+- [ ] **Structural ownership reconciliation**: Safely reconcile the remaining owner/corporate-entity cases without violating tenant/owner assignment constraints. Corporate entities may be a current `tenant` with `is_live_in = false`.
+  - [x] **Hassan Ogwe links:** Verified Hassan Ogwe as the non-resident landlord for all twelve reviewed GLB 19*/20* rental houses, while retaining GLB-21 as his resident-landlord home. The superseded GLB-20F-9 owner assignment was deactivated and retained with an explanation.
+  - [x] **Corporate-tenant model prepared:** Application validation, admin role options, and a cloud migration now allow corporate `tenant` assignments while retaining the one-tenant/one-landlord house rules.
+  - [x] **Cloud migration + IBB-32/38:** `20260811130000_allow_corporate_tenants.sql` applied 2026-08-11. Verified Angel Crest/IBB-32 and Debiruss School/IBB-38 as active corporate tenants with their individual non-resident landlords.
+  - [x] **Approved corporate transactors:** Shushan Pharmacy/OJO.K-14A and House of Mercy Church/OJO.K-14 are corporate tenants under Christian Philips; Kemchuta Homes/IBB-36A and Praise House/OJO.K-9C are corporate tenants with no inferred owner assignment.
+  - [x] **IBB-33 / GLB-5B:** Converted Chief Okoro to an active payment alias for Alphonsus and deactivated only its incorrect active house assignment. Alphonsus Okoro is the verified IBB-33 resident-landlord; William Racheal Ti is the GLB-5B non-resident landlord.
+  - [x] **OJO.K 12-series:** Corrected tenant move-in dates for 12BQ, 12F-1, and 12F-4 from the reviewed tracker and linked Tim Akenroye as non-resident landlord for all four reviewed flats.
+  - [x] **KOA 10-series:** Boniface Obijiaku is resident-landlord at 10F-5 and non-resident landlord of the six reviewed tenant flats; verified move-in dates now match the tracker.
+  - [x] **KOA 15-series:** Stella Akintunde is resident-landlord at House 15 and non-resident landlord of 15F-2; Martins Awonusi’s move-in is corrected to 2024-11-01.
+  - [x] **KOA 16:** Esther Dike corrected to resident-landlord from 2015-01-01.
+  - [x] **OJO.K 16-series:** Houses 16A–16F reconciled as resident landlords with their reviewed tracker move-in months; corrected the Sonubi Bolanle Prince Richard and Benson Odun Tondea canonical names.
+  - [x] **OJO.K 11/12:** Confirmed the four 11-series flats as live-in tenants and Tim Akenroye at House 12 as a resident-landlord; tracker move-in months were corrected.
+  - [x] **OJO.K 4/6:** Constance Oka and Samaila Aleyideino corrected to resident landlords from 2019-01-01.
+  - [x] **OJO.K 9A:** Taofik Oladele Abass corrected to resident-landlord; all four confirmed payment aliases were already present.
+  - [x] **OJO.K 17:** Linked Ofurie Paul and new non-contact placeholder Samson Onyema Ogbu as confirmed secondary residents.
+  - [x] **OJO.K 19:** Added the confirmed payment alias and corrected Felix Evansinha to resident-landlord from January 2015.
+  - [x] **OJO.K 20F-1/21:** Restored 20F-1 to tenant and attached Adegoke Adeola Mary to the correct House 21 landlord as payment alias.
+  - [x] **OJO.K confirmed tenant batch:** Corrected 20F-2, 22F-1, 22F-4, 22F-1b, and 23 to live-in tenants using their blue-cell move-in months.
+  - [x] **IBB 18F-4:** Confirmed Wilson Tobias Chukwu and corrected the tenant move-in date to November 2020.
+  - [x] **IBB 26F-3:** Preserved the payment alias and corrected the confirmed tenant move-in to September 2025.
+  - [x] **Reconciliation snapshot:** Refreshed after the latest corrections; all 136 ledger house labels retain a unique existing-house match.
+  - [x] **IBB tracker move-in batch:** Corrected eight documented move-in dates without changing existing role decisions.
+  - [x] **IBB 25–27 move-in batch:** Corrected five documented move-in dates without changing existing role decisions.
+  - [x] **IBB 29–38 move-in batch:** Corrected eleven documented move-in dates without changing existing role decisions.
+  - [x] **GLB 1–5 move-in batch:** Corrected nine documented move-in dates without changing existing role decisions.
+  - [x] **GLB 6–12 move-in batch:** Corrected ten documented move-in dates without changing existing role decisions.
+  - [x] **GLB 16–19 move-in batch:** Corrected ten documented move-in dates without changing existing role decisions.
+  - [x] **GLB 20-series move-in batch:** Corrected five documented move-in dates while preserving Hassan Ogwe ownership links.
+  - [x] **KOA 1A–9 move-in batch:** Corrected seven documented move-in dates without changing existing role decisions.
+  - [x] **KOA 10–19 move-in batch:** Corrected 20 validated tracker move-in dates without changing existing role decisions.
 
 ### Residents & Houses Workflow UX (Admin Dashboard)
 - [x] **Registry Navigation**: Added sortable columns and direct record navigation to the Residents and Houses registries.
@@ -50,6 +81,10 @@ The project is fast-tracked around financial operations, financial statements/im
 - [x] **Design and domain model:** Completed grilling session; glossary terms recorded in `CONTEXT.md`.
 - [x] **PRD:** Published as [GitHub issue #1](https://github.com/meggarmind/RESIDIO/issues/1).
 - [x] **Channel foundation:** Implemented and closed [issue #2](https://github.com/meggarmind/RESIDIO/issues/2).
+- [x] **Identity and consent:** Implemented and closed [issue #3](https://github.com/meggarmind/RESIDIO/issues/3).
+- [x] **Core financial standing:** Implemented and closed [issue #4](https://github.com/meggarmind/RESIDIO/issues/4).
+- [x] **Period-based statements:** Implemented and closed [issue #5](https://github.com/meggarmind/RESIDIO/issues/5).
+- [~] **Outbound estate messaging:** Implement [issue #6](https://github.com/meggarmind/RESIDIO/issues/6); templates and invoice/payment/announcement producers are wired, with delivery/cap tests still pending.
 - [ ] **Identity and consent:** [Issue #3](https://github.com/meggarmind/RESIDIO/issues/3), blocked by #2.
 - [ ] **Core financial standing:** [Issue #4](https://github.com/meggarmind/RESIDIO/issues/4), blocked by #3.
 - [ ] **Period-based statements:** [Issue #5](https://github.com/meggarmind/RESIDIO/issues/5), blocked by #4.

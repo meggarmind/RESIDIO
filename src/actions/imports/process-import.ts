@@ -585,6 +585,55 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     });
   }
 
+  // Compute reconciliation summary from the import rows
+  try {
+    const { data: allRows } = await supabase
+      .from('bank_statement_rows')
+      .select('amount, transaction_type, status')
+      .eq('import_id', import_id);
+
+    if (allRows) {
+      const bankCreditsTotal = allRows.filter((r) => r.transaction_type === 'credit').reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      const bankDebitsTotal = allRows.filter((r) => r.transaction_type === 'debit').reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      const unmatched = allRows.filter((r) => r.status === 'unmatched' || r.status === 'skipped');
+      const unmatchedCredits = unmatched.filter((r) => r.transaction_type === 'credit').length;
+      const unmatchedDebits = unmatched.filter((r) => r.transaction_type === 'debit').length;
+
+      result.reconciliation = {
+        bankCreditsTotal,
+        bankDebitsTotal,
+        paymentsCreatedTotal: 0,
+        expensesCreatedTotal: 0,
+        creditsDifference: 0,
+        debitsDifference: 0,
+        unmatchedRows: unmatched.length,
+        unmatchedCredits,
+        unmatchedDebits,
+      };
+
+      const { data: payments } = await supabase
+        .from('payment_records')
+        .select('amount')
+        .eq('import_id', import_id);
+
+      const paymentsTotal = payments?.reduce((s, p) => s + (Number(p.amount) || 0), 0) ?? 0;
+
+      const { data: expenses } = await supabase
+        .from('expenses')
+        .select('amount')
+        .eq('import_id', import_id);
+
+      const expensesTotal = expenses?.reduce((s, e) => s + (Number(e.amount) || 0), 0) ?? 0;
+
+      result.reconciliation.paymentsCreatedTotal = paymentsTotal;
+      result.reconciliation.expensesCreatedTotal = expensesTotal;
+      result.reconciliation.creditsDifference = bankCreditsTotal - paymentsTotal;
+      result.reconciliation.debitsDifference = bankDebitsTotal - expensesTotal;
+    }
+  } catch (e) {
+    console.error('[processImport] Reconciliation computing error:', e);
+  }
+
   return result;
 }
 

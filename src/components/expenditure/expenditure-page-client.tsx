@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { PettyCashDashboard } from './petty-cash-dashboard';
-import { LogExpenseDialog } from './log-expense-dialog';
 import { ExpenditureClient } from './expenditure-client';
 import { SnapLogDialog } from './snap-log-dialog';
 import { PettyCashTransactionDialog } from './petty-cash-transaction-dialog';
@@ -19,6 +19,11 @@ import type { getActiveResidents } from '@/actions/residents/get-residents';
 import type { getStaff } from '@/actions/settings/get-staff';
 import type { Expense } from '@/types/database';
 import type { ExpenseFormValues } from './log-expense-dialog';
+
+const LogExpenseDialog = dynamic(
+  () => import('./log-expense-dialog').then((m) => ({ default: m.LogExpenseDialog })),
+  { ssr: false }
+);
 
 interface ExpenditurePageClientProps {
     initialExpenses: Awaited<ReturnType<typeof getExpenses>>;
@@ -100,6 +105,7 @@ export function ExpenditurePageClient({
                 />
             </div>
 
+            {isLogExpenseOpen && (
             <LogExpenseDialog
                 open={isLogExpenseOpen}
                 onOpenChange={setIsLogExpenseOpen}
@@ -112,6 +118,7 @@ export function ExpenditurePageClient({
                 onSuccess={handleExpenseCreated}
                 initialData={dialogInitialData ?? undefined}
             />
+            )}
 
             <PettyCashTransactionDialog
                 open={isTransactionOpen}

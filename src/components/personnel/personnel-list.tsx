@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import {
     ArrowLeft,
     ArrowRight,
@@ -37,7 +38,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 import { getPersonnel, deletePersonnel } from '@/actions/personnel/actions';
 import { Personnel, PersonnelType } from '@/types/database';
-import { PersonnelDialog } from './personnel-dialog';
+
+const PersonnelDialog = dynamic(
+  () => import('./personnel-dialog').then((m) => ({ default: m.PersonnelDialog })),
+  { ssr: false }
+);
 
 export function PersonnelList() {
     const [personnel, setPersonnel] = useState<Personnel[]>([]);
@@ -352,6 +357,7 @@ export function PersonnelList() {
                 </div>
             )}
 
+            {editOpen && (
             <PersonnelDialog
                 open={editOpen}
                 onOpenChange={setEditOpen}
@@ -359,6 +365,7 @@ export function PersonnelList() {
                 onSuccess={fetchPersonnel}
                 trigger={null}
             />
+            )}
         </div>
     );
 }

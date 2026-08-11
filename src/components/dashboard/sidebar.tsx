@@ -70,7 +70,7 @@ export function Sidebar({ className }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'flex flex-col border-r transition-all duration-300 ease-in-out',
+        'flex flex-col shrink-0 border-r transition-all duration-300 ease-in-out overflow-hidden',
         isExpanded ? 'w-64' : 'w-16',
         className
       )}
@@ -101,7 +101,7 @@ export function Sidebar({ className }: SidebarProps) {
               >
                 R
               </div>
-              {isExpanded && <span className="text-xl font-bold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>Residio</span>}
+              {isExpanded && <span className="text-xl font-bold whitespace-nowrap transition-opacity duration-200" style={{ color: 'var(--text-primary)' }}>Residio</span>}
             </>
           )}
         </Link>

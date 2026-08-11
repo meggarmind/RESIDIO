@@ -69,7 +69,7 @@ export function PortalSidebar({ className }: PortalSidebarProps) {
   return (
     <aside
       className={cn(
-        "flex flex-col transition-all duration-300 ease-in-out flex-shrink-0",
+        "flex flex-col transition-all duration-300 ease-in-out flex-shrink-0 overflow-hidden",
         isExpanded ? "items-start" : "items-center",
         className
       )}

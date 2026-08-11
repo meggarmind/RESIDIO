@@ -271,6 +271,17 @@ export type ProcessImportResult = {
   error_count: number;
   errors: Array<{ row_id: string; error: string }>;
   import_id: string;
+  reconciliation?: {
+    bankCreditsTotal: number;
+    bankDebitsTotal: number;
+    paymentsCreatedTotal: number;
+    expensesCreatedTotal: number;
+    creditsDifference: number;
+    debitsDifference: number;
+    unmatchedRows: number;
+    unmatchedCredits: number;
+    unmatchedDebits: number;
+  };
 };
 
 

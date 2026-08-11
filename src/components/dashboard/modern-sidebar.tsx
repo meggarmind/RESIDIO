@@ -91,7 +91,7 @@ export function ModernSidebar({ className }: ModernSidebarProps) {
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          'flex flex-col border-r transition-all duration-300 ease-in-out',
+          'flex flex-col border-r transition-all duration-300 ease-in-out overflow-hidden',
           isCollapsed ? 'w-[76px]' : 'w-[260px]',
           className
         )}

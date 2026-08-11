@@ -70,27 +70,27 @@ export async function middleware(request: NextRequest) {
     );
     const isExemptRoute = maintenanceExemptRoutes.some(route => pathname.startsWith(route));
 
-    // PERFORMANCE OPTIMIZATION: Parallelize User Auth and Maintenance Check
-    // This reduces the initial waterfall latency by running the system check while validating the session
-    const [userAuth, maintenanceResult] = await Promise.all([
-        supabase.auth.getUser(),
-        !isExemptRoute
-            ? supabase.from('system_settings').select('value').eq('key', 'maintenance_mode').single()
-            : Promise.resolve({ data: null, error: null })
-    ]);
-
-    const user = userAuth.data.user;
-    const isMaintenanceMode = maintenanceResult.data?.value === true;
-
+    // PERFORMANCE: getUser() first, then batch maintenance check and
+    // profiles query into a single Promise.all round trip.
+    let isMaintenanceMode = false;
     let profile: { role_id: string | null; resident_id: string | null; role: string | null } | null = null;
 
+    const { data: userAuthData } = await supabase.auth.getUser();
+    const user = userAuthData.user;
+
     if (user) {
-        const { data } = await supabase
-            .from('profiles')
-            .select('role_id, resident_id, role')
-            .eq('id', user.id)
-            .single();
-        profile = data;
+        const [maintenanceData, profileData] = await Promise.all([
+            !isExemptRoute
+                ? supabase.from('system_settings').select('value').eq('key', 'maintenance_mode').single()
+                : Promise.resolve({ data: null, error: null }),
+            supabase
+                .from('profiles')
+                .select('role_id, resident_id, role')
+                .eq('id', user.id)
+                .single(),
+        ]);
+        profile = profileData?.data || null;
+        isMaintenanceMode = maintenanceData?.data?.value === true;
     }
 
     // Handle maintenance mode

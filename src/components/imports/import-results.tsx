@@ -20,8 +20,12 @@ import {
   ArrowRight,
   Download,
   RotateCcw,
+  ArrowUpRight,
+  ArrowDownRight,
+  CircleDollarSign,
 } from 'lucide-react';
 import type { ProcessImportResult } from '@/actions/imports/types';
+import { formatCurrency } from '@/lib/utils';
 
 interface ImportResultsProps {
   result: ProcessImportResult;
@@ -148,6 +152,64 @@ export function ImportResults({ result, onStartOver }: ImportResultsProps) {
               </TableBody>
             </Table>
           </div>
+        </div>
+      )}
+
+      {/* Reconciliation Summary */}
+      {result.reconciliation && (
+        <div className="space-y-3">
+          <h3 className="font-semibold text-sm">Bank Reconciliation</h3>
+          <div className="rounded-lg border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead></TableHead>
+                  <TableHead className="text-right">Bank Statement</TableHead>
+                  <TableHead className="text-right">System Records</TableHead>
+                  <TableHead className="text-right">Difference</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell className="font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <ArrowUpRight className="h-3.5 w-3.5 text-emerald-600" />
+                      Credits / Payments
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(result.reconciliation.bankCreditsTotal)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(result.reconciliation.paymentsCreatedTotal)}</TableCell>
+                  <TableCell className={result.reconciliation.creditsDifference === 0 ? 'text-right text-emerald-600' : 'text-right text-amber-600'}>
+                    {formatCurrency(result.reconciliation.creditsDifference)}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <ArrowDownRight className="h-3.5 w-3.5 text-red-600" />
+                      Debits / Expenses
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(result.reconciliation.bankDebitsTotal)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(result.reconciliation.expensesCreatedTotal)}</TableCell>
+                  <TableCell className={result.reconciliation.debitsDifference === 0 ? 'text-right text-emerald-600' : 'text-right text-amber-600'}>
+                    {formatCurrency(result.reconciliation.debitsDifference)}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          {result.reconciliation.unmatchedRows > 0 && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CircleDollarSign className="h-4 w-4 text-amber-500" />
+              <span>
+                {result.reconciliation.unmatchedRows} unmatched row(s) —
+                {result.reconciliation.unmatchedCredits > 0 && ` ${result.reconciliation.unmatchedCredits} credit(s)`}
+                {result.reconciliation.unmatchedCredits > 0 && result.reconciliation.unmatchedDebits > 0 && ','}
+                {result.reconciliation.unmatchedDebits > 0 && ` ${result.reconciliation.unmatchedDebits} debit(s)`}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

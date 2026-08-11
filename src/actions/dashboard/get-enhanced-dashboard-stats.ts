@@ -650,3 +650,72 @@ async function fetchMonthlyTrends(supabase: SupabaseClient, now: Date): Promise<
     return results;
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Individual card endpoints — each card fetches independently
+// so Suspense boundaries actually stream rather than block
+// ─────────────────────────────────────────────────────────────────
+
+async function requireAuthClient() {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Unauthorized');
+    return supabase;
+}
+
+export async function getDashboardFinancialHealth(): Promise<{ data: FinancialHealthMetrics | null; error: string | null }> {
+    try {
+        const supabase = await requireAuthClient();
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+        const data = await fetchFinancialHealth(supabase, monthStart, monthEnd, prevMonthStart, prevMonthEnd);
+        return { data, error: null };
+    } catch (err) {
+        return { data: null, error: err instanceof Error ? err.message : 'Failed to fetch financial health' };
+    }
+}
+
+export async function getDashboardInvoiceDistribution(): Promise<{ data: InvoiceStatusDistribution | null; error: string | null }> {
+    try {
+        const supabase = await requireAuthClient();
+        const data = await fetchInvoiceDistribution(supabase);
+        return { data, error: null };
+    } catch (err) {
+        return { data: null, error: err instanceof Error ? err.message : 'Failed to fetch invoice distribution' };
+    }
+}
+
+export async function getDashboardSecurityAlerts(): Promise<{ data: SecurityAlerts | null; error: string | null }> {
+    try {
+        const supabase = await requireAuthClient();
+        const now = new Date();
+        const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const data = await fetchSecurityAlerts(supabase, now, sevenDaysFromNow);
+        return { data, error: null };
+    } catch (err) {
+        return { data: null, error: err instanceof Error ? err.message : 'Failed to fetch security alerts' };
+    }
+}
+
+export async function getDashboardQuickStats(): Promise<{ data: QuickStats | null; error: string | null }> {
+    try {
+        const supabase = await requireAuthClient();
+        const data = await fetchQuickStats(supabase);
+        return { data, error: null };
+    } catch (err) {
+        return { data: null, error: err instanceof Error ? err.message : 'Failed to fetch quick stats' };
+    }
+}
+
+export async function getDashboardRecentActivity(): Promise<{ data: RecentActivityItem[] | null; error: string | null }> {
+    try {
+        const supabase = await requireAuthClient();
+        const data = await fetchRecentActivity(supabase);
+        return { data, error: null };
+    } catch (err) {
+        return { data: null, error: err instanceof Error ? err.message : 'Failed to fetch recent activity' };
+    }
+}
+
