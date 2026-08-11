@@ -1,8 +1,8 @@
 /**
  * Phase 11: Notification System Types
  *
- * Multi-channel notification system with support for email (now) and
- * SMS/WhatsApp (future-proofed via channel field).
+ * Multi-channel notification system with support for email and WhatsApp.
+ * SMS remains defined for compatibility but is not currently operational.
  */
 
 // ============================================================================
@@ -10,8 +10,8 @@
 // ============================================================================
 
 /**
- * Notification channels - currently only email is implemented,
- * but SMS and WhatsApp are defined for future expansion
+ * Notification channels. SMS remains available as a stored legacy value;
+ * only channels with a working provider are advertised as implemented.
  */
 export type NotificationChannel = 'email' | 'sms' | 'whatsapp';
 
@@ -27,7 +27,7 @@ export const NOTIFICATION_CHANNEL_LABELS: Record<NotificationChannel, string> = 
 /**
  * Channels that are currently implemented/available
  */
-export const IMPLEMENTED_CHANNELS: NotificationChannel[] = ['email', 'sms'];
+export const IMPLEMENTED_CHANNELS: NotificationChannel[] = ['email', 'whatsapp'];
 
 /**
  * Check if a channel is currently implemented

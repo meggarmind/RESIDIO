@@ -2,12 +2,10 @@
  * Notification Sender - Channel Dispatcher Pattern
  *
  * Sends notifications through the appropriate channel (email, SMS, WhatsApp).
- * Currently only email is implemented; SMS/WhatsApp return not-implemented errors.
+ * SMS remains dormant; WhatsApp uses the Meta provider boundary.
  *
- * Future-proofing: To add SMS/WhatsApp support:
- * 1. Create sendViaSms() / sendViaWhatsApp() functions
- * 2. Add the channel case to the dispatcher
- * 3. Update IMPLEMENTED_CHANNELS in types.ts
+ * Provider-specific senders stay behind this dispatcher so queue/history
+ * behavior remains shared across channels.
  */
 
 import { resend, emailConfig, isEmailConfigured } from '@/lib/email/resend';
@@ -21,6 +19,7 @@ import type {
 } from './types';
 import { isChannelImplemented } from './types';
 import { truncateForPreview } from './templates';
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
 /**
  * Channel-specific sender function signature
@@ -152,20 +151,30 @@ async function sendViaSms(
 }
 
 /**
- * Send a notification via WhatsApp (NOT YET IMPLEMENTED)
- *
- * To implement WhatsApp:
- * 1. Add WhatsApp Business API integration
- * 2. Implement this function
- * 3. Add 'whatsapp' to IMPLEMENTED_CHANNELS in types.ts
+ * Send a notification via WhatsApp text. Template enforcement is added by
+ * the outbound messaging slice; this foundation only establishes dispatch.
  */
 async function sendViaWhatsApp(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _item: NotificationQueueItem
+  item: NotificationQueueItem
 ): Promise<SendNotificationResult> {
+  const whatsappEnabled = await getSettingValue('whatsapp_enabled');
+  if (whatsappEnabled === false) {
+    return { success: false, error: 'WhatsApp notifications are disabled in system settings' };
+  }
+
+  if (!item.recipient_phone) {
+    return { success: false, error: 'No recipient phone number provided' };
+  }
+
+  const result = await sendWhatsAppMessage({
+    to: item.recipient_phone,
+    body: item.body,
+  });
+
   return {
-    success: false,
-    error: 'WhatsApp notifications are not yet implemented. Coming soon!',
+    success: result.success,
+    externalId: result.messageId,
+    error: result.error,
   };
 }
 
