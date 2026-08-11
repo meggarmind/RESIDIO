@@ -1,8 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { authorizeAction } from '@/lib/auth/authorize';
-import { ACTION_ROLES } from '@/lib/auth/action-roles';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { revalidatePath } from 'next/cache';
 import type { Resident } from '@/types/database';
@@ -14,8 +14,7 @@ type UpdateResidentResponse = {
 }
 
 export async function updateResident(id: string, formData: ResidentFormData): Promise<UpdateResidentResponse> {
-  // Authorization check - only admin, chairman, financial_secretary can update residents
-  const auth = await authorizeAction(ACTION_ROLES.residents);
+  const auth = await authorizePermission(PERMISSIONS.RESIDENTS_UPDATE);
   if (!auth.authorized) {
     return { data: null, error: auth.error };
   }
@@ -64,39 +63,14 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
     updated_by: auth.userId,
   };
 
-  // Reset verification status if contact info has changed
+  // Reset verification status if contact info has changed.
   if (emailChanged) {
     updateData.email_verified_at = null;
-
-    // Audit log the email change and verification reset
-    if (currentResident.email_verified_at) {
-      await logAudit({
-        action: 'UPDATE',
-        entityType: 'residents',
-        entityId: id,
-        entityDisplay: `${currentResident.first_name} ${currentResident.last_name}`,
-        description: `Email changed from "${currentResident.email || 'none'}" to "${formData.email || 'none'}" - verification reset`,
-        oldValues: { email: currentResident.email, email_verified_at: currentResident.email_verified_at },
-        newValues: { email: formData.email || null, email_verified_at: null },
-      });
-    }
   }
 
   if (phoneChanged) {
     updateData.phone_verified_at = null;
 
-    // Audit log the phone change and verification reset
-    if (currentResident.phone_verified_at) {
-      await logAudit({
-        action: 'UPDATE',
-        entityType: 'residents',
-        entityId: id,
-        entityDisplay: `${currentResident.first_name} ${currentResident.last_name}`,
-        description: `Phone changed from "${currentResident.phone_primary}" to "${formData.phone_primary}" - verification reset`,
-        oldValues: { phone_primary: currentResident.phone_primary, phone_verified_at: currentResident.phone_verified_at },
-        newValues: { phone_primary: formData.phone_primary, phone_verified_at: null },
-      });
-    }
   }
 
   const { data, error } = await supabase
@@ -109,6 +83,26 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
   if (error) {
     return { data: null, error: error.message };
   }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'residents',
+    entityId: id,
+    entityDisplay: `${currentResident.first_name} ${currentResident.last_name}`,
+    oldValues: {
+      email: currentResident.email,
+      phone_primary: currentResident.phone_primary,
+      email_verified_at: currentResident.email_verified_at,
+      phone_verified_at: currentResident.phone_verified_at,
+    },
+    newValues: {
+      email: formData.email || null,
+      phone_primary: formData.phone_primary,
+      email_verified_at: emailChanged ? null : currentResident.email_verified_at,
+      phone_verified_at: phoneChanged ? null : currentResident.phone_verified_at,
+    },
+    description: 'Updated resident profile',
+  });
 
   revalidatePath('/residents');
   revalidatePath(`/residents/${id}`);

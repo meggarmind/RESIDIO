@@ -12,20 +12,20 @@ export interface UseSidebarStateResult {
   isExpanded: boolean;
 }
 
-function getStoredCollapsed(): boolean {
-  try {
-    const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    return stored === 'true';
-  } catch { return false; }
-}
-
 export function useSidebarState(): UseSidebarStateResult {
-  const [isCollapsed, setIsCollapsed] = useState(getStoredCollapsed);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isHoverExpanded, setIsHoverExpanded] = useState(false);
-  // Suppress the first localStorage write (which would be the initial lazy value)
   const skipSaveRef = useRef(true);
 
-  // Save state to localStorage when it changes (writing to external store, not setting React state)
+  // Read persisted state after mount to avoid SSR hydration mismatch
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+      if (stored === 'true') setIsCollapsed(true);
+    } catch { /* ignore */ }
+  }, []);
+
+  // Save state to localStorage when it changes (skip the initial restore)
   useEffect(() => {
     if (skipSaveRef.current) { skipSaveRef.current = false; return; }
     try { localStorage.setItem(SIDEBAR_STORAGE_KEY, String(isCollapsed)); }

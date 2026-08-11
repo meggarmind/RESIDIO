@@ -47,10 +47,14 @@ export function ModernSidebar({ className }: ModernSidebarProps) {
   const { logoUrl } = useEstateLogo();
 
   // Collapsible state - persisted in sessionStorage
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    try { return sessionStorage.getItem('modern-sidebar-collapsed') === 'true'; }
-    catch { return false; }
-  });
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Restore persisted state after mount to avoid SSR hydration mismatch
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('modern-sidebar-collapsed') === 'true') setIsCollapsed(true);
+    } catch { /* ignore */ }
+  }, []);
 
   // Expandable submenu state
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());

@@ -3,25 +3,28 @@
 Coordination file shared between OpenCode and Claude Code working on Residio.
 **Keep this up to date at the end of every session.** Anyone starting work reads this first.
 
-> Replaces the stale `HANDOFF_SUMMARY.md` / `NEXT_SESSION_HANDOFF_PROMPT.md` (theme re-engineering, Jan 2026 — both are historical, no longer current).
+> This is the sole live handoff and project-state record for cross-agent work.
 
 > **🎯 PRODUCT FOCUS — READ BEFORE ANY TASK (set 2026-08-06): ALL work targets the ADMIN DASHBOARD.** Resident Portal / self-service (`src/app/(resident)/**`, `src/components/resident-portal/**`) is **not planned for rollout** in the foreseeable future. Do not invest in portal/self-service work; keep it stable/local only. When a task touches portal code, ask: is this admin value? Ensure TODO.md/AGENTS.md/CLAUDE.md stay aligned with this direction.
 
 ---
 
-## Current snapshot (verified 2026-08-06)
+## Current snapshot (verified 2026-08-10)
 
 | Item | State |
 |------|-------|
 | Runtime | Node v24.7.0 on **Windows 11** (migrated from WSL). Cross-platform: `.gitattributes` normalizes LF. |
 | Git branch | `master`. Remote: `origin` → `git@github.com:meggarmind/RESIDIO.git` |
-| Working tree | clean; all commits pushed to `origin/master` (latest: `fddd39f` e2e/auth fixes). |
+| Working tree | Contains in-progress, uncommitted work from active sessions; preserve unrelated changes. |
 | Tests | `npm test` (Vitest) **green: 5 files / 16 tests passing**. **Playwright e2e: 48 passed / 8 failed / 5 skipped** (remaining 8 all login-timeout flake from cold dev-server latency; harness hardened). Dashboard **6/6**, Houses+Residents **17/17**, Payments/Billing **17/17**. |
 | Build | **`npm run build` GREEN (exit 0)** — first time; 39 page-groups, dashboard + api dynamic. `npx tsc --noEmit` clean (was 22 errors/7 files). |
 | Lint | `npm run lint`: **323 errors / 489 warnings** (down from 351). Cleared safe buckets: RHF/ts fixes + static-prerender opts (`00d3ef9`); low-risk batch — empty-type→alias, `require()`→ESM, `<a>`→`<Link>`, typographic quotes in admin copy (`575220c`). Remaining 323 = mostly `no-unused-vars` + `no-explicit-any` (237); 18 `no-unescaped` resident-portal (out of scope). |
 | Integration coverage | `module-integration.test.ts` passes. Fixed real gaps (permission+audit) for `system/prune-data`, `personnel/actions`, `projects/create-project`, `expenses/create+update`, `finance/petty-cash`, `finance/manual-verification`. Allowed `vendors`/`projects` as audit entity types. Recipient-facing/cron/webhook/auth flows (payments, billing wallet-pay, paystack init/verify/webhook, email-imports, 2FA login) are allowlisted with rationale — they cannot take an admin RBAC `authorizePermission` guard. Note: this test reports "70 permission / 51 audit gaps" but PASSES — gap summary includes allowlisted-but-still-missing entries, not a failure signal. |
 | Lint | `npm run lint`: **142 errors / ~480 warnings** (from 323). `no-explicit-any`: 237 → ~40 (admin). `ban-ts-comment`: 9 → 2. `react-hooks/set-state-in-effect`: 38 → 36 (compiler rule; can't suppress). `no-unescaped-entities`: 18 → 15 (mostly portal). Remaining `any`s are a long tail (1 per file across ~30 admin files). |
 | Perf | `force-dynamic` removed from dashboard layout. React Query staleTime: 1min → 5min. Sidebar hooks + AI assistant cached. `loading.tsx` shell skeleton created. Suspense boundaries on dashboard cards. Build green, tsc 0, Vitest 16/16. |
+| Delivery priority | **Fast-track:** P0 finance/statements/imports/reports, P0 critical performance backlog, P1 WhatsApp/SMS operational integrations. Payment gateway is deferred; portal/self-service remains deprioritized. |
+| Database documentation | **Verified 2026-08-10:** configured cloud Supabase REST access is working (HTTP 200). The architecture inventory now covers 30 later tables confirmed through zero-row live API requests; `docs/architecture/db-visual.sql` is explicitly marked as an incomplete historical snapshot. |
+| Legacy import review | **Started 2026-08-10:** `docs/importdata/legacy-record-ledger.md` is the no-write, no-query review ledger. A blue cell is the move-in-month source; without blue, earliest paid month is both move-in and first billing month. Database matching/reconciliation is suspended until the consolidated bulk-import file is ready. L-0001 has pre-suspension evidence; L-0002–L-0125 are translated from source only. L-0013–L-0016 are tenants under Tim Akenroye’s 12-series landlord ownership; L-0017–L-0018 apply Christian Philips ownership; L-0022–L-0027 are 16-series landlords; L-0038–L-0072 cover IBB batches; L-0073–L-0107 cover GLB batches; L-0108–L-0125 cover KOA batch records. IBB source landlord/self-occupied labels are intentionally ignored unless a landlord is explicitly confirmed. House 5 acquisition text is notes-only. |
 
 ---
 
@@ -55,7 +58,30 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 
 ---
 
-## Last session (OpenCode, 2026-08-07)
+## Last session (OpenCode, 2026-08-10)
+
+- **Database architecture audit (Codex, 2026-08-10):** Confirmed read access to cloud Supabase. Reconciled `docs/architecture/database-schema.md` with generated types and the live API, corrected `wallets` to `resident_wallets`, and documented later finance, projects, operations, notifications, reporting, search, and assistant tables. No schema or application data was changed.
+- **Legacy tracker review (Codex, 2026-08-10):** Created `docs/importdata/legacy-record-ledger.md` and reconciled L-0001 / OJO.K-2 through read-only queries. It proposes a name/alias correction, tenant→resident-landlord assignment correction from 2015-01-01, and one missing Dec 2025 NGN 30,000 payment. No database write was made; the only open decision is archive vs delete for an alias-only secondary record.
+- **Legacy tracker review (Codex, 2026-08-11):** Added IBB source-only entries L-0038–L-0046 for Houses 1, 3A F-3/F-4, unreadable 3?/F?, 5, 7, 10A, 16, and 16A. Parallel transcription preserved source payment totals, blue-cell dates, status notes, and unresolved clipped-name/property ambiguities. No database query or write was made.
+- **Legacy tracker clarification (Codex, 2026-08-11):** User confirmed Maxwell Mensah’s `3 ? F ?` label, canonical names Chukwuma Bright Unaegbu and Odubugwu Justin Chidera, all gray names as aliases, and House 5 acquisition text as notes-only. User instructed that IBB landlord/self-occupied source labels be ignored for role classification. Ledger updated; no database query or write was made.
+- **Legacy tracker review (Codex, 2026-08-11):** Added IBB L-0047–L-0061 covering Houses 18E-2 through 27. Preserved payment totals, development/security/utility notes, blue-cell dates, source inconsistencies, and unresolved OCR/highlight ambiguity. No database query or write was made.
+- **Legacy tracker review (Codex, 2026-08-11):** Corrected L-0049 to Wilson Tobias Chukwu and confirmed L-0059's September 2025 cell as a move-in marker. Added IBB L-0062–L-0072 (Houses 29A–38), including explicit landlord/entity mappings for Houses 32, 33, and 38. No database query or write was made.
+- **Legacy tracker clarification (Codex, 2026-08-11):** Confirmed Ubah Karl Chinedu as the primary resident at IBB-29B with Villanova Realty as payment alias; Margaret Akpo/Rivers Geena Asuquo as IBB-31 F-3 payment aliases; and Bakre Olarenwaju Ishola as IBB-36B payment alias. No database query or write was made.
+- **Legacy tracker review (Codex, 2026-08-11):** Added source-only GLB L-0073–L-0091 (Houses 1A–12), preserving payments, blue-cell dates, source totals, and purchase/development/security notes. GLB source-name classification remains open in the ledger. No database query or write was made.
+- **Legacy tracker clarification (Codex, 2026-08-11):** Confirmed all GLB source references as payment aliases except William Racheal Ti, who is the GLB-5B landlord. His residency and ownership-start date remain unspecified. No database query or write was made.
+- **Legacy tracker review (Codex, 2026-08-11):** Added source-only GLB L-0092–L-0101 (Houses 16–19C). Hassan Ogwe is recorded as the user-confirmed landlord for every 19-series property. No database query or write was made.
+- **Legacy tracker clarification (Codex, 2026-08-11):** Confirmed Christian Ounorah and Ochuagbachris Chinenye as GLB-17A Flat 1 payment aliases; Anosike Ezinne Angela as the GLB-19B F-2 linked secondary resident; and Asiegbu David as GLB-19C F-3 payment alias. No database query or write was made.
+- **Legacy tracker review (Codex, 2026-08-11):** Added source-only GLB L-0102–L-0106 (20 F-1/F-3/F-4/F-5/F-9), all under user-confirmed landlord Hassan Ogwe. Preserved separation and pre-move-in payment anomalies. No database query or write was made.
+- **Legacy tracker clarification (Codex, 2026-08-11):** GLB-20 F-9 move-in and first billing are both confirmed as 2022-08-01. Its 2022 paid NGN18,000 is NGN6,000 pre-move-in payment plus a NGN12,000 prior-tenant credit applied for the new tenant. No database query or write was made.
+- **Legacy tracker clarification (Codex, 2026-08-11):** Canonicalized all previous `Alh Hassan` landlord references to **Hassan Ogwe**, confirmed `resident_landlord`, and added GLB-21 as his resident-landlord record from 2015-01-01. No database query or write was made.
+- **Legacy tracker review (Codex, 2026-08-11):** Added KOA L-0108–L-0125 (Houses 1A–16) with user-confirmed linked secondary, alias, and landlord assignments for Houses 5, 10-series, 15-series, and 16. No database query or write was made.
+- **Legacy tracker clarification (Codex, 2026-08-11):** Confirmed Omokehinde Patrick and Escodak Investments as payment aliases; Anwuli Okafor as a KOA-13A linked secondary resident; and Odera Okafor as ignored/skipped. No database query or write was made.
+
+- **Handoff consolidation (2026-08-10):** Deleted obsolete `HANDOFF_SUMMARY.md` and `NEXT_SESSION_HANDOFF_PROMPT.md`. `SESSION_STATE.md` is now documented as the sole live handoff in `AGENTS.md`, `CLAUDE.md`, and project-management guidance. Agents must update `SESSION_STATE.md`, `TODO.md`, and active `ACTIONPLAN.md` progress automatically after substantive work, even without an explicit user request. Documentation-only change; no test suite run.
+
+## Previous session (OpenCode, 2026-08-07)
+
+- **Estate Assistant:** Fixed the header close action to close the conversation while retaining the floater. Added globally managed assistant visibility, display name, and opening-greeting controls to `/settings`; deployed the `disable_ai_assistant` and `ai_assistant_greeting_enabled` defaults. Targeted lint passes and `npm run build` is green; the repository-wide lint baseline remains failing on unrelated existing errors.
 
 - **Build blocker cleared.** Fixed 22 tsc errors across 7 files: RHF `Resolver` generic mismatch in `log-expense-dialog.tsx` (15-error cascade) via explicit cast; missing lucide/type imports (`Receipt`/`FileText`/`PersonnelInsert`); `ExpensePaymentMethod` union lacked `card`/`other` (added + labels); wrong role literal in `header.tsx`; `URLSearchParams` typing; `title` null in `petty-cash-dashboard`; missing report options in `cron/generate-reports`. Opted `(dashboard)` subtree (`force-dynamic` in layout) + `/verify-2fa` (Suspense boundary around `useSearchParams`) out of static prerender.
 - Committed (not yet pushed): `00d3ef9` (build fixes), `575220c` (low-risk lint), `7ff59f9` (session doc). Working tree now clean.
@@ -83,10 +109,10 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 - **Harness**: `playwright.config.ts` serial (workers=1, fullyParallel=false); portal spec `.describe.skip`; `loginAs` hardened (45s timeout + reload-retry for mid-run dev-server latency).
 - Remaining: 8 e2e failures in a full 11.8-min run were all `loginAs` timing out mid-run (transient dev-server slowness) — harness now retries; expect them to fold.
 
-## Next steps (suggested priority)
+## Next steps (fast-track priority)
 
-1. **Performance Phase 6 (Medium + Large items).** See `ACTIONPLAN.md` Phase 6 — items 6a–6j. Priority: (6a) split dashboard stats into per-card queries so Suspense borders actually stream, (6b) reduce middleware DB queries, (6c) bundle-split framer-motion/recharts via `next/dynamic`.
-2. **Lint long tail.** ~40 remaining `any` errors spread across ~30 admin files (1 each — mechanical). The `react-hooks/set-state-in-effect` bucket (36 errors, 30 files) requires real React refactors (can't suppress via comments).
-3. **README.md** — still default `create-next-app` boilerplate.
-4. **E2E** — gated on prod import (test data removed). Re-run `npm run test:e2e` after import completes.
-5. **UI/UX Phases 4 & 5 complete.** See `ACTIONPLAN.md`. Layout consistency (spacing, headers, card variants), form standardization, accessibility (aria-labels, keyboard nav, OKLCH contrast fix). Remaining: 4d (responsive — needs browser) and 5d (screen reader — needs browser).
+1. **Finance:** Complete statements, automatic statement import/reconciliation, financial reports, exports, and scheduled delivery. Payment gateway remains deferred.
+2. **Performance:** Execute all remaining `ACTIONPLAN.md` Phase 6 items, starting with dashboard aggregates/per-card queries, middleware query reduction, and bundle splitting.
+3. **Communications:** Build WhatsApp and SMS operational integrations, including compliance, delivery tracking, and alert integration.
+4. **Quality gates:** Run lint, build, Vitest, and E2E verification as each fast-track slice lands.
+5. **Secondary backlog:** Address lint long tail, README, and deferred browser-only accessibility checks after P0 delivery is underway.

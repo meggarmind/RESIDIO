@@ -7,6 +7,7 @@ import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { reactivateResidentAfterAssignment } from '@/lib/residents/lifecycle';
 
 type TransferOwnershipResponse = {
   success: boolean;
@@ -179,10 +180,11 @@ export async function transferOwnership(
     }
   }
 
+  const statusError = await reactivateResidentAfterAssignment(newOwnerId, user.id);
+  if (statusError) return { success: false, error: statusError };
+
   // Step 3: Record ownership history
   try {
-    const notes = transferNotes || `Ownership transferred from ${currentOwnerName} to ${newOwnerName}`;
-
     // Record ownership end for current owner
     await adminClient
       .from('house_ownership_history')

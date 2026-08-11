@@ -7,6 +7,7 @@ import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { reactivateResidentAfterAssignment } from '@/lib/residents/lifecycle';
 
 /**
  * Types for property transition workflow
@@ -405,6 +406,9 @@ export async function executeDeveloperToOwner(
     return { success: false, error: 'Failed to create new owner assignment' };
   }
 
+  const ownerStatusError = await reactivateResidentAfterAssignment(newOwnerId, user.id);
+  if (ownerStatusError) return { success: false, error: ownerStatusError };
+
   // Update house occupancy
   await supabase
     .from('houses')
@@ -660,6 +664,9 @@ export async function executeLandlordToTenant(
     return { success: false, error: 'Failed to create tenant assignment' };
   }
 
+  const tenantStatusError = await reactivateResidentAfterAssignment(tenantId, user.id);
+  if (tenantStatusError) return { success: false, error: tenantStatusError };
+
   // Update house occupancy
   await supabase
     .from('houses')
@@ -736,7 +743,6 @@ export async function getAvailableResidentsForTransition(
   let query = supabase
     .from('residents')
     .select('id, first_name, last_name, resident_code, entity_type')
-    .eq('account_status', 'active')
     .order('first_name');
 
   // Exclude current residents

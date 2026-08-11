@@ -2,14 +2,15 @@
 
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
-import type { ResidentHouse, ResidentRole, Resident } from '@/types/database';
+import type { ResidentHouse, ResidentRole } from '@/types/database';
 import type { HouseAssignmentData } from '@/lib/validators/resident';
-import { isPrimaryRole, requiresSponsor, isResidencyRole, isValidCorporateRole } from '@/lib/validators/resident';
+import { requiresSponsor, isResidencyRole, isValidCorporateRole } from '@/lib/validators/resident';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { generateLeviesForHouse } from '@/actions/billing/generate-levies';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { reactivateResidentAfterAssignment } from '@/lib/residents/lifecycle';
 import { validateHouseAssignment } from './validation';
 
 type AssignHouseResponse = {
@@ -44,7 +45,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
   const adminClient = createAdminClient();
   const { data: resident, error: residentError } = await adminClient
     .from('residents')
-    .select('id, first_name, last_name')
+    .select('id, first_name, last_name, account_status')
     .eq('id', residentId)
     .single();
 
@@ -173,6 +174,9 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
         return { data: null, error: reactivateError.message };
       }
 
+      const statusError = await reactivateResidentAfterAssignment(residentId, user.id);
+      if (statusError) return { data: null, error: statusError };
+
       // Record ownership history for primary roles (reactivation)
       if (['resident_landlord', 'non_resident_landlord', 'developer', 'tenant'].includes(role)) {
         try {
@@ -225,6 +229,9 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
   if (error) {
     return { data: null, error: error.message };
   }
+
+  const statusError = await reactivateResidentAfterAssignment(residentId, user.id);
+  if (statusError) return { data: null, error: statusError };
 
   // Record ownership history for primary roles (new assignment)
   if (['resident_landlord', 'non_resident_landlord', 'developer', 'tenant'].includes(role)) {

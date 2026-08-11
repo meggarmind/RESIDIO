@@ -249,6 +249,25 @@ export async function initiateOwnerMoveOut(
         return { success: false, error: 'Failed to update resident role' };
     }
 
+    const { error: statusError } = await supabase
+        .from('residents')
+        .update({ account_status: 'inactive', updated_by: user.id })
+        .eq('id', residentId);
+
+    if (statusError) {
+        return { success: false, error: 'Failed to mark resident inactive' };
+    }
+
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'residents',
+        entityId: residentId,
+        entityDisplay: `${resident.first_name} ${resident.last_name}`,
+        oldValues: { account_status: 'active' },
+        newValues: { account_status: 'inactive' },
+        description: 'Marked resident inactive after move-out',
+    });
+
     // 2. Remove secondary residents
     if (secondaryCount > 0) {
         await supabase

@@ -47,6 +47,7 @@ interface ResidentHouseLink {
         first_name: string;
         last_name: string;
         resident_code: string;
+        account_status: 'active' | 'inactive' | 'suspended' | 'archived';
     };
 }
 
@@ -303,7 +304,7 @@ export async function generateMonthlyInvoices(
                         resident_role,
                         is_active,
                         move_in_date,
-                        resident:residents!resident_id(id, first_name, last_name, resident_code)
+                        resident:residents!resident_id(id, first_name, last_name, resident_code, account_status)
                     `)
                     .eq('house_id', house.id)
                     .eq('is_active', true);
@@ -353,6 +354,12 @@ export async function generateMonthlyInvoices(
                 if (!residentLink) {
                     result.skipped++;
                     result.skipReasons.push({ house: houseLabel, reason: 'No billable resident found' });
+                    continue;
+                }
+
+                if (residentLink.resident.account_status !== 'active') {
+                    result.skipped++;
+                    result.skipReasons.push({ house: houseLabel, reason: `Billable resident is ${residentLink.resident.account_status}` });
                     continue;
                 }
 

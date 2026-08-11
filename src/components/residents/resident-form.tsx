@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import type { Resident, ResidentRole, EntityType } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, CORPORATE_ROLE_OPTIONS, ENTITY_TYPE_LABELS, RESIDENT_ROLE_LABELS, RESIDENT_TYPE_LABELS } from '@/types/database';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 // House state type for context from house detail page
 export type HouseState = 'empty' | 'has_tenant' | 'has_resident_landlord' | 'has_non_resident_landlord';
@@ -686,20 +687,17 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Select Resident</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={residentsLoading}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a resident" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {otherResidents.map((r) => (
-                          <SelectItem key={r.id} value={r.id}>
-                            {r.first_name} {r.last_name} ({r.resident_code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={otherResidents.map((r) => ({
+                        value: r.id,
+                        label: `${r.first_name} ${r.last_name} (${r.resident_code})`,
+                      }))}
+                      value={field.value || undefined}
+                      onValueChange={field.onChange}
+                      placeholder={residentsLoading ? 'Loading...' : 'Search a resident...'}
+                      searchPlaceholder="Search by name or code..."
+                      disabled={residentsLoading}
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

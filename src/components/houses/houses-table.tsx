@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, memo, useMemo, useCallback } from 'react';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -114,14 +115,14 @@ const HouseRow = memo(function HouseRow({ house, onNavigate, onPreview }: { hous
 
 export function HousesTable() {
   const router = useRouter();
-  const [search, setSearch] = useState('');
-  const [streetId, setStreetId] = useState<string>(ALL_VALUE);
-  const [houseTypeId, setHouseTypeId] = useState<string>(ALL_VALUE);
-  const [isOccupied, setIsOccupied] = useState<string>(ALL_VALUE);
-  const [limit, setLimit] = useState(20);
-  const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<'short_name' | 'house_number' | 'street' | 'house_type' | undefined>(undefined);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [search, setSearch] = usePersistedState('houses-registry:search', '');
+  const [streetId, setStreetId] = usePersistedState<string>('houses-registry:street', ALL_VALUE);
+  const [houseTypeId, setHouseTypeId] = usePersistedState<string>('houses-registry:type', ALL_VALUE);
+  const [isOccupied, setIsOccupied] = usePersistedState<string>('houses-registry:occupied', ALL_VALUE);
+  const [limit, setLimit] = usePersistedState('houses-registry:limit', 20);
+  const [page, setPage] = usePersistedState('houses-registry:page', 1);
+  const [sortBy, setSortBy] = usePersistedState<'short_name' | 'house_number' | 'street' | 'house_type' | undefined>('houses-registry:sortBy', undefined);
+  const [sortOrder, setSortOrder] = usePersistedState<'asc' | 'desc'>('houses-registry:sortOrder', 'asc');
   const [previewHouseId, setPreviewHouseId] = useState<string | null>(null);
 
   const handleSort = useCallback((column: 'short_name' | 'house_number' | 'street' | 'house_type') => {

@@ -36,6 +36,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { HouseForm } from '@/components/houses/house-form';
 import { HousePaymentStatus } from '@/components/houses/house-payment-status';
 import { YearlyPaymentTable } from '@/components/houses/yearly-payment-table';
@@ -672,22 +673,17 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                     <div className="grid gap-4 py-4">
                       <div className="grid gap-2">
                         <Label>Resident</Label>
-                        <Select
+                        <SearchableSelect
+                          options={availableResidents.map((r) => ({
+                            value: r.id,
+                            label: `${r.first_name} ${r.last_name} (${r.resident_code})`,
+                          }))}
                           value={selectedResidentId}
                           onValueChange={setSelectedResidentId}
-                          disabled={residentsLoading}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={residentsLoading ? "Loading..." : "Select a resident"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableResidents.map((r) => (
-                              <SelectItem key={r.id} value={r.id}>
-                                {r.first_name} {r.last_name} ({r.resident_code})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          placeholder={residentsLoading ? 'Loading...' : 'Search a resident...'}
+                          searchPlaceholder="Search by name or code..."
+                          emptyMessage="No residents available."
+                        />
                       </div>
                       <div className="grid gap-2">
                         <Label>Role</Label>
@@ -1318,22 +1314,16 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
             </div>
             <div className="grid gap-2">
               <Label>New Owner</Label>
-              <Select
+              <SearchableSelect
+                options={availableNewOwners.map((r) => ({
+                  value: r.id,
+                  label: `${r.first_name} ${r.last_name} (${r.resident_code})`,
+                }))}
                 value={transferNewOwnerId}
                 onValueChange={setTransferNewOwnerId}
-                disabled={residentsLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={residentsLoading ? "Loading..." : "Select new owner"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableNewOwners.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.first_name} {r.last_name} ({r.resident_code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder={residentsLoading ? 'Loading...' : 'Search a new owner...'}
+                searchPlaceholder="Search by name or code..."
+              />
             </div>
             <div className="grid gap-2">
               <Label>Transfer Date</Label>

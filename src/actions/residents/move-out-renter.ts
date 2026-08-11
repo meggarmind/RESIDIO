@@ -584,6 +584,25 @@ export async function confirmRenterMoveOut(
     return { success: false, error: 'Failed to deactivate assignment' };
   }
 
+  const { error: statusError } = await supabase
+    .from('residents')
+    .update({ account_status: 'inactive', updated_by: user.id })
+    .eq('id', residentId);
+
+  if (statusError) {
+    return { success: false, error: 'Failed to mark resident inactive' };
+  }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'residents',
+    entityId: residentId,
+    entityDisplay: `${resident?.first_name} ${resident?.last_name}`,
+    oldValues: { account_status: 'active' },
+    newValues: { account_status: 'inactive' },
+    description: 'Marked resident inactive after move-out',
+  });
+
   // 2. Deactivate all secondary residents
   if (secondaryCount > 0) {
     await supabase
@@ -623,6 +642,23 @@ export async function confirmRenterMoveOut(
     if (assignError) {
       console.error('[confirmMoveOut] Error assigning to destination:', assignError);
       // Don't fail the whole operation, but log it
+    }
+
+    if (!assignError) {
+      await supabase
+        .from('residents')
+        .update({ account_status: 'active', updated_by: user.id })
+        .eq('id', residentId);
+
+      await logAudit({
+        action: 'UPDATE',
+        entityType: 'residents',
+        entityId: residentId,
+        entityDisplay: `${resident?.first_name} ${resident?.last_name}`,
+        oldValues: { account_status: 'inactive' },
+        newValues: { account_status: 'active' },
+        description: 'Reactivated resident after move within estate',
+      });
     }
 
     // Update destination house occupancy

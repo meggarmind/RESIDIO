@@ -45,7 +45,14 @@ interface AccountStatusBadgeProps {
 // This is especially impactful for tables with many rows
 export const AccountStatusBadge = memo(function AccountStatusBadge({ status }: AccountStatusBadgeProps) {
   const { variant, label } = ACCOUNT_STATUS_VARIANTS[status];
-  return <Badge variant={variant}>{label}</Badge>;
+  return (
+    <Badge
+      variant={variant}
+      className={status === 'inactive' ? 'border border-amber-500/40 bg-amber-100 font-semibold text-amber-900 dark:bg-amber-950/50 dark:text-amber-200' : undefined}
+    >
+      {label}
+    </Badge>
+  );
 });
 
 interface VerificationStatusBadgeProps {

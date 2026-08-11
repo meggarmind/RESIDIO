@@ -2,10 +2,46 @@
 
 > **🎯 PRODUCT FOCUS (2026-08-06): ADMIN DASHBOARD ONLY.** Resident Portal / self-service (`src/app/(resident)/**`, resident-portal components) is **NOT planned for rollout** in the foreseeable future. De-prioritize all self-service work listed below (portal wallet, resident payments, announcements/documents/profile, impersonation, onboarding). Keep it stable/local only; do not extend or polish it. Prioritize admin management/finance/security/operations/reporting instead.
 
-**Last Updated:** 2026-08-06 (Admin Dashboard focus set)
+**Last Updated:** 2026-08-10 (Finance, performance, and communications fast-track)
 
-## Current Phase: Phase 18 - UX & Portal Refinement 🚧 IN PROGRESS
-See detailed feature spec: `docs/features/role-aware-portal.md`
+## Current Phase: Finance, Performance & Communications Fast-Track
+The project is fast-tracked around financial operations, financial statements/imports/reports, critical performance work, and estate operational WhatsApp/SMS integrations. Portal/self-service work remains out of scope.
+
+### Priority Order
+1. **P0 — Finance:** Financial statements, automatic statement import, reconciliation, billing, payments, and financial reports.
+2. **P0 — Performance:** Complete the Performance Backlog before expanding heavy admin workflows.
+3. **P1 — Communications:** WhatsApp and SMS integrations for estate/admin operational notifications and workflows.
+4. **P2 — Supporting admin work:** Security, residents, houses, documents, approvals, and remaining platform hardening.
+
+### Recent Session Work (2026-08-10): Backlog Reconciliation
+- [x] **Scope Alignment**: Removed portal refinement from the active phase; admin dashboard work is the only forward priority.
+- [x] **Completed Item Reconciliation**: Marked the context-aware Smart Action Center, visitor quick-access carousel, and UI/UX review work as completed where implementation is already documented.
+- [x] **Portal Deprioritization**: Retained portal work as historical record only; portal enhancements, self-service payments, onboarding, impersonation UX, and resident-facing communication are not active backlog items.
+- [x] **Activity Log Date**: Updated this file's last-updated date to 2026-08-10.
+
+### Recent Session Work (2026-08-10): Database Architecture Audit
+- [x] **Cloud Access Confirmed**: Verified read access to the configured Supabase REST API without exposing credentials or application data.
+- [x] **Schema Inventory Reconciled**: Updated `docs/architecture/database-schema.md` for current admin/operations tables and marked `db-visual.sql` as an incomplete historical snapshot.
+
+### In Progress: Legacy Tracker Review
+- [ ] **Review Ledger**: Translate each legacy property record into `docs/importdata/legacy-record-ledger.md` without database queries. Use blue move-in cells where present; without blue, use the earliest paid month as both move-in and first billing month. Perform database matching, duplicate detection, and payment reconciliation only after the consolidated bulk-import file is complete.
+
+### Residents & Houses Workflow UX (Admin Dashboard)
+- [x] **Registry Navigation**: Added sortable columns and direct record navigation to the Residents and Houses registries.
+- [x] **Resident Finance Context**: Added yearly wallet transaction grouping and invoice previews to resident records.
+- [x] **House Detail Information Architecture**: Split house records into URL-addressable Overview, Residents & Ownership, Billing, and History tabs to eliminate long stacked pages.
+- [x] **Cross-Record Quick View**: Added reusable resident and house quick-view sheets from their registries, with direct full-record navigation retained.
+- [x] **Resident Lifecycle Controls**: Added permission-gated active/inactive controls, prominent inactive status treatment, inactive billing exclusion, and automatic reactivation on a new house assignment.
+- [x] **Move-Out Lifecycle**: Owner and renter move-outs now mark the departing resident inactive; within-estate renter moves reactivate after the destination assignment succeeds.
+- [x] **Assignment Lifecycle Coverage**: Centralized inactive-to-active reactivation after a successful assignment and applied it to standard assignments, ownership transfers, developer sales, and lease transitions.
+- [x] **Registry State Preservation**: Preserve filters, sorting, pagination, and scroll position when returning from a resident or house record.
+- [x] **Relationship Selector Scalability**: Replace large static resident selectors with searchable async selectors where record volume requires it.
+- [ ] **Deferred Portal Access Enforcement**: When resident self-service is scheduled for rollout, prevent inactive residents from signing in to the Resident Portal. Inactive status currently affects admin operational lists and notifications only.
+
+### Fast-Track Delivery Notes
+- Financial statement import must cover automated ingestion, parsing, duplicate detection, matching, review, reconciliation, and auditability.
+- Reports should prioritize statements, indebtedness/debtors, invoice aging, development levies, financial overview, exports, and scheduled delivery.
+- WhatsApp/SMS means estate operational communications; it does not reopen resident portal or self-service scope.
 
 ### Recent Session Work (2026-01-24): Style Guide Compliance (Layout 2) - Part 2
 - [x] **Announcements Table Refactor**: Applied Complex Registry Standard (`docs/design/data-table-layout2.md`) to Announcements table.
@@ -115,7 +151,7 @@ See detailed feature spec: `docs/features/role-aware-portal.md`
 - [x] **Data Hygiene**: Implemented `pruneSystemData` server action to archive/delete old notifications, audit logs, and search history.
 - [x] **System Settings**: Added "Data Management" card with destructive pruning action.
 
-## Current Phase: Phase 17 - Product Vibe Enhancements ⏸️ PAUSED
+## Historical Phase: Phase 17 - Product Vibe Enhancements ✅ COMPLETE
 
 ### Recent Session Work (2026-01-20): Payment Alias System Fix
 - [x] **Bug Fix**: Resolved empty alias display ("") in transaction processing dialog caused by `extractSenderName` not handling Nigerian bank formats
@@ -344,8 +380,8 @@ See detailed progress in: `docs/features/global-search.md`
 - [x] **Verified Email Integration**: Confirmed logic for First Bank parsing to support "Living Data"
 - [x] **Implementation Plan**: Created plan for Phase 1 (Resident Sovereignty)
 - [x] **Hybrid Payments**: Manual "Proof" flow + Placeholder Paystack integration (VIBE UPGRADE)
-- [ ] **Smart Action Center**: Upgrade to context-aware suggestions (URGENT)
-- [ ] **Visitor Access**: Recent visitors quick-access carousel
+- [x] **Smart Action Center**: Context-aware suggestions are implemented through the unified actions card and `useSmartSuggestions`.
+- [x] **Visitor Access**: Recent visitors quick-access carousel is implemented in the resident portal; no further portal rollout work is planned.
 
 ### Recent Session Work (2026-01-18): PDF Report Header Repetition
 - [x] **Research & Planning**: Identified HTML-to-Print approach for Financial Reports and `@react-pdf/renderer` for Statements.
@@ -379,28 +415,41 @@ See detailed progress in: `docs/features/global-search.md`
 
 *Use this section to identify independent work streams available for parallel execution.*
 
-### 🟢 Track A: Resident Experience (Frontend/Integration Focus)
+### ⚪ Track A: Resident Experience (DEPRIORITIZED)
 
-**Primary Scope:** Phase 12 (Resident View Portal) + New Features
+**Status:** Historical work is retained for reference, but no new portal or self-service work is scheduled for rollout.
 
-- [x] **Resident Portal**: Read-only dashboard, payment history, property details (`/portal/*`)
-- [ ] **Smart Access Sharing**: WhatsApp integration for guest codes
-- [x] **Onboarding Wizard**: Self-service profile completion for new residents
-- **Dependencies:** Core Auth ✅, Resident Registry ✅. *Independent of Admin Financials.*
+- [x] **Resident Portal**: Read-only dashboard, payment history, property details (`/portal/*`) — historical
+- **DEPRIORITIZED** **Smart Access Sharing**: WhatsApp integration for guest codes
+- [x] **Onboarding Wizard**: Self-service profile completion for new residents — historical, no further rollout work planned
+- **Dependencies:** Core Auth ✅, Resident Registry ✅. *Do not expand this track.*
 
-### 🔵 Track B: Admin Financials (Backend/Reporting Focus)
+### 🔵 Track B: Admin Financials (P0 — PRIMARY DELIVERY TRACK)
 
 **Primary Scope:** Phase 4 (Financial Reports Completion) + Phase 13 (Analytics Polish)
 
-- [ ] **Report Enhancements**: Recategorization, version history, editing capabilities
-- [ ] **Recurring Configurations**: Automation settings for reports
-- [ ] **Notifications**: Subscription system for financial events
+- [ ] **Financial Statements & Imports**: Complete automated statement ingestion, parsing, matching, reconciliation, review, and audit trail.
+- [ ] **Report Enhancements**: Recategorization, version history, editing capabilities, exports, invoice aging, and comparative reporting.
+- [ ] **Recurring Configurations**: Automation settings and scheduled delivery for reports.
+- [ ] **Notifications**: Subscription system for financial events, including WhatsApp/SMS delivery where applicable.
 - **Dependencies:** Payment Records ✅. *Isolated to Admin Dashboard.*
 
-### 🟣 Track C: Independent Modules
+### 🔴 Track C: Critical Performance (P0)
+
+- [ ] **Performance Backlog**: Complete all remaining items in `ACTIONPLAN.md` Phase 6 before adding non-critical dashboard complexity.
+- [ ] **Dashboard Data Fetching**: Aggregate financial queries and split dashboard stats into independently streaming card queries.
+- [ ] **Request and Bundle Efficiency**: Reduce middleware queries, configure query caching, split heavy bundles, and replace full-page reload recovery paths.
+- [ ] **Route Loading**: Add Suspense/loading states to Payments, Residents, and Houses.
+
+### 🟣 Track D: Operational Communications (P1 — FAST-TRACK)
+
+- [ ] **WhatsApp Integration**: Business account, templates, compliance/opt-out, two-way messaging, media support, and alert integration.
+- [ ] **SMS Integration**: Gateway, opt-in/opt-out, templates, delivery tracking, cost tracking, and alert integration.
+
+### ⚪ Track E: Independent Modules
 
 - [ ] **Digital AGM & E-Voting**: Standalone module (Phase 17)
-- [ ] **UI/UX Polish**: Cross-cutting improvements from Review Plan (Payment Flow, Page Polish)
+- [x] **UI/UX Polish**: Cross-cutting review work is complete; see `ACTIONPLAN.md` Phases 3-5. Remaining browser-only checks stay explicitly deferred there.
 
 ### Recent Session Work (2026-01-13): Documentation & Review
 
@@ -514,9 +563,9 @@ Full 5-phase improvement plan created from frontend-developer agent review.
 |-------|-------|--------|
 | Phase 1 | Navigation & Structure | ✅ Complete |
 | Phase 2 | Card Component System | ✅ Complete |
-| Phase 3 | Payment Flow + PDF Import Polish | ⏳ Pending |
-| Phase 4 | Page Improvements | ⏳ Pending |
-| Phase 5 | Accessibility & Polish | ⏳ Pending |
+| Phase 3 | Payment Flow + PDF Import Polish | ✅ Complete |
+| Phase 4 | Page Improvements | ✅ Complete |
+| Phase 5 | Accessibility & Polish | ✅ Complete |
 
 Plan file: `ACTIONPLAN.md`
 
@@ -1692,11 +1741,11 @@ API for external systems:
 
 ---
 
-## POST-DEPLOYMENT PRIORITY PHASES
+## FAST-TRACK COMMUNICATIONS
 
 ---
 
-## Phase 21: WhatsApp Integration
+## Phase 21: WhatsApp Integration (P1 FAST-TRACK)
 
 WhatsApp Business API:
 
@@ -1709,7 +1758,7 @@ WhatsApp Business API:
 
 ---
 
-## Phase 22: SMS Integration
+## Phase 22: SMS Integration (P1 FAST-TRACK)
 
 SMS notification channel:
 
@@ -1728,11 +1777,13 @@ SMS notification channel:
 
 ---
 
-## DEFERRED PHASES (Phase 26+)
+## ADDITIONAL FINANCE & FUTURE PHASES
 
 ---
 
-## Phase 26: Payment Gateway Integration
+## Phase 26: Payment Gateway Integration (DEPRIORITIZED / DEFERRED)
+
+Online gateway work is not part of the current fast-track. Prioritize financial statements, automatic statement import, reconciliation, billing, reporting, performance, WhatsApp, and SMS first.
 
 Online payment processing:
 

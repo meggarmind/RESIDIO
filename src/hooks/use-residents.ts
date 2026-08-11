@@ -6,6 +6,7 @@ import { getResident } from '@/actions/residents/get-resident';
 import { getResidentStats, getContactVerificationStats } from '@/actions/residents/get-resident-stats';
 import { createResident } from '@/actions/residents/create-resident';
 import { updateResident } from '@/actions/residents/update-resident';
+import { updateResidentStatus } from '@/actions/residents/update-resident-status';
 import { deleteResident } from '@/actions/residents/delete-resident';
 import { assignHouse } from '@/actions/residents/assign-house';
 import { unassignHouse } from '@/actions/residents/unassign-house';
@@ -119,6 +120,23 @@ export function useUpdateResident() {
       queryClient.invalidateQueries({ queryKey: ['residents'] });
       queryClient.invalidateQueries({ queryKey: ['residentStats'] });
       queryClient.invalidateQueries({ queryKey: ['resident', variables.id] });
+    },
+  });
+}
+
+export function useUpdateResidentStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, accountStatus }: { id: string; accountStatus: 'active' | 'inactive' }) => {
+      const result = await updateResidentStatus(id, accountStatus);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['residents'] });
+      queryClient.invalidateQueries({ queryKey: ['resident', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['residentStats'] });
     },
   });
 }

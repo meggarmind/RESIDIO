@@ -1,15 +1,25 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
 import { ResidentForm } from '@/components/residents/resident-form';
 import { AccountStatusBadge } from '@/components/residents/status-badge';
 import { GranularVerificationBadge } from '@/components/residents/contact-verification-badge';
-import { useResident, useDeleteResident, useVerifyResident } from '@/hooks/use-residents';
+import { useResident, useDeleteResident, useUpdateResidentStatus, useVerifyResident } from '@/hooks/use-residents';
 import { useVerificationStatus } from '@/hooks/use-verification';
 import { LinkedHouses } from '@/components/residents/linked-houses';
 import { ResidentPayments } from '@/components/residents/resident-payments';
@@ -24,7 +34,7 @@ import { NotesTimeline } from '@/components/notes';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell, StickyNote, AlertCircle } from 'lucide-react';
+import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell, StickyNote, AlertCircle, UserRoundCheck, UserRoundX } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ResidentDetailPageProps {
@@ -40,10 +50,15 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const { data: resident, isLoading, error } = useResident(id);
   const { data: verificationStatus } = useVerificationStatus(id);
   const deleteMutation = useDeleteResident();
+  const updateStatusMutation = useUpdateResidentStatus();
   const verifyMutation = useVerifyResident();
+  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
 
   // Notes permissions
-  const { hasPermission } = useAuth();
+  const { hasPermission, isLoading: authLoading } = useAuth();
+  const canUpdateResident = hasPermission(PERMISSIONS.RESIDENTS_UPDATE);
+  const canDeleteResident = hasPermission(PERMISSIONS.RESIDENTS_DELETE);
+  const canVerifyResident = hasPermission(PERMISSIONS.RESIDENTS_VERIFY);
   const canViewNotes = hasPermission(PERMISSIONS.NOTES_VIEW);
   const canCreateNotes = hasPermission(PERMISSIONS.NOTES_CREATE);
   const canEditNotes = hasPermission(PERMISSIONS.NOTES_UPDATE);
@@ -72,6 +87,19 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
     }
   };
 
+  const handleStatusChange = async () => {
+    if (!resident) return;
+
+    const accountStatus = resident.account_status === 'inactive' ? 'active' : 'inactive';
+    try {
+      await updateStatusMutation.mutateAsync({ id, accountStatus });
+      toast.success(accountStatus === 'active' ? 'Resident reactivated' : 'Resident marked inactive');
+      setIsStatusDialogOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update resident status');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -87,6 +115,15 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         <Button variant="outline" asChild>
           <Link href="/residents">Back to Residents</Link>
         </Button>
+      </div>
+    );
+  }
+
+  if (isEditing && !authLoading && !canUpdateResident) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-4">
+        <p className="text-destructive">You do not have permission to edit residents.</p>
+        <Button variant="outline" asChild><Link href={`/residents/${id}`}>Back to Resident</Link></Button>
       </div>
     );
   }
@@ -146,7 +183,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         </div>
         <div className="flex gap-2">
           {/* Show verify button only if contact verification is incomplete */}
-          {!(
+          {canVerifyResident && !(
             (resident.email ? verificationStatus?.email?.verified : true) &&
             (resident.phone_primary ? verificationStatus?.phone?.verified : true)
           ) && (
@@ -160,22 +197,47 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
               Verify
             </Button>
           )}
-          <Button variant="outline" asChild>
+          {canUpdateResident && (
+            <Button variant="outline" onClick={() => setIsStatusDialogOpen(true)}>
+              {resident.account_status === 'inactive' ? <UserRoundCheck className="mr-2 h-4 w-4" /> : <UserRoundX className="mr-2 h-4 w-4" />}
+              {resident.account_status === 'inactive' ? 'Reactivate' : 'Mark inactive'}
+            </Button>
+          )}
+          {canUpdateResident && <Button variant="outline" asChild>
             <Link href={`/residents/${id}?edit=true`}>
               <Pencil className="h-4 w-4 mr-2" />
               Edit
             </Link>
-          </Button>
-          <Button
+          </Button>}
+          {canDeleteResident && <Button
             variant="destructive"
             onClick={handleDelete}
             disabled={deleteMutation.isPending}
           >
             <Trash2 className="h-4 w-4 mr-2" />
             Archive
-          </Button>
+          </Button>}
         </div>
       </div>
+
+      <AlertDialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{resident.account_status === 'inactive' ? 'Reactivate resident?' : 'Mark resident inactive?'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {resident.account_status === 'inactive'
+                ? 'This restores the resident to active operational lists and notifications.'
+                : 'This removes the resident from active operational lists and notifications. It does not change portal login access.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleStatusChange} disabled={updateStatusMutation.isPending}>
+              {resident.account_status === 'inactive' ? 'Reactivate' : 'Mark inactive'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList>

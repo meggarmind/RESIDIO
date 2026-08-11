@@ -2,19 +2,16 @@
 
 import { HousesTable } from '@/components/houses/houses-table';
 import { useHouseStats } from '@/hooks/use-houses';
-import { Home, Building, DoorOpen, XCircle } from 'lucide-react';
+import { Home, Building, DoorOpen, Plus, XCircle } from 'lucide-react';
 import {
-  EnhancedStatCard,
   EnhancedTableCard,
   EnhancedPageHeader,
 } from '@/components/dashboard/enhanced-stat-card';
-import { useVisualTheme } from '@/contexts/visual-theme-context';
-import { cn } from '@/lib/utils';
+import { RegistryKpiStrip } from '@/components/dashboard/registry-kpi-strip';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 export default function HousesPage() {
-  const { themeId } = useVisualTheme();
-  const isModern = themeId === 'modern';
-
   // Use optimized stats query
   const { data: stats, isLoading } = useHouseStats();
 
@@ -29,52 +26,26 @@ export default function HousesPage() {
         title="Houses"
         description="Manage properties in the estate"
         icon={Home}
+        actions={
+          <Button asChild>
+            <Link href="/houses/new"><Plus className="mr-2 h-4 w-4" />Add property</Link>
+          </Button>
+        }
       />
 
-      {/* Stats Cards Section */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-        <EnhancedStatCard
-          title="Total Properties"
-          value={stats?.total ?? 0}
-          icon={Home}
-          isLoading={isLoading}
-          description="Registered houses"
-          accentColor="info"
-          className="stagger-1"
-        />
-        <EnhancedStatCard
-          title="Occupied"
-          value={stats?.occupied ?? 0}
-          icon={Building}
-          isLoading={isLoading}
-          description={`${occupancyRate}% occupancy rate`}
-          accentColor="success"
-          className="stagger-2"
-        />
-        <EnhancedStatCard
-          title="Vacant"
-          value={stats?.vacant ?? 0}
-          icon={DoorOpen}
-          isLoading={isLoading}
-          description="Available properties"
-          accentColor={stats?.vacant && stats.vacant > 0 ? 'warning' : 'default'}
-          className="stagger-3"
-        />
-        <EnhancedStatCard
-          title="Inactive"
-          value={stats?.inactive ?? 0}
-          icon={XCircle}
-          isLoading={isLoading}
-          description="Deactivated properties"
-          accentColor={stats?.inactive && stats.inactive > 0 ? 'danger' : 'default'}
-          className="stagger-4"
-        />
-      </div>
+      <RegistryKpiStrip
+        isLoading={isLoading}
+        items={[
+          { label: 'Properties', value: stats?.total ?? 0, icon: Home },
+          { label: 'Occupied', value: stats?.occupied ?? 0, detail: `${occupancyRate}%`, icon: Building, tone: 'success' },
+          { label: 'Vacant', value: stats?.vacant ?? 0, icon: DoorOpen, tone: stats?.vacant ? 'warning' : 'default' },
+          ...(stats?.inactive ? [{ label: 'Inactive', value: stats.inactive, icon: XCircle, tone: 'danger' as const }] : []),
+        ]}
+      />
 
       {/* Property Registry Table */}
       <EnhancedTableCard
-        title="Property Registry"
-        description="View and manage all houses and properties in the community"
+        className="[&>div]:pt-4"
       >
         <HousesTable />
       </EnhancedTableCard>

@@ -2,6 +2,7 @@
 
 import { useState, memo, useCallback, useMemo } from 'react';
 import { useDebounce } from '@/hooks/use-debounce';
+import { usePersistedState } from '@/hooks/use-persisted-state';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -69,7 +70,7 @@ const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview 
           </span>
         </div>
       </TableCell>
-      <TableCell>{resident.phone_primary}</TableCell>
+      <TableCell className="hidden xl:table-cell">{resident.phone_primary}</TableCell>
       <TableCell>{address}</TableCell>
       <TableCell>
         <div className="flex flex-wrap gap-1">
@@ -89,7 +90,7 @@ const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview 
       <TableCell>
         <AccountStatusBadge status={resident.account_status} />
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden lg:table-cell">
         <ContactVerificationBadge
           emailVerifiedAt={resident.email_verified_at}
           phoneVerifiedAt={resident.phone_verified_at}
@@ -137,15 +138,15 @@ const CONTACT_VERIFICATION_LABELS: Record<ContactVerificationFilter | typeof ALL
 
 export function ResidentsTable() {
   const router = useRouter();
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<AccountStatus | typeof ALL_VALUE>(ALL_VALUE);
-  const [streetId, setStreetId] = useState<string>(ALL_VALUE);
-  const [contactVerification, setContactVerification] = useState<ContactVerificationFilter | typeof ALL_VALUE>(ALL_VALUE);
-  const [selectedRoles, setSelectedRoles] = useState<ResidentRole[]>([]);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
-  const [sortBy, setSortBy] = useState<'resident_code' | 'first_name' | 'house_number' | undefined>(undefined);
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [search, setSearch] = usePersistedState('residents-registry:search', '');
+  const [status, setStatus] = usePersistedState<AccountStatus | typeof ALL_VALUE>('residents-registry:status', ALL_VALUE);
+  const [streetId, setStreetId] = usePersistedState<string>('residents-registry:street', ALL_VALUE);
+  const [contactVerification, setContactVerification] = usePersistedState<ContactVerificationFilter | typeof ALL_VALUE>('residents-registry:verification', ALL_VALUE);
+  const [selectedRoles, setSelectedRoles] = usePersistedState<ResidentRole[]>('residents-registry:roles', []);
+  const [page, setPage] = usePersistedState('residents-registry:page', 1);
+  const [limit, setLimit] = usePersistedState('residents-registry:limit', 20);
+  const [sortBy, setSortBy] = usePersistedState<'resident_code' | 'first_name' | 'house_number' | undefined>('residents-registry:sortBy', undefined);
+  const [sortOrder, setSortOrder] = usePersistedState<'asc' | 'desc'>('residents-registry:sortOrder', 'asc');
   const [previewResidentId, setPreviewResidentId] = useState<string | null>(null);
 
   const handleSort = useCallback((column: 'resident_code' | 'first_name' | 'house_number') => {
@@ -208,7 +209,7 @@ export function ResidentsTable() {
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <form onSubmit={handleSearch} className="flex-1 flex gap-2">
+        <form onSubmit={handleSearch} className="flex-1">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -221,7 +222,6 @@ export function ResidentsTable() {
               className="pl-9"
             />
           </div>
-          <Button type="submit" variant="secondary">Search</Button>
         </form>
 
         <Select value={status} onValueChange={(v) => setStatus(v as AccountStatus | typeof ALL_VALUE)}>
@@ -316,17 +316,12 @@ export function ResidentsTable() {
           </SelectContent>
         </Select>
 
-        <Button onClick={() => router.push('/residents/new')}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Resident
-        </Button>
       </div>
 
       {/* Verification Stats Summary */}
       {verificationStats && (verificationStats.unverified > 0 || verificationStats.partial > 0) && (
-        <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border">
-          <div className="text-sm text-muted-foreground">Contact Verification:</div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+            <span className="font-medium text-muted-foreground">Verification</span>
             <button
               onClick={() => setContactVerification('verified')}
               className="flex items-center gap-1.5 text-sm hover:underline"
@@ -356,7 +351,6 @@ export function ResidentsTable() {
               </button>
             )}
           </div>
-        </div>
       )}
 
       {/* Active Role Filters */}
@@ -431,7 +425,7 @@ export function ResidentsTable() {
                   )}
                 </button>
               </TableHead>
-              <TableHead>Phone</TableHead>
+              <TableHead className="hidden xl:table-cell">Phone</TableHead>
               <TableHead>
                 <button
                   className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
@@ -447,7 +441,7 @@ export function ResidentsTable() {
               </TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Verified</TableHead>
+              <TableHead className="hidden lg:table-cell">Verified</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -464,11 +458,11 @@ export function ResidentsTable() {
                       <Skeleton className="h-4 w-32" />
                     </div>
                   </TableCell>
-                  <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                  <TableCell className="hidden xl:table-cell"><Skeleton className="h-4 w-28" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                  <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Skeleton className="h-8 w-8" />
