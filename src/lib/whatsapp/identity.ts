@@ -188,12 +188,13 @@ export function createSupabaseWhatsAppIdentityRepository(): WhatsAppIdentityRepo
       const query = existing
         ? supabase
             .from('whatsapp_pending_contacts')
-            .update({ last_seen_at: now, updated_at: now })
+          .update({ last_seen_at: now, updated_at: now, source: 'inbound' })
             .eq('id', existing.id)
         : supabase.from('whatsapp_pending_contacts').insert({
             phone_number: normalized,
             first_seen_at: now,
             last_seen_at: now,
+            source: 'inbound',
             updated_at: now,
           });
       const { error } = await query;
@@ -263,6 +264,7 @@ export interface WhatsAppIdentityResult {
   residentId: string | null;
   optedIn: boolean;
   financialEligible: boolean;
+  accessTier: 'community' | 'financial';
 }
 
 function isStopCommand(text: string): boolean {
@@ -311,6 +313,7 @@ export async function handleResidentMessage(
       residentId: identity?.id || null,
       optedIn: false,
       financialEligible: identity?.financialEligible || false,
+      accessTier: identity?.financialEligible ? 'financial' : 'community',
     };
   }
 
@@ -319,7 +322,7 @@ export async function handleResidentMessage(
     const residentId = await options.repository.consumeLinkToken(linkMatch[1]);
     if (!residentId) {
       await sendReply(message, 'That link code is invalid or expired. Ask an estate admin for a new code.', options.send);
-      return { status: 'pending', residentId: null, optedIn: false, financialEligible: false };
+      return { status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
     }
 
     await options.repository.setOptIn(residentId, phoneNumber, false, 'in_chat');
@@ -329,7 +332,7 @@ export async function handleResidentMessage(
       'Your number is linked. Reply YES to receive estate WhatsApp alerts, or STOP to decline them.',
       options.send
     );
-    return { status: 'linked', residentId, optedIn: false, financialEligible: false };
+    return { status: 'linked', residentId, optedIn: false, financialEligible: false, accessTier: 'community' };
   }
 
   if (rosterMatches.length !== 1) {
@@ -339,12 +342,12 @@ export async function handleResidentMessage(
       'Welcome to the Residio WhatsApp Assistant. We could not safely match this number to one Resident. Ask an estate admin for a link code, or reply STOP.',
       options.send
     );
-    return { status: rosterMatches.length > 1 ? 'ambiguous' : 'pending', residentId: null, optedIn: false, financialEligible: false };
+    return { status: rosterMatches.length > 1 ? 'ambiguous' : 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
   }
 
   const matchedIdentity = identity;
   if (!matchedIdentity) {
-    return { status: 'pending', residentId: null, optedIn: false, financialEligible: false };
+    return { status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
   }
 
   const optedIn = await options.repository.getOptIn(matchedIdentity.id, phoneNumber);
@@ -355,7 +358,7 @@ export async function handleResidentMessage(
       `You're connected as ${matchedIdentity.firstName} ${matchedIdentity.lastName}. Estate WhatsApp alerts are now enabled.`,
       options.send
     );
-    return { status: 'identified', residentId: matchedIdentity.id, optedIn: true, financialEligible: matchedIdentity.financialEligible };
+    return { status: 'identified', residentId: matchedIdentity.id, optedIn: true, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };
   }
 
   if (!optedIn) {
@@ -364,7 +367,7 @@ export async function handleResidentMessage(
       `You're connected as ${matchedIdentity.firstName} ${matchedIdentity.lastName}. Reply YES to receive estate WhatsApp alerts, or STOP to decline them.`,
       options.send
     );
-    return { status: 'identified', residentId: matchedIdentity.id, optedIn: false, financialEligible: matchedIdentity.financialEligible };
+    return { status: 'identified', residentId: matchedIdentity.id, optedIn: false, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };
   }
 
   await sendReply(
@@ -372,7 +375,7 @@ export async function handleResidentMessage(
     `You're connected as ${matchedIdentity.firstName} ${matchedIdentity.lastName}. Estate announcements and notices will be sent here.`,
     options.send
   );
-  return { status: 'identified', residentId: matchedIdentity.id, optedIn: true, financialEligible: matchedIdentity.financialEligible };
+  return { status: 'identified', residentId: matchedIdentity.id, optedIn: true, financialEligible: matchedIdentity.financialEligible, accessTier: matchedIdentity.financialEligible ? 'financial' : 'community' };
 }
 
 export function generateWhatsAppLinkCode(): string {

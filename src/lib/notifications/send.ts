@@ -166,6 +166,22 @@ async function sendViaWhatsApp(
     return { success: false, error: 'No recipient phone number provided' };
   }
 
+  const { data: optIn, error: optInError } = await createAdminClient()
+    .from('whatsapp_optins')
+    .select('id')
+    .eq('resident_id', item.recipient_id)
+    .eq('phone_number', item.recipient_phone)
+    .eq('opted_in', true)
+    .maybeSingle();
+
+  if (optInError) {
+    return { success: false, error: 'Unable to verify WhatsApp consent' };
+  }
+
+  if (!optIn) {
+    return { success: false, error: 'WhatsApp recipient has not opted in' };
+  }
+
   const result = await sendWhatsAppMessage({
     to: item.recipient_phone,
     body: item.body,

@@ -19,6 +19,8 @@ type OptInRow = {
 type PendingRow = {
   phone_number: string;
   status: string;
+  source: string;
+  first_seen_at: string;
   last_seen_at: string;
 };
 
@@ -68,6 +70,7 @@ export default async function WhatsAppOperationsPage() {
                       <th className="pb-2 pr-4 font-medium">Resident</th>
                       <th className="pb-2 pr-4 font-medium">Number</th>
                       <th className="pb-2 pr-4 font-medium">State</th>
+                      <th className="pb-2 pr-4 font-medium">Source</th>
                       <th className="pb-2 font-medium">Updated</th>
                     </tr>
                   </thead>
@@ -77,6 +80,7 @@ export default async function WhatsAppOperationsPage() {
                         <td className="py-3 pr-4">
                           {row.resident ? `${row.resident.first_name} ${row.resident.last_name}` : 'Unknown'}
                         </td>
+                        <td className="py-3 pr-4 text-xs text-muted-foreground">{row.source}</td>
                         <td className="py-3 pr-4 font-mono text-xs">{maskPhone(row.phone_number)}</td>
                         <td className="py-3 pr-4">
                           <Badge variant={row.opted_in ? 'default' : 'secondary'}>
@@ -108,6 +112,8 @@ export default async function WhatsAppOperationsPage() {
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="pb-2 pr-4 font-medium">Number</th>
                       <th className="pb-2 pr-4 font-medium">State</th>
+                      <th className="pb-2 pr-4 font-medium">Source</th>
+                      <th className="pb-2 pr-4 font-medium">First seen</th>
                       <th className="pb-2 font-medium">Last seen</th>
                     </tr>
                   </thead>
@@ -116,6 +122,8 @@ export default async function WhatsAppOperationsPage() {
                       <tr key={row.phone_number} className="border-b last:border-0">
                         <td className="py-3 pr-4 font-mono text-xs">{maskPhone(row.phone_number)}</td>
                         <td className="py-3 pr-4"><Badge variant="secondary">{row.status}</Badge></td>
+                        <td className="py-3 pr-4 text-xs text-muted-foreground">{row.source}</td>
+                        <td className="py-3 pr-4 text-xs text-muted-foreground">{formatDate(row.first_seen_at)}</td>
                         <td className="py-3 text-xs text-muted-foreground">{formatDate(row.last_seen_at)}</td>
                       </tr>
                     ))}

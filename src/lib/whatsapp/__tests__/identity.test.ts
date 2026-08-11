@@ -43,7 +43,7 @@ describe('WhatsApp identity and consent', () => {
 
     const result = await handleResidentMessage(message('hello'), { repository: repo, send });
 
-    expect(result).toMatchObject({ status: 'identified', residentId: 'resident-1', optedIn: false });
+    expect(result).toMatchObject({ status: 'identified', residentId: 'resident-1', optedIn: false, accessTier: 'financial' });
     expect(repo.setOptIn).not.toHaveBeenCalled();
     expect(send.mock.calls[0]?.[0].body).toContain('Reply YES');
   });
@@ -59,6 +59,16 @@ describe('WhatsApp identity and consent', () => {
     expect(repo.setOptIn).toHaveBeenNthCalledWith(2, 'resident-1', '+2348000000000', false, 'in_chat');
   });
 
+  it('re-enables consent with START after an opt-out', async () => {
+    const repo = repository({ getOptIn: vi.fn().mockResolvedValue(false) });
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await handleResidentMessage(message('START'), { repository: repo, send });
+
+    expect(result.optedIn).toBe(true);
+    expect(repo.setOptIn).toHaveBeenCalledWith('resident-1', '+2348000000000', true, 'in_chat');
+  });
+
   it('does not identify a shared number automatically', async () => {
     const repo = repository({
       findRosterMatches: vi.fn().mockResolvedValue([resident, { ...resident, id: 'resident-2' }]),
@@ -70,6 +80,17 @@ describe('WhatsApp identity and consent', () => {
     expect(result.status).toBe('ambiguous');
     expect(repo.rememberPendingContact).toHaveBeenCalledWith('+2348000000000');
     expect(send.mock.calls[0]?.[0].body).not.toContain('Ada Example');
+  });
+
+  it('creates a pending record for an unregistered number', async () => {
+    const repo = repository({ findRosterMatches: vi.fn().mockResolvedValue([]) });
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await handleResidentMessage(message('hello', '2348111111111'), { repository: repo, send });
+
+    expect(result.status).toBe('pending');
+    expect(repo.rememberPendingContact).toHaveBeenCalledWith('+2348111111111');
+    expect(send.mock.calls[0]?.[0].body).not.toContain('balance');
   });
 
   it('links an unrostered number with a one-time code but waits for consent', async () => {
@@ -93,7 +114,7 @@ describe('WhatsApp identity and consent', () => {
 
     const result = await handleResidentMessage(message('hello'), { repository: repo, send });
 
-    expect(result.financialEligible).toBe(false);
+    expect(result).toMatchObject({ financialEligible: false, accessTier: 'community' });
     expect(send.mock.calls[0]?.[0].body).toContain('announcements and notices');
     expect(send.mock.calls[0]?.[0].body).not.toContain('balance');
   });

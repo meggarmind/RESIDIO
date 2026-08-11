@@ -3,6 +3,7 @@ import { IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
 import { sendNotification } from '@/lib/notifications/send';
 import { getSettingValue } from '@/actions/settings/get-settings';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { createAdminClient } from '@/lib/supabase/server';
 
 vi.mock('@/actions/settings/get-settings', () => ({
   getSettingValue: vi.fn(),
@@ -12,10 +13,21 @@ vi.mock('@/lib/whatsapp', () => ({
   sendWhatsAppMessage: vi.fn(),
 }));
 
+vi.mock('@/lib/supabase/server', () => ({
+  createAdminClient: vi.fn(),
+}));
+
 describe('WhatsApp notification dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getSettingValue).mockResolvedValue(true);
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
+      }),
+    } as unknown as ReturnType<typeof createAdminClient>);
   });
 
   it('advertises WhatsApp but not dormant SMS as implemented', () => {

@@ -5073,6 +5073,7 @@ export type Database = {
           last_seen_at: string
           phone_number: string
           resident_id: string | null
+          source: string
           status: string
           updated_at: string
         }
@@ -5083,6 +5084,7 @@ export type Database = {
           last_seen_at?: string
           phone_number: string
           resident_id?: string | null
+          source?: string
           status?: string
           updated_at?: string
         }
@@ -5093,6 +5095,7 @@ export type Database = {
           last_seen_at?: string
           phone_number?: string
           resident_id?: string | null
+          source?: string
           status?: string
           updated_at?: string
         }
