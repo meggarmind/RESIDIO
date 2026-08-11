@@ -29,6 +29,13 @@ export interface FinancialAnswer {
   metadata?: Record<string, unknown>;
 }
 
+export interface StatementCompositionInput {
+  period: StatementPeriod;
+  houseId: string | null;
+  invoices: Array<{ invoice_number: string; amount_due: number | null; amount_paid: number | null; created_at: string }>;
+  payments: Array<{ amount: number | null; payment_date: string; reference_number: string | null }>;
+}
+
 export interface WhatsAppFinancialRepository {
   getSession(phoneNumber: string): Promise<WhatsAppFinancialSession | null>;
   saveSession(session: WhatsAppFinancialSession): Promise<void>;
@@ -40,7 +47,7 @@ export interface WhatsAppFinancialRepository {
   getLastPayment(residentId: string, houseId: string): Promise<FinancialAnswer>;
   getNextDue(residentId: string, houseId: string): Promise<FinancialAnswer>;
   getWallet(residentId: string): Promise<FinancialAnswer>;
-  getStatement(residentId: string, houseId: string | null, period: StatementPeriod): Promise<FinancialAnswer>;
+  getStatement(residentId: string, houseId: string | null, period: StatementPeriod, allowedHouseIds: string[]): Promise<FinancialAnswer>;
   logDisclosure(input: {
     residentId: string;
     phoneNumber: string;
@@ -120,6 +127,37 @@ function parseStatementPeriod(text: string): StatementPeriod | null {
   if (normalized === '2' || normalized === 'this year') return 'this_year';
   if (normalized === '3' || normalized === 'last six months') return 'last_six_months';
   return null;
+}
+
+export function composeStatementAnswer(input: StatementCompositionInput): FinancialAnswer {
+  const totalInvoiced = input.invoices.reduce((sum, invoice) => sum + Number(invoice.amount_due || 0), 0);
+  const totalPaidAgainstInvoices = input.invoices.reduce((sum, invoice) => sum + Number(invoice.amount_paid || 0), 0);
+  const totalPayments = input.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const rows = [
+    ...input.invoices.map((invoice) => ({
+      date: invoice.created_at,
+      text: `Invoice ${invoice.invoice_number}: ${formatNaira(Number(invoice.amount_due || 0))}`,
+    })),
+    ...input.payments.map((payment) => ({
+      date: payment.payment_date,
+      text: `Payment${payment.reference_number ? ` ${payment.reference_number}` : ''}: ${formatNaira(Number(payment.amount || 0))}`,
+    })),
+  ].sort((left, right) => right.date.localeCompare(left.date));
+  const cap = 12;
+  const omitted = Math.max(0, rows.length - cap);
+  const lines = rows.slice(0, cap).reverse().map((row) => `${new Date(row.date).toLocaleDateString('en-NG')}: ${row.text}`);
+  const scope = input.houseId ? 'selected property' : 'all properties';
+
+  return {
+    body: [
+      `Statement (${input.period.replaceAll('_', ' ')}, ${scope})`,
+      `Invoiced: ${formatNaira(totalInvoiced)} | Payments: ${formatNaira(totalPayments)}`,
+      `Outstanding from invoices: ${formatNaira(Math.max(0, totalInvoiced - totalPaidAgainstInvoices))}`,
+      ...(lines.length ? lines : ['No invoice or payment activity in this period.']),
+      ...(omitted ? [`${omitted} older row(s) omitted. Choose a shorter period for more detail.`] : []),
+    ].join('\n'),
+    metadata: { period: input.period, house_id: input.houseId, row_count: rows.length, omitted },
+  };
 }
 
 function createSupabaseRepository(): WhatsAppFinancialRepository {
@@ -253,7 +291,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       return { body: `Wallet balance: ${formatNaira(Number(data?.balance || 0))}.` };
     },
 
-    async getStatement(residentId, houseId, period) {
+    async getStatement(residentId, houseId, period, allowedHouseIds) {
       const now = new Date();
       const from = new Date(now);
       if (period === 'this_month') {
@@ -289,6 +327,9 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       if (houseId) {
         invoiceQuery = invoiceQuery.eq('house_id', houseId);
         paymentQuery = paymentQuery.eq('house_id', houseId);
+      } else {
+        invoiceQuery = invoiceQuery.in('house_id', allowedHouseIds);
+        paymentQuery = paymentQuery.in('house_id', allowedHouseIds);
       }
 
       const [{ data: invoices, error: invoiceError }, { data: payments, error: paymentError }] = await Promise.all([
@@ -298,33 +339,7 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       if (invoiceError) throw invoiceError;
       if (paymentError) throw paymentError;
 
-      const totalInvoiced = (invoices || []).reduce((sum, invoice) => sum + Number(invoice.amount_due || 0), 0);
-      const totalPaidAgainstInvoices = (invoices || []).reduce((sum, invoice) => sum + Number(invoice.amount_paid || 0), 0);
-      const totalPayments = (payments || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-      const rows = [
-        ...(invoices || []).map((invoice) => ({
-          date: invoice.created_at,
-          text: `Invoice ${invoice.invoice_number}: ${formatNaira(Number(invoice.amount_due || 0))}`,
-        })),
-        ...(payments || []).map((payment) => ({
-          date: payment.payment_date,
-          text: `Payment${payment.reference_number ? ` ${payment.reference_number}` : ''}: ${formatNaira(Number(payment.amount || 0))}`,
-        })),
-      ].sort((left, right) => left.date.localeCompare(right.date));
-      const cap = 12;
-      const omitted = Math.max(0, rows.length - cap);
-      const lines = rows.slice(0, cap).map((row) => `${new Date(row.date).toLocaleDateString('en-NG')}: ${row.text}`);
-      const scope = houseId ? 'selected property' : 'all properties';
-      return {
-        body: [
-          `Statement (${period.replaceAll('_', ' ')}, ${scope})`,
-          `Invoiced: ${formatNaira(totalInvoiced)} | Payments: ${formatNaira(totalPayments || totalPaidAgainstInvoices)}`,
-          `Outstanding from invoices: ${formatNaira(Math.max(0, totalInvoiced - totalPaidAgainstInvoices))}`,
-          ...(lines.length ? lines : ['No invoice or payment activity in this period.']),
-          ...(omitted ? [`${omitted} older row(s) omitted. Choose a shorter period for more detail.`] : []),
-        ].join('\n'),
-        metadata: { period, house_id: houseId, row_count: rows.length, omitted },
-      };
+      return composeStatementAnswer({ period, houseId, invoices: invoices || [], payments: payments || [] });
     },
 
     async logDisclosure(input) {
@@ -355,6 +370,11 @@ export async function handleFinancialMessage(
   identity: WhatsAppResidentIdentity,
   options: WhatsAppFinancialHandlerOptions
 ): Promise<void> {
+  if (!identity.financialEligible) {
+    await sendFinancialReply(message, 'Your Resident record is connected to the community tier. Financial standing is not available for this role.', options.send);
+    return;
+  }
+
   if (!options.optedIn) {
     await sendFinancialReply(message, 'Please reply YES first to enable WhatsApp access to financial standing.', options.send);
     return;
@@ -425,7 +445,16 @@ export async function handleFinancialMessage(
       return;
     }
     const statementHouseId = statementStep[1] === 'all' ? null : statementStep[1];
-    const answer = await options.repository.getStatement(identity.id, statementHouseId, statementPeriod);
+    if (statementHouseId && !houses.some((house) => house.id === statementHouseId)) {
+      session.currentNode = 'menu';
+      session.selectedHouseId = null;
+      session.expiresAt = expiry();
+      await options.repository.saveSession(session);
+      await sendFinancialReply(message, 'That property is no longer available for this Resident. Reply 5 to choose a property again.', options.send);
+      return;
+    }
+    const allowedHouseIds = houses.map((house) => house.id);
+    const answer = await options.repository.getStatement(identity.id, statementHouseId, statementPeriod, allowedHouseIds);
     await sendFinancialReply(message, `${answer.body}${!pinHash ? '\nTip: reply PIN 1234 to lock financial answers.' : ''}`, options.send);
     await options.repository.logDisclosure({
       residentId: identity.id,

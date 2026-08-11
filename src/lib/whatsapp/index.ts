@@ -14,6 +14,7 @@ export {
 export { createWhatsAppSimulator, type WhatsAppSimulator } from '@/lib/whatsapp/simulator';
 export {
   createSupabaseWhatsAppFinancialRepository,
+  composeStatementAnswer,
   handleFinancialMessage,
   type FinancialAnswer,
   type FinancialHouse,
@@ -21,6 +22,7 @@ export {
   type WhatsAppFinancialHandlerOptions,
   type WhatsAppFinancialRepository,
   type WhatsAppFinancialSession,
+  type StatementCompositionInput,
 } from '@/lib/whatsapp/financial';
 export {
   createSupabaseWhatsAppIdentityRepository,

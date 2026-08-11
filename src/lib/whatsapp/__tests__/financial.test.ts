@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleFinancialMessage } from '@/lib/whatsapp/financial';
+import { composeStatementAnswer, handleFinancialMessage } from '@/lib/whatsapp/financial';
 import type {
   FinancialAnswer,
   FinancialHouse,
@@ -166,7 +166,7 @@ describe('WhatsApp financial menu', () => {
     });
     await handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send });
 
-    expect(repo.getStatement).toHaveBeenCalledWith('resident-1', 'house-1', 'this_month');
+    expect(repo.getStatement).toHaveBeenCalledWith('resident-1', 'house-1', 'this_month', ['house-1']);
     expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ menuItem: 'statement', houseId: 'house-1' }));
   });
 
@@ -188,5 +188,24 @@ describe('WhatsApp financial menu', () => {
     await handleFinancialMessage(message('0'), identity, { repository: repo, optedIn: true, send });
 
     expect(repo.saveSession).toHaveBeenCalledWith(expect.objectContaining({ currentNode: 'statement_period:all' }));
+  });
+
+  it('composes statement totals from payment records and caps older rows', () => {
+    const invoices = Array.from({ length: 13 }, (_, index) => ({
+      invoice_number: `INV-${index}`,
+      amount_due: 100,
+      amount_paid: 0,
+      created_at: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+    }));
+    const answer = composeStatementAnswer({
+      period: 'this_year',
+      houseId: null,
+      invoices,
+      payments: [{ amount: 250, payment_date: '2026-01-20T00:00:00.000Z', reference_number: 'PAY-1' }],
+    });
+
+    expect(answer.body).toContain('Invoiced: ₦1,300.00 | Payments: ₦250.00');
+    expect(answer.body).toContain('2 older row(s) omitted');
+    expect(answer.metadata).toMatchObject({ house_id: null, row_count: 14, omitted: 2 });
   });
 });
