@@ -36,6 +36,7 @@ function repository(houses: FinancialHouse[] = [{ id: 'house-1', label: 'OAK-1' 
     getLastPayment: vi.fn().mockResolvedValue({ body: 'Last payment: ₦5,000.00.' }),
     getNextDue: vi.fn().mockResolvedValue({ body: 'Next due: ₦5,000.00.' }),
     getWallet: vi.fn().mockResolvedValue({ body: 'Wallet balance: ₦0.00.' }),
+    getStatement: vi.fn().mockResolvedValue({ body: 'Statement (this month): no activity.' }),
     logDisclosure: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -145,5 +146,47 @@ describe('WhatsApp financial menu', () => {
     await handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send });
 
     expect(send.mock.calls[0]?.[0].body).toContain('PIN 1234');
+  });
+
+  it('offers fixed statement periods and logs the selected property scope', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('5'), identity, { repository: repo, optedIn: true, send });
+    expect(send.mock.calls[0]?.[0].body).toContain('1. This month');
+    expect(repo.saveSession).toHaveBeenCalledWith(expect.objectContaining({ currentNode: 'statement_period:house-1' }));
+
+    vi.mocked(repo.getSession).mockResolvedValue({
+      phoneNumber: '+2348000000000',
+      residentId: 'resident-1',
+      currentNode: 'statement_period:house-1',
+      selectedHouseId: 'house-1',
+      pinAuthenticated: false,
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send });
+
+    expect(repo.getStatement).toHaveBeenCalledWith('resident-1', 'house-1', 'this_month');
+    expect(repo.logDisclosure).toHaveBeenCalledWith(expect.objectContaining({ menuItem: 'statement', houseId: 'house-1' }));
+  });
+
+  it('offers all-properties statement scope to multi-property residents', async () => {
+    const repo = repository([{ id: 'house-1', label: 'OAK-1' }, { id: 'house-2', label: 'OAK-2' }]);
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('5'), identity, { repository: repo, optedIn: true, send });
+    expect(send.mock.calls[0]?.[0].body).toContain('0. All properties');
+
+    vi.mocked(repo.getSession).mockResolvedValue({
+      phoneNumber: '+2348000000000',
+      residentId: 'resident-1',
+      currentNode: 'property_selection:statement',
+      selectedHouseId: null,
+      pinAuthenticated: false,
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await handleFinancialMessage(message('0'), identity, { repository: repo, optedIn: true, send });
+
+    expect(repo.saveSession).toHaveBeenCalledWith(expect.objectContaining({ currentNode: 'statement_period:all' }));
   });
 });

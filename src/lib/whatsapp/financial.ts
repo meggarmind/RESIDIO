@@ -7,7 +7,8 @@ import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 
 const SESSION_MINUTES = 15;
 
-export type FinancialMenuItem = 'balance' | 'last_payment' | 'next_due' | 'wallet';
+export type FinancialMenuItem = 'balance' | 'last_payment' | 'next_due' | 'wallet' | 'statement';
+export type StatementPeriod = 'this_month' | 'this_year' | 'last_six_months';
 
 export interface FinancialHouse {
   id: string;
@@ -39,6 +40,7 @@ export interface WhatsAppFinancialRepository {
   getLastPayment(residentId: string, houseId: string): Promise<FinancialAnswer>;
   getNextDue(residentId: string, houseId: string): Promise<FinancialAnswer>;
   getWallet(residentId: string): Promise<FinancialAnswer>;
+  getStatement(residentId: string, houseId: string | null, period: StatementPeriod): Promise<FinancialAnswer>;
   logDisclosure(input: {
     residentId: string;
     phoneNumber: string;
@@ -69,6 +71,7 @@ function menuText(): string {
     '2. Last payment',
     '3. Next due',
     '4. Wallet',
+    '5. Statement',
     'Reply PIN 1234 to add an optional security PIN.',
   ].join('\n');
 }
@@ -79,6 +82,7 @@ function parseMenuItem(text: string): FinancialMenuItem | null {
   if (normalized === '2' || normalized === 'last' || normalized === 'last payment') return 'last_payment';
   if (normalized === '3' || normalized === 'due' || normalized === 'next due') return 'next_due';
   if (normalized === '4' || normalized === 'wallet') return 'wallet';
+  if (normalized === '5' || normalized === 'statement') return 'statement';
   return null;
 }
 
@@ -91,11 +95,31 @@ function itemLabel(item: FinancialMenuItem): string {
 }
 
 function propertyText(houses: FinancialHouse[], item: FinancialMenuItem): string {
-  return [
+  const lines = [
     `Which property should I use for your ${itemLabel(item)}?`,
     ...houses.map((house, index) => `${index + 1}. ${house.label}`),
-    'Reply with the property number.',
+  ];
+  if (item === 'statement') lines.push('0. All properties');
+  lines.push('Reply with the property number.');
+  return lines.join('\n');
+}
+
+function statementPeriodText(): string {
+  return [
+    'Which statement period should I use?',
+    '1. This month',
+    '2. This year',
+    '3. Last six months',
+    'Reply with the period number.',
   ].join('\n');
+}
+
+function parseStatementPeriod(text: string): StatementPeriod | null {
+  const normalized = text.trim().toLowerCase();
+  if (normalized === '1' || normalized === 'this month') return 'this_month';
+  if (normalized === '2' || normalized === 'this year') return 'this_year';
+  if (normalized === '3' || normalized === 'last six months') return 'last_six_months';
+  return null;
 }
 
 function createSupabaseRepository(): WhatsAppFinancialRepository {
@@ -229,6 +253,80 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
       return { body: `Wallet balance: ${formatNaira(Number(data?.balance || 0))}.` };
     },
 
+    async getStatement(residentId, houseId, period) {
+      const now = new Date();
+      const from = new Date(now);
+      if (period === 'this_month') {
+        from.setUTCDate(1);
+        from.setUTCHours(0, 0, 0, 0);
+      } else if (period === 'this_year') {
+        from.setUTCMonth(0, 1);
+        from.setUTCHours(0, 0, 0, 0);
+      } else {
+        from.setUTCDate(1);
+        from.setUTCMonth(from.getUTCMonth() - 5);
+        from.setUTCHours(0, 0, 0, 0);
+      }
+
+      const supabase = createAdminClient();
+      let invoiceQuery = supabase
+        .from('invoices')
+        .select('invoice_number, amount_due, amount_paid, created_at, house:houses(short_name, house_number)')
+        .eq('resident_id', residentId)
+        .neq('status', 'void')
+        .gte('created_at', from.toISOString())
+        .lte('created_at', now.toISOString())
+        .order('created_at', { ascending: true });
+      let paymentQuery = supabase
+        .from('payment_records')
+        .select('amount, payment_date, reference_number, house:houses(short_name, house_number)')
+        .eq('resident_id', residentId)
+        .eq('status', 'paid')
+        .gte('payment_date', from.toISOString())
+        .lte('payment_date', now.toISOString())
+        .order('payment_date', { ascending: true });
+
+      if (houseId) {
+        invoiceQuery = invoiceQuery.eq('house_id', houseId);
+        paymentQuery = paymentQuery.eq('house_id', houseId);
+      }
+
+      const [{ data: invoices, error: invoiceError }, { data: payments, error: paymentError }] = await Promise.all([
+        invoiceQuery,
+        paymentQuery,
+      ]);
+      if (invoiceError) throw invoiceError;
+      if (paymentError) throw paymentError;
+
+      const totalInvoiced = (invoices || []).reduce((sum, invoice) => sum + Number(invoice.amount_due || 0), 0);
+      const totalPaidAgainstInvoices = (invoices || []).reduce((sum, invoice) => sum + Number(invoice.amount_paid || 0), 0);
+      const totalPayments = (payments || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+      const rows = [
+        ...(invoices || []).map((invoice) => ({
+          date: invoice.created_at,
+          text: `Invoice ${invoice.invoice_number}: ${formatNaira(Number(invoice.amount_due || 0))}`,
+        })),
+        ...(payments || []).map((payment) => ({
+          date: payment.payment_date,
+          text: `Payment${payment.reference_number ? ` ${payment.reference_number}` : ''}: ${formatNaira(Number(payment.amount || 0))}`,
+        })),
+      ].sort((left, right) => left.date.localeCompare(right.date));
+      const cap = 12;
+      const omitted = Math.max(0, rows.length - cap);
+      const lines = rows.slice(0, cap).map((row) => `${new Date(row.date).toLocaleDateString('en-NG')}: ${row.text}`);
+      const scope = houseId ? 'selected property' : 'all properties';
+      return {
+        body: [
+          `Statement (${period.replaceAll('_', ' ')}, ${scope})`,
+          `Invoiced: ${formatNaira(totalInvoiced)} | Payments: ${formatNaira(totalPayments || totalPaidAgainstInvoices)}`,
+          `Outstanding from invoices: ${formatNaira(Math.max(0, totalInvoiced - totalPaidAgainstInvoices))}`,
+          ...(lines.length ? lines : ['No invoice or payment activity in this period.']),
+          ...(omitted ? [`${omitted} older row(s) omitted. Choose a shorter period for more detail.`] : []),
+        ].join('\n'),
+        metadata: { period, house_id: houseId, row_count: rows.length, omitted },
+      };
+    },
+
     async logDisclosure(input) {
       const supabase = createAdminClient();
       const { error } = await supabase.from('whatsapp_disclosure_logs').insert(input);
@@ -303,8 +401,11 @@ export async function handleFinancialMessage(
   }
 
   const propertyStep = session.currentNode.match(/^property_selection:(.+)$/);
-  const item = propertyStep ? (propertyStep[1] as FinancialMenuItem) : parseMenuItem(text);
-  if (text.toLowerCase() === 'menu' || text === '0' || !item) {
+  const statementStep = session.currentNode.match(/^statement_period:(.+)$/);
+  const item = statementStep ? 'statement' : propertyStep ? (propertyStep[1] as FinancialMenuItem) : parseMenuItem(text);
+  const statementPeriod = statementStep ? parseStatementPeriod(text) : null;
+  const selectingAllStatement = propertyStep !== null && item === 'statement' && text === '0';
+  if (text.toLowerCase() === 'menu' || (!statementStep && text === '0' && !selectingAllStatement) || !item) {
     session.currentNode = 'menu';
     session.expiresAt = expiry();
     await options.repository.saveSession(session);
@@ -315,6 +416,57 @@ export async function handleFinancialMessage(
   const houses = await options.repository.getBillableHouses(identity.id);
   if (houses.length === 0) {
     await sendFinancialReply(message, 'Your Resident record is connected to the community tier. Financial standing is not available for this role.', options.send);
+    return;
+  }
+
+  if (statementStep) {
+    if (!statementPeriod) {
+      await sendFinancialReply(message, statementPeriodText(), options.send);
+      return;
+    }
+    const statementHouseId = statementStep[1] === 'all' ? null : statementStep[1];
+    const answer = await options.repository.getStatement(identity.id, statementHouseId, statementPeriod);
+    await sendFinancialReply(message, `${answer.body}${!pinHash ? '\nTip: reply PIN 1234 to lock financial answers.' : ''}`, options.send);
+    await options.repository.logDisclosure({
+      residentId: identity.id,
+      phoneNumber,
+      houseId: statementHouseId,
+      menuItem: 'statement',
+      pinAuthenticated: session.pinAuthenticated,
+      metadata: answer.metadata,
+    });
+    session.currentNode = 'menu';
+    session.expiresAt = expiry();
+    await options.repository.saveSession(session);
+    return;
+  }
+
+  if (item === 'statement' && !propertyStep) {
+    if (houses.length > 1) {
+      session.currentNode = 'property_selection:statement';
+      session.expiresAt = expiry();
+      await options.repository.saveSession(session);
+      await sendFinancialReply(message, propertyText(houses, 'statement'), options.send);
+      return;
+    }
+    session.currentNode = `statement_period:${houses[0]?.id || 'all'}`;
+    session.expiresAt = expiry();
+    await options.repository.saveSession(session);
+    await sendFinancialReply(message, statementPeriodText(), options.send);
+    return;
+  }
+
+  if (propertyStep && item === 'statement') {
+    const selectedIndex = Number.parseInt(text, 10) - 1;
+    const selectedHouseId = text === '0' ? 'all' : houses[selectedIndex]?.id;
+    if (!selectedHouseId) {
+      await sendFinancialReply(message, propertyText(houses, 'statement'), options.send);
+      return;
+    }
+    session.currentNode = `statement_period:${selectedHouseId}`;
+    session.expiresAt = expiry();
+    await options.repository.saveSession(session);
+    await sendFinancialReply(message, statementPeriodText(), options.send);
     return;
   }
 
