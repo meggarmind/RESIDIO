@@ -1,17 +1,17 @@
-export { getWhatsAppConfig, isWhatsAppConfigured } from './config';
+export { getWhatsAppConfig, isWhatsAppConfigured } from '@/lib/whatsapp/config';
 export {
   createMetaWhatsAppProvider,
   sendWhatsAppMessage,
   type WhatsAppProvider,
-} from './provider';
-export { verifyWhatsAppSignature, verifyWhatsAppToken } from './signature';
+} from '@/lib/whatsapp/provider';
+export { verifyWhatsAppSignature, verifyWhatsAppToken } from '@/lib/whatsapp/signature';
 export {
   createInMemoryProcessedMessageStore,
   createSupabaseProcessedMessageStore,
   extractWhatsAppMessages,
   handleInboundMessage,
-} from './inbound';
-export { createWhatsAppSimulator, type WhatsAppSimulator } from './simulator';
+} from '@/lib/whatsapp/inbound';
+export { createWhatsAppSimulator, type WhatsAppSimulator } from '@/lib/whatsapp/simulator';
 export type {
   InboundMessageHandlerOptions,
   InboundMessageResult,
@@ -20,4 +20,4 @@ export type {
   WhatsAppInboundPayload,
   WhatsAppSendResult,
   WhatsAppTextMessage,
-} from './types';
+} from '@/lib/whatsapp/types';

@@ -4983,6 +4983,30 @@ export type Database = {
           },
         ]
       }
+      whatsapp_processed_messages: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          message_id: string
+          received_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          message_id: string
+          received_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          message_id?: string
+          received_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       security_settings_view: {

@@ -5,7 +5,7 @@ import type {
   ProcessedMessageStore,
   WhatsAppInboundMessage,
   WhatsAppInboundPayload,
-} from './types';
+} from '@/lib/whatsapp/types';
 
 export function extractWhatsAppMessages(
   payload: WhatsAppInboundPayload
@@ -37,6 +37,17 @@ export function createSupabaseProcessedMessageStore(): ProcessedMessageStore {
   return {
     async claim(messageId, receivedAt) {
       const supabase = createAdminClient();
+      const expiresBefore = new Date().toISOString();
+      const { error: expiryError } = await supabase
+        .from('whatsapp_processed_messages')
+        .delete()
+        .eq('message_id', messageId)
+        .lt('expires_at', expiresBefore);
+
+      if (expiryError) {
+        throw expiryError;
+      }
+
       const { error } = await supabase.from('whatsapp_processed_messages').insert({
         message_id: messageId,
         received_at: receivedAt,
@@ -53,6 +64,17 @@ export function createSupabaseProcessedMessageStore(): ProcessedMessageStore {
 
       throw error;
     },
+    async release(messageId) {
+      const supabase = createAdminClient();
+      const { error } = await supabase
+        .from('whatsapp_processed_messages')
+        .delete()
+        .eq('message_id', messageId);
+
+      if (error) {
+        throw error;
+      }
+    },
   };
 }
 
@@ -67,6 +89,9 @@ export function createInMemoryProcessedMessageStore(): ProcessedMessageStore {
 
       ids.add(messageId);
       return 'claimed';
+    },
+    async release(messageId) {
+      ids.delete(messageId);
     },
   };
 }
@@ -98,7 +123,12 @@ export async function handleInboundMessage(
       }
 
       if (options.onMessage) {
-        await options.onMessage(message);
+        try {
+          await options.onMessage(message);
+        } catch (error) {
+          await store.release?.(message.id);
+          throw error;
+        }
       }
     }
   } catch {

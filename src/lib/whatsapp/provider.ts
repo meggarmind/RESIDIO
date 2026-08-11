@@ -1,5 +1,5 @@
-import { getWhatsAppConfig, type WhatsAppConfig } from './config';
-import type { WhatsAppSendResult, WhatsAppTextMessage } from './types';
+import { getWhatsAppConfig, type WhatsAppConfig } from '@/lib/whatsapp/config';
+import type { WhatsAppSendResult, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 
 export interface WhatsAppProvider {
   sendText(message: WhatsAppTextMessage): Promise<WhatsAppSendResult>;

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { IMPLEMENTED_CHANNELS } from '../types';
-import { sendNotification } from '../send';
+import { IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
+import { sendNotification } from '@/lib/notifications/send';
 import { getSettingValue } from '@/actions/settings/get-settings';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
 

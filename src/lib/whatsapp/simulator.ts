@@ -1,10 +1,13 @@
-import { createInMemoryProcessedMessageStore, handleInboundMessage } from './inbound';
+import {
+  createInMemoryProcessedMessageStore,
+  handleInboundMessage,
+} from '@/lib/whatsapp/inbound';
 import type {
   InboundMessageResult,
   WhatsAppInboundMessage,
   WhatsAppInboundPayload,
   WhatsAppTextMessage,
-} from './types';
+} from '@/lib/whatsapp/types';
 
 export interface WhatsAppSimulator {
   received: WhatsAppInboundMessage[];

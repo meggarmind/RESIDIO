@@ -69,6 +69,25 @@ describe('WhatsApp channel foundation', () => {
     expect(simulator.received[0]?.text).toBe('Hello');
   });
 
+  it('allows a failed message handler to be retried', async () => {
+    const store = {
+      claim: vi.fn().mockResolvedValue('claimed'),
+      release: vi.fn().mockResolvedValue(undefined),
+    };
+    const onMessage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('temporary failure'))
+      .mockResolvedValueOnce(undefined);
+
+    const first = await handleInboundMessage(inboundPayload, { store, onMessage });
+    const second = await handleInboundMessage(inboundPayload, { store, onMessage });
+
+    expect(first.accepted).toBe(false);
+    expect(second.accepted).toBe(true);
+    expect(store.release).toHaveBeenCalledWith('wamid.test-1');
+    expect(onMessage).toHaveBeenCalledTimes(2);
+  });
+
   it('acknowledges unsupported message types without invoking text handling', async () => {
     const onMessage = vi.fn();
     const payload = {
@@ -110,6 +129,16 @@ describe('WhatsApp channel foundation', () => {
       type: 'text',
       text: { preview_url: false, body: 'Test message' },
     });
+  });
+
+  it('captures simulator sends without provider credentials', async () => {
+    const simulator = createWhatsAppSimulator();
+
+    await expect(simulator.send({ to: '2348000000000', body: 'Simulated message' })).resolves.toEqual({
+      success: true,
+      messageId: 'simulated-1',
+    });
+    expect(simulator.sent).toEqual([{ to: '2348000000000', body: 'Simulated message' }]);
   });
 
   it('returns a safe provider error when Meta rejects a request', async () => {

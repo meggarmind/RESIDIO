@@ -37,6 +37,7 @@ export interface WhatsAppInboundPayload {
 
 export interface ProcessedMessageStore {
   claim(messageId: string, receivedAt: string): Promise<'claimed' | 'duplicate'>;
+  release?(messageId: string): Promise<void>;
 }
 
 export interface InboundMessageHandlerOptions {
