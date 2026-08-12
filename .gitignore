@@ -63,6 +63,9 @@ testsprite_tests/tmp/
 /testsprite_tests/
 /.playwright-mcp/
 
+# Isolated agent worktrees
+/.worktrees/
+
 # Logs
 *.log
 logs/
@@ -72,4 +75,3 @@ docs/features/Email-import/Email-import/FirstBank Alert on Your Account - Credit
 
 # Windows Alternate Data Streams
 *:Zone.Identifier
-
