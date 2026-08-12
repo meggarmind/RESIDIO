@@ -1,15 +1,17 @@
-name: Auto Add Issues to Project
+name: Add issues to project
 
 on:
   issues:
-    types: [opened, edited]
+    types:
+      - opened
 
 jobs:
   add-to-project:
+    name: Add issue to project
     runs-on: ubuntu-latest
     steps:
-      - name: Add Issue to Project
-        uses: actions/add-to-project@v1.0.2
+      - uses: actions/add-to-project@v1.0.2
         with:
-          project-url: https://github.com/orgs/Meggarminds/projects/3
+          # User project for meggarmind, project number 1.
+          project-url: https://github.com/users/meggarmind/projects/1
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
