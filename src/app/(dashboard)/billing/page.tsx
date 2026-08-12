@@ -25,6 +25,7 @@ import { formatCurrency } from '@/lib/utils';
 import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertCircle, Clock, CheckCircle2, Receipt, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { GenerateInvoicesDialog } from '@/components/billing/generate-invoices-dialog';
 import { getResidents } from '@/actions/residents/get-residents';
 import { INVOICE_TYPE_LABELS, type InvoiceType, type InvoiceStatus } from '@/types/database';
 import {
@@ -58,6 +59,7 @@ export default function BillingPage() {
     const [residentId, setResidentId] = useState<string>('all');
     const [search, setSearch] = useState('');
     const [residents, setResidents] = useState<Array<{ id: string; first_name: string; last_name: string }>>([]);
+    const [showGenerateDialog, setShowGenerateDialog] = useState(false);
 
     const { themeId } = useVisualTheme();
     const isModern = themeId === 'modern';
@@ -91,7 +93,7 @@ export default function BillingPage() {
     }, []);
 
     const handleGenerateInvoices = async () => {
-        await generateMutation.mutateAsync(undefined);
+        setShowGenerateDialog(true);
     };
 
     const handleClearFilters = () => {
@@ -108,7 +110,7 @@ export default function BillingPage() {
     const totalAmount = invoices.reduce((sum, inv) => sum + (Number(inv.amount_due) || 0), 0);
 
     return (
-        <div className="space-y-6">
+        <><div className="space-y-6">
             <EnhancedPageHeader
                 title="Billing & Invoices"
                 description="Manage monthly invoices and billing runs"
@@ -505,5 +507,8 @@ export default function BillingPage() {
                 </div>
             )}
         </div>
+
+        <GenerateInvoicesDialog open={showGenerateDialog} onClose={() => setShowGenerateDialog(false)} />
+        </>
     );
 }

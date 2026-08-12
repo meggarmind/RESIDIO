@@ -194,6 +194,17 @@ export function useGenerateInvoices() {
     });
 }
 
+export function useGenerateInvoicesPreview() {
+    return useMutation({
+        mutationFn: async (params: { targetDate?: Date; houseId?: string; streetId?: string; residentId?: string }) => {
+            const { generateInvoicesPreview } = await import('@/actions/billing/generate-invoices-preview');
+            const result = await generateInvoicesPreview(params.targetDate, params.houseId, params.streetId, params.residentId);
+            if (result.error) throw new Error(result.error);
+            return result;
+        },
+    });
+}
+
 // Resident Indebtedness Hook
 export function useResidentIndebtedness(residentId: string | undefined) {
     return useQuery({

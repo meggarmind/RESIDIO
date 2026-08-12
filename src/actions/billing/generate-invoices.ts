@@ -202,8 +202,11 @@ function getInvoiceType(billingProfile: BillingProfileWithItems): InvoiceType {
  */
 export async function generateMonthlyInvoices(
     upToDate: Date = new Date(),
-    triggerType: InvoiceGenerationTrigger = 'manual'
+    triggerType: InvoiceGenerationTrigger = 'manual',
+    options?: { debitWallet?: boolean; sendEmails?: boolean }
 ): Promise<GenerateInvoicesResult> {
+    const debitWallet = options?.debitWallet ?? (triggerType === 'manual');
+    const sendEmails = options?.sendEmails ?? (triggerType === 'manual');
     const startTime = Date.now();
 
     // Permission check for manual triggers (cron/api use service role)
@@ -496,15 +499,19 @@ export async function generateMonthlyInvoices(
                     result.generated++;
 
                     // Try to auto-debit from wallet
-                    const debitResult = await debitWalletForInvoice(residentLink.resident_id, newInvoice.id);
-                    if (debitResult.success && debitResult.amountDebited > 0) {
-                        log.info(`Auto-debited ₦${debitResult.amountDebited} from wallet for ${invoiceNumber}`);
+                    if (debitWallet) {
+                        const debitResult = await debitWalletForInvoice(residentLink.resident_id, newInvoice.id);
+                        if (debitResult.success && debitResult.amountDebited > 0) {
+                            log.info(`Auto-debited ${debitResult.amountDebited} from wallet for ${invoiceNumber}`);
+                        }
                     }
 
                     // Send invoice email (non-blocking)
-                    sendInvoiceEmail(newInvoice.id).catch((err) => {
-                        log.error(`Failed to send invoice email for ${invoiceNumber}:`, err);
-                    });
+                    if (sendEmails) {
+                        sendInvoiceEmail(newInvoice.id).catch((err) => {
+                            log.error(`Failed to send invoice email for ${invoiceNumber}:`, err);
+                        });
+                    }
 
                     // Move to next month
                     currentMonth++;
