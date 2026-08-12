@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
+import { getSettingValue } from '@/actions/settings/get-settings';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 
@@ -354,6 +355,24 @@ export interface WhatsAppFinancialHandlerOptions {
   repository: WhatsAppFinancialRepository;
   optedIn: boolean;
   send?: (message: WhatsAppTextMessage) => Promise<{ success: boolean; error?: string }>;
+  canLookup?: () => Promise<boolean>;
+}
+
+export async function canPerformWhatsAppFinancialLookup(): Promise<boolean> {
+  const configuredCap = await getSettingValue('whatsapp_daily_financial_lookup_cap');
+  const dailyCap = typeof configuredCap === 'number' && Number.isInteger(configuredCap)
+    ? configuredCap
+    : 50;
+  if (dailyCap <= 0) return false;
+
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const { count, error } = await createAdminClient()
+    .from('whatsapp_disclosure_logs')
+    .select('id', { count: 'exact', head: true })
+    .gte('created_at', startOfDay.toISOString());
+
+  return !error && (count || 0) < dailyCap;
 }
 
 async function sendFinancialReply(
@@ -454,6 +473,10 @@ export async function handleFinancialMessage(
       return;
     }
     const allowedHouseIds = houses.map((house) => house.id);
+    if (options.canLookup && !(await options.canLookup())) {
+      await sendFinancialReply(message, 'Daily financial lookup limit reached. Please try again tomorrow.', options.send);
+      return;
+    }
     const answer = await options.repository.getStatement(identity.id, statementHouseId, statementPeriod, allowedHouseIds);
     await sendFinancialReply(message, `${answer.body}${!pinHash ? '\nTip: reply PIN 1234 to lock financial answers.' : ''}`, options.send);
     await options.repository.logDisclosure({
@@ -519,6 +542,10 @@ export async function handleFinancialMessage(
 
   const houseId = session.selectedHouseId;
   if (!houseId) return;
+  if (options.canLookup && !(await options.canLookup())) {
+    await sendFinancialReply(message, 'Daily financial lookup limit reached. Please try again tomorrow.', options.send);
+    return;
+  }
   const answer = item === 'balance'
     ? await options.repository.getBalance(identity.id, houseId)
     : item === 'last_payment'

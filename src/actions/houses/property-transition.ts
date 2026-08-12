@@ -750,8 +750,8 @@ export async function getAvailableResidentsForTransition(
     query = query.not('id', 'in', `(${excludeIds.join(',')})`);
   }
 
-  // Corporate entities can only be non_resident_landlord
-  if (targetRole === 'resident_landlord' || targetRole === 'tenant') {
+  // Corporate entities may be billable tenants, but cannot be resident landlords.
+  if (targetRole === 'resident_landlord') {
     query = query.eq('entity_type', 'individual');
   }
 

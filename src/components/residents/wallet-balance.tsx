@@ -22,17 +22,17 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
   if (walletLoading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+            <Wallet className="h-4 w-4" />
             Wallet Balance
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-16 w-full" />
-          <div className="grid grid-cols-2 gap-4">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
+        <CardContent className="space-y-3">
+          <Skeleton className="h-12 w-full" />
+          <div className="grid grid-cols-2 gap-3">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
           </div>
         </CardContent>
       </Card>
@@ -57,50 +57,50 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
   return (
     <>
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <Wallet className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Wallet className="h-4 w-4" />
                 Wallet Balance
               </CardTitle>
-              <CardDescription>Resident payment wallet</CardDescription>
+              <CardDescription className="text-xs">Resident payment wallet</CardDescription>
             </div>
             {showActions && (
-              <Button size="sm" variant="outline" onClick={() => setIsAdjustmentDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setIsAdjustmentDialogOpen(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1" />
                 Adjust
               </Button>
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4">
           {/* Current Balance */}
           <div className="text-center">
-            <p className="text-sm text-muted-foreground mb-2">Current Balance</p>
-            <p className={`text-3xl font-bold ${balanceColor}`}>{formatCurrency(balance)}</p>
+            <p className="text-xs text-muted-foreground mb-1">Current Balance</p>
+            <p className={`text-2xl font-bold ${balanceColor}`}>{formatCurrency(balance)}</p>
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3">
             {/* Total Credits */}
-            <div className="border rounded-lg p-4 bg-green-50 dark:bg-green-950/20">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <div className="border rounded-lg p-3 bg-green-50 dark:bg-green-950/20">
+              <div className="flex items-center gap-1.5 mb-1">
+                <TrendingUp className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
                 <p className="text-xs font-medium text-green-600 dark:text-green-400">Total Credits</p>
               </div>
-              <p className="text-lg font-semibold text-green-700 dark:text-green-300">
+              <p className="text-base font-semibold text-green-700 dark:text-green-300">
                 {formatCurrency(totalCredits)}
               </p>
             </div>
 
             {/* Total Debits */}
-            <div className="border rounded-lg p-4 bg-red-50 dark:bg-red-950/20">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
+            <div className="border rounded-lg p-3 bg-red-50 dark:bg-red-950/20">
+              <div className="flex items-center gap-1.5 mb-1">
+                <TrendingDown className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
                 <p className="text-xs font-medium text-red-600 dark:text-red-400">Total Debits</p>
               </div>
-              <p className="text-lg font-semibold text-red-700 dark:text-red-300">
+              <p className="text-base font-semibold text-red-700 dark:text-red-300">
                 {formatCurrency(totalDebits)}
               </p>
             </div>

@@ -61,6 +61,11 @@ The project is fast-tracked around financial operations, financial statements/im
   - [x] **KOA 10–19 move-in batch:** Corrected and read-back verified all reviewed tracker move-in dates, including normalized database labels `18F1` and `18F2`, without changing existing role decisions.
   - [x] **IBB-29B primary/alias conversion:** Replaced the active Villanova Realty alias-only assignment with Ubah Karl Chinedu and retained Villanova Realty as a payment alias; legacy and duplicate placeholder records are preserved with explanatory notes rather than deleted.
   - [x] **Confirmed alias audit:** Audited remaining tracker aliases; retained existing spelling/unit variants and added Prince Vovo Yvest (IBB-18F-3) and Susan Onome Opiri (OJO.K-16C).
+- [x] **Confirmed linked-secondary audit:** Created and linked Oloruntola Temi (KOA-5) and Anwuli Okafor (KOA-13A); repaired Anosike Ezinne Angela’s GLB-19B F-2 household link and verified all three.
+- [x] **Active alias-assignment safety audit:** Deactivated the remaining payment-only Oyedare Gbenga David assignment at IBB-3AF-2, retained the resident record with a legacy note, and verified no active legacy assignment now matches a payment alias.
+- [x] **Occupancy-integrity audit:** Normalized five non-resident landlord links that were incorrectly also marked primary; verified zero multiple-primary and zero contradictory live-in role combinations in the scoped legacy houses.
+- [x] **Placeholder-contact audit:** Verified all `LEGACY-NO-PHONE` residents are documented and appropriately assigned; the sole inactive unassigned record is the intentionally retained Ubah duplicate.
+- [x] **Legacy import closeout:** Refreshed the snapshot and payment manifest, completed all safety audits, and documented the deferred/manual houses in `docs/importdata/legacy-import-closeout.md`.
 
 ### Residents & Houses Workflow UX (Admin Dashboard)
 - [x] **Registry Navigation**: Added sortable columns and direct record navigation to the Residents and Houses registries.
@@ -86,7 +91,7 @@ The project is fast-tracked around financial operations, financial statements/im
 - [x] **Identity and consent:** Implemented and closed [issue #3](https://github.com/meggarmind/RESIDIO/issues/3).
 - [x] **Core financial standing:** Implemented and closed [issue #4](https://github.com/meggarmind/RESIDIO/issues/4).
 - [x] **Period-based statements:** Implemented and closed [issue #5](https://github.com/meggarmind/RESIDIO/issues/5).
-- [~] **Outbound estate messaging:** Implement [issue #6](https://github.com/meggarmind/RESIDIO/issues/6); templates and invoice/payment/announcement producers are wired, with delivery/cap tests still pending.
+- [~] **Outbound estate messaging:** Implement [issue #6](https://github.com/meggarmind/RESIDIO/issues/6); template producers, queue/retry behavior, outbound caps, and financial lookup limits are wired, with producer-level integration tests still pending.
 - [ ] **Identity and consent:** [Issue #3](https://github.com/meggarmind/RESIDIO/issues/3), blocked by #2.
 - [ ] **Core financial standing:** [Issue #4](https://github.com/meggarmind/RESIDIO/issues/4), blocked by #3.
 - [ ] **Period-based statements:** [Issue #5](https://github.com/meggarmind/RESIDIO/issues/5), blocked by #4.

@@ -19,7 +19,7 @@ const residentRoleEnum = z.enum([
 
 const primaryRoleEnum = z.enum(['resident_landlord', 'non_resident_landlord', 'tenant', 'developer']);
 const secondaryRoleEnum = z.enum(['co_resident', 'household_member', 'domestic_staff', 'caretaker', 'contractor']);
-const corporateRoleEnum = z.enum(['non_resident_landlord', 'developer']);
+const corporateRoleEnum = z.enum(['non_resident_landlord', 'tenant', 'developer']);
 
 // Roles that require a sponsor (domestic_staff, caretaker, and contractor)
 const sponsorRequiredRoles: ResidentRole[] = ['domestic_staff', 'caretaker', 'contractor'];
@@ -28,7 +28,7 @@ const sponsorRequiredRoles: ResidentRole[] = ['domestic_staff', 'caretaker', 'co
 const residencyRoles: ResidentRole[] = ['resident_landlord', 'tenant', 'co_resident'];
 
 // Corporate-allowed roles
-const corporateAllowedRoles: ResidentRole[] = ['non_resident_landlord', 'developer'];
+const corporateAllowedRoles: ResidentRole[] = ['non_resident_landlord', 'tenant', 'developer'];
 
 // Corporate entity schema - validates corporate-specific fields
 const corporateFieldsSchema = z.object({
@@ -123,14 +123,14 @@ export const createResidentSchema = createResidentBaseSchema.refine(
   }
 ).refine(
   (data) => {
-    // Corporate entities can only be non_resident_landlord or developer
+    // Corporate entities may own, develop, or occupy a property as tenant.
     if (data.entity_type === 'corporate' && data.resident_role) {
       return corporateAllowedRoles.includes(data.resident_role as ResidentRole);
     }
     return true;
   },
   {
-    message: 'Corporate entities can only be Non-Resident Landlord or Developer',
+    message: 'Corporate entities can only be Property Owner, Corporate Tenant, or Developer',
     path: ['resident_role'],
   }
 ).refine(

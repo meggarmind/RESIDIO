@@ -2,6 +2,7 @@ export { getWhatsAppConfig, isWhatsAppConfigured } from '@/lib/whatsapp/config';
 export {
   createMetaWhatsAppProvider,
   sendWhatsAppMessage,
+  sendWhatsAppTemplate,
   type WhatsAppProvider,
 } from '@/lib/whatsapp/provider';
 export { verifyWhatsAppSignature, verifyWhatsAppToken } from '@/lib/whatsapp/signature';
@@ -13,8 +14,20 @@ export {
 } from '@/lib/whatsapp/inbound';
 export { createWhatsAppSimulator, type WhatsAppSimulator } from '@/lib/whatsapp/simulator';
 export {
+  WHATSAPP_TEMPLATE_NAMES,
+  isApprovedWhatsAppTemplateName,
+  whatsappTemplate,
+  type WhatsAppTemplateName,
+} from '@/lib/whatsapp/templates';
+export {
+  buildAnnouncementWhatsApp,
+  buildInvoiceReminderWhatsApp,
+  buildPaymentReceivedWhatsApp,
+} from '@/lib/whatsapp/outbound';
+export {
   createSupabaseWhatsAppFinancialRepository,
   composeStatementAnswer,
+  canPerformWhatsAppFinancialLookup,
   handleFinancialMessage,
   type FinancialAnswer,
   type FinancialHouse,
@@ -41,5 +54,6 @@ export type {
   WhatsAppInboundMessage,
   WhatsAppInboundPayload,
   WhatsAppSendResult,
+  WhatsAppTemplateMessage,
   WhatsAppTextMessage,
 } from '@/lib/whatsapp/types';

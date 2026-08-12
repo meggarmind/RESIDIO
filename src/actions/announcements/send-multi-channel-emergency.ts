@@ -9,6 +9,8 @@ import { sendEmail, getEstateEmailSettings } from '@/lib/email/send-email';
 import { sendSms } from '@/lib/sms/send-sms';
 import { EmergencyBroadcastEmail } from '@/emails/emergency-broadcast';
 import type { Announcement } from '@/types/database';
+import { whatsappTemplate, WHATSAPP_TEMPLATE_NAMES } from '@/lib/whatsapp';
+import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 
 export interface MultiChannelEmergencyInput {
   title: string;
@@ -18,7 +20,7 @@ export interface MultiChannelEmergencyInput {
     inApp: boolean;
     email: boolean;
     sms: boolean;
-    whatsapp: boolean; // Future: not implemented yet
+  whatsapp: boolean;
   };
 }
 
@@ -339,12 +341,37 @@ export async function sendMultiChannelEmergencyBroadcast(
 
   // WhatsApp - placeholder for future implementation
   if (input.channels.whatsapp) {
+    const recipientsWithWhatsApp = residents.filter(
+      (resident) => resident.phone_primary && resident.phone_primary.length >= 10
+    );
+    let successCount = 0;
+    for (const resident of recipientsWithWhatsApp) {
+      const result = await addToQueue({
+        recipient_id: resident.id,
+        recipient_phone: resident.phone_primary,
+        channel: 'whatsapp',
+        body: `Announcement: ${input.title}\n\n${input.summary || input.content}`,
+        priority: PRIORITY.URGENT,
+        deduplication_key: `announcement:${announcement.id}:${resident.id}`,
+        metadata: {
+          announcementId: announcement.id,
+          whatsapp_template: whatsappTemplate(WHATSAPP_TEMPLATE_NAMES.announcement, [
+            input.title,
+            input.summary || input.content.substring(0, 500),
+          ]),
+        },
+      });
+      if (result.success) successCount++;
+    }
     channelResults.push({
       channel: 'whatsapp',
-      success: false,
-      count: 0,
-      error: 'WhatsApp notifications not yet implemented',
+      success: successCount === recipientsWithWhatsApp.length,
+      count: successCount,
+      error: successCount < recipientsWithWhatsApp.length
+        ? `Failed to send ${recipientsWithWhatsApp.length - successCount} WhatsApp messages`
+        : undefined,
     });
+    if (successCount > totalRecipients) totalRecipients = successCount;
   }
 
   // Log audit event with channel details

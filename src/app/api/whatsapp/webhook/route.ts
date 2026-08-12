@@ -4,6 +4,7 @@ import {
   createSupabaseWhatsAppIdentityRepository,
   createSupabaseWhatsAppFinancialRepository,
   handleFinancialMessage,
+  canPerformWhatsAppFinancialLookup,
   handleResidentMessage,
   handleInboundMessage,
   getWhatsAppConfig,
@@ -59,10 +60,11 @@ export async function POST(request: NextRequest) {
           if (!identity.financialEligible) {
             return;
           }
-          await handleFinancialMessage(identifiedMessage, identity, {
-            repository: createSupabaseWhatsAppFinancialRepository(),
-            optedIn: true,
-          });
+            await handleFinancialMessage(identifiedMessage, identity, {
+              repository: createSupabaseWhatsAppFinancialRepository(),
+              optedIn: true,
+              canLookup: canPerformWhatsAppFinancialLookup,
+            });
         },
       });
     },

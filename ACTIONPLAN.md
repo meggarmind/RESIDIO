@@ -18,7 +18,11 @@ Payment gateway integration is explicitly deferred and is not part of the curren
 
 **Legacy import control:** Review legacy tracker records in `docs/importdata/legacy-record-ledger.md` before any database write. Each entry must preserve source facts, separate candidate matches from confirmed matches, and identify unresolved occupancy/payment context.
 
-**Legacy import reconciliation (2026-08-11):** The review pass is complete at L-0136 and the user authorized reconciliation. A read-only Supabase snapshot and house-match report in `docs/importdata/` confirm all 136 reviewed records map uniquely to existing houses. Next: build a write manifest for resident/alias/history/payment changes, then apply only after the required phone-data and historical-alias preservation policies are settled.
+**Corporate tenant migration (2026-08-11):** `supabase/migrations/20260811130000_allow_corporate_tenants.sql` has been applied to cloud. The verified live model permits corporate `tenant` assignments with `is_live_in = false`; IBB-32 and IBB-38 now pair corporate tenants with their individual non-resident landlords.
+
+**Legacy import reconciliation (2026-08-12):** The review pass is complete at L-0136 and the user authorized reconciliation. A read-only Supabase snapshot and house-match report in `docs/importdata/` confirm all 136 reviewed records map uniquely to existing houses. User-confirmed resident/alias/history corrections are being applied with legacy placeholder contacts and retained alias rows; OJO.K-8’s occupancy history is verified. `legacy-payment-reconciliation.json`/`.csv` compare 203 house/year payment totals, all matched after two provenance-tagged payment inserts. The corporate-tenant migration is live: all six user-named corporate transactors are verified as tenants, with four confirmed individual landlords and two intentionally owner-unassigned cases. OJO.K, IBB, GLB, and KOA tracker move-in reconciliation passes are complete for the reviewed/confirmed records, including normalized KOA `18F1`/`18F2` labels, the IBB-29B Ubah Karl Chinedu/Villanova Realty primary-alias conversion, final tracker-alias audit, verified linked-secondary records, a final active-alias assignment audit (zero active payment-only alias assignments remaining), occupancy-flag normalization (zero multiple-primary or contradictory live-in role combinations), and a clean `LEGACY-NO-PHONE` placeholder audit.
+
+**Legacy import closeout (2026-08-12):** Published `docs/importdata/legacy-import-closeout.md`. The final snapshot confirms 136/136 unique house mappings, and the final payment manifest confirms 203/203 comparable house-year totals matched. Future tracker records and the documented no-assignment houses remain deferred for later/manual processing.
 
 Portal/self-service work remains out of scope. Finance and communications integrations must remain admin/estate operational capabilities, not new resident portal surfaces.
 
@@ -122,7 +126,10 @@ Based on the 2026-08-08 performance audit. Quick wins implemented; remaining wor
 - [x] PRD published as GitHub issue [#1](https://github.com/meggarmind/RESIDIO/issues/1).
 - [x] Vertical slices published as GitHub issues [#2](https://github.com/meggarmind/RESIDIO/issues/2)–[#8](https://github.com/meggarmind/RESIDIO/issues/8), dependency-ordered and labeled `ready-for-agent`.
 - [x] Implement issue #2 first: WhatsApp Channel Foundation is complete and closed.
-- [ ] Implement issue #3 next: Resident Identity and Consent.
+- [x] Implement issue #3: Resident Identity and Consent is complete and closed.
+- [x] Implement issue #4: Core Financial Standing Menu is complete and closed.
+- [x] Implement issue #5: Period-Based WhatsApp Statements is complete and closed.
+- [ ] Implement issue #6 next: Outbound Estate Messaging.
 - [ ] Resolve the SMS implementation-status discrepancy before marking outbound channel work complete.
 
 ## Change Log

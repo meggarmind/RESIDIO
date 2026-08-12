@@ -76,12 +76,12 @@ export function AdminContactVerification({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5" />
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+          <ShieldCheck className="h-4 w-4" />
           Contact Verification
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-xs">
           Manage contact verification status for this resident
         </CardDescription>
       </CardHeader>

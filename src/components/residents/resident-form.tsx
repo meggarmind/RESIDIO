@@ -129,7 +129,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
     }
     // Primary residents
     if (entityType === 'corporate') {
-      // Corporate entities can only be Non-Resident Landlord or Developer
+      // Corporate entities may own, develop, or occupy a property as tenant.
       return CORPORATE_ROLE_OPTIONS;
     }
     return PRIMARY_ROLE_OPTIONS;
@@ -159,16 +159,9 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
     }
   }, [residentType, availableRoles, form]);
 
-  // Clear corporate fields when entity type changes away from corporate
-  React.useEffect(() => {
-    if (entityType !== 'corporate') {
-      form.setValue('company_name', '');
-      form.setValue('rc_number', '');
-      form.setValue('liaison_contact_name', '');
-      form.setValue('liaison_contact_phone', '');
-    }
-  }, [entityType, form]);
-
+  // Corporate fields are preserved in form state when entity_type changes;
+  // they are conditionally rendered (hidden for non-corporate) and
+  // the server-side schema discards them when entity_type !== 'corporate'.
   async function onSubmit(data: CreateResidentData) {
     try {
       if (isEditing) {
@@ -493,7 +486,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
                       {residentType === 'secondary'
                         ? 'Secondary residents include co-residents, household members, and staff'
                         : entityType === 'corporate'
-                          ? 'Corporate entities can only be Non-Resident Landlord or Developer'
+                          ? 'Corporate entities can be Property Owners, Corporate Tenants, or Developers'
                           : 'Primary residents are landlords (resident or non-resident), tenants, or developers'}
                     </FormDescription>
                     <FormMessage />

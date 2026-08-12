@@ -131,6 +131,21 @@ describe('WhatsApp financial menu', () => {
     expect(repo.logDisclosure).not.toHaveBeenCalled();
   });
 
+  it('stops financial readers when the daily lookup guard denies access', async () => {
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('1'), identity, {
+      repository: repo,
+      optedIn: true,
+      send,
+      canLookup: vi.fn().mockResolvedValue(false),
+    });
+
+    expect(repo.getBalance).not.toHaveBeenCalled();
+    expect(send.mock.calls[0]?.[0].body).toContain('Daily financial lookup limit reached');
+  });
+
   it('resets an expired session before processing a new query', async () => {
     const repo = repository();
     vi.mocked(repo.getSession).mockResolvedValue({

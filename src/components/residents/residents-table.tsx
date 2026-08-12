@@ -51,6 +51,8 @@ const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview 
   const address = activeHouse
     ? `${activeHouse.house?.house_number} ${activeHouse.house?.street?.name}`
     : '-';
+  const activeAssignments = resident.resident_houses?.filter((rh) => rh.is_active) ?? [];
+  const uniqueActiveRoles = Array.from(new Set(activeAssignments.map((rh) => rh.resident_role)));
 
   return (
     <TableRow
@@ -74,12 +76,10 @@ const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview 
       <TableCell>{address}</TableCell>
       <TableCell>
         <div className="flex flex-wrap gap-1">
-          {resident.resident_houses?.filter(rh => rh.is_active).length ? (
-            resident.resident_houses
-              .filter(rh => rh.is_active)
-              .map((rh) => (
-                <ResidentRoleBadge key={rh.id} role={rh.resident_role} />
-              ))
+          {activeAssignments.length ? (
+            uniqueActiveRoles.map((role) => (
+              <ResidentRoleBadge key={role} role={role} />
+            ))
           ) : (
             <Badge variant="outline" className="text-muted-foreground">
               Unassigned

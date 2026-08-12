@@ -1,8 +1,13 @@
 import { getWhatsAppConfig, type WhatsAppConfig } from '@/lib/whatsapp/config';
-import type { WhatsAppSendResult, WhatsAppTextMessage } from '@/lib/whatsapp/types';
+import type {
+  WhatsAppSendResult,
+  WhatsAppTemplateMessage,
+  WhatsAppTextMessage,
+} from '@/lib/whatsapp/types';
 
 export interface WhatsAppProvider {
   sendText(message: WhatsAppTextMessage): Promise<WhatsAppSendResult>;
+  sendTemplate(message: WhatsAppTemplateMessage): Promise<WhatsAppSendResult>;
 }
 
 interface MetaSendResponse {
@@ -55,6 +60,47 @@ export function createMetaWhatsAppProvider(
 
       return { success: true, messageId };
     },
+    async sendTemplate(message) {
+      const response = await fetchImpl(
+        `${config.graphBaseUrl}/${config.apiVersion}/${config.phoneNumberId}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${config.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: message.to,
+            type: 'template',
+            template: {
+              name: message.templateName,
+              language: { code: message.languageCode },
+              components: message.parameters.length > 0
+                ? [{
+                    type: 'body',
+                    parameters: message.parameters.map((text) => ({ type: 'text', text })),
+                  }]
+                : undefined,
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `WhatsApp provider request failed (HTTP ${response.status})`,
+        };
+      }
+
+      const data = (await response.json()) as MetaSendResponse;
+      const messageId = data.messages?.[0]?.id;
+      return messageId
+        ? { success: true, messageId }
+        : { success: false, error: 'WhatsApp provider returned no message ID' };
+    },
   };
 }
 
@@ -78,5 +124,21 @@ export async function sendWhatsAppMessage(
       success: false,
       error: 'WhatsApp provider request failed',
     };
+  }
+}
+
+export async function sendWhatsAppTemplate(
+  message: WhatsAppTemplateMessage,
+  provider?: WhatsAppProvider
+): Promise<WhatsAppSendResult> {
+  const config = getWhatsAppConfig();
+  if (!provider && !config) {
+    return { success: false, error: 'WhatsApp service is not configured' };
+  }
+
+  try {
+    return await (provider || createMetaWhatsAppProvider(config!)).sendTemplate(message);
+  } catch {
+    return { success: false, error: 'WhatsApp provider request failed' };
   }
 }

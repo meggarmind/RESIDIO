@@ -41,6 +41,8 @@ import {
   resolveAllEscalationsForEntity,
 } from '@/lib/notifications/escalation';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
+import { shouldSendToResident } from '@/lib/notifications/preferences';
+import { whatsappTemplate, WHATSAPP_TEMPLATE_NAMES } from '@/lib/whatsapp';
 
 /**
  * Invoice with related data for reminder sending
@@ -312,8 +314,36 @@ async function sendReminderToChannels(params: {
         break;
 
       case 'whatsapp':
-        // WhatsApp not yet implemented - skip
-        console.log('[InvoiceReminders] WhatsApp not yet implemented');
+        if (invoice.resident.phone_primary) {
+          const prefCheck = await shouldSendToResident({
+            residentId: invoice.resident.id,
+            category: 'invoice',
+            channel: 'whatsapp',
+          });
+          if (!prefCheck.shouldSend) {
+            results.errors.push(`WhatsApp: ${prefCheck.reason || 'Blocked by preferences'}`);
+            break;
+          }
+
+          const result = await addToQueue({
+            recipient_id: invoice.resident.id,
+            recipient_phone: invoice.resident.phone_primary,
+            channel: 'whatsapp',
+            body: `Invoice ${invoice.invoice_number}: NGN ${amountRemaining.toLocaleString('en-NG')} due ${formattedDueDate}.`,
+            metadata: {
+              invoiceId: invoice.id,
+              invoiceNumber: invoice.invoice_number,
+              whatsapp_template: whatsappTemplate(WHATSAPP_TEMPLATE_NAMES.invoiceReminder, [
+                residentName,
+                invoice.invoice_number,
+                `NGN ${amountRemaining.toLocaleString('en-NG')}`,
+                formattedDueDate,
+              ]),
+            },
+          });
+          if (result.success) results.whatsapp = true;
+          else results.errors.push(`WhatsApp: ${result.error}`);
+        }
         break;
     }
   }

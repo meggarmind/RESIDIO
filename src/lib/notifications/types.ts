@@ -352,6 +352,8 @@ export interface QueueNotificationInput {
   template_id?: string;
   schedule_id?: string;
   recipient_id: string;
+  recipient_email?: string;
+  recipient_phone?: string;
   channel: NotificationChannel;
   subject?: string;
   body: string;

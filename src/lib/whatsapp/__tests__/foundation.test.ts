@@ -141,6 +141,29 @@ describe('WhatsApp channel foundation', () => {
     expect(simulator.sent).toEqual([{ to: '2348000000000', body: 'Simulated message' }]);
   });
 
+  it('sends an approved template message with body parameters', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ messages: [{ id: 'wamid.template-1' }] }), { status: 200 })
+    );
+    const provider = createMetaWhatsAppProvider(config, fetchImpl);
+
+    await expect(provider.sendTemplate({
+      to: '2348000000000',
+      templateName: 'invoice_reminder',
+      languageCode: 'en_US',
+      parameters: ['Ada', 'INV-1'],
+    })).resolves.toEqual({ success: true, messageId: 'wamid.template-1' });
+
+    expect(JSON.parse(fetchImpl.mock.calls[0]?.[1]?.body as string).template).toEqual({
+      name: 'invoice_reminder',
+      language: { code: 'en_US' },
+      components: [{
+        type: 'body',
+        parameters: [{ type: 'text', text: 'Ada' }, { type: 'text', text: 'INV-1' }],
+      }],
+    });
+  });
+
   it('returns a safe provider error when Meta rejects a request', async () => {
     const provider = createMetaWhatsAppProvider(
       config,

@@ -1,6 +1,7 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,25 +17,30 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { ResidentForm } from '@/components/residents/resident-form';
 import { AccountStatusBadge } from '@/components/residents/status-badge';
 import { GranularVerificationBadge } from '@/components/residents/contact-verification-badge';
 import { useResident, useDeleteResident, useUpdateResidentStatus, useVerifyResident } from '@/hooks/use-residents';
-import { useVerificationStatus } from '@/hooks/use-verification';
+import { useVerificationStatus, useAdminVerifyContact } from '@/hooks/use-verification';
+import { useWallet } from '@/hooks/use-wallet';
+import { formatCurrency } from '@/lib/utils';
 import { LinkedHouses } from '@/components/residents/linked-houses';
 import { ResidentPayments } from '@/components/residents/resident-payments';
-import { WalletBalance } from '@/components/residents/wallet-balance';
 import { WalletTransactions } from '@/components/residents/wallet-transactions';
 import { CrossPropertyPaymentSummary } from '@/components/residents/cross-property-payment-summary';
 import { ResidentSecurityContacts } from '@/components/residents/resident-security-contacts';
 import { PaymentAliases } from '@/components/residents/payment-aliases';
 import { PreferencesForm } from '@/components/notifications/preferences-form';
-import { AdminContactVerification } from '@/components/residents/admin-contact-verification';
 import { NotesTimeline } from '@/components/notes';
+import { ShimmerCard } from '@/components/ui/shimmer-skeleton';
+import { PageTransition } from '@/components/ui/page-transition';
+import { IconBox } from '@/components/ui/icon-box';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell, StickyNote, AlertCircle, UserRoundCheck, UserRoundX } from 'lucide-react';
+import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell, StickyNote, AlertCircle, UserRoundCheck, UserRoundX, Wallet, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ResidentDetailPageProps {
@@ -46,13 +52,31 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const router = useRouter();
   const searchParams = useSearchParams();
   const isEditing = searchParams.get('edit') === 'true';
+  const tabParam = searchParams.get('tab');
+
+  const handleTabChange = useCallback((value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === 'overview') {
+      params.delete('tab');
+    } else {
+      params.set('tab', value);
+    }
+    router.replace(`/residents/${id}?${params.toString()}`, { scroll: false });
+    setTimeout(() => {
+      const panel = document.querySelector(`[data-tab-panel="${value}"]`) as HTMLElement | null;
+      panel?.focus({ preventScroll: true });
+    }, 50);
+  }, [searchParams, router, id]);
 
   const { data: resident, isLoading, error } = useResident(id);
   const { data: verificationStatus } = useVerificationStatus(id);
   const deleteMutation = useDeleteResident();
   const updateStatusMutation = useUpdateResidentStatus();
   const verifyMutation = useVerifyResident();
+  const adminVerify = useAdminVerifyContact();
+  const { data: walletData } = useWallet(id);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
 
   // Notes permissions
   const { hasPermission, isLoading: authLoading } = useAuth();
@@ -64,9 +88,13 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const canEditNotes = hasPermission(PERMISSIONS.NOTES_UPDATE);
   const canDeleteNotes = hasPermission(PERMISSIONS.NOTES_DELETE);
 
-  const handleDelete = async () => {
-    if (!confirm('Are you sure you want to archive this resident?')) return;
+  const wallet = walletData?.data;
+  const walletBalance = wallet?.balance || 0;
+  const walletBalanceColor = walletBalance > 0 ? 'text-green-600 dark:text-green-400' : walletBalance < 0 ? 'text-red-600 dark:text-red-400' : '';
+  const emailVerified = verificationStatus?.email?.verified;
+  const phoneVerified = verificationStatus?.phone?.verified;
 
+  const handleDelete = async () => {
     try {
       await deleteMutation.mutateAsync(id);
       toast.success('Resident archived successfully');
@@ -87,6 +115,15 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
     }
   };
 
+  const handleAdminVerifyContact = async (contactType: 'email' | 'phone') => {
+    try {
+      await adminVerify.mutateAsync({ residentId: id, contactType });
+      toast.success(`${contactType === 'email' ? 'Email' : 'Phone'} verified successfully`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Failed to verify ${contactType}`);
+    }
+  };
+
   const handleStatusChange = async () => {
     if (!resident) return;
 
@@ -102,8 +139,30 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading...</p>
+      <div className="space-y-4">
+        <div className="flex items-center gap-x-3 gap-y-2">
+          <div className="h-8 w-8 rounded-md bg-muted" />
+          <div className="h-6 w-48 rounded bg-muted" />
+          <div className="h-5 w-24 rounded bg-muted" />
+        </div>
+        <div className="flex gap-1.5 h-9 p-1">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-7 w-20 rounded bg-muted" />
+          ))}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <ShimmerCard />
+          <ShimmerCard />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ShimmerCard />
+          <ShimmerCard />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ShimmerCard />
+          <ShimmerCard />
+        </div>
+        <ShimmerCard />
       </div>
     );
   }
@@ -138,7 +197,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
             </Link>
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">Edit Resident</h1>
+            <h1 className="text-xl font-bold">Edit Resident</h1>
             <p className="text-muted-foreground">Update resident details.</p>
           </div>
         </div>
@@ -159,64 +218,65 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild aria-label="Go back">
-            <Link href="/residents">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold">
-                {resident.first_name} {resident.last_name}
-              </h1>
-              <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
-                {resident.resident_code}
-              </span>
-            </div>
-            <p className="text-muted-foreground capitalize">
-              {resident.resident_type} Resident
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {/* Show verify button only if contact verification is incomplete */}
+    <PageTransition>
+    <div className="space-y-4">
+      {/* Compact header bar */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Button variant="ghost" size="icon" className="h-8 w-8" asChild aria-label="Go back">
+          <Link href="/residents">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        </Button>
+        <h1 className="text-xl font-bold tracking-tight">
+          <Avatar className="mr-2 inline-flex size-7 align-middle">
+            <AvatarFallback className="text-xs">
+              {resident.first_name[0]}{resident.last_name[0]}
+            </AvatarFallback>
+          </Avatar>
+          {resident.first_name} {resident.last_name}
+        </h1>
+        <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded tabular-nums">
+          {resident.resident_code}
+        </span>
+        <AccountStatusBadge status={resident.account_status} />
+        <span className="text-xs text-muted-foreground capitalize">{resident.resident_type}</span>
+
+        <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
           {canVerifyResident && !(
             (resident.email ? verificationStatus?.email?.verified : true) &&
             (resident.phone_primary ? verificationStatus?.phone?.verified : true)
           ) && (
             <Button
+              size="sm"
               variant="default"
               onClick={handleVerify}
               disabled={verifyMutation.isPending}
-              className="bg-green-600 hover:bg-green-700"
+              className="h-8 text-xs"
             >
-              <ShieldCheck className="h-4 w-4 mr-2" />
+              <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />
               Verify
             </Button>
           )}
           {canUpdateResident && (
-            <Button variant="outline" onClick={() => setIsStatusDialogOpen(true)}>
-              {resident.account_status === 'inactive' ? <UserRoundCheck className="mr-2 h-4 w-4" /> : <UserRoundX className="mr-2 h-4 w-4" />}
-              {resident.account_status === 'inactive' ? 'Reactivate' : 'Mark inactive'}
+            <Button variant="outline" size="sm" onClick={() => setIsStatusDialogOpen(true)} className="h-8 text-xs">
+              {resident.account_status === 'inactive' ? <UserRoundCheck className="mr-1.5 h-3.5 w-3.5" /> : <UserRoundX className="mr-1.5 h-3.5 w-3.5" />}
+              {resident.account_status === 'inactive' ? 'Reactivate' : 'Inactivate'}
             </Button>
           )}
-          {canUpdateResident && <Button variant="outline" asChild>
-            <Link href={`/residents/${id}?edit=true`}>
-              <Pencil className="h-4 w-4 mr-2" />
-              Edit
-            </Link>
-          </Button>}
-          {canDeleteResident && <Button
-            variant="destructive"
-            onClick={handleDelete}
-            disabled={deleteMutation.isPending}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Archive
-          </Button>}
+          {canUpdateResident && (
+            <Button variant="outline" size="sm" asChild className="h-8 text-xs">
+              <Link href={`/residents/${id}?edit=true`}>
+                <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                Edit
+              </Link>
+            </Button>
+          )}
+          {canDeleteResident && (
+            <Button variant="destructive" size="sm" onClick={() => setIsArchiveDialogOpen(true)} disabled={deleteMutation.isPending} className="h-8 text-xs">
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              Archive
+            </Button>
+          )}
         </div>
       </div>
 
@@ -239,138 +299,211 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         </AlertDialogContent>
       </AlertDialog>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-          <TabsTrigger value="aliases">
-            <UserCheck className="h-4 w-4 mr-1" />
+      <AlertDialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive this resident?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the resident from the active roster and unlink their house assignments.
+              Payment history and audit trails are preserved for record-keeping.
+              This action cannot be undone from this screen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Archive Resident
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Tabs defaultValue={tabParam ?? 'overview'} className="w-full" onValueChange={handleTabChange}>
+        <TabsList className="h-9 p-1 sticky top-0 z-10 glass">
+          <TabsTrigger value="overview" className="text-xs h-7">Overview</TabsTrigger>
+          <TabsTrigger value="transactions" className="text-xs h-7">
+            <Wallet className="h-3.5 w-3.5 mr-1" />
+            Transactions
+          </TabsTrigger>
+          <TabsTrigger value="payments" className="text-xs h-7">Payments</TabsTrigger>
+          <TabsTrigger value="aliases" className="text-xs h-7">
+            <UserCheck className="h-3.5 w-3.5 mr-1" />
             Aliases
           </TabsTrigger>
-          <TabsTrigger value="security">
-            <Shield className="h-4 w-4 mr-1" />
+          <TabsTrigger value="security" className="text-xs h-7">
+            <Shield className="h-3.5 w-3.5 mr-1" />
             Security
           </TabsTrigger>
-          <TabsTrigger value="emergency">
-            <AlertCircle className="h-4 w-4 mr-1" />
+          <TabsTrigger value="emergency" className="text-xs h-7">
+            <AlertCircle className="h-3.5 w-3.5 mr-1" />
             Emergency
           </TabsTrigger>
-          <TabsTrigger value="notifications">
-            <Bell className="h-4 w-4 mr-1" />
+          <TabsTrigger value="notifications" className="text-xs h-7">
+            <Bell className="h-3.5 w-3.5 mr-1" />
             Notifications
           </TabsTrigger>
           {canViewNotes && (
-            <TabsTrigger value="notes">
-              <StickyNote className="h-4 w-4 mr-1" />
+            <TabsTrigger value="notes" className="text-xs h-7">
+              <StickyNote className="h-3.5 w-3.5 mr-1" />
               Notes
             </TabsTrigger>
           )}
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6 mt-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Personal Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserCircle className="h-5 w-5" />
-                  Personal Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Status</span>
-                  <AccountStatusBadge status={resident.account_status} />
-                </div>
-                <Separator />
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Verification</span>
-                  <GranularVerificationBadge
-                    emailVerifiedAt={verificationStatus?.email?.verified_at ?? null}
-                    phoneVerifiedAt={verificationStatus?.phone?.verified_at ?? null}
-                    hasEmail={!!resident.email}
-                    hasPhone={!!resident.phone_primary}
-                  />
-                </div>
-                <Separator />
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground flex items-center gap-2">
-                    <Phone className="h-4 w-4" /> Phone
-                  </span>
-                  <span className="font-medium">{resident.phone_primary}</span>
-                </div>
-                {resident.phone_secondary && (
-                  <>
-                    <Separator />
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Secondary Phone</span>
-                      <span className="font-medium">{resident.phone_secondary}</span>
-                    </div>
-                  </>
-                )}
-                {resident.email && (
-                  <>
-                    <Separator />
-                    <div className="flex justify-between items-center">
+        <TabsContent value="overview" className="space-y-4 mt-6" role="tabpanel" tabIndex={0} data-tab-panel="overview">
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={{
+              hidden: { opacity: 0 },
+              visible: { opacity: 1, transition: { staggerChildren: 0.12 } },
+            }}
+          >
+            {/* Top row: Identity + Wallet / Invoices */}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {/* Identity & Contact + Wallet Balance */}
+              <motion.div
+                className="h-full"
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } }}
+              >
+                <Card className="card-hover-modern h-full flex flex-col">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                      <IconBox color="blue" size="sm">
+                        <UserCircle className="h-4 w-4" />
+                      </IconBox>
+                      Identity &amp; Contact
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 flex-1">
+                    <div className="flex justify-between items-center text-sm">
                       <span className="text-muted-foreground flex items-center gap-2">
-                        <Mail className="h-4 w-4" /> Email
+                        <Phone className="h-3.5 w-3.5" /> Phone
                       </span>
-                      <span className="font-medium">{resident.email}</span>
+                      <span className="font-medium">{resident.phone_primary}</span>
                     </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                    {resident.phone_secondary && (
+                      <>
+                        <Separator />
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Secondary Phone</span>
+                          <span className="font-medium">{resident.phone_secondary}</span>
+                        </div>
+                      </>
+                    )}
+                    {resident.email && (
+                      <>
+                        <Separator />
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-muted-foreground flex items-center gap-2">
+                            <Mail className="h-3.5 w-3.5" /> Email
+                          </span>
+                          <span className="font-medium">{resident.email}</span>
+                        </div>
+                      </>
+                    )}
+                    <Separator />
+                    <div className="py-1">
+                      <p className="text-xs text-muted-foreground mb-0.5">Wallet Balance</p>
+                      <p className={`text-xl font-bold ${walletBalanceColor}`}>
+                        {formatCurrency(walletBalance)}
+                      </p>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <GranularVerificationBadge
+                        emailVerifiedAt={verificationStatus?.email?.verified_at ?? null}
+                        phoneVerifiedAt={verificationStatus?.phone?.verified_at ?? null}
+                        hasEmail={!!resident.email}
+                        hasPhone={!!resident.phone_primary}
+                      />
+                      {resident.email && !emailVerified && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAdminVerifyContact('email')} disabled={adminVerify.isPending}>
+                          {adminVerify.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                          <Mail className="h-3 w-3 mr-1" />
+                          Verify Email
+                        </Button>
+                      )}
+                      {!phoneVerified && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAdminVerifyContact('phone')} disabled={adminVerify.isPending}>
+                          {adminVerify.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                          <Phone className="h-3 w-3 mr-1" />
+                          Verify Phone
+                        </Button>
+                      )}
+                      {emailVerified && resident.email && (
+                        <Badge variant="secondary" className="bg-green-100 text-green-700 border-green-200 text-xs">
+                          <Check className="h-3 w-3 mr-1" />
+                          Email verified
+                        </Badge>
+                      )}
+                      {phoneVerified && (
+                        <Badge variant="secondary" className="bg-green-100 text-green-700 border-green-200 text-xs">
+                          <Check className="h-3 w-3 mr-1" />
+                          Phone verified
+                        </Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
 
-            {/* Wallet Balance */}
-            <WalletBalance residentId={id} />
+              {/* Invoices (Outstanding Balance) */}
+              <motion.div
+                className="h-full"
+                variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } }}
+              >
+                <Card className="card-hover-modern h-full flex flex-col">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                      <IconBox color="green" size="sm">
+                        <Wallet className="h-4 w-4" />
+                      </IconBox>
+                      Invoices
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex-1">
+                    <CrossPropertyPaymentSummary residentId={id} />
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </div>
 
-            {/* Contact Verification - Admin */}
-            <AdminContactVerification
-              residentId={id}
-              email={resident.email}
-              phone={resident.phone_primary}
-            />
-
-            {/* House Assignments */}
-            <LinkedHouses resident={resident} />
-
-            {/* Cross-Property Payment Summary */}
-            <CrossPropertyPaymentSummary residentId={id} />
-
-            {/* Notes */}
-            {resident.notes && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Notes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm">{resident.notes}</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Wallet Transactions */}
-          <WalletTransactions residentId={id} />
+            {/* Housing — multi-column grid */}
+            <motion.div
+              variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } }}
+            >
+              <LinkedHouses resident={resident} />
+            </motion.div>
+          </motion.div>
         </TabsContent>
 
-        <TabsContent value="payments" className="mt-6">
+        <TabsContent value="transactions" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="transactions">
+          <div className="max-h-[calc(100vh-12rem)] overflow-y-auto scrollbar-modern">
+            <WalletTransactions residentId={id} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="payments" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="payments">
           <ResidentPayments residentId={id} />
         </TabsContent>
 
-        <TabsContent value="aliases" className="mt-6">
+        <TabsContent value="aliases" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="aliases">
           <PaymentAliases
             residentId={id}
             residentName={`${resident.first_name} ${resident.last_name}`}
           />
         </TabsContent>
 
-        <TabsContent value="security" className="mt-6">
+        <TabsContent value="security" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="security">
           <ResidentSecurityContacts residentId={id} />
         </TabsContent>
 
-        <TabsContent value="emergency" className="mt-6">
+        <TabsContent value="emergency" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="emergency">
           <div className="max-w-2xl">
             {resident.emergency_contact_name || resident.emergency_contact_phone || resident.emergency_contact_resident ? (
               <Card>
@@ -446,12 +579,12 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
           </div>
         </TabsContent>
 
-        <TabsContent value="notifications" className="mt-6">
+        <TabsContent value="notifications" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="notifications">
           <PreferencesForm residentId={id} />
         </TabsContent>
 
         {canViewNotes && (
-          <TabsContent value="notes" className="mt-6">
+          <TabsContent value="notes" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="notes">
             <NotesTimeline
               entityType="resident"
               entityId={id}
@@ -463,5 +596,6 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         )}
       </Tabs>
     </div>
+    </PageTransition>
   );
 }

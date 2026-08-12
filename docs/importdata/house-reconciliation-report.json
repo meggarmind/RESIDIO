@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-11T11:22:24.895Z",
+  "generated_at": "2026-08-12T00:21:05.810Z",
   "house_matches": [
     {
       "id": "L-0001",
@@ -44,7 +44,7 @@
               "resident_code": "935294"
             }
           ],
-          "payment_count": 35
+          "payment_count": 36
         }
       ]
     },
@@ -64,14 +64,17 @@
               "id": "d090e1c8-72b6-5779-9263-3d1974b369de",
               "resident_id": "2e57d599-63bf-56e8-ae06-743986bb0329",
               "house_id": "8128a50d-6cc4-4418-bfc9-e357a3e7fee9",
-              "resident_role": "non_resident_landlord",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
+              "is_live_in": true,
               "move_in_date": "2019-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-resident-landlord"
+              ],
               "resident_name": "CONSTANCE OKA",
               "resident_code": "333335"
             }
@@ -119,11 +122,11 @@
               "move_out_date": "2022-12-31",
               "sponsor_resident_id": null,
               "tags": [],
-              "resident_name": "EKOMOBONG UDAKOBO",
+              "resident_name": "EKOMOBONG Uduakobo",
               "resident_code": "872453"
             }
           ],
-          "payment_count": 6
+          "payment_count": 7
         }
       ]
     },
@@ -146,11 +149,14 @@
               "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2018-01-01",
+              "is_live_in": true,
+              "move_in_date": "2018-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-tenant"
+              ],
               "resident_name": "OSA OSAHON",
               "resident_code": "699490"
             }
@@ -178,11 +184,14 @@
               "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "is_live_in": true,
+              "move_in_date": "2023-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-tenant"
+              ],
               "resident_name": "OFOR LOVETH UCHE",
               "resident_code": "586175"
             }
@@ -210,11 +219,14 @@
               "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2020-01-01",
+              "is_live_in": true,
+              "move_in_date": "2020-03-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-tenant"
+              ],
               "resident_name": "OMONAYAJO ELIZABETH ABISOLA",
               "resident_code": "787670"
             }
@@ -242,11 +254,14 @@
               "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "is_live_in": true,
+              "move_in_date": "2022-11-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-tenant"
+              ],
               "resident_name": "CHUKWUEBUKA CHRISTIAN IZUAGBA",
               "resident_code": "264201"
             }
@@ -271,14 +286,17 @@
               "id": "0c51d8da-f356-5cd3-a008-065816429f8c",
               "resident_id": "cd1d9c13-63e4-5355-b8b1-6c5333dbfc94",
               "house_id": "3cc40b94-d6c9-4980-87b9-60d13f8c6f50",
-              "resident_role": "non_resident_landlord",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
+              "is_live_in": true,
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-resident-landlord"
+              ],
               "resident_name": "TIM AKENROYE LANDLORD",
               "resident_code": "919154"
             }
@@ -303,14 +321,17 @@
               "id": "ae840e99-bbaf-53bf-9414-b4bd1d2e8066",
               "resident_id": "6bdaadcd-402e-59be-bcc2-114bccc81c6b",
               "house_id": "ebf46c2a-7118-479c-b1f1-c4a03f6627dd",
-              "resident_role": "tenant",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2025-01-01",
+              "is_live_in": true,
+              "move_in_date": "2025-09-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-resident-landlord"
+              ],
               "resident_name": "COVENANT ITAUMA",
               "resident_code": "132078"
             }
@@ -335,15 +356,18 @@
               "id": "32f2df13-5514-5d59-b8cf-6d4235af3292",
               "resident_id": "af66ea71-a673-5c42-8a74-1b88ab808950",
               "house_id": "1c5ab8a5-ab0a-4409-874b-3c59fbc1de3f",
-              "resident_role": "non_resident_landlord",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "is_live_in": true,
+              "move_in_date": "2022-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
-              "resident_name": "SONUBI BOLADALE RICHARD",
+              "tags": [
+                "legacy-import",
+                "confirmed-resident-landlord"
+              ],
+              "resident_name": "SONUBI BOLANLE PRINCE RICHARD",
               "resident_code": "753529"
             }
           ],
@@ -704,10 +728,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2021-01-01",
+              "move_in_date": "2021-07-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "UGWU EMMANUEL UDOCHUKWU",
               "resident_code": "310633"
             }
@@ -739,7 +766,10 @@
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "LANA ANIH",
               "resident_code": "552509"
             },
@@ -782,11 +812,14 @@
               "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2020-01-01",
+              "is_live_in": true,
+              "move_in_date": "2020-11-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-tenant"
+              ],
               "resident_name": "WILSON TOBIAS CHUKWU",
               "resident_code": "346641"
             }
@@ -815,10 +848,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "move_in_date": "2022-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "OSINAMMA LIVINUS CHINONYE",
               "resident_code": "343961"
             }
@@ -847,10 +883,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2025-01-01",
+              "move_in_date": "2025-05-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "SANDRA ISIOMA MBAN",
               "resident_code": "466599"
             }
@@ -879,10 +918,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2025-01-01",
+              "move_in_date": "2025-05-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "SHEHU AUDU",
               "resident_code": "841153"
             }
@@ -911,10 +953,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2024-01-01",
+              "move_in_date": "2024-09-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "HALIMA ABDULLAHI",
               "resident_code": "558514"
             }
@@ -943,10 +988,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2024-01-01",
+              "move_in_date": "2024-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "ATSEYINKU ATITAN THEODORE",
               "resident_code": "563553"
             }
@@ -975,10 +1023,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2024-01-01",
+              "move_in_date": "2024-03-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "WILLIAMS AYEMERE UKOKOBILI",
               "resident_code": "164148"
             }
@@ -1007,10 +1058,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "move_in_date": "2022-12-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "Markson Nembadoon",
               "resident_code": "539068"
             }
@@ -1032,21 +1086,6 @@
           "short_name": "IBB-26F-1",
           "assignments": [
             {
-              "id": "90c0d8af-c9e4-5a63-95c7-55b37747be54",
-              "resident_id": "b3fc891f-04ec-5ac3-82fa-d202ff174418",
-              "house_id": "5480e6b7-03ed-4be3-9a3c-5aede0b86577",
-              "resident_role": "tenant",
-              "is_primary": true,
-              "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2018-01-01",
-              "move_out_date": null,
-              "sponsor_resident_id": null,
-              "tags": [],
-              "resident_name": "Anyanwu Chinenyi Kingsley",
-              "resident_code": "949240"
-            },
-            {
               "id": "60305e0a-6bef-5ccf-9938-29feea42bd77",
               "resident_id": "ab1e9d1e-3f42-566c-a481-a958586074db",
               "house_id": "5480e6b7-03ed-4be3-9a3c-5aede0b86577",
@@ -1060,6 +1099,24 @@
               "tags": [],
               "resident_name": "OLUFUNKE TITILOLA",
               "resident_code": "902789"
+            },
+            {
+              "id": "90c0d8af-c9e4-5a63-95c7-55b37747be54",
+              "resident_id": "b3fc891f-04ec-5ac3-82fa-d202ff174418",
+              "house_id": "5480e6b7-03ed-4be3-9a3c-5aede0b86577",
+              "resident_role": "tenant",
+              "is_primary": true,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2018-10-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
+              "resident_name": "Anyanwu Chinenyi Kingsley",
+              "resident_code": "949240"
             }
           ],
           "payment_count": 16
@@ -1086,10 +1143,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2020-01-01",
+              "move_in_date": "2020-07-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "CHUKS MBONU",
               "resident_code": "329937"
             },
@@ -1132,11 +1192,14 @@
               "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2025-01-01",
+              "is_live_in": true,
+              "move_in_date": "2025-09-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-tenant"
+              ],
               "resident_name": "Mrs Ikoli",
               "resident_code": "203200"
             },
@@ -1180,10 +1243,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2018-01-01",
+              "move_in_date": "2023-02-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "Toliluope Ayodele",
               "resident_code": "635672"
             },
@@ -1230,7 +1296,10 @@
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "CHRISTIAN PHILIPS",
               "resident_code": "218475"
             }
@@ -1259,10 +1328,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2019-01-01",
+              "move_in_date": "2019-07-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "BOBBY ITUA",
               "resident_code": "226673"
             }
@@ -1291,10 +1363,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "move_in_date": "2023-10-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "BARBARA IGBA",
               "resident_code": "345017"
             }
@@ -1321,14 +1396,35 @@
               "house_id": "43458ed5-6356-4ea6-b322-e544fce3d81f",
               "resident_role": "non_resident_landlord",
               "is_primary": true,
-              "is_active": true,
+              "is_active": false,
               "is_live_in": false,
-              "move_in_date": "2025-01-01",
-              "move_out_date": null,
+              "move_in_date": "2025-05-01",
+              "move_out_date": "2026-08-12",
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "VILLANOVA REALTY",
               "resident_code": "130943"
+            },
+            {
+              "id": "6bd6c435-9039-4d4a-964f-c66fa89b99a9",
+              "resident_id": "97791b2a-216f-4ce0-95e1-9a1989cee232",
+              "house_id": "43458ed5-6356-4ea6-b322-e544fce3d81f",
+              "resident_role": "non_resident_landlord",
+              "is_primary": true,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2025-05-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
+              "resident_name": "Ubah Karl Chinedu",
+              "resident_code": "576993"
             }
           ],
           "payment_count": 1
@@ -1355,10 +1451,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "move_in_date": "2022-09-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "CHIGOZIE AGU",
               "resident_code": "706118"
             }
@@ -1387,10 +1486,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "move_in_date": "2023-05-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "VERONICA INYAN",
               "resident_code": "302264"
             }
@@ -1419,10 +1521,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2021-01-01",
+              "move_in_date": "2021-12-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "ADEOLA OLAJUBU",
               "resident_code": "159050"
             }
@@ -1449,12 +1554,15 @@
               "house_id": "740b9f9c-01dc-4e82-b134-d25bbbb12ba3",
               "resident_role": "tenant",
               "is_primary": true,
-              "is_active": true,
+              "is_active": false,
               "is_live_in": false,
               "move_in_date": "2015-01-01",
-              "move_out_date": null,
+              "move_out_date": "2026-08-11",
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "alias-only-record"
+              ],
               "resident_name": "OKORO",
               "resident_code": "137862"
             },
@@ -1462,14 +1570,17 @@
               "id": "d5862294-4e52-5b0a-80f6-8ecf0fcdc6b3",
               "resident_id": "86733cc3-4109-5928-a409-9407d0a1c280",
               "house_id": "740b9f9c-01dc-4e82-b134-d25bbbb12ba3",
-              "resident_role": "non_resident_landlord",
-              "is_primary": false,
+              "resident_role": "resident_landlord",
+              "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2026-08-08",
+              "is_live_in": true,
+              "move_in_date": "2023-07-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "ALPHONSUS OKORO",
               "resident_code": "630813"
             }
@@ -1491,34 +1602,40 @@
           "short_name": "IBB-32",
           "assignments": [
             {
-              "id": "4e874f0a-4efc-5e1c-8606-6b79ceb575a6",
-              "resident_id": "c59bbf15-53b5-5f3b-8ad7-f1203adc6554",
+              "id": "25792bfe-d0ab-5424-96e9-87efa7487c12",
+              "resident_id": "000efc88-8fb5-5ff7-9610-d555c7619c31",
               "house_id": "462432f2-1e40-4a1a-b0d4-b5d5fb42cf09",
               "resident_role": "non_resident_landlord",
-              "is_primary": true,
+              "is_primary": false,
               "is_active": true,
               "is_live_in": false,
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
-              "resident_name": "ANGEL CREST",
-              "resident_code": "207552"
-            },
-            {
-              "id": "25792bfe-d0ab-5424-96e9-87efa7487c12",
-              "resident_id": "000efc88-8fb5-5ff7-9610-d555c7619c31",
-              "house_id": "462432f2-1e40-4a1a-b0d4-b5d5fb42cf09",
-              "resident_role": "household_member",
-              "is_primary": false,
-              "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2026-08-08",
-              "move_out_date": null,
-              "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "corporate-landlord"
+              ],
               "resident_name": "AKINTAYO OLAWUNMI ELIZABETH",
               "resident_code": "851262"
+            },
+            {
+              "id": "4e874f0a-4efc-5e1c-8606-6b79ceb575a6",
+              "resident_id": "c59bbf15-53b5-5f3b-8ad7-f1203adc6554",
+              "house_id": "462432f2-1e40-4a1a-b0d4-b5d5fb42cf09",
+              "resident_role": "tenant",
+              "is_primary": true,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2015-06-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
+              "resident_name": "ANGEL CREST",
+              "resident_code": "207552"
             }
           ],
           "payment_count": 14
@@ -1541,14 +1658,17 @@
               "id": "0b712a5e-94fd-5c4b-b197-9ca0a9a5c6f5",
               "resident_id": "81e7f7d5-85e7-54ac-b79f-3f41542d6502",
               "house_id": "dc4b977a-3057-4a3e-873e-7cdb17ded35d",
-              "resident_role": "non_resident_landlord",
+              "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "move_in_date": "2023-05-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "KEMCHUTA HOMES LIMITED",
               "resident_code": "513496"
             }
@@ -1577,10 +1697,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2015-01-01",
+              "move_in_date": "2020-12-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "SHAKIRUDEEN OLANREWAJU",
               "resident_code": "218901"
             },
@@ -1620,14 +1743,17 @@
               "id": "6a6c52eb-2e3c-5cb5-9178-24ff5f017325",
               "resident_id": "dd9f9e07-24b4-5ca4-a1c2-d30052232d27",
               "house_id": "67ead102-622a-48b7-bcfa-3f4583b4a4cc",
-              "resident_role": "non_resident_landlord",
+              "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2018-01-01",
+              "move_in_date": "2018-11-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "DEBIRUSS SCHOOL",
               "resident_code": "213107"
             },
@@ -1635,14 +1761,17 @@
               "id": "fab5cc93-1931-513b-bd0c-0dd5811d3dff",
               "resident_id": "1d36ae32-7bf0-52b8-b433-6317dd132872",
               "house_id": "67ead102-622a-48b7-bcfa-3f4583b4a4cc",
-              "resident_role": "household_member",
+              "resident_role": "non_resident_landlord",
               "is_primary": false,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2026-08-08",
+              "move_in_date": "2018-11-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "corporate-landlord"
+              ],
               "resident_name": "SIMEON KAYODE ONI",
               "resident_code": "608459"
             }
@@ -1671,10 +1800,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "move_in_date": "2023-04-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "IFE KOMOLAFE ALABA OMO",
               "resident_code": "237881"
             }
@@ -1703,10 +1835,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2024-01-01",
+              "move_in_date": "2024-04-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "OGIEFA BARRY DAN",
               "resident_code": "427131"
             }
@@ -1735,10 +1870,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "move_in_date": "2023-07-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "OBINWO OLUWATOBI EBENEZER",
               "resident_code": "453954"
             }
@@ -1767,10 +1905,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2019-01-01",
+              "move_in_date": "2019-12-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "NJOKU MACDONALD EGWU",
               "resident_code": "713627"
             }
@@ -1799,10 +1940,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "move_in_date": "2023-02-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "MICHAEL IWUOHA",
               "resident_code": "956699"
             }
@@ -1831,10 +1975,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "move_in_date": "2023-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "IKENNA MBACHU",
               "resident_code": "728518"
             }
@@ -1866,7 +2013,10 @@
               "move_in_date": "2018-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "PAULINUS ISIOMA MONICA OBIAJULU",
               "resident_code": "858686"
             }
@@ -1895,10 +2045,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2025-01-01",
+              "move_in_date": "2025-09-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "OKOLIE OZIOMA FRANCISCA",
               "resident_code": "766268"
             },
@@ -1942,10 +2095,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2019-01-01",
+              "move_in_date": "2019-04-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "CHARLES YEMI FARIMOYO",
               "resident_code": "138127"
             },
@@ -1957,10 +2113,14 @@
               "is_primary": false,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2026-08-08",
+              "move_in_date": "2019-04-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
               "resident_name": "WILLIAM RACHEAL TI",
               "resident_code": "534910"
             }
@@ -1989,10 +2149,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2015-01-01",
+              "move_in_date": "2016-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "MARK KAYODE OSHIN",
               "resident_code": "926060"
             }
@@ -2024,7 +2187,10 @@
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "OSHODI ADETUTU",
               "resident_code": "587983"
             }
@@ -2056,7 +2222,10 @@
               "move_in_date": "2017-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "CHALOKWU EMMANUEL",
               "resident_code": "514831"
             }
@@ -2085,10 +2254,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2019-01-01",
+              "move_in_date": "2021-05-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "OKEREKE JAMES UKPA",
               "resident_code": "665838"
             }
@@ -2117,10 +2289,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2018-01-01",
+              "move_in_date": "2018-09-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "MENE GODWIN TONSEJU",
               "resident_code": "981601"
             },
@@ -2164,10 +2339,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2018-01-01",
+              "move_in_date": "2018-04-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "OBINNA CHIKE UBACHUKWU",
               "resident_code": "416521"
             }
@@ -2196,10 +2374,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2024-01-01",
+              "move_in_date": "2024-07-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "LAWRENCE EWAH",
               "resident_code": "937839"
             }
@@ -2228,10 +2409,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2018-01-01",
+              "move_in_date": "2018-03-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "IMAEKE EJIKE KINGSLEY",
               "resident_code": "443557"
             }
@@ -2263,7 +2447,10 @@
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "ADEYEMO ADETOKUNBO",
               "resident_code": "506406"
             }
@@ -2292,10 +2479,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2018-01-01",
+              "move_in_date": "2018-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "MICAH SUNDAY UKAKA",
               "resident_code": "654076"
             }
@@ -2327,7 +2517,10 @@
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "TIJANI MUFUTAU ADETOKU",
               "resident_code": "175353"
             }
@@ -2356,10 +2549,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "move_in_date": "2022-03-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "HAMZAT IBRAHIM OLANREWAJU",
               "resident_code": "130406"
             }
@@ -2388,10 +2584,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "move_in_date": "2022-06-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "CHRISTOPHER OUNORAH OKAFOR",
               "resident_code": "426088"
             }
@@ -2413,6 +2612,25 @@
           "short_name": "GLB-19",
           "assignments": [
             {
+              "id": "d2ea7e6b-bbba-49db-9552-a08ff343cf23",
+              "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
+              "house_id": "be0673a2-4dc0-4e8f-be7a-c1d775307697",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2023-11-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "HASSAN OGWE",
+              "resident_code": "567538"
+            },
+            {
               "id": "e423327b-ad5f-50ab-996b-e306d995abe9",
               "resident_id": "f289a3bc-5dfd-5c1f-93ab-4f18b0de2394",
               "house_id": "be0673a2-4dc0-4e8f-be7a-c1d775307697",
@@ -2420,10 +2638,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "move_in_date": "2023-11-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "EZINNE LEONA EGEJURU",
               "resident_code": "847567"
             }
@@ -2452,27 +2673,34 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2024-01-01",
+              "move_in_date": "2024-11-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "OKHUELEGBE CLETUS OMORIA",
               "resident_code": "658322"
             },
             {
               "id": "e0a67a59-22b2-53d8-9b1c-9fdffbcd7009",
-              "resident_id": "1ba29920-74a1-5a55-8948-7c8a57023bdf",
+              "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
               "house_id": "66636309-67f8-4bef-9b01-7b7456e42bcb",
               "resident_role": "non_resident_landlord",
               "is_primary": false,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2026-08-08",
+              "move_in_date": "2024-11-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
-              "resident_name": "Hassan",
-              "resident_code": "143835"
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "HASSAN OGWE",
+              "resident_code": "567538"
             }
           ],
           "payment_count": 2
@@ -2499,12 +2727,34 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2019-01-01",
+              "move_in_date": "2019-12-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "TIVERE IWETA EMMANUEL",
               "resident_code": "470436"
+            },
+            {
+              "id": "8d8079ea-72c2-44b1-86a5-7d0ec390a10f",
+              "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
+              "house_id": "f6850710-c536-460d-9fa6-ad716f568305",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2019-12-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "HASSAN OGWE",
+              "resident_code": "567538"
             }
           ],
           "payment_count": 16
@@ -2531,12 +2781,34 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2019-01-01",
+              "move_in_date": "2019-12-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "ROSE EGODI NNALEUE",
               "resident_code": "905260"
+            },
+            {
+              "id": "b0c687a9-8473-4a69-babf-2c3407559386",
+              "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
+              "house_id": "867b3255-bb22-41d1-9ba8-2ba0cf09fe55",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2019-12-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "HASSAN OGWE",
+              "resident_code": "567538"
             }
           ],
           "payment_count": 8
@@ -2556,6 +2828,25 @@
           "short_name": "GLB-19AF-3",
           "assignments": [
             {
+              "id": "345bb040-0864-40ce-b142-1a97001c13f7",
+              "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
+              "house_id": "f19a5cb4-561b-4e1f-ab76-2f6908849487",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2021-01-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "HASSAN OGWE",
+              "resident_code": "567538"
+            },
+            {
               "id": "a3b567a8-28f6-52fb-93df-ad6a8eb384a7",
               "resident_id": "76c26f49-f912-563a-8511-291b340e6b14",
               "house_id": "f19a5cb4-561b-4e1f-ab76-2f6908849487",
@@ -2566,7 +2857,10 @@
               "move_in_date": "2021-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "UGONMA EMEALI INNOCENCIA",
               "resident_code": "723524"
             }
@@ -2598,9 +2892,31 @@
               "move_in_date": "2020-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "ANOSIKE CHIOMA LILIAN",
               "resident_code": "889888"
+            },
+            {
+              "id": "86892fc9-5288-468e-a92d-49b9c0bd0e6f",
+              "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
+              "house_id": "afb74d2e-3494-4fbb-adb5-e2d533e4254b",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2020-01-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "HASSAN OGWE",
+              "resident_code": "567538"
             },
             {
               "id": "c1515abe-c51c-512b-b67e-c12f2505fddc",
@@ -2609,11 +2925,14 @@
               "resident_role": "household_member",
               "is_primary": false,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2026-08-08",
+              "is_live_in": true,
+              "move_in_date": "2020-01-01",
               "move_out_date": null,
-              "sponsor_resident_id": null,
-              "tags": [],
+              "sponsor_resident_id": "102f4ee7-b0f3-552d-88e3-5b081095d55e",
+              "tags": [
+                "legacy-import",
+                "confirmed-linked-secondary"
+              ],
               "resident_name": "ANOSIKE EZINNE ANGELA",
               "resident_code": "539523"
             }
@@ -2642,12 +2961,34 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2015-01-01",
+              "move_in_date": "2015-12-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "GINIKA ASIEGBU MIS",
               "resident_code": "276488"
+            },
+            {
+              "id": "a811ef66-7e9b-4e18-b8a3-3f77a2f3199f",
+              "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
+              "house_id": "45097f4b-688d-4d0b-93ee-a8b7584a061f",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2015-12-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "HASSAN OGWE",
+              "resident_code": "567538"
             }
           ],
           "payment_count": 13
@@ -2667,6 +3008,25 @@
           "short_name": "GLB-20F-1",
           "assignments": [
             {
+              "id": "e6a2ac5e-9e6d-46b9-86b1-1c6241ac4576",
+              "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
+              "house_id": "b3d04bfb-ea2b-42ff-b058-5ed4d05f9e86",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2023-01-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "HASSAN OGWE",
+              "resident_code": "567538"
+            },
+            {
               "id": "0bf9511c-7d6f-51b0-acfc-20594d369047",
               "resident_id": "0d8a51fa-2142-50f0-be21-5aa231f3ad16",
               "house_id": "b3d04bfb-ea2b-42ff-b058-5ed4d05f9e86",
@@ -2674,10 +3034,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2021-01-01",
+              "move_in_date": "2023-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "PATRICIA IREMIREN",
               "resident_code": "178142"
             }
@@ -2706,12 +3069,34 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2019-01-01",
+              "move_in_date": "2019-11-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "VICTOR ADJEI",
               "resident_code": "507927"
+            },
+            {
+              "id": "996727c0-0ee9-4f29-9659-943bd54c02a4",
+              "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
+              "house_id": "d0a7b552-88eb-49c3-a9cd-92aa4a92ccb9",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2019-11-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "HASSAN OGWE",
+              "resident_code": "567538"
             }
           ],
           "payment_count": 8
@@ -2738,12 +3123,34 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "move_in_date": "2024-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "JOVIA IFETOBO JOSE",
               "resident_code": "820189"
+            },
+            {
+              "id": "fca17b04-8248-447b-8a50-bdc42a68dc78",
+              "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
+              "house_id": "5ce860ef-9b7d-4756-850d-bc7b91dccdcb",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2024-08-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "HASSAN OGWE",
+              "resident_code": "567538"
             }
           ],
           "payment_count": 1
@@ -2763,6 +3170,25 @@
           "short_name": "GLB-20F-5",
           "assignments": [
             {
+              "id": "035cff5f-9073-4974-bfc6-83be0241a292",
+              "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
+              "house_id": "275cb67e-dd53-4d25-bcd0-a5a149ce293d",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2024-06-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "HASSAN OGWE",
+              "resident_code": "567538"
+            },
+            {
               "id": "8b529ffd-7ad0-5194-9f99-78889ac7bd25",
               "resident_id": "d2205ec9-e3c8-581b-a2fb-3c0a7e9bc121",
               "house_id": "275cb67e-dd53-4d25-bcd0-a5a149ce293d",
@@ -2770,10 +3196,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2020-01-01",
+              "move_in_date": "2024-06-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "KEN NWACHUKWU",
               "resident_code": "737987"
             }
@@ -2802,10 +3231,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "move_in_date": "2022-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "EPETUKU GOODLUCK",
               "resident_code": "129726"
             },
@@ -2815,14 +3247,36 @@
               "house_id": "719214ba-a336-492f-9bf2-9efdd25c0a1f",
               "resident_role": "non_resident_landlord",
               "is_primary": false,
-              "is_active": true,
+              "is_active": false,
               "is_live_in": false,
               "move_in_date": "2026-08-08",
-              "move_out_date": null,
+              "move_out_date": "2026-08-11",
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "superseded-landlord-assignment"
+              ],
               "resident_name": "OYEDARE GBENGA DAVID",
               "resident_code": "622517"
+            },
+            {
+              "id": "a020c0d6-c534-4290-a7fd-486996c6b908",
+              "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
+              "house_id": "719214ba-a336-492f-9bf2-9efdd25c0a1f",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2022-08-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "HASSAN OGWE",
+              "resident_code": "567538"
             }
           ],
           "payment_count": 5
@@ -2845,7 +3299,7 @@
               "id": "c11058dc-d41e-56ea-9fcc-cb2ddaf5ae72",
               "resident_id": "9cae5a71-342b-554c-808e-766448bd7b09",
               "house_id": "f28b2100-81ea-436d-8884-f48e0d9f1499",
-              "resident_role": "tenant",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
@@ -2881,10 +3335,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "move_in_date": "2022-11-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "MICHAEL FESTUS IHEKWOABA",
               "resident_code": "758117"
             }
@@ -2913,10 +3370,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "move_in_date": "2022-10-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "IWUOHA CHRISTIAN CHINONSO",
               "resident_code": "473727"
             }
@@ -2948,7 +3408,10 @@
               "move_in_date": "2018-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "ANTHONY OLABISI OLUWAKEMI EGRI OKWAJI",
               "resident_code": "655070"
             }
@@ -2977,12 +3440,33 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2021-01-01",
+              "move_in_date": "2021-09-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "OLORUNTOLA ABIOLA",
               "resident_code": "799514"
+            },
+            {
+              "id": "5f251293-efd6-4249-80c9-cd85bb613bff",
+              "resident_id": "dc529eeb-d11a-4a53-8734-ee2fa29e3316",
+              "house_id": "950aa7ed-0487-46a9-8714-d353052f80e2",
+              "resident_role": "household_member",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": true,
+              "move_in_date": "2021-09-01",
+              "move_out_date": null,
+              "sponsor_resident_id": "0c578aa1-7f3e-5c92-ba3e-fb227c0cfc0d",
+              "tags": [
+                "legacy-import",
+                "confirmed-linked-secondary"
+              ],
+              "resident_name": "Oloruntola Temi",
+              "resident_code": "861889"
             }
           ],
           "payment_count": 10
@@ -3002,21 +3486,6 @@
           "short_name": "KOA-6",
           "assignments": [
             {
-              "id": "658475b0-d543-571b-a3dd-efe88282c344",
-              "resident_id": "f84f74b4-637e-5181-8c50-87f1e6f68937",
-              "house_id": "bd38f453-7dcb-4a5e-bc49-584a283f923b",
-              "resident_role": "non_resident_landlord",
-              "is_primary": true,
-              "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2017-01-01",
-              "move_out_date": null,
-              "sponsor_resident_id": null,
-              "tags": [],
-              "resident_name": "OYESANMI OMOLADE KEHINDE",
-              "resident_code": "619049"
-            },
-            {
               "id": "bafde589-2e38-50d2-9472-942165fa9383",
               "resident_id": "9c80ef25-eb81-5c65-9162-3b7e580effd5",
               "house_id": "bd38f453-7dcb-4a5e-bc49-584a283f923b",
@@ -3030,6 +3499,24 @@
               "tags": [],
               "resident_name": "Omokehinde Patrick",
               "resident_code": "287650"
+            },
+            {
+              "id": "658475b0-d543-571b-a3dd-efe88282c344",
+              "resident_id": "f84f74b4-637e-5181-8c50-87f1e6f68937",
+              "house_id": "bd38f453-7dcb-4a5e-bc49-584a283f923b",
+              "resident_role": "non_resident_landlord",
+              "is_primary": true,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2017-02-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
+              "resident_name": "OYESANMI OMOLADE KEHINDE",
+              "resident_code": "619049"
             }
           ],
           "payment_count": 49
@@ -3059,7 +3546,10 @@
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "JOHN ERIAGBON",
               "resident_code": "760844"
             }
@@ -3091,7 +3581,10 @@
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "ERAPI EDWARD",
               "resident_code": "194154"
             }
@@ -3113,6 +3606,25 @@
           "short_name": "KOA-10F-6",
           "assignments": [
             {
+              "id": "315d3a10-3c4b-43ca-a1dd-4d92b0a46ddc",
+              "resident_id": "dee93d78-dfd9-5339-8a3f-2da2afa8b163",
+              "house_id": "ad399903-1506-43b8-a677-94b1ed377919",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2022-12-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "BONIFACE OBIJIAKU",
+              "resident_code": "780522"
+            },
+            {
               "id": "5666aa57-dcfd-5812-adcc-079cc37bda12",
               "resident_id": "b86d8f61-ef8e-5e97-a301-cd0874866a9a",
               "house_id": "ad399903-1506-43b8-a677-94b1ed377919",
@@ -3120,10 +3632,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "move_in_date": "2022-12-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "DAVID OLEM LUKPATA",
               "resident_code": "984206"
             }
@@ -3148,14 +3663,17 @@
               "id": "2ec3251e-0b4d-55df-a86d-a7c0005f2c8b",
               "resident_id": "dee93d78-dfd9-5339-8a3f-2da2afa8b163",
               "house_id": "7bc145bf-576a-488d-9f00-9edada9e2fcb",
-              "resident_role": "tenant",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
+              "is_live_in": true,
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "BONIFACE OBIJIAKU",
               "resident_code": "780522"
             }
@@ -3184,12 +3702,34 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2020-01-01",
+              "move_in_date": "2020-09-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "LUCY IBIMIE BENSTOWE",
               "resident_code": "424864"
+            },
+            {
+              "id": "1e732598-47f5-47fb-9564-40f42c71d39b",
+              "resident_id": "dee93d78-dfd9-5339-8a3f-2da2afa8b163",
+              "house_id": "d0ba869a-0200-4cbd-b2b2-4bd28522d6a2",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2020-09-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "BONIFACE OBIJIAKU",
+              "resident_code": "780522"
             }
           ],
           "payment_count": 3
@@ -3209,6 +3749,25 @@
           "short_name": "KOA-10F-?",
           "assignments": [
             {
+              "id": "0021a2f2-9a58-45f1-8dc0-273acb451f8a",
+              "resident_id": "dee93d78-dfd9-5339-8a3f-2da2afa8b163",
+              "house_id": "badc5970-0ff6-4737-bb16-7c4ebb50c93b",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2025-06-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "BONIFACE OBIJIAKU",
+              "resident_code": "780522"
+            },
+            {
               "id": "e58d86ad-2c95-56cd-998f-b0f3c1f6d26a",
               "resident_id": "be90cac3-f2f5-5fc2-9a69-285a6a387330",
               "house_id": "badc5970-0ff6-4737-bb16-7c4ebb50c93b",
@@ -3216,10 +3775,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2025-01-01",
+              "move_in_date": "2025-06-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "EMMANUEL PELUMI OLAYINKA",
               "resident_code": "553096"
             }
@@ -3251,9 +3813,31 @@
               "move_in_date": "2020-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "SAMSON IDAKWO UGBEDE",
               "resident_code": "673766"
+            },
+            {
+              "id": "e873e1f5-525e-45d6-82c2-4e74292e339e",
+              "resident_id": "dee93d78-dfd9-5339-8a3f-2da2afa8b163",
+              "house_id": "5be066e7-592d-4d3f-bb6c-31bc36a89b69",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2020-01-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "BONIFACE OBIJIAKU",
+              "resident_code": "780522"
             }
           ],
           "payment_count": 15
@@ -3280,12 +3864,34 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2024-01-01",
+              "move_in_date": "2024-11-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "RABIU OLAMIDE AGBOOLA",
               "resident_code": "986723"
+            },
+            {
+              "id": "68915124-faa7-4346-a7d8-650f19158d8b",
+              "resident_id": "dee93d78-dfd9-5339-8a3f-2da2afa8b163",
+              "house_id": "c3bf8260-5870-4eba-8b40-9bffb18ecae5",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2024-11-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "BONIFACE OBIJIAKU",
+              "resident_code": "780522"
             }
           ],
           "payment_count": 2
@@ -3315,9 +3921,30 @@
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "EMEKA OKAFOR",
               "resident_code": "309331"
+            },
+            {
+              "id": "dc3cbffb-b501-4b88-a890-a08ce53b75f3",
+              "resident_id": "5b04f488-feac-4f66-b146-5d6101bf21e7",
+              "house_id": "2383dec7-2c26-4767-aa47-585c4e384524",
+              "resident_role": "household_member",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": true,
+              "move_in_date": "2015-01-01",
+              "move_out_date": null,
+              "sponsor_resident_id": "6d0f5eb9-8b91-59ba-b3c6-062de314178d",
+              "tags": [
+                "legacy-import",
+                "confirmed-linked-secondary"
+              ],
+              "resident_name": "Anwuli Okafor",
+              "resident_code": "568397"
             }
           ],
           "payment_count": 55
@@ -3347,7 +3974,10 @@
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "Asuquo Edet Edak Inukim",
               "resident_code": "179091"
             }
@@ -3372,14 +4002,17 @@
               "id": "d3fd0446-b5a7-5094-84bb-3049cbdac06e",
               "resident_id": "d996f50a-caf1-5de4-b4da-4db87fbe444f",
               "house_id": "c3024fef-5c77-46aa-a7c6-7670c536b88f",
-              "resident_role": "non_resident_landlord",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
+              "is_live_in": true,
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "Stella Akintunde",
               "resident_code": "497145"
             }
@@ -3408,12 +4041,34 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2024-01-01",
+              "move_in_date": "2024-11-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "MARTINS AWONUSI",
               "resident_code": "323356"
+            },
+            {
+              "id": "da7fe16c-8aca-449d-b350-21670138abff",
+              "resident_id": "d996f50a-caf1-5de4-b4da-4db87fbe444f",
+              "house_id": "6d3070b6-27ff-45a0-ab6e-9ca0591619b8",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2024-11-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "Stella Akintunde",
+              "resident_code": "497145"
             }
           ],
           "payment_count": 1
@@ -3436,14 +4091,17 @@
               "id": "91b5a880-bd9a-577b-a35c-3ca47d73ac07",
               "resident_id": "6f183adf-bc41-5056-8c72-a83fdad4fead",
               "house_id": "2ba44cec-a72f-47bb-9fa3-15d212d8d82a",
-              "resident_role": "non_resident_landlord",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
+              "is_live_in": true,
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "ESTHER DIKE",
               "resident_code": "986257"
             }
@@ -3472,10 +4130,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2019-01-01",
+              "move_in_date": "2020-05-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "OSUNRINADE IBUKUNOLUWA OLADEI",
               "resident_code": "887231"
             }
@@ -3504,10 +4165,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2021-01-01",
+              "move_in_date": "2021-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "NNANI JOHNSON CHUDI",
               "resident_code": "197747"
             }
@@ -3536,10 +4200,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "move_in_date": "2023-12-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "BECKY ELOHO PATRICK",
               "resident_code": "166909"
             }
@@ -3568,10 +4235,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2020-01-01",
+              "move_in_date": "2020-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "CHUKWUDI GODDAY EMMANUEL",
               "resident_code": "546526"
             }
@@ -3600,10 +4270,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2024-01-01",
+              "move_in_date": "2024-04-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "ABODUNDE YEMI",
               "resident_code": "763437"
             }
@@ -3632,10 +4305,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "move_in_date": "2022-03-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "OLADOTUN AYENI",
               "resident_code": "899780"
             }
@@ -3664,10 +4340,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2020-01-01",
+              "move_in_date": "2020-07-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "FEYIJIMI ADEWOLE",
               "resident_code": "654829"
             }
@@ -3696,10 +4375,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2024-01-01",
+              "move_in_date": "2024-11-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "IKECHUKWU NNEKA CHARITY",
               "resident_code": "336080"
             }
@@ -3728,10 +4410,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "move_in_date": "2022-10-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "OPARAH CHRISTIAN ONYEKACHI",
               "resident_code": "189952"
             }
@@ -3760,10 +4445,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "move_in_date": "2022-10-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "IBUKUN GANIYAT ADEFOWOKAN",
               "resident_code": "651150"
             }
@@ -3792,10 +4480,13 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "move_in_date": "2023-05-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "tracker-move-in-confirmed"
+              ],
               "resident_name": "IBRAHIM JUNAID DANJUMA",
               "resident_code": "853621"
             }
@@ -3835,16 +4526,37 @@
               "id": "e70d92ba-53f4-5197-ba87-2e4d4a67daa6",
               "resident_id": "4ade7203-66e5-5eda-8401-bab03a058a06",
               "house_id": "c41ed6a7-1564-4a2e-aa67-4fd49942405b",
-              "resident_role": "household_member",
+              "resident_role": "co_resident",
               "is_primary": false,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2026-08-08",
+              "is_live_in": true,
+              "move_in_date": "2015-01-01",
               "move_out_date": null,
-              "sponsor_resident_id": null,
-              "tags": [],
+              "sponsor_resident_id": "edadb34b-f13d-5f03-a1ec-6d34aa851658",
+              "tags": [
+                "legacy-import",
+                "confirmed-secondary-resident"
+              ],
               "resident_name": "OFURIE PAUL",
               "resident_code": "209687"
+            },
+            {
+              "id": "85932ac7-ec3d-40ba-9026-a6ccf51fcce9",
+              "resident_id": "28bcfe3f-01b2-441d-835a-03f637b8020b",
+              "house_id": "c41ed6a7-1564-4a2e-aa67-4fd49942405b",
+              "resident_role": "co_resident",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": true,
+              "move_in_date": "2015-01-01",
+              "move_out_date": null,
+              "sponsor_resident_id": "edadb34b-f13d-5f03-a1ec-6d34aa851658",
+              "tags": [
+                "legacy-import",
+                "confirmed-secondary-resident"
+              ],
+              "resident_name": "SAMSON ONYEMA OGBU",
+              "resident_code": "481902"
             }
           ],
           "payment_count": 15
@@ -3899,14 +4611,17 @@
               "id": "c5ee0eff-3742-5518-819c-533ae79d77d9",
               "resident_id": "a54dfed0-6760-566f-a1dd-91f66d5eb88a",
               "house_id": "cccb36ee-7821-4d99-b764-585fecde7c8e",
-              "resident_role": "tenant",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
+              "is_live_in": true,
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-resident-landlord"
+              ],
               "resident_name": "FELIX EWANSIHA",
               "resident_code": "257611"
             }
@@ -3934,11 +4649,14 @@
               "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
+              "is_live_in": true,
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-tenant"
+              ],
               "resident_name": "ADEBOWALE OLUSEGUN JOSHUA",
               "resident_code": "831380"
             }
@@ -3966,11 +4684,14 @@
               "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2025-01-01",
+              "is_live_in": true,
+              "move_in_date": "2025-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-tenant"
+              ],
               "resident_name": "NJOKU VICTOR",
               "resident_code": "483598"
             }
@@ -4030,11 +4751,14 @@
               "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "is_live_in": true,
+              "move_in_date": "2022-10-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-tenant"
+              ],
               "resident_name": "ONYELUKACHUKWU IBE",
               "resident_code": "498961"
             }
@@ -4062,11 +4786,14 @@
               "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2020-01-01",
+              "is_live_in": true,
+              "move_in_date": "2020-02-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-tenant"
+              ],
               "resident_name": "DAMADON PROMISE MORGAN",
               "resident_code": "333611"
             }
@@ -4094,11 +4821,14 @@
               "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2021-01-01",
+              "is_live_in": true,
+              "move_in_date": "2021-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-tenant"
+              ],
               "resident_name": "ANATE SAMUEL",
               "resident_code": "272403"
             }
@@ -4126,11 +4856,14 @@
               "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2024-01-01",
+              "is_live_in": true,
+              "move_in_date": "2024-08-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-tenant"
+              ],
               "resident_name": "KAZEEM YUSUF",
               "resident_code": "354212"
             }
@@ -4155,14 +4888,17 @@
               "id": "4825ec25-de91-581b-8716-8a9139f17b5c",
               "resident_id": "7f855b22-a936-5110-882e-24f6f631c663",
               "house_id": "431f4dd8-e293-47be-9181-0ec9e413be21",
-              "resident_role": "non_resident_landlord",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "is_live_in": true,
+              "move_in_date": "2023-09-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-resident-landlord"
+              ],
               "resident_name": "SUSAN ONOME BADIRU",
               "resident_code": "337064"
             }
@@ -4187,14 +4923,17 @@
               "id": "0d5baf75-e3f9-5829-ac0d-ccd10c5cd632",
               "resident_id": "abd9a65f-5cb6-5aa5-8c8c-350148572706",
               "house_id": "e7d9e5d5-b39d-412e-9207-bc09b89e9d48",
-              "resident_role": "non_resident_landlord",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2022-01-01",
+              "is_live_in": true,
+              "move_in_date": "2022-06-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-resident-landlord"
+              ],
               "resident_name": "LEVI BARR LOVE BRAIDE",
               "resident_code": "122972"
             }
@@ -4219,15 +4958,18 @@
               "id": "993ce48a-e2dd-59b7-b55d-e86bc851f901",
               "resident_id": "c8beb9c5-f620-52fc-8efd-37fca4811658",
               "house_id": "54c95863-b6ba-4f64-b108-5c9a7a46289f",
-              "resident_role": "tenant",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "is_live_in": true,
+              "move_in_date": "2023-05-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
-              "resident_name": "BENSON ODUM TONDEA",
+              "tags": [
+                "legacy-import",
+                "confirmed-resident-landlord"
+              ],
+              "resident_name": "BENSON ODUN TONDEA",
               "resident_code": "657247"
             }
           ],
@@ -4251,14 +4993,17 @@
               "id": "47ae4123-d182-5aaf-a802-69137c8983f5",
               "resident_id": "e21e95c5-dba1-5e1b-b8b4-60fc9cad4f06",
               "house_id": "8449cac0-c34b-4b92-8a6d-e81906b7c41c",
-              "resident_role": "non_resident_landlord",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2023-01-01",
+              "is_live_in": true,
+              "move_in_date": "2025-03-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-resident-landlord"
+              ],
               "resident_name": "OLOSUNDE JAMES OLUWOLE",
               "resident_code": "626765"
             }
@@ -4287,12 +5032,31 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2024-01-01",
+              "move_in_date": "2024-04-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
               "tags": [],
               "resident_name": "SAMUEL OLUWASEUN AJALA",
               "resident_code": "817931"
+            },
+            {
+              "id": "13026769-2b6c-4f97-afb0-ead53f8e213e",
+              "resident_id": "cd1d9c13-63e4-5355-b8b1-6c5333dbfc94",
+              "house_id": "49ada798-a01c-4128-9a36-83021df95abc",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2024-04-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "TIM AKENROYE LANDLORD",
+              "resident_code": "919154"
             }
           ],
           "payment_count": 1
@@ -4319,12 +5083,31 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2025-01-01",
+              "move_in_date": "2025-03-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
               "tags": [],
               "resident_name": "ELELOYE OPEYEMI MOSES",
               "resident_code": "610719"
+            },
+            {
+              "id": "0e9164d5-148b-4fd0-8100-8a5e5ab42a7e",
+              "resident_id": "cd1d9c13-63e4-5355-b8b1-6c5333dbfc94",
+              "house_id": "8f29089c-eaff-42f8-aa19-0b1561a1013d",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2025-03-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "TIM AKENROYE LANDLORD",
+              "resident_code": "919154"
             }
           ],
           "payment_count": 1
@@ -4357,6 +5140,25 @@
               "tags": [],
               "resident_name": "GODSON UZOCHUKWU UKACHI",
               "resident_code": "108629"
+            },
+            {
+              "id": "a792e20d-415c-491c-9ff7-8408eb254745",
+              "resident_id": "cd1d9c13-63e4-5355-b8b1-6c5333dbfc94",
+              "house_id": "0d612c4d-20ad-4dea-900f-3245d54ec95f",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2025-01-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "TIM AKENROYE LANDLORD",
+              "resident_code": "919154"
             }
           ],
           "payment_count": 1
@@ -4383,12 +5185,31 @@
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
-              "move_in_date": "2018-01-01",
+              "move_in_date": "2018-10-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
               "tags": [],
               "resident_name": "OYELEYE OYINDAMOLA",
               "resident_code": "336039"
+            },
+            {
+              "id": "86135095-853f-41b3-bf17-99d37443ea0c",
+              "resident_id": "cd1d9c13-63e4-5355-b8b1-6c5333dbfc94",
+              "house_id": "48fca6cb-082a-47b3-a07a-c6113b93b0c7",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2018-10-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "confirmed-landlord",
+                "ownership-start-unverified"
+              ],
+              "resident_name": "TIM AKENROYE LANDLORD",
+              "resident_code": "919154"
             }
           ],
           "payment_count": 18
@@ -4411,16 +5232,37 @@
               "id": "9c85916e-8194-55c4-a962-16a099f56cb9",
               "resident_id": "5293a1fb-f299-5c7a-b966-9e563d2e974c",
               "house_id": "b4c52eb1-e6fb-4939-b990-16fb47d1e00d",
-              "resident_role": "non_resident_landlord",
+              "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
               "move_in_date": "2015-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "corporate-current-resident"
+              ],
               "resident_name": "HOUSE OF MERCY CHURCH",
               "resident_code": "337483"
+            },
+            {
+              "id": "87ddd699-7291-4cbb-95e0-120b4c9b4c67",
+              "resident_id": "8bfcd65d-9637-5d5b-a4d2-1c8d1080e085",
+              "house_id": "b4c52eb1-e6fb-4939-b990-16fb47d1e00d",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2015-01-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "corporate-landlord"
+              ],
+              "resident_name": "CHRISTIAN PHILIPS",
+              "resident_code": "218475"
             }
           ],
           "payment_count": 39
@@ -4443,16 +5285,37 @@
               "id": "86de519b-13b9-50d6-aee8-3797d2f9248c",
               "resident_id": "639b9d17-4d16-5caa-ac14-4a258db0b579",
               "house_id": "1b835237-6dc1-476d-ae45-eaea85169eda",
-              "resident_role": "non_resident_landlord",
+              "resident_role": "tenant",
               "is_primary": true,
               "is_active": true,
               "is_live_in": false,
               "move_in_date": "2025-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "corporate-current-resident"
+              ],
               "resident_name": "SHUSHAN PHARMACY",
               "resident_code": "832186"
+            },
+            {
+              "id": "d9da6778-62ca-42e4-a7b7-6a1f5e7bd368",
+              "resident_id": "8bfcd65d-9637-5d5b-a4d2-1c8d1080e085",
+              "house_id": "1b835237-6dc1-476d-ae45-eaea85169eda",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2025-01-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [
+                "legacy-import",
+                "corporate-landlord"
+              ],
+              "resident_name": "CHRISTIAN PHILIPS",
+              "resident_code": "218475"
             }
           ],
           "payment_count": 2
@@ -4571,14 +5434,17 @@
               "id": "7f8a7516-ce08-582b-9af2-e52088f80b73",
               "resident_id": "6f7cb9eb-e1c8-563f-8b11-b555e62d533b",
               "house_id": "df5378b1-0678-40e4-8c08-47ae9556b551",
-              "resident_role": "tenant",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
+              "is_live_in": true,
               "move_in_date": "2024-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-resident-landlord"
+              ],
               "resident_name": "TAOFIK OLADELE ABASS",
               "resident_code": "613838"
             }
@@ -4615,6 +5481,21 @@
               "resident_code": "593128"
             },
             {
+              "id": "b89b1f92-2632-4d13-922f-c47ccdc9e5b2",
+              "resident_id": "f0770fb7-740b-402a-ab2e-a0a027aab731",
+              "house_id": "421d2edd-8175-43ac-a5ea-bb8e0841cf23",
+              "resident_role": "non_resident_landlord",
+              "is_primary": false,
+              "is_active": true,
+              "is_live_in": false,
+              "move_in_date": "2018-12-01",
+              "move_out_date": null,
+              "sponsor_resident_id": null,
+              "tags": [],
+              "resident_name": "Olumide Olawole Agu",
+              "resident_code": "414219"
+            },
+            {
               "id": "f7cc88dd-3ba0-475c-a6f0-1c72a978a330",
               "resident_id": "c68d344f-3be8-43e3-9a38-fcdbb4398b58",
               "house_id": "421d2edd-8175-43ac-a5ea-bb8e0841cf23",
@@ -4628,21 +5509,6 @@
               "tags": [],
               "resident_name": "Daisy Obaseki",
               "resident_code": "991884"
-            },
-            {
-              "id": "b89b1f92-2632-4d13-922f-c47ccdc9e5b2",
-              "resident_id": "f0770fb7-740b-402a-ab2e-a0a027aab731",
-              "house_id": "421d2edd-8175-43ac-a5ea-bb8e0841cf23",
-              "resident_role": "non_resident_landlord",
-              "is_primary": true,
-              "is_active": true,
-              "is_live_in": false,
-              "move_in_date": "2018-12-01",
-              "move_out_date": null,
-              "sponsor_resident_id": null,
-              "tags": [],
-              "resident_name": "Olumide Olawole Agu",
-              "resident_code": "414219"
             }
           ],
           "payment_count": 7
@@ -4672,7 +5538,11 @@
               "move_in_date": "2021-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "corporate-current-resident",
+                "landlord-unassigned"
+              ],
               "resident_name": "PRAISE HOUSE",
               "resident_code": "339106"
             }
@@ -4697,14 +5567,17 @@
               "id": "6558d44e-20b4-5272-aca3-ecffa012bf84",
               "resident_id": "c7dabebd-3b77-5730-bb8e-e6a225cc3593",
               "house_id": "376dcc08-1af1-42ce-b2eb-751c15be3d6e",
-              "resident_role": "tenant",
+              "resident_role": "resident_landlord",
               "is_primary": true,
               "is_active": true,
-              "is_live_in": false,
+              "is_live_in": true,
               "move_in_date": "2019-01-01",
               "move_out_date": null,
               "sponsor_resident_id": null,
-              "tags": [],
+              "tags": [
+                "legacy-import",
+                "confirmed-resident-landlord"
+              ],
               "resident_name": "SAMAILA ALEYIDEINO",
               "resident_code": "793622"
             }

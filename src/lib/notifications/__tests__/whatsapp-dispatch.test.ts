@@ -23,9 +23,10 @@ describe('WhatsApp notification dispatch', () => {
     vi.mocked(getSettingValue).mockResolvedValue(true);
     vi.mocked(createAdminClient).mockReturnValue({
       from: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
+         select: vi.fn().mockReturnThis(),
+         eq: vi.fn().mockReturnThis(),
+         gte: vi.fn().mockReturnThis(),
+         maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
       }),
     } as unknown as ReturnType<typeof createAdminClient>);
   });
@@ -72,5 +73,55 @@ describe('WhatsApp notification dispatch', () => {
       to: '+2348000000000',
       body: 'Reminder',
     });
+  });
+
+  it('rejects WhatsApp sends when the configured daily cap is reached', async () => {
+    vi.mocked(getSettingValue).mockImplementation(async (key) => {
+      if (key === 'whatsapp_outbound_daily_cap') return 1;
+      return true;
+    });
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'notification_history') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            gte: vi.fn().mockResolvedValue({ count: 1, error: null }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
+        };
+      }),
+    } as unknown as ReturnType<typeof createAdminClient>);
+
+    await expect(sendNotification({
+      id: 'queue-cap',
+      template_id: null,
+      schedule_id: null,
+      recipient_id: 'resident-1',
+      recipient_email: null,
+      recipient_phone: '2348000000000',
+      channel: 'whatsapp',
+      subject: null,
+      body: 'Reminder',
+      html_body: null,
+      variables: null,
+      priority: 5,
+      status: 'pending',
+      deduplication_key: null,
+      dedup_window_minutes: null,
+      scheduled_for: new Date().toISOString(),
+      attempts: 0,
+      max_attempts: 3,
+      last_attempt_at: null,
+      sent_at: null,
+      error_message: null,
+      metadata: null,
+      created_at: new Date().toISOString(),
+      created_by: null,
+    })).resolves.toEqual({ success: false, error: 'WhatsApp daily outbound limit reached' });
   });
 });

@@ -25,12 +25,17 @@ import { Label } from '@/components/ui/label';
 import { useAssignHouse, useUnassignHouse, useResidents } from '@/hooks/use-residents';
 import { useHousesWithRoles } from '@/hooks/use-houses';
 import { toast } from 'sonner';
-import { Home, Plus, Trash2, Loader2 } from 'lucide-react';
+import { Home, Plus, Trash2, Loader2, ChevronDown, ArrowLeftRight, LogOut } from 'lucide-react';
 import type { ResidentWithHouses, ResidentRole } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, CORPORATE_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } from '@/types/database';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { requiresSponsor } from '@/lib/validators/resident';
 import { ResidentRoleBadge } from './status-badge';
-import { formatPropertyDisplay, getPropertyShortname } from '@/lib/utils';
+import { formatPropertyDisplay, getPropertyShortname, cn } from '@/lib/utils';
 
 interface LinkedHousesProps {
     resident: ResidentWithHouses;
@@ -65,7 +70,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
         }
         // Primary residents
         if (isCorporate) {
-            // Corporate can only be Non-Resident Landlord or Developer
+            // Corporate entities may own, develop, or occupy a property as tenant.
             return CORPORATE_ROLE_OPTIONS;
         }
         return PRIMARY_ROLE_OPTIONS;
@@ -131,6 +136,8 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
         return hasOccupyingRole || selectedHouse.is_occupied;
     }, [selectedHouseId, housesData?.data]);
 
+    const [isListOpen, setIsListOpen] = useState(true);
+
     // Reset form when dialog opens
     const handleDialogOpen = (open: boolean) => {
         setIsDialogOpen(open);
@@ -185,31 +192,45 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
         }
     };
 
-    const handleUnassign = async (houseId: string) => {
-        if (!confirm('Are you sure you want to unlink this house?')) return;
+    const handleUnassign = async (houseId: string, role: ResidentRole, action: 'move-out' | 'transfer' | 'remove') => {
+        const actionCopy: Record<typeof action, string> = {
+            'move-out': role === 'resident_landlord'
+                ? 'mark this owner-occupier as moved out (they will become a non-resident landlord)'
+                : 'process this move-out',
+            'transfer': 'transfer this property (give up ownership)',
+            'remove': 'remove this house assignment',
+        };
+        if (!confirm(`Are you sure you want to ${actionCopy[action]}?`)) return;
 
         try {
             await unassignMutation.mutateAsync({
                 residentId: resident.id,
                 houseId,
             });
-            toast.success('House unlinked successfully');
+            toast.success('House updated successfully');
         } catch (error) {
-            toast.error('Failed to unlink house');
+            toast.error('Failed to update house assignment');
         }
     };
 
     return (
         <Card>
-            <CardHeader>
+            <Collapsible open={isListOpen} onOpenChange={setIsListOpen}>
+            <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                    <div>
-                        <CardTitle className="flex items-center gap-2">
-                            <Home className="h-5 w-5" />
-                            House Assignments ({activeHouses.length})
-                        </CardTitle>
-                        <CardDescription>Properties linked to this resident</CardDescription>
-                    </div>
+                    <CollapsibleTrigger asChild>
+                        <button className="flex flex-col items-start text-left cursor-pointer hover:opacity-80 transition-opacity">
+                            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                                <Home className="h-4 w-4" />
+                                House Assignments ({activeHouses.length})
+                                <ChevronDown className={cn(
+                                    'h-4 w-4 transition-transform duration-200',
+                                    isListOpen && 'rotate-180'
+                                )} />
+                            </CardTitle>
+                            <CardDescription className="text-xs">Properties linked to this resident</CardDescription>
+                        </button>
+                    </CollapsibleTrigger>
                     <Dialog open={isDialogOpen} onOpenChange={handleDialogOpen}>
                         <DialogTrigger asChild>
                             <Button size="sm" variant="outline">
@@ -323,11 +344,12 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                     </Dialog>
                 </div>
             </CardHeader>
+            <CollapsibleContent>
             <CardContent>
                 {activeHouses.length === 0 ? (
                     <p className="text-muted-foreground text-sm">No house assignments</p>
                 ) : (
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {activeHouses.map((rh) => (
                             <div key={rh.id} className="flex items-center justify-between p-3 border rounded-lg">
                                 <div>
@@ -353,20 +375,74 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                         </span>
                                     </div>
                                 </div>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleUnassign(rh.house.id)}
-                                    className="text-muted-foreground hover:text-destructive"
-                                    disabled={unassignMutation.isPending}
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                                {rh.resident_role === 'resident_landlord' ? (
+                                    <div className="flex items-center gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleUnassign(rh.house.id, rh.resident_role, 'move-out')}
+                                            className="text-muted-foreground hover:text-orange-600 h-7 text-xs"
+                                            disabled={unassignMutation.isPending}
+                                            aria-label="Move out (become non-resident landlord)"
+                                        >
+                                            <LogOut className="h-3.5 w-3.5 mr-1" />
+                                            Move Out
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleUnassign(rh.house.id, rh.resident_role, 'transfer')}
+                                            className="text-muted-foreground hover:text-amber-600 h-7 text-xs"
+                                            disabled={unassignMutation.isPending}
+                                            aria-label="Transfer property"
+                                        >
+                                            <ArrowLeftRight className="h-3.5 w-3.5 mr-1" />
+                                            Transfer
+                                        </Button>
+                                    </div>
+                                ) : rh.resident_role === 'non_resident_landlord' ? (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleUnassign(rh.house.id, rh.resident_role, 'transfer')}
+                                        className="text-muted-foreground hover:text-amber-600 h-7 text-xs"
+                                        disabled={unassignMutation.isPending}
+                                        aria-label="Transfer property"
+                                    >
+                                        <ArrowLeftRight className="h-3.5 w-3.5 mr-1" />
+                                        Transfer
+                                    </Button>
+                                ) : rh.resident_role === 'tenant' ? (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleUnassign(rh.house.id, rh.resident_role, 'move-out')}
+                                        className="text-muted-foreground hover:text-orange-600 h-7 text-xs"
+                                        disabled={unassignMutation.isPending}
+                                        aria-label="Move out"
+                                    >
+                                        <LogOut className="h-3.5 w-3.5 mr-1" />
+                                        Move Out
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleUnassign(rh.house.id, rh.resident_role, 'remove')}
+                                        className="text-muted-foreground hover:text-destructive"
+                                        disabled={unassignMutation.isPending}
+                                        aria-label="Remove assignment"
+                                    >
+                                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                    </Button>
+                                )}
                             </div>
                         ))}
                     </div>
                 )}
             </CardContent>
+            </CollapsibleContent>
+            </Collapsible>
         </Card>
     );
 }

@@ -179,11 +179,11 @@ export function WalletTransactions({ residentId }: WalletTransactionsProps) {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Transaction History</CardTitle>
-            <CardDescription>Wallet credits and debits</CardDescription>
+            <CardTitle className="text-sm font-semibold">Transaction History</CardTitle>
+            <CardDescription className="text-xs">Wallet credits and debits</CardDescription>
           </div>
           <Select value={filter} onValueChange={(v) => setFilter(v as 'all' | 'credit' | 'debit')}>
             <SelectTrigger className="w-[150px]">

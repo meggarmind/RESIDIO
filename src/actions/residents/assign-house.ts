@@ -81,7 +81,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
   if (entityType === 'corporate' && !isValidCorporateRole(role)) {
     return {
       data: null,
-      error: 'Corporate entities can only be Property Owner or Developer',
+      error: 'Corporate entities can only be Property Owner, Corporate Tenant, or Developer',
     };
   }
 

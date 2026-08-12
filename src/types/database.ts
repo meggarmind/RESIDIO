@@ -94,8 +94,8 @@ export type PrimaryResidentRole = 'resident_landlord' | 'non_resident_landlord' 
 // Secondary roles (must be attached to a primary resident, individuals only)
 export type SecondaryResidentRole = 'co_resident' | 'household_member' | 'domestic_staff' | 'caretaker' | 'contractor';
 
-// Corporate-allowed roles (companies can only have these roles)
-export type CorporateRole = 'non_resident_landlord' | 'developer';
+// Corporate-allowed roles (companies can own, develop, or occupy a property).
+export type CorporateRole = 'non_resident_landlord' | 'tenant' | 'developer';
 
 // Roles that indicate physical residency (for "One Home" policy)
 export type ResidencyRole = 'resident_landlord' | 'tenant' | 'co_resident';
@@ -539,9 +539,10 @@ export const PRIMARY_ROLE_OPTIONS = [
   { value: 'developer' as const, label: 'Developer' },
 ];
 
-// Corporate-only role options (corporate entities can only have these roles)
+// Corporate entities may own, develop, or occupy a property as the billable tenant.
 export const CORPORATE_ROLE_OPTIONS = [
   { value: 'non_resident_landlord' as const, label: 'Property Owner' },
+  { value: 'tenant' as const, label: 'Corporate Tenant' },
   { value: 'developer' as const, label: 'Developer' },
 ];
 

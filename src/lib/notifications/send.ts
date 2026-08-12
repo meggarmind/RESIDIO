@@ -19,7 +19,11 @@ import type {
 } from './types';
 import { isChannelImplemented } from './types';
 import { truncateForPreview } from './templates';
-import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import {
+  isApprovedWhatsAppTemplateName,
+  sendWhatsAppMessage,
+  sendWhatsAppTemplate,
+} from '@/lib/whatsapp';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 
 /**
@@ -167,6 +171,30 @@ async function sendViaWhatsApp(
     return { success: false, error: 'No recipient phone number provided' };
   }
 
+  const configuredDailyCap = await getSettingValue('whatsapp_outbound_daily_cap');
+  const dailyCap = typeof configuredDailyCap === 'number' && Number.isInteger(configuredDailyCap)
+    ? configuredDailyCap
+    : 100;
+  if (dailyCap <= 0) {
+    return { success: false, error: 'WhatsApp outbound notifications are capped at zero' };
+  }
+
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const { count: sentToday, error: capError } = await createAdminClient()
+    .from('notification_history')
+    .select('id', { count: 'exact', head: true })
+    .eq('channel', 'whatsapp')
+    .eq('status', 'sent')
+    .gte('sent_at', startOfDay.toISOString());
+
+  if (capError) {
+    return { success: false, error: 'Unable to verify WhatsApp outbound limit' };
+  }
+  if ((sentToday || 0) >= dailyCap) {
+    return { success: false, error: 'WhatsApp daily outbound limit reached' };
+  }
+
   const normalizedRecipientPhone = normalizePhoneNumber(item.recipient_phone);
 
   const { data: optIn, error: optInError } = await createAdminClient()
@@ -185,10 +213,23 @@ async function sendViaWhatsApp(
     return { success: false, error: 'WhatsApp recipient has not opted in' };
   }
 
-  const result = await sendWhatsAppMessage({
-    to: normalizedRecipientPhone,
-    body: item.body,
-  });
+  const whatsappTemplate = item.metadata?.whatsapp_template;
+  if (typeof whatsappTemplate === 'object' && whatsappTemplate !== null) {
+    const templateName = (whatsappTemplate as Record<string, unknown>).name;
+    if (!isApprovedWhatsAppTemplateName(templateName)) {
+      return { success: false, error: 'WhatsApp template is not approved for proactive delivery' };
+    }
+  }
+  const result = typeof whatsappTemplate === 'object' && whatsappTemplate !== null
+    ? await sendWhatsAppTemplate({
+        to: normalizedRecipientPhone,
+        templateName: String((whatsappTemplate as Record<string, unknown>).name),
+        languageCode: String((whatsappTemplate as Record<string, unknown>).languageCode || 'en_US'),
+        parameters: Array.isArray((whatsappTemplate as Record<string, unknown>).parameters)
+          ? ((whatsappTemplate as Record<string, unknown>).parameters as unknown[]).map(String)
+          : [],
+      })
+    : await sendWhatsAppMessage({ to: normalizedRecipientPhone, body: item.body });
 
   return {
     success: result.success,

@@ -4,6 +4,13 @@ export interface WhatsAppTextMessage {
   previewUrl?: boolean;
 }
 
+export interface WhatsAppTemplateMessage {
+  to: string;
+  templateName: string;
+  languageCode: string;
+  parameters: string[];
+}
+
 export interface WhatsAppSendResult {
   success: boolean;
   messageId?: string;

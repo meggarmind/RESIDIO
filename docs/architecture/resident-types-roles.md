@@ -1,6 +1,6 @@
 # Resident Types, Roles & Business Logic
 
-**Last Updated**: 2025-12-31
+**Last Updated**: 2026-08-11
 **Status**: Active
 **Related**: [Database Schema](database-schema.md) | [RBAC Permissions](../security/rbac-permissions-audit.md) | [Access Control](../security/access-control.md)
 
@@ -39,6 +39,7 @@ export type EntityType = 'individual' | 'corporate';
 | Secondary residents must be individuals | Validation in `resident.ts` |
 | Secondary residents require a primary sponsor (for some roles) | `sponsor_resident_id` field |
 | Corporate entities can only be primary | Zod schema validation |
+| Corporate entities may be tenants | They are active billable occupants but remain `is_live_in = false` |
 
 ---
 
@@ -52,7 +53,7 @@ Relationship holders who can exist independently.
 |------|--------------|------|-------------|--------------|----------|-----------|-------------|
 | **Owner-Occupier** | Resident Landlord | `resident_landlord` | Owner who lives in the unit | Individual | Yes | Yes | No |
 | **Property Owner** | Non-Resident Landlord | `non_resident_landlord` | Owner who doesn't reside there | Individual, Corporate | Yes | No | Yes |
-| **Renter** | Tenant | `tenant` | Leaseholder living in unit | Individual | Yes | Yes | No |
+| **Renter** | Tenant | `tenant` | Leaseholder or active billable occupant; an organisation is a corporate tenant and is not physically live-in | Individual, Corporate | Yes | Yes for individuals; no for corporate entities | No |
 | **Developer** | Developer | `developer` | Holds unsold inventory | Individual, Corporate | Yes | No | Yes |
 
 ### 2.2 Secondary Roles (5 roles)
@@ -84,7 +85,7 @@ export type ResidentRole =
 
 export type PrimaryResidentRole = 'resident_landlord' | 'non_resident_landlord' | 'tenant' | 'developer';
 export type SecondaryResidentRole = 'co_resident' | 'household_member' | 'domestic_staff' | 'caretaker' | 'contractor';
-export type CorporateRole = 'non_resident_landlord' | 'developer';
+export type CorporateRole = 'non_resident_landlord' | 'tenant' | 'developer';
 export type ResidencyRole = 'resident_landlord' | 'tenant' | 'co_resident';
 ```
 
@@ -484,10 +485,11 @@ Users can be classified into three types based on their profile fields:
 
 ```
 Corporate entities:
-  - CAN ONLY have roles: non_resident_landlord, developer
+  - CAN ONLY have roles: non_resident_landlord, tenant, developer
   - MUST be type: primary
   - MUST provide: company_name, RC number, liaison contact
   - CANNOT be secondary residents
+  - When assigned as `tenant`, remain `is_live_in = false`: they are a billable/contractual occupant, not a physical resident.
 ```
 
 **Implementation**: `src/lib/validators/resident.ts`
@@ -651,7 +653,7 @@ export function isResidencyRole(role: ResidentRole): boolean {
 }
 
 export function isCorporateAllowedRole(role: ResidentRole): boolean {
-  return ['non_resident_landlord', 'developer'].includes(role);
+  return ['non_resident_landlord', 'tenant', 'developer'].includes(role);
 }
 ```
 

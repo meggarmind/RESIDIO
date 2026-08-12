@@ -230,7 +230,7 @@ The junction table manages many-to-many relationships between residents and hous
 | `move_out_date` | date | Date moved out (null if active) |
 | `is_active` | boolean | Current active assignment |
 | `sponsor_resident_id` | UUID | Sponsor for secondary roles |
-| `is_live_in` | boolean | For domestic_staff: live-in vs. visiting |
+| `is_live_in` | boolean | Physical occupancy flag; corporate tenants and non-resident landlords remain `false` |
 | `tags` | text[] | Flexible attributes array |
 
 ### Contact Verification
@@ -314,7 +314,7 @@ Defines the relationship a resident has to a property. Updated in Phase 15 to in
 ### `entity_type`
 ```sql
 'individual' -- Person
-'corporate'  -- Company (can only be non_resident_landlord or developer)
+'corporate'  -- Company/organisation (can be non_resident_landlord, tenant, or developer; corporate tenants are not physically live-in)
 ```
 
 ### `account_status`

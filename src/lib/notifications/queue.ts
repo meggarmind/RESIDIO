@@ -73,6 +73,8 @@ export async function addToQueue(
       template_id: input.template_id,
       schedule_id: input.schedule_id,
       recipient_id: input.recipient_id,
+      recipient_email: input.recipient_email,
+      recipient_phone: input.recipient_phone,
       channel: input.channel,
       subject: input.subject,
       body: input.body,
@@ -126,6 +128,8 @@ export async function addBatchToQueue(
     template_id: string | undefined;
     schedule_id: string | undefined;
     recipient_id: string;
+    recipient_email: string | undefined;
+    recipient_phone: string | undefined;
     channel: NotificationChannel;
     subject: string | undefined;
     body: string;
@@ -167,6 +171,8 @@ export async function addBatchToQueue(
       template_id: item.template_id,
       schedule_id: item.schedule_id,
       recipient_id: item.recipient_id,
+      recipient_email: item.recipient_email,
+      recipient_phone: item.recipient_phone,
       channel: item.channel,
       subject: item.subject,
       body: item.body,

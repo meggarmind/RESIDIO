@@ -1,22 +1,28 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export function usePersistedState<T>(
   key: string,
   defaultValue: T
 ): [T, (value: T | ((prev: T) => T)) => void] {
-  const [state, setState] = useState<T>(() => {
-    if (typeof window === 'undefined') return defaultValue;
-    try {
-      const stored = window.sessionStorage.getItem(key);
-      return stored !== null ? (JSON.parse(stored) as T) : defaultValue;
-    } catch {
-      return defaultValue;
-    }
-  });
+  const [state, setState] = useState<T>(defaultValue);
+  const hydrated = useRef(false);
 
   useEffect(() => {
+    try {
+      const stored = window.sessionStorage.getItem(key);
+      if (stored !== null) {
+        setState(JSON.parse(stored) as T);
+      }
+    } catch {
+      // ignore
+    }
+    hydrated.current = true;
+  }, [key]);
+
+  useEffect(() => {
+    if (!hydrated.current) return;
     try {
       window.sessionStorage.setItem(key, JSON.stringify(state));
     } catch {

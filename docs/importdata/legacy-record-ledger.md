@@ -2,7 +2,7 @@
 
 This is a review ledger only. It records a faithful translation of the legacy tracker and the proposed database operations; it is **not** an import script and must not be used to write to Supabase until the legacy-review pass is complete.
 
-**Review-pass status (2026-08-11):** The supplied legacy-tracker screenshots are fully reviewed through L-0136. Additional houses will be added later or entered manually. The user authorized the consolidated reconciliation/import phase on 2026-08-11. Read-only database reconciliation is in progress; no database writes have been made in this phase yet.
+**Review-pass status (2026-08-11):** The supplied legacy-tracker screenshots are fully reviewed through L-0136. Additional houses will be added later or entered manually. The user authorized the consolidated reconciliation/import phase on 2026-08-11. Reconciliation is in progress: only user-confirmed resident/alias/history corrections have been written; payment records remain subject to the separate reconciliation manifest before import.
 
 ## Conventions
 
@@ -424,7 +424,7 @@ Per the prior instruction, all IBB source landlord/self-occupied labels are igno
 - Payments: 2023 Mar NGN1,000 + Apr NGN10,000 = NGN11,000; 2021–2022 and 2024–2025 no payments. Sheet paid NGN11,000; due NGN172,000.
 
 ## L-0048 — IBB / House 18F-3
-- **Lana Anih**; alias **Prince Vovo Yvest**; role unassigned. No blue cell; earliest paid Jan 2015 gives move-in/first billing `2015-01-01`.
+- **Lana Anih**; alias **Prince Wowo West** (user-corrected from the initial screenshot transcription); role unassigned. No blue cell; earliest paid Jan 2015 gives move-in/first billing `2015-01-01`.
 - Payments: 2025 Apr NGN10,000 + Jun NGN20,000 = NGN30,000; 2024 Feb 50,000 + Apr 35,000 + Jul 21,000 + Aug 15,000 + Dec 15,000 = NGN136,000; 2023 Feb 20,000 + Oct 12,000 + Dec 12,000 = NGN44,000; 2022 Feb 20,000 + Jul 20,000 = NGN40,000; 2021 none; 2020 Jan 12,000 + Jun 9,000 = NGN21,000; 2019 Oct NGN20,000; 2018 and 2017 NGN36,000 each; 2016 NGN33,000; 2015 Jan–Mar NGN9,000. Sheet paid NGN405,000; due NGN15,000.
 
 ## L-0049 — IBB / House 18F-4
