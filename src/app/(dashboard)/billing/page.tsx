@@ -26,6 +26,7 @@ import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertC
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { GenerateInvoicesDialog } from '@/components/billing/generate-invoices-dialog';
+import { GenerationHistoryPanel } from '@/components/billing/generation-history-panel';
 import { getResidents } from '@/actions/residents/get-residents';
 import { INVOICE_TYPE_LABELS, type InvoiceType, type InvoiceStatus } from '@/types/database';
 import {
@@ -235,7 +236,8 @@ export default function BillingPage() {
                 />
             )}
 
-
+            {/* Generation History */}
+            <GenerationHistoryPanel onRetry={() => setShowGenerateDialog(true)} />
 
             {/* Invoices Table */}
             <EnhancedTableCard

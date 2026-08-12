@@ -240,6 +240,16 @@ export async function generateMonthlyInvoices(
 
     log.info(`Generating invoices up to: ${targetYear}-${String(targetMonth + 1).padStart(2, '0')} (trigger: ${triggerType})`);
 
+    // Acquire run lock to prevent overlapping generation for the same period
+    const periodKey = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
+    const { error: lockError } = await supabase
+        .from('invoice_generation_locks')
+        .insert({ period: `${periodKey}-01`, started_by: user?.id || null });
+
+    if (lockError) {
+        return { success: false, generated: 0, skipped: 0, skipReasons: [], errors: [`Another generation run is already in progress for ${periodKey}`] };
+    }
+
     try {
         // Get system settings
         const billVacantHouses = await getSystemSetting(supabase, 'bill_vacant_houses') === true;
@@ -269,6 +279,7 @@ export async function generateMonthlyInvoices(
         if (housesError) {
             result.errors.push(`Failed to fetch houses: ${housesError.message}`);
             result.success = false;
+            await supabase.from('invoice_generation_locks').delete().eq('period', `${periodKey}-01`).catch(() => {});
             return result;
         }
 
@@ -468,6 +479,13 @@ export async function generateMonthlyInvoices(
                         .single();
 
                     if (invoiceError) {
+                        // Unique constraint violation means a concurrent run already created this invoice
+                        if (invoiceError.code === '23505') {
+                            result.skipped++;
+                            currentMonth++;
+                            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+                            continue;
+                        }
                         result.errors.push(`Invoice for ${houseLabel} (${periodStartStr}): ${invoiceError.message}`);
                         currentMonth++;
                         if (currentMonth > 11) {
@@ -596,6 +614,9 @@ export async function generateMonthlyInvoices(
             triggerType
         ).catch(err => log.error('Failed to send admin alert:', err));
     }
+
+    // Release run lock
+    await supabase.from('invoice_generation_locks').delete().eq('period', `${periodKey}-01`).catch(() => {});
 
     revalidatePath('/billing');
     return result;
