@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Add Issue to Project
-        uses: actions/add-to-project@@latest  # or latest stable version
+        uses: actions/add-to-project@latest  # or latest stable version
         with:
           project-url: https://github.com/orgs/Meggarminds/projects/3
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
