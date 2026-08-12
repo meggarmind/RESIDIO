@@ -12,7 +12,7 @@ jobs:
         uses: actions/add-to-project@v1.0.2
         with:
           # The full URL of your GitHub Project (Projects v2)
-          project-url: https://github.com/users/meggarmind/projects/1
+          project-url: https://github.com/orgs/Meggarminds/projects/3/views/1
           
           # A Personal Access Token (PAT) or GitHub App Token with project write permissions
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
