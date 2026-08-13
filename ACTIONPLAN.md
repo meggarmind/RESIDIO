@@ -11,7 +11,7 @@ Status: IN PROGRESS
 - [x] Publish approved vertical-slice issues #64 → #65 → #66 with dependency metadata.
 - [x] Add the configured issue workflow helper, worktree naming contract, status lifecycle, and repository guidance.
 - [x] Add focused helper tests and run the full Vitest suite.
-- [ ] Grant `project` scope to the GitHub CLI, ensure Project 1 has `Todo`, `In progress`, `In review`, and `Done`, then run `npm run issue:doctor`.
+- [x] Grant `project` scope to the GitHub CLI, verify Project 1's live `Backlog`, `In progress`, `In review`, and `Done` options, and run `npm run issue:doctor`.
 
 ## Fast-Track Priorities
 

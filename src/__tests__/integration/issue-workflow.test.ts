@@ -25,7 +25,7 @@ describe('issue workflow helpers', () => {
   });
 
   it('resolves status options by exact name', () => {
-    const field = { options: [{ id: '1', name: 'Todo' }, { id: '2', name: 'In review' }] };
+    const field = { options: [{ id: '1', name: 'Backlog' }, { id: '2', name: 'In review' }] };
     expect(findStatusOption(field, 'In review')).toEqual({ id: '2', name: 'In review' });
     expect(() => findStatusOption(field, 'Done')).toThrow('missing "Done"');
   });
@@ -33,7 +33,7 @@ describe('issue workflow helpers', () => {
   it('reads status values from the GitHub CLI item shapes', () => {
     expect(statusName({ status: 'In review' })).toBe('In review');
     expect(statusName({ status: { name: 'Done' } })).toBe('Done');
-    expect(statusName({ fields: [{ name: 'Status', value: 'Todo' }] })).toBe('Todo');
+    expect(statusName({ fields: [{ name: 'Status', value: 'Backlog' }] })).toBe('Backlog');
   });
 
   it('parses repeatable issue-specific checks', () => {

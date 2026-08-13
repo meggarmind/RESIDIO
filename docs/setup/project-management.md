@@ -60,7 +60,7 @@ All initiatives use Matt Pocock's `to-issues` process before implementation:
 3. Publish the approved issues in dependency order with the `to-issues` body template and `ready-for-agent` label. Reference real issue numbers in each `Blocked by` section; do not close or modify a parent initiative issue.
 4. Start work only through the issue workflow helper, which creates the issue-specific worktree and moves the issue to `In progress`.
 
-The workflow is configured in `.github/issue-workflow.json` and uses user Project 1 as the canonical tracker. Project status names are exact: `Todo`, `In progress`, `In review`, and `Done`. Run `npm run issue:doctor` when setting up a new machine or after Project configuration changes. The GitHub CLI token must include the `project` scope.
+The workflow is configured in `.github/issue-workflow.json` and uses user Project 1 as the canonical tracker. Project status names are exact: `Backlog`, `In progress`, `In review`, and `Done`; `Backlog` is the board's equivalent of the initial Todo state. Run `npm run issue:doctor` when setting up a new machine or after Project configuration changes. The GitHub CLI token must include the `project` scope.
 
 ### Issue lifecycle commands
 

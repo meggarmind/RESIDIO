@@ -9,7 +9,7 @@
   "branchPrefix": "codex/issue-",
   "statusField": "Status",
   "statuses": {
-    "todo": "Todo",
+    "backlog": "Backlog",
     "inProgress": "In progress",
     "inReview": "In review",
     "done": "Done"

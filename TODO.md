@@ -80,7 +80,7 @@ The project is fast-tracked around financial operations, financial statements/im
 ### Delivery Workflow
 - [x] **Issue-driven vertical slices:** Published #64, #65, and #66 with dependency links and `ready-for-agent` triage labels.
 - [x] **Issue workflow automation:** Added issue-scoped worktree/status lifecycle tooling and repository guidance in the isolated implementation worktree.
-- [ ] **GitHub Project setup:** Add/verify Project 1's `In review` option and run `npm run issue:doctor` after granting the GitHub CLI `project` scope.
+- [x] **GitHub Project setup:** Verified Project 1's live status options (`Backlog`, `In progress`, `In review`, `Done`) and confirmed `npm run issue:doctor` passes with the `project` scope.
 
 ### Recent Session Work (2026-08-10): Backlog Reconciliation
 - [x] **Scope Alignment**: Removed portal refinement from the active phase; admin dashboard work is the only forward priority.
