@@ -6,6 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { InvoiceGenerationRequestSchema, resolveBillableCandidates, resolveInvoiceGenerationEligibility, type BillingProfileVersion, type GenerationHouse, type GenerationProfile } from '@/lib/billing/invoice-generation';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
+import { canCancelInvoiceGenerationRun, canRetryInvoiceGenerationRun } from '@/lib/billing/invoice-generation-run-policy';
 import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
 
 const runIdSchema = z.string().uuid();
@@ -54,23 +55,21 @@ export async function prepareInvoiceGenerationRun(input: z.input<typeof InvoiceG
 export async function approveInvoiceGenerationRun(runId: string, confirmation: string) {
   const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
   if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
-  const id = runIdSchema.parse(runId); const { data: run, error } = await readRun(id);
-  if (error || !run) return { data: null, error: error?.message || 'Run not found' };
-  if (run.status !== 'awaiting_approval') return { data: null, error: 'Run is not awaiting approval' };
-  if (run.requested_by === auth.userId) return { data: null, error: 'A distinct approver is required' };
-  const supabase = createAdminClient();
-  const approval = await supabase.from('invoice_generation_approvals').insert({ run_id: id, approver_id: auth.userId!, decision: 'approved', confirmation }).select('id').single();
-  if (approval.error) return { data: null, error: approval.error.message };
-  const updated = await supabase.from('invoice_generation_runs').update({ status: 'queued' }).eq('id', id).select('*').single();
-  if (updated.error) return { data: null, error: updated.error.message };
-  await logAudit({ action: 'APPROVE', entityType: 'invoice_generation_run', entityId: id, entityDisplay: `Invoice generation run ${id.slice(0, 8)}`, newValues: { approval_id: approval.data.id, status: 'queued' }, description: 'Approved invoice generation run' });
-  return { data: updated.data, error: null };
+  const id = runIdSchema.parse(runId); const supabase = createAdminClient();
+  const rpc = supabase as unknown as { rpc: (name: string, args: Record<string, unknown>) => Promise<{ data: { run: unknown; approval_id: string } | null; error: { message: string } | null }> };
+  const approved = await rpc.rpc('approve_invoice_generation_run', { p_run_id: id, p_approver_id: auth.userId, p_confirmation: confirmation });
+  if (approved.error || !approved.data) return { data: null, error: approved.error?.message || 'Could not approve run' };
+  await logAudit({ action: 'APPROVE', entityType: 'invoice_generation_run', entityId: id, entityDisplay: `Invoice generation run ${id.slice(0, 8)}`, newValues: { approval_id: approved.data.approval_id, status: 'queued' }, description: 'Approved invoice generation run' });
+  return { data: approved.data.run, error: null };
 }
 
 export async function cancelInvoiceGenerationRun(runId: string) {
   const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
   if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
-  const id = runIdSchema.parse(runId); const supabase = createAdminClient();
+  const id = runIdSchema.parse(runId); const { data: run, error: runError } = await readRun(id);
+  if (runError || !run) return { data: null, error: runError?.message || 'Run not found' };
+  if (!canCancelInvoiceGenerationRun(run.status)) return { data: null, error: 'Only queued or processing runs can be cancelled' };
+  const supabase = createAdminClient();
   const cancelled = await supabase.from('invoice_generation_candidates').update({ status: 'cancelled' }).eq('run_id', id).eq('status', 'pending');
   if (cancelled.error) return { data: null, error: cancelled.error.message };
   const updated = await supabase.from('invoice_generation_runs').update({ status: 'cancelled' }).eq('id', id).select('*').single();
@@ -82,7 +81,10 @@ export async function cancelInvoiceGenerationRun(runId: string) {
 export async function retryFailedInvoiceGenerationCandidates(runId: string, candidateIds?: string[]) {
   const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
   if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
-  const id = runIdSchema.parse(runId); const supabase = createAdminClient();
+  const id = runIdSchema.parse(runId); const { data: run, error: runError } = await readRun(id);
+  if (runError || !run) return { data: null, error: runError?.message || 'Run not found' };
+  if (!canRetryInvoiceGenerationRun(run.status, run.failed_count)) return { data: null, error: 'Only completed error runs with failed candidates can be retried' };
+  const supabase = createAdminClient();
   let query = supabase.from('invoice_generation_candidates').update({ status: 'pending', error_message: null, processed_at: null }).eq('run_id', id).eq('status', 'failed');
   if (candidateIds) query = query.in('id', candidateIdsSchema.parse(candidateIds));
   const retried = await query.select('id');

@@ -16,6 +16,18 @@ export function requiresDistinctInvoiceGenerationApproval({
   return mode === 'backfill' && dualApprovalEnabled && totalAmount >= threshold;
 }
 
+export function canCancelInvoiceGenerationRun(status: string): boolean {
+  return status === 'queued' || status === 'processing';
+}
+
+export function canRetryInvoiceGenerationRun(status: string, failedCount: number): boolean {
+  return status === 'completed_with_errors' && failedCount > 0;
+}
+
+export function canReclaimInvoiceGenerationCandidate(status: string, claimedAt: Date | null, now: Date, leaseMinutes: number): boolean {
+  return status === 'processing' && claimedAt !== null && now.getTime() >= claimedAt.getTime() + leaseMinutes * 60_000;
+}
+
 export function determineInvoiceGenerationRunStatus(input: InvoiceGenerationApprovalPolicyInput & {
   pending?: number;
   processing?: number;
