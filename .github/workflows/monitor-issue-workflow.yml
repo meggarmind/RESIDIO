@@ -1,0 +1,52 @@
+name: Monitor issue workflow
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Optional issue number to inspect
+        required: false
+        type: string
+      dry-run:
+        description: Report findings without adding labels or comments
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.ISSUE_WORKFLOW_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate monitor authentication
+        run: gh auth status
+      - name: Run issue monitor
+        id: monitor
+        shell: bash
+        run: |
+          args=()
+          if [[ -n "${{ inputs.issue }}" ]]; then args+=(--issue "${{ inputs.issue }}"); fi
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry-run }}" == "true" ]]; then args+=(--dry-run); fi
+          node scripts/issue-monitor.mjs "${args[@]}" | tee monitor-report.txt
+      - name: Publish monitor summary
+        if: always()
+        run: |
+          {
+            echo '## Issue workflow monitor'
+            echo
+            cat monitor-report.txt 2>/dev/null || echo 'Monitor did not produce a report.'
+          } >> "$GITHUB_STEP_SUMMARY"

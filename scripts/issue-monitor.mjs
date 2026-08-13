@@ -50,22 +50,22 @@ function issueList(config, cwd) {
 function issueView(config, issueNumber, cwd) {
   return ghJson(config, [
     'issue', 'view', String(issueNumber), '--comments',
-    '--json', 'number,title,state,url,closedAt,updatedAt,labels,comments,body,pullRequest',
+    '--json', 'number,title,state,url,closedAt,updatedAt,labels,comments,body,closedByPullRequestsReferences',
   ], cwd);
 }
 
 function projectItems(config, cwd) {
-  const result = ghJson(config, ['project', 'item-list', String(config.project.number), '--owner', config.project.owner, '--format', 'json', '--limit', '1000'], cwd);
+  const result = runJson('gh', ['project', 'item-list', String(config.project.number), '--owner', config.project.owner, '--format', 'json', '--limit', '1000'], cwd);
   return result.items ?? result;
 }
 
 function projectFields(config, cwd) {
-  const result = ghJson(config, ['project', 'field-list', String(config.project.number), '--owner', config.project.owner, '--format', 'json'], cwd);
+  const result = runJson('gh', ['project', 'field-list', String(config.project.number), '--owner', config.project.owner, '--format', 'json'], cwd);
   return result.fields ?? result;
 }
 
 function projectDetails(config, cwd) {
-  return ghJson(config, ['project', 'view', String(config.project.number), '--owner', config.project.owner, '--format', 'json'], cwd);
+  return runJson('gh', ['project', 'view', String(config.project.number), '--owner', config.project.owner, '--format', 'json'], cwd);
 }
 
 function branches(config, cwd) {
@@ -177,7 +177,8 @@ export function detectFindings({ issue, status, config, branchNames = [], commit
   const marker = monitor.commentMarker ?? DEFAULT_MONITOR_MARKER;
   const issueLabels = labels(issue);
   const issueBranches = matchingBranches(config, issue.number, branchNames);
-  const issuePullRequests = allPullRequests.filter((pullRequest) => issueBranches.includes(pullRequest.headRefName) || issue.pullRequest?.number === pullRequest.number);
+  const linkedNumbers = new Set((issue.closedByPullRequestsReferences ?? []).map((pullRequest) => Number(pullRequest.number)));
+  const issuePullRequests = allPullRequests.filter((pullRequest) => issueBranches.includes(pullRequest.headRefName) || linkedNumbers.has(Number(pullRequest.number)));
   const issueCommits = commits.filter((commit) => issueBranches.includes(commit.branch));
   const activity = qualifyingActivity(issue, { marker, timeline: timelineEvents, commits: issueCommits, pullRequests: issuePullRequests });
   const executionEvidence = issueBranches.length > 0 || issuePullRequests.some((pullRequest) => pullRequest.state === 'OPEN' || pullRequest.state === 'MERGED') || worktrees.some((worktree) => worktree.issueNumber === Number(issue.number));
