@@ -9,7 +9,7 @@ on:
         description: Optional issue number to inspect
         required: false
         type: string
-      dry-run:
+      dry_run:
         description: Report findings without adding labels or comments
         required: false
         default: true
@@ -48,7 +48,7 @@ jobs:
           set -euo pipefail
           args=()
           if [[ -n "${{ inputs.issue }}" ]]; then args+=(--issue "${{ inputs.issue }}"); fi
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry-run }}" == "true" ]]; then args+=(--dry-run); fi
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then args+=(--dry-run); fi
           node scripts/issue-monitor.mjs "${args[@]}" | tee monitor-report.txt
       - name: Publish monitor summary
         if: always()
