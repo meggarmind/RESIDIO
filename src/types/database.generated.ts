@@ -951,6 +951,108 @@ export type Database = {
           },
         ]
       }
+      billing_profile_version_items: {
+        Row: {
+          amount: number
+          billing_profile_version_id: string
+          created_at: string
+          frequency: Database["public"]["Enums"]["billing_frequency"]
+          id: string
+          is_mandatory: boolean
+          item_snapshot: Json
+          name: string
+        }
+        Insert: {
+          amount: number
+          billing_profile_version_id: string
+          created_at?: string
+          frequency: Database["public"]["Enums"]["billing_frequency"]
+          id?: string
+          is_mandatory?: boolean
+          item_snapshot?: Json
+          name: string
+        }
+        Update: {
+          amount?: number
+          billing_profile_version_id?: string
+          created_at?: string
+          frequency?: Database["public"]["Enums"]["billing_frequency"]
+          id?: string
+          is_mandatory?: boolean
+          item_snapshot?: Json
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_profile_version_items_billing_profile_version_id_fkey"
+            columns: ["billing_profile_version_id"]
+            isOneToOne: false
+            referencedRelation: "billing_profile_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_profile_versions: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          billing_profile_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          id: string
+          is_locked: boolean
+          profile_snapshot: Json
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          billing_profile_id: string
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          id?: string
+          is_locked?: boolean
+          profile_snapshot?: Json
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          billing_profile_id?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          id?: string
+          is_locked?: boolean
+          profile_snapshot?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_profile_versions_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_profile_versions_billing_profile_id_fkey"
+            columns: ["billing_profile_id"]
+            isOneToOne: false
+            referencedRelation: "billing_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_profile_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_profiles: {
         Row: {
           applicable_roles: string[] | null
@@ -2553,6 +2655,187 @@ export type Database = {
           },
         ]
       }
+      invoice_generation_approvals: {
+        Row: {
+          approver_id: string
+          confirmation: string | null
+          created_at: string
+          decision: string
+          id: string
+          notes: string | null
+          run_id: string
+        }
+        Insert: {
+          approver_id: string
+          confirmation?: string | null
+          created_at?: string
+          decision: string
+          id?: string
+          notes?: string | null
+          run_id: string
+        }
+        Update: {
+          approver_id?: string
+          confirmation?: string | null
+          created_at?: string
+          decision?: string
+          id?: string
+          notes?: string | null
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_generation_approvals_approver_id_fkey"
+            columns: ["approver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_generation_approvals_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_generation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_generation_candidates: {
+        Row: {
+          amount_due: number
+          billing_profile_id: string
+          billing_profile_version_id: string
+          created_at: string
+          due_date: string
+          error_message: string | null
+          house_id: string | null
+          id: string
+          invoice_id: string | null
+          invoice_items: Json
+          invoice_type: Database["public"]["Enums"]["invoice_type_enum"]
+          outcome: Json
+          period_end: string
+          period_start: string
+          processed_at: string | null
+          rate_snapshot: Json
+          resident_id: string
+          run_id: string
+          status: string
+          updated_at: string
+          wallet_allocated: number
+          wallet_allocation_requested: boolean
+        }
+        Insert: {
+          amount_due: number
+          billing_profile_id: string
+          billing_profile_version_id: string
+          created_at?: string
+          due_date: string
+          error_message?: string | null
+          house_id?: string | null
+          id?: string
+          invoice_id?: string | null
+          invoice_items?: Json
+          invoice_type?: Database["public"]["Enums"]["invoice_type_enum"]
+          outcome?: Json
+          period_end: string
+          period_start: string
+          processed_at?: string | null
+          rate_snapshot?: Json
+          resident_id: string
+          run_id: string
+          status?: string
+          updated_at?: string
+          wallet_allocated?: number
+          wallet_allocation_requested?: boolean
+        }
+        Update: {
+          amount_due?: number
+          billing_profile_id?: string
+          billing_profile_version_id?: string
+          created_at?: string
+          due_date?: string
+          error_message?: string | null
+          house_id?: string | null
+          id?: string
+          invoice_id?: string | null
+          invoice_items?: Json
+          invoice_type?: Database["public"]["Enums"]["invoice_type_enum"]
+          outcome?: Json
+          period_end?: string
+          period_start?: string
+          processed_at?: string | null
+          rate_snapshot?: Json
+          resident_id?: string
+          run_id?: string
+          status?: string
+          updated_at?: string
+          wallet_allocated?: number
+          wallet_allocation_requested?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_generation_candidates_billing_profile_id_fkey"
+            columns: ["billing_profile_id"]
+            isOneToOne: false
+            referencedRelation: "billing_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_generation_candidates_billing_profile_version_id_fkey"
+            columns: ["billing_profile_version_id"]
+            isOneToOne: false
+            referencedRelation: "billing_profile_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_generation_candidates_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_generation_candidates_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_generation_candidates_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_generation_candidates_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_generation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_generation_locks: {
+        Row: {
+          period: string
+          started_at: string
+          started_by: string | null
+        }
+        Insert: {
+          period: string
+          started_at?: string
+          started_by?: string | null
+        }
+        Update: {
+          period?: string
+          started_at?: string
+          started_by?: string | null
+        }
+        Relationships: []
+      }
       invoice_generation_log: {
         Row: {
           created_at: string
@@ -2598,6 +2881,77 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_generation_runs: {
+        Row: {
+          cancelled_count: number
+          candidate_count: number
+          completed_at: string | null
+          created_at: string
+          created_count: number
+          failed_count: number
+          id: string
+          options: Json
+          requested_at: string
+          requested_by: string | null
+          result_summary: Json
+          scope: Json
+          skipped_count: number
+          started_at: string | null
+          status: string
+          total_amount: number
+          total_wallet_allocated: number
+          updated_at: string
+        }
+        Insert: {
+          cancelled_count?: number
+          candidate_count?: number
+          completed_at?: string | null
+          created_at?: string
+          created_count?: number
+          failed_count?: number
+          id?: string
+          options?: Json
+          requested_at?: string
+          requested_by?: string | null
+          result_summary?: Json
+          scope?: Json
+          skipped_count?: number
+          started_at?: string | null
+          status?: string
+          total_amount?: number
+          total_wallet_allocated?: number
+          updated_at?: string
+        }
+        Update: {
+          cancelled_count?: number
+          candidate_count?: number
+          completed_at?: string | null
+          created_at?: string
+          created_count?: number
+          failed_count?: number
+          id?: string
+          options?: Json
+          requested_at?: string
+          requested_by?: string | null
+          result_summary?: Json
+          scope?: Json
+          skipped_count?: number
+          started_at?: string | null
+          status?: string
+          total_amount?: number
+          total_wallet_allocated?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_generation_runs_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_items: {
         Row: {
           amount: number
@@ -2635,6 +2989,7 @@ export type Database = {
           amount_due: number
           amount_paid: number
           billing_profile_id: string | null
+          billing_profile_version_id: string | null
           correction_reason: string | null
           correction_type: string | null
           created_at: string
@@ -2658,6 +3013,7 @@ export type Database = {
           amount_due?: number
           amount_paid?: number
           billing_profile_id?: string | null
+          billing_profile_version_id?: string | null
           correction_reason?: string | null
           correction_type?: string | null
           created_at?: string
@@ -2681,6 +3037,7 @@ export type Database = {
           amount_due?: number
           amount_paid?: number
           billing_profile_id?: string | null
+          billing_profile_version_id?: string | null
           correction_reason?: string | null
           correction_type?: string | null
           created_at?: string
@@ -2706,6 +3063,13 @@ export type Database = {
             columns: ["billing_profile_id"]
             isOneToOne: false
             referencedRelation: "billing_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_billing_profile_version_id_fkey"
+            columns: ["billing_profile_version_id"]
+            isOneToOne: false
+            referencedRelation: "billing_profile_versions"
             referencedColumns: ["id"]
           },
           {
@@ -3740,6 +4104,53 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      report_archive: {
+        Row: {
+          created_at: string
+          file_path: string
+          file_size_bytes: number | null
+          format: string
+          generated_at: string
+          generated_by: string
+          id: string
+          recipients: Json | null
+          report_type: string
+          schedule_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_path: string
+          file_size_bytes?: number | null
+          format?: string
+          generated_at?: string
+          generated_by: string
+          id?: string
+          recipients?: Json | null
+          report_type: string
+          schedule_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_path?: string
+          file_size_bytes?: number | null
+          format?: string
+          generated_at?: string
+          generated_by?: string
+          id?: string
+          recipients?: Json | null
+          report_type?: string
+          schedule_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_archive_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "report_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       report_schedules: {
         Row: {
@@ -4945,6 +5356,141 @@ export type Database = {
           },
         ]
       }
+      wallet_payment_batch_items: {
+        Row: {
+          amount_allocated: number
+          batch_id: string
+          created_at: string
+          id: string
+          invoice_id: string
+          invoice_period_end: string
+          invoice_period_start: string
+          wallet_transaction_id: string | null
+        }
+        Insert: {
+          amount_allocated: number
+          batch_id: string
+          created_at?: string
+          id?: string
+          invoice_id: string
+          invoice_period_end: string
+          invoice_period_start: string
+          wallet_transaction_id?: string | null
+        }
+        Update: {
+          amount_allocated?: number
+          batch_id?: string
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          invoice_period_end?: string
+          invoice_period_start?: string
+          wallet_transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_payment_batch_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_payment_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_payment_batch_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_payment_batch_items_wallet_transaction_id_fkey"
+            columns: ["wallet_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "wallet_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wallet_payment_batches: {
+        Row: {
+          amount: number
+          batch_type: string
+          created_at: string
+          created_by: string | null
+          house_id: string | null
+          id: string
+          payment_date: string
+          period_end: string | null
+          period_start: string | null
+          receipt_number: string
+          resident_id: string
+          source_payment_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          batch_type: string
+          created_at?: string
+          created_by?: string | null
+          house_id?: string | null
+          id?: string
+          payment_date: string
+          period_end?: string | null
+          period_start?: string | null
+          receipt_number: string
+          resident_id: string
+          source_payment_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          batch_type?: string
+          created_at?: string
+          created_by?: string | null
+          house_id?: string | null
+          id?: string
+          payment_date?: string
+          period_end?: string | null
+          period_start?: string | null
+          receipt_number?: string
+          resident_id?: string
+          source_payment_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_payment_batches_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_payment_batches_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_payment_batches_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_payment_batches_source_payment_id_fkey"
+            columns: ["source_payment_id"]
+            isOneToOne: true
+            referencedRelation: "payment_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wallet_transactions: {
         Row: {
           amount: number
@@ -5300,6 +5846,10 @@ export type Database = {
       }
     }
     Functions: {
+      create_generated_invoice: {
+        Args: { p_actor_id: string; p_candidate_id: string }
+        Returns: Json
+      }
       generate_access_code: { Args: never; Returns: string }
       generate_house_shortname: {
         Args: { p_house_number: string; p_street_id: string }
@@ -5337,6 +5887,7 @@ export type Database = {
           visit_count: number
         }[]
       }
+      get_house_payment_status: { Args: { p_house_id: string }; Returns: Json }
       get_my_house_ids: { Args: never; Returns: string[] }
       get_my_permissions: {
         Args: never
@@ -5361,6 +5912,14 @@ export type Database = {
           resident_id: string
           resident_role: string
         }[]
+      }
+      get_resident_cross_property_payment_summary: {
+        Args: { p_resident_id: string }
+        Returns: Json
+      }
+      get_resident_indebtedness: {
+        Args: { p_resident_id: string }
+        Returns: Json
       }
       get_setting_overrides: {
         Args: { p_setting_key: string }
@@ -5397,6 +5956,7 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: never; Returns: boolean }
+      next_wallet_receipt_number: { Args: never; Returns: string }
       process_expired_approvals: { Args: never; Returns: number }
       record_ownership_history: {
         Args: {
@@ -5419,6 +5979,24 @@ export type Database = {
           p_requester_resident_id: string
         }
         Returns: boolean
+      }
+      reverse_wallet_payment_batch: {
+        Args: { p_batch_id: string; p_reversed_by?: string }
+        Returns: Json
+      }
+      settle_wallet_invoices: {
+        Args: {
+          p_batch_amount?: number
+          p_batch_type: string
+          p_created_by?: string
+          p_credit_amount?: number
+          p_house_id?: string
+          p_invoice_ids: string[]
+          p_payment_date: string
+          p_resident_id: string
+          p_source_payment_id?: string
+        }
+        Returns: Json
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
@@ -5873,3 +6451,4 @@ export const Constants = {
     },
   },
 } as const
+
