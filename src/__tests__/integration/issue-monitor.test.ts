@@ -102,4 +102,8 @@ describe('issue monitor helpers', () => {
     expect(parseArgs(['--dry-run', '--issue', '64'])).toEqual({ dryRun: true, issue: '64' });
     expect(() => parseArgs(['--issue', 'x'])).toThrow('numeric');
   });
+
+  it('does not count future-dated activity as negative age', () => {
+    expect(hoursSince('2026-08-13T13:00:00.000Z', now)).toBe(0);
+  });
 });

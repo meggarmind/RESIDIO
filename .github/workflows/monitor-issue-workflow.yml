@@ -33,11 +33,19 @@ jobs:
         with:
           node-version: 22
       - name: Validate monitor authentication
-        run: gh auth status
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo 'ISSUE_WORKFLOW_PAT is not configured.' >&2
+            exit 1
+          fi
+          gh auth status
       - name: Run issue monitor
         id: monitor
         shell: bash
         run: |
+          set -euo pipefail
           args=()
           if [[ -n "${{ inputs.issue }}" ]]; then args+=(--issue "${{ inputs.issue }}"); fi
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry-run }}" == "true" ]]; then args+=(--dry-run); fi
