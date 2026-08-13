@@ -1,623 +1,165 @@
 'use server';
 
-import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { revalidatePath } from 'next/cache';
 import { debitWalletForInvoice } from '@/actions/billing/wallet';
 import { sendInvoiceEmail } from '@/actions/email/send-invoice-email';
 import { sendInvoiceGenerationAlert } from '@/actions/email/send-admin-alert';
-import { logAudit } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 import { createLogger } from '@/lib/logger';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
-import type { RateSnapshot, InvoiceType } from '@/types/database';
-import type { BillingProfileWithItems } from '@/types/billing';
+import {
+  resolveBillableCandidates,
+  type BillingProfileVersion,
+  type GenerationHouse,
+  type GenerationProfile,
+} from '@/lib/billing/invoice-generation';
+import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
+import { revalidatePath } from 'next/cache';
 
 const log = createLogger('[Billing]');
 
 export type InvoiceGenerationTrigger = 'manual' | 'cron' | 'api';
 
-interface SkipReason {
-    house: string;
-    reason: string;
-}
-
+interface SkipReason { house: string; reason: string }
 interface GenerateInvoicesResult {
-    success: boolean;
-    generated: number;
-    skipped: number;
-    skipReasons: SkipReason[];
-    errors: string[];
-    logId?: string;
-    durationMs?: number;
+  success: boolean;
+  generated: number;
+  skipped: number;
+  skipReasons: SkipReason[];
+  errors: string[];
+  logId?: string;
+  durationMs?: number;
 }
 
-/**
- * Type for resident-house relationship with role information
- */
-interface ResidentHouseLink {
-    id: string;
-    resident_id: string;
-    resident_role: 'resident_landlord' | 'non_resident_landlord' | 'tenant' | 'developer' | 'co_resident' | 'household_member' | 'domestic_staff' | 'caretaker';
-    is_active: boolean;
-    move_in_date: string;
-    resident: {
-        id: string;
-        first_name: string;
-        last_name: string;
-        resident_code: string;
-        account_status: 'active' | 'inactive' | 'suspended' | 'archived';
-    };
-}
-
+const targetMonth = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
 
 /**
- * Determines which resident should be billed for a house based on role priority.
- *
- * Business Rules (in order of priority):
- * 1. Tenant - ALWAYS billed if active (leaseholder who resides in the unit)
- * 2. Resident Landlord - Billed if no tenant (owner who lives in the property)
- * 3. Non-Resident Landlord - Billed if house is vacant (owner who doesn't live there)
- *
- * Roles that are NEVER billed:
- * - Developer - Only billed for developer-specific one-time levies
- * - Co-Resident - Adult residing but not on title/lease
- * - Household Member - Family dependents
- * - Domestic Staff - Employees
- * - Caretaker - Maintains vacant units
- */
-function findBillableResident(residentHouses: ResidentHouseLink[], includeVacant: boolean = false): ResidentHouseLink | null {
-    const activeResidents = residentHouses.filter(rh => rh.is_active);
-
-    // Priority 1: Tenant (leaseholder)
-    const tenant = activeResidents.find(rh => rh.resident_role === 'tenant');
-    if (tenant) {
-        return tenant;
-    }
-
-    // Priority 2: Resident Landlord (owner who lives there)
-    const residentLandlord = activeResidents.find(rh => rh.resident_role === 'resident_landlord');
-    if (residentLandlord) {
-        return residentLandlord;
-    }
-
-    // Priority 3: Non-Resident Landlord (owner who doesn't live there - vacant house)
-    // Only include if vacant house billing is enabled
-    if (includeVacant) {
-        const nonResidentLandlord = activeResidents.find(rh => rh.resident_role === 'non_resident_landlord');
-        if (nonResidentLandlord) {
-            return nonResidentLandlord;
-        }
-    }
-
-    // No billable resident found
-    // (e.g., only developer, co_resident, household_member, domestic_staff, or caretaker)
-    return null;
-}
-
-/**
- * Gets the effective billing profile for a house.
- * Priority: House override > House Type default
- */
-async function getEffectiveBillingProfile(
-    supabase: SupabaseClient,
-    house: { id: string; billing_profile_id: string | null; house_type_id: string | null }
-): Promise<BillingProfileWithItems | null> {
-    // If house has a direct override, use that
-    if (house.billing_profile_id) {
-        const { data: profile } = await supabase
-            .from('billing_profiles')
-            .select(`
-                id, name, target_type, applicable_roles, is_one_time,
-                billing_items(id, name, amount, frequency, is_mandatory)
-            `)
-            .eq('id', house.billing_profile_id)
-            .eq('is_active', true)
-            .single();
-
-        return profile;
-    }
-
-    // Otherwise get from house type
-    if (house.house_type_id) {
-        const { data: houseType } = await supabase
-            .from('house_types')
-            .select(`
-                billing_profile_id,
-                billing_profile:billing_profiles(
-                    id, name, target_type, applicable_roles, is_one_time,
-                    billing_items(id, name, amount, frequency, is_mandatory)
-                )
-            `)
-            .eq('id', house.house_type_id)
-            .single();
-
-        if (houseType?.billing_profile) {
-            const profile = Array.isArray(houseType.billing_profile)
-                ? houseType.billing_profile[0]
-                : houseType.billing_profile;
-            return profile;
-        }
-    }
-
-    return null;
-}
-
-/**
- * Formats a date as YYYY-MM-DD string without timezone conversion.
- * Using toISOString() can shift dates by a day due to UTC conversion.
- */
-function formatDateLocal(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
-
-
-/**
- * Builds a rate snapshot from a billing profile for audit trail
- */
-function buildRateSnapshot(
-    billingProfile: BillingProfileWithItems,
-    totalAmount: number
-): RateSnapshot {
-    return {
-        billing_profile_id: billingProfile.id,
-        billing_profile_name: billingProfile.name,
-        captured_at: new Date().toISOString(),
-        items: billingProfile.billing_items?.map(item => ({
-            name: item.name,
-            amount: item.amount,
-            frequency: item.frequency,
-            is_mandatory: item.is_mandatory,
-        })) || [],
-        total_amount: totalAmount,
-    };
-}
-
-/**
- * Determines the invoice type based on billing profile
- */
-function getInvoiceType(billingProfile: BillingProfileWithItems): InvoiceType {
-    if (billingProfile.is_one_time) {
-        return 'LEVY';
-    }
-    return 'SERVICE_CHARGE';
-}
-
-/**
- * Generates invoices for all houses with billing profiles.
- * For each house, generates invoices from the resident's move-in date to the current month.
- * Pro-rata applies only to the first (move-in) month; all subsequent months are full rate.
- *
- * Billing Logic:
- * 1. House-targeted profiles (target_type='house'): Bill the primary resident
- * 2. Resident-targeted profiles (target_type='resident'): Bill residents matching applicable_roles
- * 3. Vacant house billing: Controlled by system setting 'bill_vacant_houses'
- *
- * @param upToDate - Generate invoices up to this date (defaults to current date)
- * @param triggerType - How generation was triggered: 'manual' (UI), 'cron' (scheduled), 'api' (external)
+ * Compatibility entry point retained for existing cron/API callers. Candidate
+ * selection lives exclusively in the shared engine; Task 3 replaces this
+ * immediate processing path with durable approved runs.
  */
 export async function generateMonthlyInvoices(
-    upToDate: Date = new Date(),
-    triggerType: InvoiceGenerationTrigger = 'manual',
-    options?: { debitWallet?: boolean; sendEmails?: boolean }
+  upToDate: Date = new Date(),
+  triggerType: InvoiceGenerationTrigger = 'manual',
+  options?: { debitWallet?: boolean; sendEmails?: boolean },
 ): Promise<GenerateInvoicesResult> {
-    const debitWallet = options?.debitWallet ?? (triggerType === 'manual');
-    const sendEmails = options?.sendEmails ?? (triggerType === 'manual');
-    const startTime = Date.now();
+  const startedAt = Date.now();
+  const debitWallet = options?.debitWallet ?? triggerType === 'manual';
+  const sendEmails = options?.sendEmails ?? triggerType === 'manual';
+  if (triggerType === 'manual') {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
+    if (!auth.authorized) return { success: false, generated: 0, skipped: 0, skipReasons: [], errors: [auth.error || 'Unauthorized'] };
+  }
 
-    // Permission check for manual triggers (cron/api use service role)
-    if (triggerType === 'manual') {
-        const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
-        if (!auth.authorized) {
-            return { success: false, generated: 0, skipped: 0, skipReasons: [], errors: [auth.error || 'Unauthorized'] };
-        }
+  const supabase = triggerType === 'manual' ? await createServerSupabaseClient() : createAdminClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const period = targetMonth(upToDate);
+  const result: GenerateInvoicesResult = { success: true, generated: 0, skipped: 0, skipReasons: [], errors: [] };
+  const { error: lockError } = await supabase.from('invoice_generation_locks').insert({ period, started_by: user?.id || null });
+  if (lockError) return { ...result, success: false, errors: [`Another generation run is already in progress for ${period.slice(0, 7)}`] };
+
+  try {
+    const [billVacantHouses, billUnderRenovation, billUnderConstruction, dueWindowSetting] = await Promise.all([
+      getSystemSetting(supabase, 'bill_vacant_houses'),
+      getSystemSetting(supabase, 'bill_under_renovation_houses'),
+      getSystemSetting(supabase, 'bill_under_construction_houses'),
+      getSystemSetting(supabase, 'invoice_due_window_days'),
+    ]);
+    const { data: houses, error: housesError } = await supabase.from('houses').select(`
+      id, house_number, house_type_id, billing_profile_id, street_id, property_status, is_active,
+      resident_houses(id, resident_id, resident_role, move_in_date, is_active,
+        resident:residents!resident_id(id, first_name, last_name, account_status))
+    `).eq('is_active', true);
+    if (housesError) throw new Error(`Failed to fetch houses: ${housesError.message}`);
+
+    const houseTypeIds = [...new Set((houses || []).map((house) => house.house_type_id).filter((id): id is string => Boolean(id)))];
+    const { data: houseTypes, error: houseTypesError } = houseTypeIds.length
+      ? await supabase.from('house_types').select('id, billing_profile_id').in('id', houseTypeIds)
+      : { data: [], error: null };
+    if (houseTypesError) throw new Error(`Failed to fetch house types: ${houseTypesError.message}`);
+    const profileForHouseType = new Map((houseTypes || []).map((houseType) => [houseType.id, houseType.billing_profile_id]));
+    const profileIds = [...new Set((houses || []).map((house) => house.billing_profile_id || profileForHouseType.get(house.house_type_id || '')).filter((id): id is string => Boolean(id)))];
+    if (!profileIds.length) return result;
+
+    const [{ data: profiles, error: profilesError }, { data: versions, error: versionsError }] = await Promise.all([
+      supabase.from('billing_profiles').select('id, name, target_type, applicable_roles, is_one_time').in('id', profileIds).eq('is_active', true),
+      supabase.from('billing_profile_versions').select('id, billing_profile_id, effective_from, billing_profile_version_items(id, name, amount, frequency, is_mandatory)').in('billing_profile_id', profileIds),
+    ]);
+    if (profilesError || versionsError) throw new Error(profilesError?.message || versionsError?.message || 'Could not load billing profiles');
+
+    const generationProfiles: GenerationProfile[] = (profiles || []).filter((profile) => !profile.is_one_time).map((profile) => ({
+      id: profile.id, name: profile.name, targetType: profile.target_type as GenerationProfile['targetType'], applicableRoles: profile.applicable_roles as GenerationProfile['applicableRoles'],
+    }));
+    const generationVersions: BillingProfileVersion[] = (versions || []).map((version) => ({
+      id: version.id, billingProfileId: version.billing_profile_id, effectiveFrom: version.effective_from,
+      items: (version.billing_profile_version_items || []).map((item) => ({ id: item.id, name: item.name, amount: Number(item.amount), frequency: item.frequency, isMandatory: item.is_mandatory })),
+    }));
+    const generationHouses: GenerationHouse[] = (houses || []).map((house) => ({
+      id: house.id, label: house.house_number, streetId: house.street_id,
+      billingProfileId: house.billing_profile_id || profileForHouseType.get(house.house_type_id || '') || null,
+      propertyStatus: house.property_status || 'occupied', isActive: house.is_active,
+      residents: (house.resident_houses || []).map((link) => {
+        const resident = Array.isArray(link.resident) ? link.resident[0] : link.resident;
+        return { id: link.resident_id, name: resident ? `${resident.first_name} ${resident.last_name}` : 'Unknown resident', accountStatus: resident?.account_status || 'inactive', role: link.resident_role, moveInDate: link.move_in_date, isActive: link.is_active };
+      }),
+    }));
+    const resolution = resolveBillableCandidates({
+      request: { mode: 'selected_month', targetMonth: period, trigger: triggerType },
+      profiles: generationProfiles, versions: generationVersions, houses: generationHouses,
+      eligibility: {
+        billVacantHouses: billVacantHouses === true,
+        billUnderRenovation: billUnderRenovation === true,
+        billUnderConstruction: billUnderConstruction === true,
+        dueWindowDays: Number(dueWindowSetting) || 30,
+      },
+    });
+    result.skipped += resolution.skips.length;
+    result.skipReasons.push(...resolution.skips.map(({ house, reason }) => ({ house, reason })));
+
+    for (const candidate of resolution.candidates) {
+      const house = generationHouses.find((item) => item.id === candidate.houseId)!;
+      const profile = generationProfiles.find((item) => item.id === candidate.billingProfileId)!;
+      const { data: existing } = await supabase.from('invoices').select('id').eq('resident_id', candidate.residentId).eq('house_id', candidate.houseId!).eq('billing_profile_version_id', candidate.billingProfileVersionId).eq('period_start', candidate.periodStart).eq('period_end', candidate.periodEnd).maybeSingle();
+      if (existing) { result.skipped++; continue; }
+
+      const invoiceNumber = `INV-${candidate.periodStart.slice(0, 7).replace('-', '')}-${candidate.houseId!.replaceAll('-', '').slice(0, 8).toUpperCase()}-${candidate.residentId.replaceAll('-', '').slice(0, 8).toUpperCase()}-${candidate.billingProfileVersionId.replaceAll('-', '').slice(0, 8).toUpperCase()}`;
+      const { data: invoice, error: invoiceError } = await supabase.from('invoices').insert({
+        resident_id: candidate.residentId, house_id: candidate.houseId, billing_profile_id: candidate.billingProfileId,
+        billing_profile_version_id: candidate.billingProfileVersionId, invoice_number: invoiceNumber, amount_due: candidate.amountDue,
+        amount_paid: 0, status: 'unpaid', invoice_type: 'SERVICE_CHARGE', due_date: candidate.dueDate,
+        period_start: candidate.periodStart, period_end: candidate.periodEnd, created_by: user?.id || null,
+        rate_snapshot: { billing_profile_id: profile.id, billing_profile_name: profile.name, captured_at: new Date().toISOString(), items: candidate.invoiceItems, total_amount: candidate.amountDue },
+      }).select('id').single();
+      if (invoiceError || !invoice) {
+        if (invoiceError?.code === '23505') { result.skipped++; continue; }
+        result.errors.push(`Invoice for ${house.label} (${candidate.periodStart}): ${invoiceError?.message || 'could not be created'}`);
+        continue;
+      }
+      const { error: itemsError } = await supabase.from('invoice_items').insert(candidate.invoiceItems.map((item) => ({ invoice_id: invoice.id, description: candidate.isProRata ? `${item.name} (Pro-rata)` : item.name, amount: item.amount })));
+      if (itemsError) { result.errors.push(`Items for ${house.label} (${candidate.periodStart}): ${itemsError.message}`); continue; }
+      result.generated++;
+      if (debitWallet) await debitWalletForInvoice(candidate.residentId, invoice.id);
+      if (sendEmails) sendInvoiceEmail(invoice.id).catch((error) => log.error(`Failed to send invoice email for ${invoiceNumber}`, error));
     }
+  } catch (error) {
+    result.success = false;
+    result.errors.push(error instanceof Error ? error.message : String(error));
+  } finally {
+    await supabase.from('invoice_generation_locks').delete().eq('period', period);
+  }
 
-    // Use admin client for cron/api triggers to bypass RLS, server client for manual
-    const supabase = triggerType === 'manual'
-        ? await createServerSupabaseClient()
-        : createAdminClient();
-
-    // Get user for audit logging (available for manual triggers)
-    const { data: { user } } = await supabase.auth.getUser();
-
-    const result: GenerateInvoicesResult = {
-        success: true,
-        generated: 0,
-        skipped: 0,
-        skipReasons: [],
-        errors: [],
-    };
-
-    // Current month boundaries (target end)
-    const targetYear = upToDate.getFullYear();
-    const targetMonth = upToDate.getMonth();
-    const targetPeriod = new Date(targetYear, targetMonth, 1);
-
-    log.info(`Generating invoices up to: ${targetYear}-${String(targetMonth + 1).padStart(2, '0')} (trigger: ${triggerType})`);
-
-    // Acquire run lock to prevent overlapping generation for the same period
-    const periodKey = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
-    const { error: lockError } = await supabase
-        .from('invoice_generation_locks')
-        .insert({ period: `${periodKey}-01`, started_by: user?.id || null });
-
-    if (lockError) {
-        return { success: false, generated: 0, skipped: 0, skipReasons: [], errors: [`Another generation run is already in progress for ${periodKey}`] };
-    }
-
-    try {
-        // Get system settings
-        const billVacantHouses = await getSystemSetting(supabase, 'bill_vacant_houses') === true;
-        const billUnderRenovation = await getSystemSetting(supabase, 'bill_under_renovation_houses') === true;
-        const billUnderConstruction = await getSystemSetting(supabase, 'bill_under_construction_houses') === true;
-        const dueWindowSetting = await getSystemSetting(supabase, 'invoice_due_window_days');
-        const dueWindowDays = parseInt(String(dueWindowSetting).replace(/"/g, '')) || 30;
-        log.info(`Bill vacant houses: ${billVacantHouses}`);
-        log.info(`Bill under-renovation houses: ${billUnderRenovation}`);
-        log.info(`Bill under-construction houses: ${billUnderConstruction}`);
-        log.info(`Due window days: ${dueWindowDays}`);
-
-        // 1. Find all active houses (both occupied and vacant)
-        const { data: houses, error: housesError } = await supabase
-            .from('houses')
-            .select(`
-                id,
-                house_number,
-                house_type_id,
-                billing_profile_id,
-                is_occupied,
-                property_status,
-                street:streets(name)
-            `)
-            .eq('is_active', true);
-
-        if (housesError) {
-            result.errors.push(`Failed to fetch houses: ${housesError.message}`);
-            result.success = false;
-            await supabase.from('invoice_generation_locks').delete().eq('period', `${periodKey}-01`).catch(() => {});
-            return result;
-        }
-
-        log.info(`Found ${houses?.length || 0} active houses`);
-
-        for (const house of houses || []) {
-            const houseLabel = `${house.house_number}`;
-
-            try {
-                // Get the effective billing profile (house override or house type default)
-                const billingProfile = await getEffectiveBillingProfile(supabase, house);
-
-                if (!billingProfile) {
-                    result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: 'No billing profile assigned' });
-                    continue;
-                }
-
-                // Skip one-time profiles in monthly generation (handled separately)
-                if (billingProfile.is_one_time) {
-                    continue;
-                }
-
-                // Only process house-targeted profiles for now
-                // Resident-targeted profiles need different handling
-                if (billingProfile.target_type !== 'house') {
-                    continue;
-                }
-
-                // 2. Find all active residents for this house
-                const { data: allResidentLinks, error: residentError } = await supabase
-                    .from('resident_houses')
-                    .select(`
-                        id,
-                        resident_id,
-                        resident_role,
-                        is_active,
-                        move_in_date,
-                        resident:residents!resident_id(id, first_name, last_name, resident_code, account_status)
-                    `)
-                    .eq('house_id', house.id)
-                    .eq('is_active', true);
-
-                if (residentError) {
-                    result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: `Error fetching residents: ${residentError.message}` });
-                    continue;
-                }
-
-                const status = (house as { property_status?: string }).property_status || 'occupied';
-
-                if (status === 'under_renovation' && !billUnderRenovation) {
-                    result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: 'Under renovation (billing disabled)' });
-                    continue;
-                }
-                if (status === 'under_construction' && !billUnderConstruction) {
-                    result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: 'Under construction (billing disabled)' });
-                    continue;
-                }
-
-                if (!allResidentLinks || allResidentLinks.length === 0) {
-                    if (status === 'under_renovation' || status === 'under_construction') {
-                        result.skipped++;
-                        result.skipReasons.push({ house: houseLabel, reason: `${status === 'under_renovation' ? 'Under renovation' : 'Under construction'} (no active residents)` });
-                        continue;
-                    }
-                    if (!billVacantHouses) {
-                        result.skipped++;
-                        result.skipReasons.push({ house: houseLabel, reason: 'Vacant (no active residents)' });
-                        continue;
-                    }
-                }
-
-                const vacantBillingEnabled = billVacantHouses ||
-                    (status === 'under_renovation' && billUnderRenovation) ||
-                    (status === 'under_construction' && billUnderConstruction);
-
-                // Find billable resident using priority logic
-                const residentLink = findBillableResident(
-                    (allResidentLinks || []) as unknown as ResidentHouseLink[],
-                    vacantBillingEnabled
-                );
-
-                if (!residentLink) {
-                    result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: 'No billable resident found' });
-                    continue;
-                }
-
-                if (residentLink.resident.account_status !== 'active') {
-                    result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: `Billable resident is ${residentLink.resident.account_status}` });
-                    continue;
-                }
-
-                // Get monthly billing items
-                const monthlyItems = billingProfile.billing_items?.filter(
-                    (item) => item.frequency === 'monthly'
-                ) || [];
-
-                if (monthlyItems.length === 0) {
-                    result.skipped++;
-                    result.skipReasons.push({ house: houseLabel, reason: 'Billing profile has no monthly items' });
-                    continue;
-                }
-
-                const fullMonthTotal = monthlyItems.reduce(
-                    (sum: number, item) => sum + (item.amount || 0),
-                    0
-                );
-
-                // 3. Generate invoices from move-in date to target month
-                const moveInDate = new Date(residentLink.move_in_date);
-                const startYear = moveInDate.getFullYear();
-                const startMonth = moveInDate.getMonth();
-
-                // Loop through each month from move-in to target
-                let currentYear = startYear;
-                let currentMonth = startMonth;
-
-                while (currentYear < targetYear || (currentYear === targetYear && currentMonth <= targetMonth)) {
-                    const periodStart = new Date(currentYear, currentMonth, 1);
-                    const periodEnd = new Date(currentYear, currentMonth + 1, 0); // Last day of month
-                    const totalDaysInMonth = periodEnd.getDate();
-                    // Calculate due date using window-based approach (days from period start)
-                    const dueDate = new Date(periodStart);
-                    dueDate.setDate(dueDate.getDate() + dueWindowDays);
-
-                    const periodStartStr = formatDateLocal(periodStart);
-                    const periodEndStr = formatDateLocal(periodEnd);
-
-                    // Check for existing invoice (idempotency)
-                    const { data: existingInvoice } = await supabase
-                        .from('invoices')
-                        .select('id')
-                        .eq('resident_id', residentLink.resident_id)
-                        .eq('house_id', house.id)
-                        .eq('billing_profile_id', billingProfile.id)
-                        .eq('period_start', periodStartStr)
-                        .eq('period_end', periodEndStr)
-                        .maybeSingle();
-
-                    if (existingInvoice) {
-                        // Already exists, move to next month
-                        currentMonth++;
-                        if (currentMonth > 11) {
-                            currentMonth = 0;
-                            currentYear++;
-                        }
-                        continue;
-                    }
-
-                    // Calculate pro-rata (only for move-in month)
-                    const isFirstMonth = (currentYear === startYear && currentMonth === startMonth);
-                    let fraction = 1;
-                    let activeDays = totalDaysInMonth;
-
-                    if (isFirstMonth && moveInDate > periodStart) {
-                        activeDays = Math.ceil(
-                            (periodEnd.getTime() - moveInDate.getTime()) / (1000 * 60 * 60 * 24)
-                        ) + 1;
-                        fraction = activeDays / totalDaysInMonth;
-                    }
-
-                    const amountDue = Math.round(fullMonthTotal * fraction * 100) / 100;
-
-                    // Generate invoice number
-                    const invoiceNumber = `INV-${currentYear}${String(currentMonth + 1).padStart(2, '0')}-${house.id.substring(0, 8).toUpperCase()}`;
-
-                    // Build rate snapshot for audit trail
-                    const rateSnapshot = buildRateSnapshot(billingProfile, fullMonthTotal);
-
-                    // Determine invoice type
-                    const invoiceType = getInvoiceType(billingProfile);
-
-                    // Create Invoice
-                    const { data: newInvoice, error: invoiceError } = await supabase
-                        .from('invoices')
-                        .insert({
-                            resident_id: residentLink.resident_id,
-                            house_id: house.id,
-                            billing_profile_id: billingProfile.id,
-                            invoice_number: invoiceNumber,
-                            amount_due: amountDue,
-                            amount_paid: 0,
-                            status: 'unpaid',
-                            invoice_type: invoiceType,
-                            rate_snapshot: rateSnapshot,
-                            due_date: formatDateLocal(dueDate),
-                            period_start: periodStartStr,
-                            period_end: periodEndStr,
-                            created_by: user?.id || null,
-                        })
-                        .select()
-                        .single();
-
-                    if (invoiceError) {
-                        // Unique constraint violation means a concurrent run already created this invoice
-                        if (invoiceError.code === '23505') {
-                            result.skipped++;
-                            currentMonth++;
-                            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
-                            continue;
-                        }
-                        result.errors.push(`Invoice for ${houseLabel} (${periodStartStr}): ${invoiceError.message}`);
-                        currentMonth++;
-                        if (currentMonth > 11) {
-                            currentMonth = 0;
-                            currentYear++;
-                        }
-                        continue;
-                    }
-
-                    // Create Invoice Items
-                    const invoiceItems = monthlyItems.map((item) => ({
-                        invoice_id: newInvoice.id,
-                        description: isFirstMonth && fraction < 1
-                            ? `${item.name} (Pro-rata: ${activeDays}/${totalDaysInMonth} days)`
-                            : item.name,
-                        amount: Math.round(item.amount * fraction * 100) / 100,
-                    }));
-
-                    if (invoiceItems.length > 0) {
-                        const { error: itemsError } = await supabase
-                            .from('invoice_items')
-                            .insert(invoiceItems);
-
-                        if (itemsError) {
-                            result.errors.push(`Items for ${houseLabel} (${periodStartStr}): ${itemsError.message}`);
-                        }
-                    }
-
-                    result.generated++;
-
-                    // Try to auto-debit from wallet
-                    if (debitWallet) {
-                        const debitResult = await debitWalletForInvoice(residentLink.resident_id, newInvoice.id);
-                        if (debitResult.success && debitResult.amountDebited > 0) {
-                            log.info(`Auto-debited ${debitResult.amountDebited} from wallet for ${invoiceNumber}`);
-                        }
-                    }
-
-                    // Send invoice email (non-blocking)
-                    if (sendEmails) {
-                        sendInvoiceEmail(newInvoice.id).catch((err) => {
-                            log.error(`Failed to send invoice email for ${invoiceNumber}:`, err);
-                        });
-                    }
-
-                    // Move to next month
-                    currentMonth++;
-                    if (currentMonth > 11) {
-                        currentMonth = 0;
-                        currentYear++;
-                    }
-                }
-
-            } catch (houseError) {
-                result.errors.push(`House ${houseLabel}: ${houseError instanceof Error ? houseError.message : String(houseError)}`);
-            }
-        }
-    } catch (error) {
-        result.success = false;
-        result.errors.push(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`);
-    }
-
-    // Calculate duration
-    const durationMs = Date.now() - startTime;
-    result.durationMs = durationMs;
-
-    log.info(`Complete: Generated=${result.generated}, Skipped=${result.skipped}, Duration=${durationMs}ms`);
-
-    // Log to invoice_generation_log table
-    try {
-        const { data: logEntry, error: logError } = await supabase
-            .from('invoice_generation_log')
-            .insert({
-                generated_by: user?.id || null,
-                trigger_type: triggerType,
-                target_period: formatDateLocal(targetPeriod),
-                generated_count: result.generated,
-                skipped_count: result.skipped,
-                error_count: result.errors.length,
-                skip_reasons: result.skipReasons,
-                errors: result.errors.length > 0 ? result.errors : null,
-                duration_ms: durationMs,
-            })
-            .select('id')
-            .single();
-
-        if (logError) {
-            log.error('Failed to log generation:', logError.message);
-        } else if (logEntry) {
-            result.logId = logEntry.id;
-
-            // Log to audit system
-            await logAudit({
-                action: 'GENERATE',
-                entityType: 'invoice_generation_log',
-                entityId: logEntry.id,
-                entityDisplay: `Invoice Generation - ${result.generated} invoices`,
-                newValues: {
-                    generated_count: result.generated,
-                    skipped_count: result.skipped,
-                    error_count: result.errors.length,
-                    target_period: `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`,
-                },
-                description: triggerType === 'cron'
-                    ? 'Automated monthly invoice generation'
-                    : triggerType === 'api'
-                    ? 'API-triggered invoice generation'
-                    : 'Manual invoice generation',
-                metadata: {
-                    trigger_type: triggerType,
-                    duration_ms: durationMs,
-                },
-            });
-        }
-    } catch (logError) {
-        log.error('Failed to log generation:', logError instanceof Error ? logError.message : String(logError));
-    }
-
-    // Send admin alert if there were errors (non-blocking)
-    if (result.errors.length > 0) {
-        sendInvoiceGenerationAlert(
-            result.generated,
-            result.skipped,
-            result.errors.length,
-            result.errors,
-            triggerType
-        ).catch(err => log.error('Failed to send admin alert:', err));
-    }
-
-    // Release run lock
-    await supabase.from('invoice_generation_locks').delete().eq('period', `${periodKey}-01`).catch(() => {});
-
-    revalidatePath('/billing');
-    return result;
+  result.durationMs = Date.now() - startedAt;
+  const { data: logEntry, error: logError } = await supabase.from('invoice_generation_log').insert({
+    generated_by: user?.id || null, trigger_type: triggerType, target_period: period, generated_count: result.generated,
+    skipped_count: result.skipped, error_count: result.errors.length, skip_reasons: result.skipReasons,
+    errors: result.errors.length ? result.errors : null, duration_ms: result.durationMs,
+  }).select('id').single();
+  if (!logError && logEntry) {
+    result.logId = logEntry.id;
+    await logAudit({ action: 'GENERATE', entityType: 'invoice_generation_log', entityId: logEntry.id, entityDisplay: `Invoice Generation - ${result.generated} invoices`, newValues: { generated_count: result.generated, skipped_count: result.skipped, error_count: result.errors.length, target_period: period }, description: `${triggerType} invoice generation`, metadata: { trigger_type: triggerType, duration_ms: result.durationMs } });
+  }
+  if (result.errors.length) sendInvoiceGenerationAlert(result.generated, result.skipped, result.errors.length, result.errors, triggerType).catch((error) => log.error('Failed to send invoice generation alert', error));
+  revalidatePath('/billing');
+  return result;
 }
