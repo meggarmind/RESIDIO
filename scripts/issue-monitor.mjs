@@ -157,7 +157,7 @@ export function qualifyingActivity(issue, options = {}) {
 
 export function hoursSince(timestamp, now = new Date()) {
   if (!timestamp) return Infinity;
-  return (new Date(now).getTime() - dateValue(timestamp)) / 3_600_000;
+  return Math.max(0, (new Date(now).getTime() - dateValue(timestamp)) / 3_600_000);
 }
 
 function issueItem(items, issueNumber) {
@@ -255,10 +255,10 @@ function validate(config, cwd) {
   return { project, status };
 }
 
-function writeFinding(config, cwd, issue, finding, now) {
+function writeFinding(config, cwd, issue, result, finding, now) {
   if (recentAlertComment(issue, finding.condition, config, now)) return 'cooldown';
   run('gh', ['issue', 'edit', String(issue.number), '--add-label', config.monitor.attentionLabel], cwd);
-  run('gh', ['issue', 'comment', String(issue.number), '--body', monitorComment(config, finding, workflowRunUrl(), now)], cwd);
+  run('gh', ['issue', 'comment', String(issue.number), '--body', monitorComment(config, { ...result, ...finding }, workflowRunUrl(), now)], cwd);
   return 'flagged';
 }
 
@@ -315,7 +315,7 @@ export function runMonitor(config, cwd = process.cwd(), options = {}) {
       const result = detectFindings({ issue, status, config, branchNames: allBranches, commits, pullRequests: pullRequestsForRepo, timeline: timeline(config, summary.number, cwd), now });
       results.push(result);
       if (alertActions(result, options.dryRun).length > 0) {
-        for (const finding of result.findings) writeFinding(config, cwd, issue, finding, now);
+        for (const finding of result.findings) writeFinding(config, cwd, issue, result, finding, now);
       }
     } catch (error) {
       failures.push(`#${summary.number}: ${error.message}`);
