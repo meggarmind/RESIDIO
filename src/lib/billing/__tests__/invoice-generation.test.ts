@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  resolveInvoiceGenerationEligibility,
   InvoiceGenerationRequestSchema,
   resolveBillableCandidates,
   resolveProfileVersion,
@@ -56,6 +57,49 @@ describe('invoice generation period and rate selection', () => {
   it('fails a historical period that has no effective version', () => {
     expect(() => resolveProfileVersion('2026-05-01', [version]))
       .toThrow('No billing profile version');
+  });
+
+  it('selects the effective rate for each backfill period', () => {
+    const result = resolveBillableCandidates({
+      request: { mode: 'backfill', fromMonth: '2026-06-01', targetMonth: '2026-08-01', trigger: 'manual' },
+      profiles: [profile],
+      versions: [
+        { ...version, id: 'june-rate', effectiveFrom: '2026-06-01' },
+        { ...version, id: 'august-rate', effectiveFrom: '2026-08-01', items: [{ ...version.items[0], amount: 35_000 }] },
+      ],
+      houses: [{
+        id: 'house-1', label: 'A1', billingProfileId: profile.id, propertyStatus: 'occupied', isActive: true,
+        residents: [{ id: 'resident-1', name: 'Ada', accountStatus: 'active', role: 'tenant', moveInDate: '2025-01-01', isActive: true }],
+      }],
+    });
+
+    expect(result.candidates.map(({ periodStart, billingProfileVersionId, amountDue }) => ({ periodStart, billingProfileVersionId, amountDue }))).toEqual([
+      { periodStart: '2026-06-01', billingProfileVersionId: 'june-rate', amountDue: 31_000 },
+      { periodStart: '2026-07-01', billingProfileVersionId: 'june-rate', amountDue: 31_000 },
+      { periodStart: '2026-08-01', billingProfileVersionId: 'august-rate', amountDue: 35_000 },
+    ]);
+  });
+});
+
+describe('invoice generation eligibility settings', () => {
+  it('normalizes the shared preview and execution defaults identically', () => {
+    expect(resolveInvoiceGenerationEligibility({})).toEqual({
+      billVacantHouses: false,
+      billUnderRenovation: false,
+      billUnderConstruction: false,
+      dueWindowDays: 30,
+    });
+    expect(resolveInvoiceGenerationEligibility({
+      billVacantHouses: true,
+      billUnderRenovation: true,
+      billUnderConstruction: true,
+      dueWindowDays: '21',
+    })).toEqual({
+      billVacantHouses: true,
+      billUnderRenovation: true,
+      billUnderConstruction: true,
+      dueWindowDays: 21,
+    });
   });
 });
 
@@ -133,5 +177,33 @@ describe('invoice generation candidates', () => {
     });
     expect(result.candidates).toEqual([]);
     expect(result.skips).toMatchObject([{ houseId: '00000000-0000-4000-8000-000000000001', reason: 'Under renovation (billing disabled)' }]);
+  });
+
+  it('reports residents who moved in after the selected period', () => {
+    const result = resolveBillableCandidates({
+      request: { mode: 'selected_month', targetMonth: '2026-08-01', trigger: 'manual' },
+      profiles: [profile], versions: [version],
+      houses: [{
+        id: 'house-1', label: 'A1', billingProfileId: profile.id, propertyStatus: 'occupied', isActive: true,
+        residents: [{ id: 'resident-1', name: 'Ada', accountStatus: 'active', role: 'tenant', moveInDate: '2026-09-01', isActive: true }],
+      }],
+    });
+
+    expect(result.candidates).toEqual([]);
+    expect(result.skips).toMatchObject([{ house: 'A1', reason: 'Resident moved in after selected period' }]);
+  });
+
+  it('reports profiles whose effective version has no monthly items', () => {
+    const result = resolveBillableCandidates({
+      request: { mode: 'selected_month', targetMonth: '2026-08-01', trigger: 'manual' },
+      profiles: [profile], versions: [{ ...version, items: [{ ...version.items[0], frequency: 'yearly' }] }],
+      houses: [{
+        id: 'house-1', label: 'A1', billingProfileId: profile.id, propertyStatus: 'occupied', isActive: true,
+        residents: [{ id: 'resident-1', name: 'Ada', accountStatus: 'active', role: 'tenant', moveInDate: '2025-01-01', isActive: true }],
+      }],
+    });
+
+    expect(result.candidates).toEqual([]);
+    expect(result.skips).toMatchObject([{ house: 'A1', reason: 'No monthly billing items' }]);
   });
 });

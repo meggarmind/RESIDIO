@@ -114,6 +114,38 @@ export interface ResolveBillableCandidatesInput {
   };
 }
 
+export interface InvoiceGenerationEligibility {
+  billVacantHouses: boolean;
+  billUnderRenovation: boolean;
+  billUnderConstruction: boolean;
+  dueWindowDays: number;
+}
+
+export interface InvoiceGenerationEligibilityInput {
+  billVacantHouses?: unknown;
+  billUnderRenovation?: unknown;
+  billUnderConstruction?: unknown;
+  dueWindowDays?: unknown;
+}
+
+export const DEFAULT_INVOICE_GENERATION_ELIGIBILITY: InvoiceGenerationEligibility = {
+  billVacantHouses: false,
+  billUnderRenovation: false,
+  billUnderConstruction: false,
+  dueWindowDays: 30,
+};
+
+export function resolveInvoiceGenerationEligibility(
+  settings: InvoiceGenerationEligibilityInput = {},
+): InvoiceGenerationEligibility {
+  return {
+    billVacantHouses: settings.billVacantHouses === true,
+    billUnderRenovation: settings.billUnderRenovation === true,
+    billUnderConstruction: settings.billUnderConstruction === true,
+    dueWindowDays: Number(settings.dueWindowDays) || DEFAULT_INVOICE_GENERATION_ELIGIBILITY.dueWindowDays,
+  };
+}
+
 const ROLE_PRIORITY: BillableRole[] = ['tenant', 'resident_landlord'];
 
 function parseMonth(month: string): Date {
@@ -161,7 +193,7 @@ export function resolveProfileVersion(periodStart: string, versions: BillingProf
   return applicable[0];
 }
 
-function isHouseEligible(house: GenerationHouse, eligibility: Required<NonNullable<ResolveBillableCandidatesInput['eligibility']>>): string | null {
+function isHouseEligible(house: GenerationHouse, eligibility: InvoiceGenerationEligibility): string | null {
   if (!house.isActive) return 'House is inactive';
   if (house.propertyStatus === 'vacant' && !eligibility.billVacantHouses) return 'Vacant (billing disabled)';
   if (house.propertyStatus === 'under_renovation' && !eligibility.billUnderRenovation) return 'Under renovation (billing disabled)';
@@ -176,22 +208,24 @@ function residentEligible(resident: GenerationResidentRole, profile: GenerationP
   return null;
 }
 
-function candidateFor(
+function evaluateCandidate(
   resident: GenerationResidentRole,
   house: GenerationHouse,
   profile: GenerationProfile,
   version: BillingProfileVersion,
   periodStart: string,
   dueWindowDays: number,
-): InvoiceGenerationCandidate | null {
+): { candidate: InvoiceGenerationCandidate | null; skipReason: string | null } {
   const monthlyItems = version.items.filter((item) => item.frequency === 'monthly');
-  if (!monthlyItems.length) return null;
+  if (!monthlyItems.length) return { candidate: null, skipReason: 'No monthly billing items' };
 
   const periodEnd = monthEnd(periodStart);
   const periodStartDate = parseMonth(periodStart);
   const periodEndDate = new Date(`${periodEnd}T00:00:00.000Z`);
   const moveInDate = resident.moveInDate ? new Date(`${resident.moveInDate}T00:00:00.000Z`) : null;
-  if (moveInDate && moveInDate > periodEndDate) return null;
+  if (moveInDate && moveInDate > periodEndDate) {
+    return { candidate: null, skipReason: 'Resident moved in after selected period' };
+  }
 
   const isProRata = Boolean(moveInDate && moveInDate > periodStartDate && moveInDate <= periodEndDate);
   const totalDays = periodEndDate.getUTCDate();
@@ -203,16 +237,19 @@ function candidateFor(
   dueDate.setUTCDate(dueDate.getUTCDate() + dueWindowDays);
 
   return {
-    residentId: resident.id,
-    houseId: house.id,
-    billingProfileId: profile.id,
-    billingProfileVersionId: version.id,
-    periodStart,
-    periodEnd,
-    dueDate: dateString(dueDate),
-    amountDue,
-    isProRata,
-    invoiceItems,
+    candidate: {
+      residentId: resident.id,
+      houseId: house.id,
+      billingProfileId: profile.id,
+      billingProfileVersionId: version.id,
+      periodStart,
+      periodEnd,
+      dueDate: dateString(dueDate),
+      amountDue,
+      isProRata,
+      invoiceItems,
+    },
+    skipReason: null,
   };
 }
 
@@ -220,13 +257,7 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
   const request = InvoiceGenerationRequestSchema.parse(input.request);
   const periods = selectPeriods(request);
   const profiles = new Map(input.profiles.map((profile) => [profile.id, profile]));
-  const eligibility = {
-    billVacantHouses: false,
-    billUnderRenovation: false,
-    billUnderConstruction: false,
-    dueWindowDays: 14,
-    ...input.eligibility,
-  };
+  const eligibility = resolveInvoiceGenerationEligibility(input.eligibility);
   const candidates: InvoiceGenerationCandidate[] = [];
   const skips: CandidateSkip[] = [];
 
@@ -262,8 +293,9 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
       }
       for (const period of periods) {
         const version = resolveProfileVersion(period, input.versions.filter((item) => item.billingProfileId === profile.id));
-        const candidate = candidateFor(billable, house, profile, version, period, eligibility.dueWindowDays);
-        if (candidate) candidates.push(candidate);
+        const evaluation = evaluateCandidate(billable, house, profile, version, period, eligibility.dueWindowDays);
+        if (evaluation.candidate) candidates.push(evaluation.candidate);
+        else if (evaluation.skipReason) skips.push({ houseId: house.id, house: house.label, reason: evaluation.skipReason });
       }
       continue;
     }
@@ -275,8 +307,9 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
     for (const resident of eligibleResidents) {
       for (const period of periods) {
         const version = resolveProfileVersion(period, input.versions.filter((item) => item.billingProfileId === profile.id));
-        const candidate = candidateFor(resident, house, profile, version, period, eligibility.dueWindowDays);
-        if (candidate) candidates.push(candidate);
+        const evaluation = evaluateCandidate(resident, house, profile, version, period, eligibility.dueWindowDays);
+        if (evaluation.candidate) candidates.push(evaluation.candidate);
+        else if (evaluation.skipReason) skips.push({ houseId: house.id, house: house.label, reason: evaluation.skipReason });
       }
     }
   }
