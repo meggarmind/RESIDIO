@@ -10,6 +10,7 @@ import { createLogger } from '@/lib/logger';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import {
   resolveBillableCandidates,
+  resolveInvoiceGenerationEligibility,
   type BillingProfileVersion,
   type GenerationHouse,
   type GenerationProfile,
@@ -107,12 +108,12 @@ export async function generateMonthlyInvoices(
     const resolution = resolveBillableCandidates({
       request: { mode: 'selected_month', targetMonth: period, trigger: triggerType },
       profiles: generationProfiles, versions: generationVersions, houses: generationHouses,
-      eligibility: {
-        billVacantHouses: billVacantHouses === true,
-        billUnderRenovation: billUnderRenovation === true,
-        billUnderConstruction: billUnderConstruction === true,
-        dueWindowDays: Number(dueWindowSetting) || 30,
-      },
+      eligibility: resolveInvoiceGenerationEligibility({
+        billVacantHouses,
+        billUnderRenovation,
+        billUnderConstruction,
+        dueWindowDays: dueWindowSetting,
+      }),
     });
     result.skipped += resolution.skips.length;
     result.skipReasons.push(...resolution.skips.map(({ house, reason }) => ({ house, reason })));

@@ -4,10 +4,12 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import {
   resolveBillableCandidates,
+  resolveInvoiceGenerationEligibility,
   type BillingProfileVersion,
   type GenerationHouse,
   type GenerationProfile,
 } from '@/lib/billing/invoice-generation';
+import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export interface PreviewInvoiceItem {
@@ -116,11 +118,23 @@ export async function generateInvoicesPreview(
   }));
 
   try {
+    const [billVacantHouses, billUnderRenovation, billUnderConstruction, dueWindowSetting] = await Promise.all([
+      getSystemSetting(supabase, 'bill_vacant_houses'),
+      getSystemSetting(supabase, 'bill_under_renovation_houses'),
+      getSystemSetting(supabase, 'bill_under_construction_houses'),
+      getSystemSetting(supabase, 'invoice_due_window_days'),
+    ]);
     const resolution = resolveBillableCandidates({
       request: { mode: 'selected_month', targetMonth: monthString(targetDate), trigger: 'manual', houseId, streetId, residentId },
       profiles: generationProfiles,
       versions: generationVersions,
       houses: generationHouses,
+      eligibility: resolveInvoiceGenerationEligibility({
+        billVacantHouses,
+        billUnderRenovation,
+        billUnderConstruction,
+        dueWindowDays: dueWindowSetting,
+      }),
     });
     const preview = await Promise.all(resolution.candidates.map(async (candidate) => {
       const [existingResult, walletResult] = await Promise.all([
