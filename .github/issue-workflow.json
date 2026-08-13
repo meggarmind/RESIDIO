@@ -14,6 +14,17 @@
     "inReview": "In review",
     "done": "Done"
   },
+  "issueBranchPattern": "codex/issue-<number>-<slug>",
+  "lifecycleCommentMarker": "<!-- issue-workflow-lifecycle -->",
+  "monitor": {
+    "enabled": true,
+    "cadence": "hourly",
+    "staleAfterHours": 24,
+    "alertCooldownHours": 24,
+    "attentionLabel": "needs-attention",
+    "pausedLabel": "workflow:paused",
+    "commentMarker": "<!-- issue-workflow-monitor -->"
+  },
   "checks": [
     {
       "label": "lint",

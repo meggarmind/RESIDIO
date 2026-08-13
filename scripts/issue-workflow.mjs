@@ -9,6 +9,8 @@ const WINDOWS = process.platform === 'win32';
 
 export class WorkflowError extends Error {}
 
+export const LIFECYCLE_COMMENT_MARKER = '<!-- issue-workflow-lifecycle -->';
+
 export function loadConfig(configPath = CONFIG_PATH) {
   try {
     return JSON.parse(readFileSync(configPath, 'utf8'));
@@ -136,6 +138,28 @@ function issueDetails(config, cwd, issueNumber) {
   }
 
   return issue;
+}
+
+export function lifecycleComment(config, issue, transition, details = {}) {
+  const marker = config.lifecycleCommentMarker ?? LIFECYCLE_COMMENT_MARKER;
+  const lines = [
+    marker,
+    `Issue #${issue.number} lifecycle transition: ${transition}`,
+    `Timestamp: ${details.timestamp ?? new Date().toISOString()}`,
+    `Branch: ${details.branch ?? 'not-applicable'}`,
+    `Worktree: ${details.worktree ?? 'not-applicable'}`,
+    `Verification: ${details.verification ?? 'not-run'}`,
+    `Integration: ${details.integration ?? 'not-applicable'}`,
+  ];
+  return lines.join('\n');
+}
+
+function commentIssue(config, cwd, issue, body) {
+  run('gh', [
+    'issue', 'comment', String(issue.number),
+    '--repo', config.repository,
+    '--body', body,
+  ], cwd);
 }
 
 function projectDetails(config, cwd) {
@@ -293,6 +317,11 @@ function start(config, cwd, issueNumber) {
   if (issue.state !== 'OPEN') throw new WorkflowError(`Issue #${issue.number} is ${issue.state}; only open issues can start.`);
   const target = createOrReuseWorktree(cwd, config, issue);
   setStatus(config, cwd, issue.number, 'inProgress');
+  commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.inProgress, {
+    branch: target.branch,
+    worktree: target.path,
+    verification: 'not-run',
+  }));
   console.log(`Issue #${issue.number} is In progress at ${target.path}`);
 }
 
@@ -303,11 +332,26 @@ function review(config, cwd, issueNumber, args) {
   if (!target.listed) throw new WorkflowError(`Issue #${issue.number} has no registered worktree. Run start first.`);
   ensureClean(target.path, `Issue #${issue.number} worktree`);
   setStatus(config, cwd, issue.number, 'inReview');
+  commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.inReview, {
+    branch: target.branch,
+    worktree: target.path,
+    verification: 'running',
+  }));
   try {
     runChecks(config, target.path, checksFromArgs(args));
   } catch (error) {
+    commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.inReview, {
+      branch: target.branch,
+      worktree: target.path,
+      verification: 'failed',
+    }));
     throw new WorkflowError(`Issue #${issue.number} remains In review because verification failed. ${error.message}`);
   }
+  commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.inReview, {
+    branch: target.branch,
+    worktree: target.path,
+    verification: 'passed',
+  }));
   console.log(`Issue #${issue.number} verification passed; it remains In review until finish.`);
 }
 
@@ -317,6 +361,11 @@ function resume(config, cwd, issueNumber) {
   const target = matchingWorktree(cwd, config, issue);
   if (!target.listed) throw new WorkflowError(`Issue #${issue.number} has no registered worktree.`);
   setStatus(config, cwd, issue.number, 'inProgress');
+  commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.inProgress, {
+    branch: target.branch,
+    worktree: target.path,
+    verification: 'failed',
+  }));
   console.log(`Issue #${issue.number} is back In progress at ${target.path}`);
 }
 
@@ -337,6 +386,11 @@ function finish(config, cwd, issueNumber, args) {
 
   if (status !== config.statuses.done) {
     setStatus(config, cwd, issue.number, 'inReview');
+    commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.inReview, {
+      branch: target.branch,
+      worktree: target.path,
+      verification: 'running',
+    }));
     runChecks(config, target.path, checksFromArgs(args));
 
     const ancestor = (() => {
@@ -356,6 +410,13 @@ function finish(config, cwd, issueNumber, args) {
         throw new WorkflowError(`Issue #${issue.number} was not integrated because the merge failed. ${error.message}`);
       }
     }
+
+    commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.done, {
+      branch: target.branch,
+      worktree: target.path,
+      verification: 'passed',
+      integration: `merged into ${config.defaultBranch}`,
+    }));
 
     if (issue.state === 'OPEN') {
       run('gh', [

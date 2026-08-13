@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checksFromArgs, findStatusOption, parseWorktrees, slugify, statusName } from '../../../scripts/issue-workflow.mjs';
+import { checksFromArgs, findStatusOption, lifecycleComment, parseWorktrees, slugify, statusName } from '../../../scripts/issue-workflow.mjs';
 
 describe('issue workflow helpers', () => {
   it('creates stable issue slugs for branch names', () => {
@@ -40,5 +40,16 @@ describe('issue workflow helpers', () => {
     expect(checksFromArgs(['--check', 'npm run test:e2e', '--check', 'npm run lint -- --fix=false']))
       .toEqual(['npm run test:e2e', 'npm run lint -- --fix=false']);
     expect(() => checksFromArgs(['--unknown'])).toThrow('Unknown option');
+  });
+
+  it('renders durable lifecycle evidence comments', () => {
+    expect(lifecycleComment({ lifecycleCommentMarker: '<!-- lifecycle -->' }, { number: 67 }, 'In review', {
+      timestamp: '2026-08-13T12:00:00.000Z',
+      branch: 'codex/issue-67-example',
+      worktree: '.worktrees/issue-67',
+      verification: 'passed',
+      integration: 'not-applicable',
+    })).toContain('Verification: passed');
+    expect(lifecycleComment({ lifecycleCommentMarker: '<!-- lifecycle -->' }, { number: 67 }, 'In review', {}).startsWith('<!-- lifecycle -->')).toBe(true);
   });
 });
