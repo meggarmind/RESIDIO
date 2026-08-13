@@ -1,10 +1,14 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import type { InvoiceType } from '@/types/database';
-import type { BillingProfileWithItems } from '@/types/billing';
+import {
+  resolveBillableCandidates,
+  type BillingProfileVersion,
+  type GenerationHouse,
+  type GenerationProfile,
+} from '@/lib/billing/invoice-generation';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export interface PreviewInvoiceItem {
   houseId: string;
@@ -40,156 +44,121 @@ export interface GeneratePreviewResult {
   error: string | null;
 }
 
+const emptyResult = (error: string | null = null): GeneratePreviewResult => ({
+  success: !error,
+  preview: [],
+  skipList: [],
+  summary: { totalHouses: 0, eligibleHouses: 0, totalResidents: 0, newInvoices: 0, existingInvoices: 0, totalAmount: 0, totalWalletDeductions: 0, warnings: [] },
+  error,
+});
+
+const monthString = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+
+/**
+ * Previews the same versioned candidates that generation will process. This
+ * remains read-only; Task 3 turns the returned candidates into a durable run.
+ */
 export async function generateInvoicesPreview(
   targetDate: Date = new Date(),
   houseId?: string,
   streetId?: string,
-  residentId?: string
+  residentId?: string,
 ): Promise<GeneratePreviewResult> {
   const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
-  if (!auth.authorized) return { success: false, preview: [], skipList: [], summary: { totalHouses: 0, eligibleHouses: 0, totalResidents: 0, newInvoices: 0, existingInvoices: 0, totalAmount: 0, totalWalletDeductions: 0, warnings: [] }, error: auth.error || 'Unauthorized' };
+  if (!auth.authorized) return emptyResult(auth.error || 'Unauthorized');
 
   const supabase = await createServerSupabaseClient();
-  const targetMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
-  const targetEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0, 23, 59, 59);
+  let housesQuery = supabase.from('houses').select(`
+    id, house_number, street_id, house_type_id, billing_profile_id, property_status, is_active,
+    street:streets(name), resident_houses(id, resident_id, resident_role, move_in_date, is_active,
+      resident:residents!resident_id(id, first_name, last_name, resident_code, account_status))
+  `).eq('is_active', true);
+  if (houseId) housesQuery = housesQuery.eq('id', houseId);
+  if (streetId) housesQuery = housesQuery.eq('street_id', streetId);
+  const { data: houses, error: housesError } = await housesQuery;
+  if (housesError) return emptyResult(housesError.message);
 
-  const preview: PreviewInvoiceItem[] = [];
-  const skipList: Array<{ house: string; reason: string }> = [];
-  const warnings: string[] = [];
+  const houseTypeIds = [...new Set((houses || []).map((house) => house.house_type_id).filter((id): id is string => Boolean(id)))];
+  const { data: houseTypes, error: houseTypesError } = houseTypeIds.length
+    ? await supabase.from('house_types').select('id, billing_profile_id').in('id', houseTypeIds)
+    : { data: [], error: null };
+  if (houseTypesError) return emptyResult(houseTypesError.message);
+  const profileForHouseType = new Map((houseTypes || []).map((houseType) => [houseType.id, houseType.billing_profile_id]));
+  const profileIds = [...new Set((houses || []).map((house) => house.billing_profile_id || profileForHouseType.get(house.house_type_id || '')).filter((id): id is string => Boolean(id)))];
+  if (!profileIds.length) return { ...emptyResult(), summary: { ...emptyResult().summary, totalHouses: houses?.length || 0 } };
 
-  let houseQuery = supabase.from('houses').select('id, house_number, house_type_id, billing_profile_id, is_occupied, property_status, street:streets(name)').eq('is_active', true);
-  if (houseId) houseQuery = houseQuery.eq('id', houseId);
-  if (streetId) houseQuery = houseQuery.eq('street_id', streetId);
+  const [{ data: profiles, error: profilesError }, { data: versions, error: versionsError }] = await Promise.all([
+    supabase.from('billing_profiles').select('id, name, target_type, applicable_roles, is_one_time').in('id', profileIds).eq('is_active', true),
+    supabase.from('billing_profile_versions').select('id, billing_profile_id, effective_from, billing_profile_version_items(id, name, amount, frequency, is_mandatory)').in('billing_profile_id', profileIds),
+  ]);
+  if (profilesError || versionsError) return emptyResult(profilesError?.message || versionsError?.message || 'Could not load billing profiles');
 
-  const { data: houses, error: housesError } = await houseQuery;
-  if (housesError) return { success: false, preview: [], skipList: [], summary: { totalHouses: 0, eligibleHouses: 0, totalResidents: 0, newInvoices: 0, existingInvoices: 0, totalAmount: 0, totalWalletDeductions: 0, warnings: [] }, error: housesError.message };
+  const generationProfiles: GenerationProfile[] = (profiles || [])
+    .filter((profile) => !profile.is_one_time)
+    .map((profile) => ({ id: profile.id, name: profile.name, targetType: profile.target_type as GenerationProfile['targetType'], applicableRoles: profile.applicable_roles as GenerationProfile['applicableRoles'] }));
+  const generationVersions: BillingProfileVersion[] = (versions || []).map((version) => ({
+    id: version.id,
+    billingProfileId: version.billing_profile_id,
+    effectiveFrom: version.effective_from,
+    items: (version.billing_profile_version_items || []).map((item) => ({ id: item.id, name: item.name, amount: Number(item.amount), frequency: item.frequency, isMandatory: item.is_mandatory })),
+  }));
+  const generationHouses: GenerationHouse[] = (houses || []).map((house) => ({
+    id: house.id,
+    label: house.house_number,
+    streetId: house.street_id,
+    billingProfileId: house.billing_profile_id || profileForHouseType.get(house.house_type_id || '') || null,
+    propertyStatus: house.property_status || 'occupied',
+    isActive: house.is_active,
+    residents: (house.resident_houses || []).map((link) => {
+      const resident = Array.isArray(link.resident) ? link.resident[0] : link.resident;
+      return { id: link.resident_id, name: resident ? `${resident.first_name} ${resident.last_name}` : 'Unknown resident', accountStatus: resident?.account_status || 'inactive', role: link.resident_role, moveInDate: link.move_in_date, isActive: link.is_active };
+    }),
+  }));
 
-  for (const house of houses || []) {
-    const houseLabel = `${house.house_number}`;
-
-    // Get billing profile
-    let billingProfile: BillingProfileWithItems | null = null;
-    if (house.billing_profile_id) {
-      const { data } = await supabase.from('billing_profiles').select('id, name, target_type, applicable_roles, is_one_time, billing_items(id, name, amount, frequency, is_mandatory)').eq('id', house.billing_profile_id).eq('is_active', true).single();
-      billingProfile = data;
-    }
-    if (!billingProfile && house.house_type_id) {
-      const { data: ht } = await supabase.from('house_types').select('billing_profile_id, billing_profile:billing_profiles(id, name, target_type, applicable_roles, is_one_time, billing_items(id, name, amount, frequency, is_mandatory))').eq('id', house.house_type_id).single();
-      if (ht?.billing_profile) {
-        const bp = Array.isArray(ht.billing_profile) ? ht.billing_profile[0] : ht.billing_profile;
-        billingProfile = bp as unknown as BillingProfileWithItems;
-      }
-    }
-
-    if (!billingProfile || billingProfile.is_one_time || billingProfile.target_type !== 'house') {
-      skipList.push({ house: houseLabel, reason: billingProfile ? 'One-time or not house-targeted' : 'No billing profile' });
-      continue;
-    }
-
-    // Get active residents
-    const { data: links } = await supabase.from('resident_houses').select('id, resident_id, resident_role, move_in_date, resident:residents!resident_id(id, first_name, last_name, resident_code, account_status)').eq('house_id', house.id).eq('is_active', true);
-
-    const activeLinks = links || [];
-    if (activeLinks.length === 0) {
-      skipList.push({ house: houseLabel, reason: 'No active residents' });
-      warnings.push(`House ${houseLabel} is vacant`);
-      continue;
-    }
-
-    // Find billable resident
-    const tenant = activeLinks.find((l) => l.resident_role === 'tenant');
-    const residentLandlord = activeLinks.find((l) => l.resident_role === 'resident_landlord');
-    const billableLink = tenant || residentLandlord;
-    if (!billableLink) {
-      skipList.push({ house: houseLabel, reason: 'No tenant or resident landlord' });
-      continue;
-    }
-
-    const resident = (billableLink.resident as unknown as { id: string; first_name: string; last_name: string; resident_code: string; account_status: string });
-    if (resident.account_status !== 'active') {
-      skipList.push({ house: houseLabel, reason: `Resident is ${resident.account_status}` });
-      continue;
-    }
-
-    if (residentId && resident.id !== residentId) {
-      skipList.push({ house: houseLabel, reason: 'Not in selected resident scope' });
-      continue;
-    }
-
-    const monthlyItems = (billingProfile.billing_items || []).filter((i) => i.frequency === 'monthly');
-    if (monthlyItems.length === 0) {
-      skipList.push({ house: houseLabel, reason: 'No monthly billing items' });
-      continue;
-    }
-
-    const fullMonthTotal = monthlyItems.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
-    const moveInDate = new Date(billableLink.move_in_date || '2020-01-01');
-
-    // Generate preview for active months from move-in to target
-    let currentDate = new Date(Math.max(moveInDate.getFullYear(), targetMonth.getFullYear()), Math.max(moveInDate.getMonth(), 0), 1);
-    if (currentDate.getTime() > targetMonth.getTime()) currentDate = targetMonth;
-
-    while (currentDate <= targetEnd) {
-      const periodStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const periodEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-      const totalDays = periodEnd.getDate();
-
-      const isFirstMonth = currentDate.getFullYear() === moveInDate.getFullYear() && currentDate.getMonth() === moveInDate.getMonth();
-      let fraction = 1;
-      let activeDays = totalDays;
-      if (isFirstMonth) {
-        activeDays = totalDays - moveInDate.getDate() + 1;
-        fraction = activeDays / totalDays;
-      }
-      const amount = Math.round(fullMonthTotal * fraction);
-
-      // Check if invoice already exists
-      const { data: existing } = await supabase.from('invoices').select('id').eq('resident_id', resident.id).eq('house_id', house.id).eq('billing_profile_id', billingProfile.id).eq('period_start', periodStart.toISOString().split('T')[0]).eq('period_end', periodEnd.toISOString().split('T')[0]).maybeSingle();
-
-      // Get wallet balance
-      const { data: wallet } = await supabase.from('resident_wallets').select('balance').eq('resident_id', resident.id).single();
-      const walletBalance = Number(wallet?.balance) || 0;
-
-      const streetName = house.street ? (Array.isArray(house.street) ? (house.street[0] as { name: string })?.name || '' : (house.street as { name: string })?.name || '') : '';
-
-      preview.push({
-        houseId: house.id,
-        houseNumber: house.house_number,
-        streetName,
-        residentId: resident.id,
-        residentName: `${resident.first_name} ${resident.last_name}`,
-        residentCode: resident.resident_code,
-        periodStart: periodStart.toISOString().split('T')[0],
-        periodEnd: periodEnd.toISOString().split('T')[0],
-        amount,
-        isProRata: isFirstMonth,
-        isNew: !existing,
-        walletBalance,
-        walletAfterDeduction: !existing ? Math.max(0, walletBalance - amount) : walletBalance,
-        billingProfileName: billingProfile.name,
-      });
-
-      currentDate.setMonth(currentDate.getMonth() + 1);
-    }
+  try {
+    const resolution = resolveBillableCandidates({
+      request: { mode: 'selected_month', targetMonth: monthString(targetDate), trigger: 'manual', houseId, streetId, residentId },
+      profiles: generationProfiles,
+      versions: generationVersions,
+      houses: generationHouses,
+    });
+    const preview = await Promise.all(resolution.candidates.map(async (candidate) => {
+      const [existingResult, walletResult] = await Promise.all([
+        supabase.from('invoices').select('id').eq('resident_id', candidate.residentId).eq('house_id', candidate.houseId!).eq('billing_profile_version_id', candidate.billingProfileVersionId).eq('period_start', candidate.periodStart).eq('period_end', candidate.periodEnd).maybeSingle(),
+        supabase.from('resident_wallets').select('balance').eq('resident_id', candidate.residentId).maybeSingle(),
+      ]);
+      const house = generationHouses.find((item) => item.id === candidate.houseId)!;
+      const resident = house.residents.find((item) => item.id === candidate.residentId)!;
+      const sourceHouse = (houses || []).find((item) => item.id === candidate.houseId)!;
+      const street = Array.isArray(sourceHouse.street) ? sourceHouse.street[0] : sourceHouse.street;
+      const walletBalance = Number(walletResult.data?.balance || 0);
+      const isNew = !existingResult.data;
+      return {
+        houseId: house.id, houseNumber: house.label, streetName: street?.name || '', residentId: resident.id, residentName: resident.name,
+        residentCode: ((Array.isArray(sourceHouse.resident_houses) ? sourceHouse.resident_houses : []).find((link) => link.resident_id === resident.id)?.resident as { resident_code?: string } | null)?.resident_code || '',
+        periodStart: candidate.periodStart, periodEnd: candidate.periodEnd, amount: candidate.amountDue, isProRata: candidate.isProRata,
+        isNew, walletBalance, walletAfterDeduction: isNew ? Math.max(0, walletBalance - candidate.amountDue) : walletBalance,
+        billingProfileName: generationProfiles.find((profile) => profile.id === candidate.billingProfileId)?.name || 'Billing profile',
+      } satisfies PreviewInvoiceItem;
+    }));
+    const newInvoices = preview.filter((item) => item.isNew);
+    return {
+      success: true,
+      preview,
+      skipList: resolution.skips.map(({ house, reason }) => ({ house, reason })),
+      summary: {
+        totalHouses: houses?.length || 0,
+        eligibleHouses: new Set(preview.map((item) => item.houseId)).size,
+        totalResidents: new Set(preview.map((item) => item.residentId)).size,
+        newInvoices: newInvoices.length,
+        existingInvoices: preview.length - newInvoices.length,
+        totalAmount: newInvoices.reduce((sum, item) => sum + item.amount, 0),
+        totalWalletDeductions: newInvoices.reduce((sum, item) => sum + Math.min(item.amount, item.walletBalance), 0),
+        warnings: resolution.skips.map(({ house, reason }) => `${house}: ${reason}`),
+      },
+      error: null,
+    };
+  } catch (error) {
+    return emptyResult(error instanceof Error ? error.message : 'Could not resolve invoice candidates');
   }
-
-  const newInvoices = preview.filter((p) => p.isNew);
-  const existingInvoices = preview.filter((p) => !p.isNew);
-
-  return {
-    success: true,
-    preview,
-    skipList,
-    summary: {
-      totalHouses: houses?.length || 0,
-      eligibleHouses: new Set(preview.map((p) => p.houseId)).size,
-      totalResidents: new Set(preview.map((p) => p.residentId)).size,
-      newInvoices: newInvoices.length,
-      existingInvoices: existingInvoices.length,
-      totalAmount: newInvoices.reduce((s, p) => s + p.amount, 0),
-      totalWalletDeductions: newInvoices.reduce((s, p) => s + Math.min(p.amount, p.walletBalance), 0),
-      warnings,
-    },
-    error: null,
-  };
 }
