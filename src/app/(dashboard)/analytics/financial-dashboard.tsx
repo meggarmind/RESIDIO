@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
@@ -9,6 +9,7 @@ import {
   useDashboardInvoiceDistribution,
   useDashboardQuickStats,
 } from '@/hooks/use-dashboard';
+import { useAnalytics } from '@/hooks/use-analytics';
 import { formatCurrency } from '@/lib/utils';
 import {
   BarChart3,
@@ -53,6 +54,19 @@ function FinancialDashboardContent() {
   const { data: financialHealth, isLoading: fhLoading } = useDashboardFinancialHealth();
   const { data: invoiceDist } = useDashboardInvoiceDistribution();
   const { data: quickStats } = useDashboardQuickStats();
+
+  // Trailing 12-month range for the Revenue vs Expenses trend chart
+  const { startDate, endDate } = useMemo(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(start.getMonth() - 11);
+    start.setDate(1);
+    return {
+      startDate: start.toISOString().slice(0, 10),
+      endDate: end.toISOString().slice(0, 10),
+    };
+  }, []);
+  const { data: trendData, isLoading: trendLoading } = useAnalytics({ startDate, endDate });
 
   return (
     <div className="space-y-6">
@@ -107,24 +121,9 @@ function FinancialDashboardContent() {
       </div>
 
       {/* Revenue vs Expenses Monthly Trend */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Revenue vs Expenses
-              </CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">Monthly verified revenue and expenses over the last 12 months</p>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Suspense fallback={<Skeleton className="h-80 w-full" />}>
-            <RevenueTrendChart />
-          </Suspense>
-        </CardContent>
-      </Card>
+      <Suspense fallback={<Skeleton className="h-80 w-full" />}>
+        <RevenueTrendChart data={trendData?.revenueTrend ?? null} isLoading={trendLoading} />
+      </Suspense>
 
       {/* Bottom Row: Invoice Distribution + Quick Stats */}
       <div className="grid gap-6 lg:grid-cols-2">

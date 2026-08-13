@@ -1,167 +1,133 @@
 'use client';
 
-import { Suspense } from 'react';
+import { useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { AlertCircle } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { BarChart3, Wallet, Users, Home, Landmark, Repeat } from 'lucide-react';
 
-import { useDateRange } from '@/hooks/use-date-range';
-import { useAnalytics } from '@/hooks/use-analytics';
-
-import { AnalyticsHeader } from '@/components/analytics/analytics-header';
-import { KPISummaryCards } from '@/components/analytics/kpi-summary-cards';
-import { OccupancyGauge } from '@/components/analytics/occupancy-gauge';
-import { PaymentComplianceCard } from '@/components/analytics/payment-compliance-card';
-import { useSearchAnalytics } from '@/hooks/use-search-analytics';
-import { SearchAnalyticsCard } from '@/components/analytics/search-analytics-card';
-
-// Lazy load heavy chart components (recharts ~500KB)
-const RevenueTrendChart = dynamic(
-  () => import('@/components/analytics/revenue-trend-chart').then(mod => ({ default: mod.RevenueTrendChart })),
-  { loading: () => <Skeleton className="h-80 w-full" />, ssr: false }
+const FinancialDashboard = dynamic(
+  () => import('./financial-dashboard').then((m) => ({ default: m.FinancialDashboard })),
+  { loading: () => <TabSkeleton />, ssr: false }
 );
 
-const CollectionRateChart = dynamic(
-  () => import('@/components/analytics/collection-rate-chart').then(mod => ({ default: mod.CollectionRateChart })),
-  { loading: () => <Skeleton className="h-80 w-full" />, ssr: false }
+const ResidentsTab = dynamic(
+  () => import('@/components/analytics/tabs/residents-tab').then((m) => ({ default: m.ResidentsTab })),
+  { loading: () => <TabSkeleton />, ssr: false }
 );
 
-const PaymentMethodBreakdown = dynamic(
-  () => import('@/components/analytics/payment-method-breakdown').then(mod => ({ default: mod.PaymentMethodBreakdown })),
-  { loading: () => <Skeleton className="h-80 w-full" />, ssr: false }
+const HousesStreetsTab = dynamic(
+  () => import('@/components/analytics/tabs/houses-streets-tab').then((m) => ({ default: m.HousesStreetsTab })),
+  { loading: () => <TabSkeleton />, ssr: false }
 );
 
-const CategoryBreakdownChart = dynamic(
-  () => import('@/components/analytics/category-breakdown-chart').then(mod => ({ default: mod.CategoryBreakdownChart })),
-  { loading: () => <Skeleton className="h-80 w-full" />, ssr: false }
+const CollectionsIndebtednessTab = dynamic(
+  () => import('@/components/analytics/tabs/collections-indebtedness-tab').then((m) => ({ default: m.CollectionsIndebtednessTab })),
+  { loading: () => <TabSkeleton />, ssr: false }
+);
+
+const PaymentBehaviorTab = dynamic(
+  () => import('@/components/analytics/tabs/payment-behavior-tab').then((m) => ({ default: m.PaymentBehaviorTab })),
+  { loading: () => <TabSkeleton />, ssr: false }
 );
 
 /**
  * Analytics Page Client Component
  *
- * Renders the interactive analytics dashboard with all charts.
- * Uses React Query for data fetching with auto-refresh.
+ * Tabbed analytics: Financial (existing), Residents, Houses & Streets,
+ * Collections & Indebtedness, Payment Behavior. Tab state is URL-synced
+ * (same pattern as the resident detail page) so links/reloads land on the
+ * right tab.
  */
 export function AnalyticsPageClient() {
-  return (
-    <Suspense fallback={<AnalyticsSkeleton />}>
-      <AnalyticsDashboard />
-    </Suspense>
-  );
-}
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
 
-function AnalyticsDashboard() {
-  const { dateRange } = useDateRange();
-  const { data, isLoading, error } = useAnalytics({
-    startDate: dateRange.startDate,
-    endDate: dateRange.endDate,
-  });
-
-  const searchAnalytics = useSearchAnalytics({
-    startDate: dateRange.startDate,
-    endDate: dateRange.endDate,
-  });
-
-  // Error state
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <AnalyticsHeader />
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error loading analytics</AlertTitle>
-          <AlertDescription>
-            {error.message || 'Failed to load analytics data. Please try again.'}
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+  const handleTabChange = useCallback((value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === 'financial') {
+      params.delete('tab');
+    } else {
+      params.set('tab', value);
+    }
+    const query = params.toString();
+    router.replace(`/analytics${query ? `?${query}` : ''}`, { scroll: false });
+    setTimeout(() => {
+      const panel = document.querySelector(`[data-tab-panel="${value}"]`) as HTMLElement | null;
+      panel?.focus({ preventScroll: true });
+    }, 50);
+  }, [searchParams, router]);
 
   return (
-    <div className="space-y-6">
-      {/* Header with Date Filter */}
-      <AnalyticsHeader />
-
-      {/* KPI Summary Cards */}
-      <KPISummaryCards kpis={data?.kpis ?? null} isLoading={isLoading} />
-
-      {/* Main Charts Row */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <RevenueTrendChart data={data?.revenueTrend ?? null} isLoading={isLoading} />
-        <CollectionRateChart data={data?.collectionRateTrend ?? null} isLoading={isLoading} />
-      </div>
-
-      {/* Secondary Charts Row */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <OccupancyGauge data={data?.currentOccupancy ?? null} isLoading={isLoading} />
-        <PaymentComplianceCard data={data?.paymentCompliance ?? null} isLoading={isLoading} />
-        <PaymentMethodBreakdown data={data?.paymentMethods ?? null} isLoading={isLoading} />
-      </div>
-
-      {/* Category Breakdown (Full Width) */}
-      <CategoryBreakdownChart data={data?.invoiceCategories ?? null} isLoading={isLoading} />
-
-      {/* Search Analytics */}
-      <SearchAnalyticsCard
-        topSearches={searchAnalytics.data?.topSearches}
-        zeroResultSearches={searchAnalytics.data?.zeroResultSearches}
-        isLoading={searchAnalytics.isLoading}
+    <div className="space-y-4">
+      <EnhancedPageHeader
+        title="Analytics"
+        description="Financial, resident, property, and collections insights"
+        icon={BarChart3}
       />
 
-      {/* Last Updated Indicator */}
-      {data?.lastUpdated && (
-        <p className="text-xs text-muted-foreground text-center">
-          Last updated: {new Date(data.lastUpdated).toLocaleString()}
-        </p>
-      )}
+      <Tabs defaultValue={tabParam ?? 'financial'} className="w-full" onValueChange={handleTabChange}>
+        <TabsList className="h-9 p-1 sticky top-0 z-10 glass">
+          <TabsTrigger value="financial" className="text-xs h-7">
+            <Wallet className="h-3.5 w-3.5 mr-1" />
+            Financial
+          </TabsTrigger>
+          <TabsTrigger value="residents" className="text-xs h-7">
+            <Users className="h-3.5 w-3.5 mr-1" />
+            Residents
+          </TabsTrigger>
+          <TabsTrigger value="houses" className="text-xs h-7">
+            <Home className="h-3.5 w-3.5 mr-1" />
+            Houses &amp; Streets
+          </TabsTrigger>
+          <TabsTrigger value="collections" className="text-xs h-7">
+            <Landmark className="h-3.5 w-3.5 mr-1" />
+            Collections &amp; Indebtedness
+          </TabsTrigger>
+          <TabsTrigger value="payment-behavior" className="text-xs h-7">
+            <Repeat className="h-3.5 w-3.5 mr-1" />
+            Payment Behavior
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="financial" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="financial">
+          <FinancialDashboard />
+        </TabsContent>
+
+        <TabsContent value="residents" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="residents">
+          <ResidentsTab />
+        </TabsContent>
+
+        <TabsContent value="houses" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="houses">
+          <HousesStreetsTab />
+        </TabsContent>
+
+        <TabsContent value="collections" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="collections">
+          <CollectionsIndebtednessTab />
+        </TabsContent>
+
+        <TabsContent value="payment-behavior" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="payment-behavior">
+          <PaymentBehaviorTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
 
-function AnalyticsSkeleton() {
+function TabSkeleton() {
   return (
     <div className="space-y-6">
-      {/* Header Skeleton */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-9 w-9 rounded-lg" />
-            <div className="space-y-1">
-              <Skeleton className="h-6 w-24" />
-              <Skeleton className="h-4 w-40" />
-            </div>
-          </div>
-          <Skeleton className="h-8 w-20" />
-        </div>
-        <div className="flex gap-2">
-          {[...Array(5)].map((_, i) => (
-            <Skeleton key={i} className="h-8 w-24" />
-          ))}
-        </div>
+      <div className="grid gap-4 md:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
       </div>
-
-      {/* KPI Cards Skeleton */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <Skeleton key={i} className="h-24 rounded-xl" />
-        ))}
+      <Skeleton className="h-80 rounded-xl" />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Skeleton className="h-72 rounded-xl" />
+        <Skeleton className="h-72 rounded-xl" />
       </div>
-
-      {/* Charts Skeleton */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Skeleton className="h-[300px] rounded-xl" />
-        <Skeleton className="h-[300px] rounded-xl" />
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-[250px] rounded-xl" />
-        ))}
-      </div>
-
-      <Skeleton className="h-[280px] rounded-xl" />
     </div>
   );
 }

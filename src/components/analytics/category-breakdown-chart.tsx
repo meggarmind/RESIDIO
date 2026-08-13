@@ -18,6 +18,10 @@ import type { CategoryData } from '@/types/analytics';
 interface CategoryBreakdownChartProps {
   data: CategoryData[] | null;
   isLoading?: boolean;
+  title?: string;
+  description?: string;
+  /** Whether categories carry a monetary amount (shows currency axis/tooltip) vs a plain count. */
+  showAmount?: boolean;
 }
 
 // Chart colors (gradient of blues/teals)
@@ -35,7 +39,13 @@ const COLORS = [
  *
  * Horizontal bar chart showing invoice amounts by billing profile/category.
  */
-export function CategoryBreakdownChart({ data, isLoading }: CategoryBreakdownChartProps) {
+export function CategoryBreakdownChart({
+  data,
+  isLoading,
+  title = 'Invoice Categories',
+  description = 'Amount by billing profile',
+  showAmount = true,
+}: CategoryBreakdownChartProps) {
   if (isLoading) {
     return <ChartSkeleton />;
   }
@@ -46,7 +56,7 @@ export function CategoryBreakdownChart({ data, isLoading }: CategoryBreakdownCha
         <CardHeader className="pb-2">
           <div className="flex items-center gap-2">
             <Layers className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base">Invoice Categories</CardTitle>
+            <CardTitle className="text-base">{title}</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
@@ -85,11 +95,13 @@ export function CategoryBreakdownChart({ data, isLoading }: CategoryBreakdownCha
       return (
         <div className="bg-card border rounded-lg p-2 shadow-lg text-sm">
           <p className="font-medium">{label}</p>
-          <p className="text-muted-foreground">
-            {formatTooltipValue(item.amount)}
-          </p>
+          {showAmount && (
+            <p className="text-muted-foreground">
+              {formatTooltipValue(item.amount)}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
-            {item.count} invoices ({item.percentage}%)
+            {item.count} {showAmount ? 'invoices' : 'residents'} ({item.percentage}%)
           </p>
         </div>
       );
@@ -106,9 +118,9 @@ export function CategoryBreakdownChart({ data, isLoading }: CategoryBreakdownCha
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-blue-600" />
           <div>
-            <CardTitle className="text-base">Invoice Categories</CardTitle>
+            <CardTitle className="text-base">{title}</CardTitle>
             <CardDescription className="text-xs">
-              Amount by billing profile
+              {description}
             </CardDescription>
           </div>
         </div>
@@ -128,7 +140,8 @@ export function CategoryBreakdownChart({ data, isLoading }: CategoryBreakdownCha
               />
               <XAxis
                 type="number"
-                tickFormatter={formatCurrency}
+                allowDecimals={!showAmount ? false : undefined}
+                tickFormatter={showAmount ? formatCurrency : undefined}
                 tick={{ fontSize: 11 }}
                 tickLine={false}
                 axisLine={false}
@@ -145,7 +158,7 @@ export function CategoryBreakdownChart({ data, isLoading }: CategoryBreakdownCha
               />
               <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
               <Bar
-                dataKey="amount"
+                dataKey={showAmount ? 'amount' : 'count'}
                 radius={[0, 4, 4, 0]}
                 maxBarSize={30}
               >
