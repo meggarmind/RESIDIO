@@ -1,0 +1,34 @@
+{
+  "repository": "meggarmind/RESIDIO",
+  "project": {
+    "owner": "meggarmind",
+    "number": 1
+  },
+  "defaultBranch": "master",
+  "worktreeDirectory": ".worktrees",
+  "branchPrefix": "codex/issue-",
+  "statusField": "Status",
+  "statuses": {
+    "todo": "Todo",
+    "inProgress": "In progress",
+    "inReview": "In review",
+    "done": "Done"
+  },
+  "checks": [
+    {
+      "label": "lint",
+      "command": "npm",
+      "args": ["run", "lint"]
+    },
+    {
+      "label": "tests",
+      "command": "npm",
+      "args": ["test"]
+    },
+    {
+      "label": "build",
+      "command": "npm",
+      "args": ["run", "build"]
+    }
+  ]
+}

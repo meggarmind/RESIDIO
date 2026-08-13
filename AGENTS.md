@@ -77,3 +77,19 @@ Follow `DESIGN_AGENTS.md` (the repo's design standard) for all UI work: OKLCH co
 - Update `ACTIONPLAN.md` whenever work completes, changes, or invalidates an active plan step.
 - When implementation is complete and the ticket has been updated with verification results, move its project-board status to **Review** before finishing the session. Keep it open until review is accepted; if project access is unavailable, report the blocker explicitly.
 - Record the work actually performed, decisions, verification results, known failures, and remaining work. Do not create separate handoff files; `SESSION_STATE.md` is the sole live handoff.
+
+## Mandatory issue-driven delivery workflow
+
+Every initiative must be decomposed with Matt Pocock's `to-issues` skill before implementation. Present the proposed tracer-bullet vertical slices, confirm their granularity and dependencies, then publish the approved child issues to GitHub in dependency order using the `to-issues` template and `ready-for-agent` label. Do not begin implementation without a published issue number.
+
+Implementation is isolated per issue in `.worktrees/issue-<number>` on `codex/issue-<number>-<slug>`. Use the repository helper configured in `.github/issue-workflow.json`:
+
+```text
+npm run issue:doctor
+npm run issue:workflow -- start <issue>
+npm run issue:workflow -- review <issue> [--check "issue-specific command"]
+npm run issue:workflow -- resume <issue>
+npm run issue:workflow -- finish <issue> [--check "issue-specific command"]
+```
+
+The canonical GitHub Project 1 lifecycle is `Todo → In progress → In review → Done`. `start` moves an issue to In progress after its worktree exists; `review` moves it to In review before checks begin; `resume` returns it to In progress when fixes are needed; and `finish` can set Done only after checks pass, the branch is merged into `master`, and the child issue is closed. Failed checks, dirty worktrees, missing project configuration, and merge conflicts must leave the issue unfinished and preserve its worktree. Parent initiative issues are never closed by child completion.
