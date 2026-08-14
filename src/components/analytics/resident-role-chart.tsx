@@ -21,7 +21,7 @@ interface ResidentRoleChartProps {
 }
 
 const PRIMARY_COLOR = 'hsl(217.2 91.2% 59.8%)'; // blue — billable/primary roles
-const SECONDARY_COLOR = 'hsl(280.5 84.1% 58%)'; // violet — non-billable/secondary roles
+const SECONDARY_COLOR = 'hsl(37.7 92.1% 50.2%)'; // amber — non-billable/secondary roles
 
 function RoleTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ResidentRoleBreakdown }> }) {
   if (active && payload && payload.length) {
@@ -79,7 +79,7 @@ export function ResidentRoleChart({ data, isLoading }: ResidentRoleChartProps) {
           <Users className="h-4 w-4 text-blue-600" />
           <div>
             <CardTitle className="text-base">Residents by Role</CardTitle>
-            <CardDescription className="text-xs">Active house assignments, blue = primary/billable, violet = secondary</CardDescription>
+            <CardDescription className="text-xs">Active house assignments, blue = primary/billable, amber = secondary</CardDescription>
           </div>
         </div>
       </CardHeader>

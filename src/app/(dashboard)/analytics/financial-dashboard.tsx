@@ -3,7 +3,6 @@
 import { Suspense, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import {
   useDashboardFinancialHealth,
   useDashboardInvoiceDistribution,
@@ -12,7 +11,6 @@ import {
 import { useAnalytics } from '@/hooks/use-analytics';
 import { formatCurrency } from '@/lib/utils';
 import {
-  BarChart3,
   TrendingUp,
   AlertCircle,
   DollarSign,
@@ -70,12 +68,6 @@ function FinancialDashboardContent() {
 
   return (
     <div className="space-y-6">
-      <EnhancedPageHeader
-        title="Financial Dashboard"
-        description="Revenue, collections, aging, and portfolio overview"
-        icon={BarChart3}
-      />
-
       {/* Collection Health Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
@@ -136,24 +128,30 @@ function FinancialDashboardContent() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {['paid', 'unpaid', 'partially_paid', 'overdue', 'void'].map((status) => (
-                <div key={status} className="flex items-center justify-between">
-                  <span className="text-sm capitalize text-muted-foreground">{status.replace('_', ' ')}</span>
-                  <div className="flex items-center gap-3">
-                    <div className="h-2 rounded-full bg-muted w-32 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{
-                          width: `${(invoiceDist && (invoiceDist as Record<string, number>)[status] > 0)
-                            ? ((invoiceDist as Record<string, number>)[status] / ((invoiceDist?.paid ?? 0) + (invoiceDist?.unpaid ?? 0) + (invoiceDist?.partiallyPaid ?? 0) + (invoiceDist?.overdue ?? 0) + (invoiceDist?.void ?? 0) || 1)) * 100
-                            : 0}%`,
-                        }}
-                      />
+              {([
+                { label: 'paid', key: 'paid' },
+                { label: 'unpaid', key: 'unpaid' },
+                { label: 'partially paid', key: 'partiallyPaid' },
+                { label: 'overdue', key: 'overdue' },
+                { label: 'void', key: 'void' },
+              ] as const).map(({ label, key }) => {
+                const value = invoiceDist?.[key] ?? 0;
+                const total = (invoiceDist?.paid ?? 0) + (invoiceDist?.unpaid ?? 0) + (invoiceDist?.partiallyPaid ?? 0) + (invoiceDist?.overdue ?? 0) + (invoiceDist?.void ?? 0);
+                return (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-sm capitalize text-muted-foreground">{label}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="h-2 rounded-full bg-muted w-32 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${value > 0 ? (value / (total || 1)) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium tabular-nums w-8 text-right">{invoiceDist ? value : '-'}</span>
                     </div>
-                    <span className="text-sm font-medium tabular-nums w-8 text-right">{(invoiceDist as Record<string, number>)?.[status] ?? '-'}</span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>

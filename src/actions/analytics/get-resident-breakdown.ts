@@ -74,7 +74,7 @@ export async function getResidentAnalytics(): Promise<{ data: ResidentAnalytics 
 
     const totalResidents = residentsResult.data?.length ?? 0;
     const byEntityType: CategoryData[] = Array.from(entityCounts.entries()).map(([category, count]) => ({
-      category,
+      category: category.charAt(0).toUpperCase() + category.slice(1),
       count,
       amount: 0,
       percentage: totalResidents > 0 ? Math.round((count / totalResidents) * 100) : 0,

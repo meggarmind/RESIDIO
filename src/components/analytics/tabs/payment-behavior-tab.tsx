@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { Repeat, CalendarCheck, CalendarClock, HelpCircle } from 'lucide-react';
+import { CalendarCheck, CalendarClock, HelpCircle, Shuffle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,13 @@ const CADENCE_BADGE_VARIANT: Record<PaymentCadence, 'success' | 'info' | 'warnin
   annual: 'info',
   irregular: 'warning',
   insufficient_data: 'outline',
+};
+
+const CADENCE_ICON: Record<PaymentCadence, typeof CalendarCheck> = {
+  monthly: CalendarCheck,
+  annual: CalendarClock,
+  irregular: Shuffle,
+  insufficient_data: HelpCircle,
 };
 
 export function PaymentBehaviorTab() {
@@ -96,25 +103,28 @@ export function PaymentBehaviorTab() {
                 </tr>
               </thead>
               <tbody>
-                {drillDownRows.map((r) => (
-                  <tr key={r.residentId} className="border-b last:border-0">
-                    <td className="py-2">
-                      <Link href={`/residents/${r.residentId}`} className="font-medium hover:underline hover:text-primary">
-                        {r.residentName}
-                      </Link>
-                    </td>
-                    <td className="py-2 text-right tabular-nums">{r.paymentCount}</td>
-                    <td className="py-2 text-right tabular-nums text-muted-foreground">
-                      {r.medianGapDays !== null ? `${r.medianGapDays}d` : '—'}
-                    </td>
-                    <td className="py-2 text-right">
-                      <Badge variant={CADENCE_BADGE_VARIANT[r.cadence]} className="text-xs">
-                        <Repeat className="h-3 w-3 mr-1" />
-                        {r.cadence.replace('_', ' ')}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
+                {drillDownRows.map((r) => {
+                  const CadenceIcon = CADENCE_ICON[r.cadence];
+                  return (
+                    <tr key={r.residentId} className="border-b last:border-0">
+                      <td className="py-2">
+                        <Link href={`/residents/${r.residentId}`} className="font-medium hover:underline hover:text-primary">
+                          {r.residentName}
+                        </Link>
+                      </td>
+                      <td className="py-2 text-right tabular-nums">{r.paymentCount}</td>
+                      <td className="py-2 text-right tabular-nums text-muted-foreground">
+                        {r.medianGapDays !== null ? `${r.medianGapDays}d` : '—'}
+                      </td>
+                      <td className="py-2 text-right">
+                        <Badge variant={CADENCE_BADGE_VARIANT[r.cadence]} className="text-xs">
+                          <CadenceIcon className="h-3 w-3 mr-1" />
+                          {r.cadence.replace('_', ' ')}
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

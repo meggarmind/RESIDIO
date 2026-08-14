@@ -30,7 +30,7 @@ const COLORS = [
   'hsl(199.4 89.7% 48.4%)', // sky
   'hsl(172.5 66% 50.4%)',   // teal
   'hsl(142.1 70.6% 45.3%)', // green
-  'hsl(280.5 84.1% 58%)',   // violet
+  'hsl(37.7 92.1% 50.2%)',  // amber
   'hsl(var(--muted-foreground))', // gray for others
 ];
 

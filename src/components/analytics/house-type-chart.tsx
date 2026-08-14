@@ -65,7 +65,7 @@ export function HouseTypeChart({ data, isLoading }: HouseTypeChartProps) {
     <Card className="animate-fade-in-up">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
-          <Building2 className="h-4 w-4 text-violet-600" />
+          <Building2 className="h-4 w-4 text-blue-600" />
           <div>
             <CardTitle className="text-base">Occupancy by House Type</CardTitle>
             <CardDescription className="text-xs">Occupancy rate (%)</CardDescription>
@@ -84,7 +84,7 @@ export function HouseTypeChart({ data, isLoading }: HouseTypeChartProps) {
               <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} className="text-muted-foreground" />
               <YAxis type="category" dataKey="houseTypeName" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} className="text-muted-foreground" width={100} />
               <Tooltip content={<HouseTypeTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
-              <Bar dataKey="occupancyRate" radius={[0, 4, 4, 0]} maxBarSize={22} fill="hsl(280.5 84.1% 58%)" />
+              <Bar dataKey="occupancyRate" radius={[0, 4, 4, 0]} maxBarSize={22} fill="hsl(217.2 91.2% 59.8%)" />
             </BarChart>
           </ResponsiveContainer>
         </div>

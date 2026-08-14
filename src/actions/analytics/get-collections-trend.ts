@@ -17,8 +17,19 @@ export async function getCollectionsTrend(months = 6): Promise<{ data: Collectio
   const supabase = await createServerSupabaseClient();
 
   try {
-    const end = new Date();
-    const start = new Date();
+    // Anchor the trailing window to the latest available activity instead of the system
+    // clock, so the trend stays meaningful even when invoice generation lags behind today
+    // (this dataset's most recent due_date/payment_date can be months before "now").
+    const [latestInvoice, latestPayment] = await Promise.all([
+      supabase.from('invoices').select('due_date').neq('status', 'void').order('due_date', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('payment_records').select('payment_date').eq('status', 'paid').order('payment_date', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+
+    const latestDates = [latestInvoice.data?.due_date, latestPayment.data?.payment_date]
+      .filter((d): d is string => !!d)
+      .map((d) => new Date(d).getTime());
+    const end = latestDates.length > 0 ? new Date(Math.max(...latestDates)) : new Date();
+    const start = new Date(end);
     start.setMonth(start.getMonth() - (months - 1));
     start.setDate(1);
     const startDate = start.toISOString().slice(0, 10);
