@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
 
 export type WalletTransaction = {
     id: string;
@@ -31,7 +32,7 @@ export async function getOrCreateWallet(residentId: string): Promise<{ data: Wal
     const supabase = await createServerSupabaseClient();
 
     // Try to get existing wallet
-    let { data: wallet, error } = await supabase
+    const { data: wallet, error } = await supabase
         .from('resident_wallets')
         .select('id, resident_id, balance')
         .eq('resident_id', residentId)
@@ -48,7 +49,7 @@ export async function getOrCreateWallet(residentId: string): Promise<{ data: Wal
         if (createError) {
             return { data: null, error: createError.message };
         }
-        wallet = newWallet;
+        return { data: newWallet, error: null };
     } else if (error) {
         return { data: null, error: error.message };
     }
@@ -287,9 +288,99 @@ export async function debitWalletForInvoice(
  */
 export async function allocateWalletToInvoices(
     residentId: string,
-    priorityHouseId?: string | null
-): Promise<{ success: boolean; invoicesPaid: number; totalAllocated: number; error: string | null }> {
+    priorityHouseId?: string | null,
+    paymentDate?: string,
+    options?: {
+        sourcePaymentId?: string | null;
+        batchAmount?: number | null;
+        batchType?: 'payment_received' | 'existing_wallet_settlement' | 'future_prepayment';
+        creditAmount?: number | null;
+    },
+): Promise<{
+    success: boolean;
+    invoicesPaid: number;
+    totalAllocated: number;
+    error: string | null;
+    batchId?: string;
+    receiptNumber?: string;
+}> {
     const supabase = await createServerSupabaseClient();
+
+    // Ordinary payment and approval flows use the same atomic primitive as
+    // explicit admin settlement when batch metadata is supplied. This keeps
+    // the new wallet credit and all eligible invoice allocations in one DB
+    // transaction, while preserving the legacy allocator for callers that do
+    // not yet create a payment batch.
+    if (options) {
+        const settlementDate = paymentDate || new Date().toISOString().slice(0, 10);
+        const fetchEligible = async (houseId?: string | null) => {
+            let query = supabase
+                .from('invoices')
+                .select('id, period_start, due_date')
+                .eq('resident_id', residentId)
+                .in('status', ['unpaid', 'partially_paid'])
+                .gte('amount_due', 0)
+                .lte('period_start', settlementDate);
+            if (houseId) query = query.eq('house_id', houseId);
+            const result = await query.order('period_start', { ascending: true }).order('due_date', { ascending: true });
+            return result;
+        };
+
+        const invoiceIds: string[] = [];
+        if (priorityHouseId) {
+            const priority = await fetchEligible(priorityHouseId);
+            if (priority.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: priority.error.message };
+            invoiceIds.push(...(priority.data || []).map((invoice) => invoice.id));
+        }
+        const general = await fetchEligible();
+        if (general.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: general.error.message };
+        for (const invoice of general.data || []) {
+            if (!invoiceIds.includes(invoice.id)) invoiceIds.push(invoice.id);
+        }
+
+        if (invoiceIds.length === 0) {
+            if (Number(options.creditAmount || 0) > 0) {
+                const credit = await creditWallet(
+                    residentId,
+                    Number(options.creditAmount),
+                    'payment',
+                    options.sourcePaymentId || undefined,
+                    'Payment retained as wallet credit because no eligible invoice was found',
+                );
+                return { success: credit.success, invoicesPaid: 0, totalAllocated: 0, error: credit.error };
+            }
+            return { success: true, invoicesPaid: 0, totalAllocated: 0, error: null };
+        }
+
+        const rpcResult = await callWalletPaymentRpc(supabase, {
+            p_resident_id: residentId,
+            p_invoice_ids: invoiceIds,
+            p_batch_type: options.batchType || 'payment_received',
+            p_payment_date: settlementDate,
+            p_source_payment_id: options.sourcePaymentId || null,
+            p_house_id: priorityHouseId || null,
+            p_credit_amount: Number(options.creditAmount || 0),
+            p_batch_amount: options.batchAmount == null ? null : Number(options.batchAmount),
+        });
+        if (rpcResult.error) return { success: false, invoicesPaid: 0, totalAllocated: 0, error: rpcResult.error.message };
+
+        const data = (rpcResult.data || {}) as {
+            success?: boolean;
+            batch_id?: string;
+            receipt_number?: string;
+            total_allocated?: number;
+            allocations?: Array<{ status_after?: string }>;
+        };
+        const allocations = data.allocations || [];
+        return {
+            success: data.success !== false,
+            invoicesPaid: allocations.filter((allocation) => allocation.status_after === 'paid').length,
+            totalAllocated: Number(data.total_allocated || 0),
+            error: data.success === false ? 'Wallet settlement failed' : null,
+            batchId: data.batch_id,
+            receiptNumber: data.receipt_number,
+        };
+    }
 
     let invoicesPaid = 0;
     let totalAllocated = 0;

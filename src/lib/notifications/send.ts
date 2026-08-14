@@ -25,6 +25,7 @@ import {
   sendWhatsAppTemplate,
 } from '@/lib/whatsapp';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
+import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 
 /**
  * Channel-specific sender function signature
@@ -169,6 +170,10 @@ async function sendViaWhatsApp(
 
   if (!item.recipient_phone) {
     return { success: false, error: 'No recipient phone number provided' };
+  }
+
+  if (!(await isWhatsAppRecipientAllowed(item.recipient_id))) {
+    return { success: false, error: 'WhatsApp recipient is outside the active rollout audience' };
   }
 
   const configuredDailyCap = await getSettingValue('whatsapp_outbound_daily_cap');

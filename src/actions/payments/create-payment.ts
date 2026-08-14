@@ -3,7 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { paymentFormSchema } from '@/lib/validators/payment'
 import { z } from 'zod'
-import { creditWallet, allocateWalletToInvoices } from '@/actions/billing/wallet'
+import { allocateWalletToInvoices } from '@/actions/billing/wallet'
 import { logAudit } from '@/lib/audit/logger'
 import { authorizePermission } from '@/lib/auth/authorize'
 import { PERMISSIONS } from '@/lib/auth/action-roles'
@@ -94,21 +94,18 @@ export async function createPayment(data: CreatePaymentInput): Promise<CreatePay
         return { error: 'Failed to create payment: ' + error.message }
     }
 
-    // Credit the resident's wallet
-    const creditResult = await creditWallet(
+    // Credit and eligible invoice allocation share the atomic settlement RPC.
+    const allocateResult = await allocateWalletToInvoices(
         result.data.resident_id,
-        result.data.amount,
-        'payment',
-        paymentRecord?.id,
-        `Payment via ${result.data.method || 'unknown'}`
+        result.data.house_id,
+        result.data.payment_date.toISOString().slice(0, 10),
+        {
+            sourcePaymentId: paymentRecord?.id,
+            batchAmount: result.data.amount,
+            batchType: 'payment_received',
+            creditAmount: result.data.amount,
+        },
     )
-
-    if (!creditResult.success) {
-        console.error('Failed to credit wallet:', creditResult.error)
-    }
-
-    // Auto-allocate wallet to unpaid invoices (prioritize house if specified)
-    const allocateResult = await allocateWalletToInvoices(result.data.resident_id, result.data.house_id)
     if (allocateResult.success && allocateResult.invoicesPaid > 0) {
         console.log(`[Payment] Auto-allocated ₦${allocateResult.totalAllocated} to ${allocateResult.invoicesPaid} invoices`)
     }

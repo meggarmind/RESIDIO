@@ -8,6 +8,10 @@ import type {
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 
+vi.mock('@/lib/whatsapp/rollout', () => ({
+  isWhatsAppRecipientAllowed: vi.fn().mockResolvedValue(true),
+}));
+
 const identity: WhatsAppResidentIdentity = {
   id: 'resident-1',
   firstName: 'Ada',
@@ -129,6 +133,18 @@ describe('WhatsApp financial menu', () => {
 
     expect(repo.getBalance).not.toHaveBeenCalled();
     expect(repo.logDisclosure).not.toHaveBeenCalled();
+  });
+
+  it('blocks financial access when the resident is outside the active pilot', async () => {
+    const { isWhatsAppRecipientAllowed } = await import('@/lib/whatsapp/rollout');
+    vi.mocked(isWhatsAppRecipientAllowed).mockResolvedValueOnce(false);
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('1'), identity, { repository: repo, optedIn: true, send });
+
+    expect(repo.getBalance).not.toHaveBeenCalled();
+    expect(send.mock.calls[0]?.[0].body).toContain('not currently enabled');
   });
 
   it('stops financial readers when the daily lookup guard denies access', async () => {

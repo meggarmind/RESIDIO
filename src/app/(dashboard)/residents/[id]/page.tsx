@@ -31,6 +31,7 @@ import { WalletTransactions } from '@/components/residents/wallet-transactions';
 import { CrossPropertyPaymentSummary } from '@/components/residents/cross-property-payment-summary';
 import { ResidentSecurityContacts } from '@/components/residents/resident-security-contacts';
 import { PaymentAliases } from '@/components/residents/payment-aliases';
+import { WalletPaymentBatchTools } from '@/components/residents/wallet-payment-batch-tools';
 import { PreferencesForm } from '@/components/notifications/preferences-form';
 import { NotesTimeline } from '@/components/notes';
 import { ShimmerCard } from '@/components/ui/shimmer-skeleton';
@@ -486,6 +487,19 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
           <div className="max-h-[calc(100vh-12rem)] overflow-y-auto scrollbar-modern">
             <WalletTransactions residentId={id} />
           </div>
+          <WalletPaymentBatchTools
+            residentId={id}
+            houses={((resident.resident_houses ?? []) as Array<{
+              house: {
+                id: string;
+                house_number: string;
+                street?: { name?: string | null; short_name?: string | null } | null;
+              };
+            }>).filter((assignment) => assignment.house?.id).map((assignment) => ({
+              id: assignment.house.id,
+              label: `${assignment.house.street?.short_name || assignment.house.street?.name || ''}-${assignment.house.house_number}`,
+            }))}
+          />
         </TabsContent>
 
         <TabsContent value="payments" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="payments">

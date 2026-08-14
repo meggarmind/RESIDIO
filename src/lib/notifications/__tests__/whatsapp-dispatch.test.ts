@@ -4,6 +4,7 @@ import { sendNotification } from '@/lib/notifications/send';
 import { getSettingValue } from '@/actions/settings/get-settings';
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
 import { createAdminClient } from '@/lib/supabase/server';
+import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 
 vi.mock('@/actions/settings/get-settings', () => ({
   getSettingValue: vi.fn(),
@@ -15,6 +16,10 @@ vi.mock('@/lib/whatsapp', () => ({
 
 vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: vi.fn(),
+}));
+
+vi.mock('@/lib/whatsapp/rollout', () => ({
+  isWhatsAppRecipientAllowed: vi.fn().mockResolvedValue(true),
 }));
 
 describe('WhatsApp notification dispatch', () => {
@@ -123,5 +128,39 @@ describe('WhatsApp notification dispatch', () => {
       created_at: new Date().toISOString(),
       created_by: null,
     })).resolves.toEqual({ success: false, error: 'WhatsApp daily outbound limit reached' });
+  });
+
+  it('pauses safely before checking consent or invoking the provider', async () => {
+    vi.mocked(isWhatsAppRecipientAllowed).mockResolvedValueOnce(false);
+
+    await expect(sendNotification({
+      id: 'queue-paused',
+      template_id: null,
+      schedule_id: null,
+      recipient_id: 'resident-1',
+      recipient_email: null,
+      recipient_phone: '2348000000000',
+      channel: 'whatsapp',
+      subject: null,
+      body: 'Reminder',
+      html_body: null,
+      variables: null,
+      priority: 5,
+      status: 'pending',
+      deduplication_key: null,
+      dedup_window_minutes: null,
+      scheduled_for: new Date().toISOString(),
+      attempts: 0,
+      max_attempts: 3,
+      last_attempt_at: null,
+      sent_at: null,
+      error_message: null,
+      metadata: null,
+      created_at: new Date().toISOString(),
+      created_by: null,
+    })).resolves.toEqual({
+      success: false,
+      error: 'WhatsApp recipient is outside the active rollout audience',
+    });
   });
 });

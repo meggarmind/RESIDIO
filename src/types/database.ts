@@ -318,6 +318,7 @@ export type AuditEntityType =
   | 'payments'
   | 'billing_profiles'
   | 'wallets'
+  | 'wallet_payment_batches'
   | 'approval_requests'
   | 'streets'
   | 'house_types'
@@ -405,6 +406,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   payments: 'Payment',
   billing_profiles: 'Billing Profile',
   wallets: 'Wallet',
+  wallet_payment_batches: 'Wallet Payment Batch',
   approval_requests: 'Approval Request',
   streets: 'Street',
   house_types: 'House Type',

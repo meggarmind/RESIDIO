@@ -9,7 +9,15 @@ if (!url || !key) throw new Error('Cloud Supabase configuration is unavailable.'
 const supabase = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 const apply = process.argv.includes('--apply');
 
-const cases = [
+type ReconciliationCase = {
+  street: string;
+  house: string;
+  landlord: readonly [string, string];
+  first_documented_occupancy: string;
+  alias?: string;
+};
+
+const cases: readonly ReconciliationCase[] = [
   { street: 'IBB', house: '33', landlord: ['ALPHONSUS', 'OKORO'], first_documented_occupancy: '2023-07-01', alias: 'CHIEF OKORO' },
   { street: 'GLB', house: '5B', landlord: ['WILLIAM RACHEAL', 'TI'], first_documented_occupancy: '2019-04-01' },
 ] as const;

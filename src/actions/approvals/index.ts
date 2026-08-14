@@ -15,7 +15,7 @@ import {
   updateBankAccountDirect,
   deleteBankAccountDirect,
 } from '@/actions/imports/bank-accounts';
-import { creditWallet, allocateWalletToInvoices } from '@/actions/billing/wallet';
+import { allocateWalletToInvoices } from '@/actions/billing/wallet';
 import { logAudit } from '@/lib/audit/logger';
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -428,23 +428,18 @@ async function applyRequestedChanges(request: ApprovalRequest): Promise<Approval
       return { success: false, error: 'Payment record not found' };
     }
 
-    // 2. Credit wallet
-    const creditResult = await creditWallet(
+    // 2. Credit and eligible invoice allocation share the atomic settlement RPC.
+    await allocateWalletToInvoices(
       payment.resident_id,
-      payment.amount,
-      'payment',
-      payment.id,
-      `Manual payment approved by admin`
+      payment.house_id,
+      new Date(payment.payment_date).toISOString().slice(0, 10),
+      {
+        sourcePaymentId: payment.id,
+        batchAmount: payment.amount,
+        batchType: 'payment_received',
+        creditAmount: payment.amount,
+      },
     );
-
-    if (!creditResult.success) {
-      console.error('Wallet credit failed during approval:', creditResult.error);
-      // We don't fail the whole operation since the payment is already marked 'paid'
-      // but this is a critical state inconsistency.
-    }
-
-    // 3. Allocate to invoices
-    await allocateWalletToInvoices(payment.resident_id, payment.house_id);
 
     // 4. Audit Log
     await logAudit({

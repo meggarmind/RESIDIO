@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { getSettingValue } from '@/actions/settings/get-settings';
+import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 
@@ -396,6 +397,11 @@ export async function handleFinancialMessage(
 
   if (!options.optedIn) {
     await sendFinancialReply(message, 'Please reply YES first to enable WhatsApp access to financial standing.', options.send);
+    return;
+  }
+
+  if (!(await isWhatsAppRecipientAllowed(identity.id))) {
+    await sendFinancialReply(message, 'WhatsApp access is not currently enabled for your pilot audience.', options.send);
     return;
   }
 

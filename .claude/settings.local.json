@@ -149,7 +149,15 @@
       "mcp__playwright__browser_select_option",
       "mcp__playwright__browser_tabs",
       "mcp__playwright__browser_install",
-      "mcp__memory__search_nodes"
+      "mcp__memory__search_nodes",
+      "Bash(git worktree *)",
+      "Read(//c/Users/ohiom/.claude/skills/**)",
+      "Read(//c/Users/ohiom/.claude/**)",
+      "Read(//c/Users/ohiom/.claude/skills/to-issues/**)",
+      "Read(//c/Users/ohiom/.agents/skills//**)",
+      "Bash(gh project *)",
+      "Bash(node -e ' *)",
+      "Bash(gh api graphql -f 'query= *)"
     ],
     "deny": [],
     "ask": []

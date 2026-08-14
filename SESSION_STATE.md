@@ -60,6 +60,9 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 
 ## Last session (OpenCode, 2026-08-11)
 
+- **WhatsApp pilot controls (#8):** Added disabled/pilot/estate modes, resident/street targeting, fail-closed outbound and financial access enforcement, admin rollout controls, configurable daily caps, retention purge for expired sessions and processed-message deduplication rows, and monitoring. Cloud verification confirmed service-role-only RLS for operational WhatsApp tables and no current WhatsApp data rows. Applied migration `seed_whatsapp_pilot_control_defaults`; production is explicitly disabled with empty pilot targeting, 100 outbound/day, and 50 financial lookups/day. Pilot/retention/dispatch tests pass; full Vitest currently has 6 unrelated failures in concurrent dashboard/billing work. Controlled provider exercise remains.
+- **Pilot exercise hardening:** Added explicit inbound financial pause enforcement and targeted tests proving out-of-pilot residents cannot reach financial readers. The targeted rollout/financial/dispatch suite passes **20 tests**; simulator/provider coverage already verifies duplicate webhooks, retries, STOP/START, approved templates, and safe provider failures.
+
 - **WhatsApp outbound messaging (#6, in progress):** Added Meta Cloud API template-message support and named `invoice_reminder`, `payment_received`, and `announcement` contracts. Invoice reminders, admin-created payments, and emergency announcements now use the notification queue, preserving recipient contact fields, history, retry status, preferences, and opt-in enforcement. Added an approved-template allowlist and system-setting daily outbound cap (`whatsapp_outbound_daily_cap`, default 100). SMS remains dormant.
 - **Verification:** Focused outbound tests passed 12 tests; focused ESLint passed with five pre-existing warnings and no errors. Repository typecheck remains blocked by unrelated reconciliation/report/PDF errors outside the WhatsApp and notification changes.
 - **WhatsApp lookup guard:** Added `whatsapp_daily_financial_lookup_cap` (default 50), counted against today's immutable disclosure logs and enforced at the webhook financial-reader boundary. Added denial-path coverage.
@@ -178,6 +181,13 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 - **Payments/Billing e2e now 17/17**: TC5.8 asserted a checkbox unconditionally but payment table is empty (no data) → now skips gracefully like TC5.9/5.10.
 - **Harness**: `playwright.config.ts` serial (workers=1, fullyParallel=false); portal spec `.describe.skip`; `loginAs` hardened (45s timeout + reload-retry for mid-run dev-server latency).
 - Remaining: 8 e2e failures in a full 11.8-min run were all `loginAs` timing out mid-run (transient dev-server slowness) — harness now retries; expect them to fold.
+
+## Wallet payment-period closeout (2026-08-13)
+
+- Added the login-route AuthProvider guard so the login page does not compete with its sign-in client for the Supabase browser auth lock.
+- Integrated the Wallet Check report panel and resident wallet payment-batch tools into the admin Reports and resident Transactions surfaces.
+- Added atomic ordinary-payment/approval allocation through `settle_wallet_invoices`, preserving wallet-only credit when no eligible invoice exists.
+- Verification: focused wallet/action tests pass, module integration passes (3 tests), targeted lint and `git diff --check` pass, and both wallet Playwright specs pass against seeded cloud auth. Full repository TypeScript still has unrelated baseline failures in imports, reports, analytics, PDF, WhatsApp, and dashboard snapshot work.
 
 ## Next steps (fast-track priority)
 

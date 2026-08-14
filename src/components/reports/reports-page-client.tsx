@@ -33,6 +33,7 @@ import {
     Users,
     Trash2,
     Loader2,
+    ShieldCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -40,6 +41,7 @@ import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { ReportRequestWizard } from '@/components/reports/report-request-wizard';
 import { ReportViewer } from '@/components/reports/report-viewer';
 import { ReportSchedulesPanel } from '@/components/reports/report-schedules';
+import { WalletBatchReconciliationPanel } from '@/components/reports/wallet-batch-reconciliation-panel';
 import { useGenerateReport, useGeneratedReports, useDeleteGeneratedReport, useReportSchedules, useReportArchive, type GeneratedReport } from '@/hooks/use-reports';
 import type { ArchivedReport } from '@/actions/reports/get-report-archive';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
@@ -377,7 +379,7 @@ export function ReportsPageClient() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                <TabsList className="grid w-full max-w-2xl grid-cols-4">
+                <TabsList className="grid w-full max-w-3xl grid-cols-5">
                     <TabsTrigger value="new" className="gap-2">
                         <Plus className="h-4 w-4" />
                         New Report
@@ -401,6 +403,10 @@ export function ReportsPageClient() {
                     <TabsTrigger value="archive" className="gap-2">
                         <Download className="h-4 w-4" />
                         Archive
+                    </TabsTrigger>
+                    <TabsTrigger value="wallet-check" className="gap-2">
+                        <ShieldCheck className="h-4 w-4" />
+                        Wallet Check
                     </TabsTrigger>
                 </TabsList>
 
@@ -465,6 +471,9 @@ export function ReportsPageClient() {
                 {/* Archive Tab */}
                 <TabsContent value="archive" className="mt-6">
                     <ArchivePanel />
+                </TabsContent>
+                <TabsContent value="wallet-check" className="mt-6">
+                    <WalletBatchReconciliationPanel />
                 </TabsContent>
             </Tabs>
         </div>

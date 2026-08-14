@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { UserRole, AppRoleName } from '@/types/database';
@@ -78,6 +79,7 @@ function setCachedProfile(profile: Profile | null) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -89,6 +91,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
+    // The login page owns the sign-in client. Avoid starting a competing
+    // session bootstrap here, because Supabase browser clients coordinate
+    // through a shared storage lock and a stalled bootstrap can block the
+    // login request indefinitely. Session initialization resumes after the
+    // successful redirect into the application.
+    if (pathname === '/login') {
+      setIsLoading(false);
+      return;
+    }
+
     // Listen for auth changes early to catch initial session if getSession hangs
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
@@ -218,7 +230,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
+  }, [pathname, supabase]);
 
   const fetchProfile = useCallback(async (userId: string) => {
     // Fetch profile including resident_id for portal access
