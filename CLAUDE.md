@@ -14,6 +14,21 @@ Issues and PRDs live as GitHub issues in `meggarmind/RESIDIO`, accessed via the 
 
 Default vocabulary — `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
 
+### Project board ("Jazrmann Dashboard")
+
+RESIDIO issues also live on a GitHub Projects (v2) board with a `Status` field (Backlog → Ready → In progress → In review → Done). New issues are auto-added to it by `.github/workflows/add-issues-to-project.yml`, but nothing moves them across columns automatically — that's a standing instruction for Claude, not a background process. See `docs/agents/project-board.md` for the board/field/option IDs and the exact `gh project item-edit` commands.
+
+Move an issue's Status at exactly these two points, without being asked:
+
+1. When starting work on a `ready-for-agent`/`ready-for-human` issue → set Status to `In progress`.
+2. When the issue (or its PR) is closed or merged → set Status to `Done`.
+
+Don't set `In review` automatically, and don't move things back to Backlog/Ready on your own — those stay manual.
+
+### Planning work → GitHub issues (`to-issues`)
+
+The `to-issues` skill (`~/.claude/skills/to-issues`) has `disable-model-invocation: true`, so it will never trigger automatically off its description. This is a standing instruction that overrides that gate: whenever a plan, spec, or PRD for this project is finalized (e.g. after `superpowers:writing-plans`, `superpowers:brainstorming`, or any planning discussion converges on a concrete set of next steps), invoke the `to-issues` skill directly to break it into vertical-slice issues on the tracker described in `docs/agents/issue-tracker.md`. Do not just describe the plan back to the user and stop — file it.
+
 ### Domain docs
 
 Single-context — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
