@@ -1,6 +1,6 @@
 'use client';
 
-import { useInvoices, useGenerateInvoices, useCheckOverdueInvoices, useOverdueStats, useLatestGenerationLog } from '@/hooks/use-billing';
+import { useInvoices, useCheckOverdueInvoices, useOverdueStats, useLatestGenerationLog } from '@/hooks/use-billing';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -73,7 +73,6 @@ export default function BillingPage() {
         residentId: residentId === 'all' ? undefined : residentId,
         search: search || undefined,
     });
-    const generateMutation = useGenerateInvoices();
     const checkOverdueMutation = useCheckOverdueInvoices();
     const { data: overdueStats } = useOverdueStats();
     const { data: lastGeneration } = useLatestGenerationLog();
@@ -142,16 +141,11 @@ export default function BillingPage() {
                         </Button>
                         <Button
                             onClick={handleGenerateInvoices}
-                            disabled={generateMutation.isPending}
                             className={cn(
                                 isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
                             )}
                         >
-                            {generateMutation.isPending ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                                <FileText className="mr-2 h-4 w-4" />
-                            )}
+                            <FileText className="mr-2 h-4 w-4" />
                             Generate Invoices
                         </Button>
                     </div>

@@ -208,6 +208,34 @@ test.describe('Phase 5: Payment & Billing System', () => {
             await expect(page.getByRole('button', { name: /generate/i })).toBeVisible({ timeout: 10000 });
         });
 
+        test('TC5.12a: Current-month generation opens with safe controls', async ({ page }) => {
+            await page.goto('/billing');
+            await page.getByRole('button', { name: /generate invoices/i }).click();
+
+            await expect(page.getByRole('heading', { name: 'Generate Invoices' })).toBeVisible();
+            await expect(page.getByLabel('Billing mode')).toHaveValue('selected_month');
+            await expect(page.getByRole('button', { name: /preview exact request/i })).toBeVisible();
+            await expect(page.getByLabel('Wallet allocation')).toBeChecked();
+            await expect(page.getByLabel('Resident emails')).toBeChecked();
+            await expect(page.getByLabel('Assess late fees')).toBeChecked();
+        });
+
+        test('TC5.12b: Backfill defaults wallet, email, and late-fee effects off', async ({ page }) => {
+            await page.goto('/billing');
+            await page.getByRole('button', { name: /generate invoices/i }).click();
+            await page.getByLabel('Billing mode').selectOption('backfill');
+
+            await expect(page.getByLabel('Wallet allocation')).not.toBeChecked();
+            await expect(page.getByLabel('Resident emails')).not.toBeChecked();
+            await expect(page.getByLabel('Assess late fees')).not.toBeChecked();
+            await expect(page.getByText(/backfills default all side effects off/i)).toBeVisible();
+        });
+
+        test('TC5.12c: Generation history exposes durable run state', async ({ page }) => {
+            await page.goto('/billing');
+            await expect(page.getByText(/no generation runs yet|durable run|completed|processing|queued/i).first()).toBeVisible({ timeout: 10000 });
+        });
+
         test('TC5.13: Check Overdue button is visible', async ({ page }) => {
             await page.goto('/billing');
 

@@ -12,6 +12,14 @@ import {
 } from '@/actions/billing/profiles';
 import { getInvoices, getResidentIndebtedness, getHousePaymentStatus, getResidentCrossPropertyPaymentSummary } from '@/actions/billing/get-invoices';
 import { generateMonthlyInvoices } from '@/actions/billing/generate-invoices';
+import {
+    prepareInvoiceGenerationRun,
+    approveInvoiceGenerationRun,
+    cancelInvoiceGenerationRun,
+    retryFailedInvoiceGenerationCandidates,
+    getInvoiceGenerationRun,
+} from '@/actions/billing/invoice-generation-runs';
+import { processInvoiceGenerationRun } from '@/actions/billing/process-invoice-generation-run';
 import { toast } from 'sonner';
 import type { InvoiceStatus, InvoiceType } from '@/types/database';
 import { POLLING_INTERVALS } from '@/lib/config/polling';
@@ -196,11 +204,109 @@ export function useGenerateInvoices() {
 
 export function useGenerateInvoicesPreview() {
     return useMutation({
-        mutationFn: async (params: { targetDate?: Date; houseId?: string; streetId?: string; residentId?: string }) => {
+        mutationFn: async (params: { targetDate?: Date; houseId?: string; streetId?: string; residentId?: string; mode?: 'selected_month' | 'backfill'; fromMonth?: string; walletAllocation?: boolean; sendEmails?: boolean; assessLateFees?: boolean }) => {
             const { generateInvoicesPreview } = await import('@/actions/billing/generate-invoices-preview');
-            const result = await generateInvoicesPreview(params.targetDate, params.houseId, params.streetId, params.residentId);
+            const result = await generateInvoicesPreview(params.targetDate, params.houseId, params.streetId, params.residentId, {
+                mode: params.mode,
+                fromMonth: params.fromMonth,
+                walletAllocation: params.walletAllocation,
+                sendEmails: params.sendEmails,
+                assessLateFees: params.assessLateFees,
+            });
             if (result.error) throw new Error(result.error);
             return result;
+        },
+    });
+}
+
+export function usePrepareInvoiceGenerationRun() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (request: Parameters<typeof prepareInvoiceGenerationRun>[0]) => {
+            const result = await prepareInvoiceGenerationRun(request);
+            if (result.error || !result.data) throw new Error(result.error || 'Could not prepare invoice run');
+            return result.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['generation-history'] });
+            queryClient.invalidateQueries({ queryKey: ['latest-generation-log'] });
+        },
+    });
+}
+
+export function useInvoiceGenerationRun(runId: string | null) {
+    return useQuery({
+        queryKey: ['invoice-generation-run', runId],
+        queryFn: async () => {
+            if (!runId) return null;
+            const result = await getInvoiceGenerationRun(runId);
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        enabled: Boolean(runId),
+        refetchInterval: (query) => {
+            const status = query.state.data?.status;
+            return status === 'queued' || status === 'processing' ? POLLING_INTERVALS.FAST : false;
+        },
+    });
+}
+
+export function useProcessInvoiceGenerationRun() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (runId: string) => {
+            const result = await processInvoiceGenerationRun(runId);
+            if (result.error || !result.data) throw new Error(result.error || 'Could not process invoice run');
+            return result.data;
+        },
+        onSuccess: (_, runId) => {
+            queryClient.invalidateQueries({ queryKey: ['invoice-generation-run', runId] });
+            queryClient.invalidateQueries({ queryKey: ['generation-history'] });
+        },
+    });
+}
+
+export function useApproveInvoiceGenerationRun() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (params: { runId: string; confirmation: string }) => {
+            const result = await approveInvoiceGenerationRun(params.runId, params.confirmation);
+            if (result.error || !result.data) throw new Error(result.error || 'Could not approve invoice run');
+            return result.data;
+        },
+        onSuccess: (_, params) => {
+            queryClient.invalidateQueries({ queryKey: ['invoice-generation-run', params.runId] });
+            queryClient.invalidateQueries({ queryKey: ['generation-history'] });
+        },
+    });
+}
+
+export function useCancelInvoiceGenerationRun() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (runId: string) => {
+            const result = await cancelInvoiceGenerationRun(runId);
+            if (result.error || !result.data) throw new Error(result.error || 'Could not cancel invoice run');
+            return result.data;
+        },
+        onSuccess: (_, runId) => {
+            queryClient.invalidateQueries({ queryKey: ['invoice-generation-run', runId] });
+            queryClient.invalidateQueries({ queryKey: ['generation-history'] });
+        },
+    });
+}
+
+export function useRetryInvoiceGenerationRun() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (params: { runId: string; candidateIds?: string[] }) => {
+            const result = await retryFailedInvoiceGenerationCandidates(params.runId, params.candidateIds);
+            if (result.error || !result.data) throw new Error(result.error || 'Could not retry invoice run');
+            return result.data;
+        },
+        onSuccess: (_, params) => {
+            queryClient.invalidateQueries({ queryKey: ['invoice-generation-run', params.runId] });
+            queryClient.invalidateQueries({ queryKey: ['generation-history'] });
         },
     });
 }
@@ -606,4 +712,3 @@ export function useLateFeeSettings() {
         },
     });
 }
-

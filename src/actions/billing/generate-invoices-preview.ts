@@ -3,6 +3,7 @@
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import {
+  InvoiceGenerationRequestSchema,
   resolveBillableCandidates,
   resolveInvoiceGenerationEligibility,
   type BillingProfileVersion,
@@ -65,6 +66,13 @@ export async function generateInvoicesPreview(
   houseId?: string,
   streetId?: string,
   residentId?: string,
+  options?: {
+    mode?: 'selected_month' | 'backfill';
+    fromMonth?: string;
+    walletAllocation?: boolean;
+    sendEmails?: boolean;
+    assessLateFees?: boolean;
+  },
 ): Promise<GeneratePreviewResult> {
   const auth = await authorizePermission(PERMISSIONS.BILLING_CREATE_INVOICE);
   if (!auth.authorized) return emptyResult(auth.error || 'Unauthorized');
@@ -124,8 +132,20 @@ export async function generateInvoicesPreview(
       getSystemSetting(supabase, 'bill_under_construction_houses'),
       getSystemSetting(supabase, 'invoice_due_window_days'),
     ]);
-    const resolution = resolveBillableCandidates({
-      request: { mode: 'selected_month', targetMonth: monthString(targetDate), trigger: 'manual', houseId, streetId, residentId },
+     const request = InvoiceGenerationRequestSchema.parse({
+       mode: options?.mode ?? 'selected_month',
+       targetMonth: monthString(targetDate),
+       fromMonth: options?.fromMonth,
+       trigger: 'manual',
+       houseId,
+       streetId,
+       residentId,
+       walletAllocation: options?.walletAllocation ?? false,
+       sendEmails: options?.sendEmails ?? false,
+       assessLateFees: options?.assessLateFees ?? false,
+     });
+     const resolution = resolveBillableCandidates({
+       request,
       profiles: generationProfiles,
       versions: generationVersions,
       houses: generationHouses,
@@ -151,7 +171,7 @@ export async function generateInvoicesPreview(
         houseId: house.id, houseNumber: house.label, streetName: street?.name || '', residentId: resident.id, residentName: resident.name,
         residentCode: ((Array.isArray(sourceHouse.resident_houses) ? sourceHouse.resident_houses : []).find((link) => link.resident_id === resident.id)?.resident as { resident_code?: string } | null)?.resident_code || '',
         periodStart: candidate.periodStart, periodEnd: candidate.periodEnd, amount: candidate.amountDue, isProRata: candidate.isProRata,
-        isNew, walletBalance, walletAfterDeduction: isNew ? Math.max(0, walletBalance - candidate.amountDue) : walletBalance,
+         isNew, walletBalance, walletAfterDeduction: isNew && request.walletAllocation ? Math.max(0, walletBalance - candidate.amountDue) : walletBalance,
         billingProfileName: generationProfiles.find((profile) => profile.id === candidate.billingProfileId)?.name || 'Billing profile',
       } satisfies PreviewInvoiceItem;
     }));
@@ -167,8 +187,13 @@ export async function generateInvoicesPreview(
         newInvoices: newInvoices.length,
         existingInvoices: preview.length - newInvoices.length,
         totalAmount: newInvoices.reduce((sum, item) => sum + item.amount, 0),
-        totalWalletDeductions: newInvoices.reduce((sum, item) => sum + Math.min(item.amount, item.walletBalance), 0),
-        warnings: resolution.skips.map(({ house, reason }) => `${house}: ${reason}`),
+         totalWalletDeductions: request.walletAllocation ? newInvoices.reduce((sum, item) => sum + Math.min(item.amount, item.walletBalance), 0) : 0,
+         warnings: [
+           ...resolution.skips.map(({ house, reason }) => `${house}: ${reason}`),
+           ...(request.mode === 'backfill' && !request.walletAllocation ? ['Wallet allocation is disabled for this backfill.'] : []),
+           ...(request.mode === 'backfill' && !request.sendEmails ? ['Invoice emails are disabled for this backfill.'] : []),
+           ...(request.mode === 'backfill' && !request.assessLateFees ? ['Late-fee assessment is disabled for this backfill.'] : []),
+         ],
       },
       error: null,
     };
