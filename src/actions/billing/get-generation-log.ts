@@ -21,7 +21,7 @@ const RUN_HISTORY_SELECT = `
     id, requested_at, requested_by, started_at, completed_at, status,
     scope, options, candidate_count, created_count, skipped_count,
     failed_count, cancelled_count, total_amount, total_wallet_allocated,
-    result_summary
+    email_queued_count, email_sent_count, email_failed_count, result_summary
 `;
 
 const fetchRunEntries = async (

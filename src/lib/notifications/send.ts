@@ -351,6 +351,19 @@ export async function sendAndRecordNotification(
     console.error('[Notifications] Failed to update queue item:', queueError);
   }
 
+  const candidateId = item.metadata && typeof item.metadata.candidateId === 'string'
+    ? item.metadata.candidateId
+    : null;
+  if (candidateId) {
+    const { error: candidateError } = await supabase
+      .from('invoice_generation_candidates')
+      .update({ email_status: queueUpdateStatus })
+      .eq('id', candidateId);
+    if (candidateError) {
+      console.error('[Notifications] Failed to update invoice email status:', candidateError);
+    }
+  }
+
   return {
     ...result,
     historyId: historyEntry?.id,

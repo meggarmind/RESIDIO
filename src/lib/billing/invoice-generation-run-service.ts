@@ -42,6 +42,9 @@ export interface InvoiceGenerationRunRow {
     cancelled_count: number | null;
     total_amount: number | null;
     total_wallet_allocated: number | null;
+    email_queued_count: number | null;
+    email_sent_count: number | null;
+    email_failed_count: number | null;
     result_summary: Record<string, unknown> | null;
     requested_at: string;
     requested_by: string | null;

@@ -22,6 +22,9 @@ const baseRun: InvoiceGenerationRunHistoryRow = {
     cancelled_count: 0,
     total_amount: 80000,
     total_wallet_allocated: 0,
+    email_queued_count: 0,
+    email_sent_count: 0,
+    email_failed_count: 0,
     result_summary: { pending: 0, created: 8, skipped: 2, skips: [{ house: 'IBB-1', reason: 'vacant' }] },
 };
 

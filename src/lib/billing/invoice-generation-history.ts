@@ -35,6 +35,9 @@ export interface GenerationHistoryEntry {
     cancelled_count?: number;
     /** Present for run-sourced entries: wallet allocation total. */
     wallet_allocated?: number;
+    email_queued?: number;
+    email_sent?: number;
+    email_failed?: number;
     /** Present for run-sourced entries: lifecycle status of the run. */
     run_status?: string;
 }
@@ -55,6 +58,9 @@ export interface InvoiceGenerationRunHistoryRow {
     cancelled_count: number | null;
     total_amount: number | null;
     total_wallet_allocated: number | null;
+    email_queued_count: number | null;
+    email_sent_count: number | null;
+    email_failed_count: number | null;
     result_summary: Record<string, unknown> | null;
 }
 
@@ -98,6 +104,9 @@ export function mapInvoiceGenerationRunToHistoryEntry(run: InvoiceGenerationRunH
         pending_count: pending,
         cancelled_count: run.cancelled_count ?? 0,
         wallet_allocated: run.total_wallet_allocated ?? 0,
+        email_queued: run.email_queued_count ?? 0,
+        email_sent: run.email_sent_count ?? 0,
+        email_failed: run.email_failed_count ?? 0,
         run_status: run.status,
     };
 }

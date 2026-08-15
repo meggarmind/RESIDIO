@@ -2705,6 +2705,8 @@ export type Database = {
           amount_due: number
           billing_profile_id: string
           billing_profile_version_id: string
+          email_queue_id: string | null
+          email_status: string | null
           claimed_at: string | null
           created_at: string
           due_date: string
@@ -2730,6 +2732,8 @@ export type Database = {
           amount_due: number
           billing_profile_id: string
           billing_profile_version_id: string
+          email_queue_id?: string | null
+          email_status?: string | null
           claimed_at?: string | null
           created_at?: string
           due_date: string
@@ -2755,6 +2759,8 @@ export type Database = {
           amount_due?: number
           billing_profile_id?: string
           billing_profile_version_id?: string
+          email_queue_id?: string | null
+          email_status?: string | null
           claimed_at?: string | null
           created_at?: string
           due_date?: string
@@ -2892,6 +2898,9 @@ export type Database = {
           created_at: string
           created_count: number
           failed_count: number
+          email_failed_count: number
+          email_queued_count: number
+          email_sent_count: number
           id: string
           options: Json
           requested_at: string
@@ -2912,6 +2921,9 @@ export type Database = {
           created_at?: string
           created_count?: number
           failed_count?: number
+          email_failed_count?: number
+          email_queued_count?: number
+          email_sent_count?: number
           id?: string
           options?: Json
           requested_at?: string
@@ -2932,6 +2944,9 @@ export type Database = {
           created_at?: string
           created_count?: number
           failed_count?: number
+          email_failed_count?: number
+          email_queued_count?: number
+          email_sent_count?: number
           id?: string
           options?: Json
           requested_at?: string
@@ -6454,4 +6469,3 @@ export const Constants = {
     },
   },
 } as const
-
