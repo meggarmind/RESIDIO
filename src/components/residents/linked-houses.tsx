@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -214,12 +214,12 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
     };
 
     return (
-        <Card>
+        <Card variant="compact">
             <Collapsible open={isListOpen} onOpenChange={setIsListOpen}>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                     <CollapsibleTrigger asChild>
-                        <button className="flex flex-col items-start text-left cursor-pointer hover:opacity-80 transition-opacity">
+                        <button className="flex items-center text-left cursor-pointer hover:opacity-80 transition-opacity">
                             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                                 <Home className="h-4 w-4" />
                                 House Assignments ({activeHouses.length})
@@ -228,7 +228,6 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                     isListOpen && 'rotate-180'
                                 )} />
                             </CardTitle>
-                            <CardDescription className="text-xs">Properties linked to this resident</CardDescription>
                         </button>
                     </CollapsibleTrigger>
                     <Dialog open={isDialogOpen} onOpenChange={handleDialogOpen}>
