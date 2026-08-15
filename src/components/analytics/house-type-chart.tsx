@@ -73,7 +73,7 @@ export function HouseTypeChart({ data, isLoading }: HouseTypeChartProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[260px]">
+        <div className="h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}
@@ -82,7 +82,7 @@ export function HouseTypeChart({ data, isLoading }: HouseTypeChartProps) {
             >
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
               <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} className="text-muted-foreground" />
-              <YAxis type="category" dataKey="houseTypeName" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} className="text-muted-foreground" width={100} />
+              <YAxis type="category" dataKey="houseTypeName" interval={0} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} className="text-muted-foreground" width={100} />
               <Tooltip content={<HouseTypeTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
               <Bar dataKey="occupancyRate" radius={[0, 4, 4, 0]} maxBarSize={22} fill="hsl(217.2 91.2% 59.8%)" />
             </BarChart>

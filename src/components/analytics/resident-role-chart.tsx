@@ -93,7 +93,7 @@ export function ResidentRoleChart({ data, isLoading }: ResidentRoleChartProps) {
             >
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
               <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} className="text-muted-foreground" />
-              <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} className="text-muted-foreground" width={110} />
+              <YAxis type="category" dataKey="label" interval={0} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} className="text-muted-foreground" width={110} />
               <Tooltip content={<RoleTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
               <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={22}>
                 {displayData.map((entry) => (
