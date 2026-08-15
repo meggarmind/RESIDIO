@@ -51,7 +51,7 @@ export function FinancialOverviewPdf({ data }: { data: FinancialOverviewData }) 
                 <Text style={[s.tableHeaderCell, s.amountRight, { flex: 2 }]}>% of Total</Text>
               </View>
               {creditCategories.map((cat, i) => (
-                <View key={i} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
+                <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
                   <Text style={[s.tableCell, { flex: 3 }]}>{cat.categoryName}</Text>
                   <Text style={[s.tableCell, { flex: 2 }]}>{cat.transactionCount}</Text>
                   <Text style={[s.tableCell, s.amountRight, { flex: 3 }]}>{formatCurrency(cat.totalAmount)}</Text>
@@ -73,7 +73,7 @@ export function FinancialOverviewPdf({ data }: { data: FinancialOverviewData }) 
                 <Text style={[s.tableHeaderCell, s.amountRight, { flex: 2 }]}>% of Total</Text>
               </View>
               {debitCategories.map((cat, i) => (
-                <View key={i} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
+                <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
                   <Text style={[s.tableCell, { flex: 3 }]}>{cat.categoryName}</Text>
                   <Text style={[s.tableCell, { flex: 2 }]}>{cat.transactionCount}</Text>
                   <Text style={[s.tableCell, s.amountRight, { flex: 3 }]}>{formatCurrency(cat.totalAmount)}</Text>
@@ -95,7 +95,7 @@ export function FinancialOverviewPdf({ data }: { data: FinancialOverviewData }) 
                 <Text style={[s.tableHeaderCell, s.amountRight, { flex: 3 }]}>Net</Text>
               </View>
               {monthlyTrend.map((m, i) => (
-                <View key={i} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
+                <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
                   <Text style={[s.tableCell, { flex: 2 }]}>{m.month}</Text>
                   <Text style={[s.tableCell, s.amountRight, { flex: 3 }]}>{formatCurrency(m.credits)}</Text>
                   <Text style={[s.tableCell, s.amountRight, { flex: 3 }]}>{formatCurrency(m.debits)}</Text>

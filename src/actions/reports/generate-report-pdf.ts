@@ -15,9 +15,9 @@ export async function generateReportPdf(
   if (!auth.authorized) return { data: null, reportId: null, error: auth.error || 'Unauthorized' };
 
   const result = await generateReport(params);
-  if (result.error || !result.data) return { data: null, reportId: null, error: result.error || 'No data' };
+   if (result.error || !result.report) return { data: null, reportId: null, error: result.error || 'No data' };
 
-  const buffer = await renderReportPdf(params.reportType, result.data);
+   const buffer = await renderReportPdf(params.reportType, result.report.data);
   if (!buffer) return { data: null, reportId: null, error: 'PDF rendering failed' };
 
   let reportId: string | null = null;
@@ -29,7 +29,7 @@ export async function generateReportPdf(
 
   await logAudit({
     action: 'CREATE',
-    entityType: 'reports',
+     entityType: 'report_archive',
     entityId: reportId || 'unknown',
     entityDisplay: `PDF report: ${params.reportType}`,
     description: `Generated ${params.reportType} report as PDF`,

@@ -55,7 +55,7 @@ export function CollectionReportPdf({ data }: { data: CollectionReportData }) {
               <Text style={[s.tableHeaderCell, s.amountRight, { flex: 2 }]}>Balance</Text>
             </View>
             {byResident.map((r, i) => (
-              <View key={i} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
+              <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
                 <Text style={[s.tableCell, { flex: 3 }]}>{r.residentName}</Text>
                 <Text style={[s.tableCell, { flex: 2 }]}>{r.houseNumber}</Text>
                 <Text style={[s.tableCell, s.amountRight, { flex: 2 }]}>{formatCurrency(r.totalInvoiced)}</Text>

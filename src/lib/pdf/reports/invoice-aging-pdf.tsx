@@ -51,7 +51,7 @@ export function InvoiceAgingPdf({ data }: { data: InvoiceAgingData }) {
                 <Text style={[s.tableHeaderCell, s.amountRight, { flex: 2 }]}>Outstanding</Text>
               </View>
               {bracket.invoices.map((inv, i) => (
-                <View key={i} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
+                <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
                   <Text style={[s.tableCell, { flex: 3 }]}>{inv.invoiceNumber}</Text>
                   <Text style={[s.tableCell, { flex: 2 }]}>{inv.residentName}</Text>
                   <Text style={[s.tableCell, { flex: 2 }]}>{inv.dueDate}</Text>

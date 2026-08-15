@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFinancialOverview, getBankAccountsForFilter } from '@/actions/reports/get-financial-overview';
 import { generateReport, type ReportData } from '@/actions/reports/report-engine';
-import { getReportArchive, type ArchivedReport } from '@/actions/reports/get-report-archive';
+import { getReportArchive } from '@/actions/reports/get-report-archive';
 import { getTransactionTags } from '@/actions/reference/transaction-tags';
 import {
     getReportSchedules,
@@ -390,7 +390,7 @@ export function useReportVersionHistory(reportId: string | null) {
             if (!reportId) return [];
             const result = await getReportVersionHistory(reportId);
             if (result.error) throw new Error(result.error);
-            return result.data;
+            return (result.data || []).map(mapDbReportToGeneratedReport);
         },
         enabled: !!reportId,
         staleTime: 30 * 1000,

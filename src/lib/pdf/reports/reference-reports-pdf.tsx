@@ -28,7 +28,7 @@ export function TransactionLogPdf({ data }: { data: TransactionLogData }) {
             <Text style={[s.tableHeaderCell, { flex: 2 }]}>Type</Text>
           </View>
           {data.transactions.map((tx, i) => (
-            <View key={i} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
+            <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
               <Text style={[s.tableCell, { flex: 2 }]}>{tx.date}</Text>
               <Text style={[s.tableCell, { flex: 3 }]}>{tx.description}</Text>
               <Text style={[s.tableCell, { flex: 2 }]}>{tx.category || '-'}</Text>
@@ -69,7 +69,7 @@ export function DebtorsReportPdf({ data }: { data: DebtorsReportData }) {
             <Text style={[s.tableHeaderCell, { flex: 2 }]}>Contact</Text>
           </View>
           {data.debtors.map((d, i) => (
-            <View key={i} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
+            <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
               <Text style={[s.tableCell, { flex: 3 }]}>{d.residentName}</Text>
               <Text style={[s.tableCell, { flex: 2 }]}>{d.houseNumber}</Text>
               <Text style={[s.tableCell, s.amountRight, { flex: 2 }, s.amountNegative]}>{formatCurrency(d.totalOutstanding)}</Text>
@@ -103,7 +103,7 @@ export function IndebtednessReportPdf({ data }: { data: IndebtednessReportData }
             {typeof data.houses[0]?.outstandingAmount === 'number' && <Text style={[s.tableHeaderCell, s.amountRight, { flex: 2 }]}>Amount</Text>}
           </View>
           {data.houses.map((h, i) => (
-            <View key={i} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
+            <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
               <Text style={[s.tableCell, { flex: 2 }]}>{h.houseNumber}</Text>
               <Text style={[s.tableCell, { flex: 2 }]}>{h.streetName}</Text>
               <Text style={[s.tableCell, { flex: 3 }]}>{h.primaryResidentName || 'Vacant'}</Text>
@@ -143,7 +143,7 @@ export function DevelopmentLevyPdf({ data }: { data: DevelopmentLevyData }) {
             <Text style={[s.tableHeaderCell, { flex: 2 }]}>Status</Text>
           </View>
           {data.houses.map((h, i) => (
-            <View key={i} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
+            <View key={i} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
               <Text style={[s.tableCell, { flex: 2 }]}>{h.houseNumber}</Text>
               <Text style={[s.tableCell, { flex: 3 }]}>{h.responsibleResidentName}</Text>
               <Text style={[s.tableCell, s.amountRight, { flex: 2 }]}>{formatCurrency(h.levyAmount)}</Text>

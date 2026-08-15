@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { generateReport } from '@/actions/reports/report-engine';
 import { renderReportPdf } from '@/lib/pdf/reports/renderer';
 import { sendEmail } from '@/lib/email/send-email';
@@ -28,25 +28,31 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
     try {
       const params: ReportRequestFormData = {
         reportType: schedule.report_type,
-        preset: schedule.period_preset as 'last_month' || 'last_month',
+         periodPreset: (schedule.period_preset || 'last_month') as ReportRequestFormData['periodPreset'],
+         startDate: '',
+         endDate: '',
         includeAmount: schedule.configuration?.includeAmount ?? false,
         includeUnoccupied: schedule.configuration?.includeUnoccupied ?? false,
-        bankAccountId: schedule.bank_account_ids?.[0],
-        includeCharts: schedule.include_charts ?? false,
-        dateRangePreset: schedule.period_preset as 'last_month' || 'last_month',
+         bankAccountIds: schedule.bank_account_ids || [],
+         includeCharts: schedule.include_charts ?? false,
+         categoryIds: [],
+         transactionType: 'all',
+         aggregation: 'monthly',
+         includeDetails: true,
+         paymentStatus: 'all',
       };
 
       const result = await generateReport(params);
-      if (result.error || !result.data) { failed++; errors.push(`Schedule ${schedule.id}: ${result.error || 'No data'}`); continue; }
+       if (result.error || !result.report) { failed++; errors.push(`Schedule ${schedule.id}: ${result.error || 'No data'}`); continue; }
 
-      const buffer = await renderReportPdf(schedule.report_type, result.data);
+       const buffer = await renderReportPdf(schedule.report_type, result.report.data);
       if (!buffer) { failed++; errors.push(`Schedule ${schedule.id}: PDF rendering failed`); continue; }
 
       // Store in archive
       const fileName = `${schedule.report_type}-${new Date().toISOString().split('T')[0]}-${Date.now()}.pdf`;
       await supabase.storage.from('report-pdfs').upload(fileName, buffer, { contentType: 'application/pdf' });
 
-      const { data: archiveRow } = await supabase
+       await supabase
         .from('report_archive')
         .insert({
           report_type: schedule.report_type,
@@ -61,12 +67,12 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
         .single();
 
       // Email recipients
-      const recipients = (schedule.recipients || []) as Array<{ email: string; name?: string }>;
+       const recipients = ((schedule.recipients || []) as string[]).map((email: string) => ({ email, name: schedule.name }));
       if (recipients.length > 0) {
         await sendEmail({
           to: recipients[0],
           subject: `Scheduled Report: ${schedule.report_type}`,
-          emailType: 'report',
+           emailType: 'notification',
           metadata: { reportType: schedule.report_type, scheduleId: schedule.id },
         });
       }
@@ -89,7 +95,7 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
 
       await logAudit({
         action: 'GENERATE',
-        entityType: 'reports',
+         entityType: 'report_archive',
         entityId: schedule.id,
         entityDisplay: `Scheduled report: ${schedule.report_type}`,
         description: `Auto-generated ${schedule.report_type} report on schedule`,
