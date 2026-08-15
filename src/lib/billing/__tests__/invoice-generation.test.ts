@@ -150,7 +150,7 @@ describe('invoice generation candidates', () => {
   });
 
   it('creates one candidate per matching resident-house role for a resident profile', () => {
-    const residentProfile = { ...profile, id: 'profile-2', targetType: 'resident' as const, applicableRoles: ['tenant'] };
+    const residentProfile: GenerationProfile = { ...profile, id: 'profile-2', targetType: 'resident', applicableRoles: ['tenant'] };
     const result = resolveBillableCandidates({
       request: { mode: 'selected_month', targetMonth: '2026-08-01', trigger: 'manual' },
       profiles: [residentProfile], versions: [{ ...version, billingProfileId: residentProfile.id }],

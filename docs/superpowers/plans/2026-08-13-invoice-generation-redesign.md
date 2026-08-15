@@ -173,27 +173,27 @@
 
 **Produces:** `prepareInvoiceGenerationRun`, `approveInvoiceGenerationRun`, `cancelInvoiceGenerationRun`, `retryFailedInvoiceGenerationCandidates`, `processInvoiceGenerationRun`, and durable list/detail reads.
 
-- [ ] **Step 1: Write failing action tests for authorization and state transitions**
+- [x] **Step 1: Write failing action tests for authorization and state transitions**
 
   Assert: unauthorised users cannot prepare/approve/cancel; routine monthly runs queue after a single approver; threshold runs await a distinct second approver only when the setting is enabled; cancellation only cancels pending candidates; retry creates work only for failed candidates.
 
-- [ ] **Step 2: Implement prepare and approval actions**
+- [x] **Step 2: Implement prepare and approval actions**
 
   `prepareInvoiceGenerationRun(request)` builds and persists candidates and totals without invoices, wallets, or emails. It sets `awaiting_approval` only when the configured dual-approval policy applies; otherwise it queues the run. Audit the request, candidate totals, side-effect options, and typed confirmation.
 
-- [ ] **Step 3: Implement bounded worker processing**
+- [x] **Step 3: Implement bounded worker processing**
 
   Claim a queued/processing run and at most 50 pending candidates with `FOR UPDATE SKIP LOCKED` semantics inside an RPC or a status-claim RPC. Process each candidate via `create_generated_invoice`; recompute totals after every chunk; mark completed only when no pending candidates remain. Never delete completed invoices when cancelled.
 
-- [ ] **Step 4: Make cron conservative**
+- [x] **Step 4: Make cron conservative**
 
   The scheduled route prepares only the current month, estate-wide, with wallet allocation, email, and late fees disabled. It may advance an already queued run by one bounded chunk. Preserve timing-safe cron authorization and return the durable run ID/status.
 
-- [ ] **Step 5: Keep old log readers compatible during migration**
+- [x] **Step 5: Keep old log readers compatible during migration**
 
   Make history readers prefer generation runs while retaining legacy log display for existing records. Include prepared-by, approved-by, scope, options, progress, created/skipped/failed/wallet/email totals, and error details.
 
-- [ ] **Step 6: Run tests and commit**
+- [x] **Step 6: Run tests and commit**
 
   ```bash
   npm test -- --run src/actions/billing/__tests__/invoice-generation-runs.test.ts

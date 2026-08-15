@@ -343,6 +343,7 @@ export type AuditEntityType =
   | 'notification_preferences'  // Phase 11: Notifications
   | 'escalation_states'          // Phase 11: Notifications
   | 'invoice_generation_log'   // Phase 12: Invoice Automation
+  | 'invoice_generation_run'
   | 'verification_tokens'     // Contact verification
   | 'announcements'              // Phase 16: Community Communication
   | 'announcement_categories'    // Phase 16: Community Communication
@@ -431,6 +432,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   notification_preferences: 'Notification Preference', // Phase 11: Notifications
   escalation_states: 'Escalation State',              // Phase 11: Notifications
   invoice_generation_log: 'Invoice Generation',       // Phase 12: Invoice Automation
+  invoice_generation_run: 'Invoice Generation Run',
   verification_tokens: 'Verification Token',          // Contact verification
   announcements: 'Announcement',                       // Phase 16: Community Communication
   announcement_categories: 'Announcement Category',    // Phase 16: Community Communication

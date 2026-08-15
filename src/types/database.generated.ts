@@ -2705,6 +2705,7 @@ export type Database = {
           amount_due: number
           billing_profile_id: string
           billing_profile_version_id: string
+          claimed_at: string | null
           created_at: string
           due_date: string
           error_message: string | null
@@ -2729,6 +2730,7 @@ export type Database = {
           amount_due: number
           billing_profile_id: string
           billing_profile_version_id: string
+          claimed_at?: string | null
           created_at?: string
           due_date: string
           error_message?: string | null
@@ -2753,6 +2755,7 @@ export type Database = {
           amount_due?: number
           billing_profile_id?: string
           billing_profile_version_id?: string
+          claimed_at?: string | null
           created_at?: string
           due_date?: string
           error_message?: string | null
