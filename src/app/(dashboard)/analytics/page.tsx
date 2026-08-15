@@ -3,20 +3,23 @@
 import dynamic from 'next/dynamic';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const FinancialDashboard = dynamic(
-  () => import('./financial-dashboard').then((m) => ({ default: m.FinancialDashboard })),
+const AnalyticsPageClient = dynamic(
+  () => import('./analytics-page-client').then((m) => ({ default: m.AnalyticsPageClient })),
   {
     loading: () => (
-      <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-12 w-12 rounded-xl" />
+          <div className="space-y-2">
+            <Skeleton className="h-7 w-40" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+        </div>
+        <div className="flex gap-1.5 h-9">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-7 w-24" />)}
+        </div>
         <div className="grid gap-4 md:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2"><Skeleton className="h-80 rounded-xl" /></div>
-          <Skeleton className="h-80 rounded-xl" />
-        </div>
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Skeleton className="h-72 rounded-xl" />
-          <Skeleton className="h-72 rounded-xl" />
-        </div>
+        <Skeleton className="h-80 rounded-xl" />
       </div>
     ),
     ssr: false,
@@ -24,5 +27,5 @@ const FinancialDashboard = dynamic(
 );
 
 export default function AnalyticsPage() {
-  return <FinancialDashboard />;
+  return <AnalyticsPageClient />;
 }
