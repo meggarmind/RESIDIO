@@ -2,7 +2,12 @@
 
 > **🎯 PRODUCT FOCUS (2026-08-06): ADMIN DASHBOARD ONLY.** Resident Portal / self-service (`src/app/(resident)/**`, resident-portal components) is **NOT planned for rollout** in the foreseeable future. De-prioritize all self-service work listed below (portal wallet, resident payments, announcements/documents/profile, impersonation, onboarding). Keep it stable/local only; do not extend or polish it. Prioritize admin management/finance/security/operations/reporting instead.
 
-**Last Updated:** 2026-08-12 (legacy tracker reconciliation/import)
+**Last Updated:** 2026-08-15 (resident detail + Analytics tabbed dashboards)
+
+### Admin UI — Resident Detail & Analytics (2026-08-15)
+- [x] Resident detail Overview tab: compacted Identity/Financial cards, fixed a real force-stretch layout bug, added Resident Since/ID Verification/Portal Access/Company fields.
+- [x] Analytics page: URL-synced tabs (Financial/Residents/Houses & Streets/Collections & Indebtedness/Payment Behavior), fixed the always-empty Revenue vs Expenses chart, fixed the always-empty Dues Expected vs Collected chart, replaced a silently-truncated payment-cadence query with a nightly-refreshed summary table.
+- [ ] Known gap (not fixed here): only 6 of 139 billable residents have ever had an invoice generated — Top 10 Indebted/Non-Indebted is data-accurate but sparse. Tied to Invoice Generation Redesign (#52-57); needs separate follow-up.
 
 ## Current Phase: Finance, Performance & Communications Fast-Track
 The project is fast-tracked around financial operations, financial statements/imports/reports, critical performance work, and estate operational WhatsApp/SMS integrations. Portal/self-service work remains out of scope.
