@@ -30,30 +30,41 @@ import { cn } from '@/lib/utils';
 
 interface CrossPropertyPaymentSummaryProps {
   residentId: string;
+  /** Wallet balance to display alongside invoice figures; omitted if not yet loaded. */
+  walletBalance?: number;
   className?: string;
 }
 
-export function CrossPropertyPaymentSummary({ residentId, className }: CrossPropertyPaymentSummaryProps) {
+export function CrossPropertyPaymentSummary({ residentId, walletBalance, className }: CrossPropertyPaymentSummaryProps) {
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const { data: summary, isLoading, error } = useResidentCrossPropertyPaymentSummary(residentId);
 
+  const walletBalanceColor = walletBalance === undefined
+    ? ''
+    : walletBalance > 0
+      ? 'text-green-600 dark:text-green-400'
+      : walletBalance < 0
+        ? 'text-red-600 dark:text-red-400'
+        : '';
+
   if (isLoading) {
     return (
-      <Card className={className}>
-        <CardHeader className="pb-3">
+      <Card variant="compact" className={className}>
+        <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
             <Receipt className="h-4 w-4" />
-            Outstanding Balance
+            Financial Summary
           </CardTitle>
-          <CardDescription className="text-xs">Payment summary across all properties</CardDescription>
+          <CardDescription className="text-xs">Wallet and payment summary across all properties</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-20 w-full" />
-          <div className="grid grid-cols-2 gap-4">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
+        <CardContent className="space-y-3">
+          <Skeleton className="h-14 w-full" />
+          <div className="grid grid-cols-3 gap-2">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
           </div>
-          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-8 w-full" />
         </CardContent>
       </Card>
     );
@@ -61,11 +72,11 @@ export function CrossPropertyPaymentSummary({ residentId, className }: CrossProp
 
   if (error) {
     return (
-      <Card className={className}>
-        <CardHeader className="pb-3">
+      <Card variant="compact" className={className}>
+        <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
             <Receipt className="h-4 w-4" />
-            Outstanding Balance
+            Financial Summary
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -80,16 +91,22 @@ export function CrossPropertyPaymentSummary({ residentId, className }: CrossProp
 
   if (!summary || summary.totalInvoices === 0) {
     return (
-      <Card className={className}>
-        <CardHeader className="pb-3">
+      <Card variant="compact" className={className}>
+        <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
             <Receipt className="h-4 w-4" />
-            Outstanding Balance
+            Financial Summary
           </CardTitle>
-          <CardDescription className="text-xs">Payment summary across all properties</CardDescription>
+          <CardDescription className="text-xs">Wallet and payment summary across all properties</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="text-center py-6">
+        <CardContent className="flex-1 flex flex-col">
+          {walletBalance !== undefined && (
+            <div className="border rounded-lg p-2.5 bg-muted/30 mb-4">
+              <p className="text-xs font-medium text-muted-foreground mb-0.5">Wallet Balance</p>
+              <p className={cn('text-base font-semibold', walletBalanceColor)}>{formatCurrency(walletBalance)}</p>
+            </div>
+          )}
+          <div className="text-center py-6 flex-1 flex flex-col items-center justify-center">
             <FileText className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
             <p className="text-muted-foreground text-sm">No invoices found for this resident</p>
           </div>
@@ -105,16 +122,16 @@ export function CrossPropertyPaymentSummary({ residentId, className }: CrossProp
     : 100;
 
   return (
-    <Card className={className}>
-      <CardHeader className="pb-3">
+    <Card variant="compact" className={className}>
+      <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
               <Receipt className="h-4 w-4" />
-              Outstanding Balance
+              Financial Summary
             </CardTitle>
             <CardDescription className="text-xs">
-              Payment summary across {summary.properties.length} propert{summary.properties.length === 1 ? 'y' : 'ies'}
+              {summary.properties.length} propert{summary.properties.length === 1 ? 'y' : 'ies'} · {summary.totalInvoices} invoice{summary.totalInvoices > 1 ? 's' : ''}
             </CardDescription>
           </div>
           {hasOverdueProperties && (
@@ -125,45 +142,48 @@ export function CrossPropertyPaymentSummary({ residentId, className }: CrossProp
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 flex-1 flex flex-col">
         {/* Total Outstanding (Hero) */}
-        <div className="text-center">
-          <p className="text-xs text-muted-foreground mb-1">Total Outstanding</p>
+        <div className="text-center py-1">
+          <p className="text-xs text-muted-foreground mb-0.5">Total Outstanding</p>
           <p className={cn(
-            'text-3xl font-bold',
+            'text-2xl font-bold',
             hasOutstanding ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
           )}>
             {formatCurrency(summary.totalOutstanding)}
           </p>
-          {hasOutstanding && (
-            <p className="text-xs text-muted-foreground mt-0.5">
-              from {summary.totalInvoices} invoice{summary.totalInvoices > 1 ? 's' : ''}
-            </p>
-          )}
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-2">
+          {/* Wallet Balance */}
+          {walletBalance !== undefined && (
+            <div className="border rounded-lg p-2 bg-muted/30">
+              <p className="text-xs font-medium text-muted-foreground mb-0.5">Wallet</p>
+              <p className={cn('text-sm font-semibold', walletBalanceColor)}>{formatCurrency(walletBalance)}</p>
+            </div>
+          )}
+
           {/* Total Due */}
-          <div className="border rounded-lg p-2.5 bg-muted/30">
+          <div className="border rounded-lg p-2 bg-muted/30">
             <p className="text-xs font-medium text-muted-foreground mb-0.5">Total Due</p>
-            <p className="text-base font-semibold">{formatCurrency(summary.totalDue)}</p>
+            <p className="text-sm font-semibold">{formatCurrency(summary.totalDue)}</p>
           </div>
 
           {/* Total Paid */}
-          <div className="border rounded-lg p-2.5 bg-green-50 dark:bg-green-950/20">
+          <div className="border rounded-lg p-2 bg-green-50 dark:bg-green-950/20">
             <div className="flex items-center gap-1 mb-0.5">
               <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-400" />
               <p className="text-xs font-medium text-green-600 dark:text-green-400">Total Paid</p>
             </div>
-            <p className="text-base font-semibold text-green-700 dark:text-green-300">
+            <p className="text-sm font-semibold text-green-700 dark:text-green-300">
               {formatCurrency(summary.totalPaid)}
             </p>
           </div>
         </div>
 
         {/* Collection Rate */}
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Collection Rate</span>
             <span className={cn(
@@ -175,7 +195,7 @@ export function CrossPropertyPaymentSummary({ residentId, className }: CrossProp
               {collectionRate}%
             </span>
           </div>
-          <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
             <div
               className={cn(
                 'h-full transition-all duration-500',

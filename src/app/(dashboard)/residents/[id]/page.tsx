@@ -24,10 +24,10 @@ import { GranularVerificationBadge } from '@/components/residents/contact-verifi
 import { useResident, useDeleteResident, useUpdateResidentStatus, useVerifyResident } from '@/hooks/use-residents';
 import { useVerificationStatus, useAdminVerifyContact } from '@/hooks/use-verification';
 import { useWallet } from '@/hooks/use-wallet';
-import { formatCurrency } from '@/lib/utils';
 import { LinkedHouses } from '@/components/residents/linked-houses';
 import { ResidentPayments } from '@/components/residents/resident-payments';
 import { WalletTransactions } from '@/components/residents/wallet-transactions';
+import { WalletPaymentBatchTools } from '@/components/residents/wallet-payment-batch-tools';
 import { CrossPropertyPaymentSummary } from '@/components/residents/cross-property-payment-summary';
 import { ResidentSecurityContacts } from '@/components/residents/resident-security-contacts';
 import { PaymentAliases } from '@/components/residents/payment-aliases';
@@ -40,7 +40,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell, StickyNote, AlertCircle, UserRoundCheck, UserRoundX, Wallet, Check, Loader2 } from 'lucide-react';
+import { Users, Pencil, Trash2, Phone, Mail, ArrowLeft, UserCircle, Link as LinkIcon, ShieldCheck, Shield, UserCheck, Bell, StickyNote, AlertCircle, UserRoundCheck, UserRoundX, Wallet, Check, Loader2, Building2, CalendarClock, IdCard, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ResidentDetailPageProps {
@@ -90,7 +90,6 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
 
   const wallet = walletData?.data;
   const walletBalance = wallet?.balance || 0;
-  const walletBalanceColor = walletBalance > 0 ? 'text-green-600 dark:text-green-400' : walletBalance < 0 ? 'text-red-600 dark:text-red-400' : '';
   const emailVerified = verificationStatus?.email?.verified;
   const phoneVerified = verificationStatus?.phone?.verified;
 
@@ -363,58 +362,106 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
               visible: { opacity: 1, transition: { staggerChildren: 0.12 } },
             }}
           >
-            {/* Top row: Identity + Wallet / Invoices */}
+            {/* Top row: Identity + Financial Summary */}
             <div className="grid gap-4 lg:grid-cols-2">
-              {/* Identity & Contact + Wallet Balance */}
+              {/* Identity & Contact */}
               <motion.div
                 className="h-full"
                 variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } }}
               >
-                <Card className="card-hover-modern h-full flex flex-col">
-                  <CardHeader className="pb-3">
+                <Card variant="compact" className="card-hover-modern h-full flex flex-col">
+                  <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                       <IconBox color="blue" size="sm">
                         <UserCircle className="h-4 w-4" />
                       </IconBox>
                       Identity &amp; Contact
+                      {resident.entity_type !== 'individual' && (
+                        <Badge variant="outline" className="ml-auto text-[10px] font-normal capitalize">
+                          {resident.entity_type}
+                        </Badge>
+                      )}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3 flex-1">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground flex items-center gap-2">
-                        <Phone className="h-3.5 w-3.5" /> Phone
-                      </span>
-                      <span className="font-medium">{resident.phone_primary}</span>
-                    </div>
-                    {resident.phone_secondary && (
-                      <>
-                        <Separator />
-                        <div className="flex justify-between text-sm">
+                  <CardContent className="flex-1 flex flex-col">
+                    <div className="divide-y divide-border text-sm">
+                      <div className="flex justify-between items-center py-1.5">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          <Phone className="h-3.5 w-3.5" /> Phone
+                        </span>
+                        <span className="font-medium">{resident.phone_primary}</span>
+                      </div>
+                      {resident.phone_secondary && (
+                        <div className="flex justify-between items-center py-1.5">
                           <span className="text-muted-foreground">Secondary Phone</span>
                           <span className="font-medium">{resident.phone_secondary}</span>
                         </div>
-                      </>
-                    )}
-                    {resident.email && (
-                      <>
-                        <Separator />
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-muted-foreground flex items-center gap-2">
+                      )}
+                      {resident.email && (
+                        <div className="flex justify-between items-center py-1.5">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
                             <Mail className="h-3.5 w-3.5" /> Email
                           </span>
-                          <span className="font-medium">{resident.email}</span>
+                          <span className="font-medium truncate max-w-[60%]" title={resident.email}>{resident.email}</span>
                         </div>
-                      </>
-                    )}
-                    <Separator />
-                    <div className="py-1">
-                      <p className="text-xs text-muted-foreground mb-0.5">Wallet Balance</p>
-                      <p className={`text-xl font-bold ${walletBalanceColor}`}>
-                        {formatCurrency(walletBalance)}
-                      </p>
+                      )}
+                      {resident.entity_type !== 'individual' && (resident.company_name || resident.rc_number) && (
+                        <div className="flex justify-between items-center py-1.5">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <Building2 className="h-3.5 w-3.5" /> Company
+                          </span>
+                          <span className="font-medium text-right">
+                            {resident.company_name}
+                            {resident.rc_number && (
+                              <span className="text-muted-foreground font-normal"> · RC {resident.rc_number}</span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      {resident.entity_type !== 'individual' && (resident.liaison_contact_name || resident.liaison_contact_phone) && (
+                        <div className="flex justify-between items-center py-1.5">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <UserCheck className="h-3.5 w-3.5" /> Liaison Contact
+                          </span>
+                          <span className="font-medium text-right">
+                            {resident.liaison_contact_name}
+                            {resident.liaison_contact_phone && (
+                              <span className="text-muted-foreground font-normal"> · {resident.liaison_contact_phone}</span>
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center py-1.5">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          <CalendarClock className="h-3.5 w-3.5" /> Resident Since
+                        </span>
+                        <span className="font-medium">
+                          {new Date(resident.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                      {resident.id_type && resident.id_number && (
+                        <div className="flex justify-between items-center py-1.5">
+                          <span className="text-muted-foreground flex items-center gap-1.5">
+                            <IdCard className="h-3.5 w-3.5" /> {resident.id_type}
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="font-medium">{resident.id_number}</span>
+                            <Badge variant={resident.id_verified_at ? 'success' : 'outline'} className="text-[10px]">
+                              {resident.id_verified_at ? 'Verified' : 'Unverified'}
+                            </Badge>
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center py-1.5">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          <Globe className="h-3.5 w-3.5" /> Portal Access
+                        </span>
+                        <Badge variant={resident.portal_enabled ? 'success' : 'outline'} className="text-[10px]">
+                          {resident.portal_enabled ? 'Enabled' : 'Not enabled'}
+                        </Badge>
+                      </div>
                     </div>
-                    <Separator />
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap pt-2 mt-2 border-t">
                       <GranularVerificationBadge
                         emailVerifiedAt={verificationStatus?.email?.verified_at ?? null}
                         phoneVerifiedAt={verificationStatus?.phone?.verified_at ?? null}
@@ -452,29 +499,18 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
                 </Card>
               </motion.div>
 
-              {/* Invoices (Outstanding Balance) */}
+              {/* Financial Summary (Wallet + Invoices) */}
               <motion.div
                 className="h-full"
                 variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } }}
               >
-                <Card className="card-hover-modern h-full flex flex-col">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                      <IconBox color="green" size="sm">
-                        <Wallet className="h-4 w-4" />
-                      </IconBox>
-                      Invoices
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-1">
-                    <CrossPropertyPaymentSummary residentId={id} />
-                  </CardContent>
-                </Card>
+                <CrossPropertyPaymentSummary residentId={id} walletBalance={walletBalance} className="h-full flex flex-col" />
               </motion.div>
             </div>
 
             {/* Housing — multi-column grid */}
             <motion.div
+              className="mt-4"
               variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } } }}
             >
               <LinkedHouses resident={resident} />
@@ -483,13 +519,22 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         </TabsContent>
 
         <TabsContent value="transactions" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="transactions">
-          <div className="max-h-[calc(100vh-12rem)] overflow-y-auto scrollbar-modern">
+          <WalletPaymentBatchTools
+            residentId={id}
+            houses={(resident.resident_houses || []).filter((rh) => rh.is_active).map((rh) => ({
+              id: rh.house_id,
+              label: rh.house?.short_name || rh.house?.house_number || rh.house_id,
+            }))}
+          />
+          <div className="h-[460px] overflow-y-auto scrollbar-modern">
             <WalletTransactions residentId={id} />
           </div>
         </TabsContent>
 
         <TabsContent value="payments" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="payments">
-          <ResidentPayments residentId={id} />
+          <div className="max-h-[calc(100vh-12rem)] overflow-y-auto scrollbar-modern">
+            <ResidentPayments residentId={id} />
+          </div>
         </TabsContent>
 
         <TabsContent value="aliases" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="aliases">
