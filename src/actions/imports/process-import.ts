@@ -593,9 +593,13 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
       .eq('import_id', import_id);
 
     if (allRows) {
-      const bankCreditsTotal = allRows.filter((r) => r.transaction_type === 'credit').reduce((s, r) => s + (Number(r.amount) || 0), 0);
-      const bankDebitsTotal = allRows.filter((r) => r.transaction_type === 'debit').reduce((s, r) => s + (Number(r.amount) || 0), 0);
-      const unmatched = allRows.filter((r) => r.status === 'unmatched' || r.status === 'skipped');
+      // NOTE: this reconciliation block is unreachable today (early return
+      // above, unchanged since 567b5cd) but still type-checked; assertions
+      // keep it compiling without altering runtime behavior.
+      const rows = allRows!;
+      const bankCreditsTotal = rows.filter((r) => r.transaction_type === 'credit').reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      const bankDebitsTotal = rows.filter((r) => r.transaction_type === 'debit').reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      const unmatched = rows.filter((r) => r.status === 'unmatched' || r.status === 'skipped');
       const unmatchedCredits = unmatched.filter((r) => r.transaction_type === 'credit').length;
       const unmatchedDebits = unmatched.filter((r) => r.transaction_type === 'debit').length;
 
@@ -625,10 +629,10 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 
       const expensesTotal = expenses?.reduce((s, e) => s + (Number(e.amount) || 0), 0) ?? 0;
 
-      result.reconciliation.paymentsCreatedTotal = paymentsTotal;
-      result.reconciliation.expensesCreatedTotal = expensesTotal;
-      result.reconciliation.creditsDifference = bankCreditsTotal - paymentsTotal;
-      result.reconciliation.debitsDifference = bankDebitsTotal - expensesTotal;
+      result.reconciliation!.paymentsCreatedTotal = paymentsTotal;
+      result.reconciliation!.expensesCreatedTotal = expensesTotal;
+      result.reconciliation!.creditsDifference = bankCreditsTotal - paymentsTotal;
+      result.reconciliation!.debitsDifference = bankDebitsTotal - expensesTotal;
     }
   } catch (e) {
     console.error('[processImport] Reconciliation computing error:', e);

@@ -5,7 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { createLogger } from '@/lib/logger';
-import type { InvoiceGenerationTrigger } from '@/lib/billing/invoice-generation-history';
+import type { InvoiceGenerationTrigger as GenerationTrigger } from '@/lib/billing/invoice-generation-history';
 import {
     collectInvoiceGenerationRunErrors,
     currentMonthPeriod,
@@ -18,7 +18,9 @@ import { revalidatePath } from 'next/cache';
 
 const log = createLogger('[Billing]');
 
-export type { InvoiceGenerationTrigger };
+// Kept as an inline alias (not a re-export) so Turbopack's server-action
+// manifest does not treat it as a runtime export of this 'use server' module.
+export type InvoiceGenerationTrigger = GenerationTrigger;
 
 interface SkipReason { house: string; reason: string }
 interface GenerateInvoicesResult {

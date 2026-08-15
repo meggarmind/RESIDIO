@@ -131,6 +131,9 @@ const PERMISSION_ALLOWLIST = [
   'email-imports/create-email-import.ts',
   // Report schedule delivery: driven by Vercel cron (no user session)
   'reports/process-schedules.ts',
+  // Payment cadence summary refresh: driven by Vercel cron (CRON_SECRET bearer
+  // auth, no user session). Recomputes an analytics cache table only.
+  'analytics/refresh-payment-cadence-summary.ts',
   // Pre-auth 2FA login flow: executes before the user has a session; writes its own
   // two_factor_audit_log. Resolves the user under test, not an admin RBAC permission.
   'two-factor/verify.ts',
@@ -205,6 +208,9 @@ const AUDIT_ALLOWLIST = [
   // Pre-auth 2FA login flow: writes to its own two_factor_audit_log instead of logAudit,
   // because there is no authenticated actor session to attribute a logAudit event to.
   'two-factor/verify.ts',
+  // Payment cadence summary refresh: Vercel cron with no user session; recomputes
+  // an analytics cache table with no admin-attributable actor.
+  'analytics/refresh-payment-cadence-summary.ts',
 ];
 
 function isReadOnlyFile(filename: string): boolean {
