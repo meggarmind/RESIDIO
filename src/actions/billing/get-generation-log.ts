@@ -1,28 +1,15 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import type { InvoiceGenerationTrigger } from './generate-invoices';
+import {
+    mapInvoiceGenerationRunToHistoryEntry,
+    mergeGenerationHistory,
+    type GenerationHistoryEntry,
+    type InvoiceGenerationRunHistoryRow,
+    type InvoiceGenerationTrigger,
+} from '@/lib/billing/invoice-generation-history';
 
-interface GenerationLogEntry {
-    id: string;
-    generated_at: string;
-    generated_by: string | null;
-    trigger_type: InvoiceGenerationTrigger;
-    target_period: string | null;
-    generated_count: number;
-    skipped_count: number;
-    error_count: number;
-    skip_reasons: Array<{ house: string; reason: string }> | null;
-    errors: string[] | null;
-    duration_ms: number | null;
-    created_at: string;
-    // Joined data
-    actor?: {
-        id: string;
-        full_name: string;
-        email: string;
-    } | null;
-}
+export type { GenerationHistoryEntry as GenerationLogEntry } from '@/lib/billing/invoice-generation-history';
 
 interface GetGenerationLogParams {
     page?: number;
@@ -30,72 +17,73 @@ interface GetGenerationLogParams {
     triggerType?: InvoiceGenerationTrigger;
 }
 
+const RUN_HISTORY_SELECT = `
+    id, requested_at, requested_by, started_at, completed_at, status,
+    scope, options, candidate_count, created_count, skipped_count,
+    failed_count, cancelled_count, total_amount, total_wallet_allocated,
+    result_summary
+`;
+
+const fetchRunEntries = async (
+    triggerType?: InvoiceGenerationTrigger,
+    limit?: number
+): Promise<GenerationHistoryEntry[]> => {
+    const supabase = await createServerSupabaseClient();
+    let query = supabase.from('invoice_generation_runs').select(RUN_HISTORY_SELECT, { count: 'exact' });
+    if (triggerType) query = query.contains('scope', { trigger: triggerType });
+    const { data, error } = await query.order('requested_at', { ascending: false }).limit(limit ?? 100);
+    if (error) return [];
+    return (data || []).map((run) => mapInvoiceGenerationRunToHistoryEntry(run as unknown as InvoiceGenerationRunHistoryRow));
+};
+
+const fetchLegacyEntries = async (
+    triggerType?: InvoiceGenerationTrigger,
+    limit?: number
+): Promise<GenerationHistoryEntry[]> => {
+    const supabase = await createServerSupabaseClient();
+    let query = supabase.from('invoice_generation_log').select('*', { count: 'exact' });
+    if (triggerType) query = query.eq('trigger_type', triggerType);
+    const { data, error } = await query.order('generated_at', { ascending: false }).limit(limit ?? 100);
+    if (error) return [];
+    return (data || []).map((entry) => ({ ...entry, source: 'legacy' }) as GenerationHistoryEntry);
+};
+
 /**
- * Get the latest invoice generation log entry
+ * Get the latest invoice generation record, preferring durable runs over the
+ * legacy log (which is retained for historical records only).
  */
 export async function getLatestGenerationLog(): Promise<{
-    data: GenerationLogEntry | null;
+    data: GenerationHistoryEntry | null;
     error: string | null;
 }> {
-    const supabase = await createServerSupabaseClient();
-
-    const { data, error } = await supabase
-        .from('invoice_generation_log')
-        .select(`
-            *,
-            actor:profiles!generated_by(id, full_name, email)
-        `)
-        .order('generated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-    if (error) {
-        return { data: null, error: error.message };
-    }
-
-    return { data, error: null };
+    const [runs, legacy] = await Promise.all([fetchRunEntries(undefined, 1), fetchLegacyEntries(undefined, 1)]);
+    const { entries } = mergeGenerationHistory(runs, legacy, 1, 1);
+    return { data: entries[0] ?? null, error: null };
 }
 
 /**
- * Get invoice generation history with pagination
+ * Get invoice generation history with pagination, merging durable runs
+ * (preferred) with legacy log records.
  */
 export async function getGenerationHistory(
     params: GetGenerationLogParams = {}
 ): Promise<{
-    data: GenerationLogEntry[] | null;
+    data: GenerationHistoryEntry[] | null;
     total: number;
     error: string | null;
 }> {
     const { page = 1, limit = 10, triggerType } = params;
-    const offset = (page - 1) * limit;
-
-    const supabase = await createServerSupabaseClient();
-
-    let query = supabase
-        .from('invoice_generation_log')
-        .select(`
-            *,
-            actor:profiles!generated_by(id, full_name, email)
-        `, { count: 'exact' });
-
-    // Filter by trigger type if specified
-    if (triggerType) {
-        query = query.eq('trigger_type', triggerType);
-    }
-
-    const { data, error, count } = await query
-        .order('generated_at', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-    if (error) {
-        return { data: null, total: 0, error: error.message };
-    }
-
-    return { data, total: count || 0, error: null };
+    const fetchLimit = page * limit;
+    const [runs, legacy] = await Promise.all([
+        fetchRunEntries(triggerType, fetchLimit),
+        fetchLegacyEntries(triggerType, fetchLimit),
+    ]);
+    const { entries, total } = mergeGenerationHistory(runs, legacy, page, limit);
+    return { data: entries, total, error: null };
 }
 
 /**
- * Get generation statistics for a time period
+ * Get generation statistics for a time period across runs and legacy records.
  */
 export async function getGenerationStats(
     days: number = 30
@@ -110,43 +98,28 @@ export async function getGenerationStats(
     } | null;
     error: string | null;
 }> {
-    const supabase = await createServerSupabaseClient();
-
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const { data, error } = await supabase
-        .from('invoice_generation_log')
-        .select('*')
-        .gte('generated_at', startDate.toISOString());
+    const supabase = await createServerSupabaseClient();
+    const [{ data: runs }, { data: legacy }] = await Promise.all([
+        supabase.from('invoice_generation_runs').select(RUN_HISTORY_SELECT).gte('requested_at', startDate.toISOString()),
+        supabase.from('invoice_generation_log').select('*').gte('generated_at', startDate.toISOString()),
+    ]);
 
-    if (error) {
-        return { data: null, error: error.message };
-    }
+    const entries: GenerationHistoryEntry[] = [
+        ...(runs || []).map((run) => mapInvoiceGenerationRunToHistoryEntry(run as unknown as InvoiceGenerationRunHistoryRow)),
+        ...((legacy || []).map((entry) => ({ ...entry, source: 'legacy' })) as GenerationHistoryEntry[]),
+    ];
 
-    if (!data || data.length === 0) {
-        return {
-            data: {
-                totalRuns: 0,
-                totalGenerated: 0,
-                totalSkipped: 0,
-                totalErrors: 0,
-                avgDuration: 0,
-                byTrigger: { manual: 0, cron: 0, api: 0 },
-            },
-            error: null,
-        };
-    }
-
-    const stats = data.reduce(
+    const stats = entries.reduce(
         (acc, entry) => {
             acc.totalRuns++;
             acc.totalGenerated += entry.generated_count;
             acc.totalSkipped += entry.skipped_count;
             acc.totalErrors += entry.error_count;
             acc.totalDuration += entry.duration_ms || 0;
-            acc.byTrigger[entry.trigger_type as InvoiceGenerationTrigger] =
-                (acc.byTrigger[entry.trigger_type as InvoiceGenerationTrigger] || 0) + 1;
+            acc.byTrigger[entry.trigger_type] = (acc.byTrigger[entry.trigger_type] || 0) + 1;
             return acc;
         },
         {
