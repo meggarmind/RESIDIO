@@ -9,6 +9,15 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (OpenCode, 2026-08-16 — Resident-House engagement coverage)
+
+- **Closed the outstanding coverage gap for Personnel Accountability (#75/#76/#77):** added 21 tests (repo now 180/180 green).
+  - **Lib** (`src/__tests__/personnel-engagements.test.ts`, 4 → 10 tests): resident-house scope label (`12A, Main St · Ada Okoro`), generic fallback when the house detail is null, concurrent count (`+1`), ended engagements not active, Estate precedence over Resident-House, and resident-house filter matching.
+  - **Actions** (new `src/actions/personnel/__tests__/personnel-engagements-actions.test.ts`, 15 tests): `createResidentHouseEngagement` (unauthorized-before-client, RPC args, read-back, duplicate `23505` message, inactive-target DB message, read-back failure), `updateResidentHouseEngagement` (unauthorized, scope-scoped update, DB error), `endPersonnelEngagement` (unauthorized, sets today's end date + `is end_date null` guard, already-ended PGRST116 path), and `getActiveResidentHouses` (unauthorized, resident/house/street join labelling, placeholder fallback, base-query error).
+- **Verification:** `npm test` 180/180 passing (module-integration included); scoped ESLint clean on both files. No production code changed.
+
+---
+
 ## Last session (OpenCode, 2026-08-15 — Build unblock + module wiring)
 
 - **Build blocker fixed:** `src/actions/personnel/engagements.ts` failed Turbopack compile — the destructured `engagement` on read-back collided with the function param. Renamed to `createdEngagement`.
@@ -27,7 +36,7 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 - **Personnel Accountability (#75/#76/#77, uncommitted):** Added the RLS-enabled `personnel_engagements` schema, grants hardening, duplicate-active protection, Estate and Resident-House RPCs, admin-only server actions, audit logging, directory accountability badges/filters, engagement editing, history, and end actions. Existing Personnel remains unassigned unless an active engagement exists.
 - **Resident-House workflow:** Active Resident Houses are loaded into the Personnel dialog; creation validates the active target through the RPC, and editing an existing Resident-House engagement preserves its target and updates its dates/responsibility instead of creating a duplicate. Directory filtering now covers Estate, Resident House, and Unassigned.
 - **Verification:** targeted ESLint clean; `personnel-engagements` (4) and module-integration (3) tests pass; `git diff --check` clean. Full typecheck still has only the known five unrelated dashboard/WhatsApp export errors. Supabase Security Advisor has no `personnel_engagements` findings.
-- **Remaining:** Add deeper action/UI tests for Resident-House creation, inactive-target and duplicate rejection, lifecycle ending, and history rendering. The create-Personnel-plus-engagement Estate path remains a two-write UI flow except for the dedicated atomic creation RPC.
+- **Remaining:** None for the core engagement lifecycle. Deeper action/UI coverage for Resident-House creation, inactive-target and duplicate rejection, lifecycle ending, and history rendering is now in place (see the Resident-House coverage session below). The create-Personnel-plus-engagement Estate path remains a two-write UI flow except for the dedicated atomic creation RPC.
 
 ---
 

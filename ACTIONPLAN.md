@@ -14,7 +14,8 @@ Status: IN PROGRESS
 
 ## Personnel Accountability
 
-- **#75/#76/#77 Personnel Accountability (2026-08-15, uncommitted):** Estate and Resident-House engagement schema/RPCs, authorized/audited actions, directory badges and filters, engagement editing, history, and end lifecycle actions are implemented. Focused verification passes; deeper Resident-House action/UI coverage remains next.
+- **#75/#76/#77 Personnel Accountability (2026-08-15):** Estate and Resident-House engagement schema/RPCs, authorized/audited actions, directory badges and filters, engagement editing, history, and end lifecycle actions are implemented.
+- **Coverage closed (2026-08-16):** Deeper Resident-House coverage added — 21 tests covering creation (including duplicate `23505` and inactive-target rejection), scoped updates, end-lifecycle (including the already-ended path), and `getActiveResidentHouses` join/fallback labelling, plus resident-house accountability in the lib. Repo test suite green at 180/180.
 
 Payment gateway integration is explicitly deferred and is not part of the current finance fast-track.
 

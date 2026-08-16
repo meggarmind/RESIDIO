@@ -5,7 +5,8 @@
 **Last Updated:** 2026-08-15 (resident detail + Analytics tabbed dashboards)
 
 ### Personnel Accountability (2026-08-15)
-- [x] **#75/#76/#77 Estate and Resident-House Accountability:** Cloud engagement schema/RPCs, admin-only write/query path, duplicate-active protection, Estate/Resident-House/Unassigned directory badges and filters, engagement editor, history, and end lifecycle actions are implemented. Focused verification passes; deeper Resident-House action/UI coverage remains a follow-up.
+- [x] **#75/#76/#77 Estate and Resident-House Accountability:** Cloud engagement schema/RPCs, admin-only write/query path, duplicate-active protection, Estate/Resident-House/Unassigned directory badges and filters, engagement editor, history, and end lifecycle actions are implemented.
+- [x] **Deeper Resident-House coverage (2026-08-16):** 21 tests added — lib accountability (resident-house label, precedence, ended/future, filter) and action coverage (create via RPC incl. duplicate `23505`, inactive-target rejection, read-back; update scoped; end lifecycle incl. already-ended; `getActiveResidentHouses` join/fallback). Repo at 180/180 passing.
 
 ### Admin UI — Resident Detail & Analytics (2026-08-15)
 - [x] Resident detail Overview tab: compacted Identity/Financial cards, fixed a real force-stretch layout bug, added Resident Since/ID Verification/Portal Access/Company fields.
