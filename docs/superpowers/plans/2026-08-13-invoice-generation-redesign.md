@@ -213,19 +213,19 @@
 
 **Produces:** Deduplicated `invoice-generated:<invoice-id>` jobs with queued/sent/failed visibility in candidate/run summaries.
 
-- [ ] **Step 1: Write a failing queue test**
+- [x] **Step 1: Write a failing queue test**
 
   Assert a created candidate with `sendEmails: true` creates one job after the invoice transaction succeeds; reprocessing the candidate does not create another; `sendEmails: false` creates none.
 
-- [ ] **Step 2: Replace direct asynchronous sending with queue insertion**
+- [x] **Step 2: Replace direct asynchronous sending with queue insertion**
 
   Queue a single `email` notification after the invoice RPC reports success. Persist the queue ID/status on the candidate. Do not call a network email provider from inside generation processing.
 
-- [ ] **Step 3: Surface delivery outcome safely**
+- [x] **Step 3: Surface delivery outcome safely**
 
   Aggregate queued/sent/failed counts from candidate/notification status in run details. Retry only failed delivery work; never recreate an invoice to retry email.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
   ```bash
   npm test -- --run src/lib/notifications/__tests__/invoice-generation-email.test.ts
@@ -246,31 +246,31 @@
 
 **Produces:** A controlled admin-only wizard and durable operations view.
 
-- [ ] **Step 1: Add request controls and safe defaults**
+- [x] **Step 1: Add request controls and safe defaults**
 
   Include selected month, `selected_month`/`backfill`, optional house/street/resident scope, wallet allocation, resident email, and late-fee review flags. Selecting backfill clears wallet/email/late-fee defaults. Hide side effects from cron-only state.
 
-- [ ] **Step 2: Bind Preview to the exact request**
+- [x] **Step 2: Bind Preview to the exact request**
 
   Display candidate count/amount, existing skips, excluded properties, historical-rate errors, projected wallet allocation, and explicit warnings. Disable prepare until a successful preview matches the current request.
 
-- [ ] **Step 3: Add graduated confirmation and approval state**
+- [x] **Step 3: Add graduated confirmation and approval state**
 
   Require typed confirmation containing the requested range and total when the range spans multiple months or exceeds the configured threshold. Show whether the current policy needs a second approver and provide a run ID/status after preparation.
 
-- [ ] **Step 4: Display progress and results durably**
+- [x] **Step 4: Display progress and results durably**
 
   Poll the run detail while queued/processing; show created/skipped/failed counts and values, wallet allocation, unpaid value, and email queue outcome. Keep the modal open until the run reaches a terminal state; link to the history detail instead of relying on a toast.
 
-- [ ] **Step 5: Upgrade history actions**
+- [x] **Step 5: Upgrade history actions**
 
   Add run state, scope/options, approval actors, result export, cancel for pending work, and retry-failed candidates. Do not expose destructive edit/delete actions for generated invoices.
 
-- [ ] **Step 6: Add Playwright coverage**
+- [x] **Step 6: Add Playwright coverage**
 
   Cover an admin current-month preview/prepare, a backfill that defaults side effects off and requires typed confirmation, and a history-row retry/cancel visibility case using seeded data.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
   ```bash
   git add src/components/billing src/hooks/use-billing.ts src/app/(dashboard)/billing/page.tsx e2e/payments-billing.spec.ts
@@ -290,11 +290,11 @@
 
 **Consumes:** Completed Tasks 1-5.
 
-- [ ] **Step 1: Replace the proposed-plan status with the approved decisions and shipped behavior**
+- [x] **Step 1: Replace the proposed-plan status with the approved decisions and shipped behavior**
 
   Record the current-month default, explicit backfill, historical-rate versioning, configurable dual approval defaulting off, immutable corrections, queue delivery, and cancellation policy.
 
-- [ ] **Step 2: Run financial regression coverage**
+- [x] **Step 2: Run financial regression coverage**
 
   ```bash
   npm test -- --run
@@ -305,11 +305,11 @@
 
   Document any pre-existing failures separately from changed-file failures.
 
-- [ ] **Step 3: Verify cloud safety post-migration**
+- [x] **Step 3: Verify cloud safety post-migration**
 
   Use Supabase advisors for security and performance. Verify every new exposed table has RLS, the RPC has no `PUBLIC` execute grant, unique-index enforcement works, and wallet batch records reconcile to invoice payment totals.
 
-- [ ] **Step 4: Update handoff state and commit**
+- [x] **Step 4: Update handoff state and commit**
 
   ```bash
   git add docs TODO.md ACTIONPLAN.md SESSION_STATE.md

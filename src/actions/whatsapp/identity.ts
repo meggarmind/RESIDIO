@@ -69,6 +69,195 @@ export async function createWhatsAppLinkToken(
   return { success: true, data: { code, expiresAt }, error: null };
 }
 
+type OptInImportResult = {
+  imported: number;
+  duplicates: number;
+  errors: string[];
+};
+
+export async function importWhatsAppOptIns(
+  csv: string
+): Promise<ActionResult<OptInImportResult>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_MANAGE);
+  if (!authorization.authorized) {
+    return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+  }
+
+  const adminClient = createAdminClient();
+  const result: OptInImportResult = { imported: 0, duplicates: 0, errors: [] };
+
+  const rows = csv
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.split(',').map((cell) => cell.trim()))
+    .filter((cells) => cells.length >= 2 && !(cells[0] === 'resident_code' && cells[1] === 'phone_number'));
+
+  if (rows.length === 0) {
+    return { success: true, data: result, error: null };
+  }
+
+  const codes = [...new Set(rows.map((cells) => cells[0]))];
+  const { data: residents, error: residentError } = await adminClient
+    .from('residents')
+    .select('id, resident_code')
+    .in('resident_code', codes);
+
+  if (residentError) {
+    return { success: false, data: null, error: 'Failed to look up resident codes.' };
+  }
+
+  const residentByCode = new Map(residents?.map((r) => [r.resident_code, r.id]) ?? []);
+  const existingIds = new Set<string>();
+  const residentIds = [...new Set(residents?.map((r) => r.id) ?? [])];
+
+  if (residentIds.length > 0) {
+    const { data: existing } = await adminClient
+      .from('whatsapp_optins')
+      .select('resident_id')
+      .in('resident_id', residentIds);
+    existing?.forEach((optin) => existingIds.add(optin.resident_id));
+  }
+
+  const insertedIds = new Set<string>();
+  const now = new Date().toISOString();
+
+  for (const [code, phone] of rows) {
+    const residentId = residentByCode.get(code);
+    if (!residentId) {
+      result.errors.push(`Unknown resident code: ${code}`);
+      continue;
+    }
+    if (existingIds.has(residentId) || insertedIds.has(residentId)) {
+      result.duplicates += 1;
+      continue;
+    }
+    const { error } = await adminClient.from('whatsapp_optins').insert({
+      resident_id: residentId,
+      phone_number: phone,
+      opted_in: true,
+      source: 'admin_import',
+      opted_in_at: now,
+    });
+    if (error) {
+      result.errors.push(`Failed to import ${code}: ${error.message}`);
+      continue;
+    }
+    insertedIds.add(residentId);
+    result.imported += 1;
+  }
+
+  if (result.imported > 0) {
+    await logAudit({
+      action: 'CREATE',
+      entityType: 'whatsapp_optins',
+      entityId: 'bulk-import',
+      entityDisplay: `WhatsApp opt-in bulk import`,
+      newValues: { imported: result.imported, duplicates: result.duplicates, errors: result.errors.length },
+    });
+    revalidatePath('/settings/whatsapp');
+  }
+
+  return { success: true, data: result, error: null };
+}
+
+export async function updateWhatsAppPendingContact(input: {
+  phoneNumber: string;
+  status: 'attached' | 'ignored';
+  residentId?: string;
+}): Promise<ActionResult<null>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_MANAGE);
+  if (!authorization.authorized) {
+    return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+  }
+
+  const adminClient = createAdminClient();
+  const { data: contact, error: contactError } = await adminClient
+    .from('whatsapp_pending_contacts')
+    .select('id, phone_number, status, resident_id')
+    .eq('phone_number', input.phoneNumber)
+    .eq('status', 'pending')
+    .maybeSingle();
+
+  if (contactError || !contact) {
+    return { success: false, data: null, error: 'No pending WhatsApp contact found for that number.' };
+  }
+
+  if (input.status === 'attached') {
+    if (!input.residentId) {
+      return { success: false, data: null, error: 'A resident ID is required to attach a pending contact.' };
+    }
+    const { data: resident, error: residentError } = await adminClient
+      .from('residents')
+      .select('id')
+      .eq('id', input.residentId)
+      .maybeSingle();
+    if (residentError || !resident) {
+      return { success: false, data: null, error: 'Resident not found.' };
+    }
+  }
+
+  const { error } = await adminClient
+    .from('whatsapp_pending_contacts')
+    .update({
+      status: input.status,
+      resident_id: input.status === 'attached' ? input.residentId : null,
+    })
+    .eq('id', contact.id);
+
+  if (error) {
+    return { success: false, data: null, error: 'Failed to update WhatsApp pending contact.' };
+  }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'whatsapp_pending_contacts',
+    entityId: contact.id,
+    entityDisplay: `WhatsApp pending contact ${input.phoneNumber}`,
+    oldValues: { status: contact.status, resident_id: contact.resident_id },
+    newValues: { status: input.status, resident_id: input.status === 'attached' ? input.residentId : null },
+  });
+  revalidatePath('/settings/whatsapp');
+
+  return { success: true, data: null, error: null };
+}
+
+export async function resetWhatsAppSession(phoneNumber: string): Promise<ActionResult<null>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_MANAGE);
+  if (!authorization.authorized) {
+    return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+  }
+
+  const adminClient = createAdminClient();
+  const { data: session, error: readError } = await adminClient
+    .from('whatsapp_sessions')
+    .select('id, resident_id')
+    .eq('phone_number', phoneNumber)
+    .maybeSingle();
+
+  if (readError) {
+    return { success: false, data: null, error: 'Failed to look up WhatsApp session.' };
+  }
+
+  if (session) {
+    const { error } = await adminClient.from('whatsapp_sessions').delete().eq('id', session.id);
+    if (error) {
+      return { success: false, data: null, error: 'Failed to reset WhatsApp session.' };
+    }
+
+    await logAudit({
+      action: 'DELETE',
+      entityType: 'whatsapp_sessions',
+      entityId: session.id,
+      entityDisplay: `WhatsApp session reset for ${phoneNumber}`,
+      oldValues: { phone_number: phoneNumber, resident_id: session.resident_id },
+    });
+    revalidatePath('/settings/whatsapp');
+  }
+
+  return { success: true, data: null, error: null };
+}
+
 export async function getWhatsAppOptIns(): Promise<ActionResult<unknown[]>> {
   const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_VIEW);
   if (!authorization.authorized) {

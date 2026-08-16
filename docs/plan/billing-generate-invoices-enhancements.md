@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed plan. Review completed on 2026-08-12. No application or database changes have been deployed from this plan.
+Approved and implemented across issues #52–#56. Final verification is recorded in issue #57 (2026-08-15). The estate-wide backfill remains deferred pending the human decision tracked by #73.
 
 ## Objective
 
@@ -18,10 +18,10 @@ The action currently:
 - Applies move-in-month pro-rating.
 - Skips periods where a matching invoice already exists.
 - Attempts to debit the resident wallet for each newly created invoice.
-- Sends invoice email notifications asynchronously.
+- Queues invoice email notifications after committed invoice creation with durable queued/sent/failed outcomes.
 - Records generation counts, skips, errors, duration, and audit information.
 
-The current button does not provide a preview, month selector, scope selector, or explicit controls for wallet deductions and email delivery. Resident-targeted billing profiles are also currently skipped.
+The admin workflow now provides exact preview, month/mode selection, mutually exclusive scope narrowing, explicit wallet/email/late-fee controls, typed backfill confirmation, durable progress, and history actions. Resident-targeted billing profiles are resolved through the shared candidate engine.
 
 ## Proposed enhancements
 

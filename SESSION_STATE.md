@@ -9,7 +9,29 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Last session (Claude Code, 2026-08-15 — resident detail optimization + Analytics tabbed dashboards)
+## Last session (OpenCode, 2026-08-15 — Build unblock + module wiring)
+
+- **Build blocker fixed:** `src/actions/personnel/engagements.ts` failed Turbopack compile — the destructured `engagement` on read-back collided with the function param. Renamed to `createdEngagement`.
+- **Completed missing WhatsApp admin actions** (the `/settings/whatsapp` UI referenced actions that did not exist): added `importWhatsAppOptIns` (CSV `resident_code,phone_number`, resident lookup, in-batch dedupe, `admin_import` source), `updateWhatsAppPendingContact` (attach/ignore with resident validation), and `resetWhatsAppSession` (deletes the session row) to `src/actions/whatsapp/identity.ts`. Registered `whatsapp_sessions` as an `AuditEntityType` (+ label) in `src/types/database.ts`. All three are permission + audit compliant.
+- **Fixed 6 pre-existing test failures** (committed, unrelated to this session's edits):
+  - `billing-aggregate-rpc.test.ts` (4): the three adapters in `src/actions/billing/get-invoices.ts` were still doing unbounded JS reads. Rewired `getResidentIndebtedness`, `getHousePaymentStatus`, `getResidentCrossPropertyPaymentSummary` to the bounded RPCs `get_resident_indebtedness`, `get_house_payment_status`, `get_resident_cross_property_payment_summary` (all verified live in cloud), matching the test contract and removing the unbounded-fallback debt.
+  - `dashboard-snapshot.test.ts` (2): added `getAdminDashboardSnapshot` (permission-first via `authorizePermission(PERMISSIONS.BILLING_VIEW)`, no client created on denial) in `get-enhanced-dashboard-stats.ts`, plus `ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY` and `useAdminDashboardSnapshot` in `src/hooks/use-dashboard.ts`.
+- **Lint OOM fixed:** ESLint was crawling `.worktrees/**` (12 worktrees incl. their `.next` output) and OOM'd at ~4 GB. Added `.worktrees/**` to `globalIgnores` in `eslint.config.mjs`. Lint now completes; no errors in any file touched this session (115 pre-existing errors elsewhere untouched).
+- **Verification:** `npm run build` GREEN (exit 0); `npm test` 159/159 passing (was 153 + 6 failing); scoped lint clean. Dev servers on ports 3000/3101 stopped to release the `.next` build lock.
+- **Remaining:** WhatsApp settings UI still lacks wiring verification against live data (opt-in import + pending-contact attach paths untested end-to-end). The personnel `personnel-engagements` test file was added by the prior session; full action/UI coverage for Resident-House lifecycle is still outstanding per that session's notes.
+
+---
+
+## Last session (OpenCode, 2026-08-15 — Personnel Accountability #75/#76/#77)
+
+- **Personnel Accountability (#75/#76/#77, uncommitted):** Added the RLS-enabled `personnel_engagements` schema, grants hardening, duplicate-active protection, Estate and Resident-House RPCs, admin-only server actions, audit logging, directory accountability badges/filters, engagement editing, history, and end actions. Existing Personnel remains unassigned unless an active engagement exists.
+- **Resident-House workflow:** Active Resident Houses are loaded into the Personnel dialog; creation validates the active target through the RPC, and editing an existing Resident-House engagement preserves its target and updates its dates/responsibility instead of creating a duplicate. Directory filtering now covers Estate, Resident House, and Unassigned.
+- **Verification:** targeted ESLint clean; `personnel-engagements` (4) and module-integration (3) tests pass; `git diff --check` clean. Full typecheck still has only the known five unrelated dashboard/WhatsApp export errors. Supabase Security Advisor has no `personnel_engagements` findings.
+- **Remaining:** Add deeper action/UI tests for Resident-House creation, inactive-target and duplicate rejection, lifecycle ending, and history rendering. The create-Personnel-plus-engagement Estate path remains a two-write UI flow except for the dedicated atomic creation RPC.
+
+---
+
+## Prior session (Claude Code, 2026-08-15 — resident detail optimization + Analytics tabbed dashboards)
 
 - **Resident detail page (`/residents/[id]`)**: compacted the Overview tab's Identity & Contact and Financial Summary (renamed from Invoices) cards using the `compact` Card variant; consolidated Wallet Balance into Financial Summary's stat row; added Resident Since, ID Verification, Portal Access, and conditional Company/Liaison Contact rows for corporate residents; fixed a real layout bug where the Identity card was force-stretched via CSS grid equal-height rows with its footer pinned via `mt-auto`, leaving a large blank gap for sparse residents. Merged to `master` at `9fa8454`.
 - **Analytics page (`/analytics`)**: added a URL-synced tab bar (Financial / Residents / Houses & Streets / Collections & Indebtedness / Payment Behavior), matching the resident-detail tab pattern. Fixed a real pre-existing bug where the Financial tab's Revenue vs Expenses chart always rendered empty (component called with no props). Built four new dashboards backed by new server actions (`get-resident-breakdown`, `get-house-street-breakdown`, `get-collections-trend`, `get-indebtedness-rankings`, `get-payment-cadence`) and a new pure `classifyPaymentCadence` module (unit-tested) that buckets residents into monthly/annual/irregular/insufficient-data payers by interval regularity. Merged to `master` at `891cca9`.
@@ -202,6 +224,29 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 - Integrated the Wallet Check report panel and resident wallet payment-batch tools into the admin Reports and resident Transactions surfaces.
 - Added atomic ordinary-payment/approval allocation through `settle_wallet_invoices`, preserving wallet-only credit when no eligible invoice exists.
 - Verification: focused wallet/action tests pass, module integration passes (3 tests), targeted lint and `git diff --check` pass, and both wallet Playwright specs pass against seeded cloud auth. Full repository TypeScript still has unrelated baseline failures in imports, reports, analytics, PDF, WhatsApp, and dashboard snapshot work.
+
+## Wallet live-verification follow-up (2026-08-15)
+
+- Read-only cloud verification against Supabase project `kzugmyjjqttardhfejzc` confirmed the allocation snapshot columns, the `settle_wallet_invoices(uuid, uuid[], text, date, uuid, uuid, numeric, numeric, uuid)` RPC, and `SECURITY INVOKER` execution.
+- Current cloud readiness: 581 invoices (570 paid, 11 unpaid), 62 resident wallets, 52 positive wallet balances, 2,259 payment records, 832 wallet transactions, and **zero** wallet payment batches/items. No live partial/full settlement or reversal can be exercised safely without creating or using financial test data.
+- The remaining live-verification item is therefore blocked on an approved non-production fixture/branch or an explicitly authorized reversible test settlement. No financial rows were written in this follow-up.
+
+## Generated database types recovery (OpenCode, 2026-08-15)
+
+- Restored `src/types/database.generated.ts` from the designated Supabase MCP cloud-generator artifact after `npm run db:types` replaced it with a local Docker connection error. The restored file byte-matches the artifact's `types` payload; standalone TypeScript validation passes and includes `personnel_engagements` plus `personnel_engagement_scope`.
+
+## Invoice issues #44/#54–57 investigation (OpenCode, 2026-08-15)
+
+- **#44** (parent PRD): umbrella; phases #45–49 closed, redesign re-scoped remainder into #52–57. Stays open until #54–57 + #73 land.
+- **#52/#53** (Tasks 1–2): DONE — merged to `master` and applied to cloud (`20260812235852_invoice_generation_redesign` + hardening migrations; `create_generated_invoice` RPC live; 5 profile versions; all 581 invoices carry version provenance).
+- **#55** (Task 3, run lifecycle): completed and merged; see the closeout entry below.
+- **#55 closeout (OpenCode, 2026-08-15):** Completed and merged to `master` at `58fdb31`. Applied cloud migrations `20260813160000_add_invoice_generation_run_claims` and `20260813170000_harden_invoice_generation_run_lifecycle`; verified service-role-only grants for claim/refresh/approval RPCs. Extracted the shared run service, converted the legacy generator to a durable-run compatibility wrapper, made cron prepare only current-month estate-wide invoice-only runs and advance one bounded chunk, added run/legacy history merging, and added action, history, and worker tests. Focused verification: 29 tests passed including module-integration; scoped lint passed. Full Vitest remains at the documented baseline failures outside invoice generation; build remains blocked by pre-existing reports/PDF type errors. The two invoice worktrees are pending cleanup.
+- **#54** (Task 4, durable email): NOT STARTED — `send-invoice-email.ts` sends direct via Resend; `generate-invoices.ts:144` fire-and-forget. Needs `notification_queue` wiring with `invoice-generated:<id>` dedup. Blocked by #55.
+- **#54 closeout (OpenCode, 2026-08-15):** Implemented durable post-commit invoice email delivery. Added the `invoice-generated:<invoice-id>` unique queue key, candidate queue/status fields, run-level queued/sent/failed email totals, queue-status aggregation in `refresh_invoice_generation_run`, and notification-worker synchronization. The standalone `sendInvoiceEmail` action now queues instead of sending directly. Cloud migrations `20260815093000_invoice_generation_email_delivery`, `20260815093100_invoice_generation_email_queue_index`, and `20260815093200_invoice_email_processing_summary` are applied; focused delivery/worker/module tests pass. Issue #54 is ready to close after commit.
+- **#56** (Task 5, admin workflow): NOT STARTED — dialog still calls `generateMonthlyInvoices` directly with toast-only result; history panel reads legacy log only. Blocked by #54+#55.
+- **#56 closeout (OpenCode, 2026-08-15):** Implemented and committed in `b29f152`. The billing dialog now supports selected-month/backfill requests, exact request-bound previews, mutually exclusive scope narrowing, safe backfill side-effect defaults, typed confirmation, durable prepare/approval/progress state, and bounded processing. History now shows durable status, email totals, CSV output, cancellation, and failed-candidate retry. Added admin E2E coverage for current-month controls, backfill defaults, and durable history. TypeScript, scoped lint, and focused tests pass; Playwright execution is currently blocked by the Windows runner's `ChildProcess.kill` cleanup failure before test execution.
+- **#57** (Task 6, verification/closeout): final verification completed. Full Vitest is **149 passed / 6 baseline failures** (dashboard snapshot and billing aggregate tests); focused invoice/UI/module tests pass. Build remains blocked by the pre-existing reports/PDF type error in `src/actions/reports/generate-report-pdf.ts`; scoped TypeScript and lint for changed invoice/UI files pass. Cloud migrations, RPC grants, security/performance advisors, and the invoice email unique key were verified. Live wallet reconciliation is data-limited: 581 invoices, NGN 3.205M due, NGN 3.1M paid, zero wallet batches/items, zero generation runs/candidates; no financial fixture was created. Known advisor findings (GraphQL exposure of durable run tables and unindexed generated-schema foreign keys) are recorded as follow-up, with no new critical #54/#56 finding. Issue #57 is ready to close.
+- **Critical path:** #73 human backfill decision → close #44. Related: #73 (only 6/139 billable residents ever invoiced; full-estate backfill deliberately deferred pending the human decision on rates/periods).
 
 ## Next steps (fast-track priority)
 

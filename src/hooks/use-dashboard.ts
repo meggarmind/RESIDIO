@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { getDashboardStats } from '@/actions/dashboard/get-dashboard-stats';
-import { getEnhancedDashboardStats } from '@/actions/dashboard/get-enhanced-dashboard-stats';
+import { getEnhancedDashboardStats, getAdminDashboardSnapshot } from '@/actions/dashboard/get-enhanced-dashboard-stats';
 import {
   getDashboardFinancialHealth,
   getDashboardInvoiceDistribution,
@@ -11,6 +11,8 @@ import {
   getDashboardRecentActivity,
 } from '@/actions/dashboard/get-enhanced-dashboard-stats';
 import { POLLING_INTERVALS } from '@/lib/config/polling';
+
+export const ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY = ['admin-dashboard-snapshot'] as const;
 
 export function useDashboardStats() {
     return useQuery({
@@ -37,6 +39,19 @@ export function useEnhancedDashboardStats() {
         // Optimized: 60s → 180s (heavy query, data is relatively stable)
         refetchInterval: POLLING_INTERVALS.SLOW,
         staleTime: POLLING_INTERVALS.STANDARD, // Consider data fresh for 1 minute
+    });
+}
+
+export function useAdminDashboardSnapshot() {
+    return useQuery({
+        queryKey: ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY,
+        queryFn: async () => {
+            const result = await getAdminDashboardSnapshot();
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        refetchInterval: POLLING_INTERVALS.SLOW,
+        staleTime: POLLING_INTERVALS.STANDARD,
     });
 }
 

@@ -372,6 +372,7 @@ export type AuditEntityType =
   | 'whatsapp_optins'              // WhatsApp consent records
   | 'whatsapp_pending_contacts'    // Unrostered WhatsApp numbers
   | 'whatsapp_link_tokens'          // One-time WhatsApp linking tokens
+  | 'whatsapp_sessions'             // WhatsApp conversation sessions
   | 'visitor_vehicles'             // Visitor Vehicle Registration
   // Unified Expenditure Engine
   | 'expenses'                     // Expense records
@@ -379,6 +380,7 @@ export type AuditEntityType =
   | 'petty_cash_accounts'          // Petty cash account management
   // Personnel & Projects
   | 'vendors'                      // Personnel (staff, contractors, vendors, suppliers)
+  | 'personnel_engagements'
   | 'projects';
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
@@ -462,6 +464,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   whatsapp_optins: 'WhatsApp Opt-in',                    // WhatsApp Assistant
   whatsapp_pending_contacts: 'WhatsApp Pending Contact', // WhatsApp Assistant
   whatsapp_link_tokens: 'WhatsApp Link Token',           // WhatsApp Assistant
+  whatsapp_sessions: 'WhatsApp Session',                // WhatsApp Assistant
   visitor_vehicles: 'Visitor Vehicle',                  // Visitor Management Enhancement
   // Unified Expenditure Engine
   expenses: 'Expense',                                  // Expense Management
@@ -469,6 +472,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   petty_cash_accounts: 'Petty Cash Account',            // Petty Cash Management
   // Personnel & Projects
   vendors: 'Personnel',                                  // Personnel (vendors table)
+  personnel_engagements: 'Personnel Engagement',
   projects: 'Project',                                  // Capital Project
 };
 
@@ -1057,6 +1061,30 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['vendors']['Insert']>;
       };
+
+      personnel_engagements: {
+        Row: {
+          id: string;
+          personnel_id: string;
+          accountability_scope: 'estate' | 'resident_house';
+          resident_house_id: string | null;
+          responsibility: string | null;
+          start_date: string;
+          end_date: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          personnel_id: string;
+          accountability_scope: 'estate' | 'resident_house';
+          resident_house_id?: string | null;
+          responsibility?: string | null;
+          start_date?: string;
+          end_date?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['personnel_engagements']['Insert']>;
+      };
     };
   };
 }
@@ -1106,6 +1134,10 @@ export type PettyCashAccountUpdate = Database['public']['Tables']['petty_cash_ac
 export type Vendor = Database['public']['Tables']['vendors']['Row'];
 export type VendorInsert = Database['public']['Tables']['vendors']['Insert'];
 export type VendorUpdate = Database['public']['Tables']['vendors']['Update'];
+export type PersonnelEngagement = Database['public']['Tables']['personnel_engagements']['Row'];
+export type PersonnelEngagementInsert = Database['public']['Tables']['personnel_engagements']['Insert'];
+export type PersonnelEngagementUpdate = Database['public']['Tables']['personnel_engagements']['Update'];
+export type PersonnelEngagementScope = 'estate' | 'resident_house';
 
 // Personnel Types (Mapped to Vendors table)
 export type PersonnelType = 'staff' | 'vendor' | 'contractor' | 'supplier';
@@ -1118,6 +1150,20 @@ export interface Personnel extends Vendor {
   department: string | null;
   start_date: string | null;
   end_date: string | null;
+}
+
+export interface PersonnelWithEngagements extends Personnel {
+  active_engagements: PersonnelEngagementWithAccountability[];
+  engagement_history: PersonnelEngagementWithAccountability[];
+}
+
+export interface PersonnelEngagementWithAccountability extends PersonnelEngagement {
+  resident_house: {
+    id: string;
+    house_number: string;
+    street_name: string | null;
+    resident_name: string;
+  } | null;
 }
 
 export interface PersonnelInsert extends VendorInsert {

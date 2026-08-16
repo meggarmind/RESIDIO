@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import {
     ArrowLeft,
@@ -12,6 +12,8 @@ import {
     HardHat,
     Briefcase,
     Truck,
+    Building2,
+    CircleSlash,
     X
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -37,7 +39,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
 import { getPersonnel, deletePersonnel } from '@/actions/personnel/actions';
-import { Personnel, PersonnelType } from '@/types/database';
+import { PersonnelType, PersonnelWithEngagements } from '@/types/database';
+import { getPersonnelAccountability, type PersonnelAccountabilityFilter } from '@/lib/personnel/engagements';
 
 const PersonnelDialog = dynamic(
   () => import('./personnel-dialog').then((m) => ({ default: m.PersonnelDialog })),
@@ -45,23 +48,25 @@ const PersonnelDialog = dynamic(
 );
 
 export function PersonnelList() {
-    const [personnel, setPersonnel] = useState<Personnel[]>([]);
+    const [personnel, setPersonnel] = useState<PersonnelWithEngagements[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [typeFilter, setTypeFilter] = useState<PersonnelType | 'all'>('all');
+    const [accountabilityFilter, setAccountabilityFilter] = useState<PersonnelAccountabilityFilter>('all');
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
 
     // Dialog states
-    const [editPersonnel, setEditPersonnel] = useState<Personnel | undefined>(undefined);
+    const [editPersonnel, setEditPersonnel] = useState<PersonnelWithEngagements | undefined>(undefined);
     const [editOpen, setEditOpen] = useState(false);
 
-    const fetchPersonnel = async () => {
+    const fetchPersonnel = useCallback(async () => {
         setLoading(true);
         try {
             const { data, error } = await getPersonnel({
                 search: searchTerm || undefined,
                 type: typeFilter !== 'all' ? typeFilter : undefined,
+                accountability: accountabilityFilter,
             });
             if (error) throw new Error(error);
             setPersonnel(data || []);
@@ -71,7 +76,7 @@ export function PersonnelList() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [searchTerm, typeFilter, accountabilityFilter]);
 
     // Debounced search
     useEffect(() => {
@@ -79,7 +84,7 @@ export function PersonnelList() {
             fetchPersonnel();
         }, 500);
         return () => clearTimeout(timer);
-    }, [searchTerm, typeFilter]);
+    }, [fetchPersonnel]);
 
     async function handleDelete(id: string) {
         if (!confirm('Are you sure you want to delete this personnel record?')) return;
@@ -148,11 +153,23 @@ export function PersonnelList() {
                     </SelectContent>
                 </Select>
 
+                <Select value={accountabilityFilter} onValueChange={(value) => setAccountabilityFilter(value as PersonnelAccountabilityFilter)}>
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="All accountability" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All accountability</SelectItem>
+                        <SelectItem value="estate">Estate</SelectItem>
+                        <SelectItem value="resident_house">Resident House</SelectItem>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                    </SelectContent>
+                </Select>
+
                 <PersonnelDialog onSuccess={fetchPersonnel} />
             </div>
 
             {/* Active Filter Badges */}
-            {(typeFilter !== 'all' || searchTerm) && (
+            {(typeFilter !== 'all' || accountabilityFilter !== 'all' || searchTerm) && (
                 <div className="flex items-center gap-2 mb-4">
                     {typeFilter !== 'all' && (
                         <Badge variant="secondary" className="gap-1">
@@ -160,6 +177,18 @@ export function PersonnelList() {
                             <button
                                 onClick={() => setTypeFilter('all')}
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                            >
+                                <X className="h-3 w-3" />
+                            </button>
+                        </Badge>
+                    )}
+                    {accountabilityFilter !== 'all' && (
+                        <Badge variant="secondary" className="gap-1">
+                            Accountability: <span className="capitalize">{accountabilityFilter}</span>
+                            <button
+                                onClick={() => setAccountabilityFilter('all')}
+                                className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                                aria-label="Clear accountability filter"
                             >
                                 <X className="h-3 w-3" />
                             </button>
@@ -182,6 +211,7 @@ export function PersonnelList() {
                         className="h-6 px-2 text-xs"
                         onClick={() => {
                             setTypeFilter('all');
+                            setAccountabilityFilter('all');
                             setSearchTerm('');
                             setPage(1);
                         }}
@@ -199,6 +229,7 @@ export function PersonnelList() {
                             <TableHead>Name / Role</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Contact Info</TableHead>
+                            <TableHead>Accountability</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -210,13 +241,14 @@ export function PersonnelList() {
                                     <TableCell><Skeleton className="h-4 w-40 mb-2" /><Skeleton className="h-3 w-20" /></TableCell>
                                     <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-32 mb-1" /><Skeleton className="h-3 w-24" /></TableCell>
+                                    <TableCell><Skeleton className="h-5 w-24 rounded-full" /></TableCell>
                                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                                     <TableCell><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                                 </TableRow>
                             ))
                         ) : paginatedPersonnel.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                                     No personnel found.
                                 </TableCell>
                             </TableRow>
@@ -241,6 +273,21 @@ export function PersonnelList() {
                                             {person.phone && <div className="flex items-center gap-2">{person.phone}</div>}
                                             {!person.email && !person.phone && <span className="text-muted-foreground italic">No contact info</span>}
                                         </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        {(() => {
+                                            const accountability = getPersonnelAccountability(person.active_engagements);
+                                            return (
+                                                <Badge variant="secondary" className="w-fit gap-1">
+                                                    {accountability.scope === 'estate' ? (
+                                                        <Building2 className="h-3 w-3" />
+                                                    ) : (
+                                                        <CircleSlash className="h-3 w-3" />
+                                                    )}
+                                                    {accountability.label}
+                                                </Badge>
+                                            );
+                                        })()}
                                     </TableCell>
                                     <TableCell>
                                         <Badge variant={person.status === 'active' ? 'default' : 'secondary'} className="rounded-full">

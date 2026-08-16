@@ -235,3 +235,9 @@ Implementation completed for the admin wallet payment-period scope and the parti
 - The login route no longer starts a competing AuthProvider session bootstrap; cloud seeded admin authentication now completes normally.
 - The Reports Wallet Check panel and resident Transactions wallet-payment tools are integrated and covered by two passing admin Playwright specs.
 - Focused wallet/action tests, module integration, targeted lint, and `git diff --check` pass. Full repository TypeScript retains unrelated baseline failures outside this wallet scope.
+
+## Live cloud verification update (2026-08-15)
+
+- Read-only verification against Supabase project `kzugmyjjqttardhfejzc` confirmed all allocation snapshot columns and the `settle_wallet_invoices` RPC signature. The function is `SECURITY INVOKER`.
+- The cloud project has 581 invoices (570 paid, 11 unpaid), 52 positive wallet balances, 2,259 payment records, and 832 wallet transactions, but zero `wallet_payment_batches` and zero `wallet_payment_batch_items`.
+- Real partial/full settlement and reversal verification remains pending an approved non-production fixture/branch or explicitly authorized reversible financial test data. No live financial rows were changed.

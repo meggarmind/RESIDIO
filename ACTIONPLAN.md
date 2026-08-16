@@ -12,6 +12,10 @@ Status: IN PROGRESS
 2. **P0 Performance:** Complete Phase 6 before expanding heavy admin workflows.
 3. **P1 Communications:** WhatsApp and SMS integrations for estate/admin operational communications.
 
+## Personnel Accountability
+
+- **#75/#76/#77 Personnel Accountability (2026-08-15, uncommitted):** Estate and Resident-House engagement schema/RPCs, authorized/audited actions, directory badges and filters, engagement editing, history, and end lifecycle actions are implemented. Focused verification passes; deeper Resident-House action/UI coverage remains next.
+
 Payment gateway integration is explicitly deferred and is not part of the current finance fast-track.
 
 **Schema baseline:** On 2026-08-10, the cloud Supabase inventory was reconciled with the architecture documentation. Finance, reporting, operations, and assistant tables are documented; the legacy DDL export is flagged as incomplete.
@@ -25,6 +29,14 @@ Payment gateway integration is explicitly deferred and is not part of the curren
 **Legacy import closeout (2026-08-12):** Published `docs/importdata/legacy-import-closeout.md`. The final snapshot confirms 136/136 unique house mappings, and the final payment manifest confirms 203/203 comparable house-year totals matched. Future tracker records and the documented no-assignment houses remain deferred for later/manual processing.
 
 Portal/self-service work remains out of scope. Finance and communications integrations must remain admin/estate operational capabilities, not new resident portal surfaces.
+
+## Invoice Generation Redesign
+
+- **Task 3 / issue #55 complete (2026-08-15):** Durable prepare/approve/cancel/retry/read actions, bounded chunk processing, conservative cron behavior, compatibility generation wrapper, and run-preferred history are merged to `master` (`58fdb31`). Cloud claim/refresh/approval migrations are applied and focused verification passes.
+- **Task 4 / issue #54 complete (2026-08-15):** Invoice email delivery now queues after committed invoice creation with a unique `invoice-generated:<invoice-id>` key. Queue, sent, and failed outcomes are persisted and aggregated into candidate/run summaries; queue retries do not recreate invoices.
+- **Task 5 / issue #56 complete (2026-08-15):** `/billing` now prepares exact durable requests, supports controlled backfills and scopes, shows live run progress and approval state, and exposes durable history cancellation/retry actions. Playwright coverage is added; execution remains blocked by the Windows runner cleanup failure.
+- **Task 6 / issue #57 complete (2026-08-15):** Full regression, focused verification, cloud advisors, RPC grants, and wallet reconciliation checks are recorded. The remaining six Vitest failures and reports/PDF build error are pre-existing baseline issues; no live wallet fixture was created because the cloud has zero wallet batches/items.
+- **Next:** Resolve the human rate/period decision for the estate-wide backfill (#73). Do not run it until that decision is recorded.
 
 ## PDF Import Dependencies & APIs
 
@@ -142,3 +154,5 @@ Based on the 2026-08-08 performance audit. Quick wins implemented; remaining wor
 - 2026-08-07: Completed Phase 3 — visual polish (dropzone, wizard stepper, stat tiles), test CLI, payment form/approvals polish, import preview consistency.
 - 2026-08-07: Completed Phases 4 & 5 — page layout consistency (spacing, EnhancedPageHeader migration, card variants), form standardization (max-w, md:grid-cols-2, space-y-6, submit rows), accessibility (aria-labels on 20+ icon-only buttons, keyboard nav on interactive divs, OKLCH border contrast fix).
 **Wallet payment-period closeout (2026-08-13):** Partial-payment-safe receipt periods, immutable cloud allocation snapshots, resident-scoped bulk settlement, future prepayment, batch reversal, reconciliation reporting, and atomic ordinary payment/approval allocation are implemented. The login bootstrap fix resolves the Supabase client lock; both admin wallet Playwright specs pass. Focused wallet/action tests, module integration, targeted lint, and `git diff --check` pass. Full repository TypeScript still has unrelated baseline failures in imports, reports, analytics, PDF, WhatsApp, and dashboard snapshot work.
+
+**Wallet live-verification follow-up (2026-08-15):** Read-only Supabase verification confirmed the snapshot columns and `SECURITY INVOKER` settlement RPC. The cloud project currently contains 11 eligible unpaid invoices and 52 positive wallets but zero wallet payment batches/items, so real partial/full settlement and reversal behavior cannot be exercised without an approved fixture or reversible financial test data. No live rows were changed.

@@ -1,10 +1,11 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { Personnel, PersonnelInsert, PersonnelType, PersonnelUpdate } from '@/types/database';
+import { Personnel, PersonnelEngagement, PersonnelEngagementWithAccountability, PersonnelInsert, PersonnelType, PersonnelUpdate, PersonnelWithEngagements } from '@/types/database';
+import { matchesPersonnelAccountabilityFilter, type PersonnelAccountabilityFilter } from '@/lib/personnel/engagements';
 import { revalidatePath } from 'next/cache';
 
 export async function getPersonnel(
@@ -12,9 +13,13 @@ export async function getPersonnel(
         type?: PersonnelType;
         activeOnly?: boolean;
         search?: string;
+        accountability?: PersonnelAccountabilityFilter;
     }
-): Promise<{ data: Personnel[] | null; error: string | null }> {
-    const supabase = await createServerSupabaseClient();
+): Promise<{ data: PersonnelWithEngagements[] | null; error: string | null }> {
+    const { authorized } = await authorizePermission(PERMISSIONS.VENDORS_VIEW);
+    if (!authorized) return { data: null, error: 'Unauthorized' };
+
+    const supabase = createAdminClient();
 
     let query = supabase
         .from('vendors')
@@ -40,11 +45,82 @@ export async function getPersonnel(
         return { data: null, error: 'Failed to fetch personnel' };
     }
 
-    // Cast to Personnel[] because Supabase types might imply the old Vendor shape without our manual overrides effectively propagating to the query result type automatically unless we cast or generated types
-    return { data: data as unknown as Personnel[], error: null };
-}
+    const personnel = data as unknown as Personnel[];
+    const personnelIds = personnel.map((person) => person.id);
+    const { data: engagementData, error: engagementError } = personnelIds.length === 0
+        ? { data: [], error: null }
+        : await supabase
+            .from('personnel_engagements')
+            .select('*')
+            .in('personnel_id', personnelIds);
 
-const sanitizeValue = (val?: string | null) => (!val || val.trim() === '') ? null : val;
+    if (engagementError) {
+        console.error('Error fetching personnel engagements:', engagementError);
+        return { data: null, error: 'Failed to fetch personnel accountability' };
+    }
+
+    const rawEngagements = (engagementData ?? []) as PersonnelEngagement[];
+    const residentHouseIds = rawEngagements
+        .map((engagement) => engagement.resident_house_id)
+        .filter((id): id is string => !!id);
+    const { data: residentHouseData, error: residentHouseError } = residentHouseIds.length === 0
+        ? { data: [], error: null }
+        : await supabase
+            .from('resident_houses')
+            .select('id, resident_id, house_id')
+            .in('id', residentHouseIds);
+    if (residentHouseError) return { data: null, error: 'Failed to fetch engagement accountability' };
+
+    const residentIds = [...new Set((residentHouseData ?? []).map((row) => row.resident_id))];
+    const houseIds = [...new Set((residentHouseData ?? []).map((row) => row.house_id))];
+    const [{ data: residents }, { data: houses }] = await Promise.all([
+        residentIds.length === 0 ? { data: [] } : supabase.from('residents').select('id, first_name, last_name').in('id', residentIds),
+        houseIds.length === 0 ? { data: [] } : supabase.from('houses').select('id, house_number, street_id').in('id', houseIds),
+    ]);
+    const streetIds = [...new Set((houses ?? []).map((house) => house.street_id).filter((id): id is string => !!id))];
+    const { data: streets } = streetIds.length === 0
+        ? { data: [] }
+        : await supabase.from('streets').select('id, name').in('id', streetIds);
+    const residentById = new Map((residents ?? []).map((resident) => [resident.id, `${resident.first_name} ${resident.last_name}`]));
+    const houseById = new Map((houses ?? []).map((house) => [house.id, house]));
+    const streetById = new Map((streets ?? []).map((street) => [street.id, street.name]));
+    const residentHouseById = new Map((residentHouseData ?? []).map((row) => [row.id, {
+        id: row.id,
+        house_number: houseById.get(row.house_id)?.house_number ?? 'House',
+        street_name: houseById.get(row.house_id)?.street_id ? streetById.get(houseById.get(row.house_id)?.street_id as string) ?? null : null,
+        resident_name: residentById.get(row.resident_id) ?? 'Resident',
+    }]));
+    const engagementsWithAccountability = rawEngagements.map((engagement): PersonnelEngagementWithAccountability => ({
+        ...engagement,
+        resident_house: engagement.resident_house_id ? residentHouseById.get(engagement.resident_house_id) ?? null : null,
+    }));
+    const engagementsByPersonnel = new Map<string, PersonnelEngagementWithAccountability[]>();
+    for (const engagement of engagementsWithAccountability) {
+        const engagements = engagementsByPersonnel.get(engagement.personnel_id) ?? [];
+        engagements.push(engagement);
+        engagementsByPersonnel.set(engagement.personnel_id, engagements);
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const personnelWithEngagements = personnel.map((person) => {
+        const engagementHistory = engagementsByPersonnel.get(person.id) ?? [];
+        return {
+        ...person,
+        engagement_history: engagementHistory,
+        active_engagements: engagementHistory.filter((engagement) =>
+            engagement.start_date <= today && (engagement.end_date === null || engagement.end_date >= today)
+        ),
+    }; });
+
+    const accountabilityFilter = filters?.accountability;
+    const filteredPersonnel = accountabilityFilter && accountabilityFilter !== 'all'
+        ? personnelWithEngagements.filter((person) =>
+            matchesPersonnelAccountabilityFilter(person.active_engagements, accountabilityFilter)
+        )
+        : personnelWithEngagements;
+
+    return { data: filteredPersonnel, error: null };
+}
 
 export async function createPersonnel(input: PersonnelInsert): Promise<{ data: Personnel | null; error: string | null }> {
     const { authorized } = await authorizePermission(PERMISSIONS.VENDORS_MANAGE);

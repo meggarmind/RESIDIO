@@ -4,10 +4,17 @@
 
 **Last Updated:** 2026-08-15 (resident detail + Analytics tabbed dashboards)
 
+### Personnel Accountability (2026-08-15)
+- [x] **#75/#76/#77 Estate and Resident-House Accountability:** Cloud engagement schema/RPCs, admin-only write/query path, duplicate-active protection, Estate/Resident-House/Unassigned directory badges and filters, engagement editor, history, and end lifecycle actions are implemented. Focused verification passes; deeper Resident-House action/UI coverage remains a follow-up.
+
 ### Admin UI — Resident Detail & Analytics (2026-08-15)
 - [x] Resident detail Overview tab: compacted Identity/Financial cards, fixed a real force-stretch layout bug, added Resident Since/ID Verification/Portal Access/Company fields.
 - [x] Analytics page: URL-synced tabs (Financial/Residents/Houses & Streets/Collections & Indebtedness/Payment Behavior), fixed the always-empty Revenue vs Expenses chart, fixed the always-empty Dues Expected vs Collected chart, replaced a silently-truncated payment-cadence query with a nightly-refreshed summary table.
-- [ ] Known gap (not fixed here): only 6 of 139 billable residents have ever had an invoice generated — Top 10 Indebted/Non-Indebted is data-accurate but sparse. Tied to Invoice Generation Redesign (#52-57); needs separate follow-up.
+- [ ] Known gap (not fixed here): only 6 of 139 billable residents have ever had an invoice generated — Top 10 Indebted/Non-Indebted is data-accurate but sparse. The governed run lifecycle (#55), durable email delivery (#54), admin workflow (#56), and final verification (#57) are complete; the estate-wide backfill decision remains in #73.
+
+### Wallet payment-period follow-up (2026-08-15)
+- [x] Read-only cloud schema/RPC verification: allocation snapshot columns exist and `settle_wallet_invoices` is `SECURITY INVOKER`.
+- [ ] Live settlement/reversal verification: pending an approved non-production fixture/branch or explicitly authorized reversible financial test data; the cloud project currently has zero wallet batches/items.
 
 ## Current Phase: Finance, Performance & Communications Fast-Track
 The project is fast-tracked around financial operations, financial statements/imports/reports, critical performance work, and estate operational WhatsApp/SMS integrations. Portal/self-service work remains out of scope.

@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { formatAuditLog, type AuditLogEntry } from '@/lib/audit/audit-formatter';
 
@@ -124,6 +126,28 @@ export async function getEnhancedDashboardStats(): Promise<{
         ]);
     } catch (err) {
         console.error('[getEnhancedDashboardStats] FATAL:', err);
+        return {
+            data: null,
+            error: err instanceof Error ? err.message : 'Failed to fetch dashboard stats'
+        };
+    }
+}
+
+export async function getAdminDashboardSnapshot(): Promise<{
+    data: EnhancedDashboardStats | null;
+    error: string | null;
+}> {
+    const authorization = await authorizePermission(PERMISSIONS.BILLING_VIEW);
+    if (!authorization.authorized) {
+        return { data: null, error: authorization.error || 'Unauthorized' };
+    }
+
+    const supabase = await createServerSupabaseClient();
+
+    try {
+        return await getStatsWithTimeout(supabase);
+    } catch (err) {
+        console.error('[getAdminDashboardSnapshot] FATAL:', err);
         return {
             data: null,
             error: err instanceof Error ? err.message : 'Failed to fetch dashboard stats'

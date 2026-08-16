@@ -16,6 +16,26 @@ _Avoid_: Property, plot, unit
 The relationship attaching a Resident to a House, carrying a role and primary/secondary status.
 _Avoid_: Assignment, tenancy
 
+**Personnel**:
+A person or service provider registered to work in the estate, such as estate staff, contractors, vendors, or suppliers.
+_Avoid_: Vendor (when referring to every personnel type)
+
+**Personnel Engagement**:
+A dated accountability relationship between Personnel and either the Estate or a Resident House. Every Personnel type may receive either scope. Multiple engagements may be active concurrently, except that a Personnel record may have only one active engagement for the same accountability target. Ended engagements remain as history rather than being overwritten. It may record an engagement-specific responsibility in addition to the Personnel profile's general job title.
+_Avoid_: Assignment (ambiguous with Resident House), employment (too narrow for vendors and contractors)
+
+**Estate Engagement**:
+A Personnel Engagement where the Estate is the accountable party, such as estate security, facilities, or administrative staff.
+
+**Resident-House Engagement**:
+A Personnel Engagement where a specific Resident House is the accountable party, such as domestic staff, a private driver, or a house-specific contractor. It may be created only against an active Resident House, but remains historically valid if that Resident House later ends.
+
+**Personnel Status**:
+The directory-wide operational state of a Personnel record. Ending a Personnel Engagement does not change this status when the person has other active engagements.
+
+**Unassigned Personnel**:
+A Personnel record with no active Personnel Engagement. Existing records begin unassigned until an administrator records their accountability; the Estate is never inferred as the accountable party.
+
 **Invoice**:
 A formatted request for payment (service charge, levy, adjustment) issued against a House/Resident, with its own status, due date, and amount due.
 _Avoid_: Bill, levy (when referring to a specific invoice)

@@ -2705,11 +2705,11 @@ export type Database = {
           amount_due: number
           billing_profile_id: string
           billing_profile_version_id: string
-          email_queue_id: string | null
-          email_status: string | null
           claimed_at: string | null
           created_at: string
           due_date: string
+          email_queue_id: string | null
+          email_status: string | null
           error_message: string | null
           house_id: string | null
           id: string
@@ -2732,11 +2732,11 @@ export type Database = {
           amount_due: number
           billing_profile_id: string
           billing_profile_version_id: string
-          email_queue_id?: string | null
-          email_status?: string | null
           claimed_at?: string | null
           created_at?: string
           due_date: string
+          email_queue_id?: string | null
+          email_status?: string | null
           error_message?: string | null
           house_id?: string | null
           id?: string
@@ -2759,11 +2759,11 @@ export type Database = {
           amount_due?: number
           billing_profile_id?: string
           billing_profile_version_id?: string
-          email_queue_id?: string | null
-          email_status?: string | null
           claimed_at?: string | null
           created_at?: string
           due_date?: string
+          email_queue_id?: string | null
+          email_status?: string | null
           error_message?: string | null
           house_id?: string | null
           id?: string
@@ -2795,6 +2795,13 @@ export type Database = {
             columns: ["billing_profile_version_id"]
             isOneToOne: false
             referencedRelation: "billing_profile_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_generation_candidates_email_queue_id_fkey"
+            columns: ["email_queue_id"]
+            isOneToOne: false
+            referencedRelation: "notification_queue"
             referencedColumns: ["id"]
           },
           {
@@ -2897,10 +2904,10 @@ export type Database = {
           completed_at: string | null
           created_at: string
           created_count: number
-          failed_count: number
           email_failed_count: number
           email_queued_count: number
           email_sent_count: number
+          failed_count: number
           id: string
           options: Json
           requested_at: string
@@ -2920,10 +2927,10 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_count?: number
-          failed_count?: number
           email_failed_count?: number
           email_queued_count?: number
           email_sent_count?: number
+          failed_count?: number
           id?: string
           options?: Json
           requested_at?: string
@@ -2943,10 +2950,10 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_count?: number
-          failed_count?: number
           email_failed_count?: number
           email_queued_count?: number
           email_sent_count?: number
+          failed_count?: number
           id?: string
           options?: Json
           requested_at?: string
@@ -3896,6 +3903,57 @@ export type Database = {
           },
         ]
       }
+      personnel_engagements: {
+        Row: {
+          accountability_scope: Database["public"]["Enums"]["personnel_engagement_scope"]
+          created_at: string
+          end_date: string | null
+          id: string
+          personnel_id: string
+          resident_house_id: string | null
+          responsibility: string | null
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          accountability_scope: Database["public"]["Enums"]["personnel_engagement_scope"]
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          personnel_id: string
+          resident_house_id?: string | null
+          responsibility?: string | null
+          start_date?: string
+          updated_at?: string
+        }
+        Update: {
+          accountability_scope?: Database["public"]["Enums"]["personnel_engagement_scope"]
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          personnel_id?: string
+          resident_house_id?: string | null
+          responsibility?: string | null
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personnel_engagements_personnel_id_fkey"
+            columns: ["personnel_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "personnel_engagements_resident_house_id_fkey"
+            columns: ["resident_house_id"]
+            isOneToOne: false
+            referencedRelation: "resident_houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       petty_cash_accounts: {
         Row: {
           created_at: string
@@ -4409,6 +4467,38 @@ export type Database = {
             foreignKeyName: "resident_payment_aliases_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resident_payment_cadence_summary: {
+        Row: {
+          cadence: string
+          computed_at: string
+          median_gap_days: number | null
+          payment_count: number
+          resident_id: string
+        }
+        Insert: {
+          cadence: string
+          computed_at?: string
+          median_gap_days?: number | null
+          payment_count: number
+          resident_id: string
+        }
+        Update: {
+          cadence?: string
+          computed_at?: string
+          median_gap_days?: number | null
+          payment_count?: number
+          resident_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_payment_cadence_summary_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: true
             referencedRelation: "residents"
             referencedColumns: ["id"]
           },
@@ -5377,32 +5467,50 @@ export type Database = {
       wallet_payment_batch_items: {
         Row: {
           amount_allocated: number
+          amount_paid_after: number | null
+          amount_paid_before: number | null
+          balance_after: number | null
           batch_id: string
           created_at: string
           id: string
+          invoice_amount_due_at_allocation: number | null
           invoice_id: string
+          invoice_number_at_allocation: string | null
           invoice_period_end: string
           invoice_period_start: string
+          status_after: string | null
           wallet_transaction_id: string | null
         }
         Insert: {
           amount_allocated: number
+          amount_paid_after?: number | null
+          amount_paid_before?: number | null
+          balance_after?: number | null
           batch_id: string
           created_at?: string
           id?: string
+          invoice_amount_due_at_allocation?: number | null
           invoice_id: string
+          invoice_number_at_allocation?: string | null
           invoice_period_end: string
           invoice_period_start: string
+          status_after?: string | null
           wallet_transaction_id?: string | null
         }
         Update: {
           amount_allocated?: number
+          amount_paid_after?: number | null
+          amount_paid_before?: number | null
+          balance_after?: number | null
           batch_id?: string
           created_at?: string
           id?: string
+          invoice_amount_due_at_allocation?: number | null
           invoice_id?: string
+          invoice_number_at_allocation?: string | null
           invoice_period_end?: string
           invoice_period_start?: string
+          status_after?: string | null
           wallet_transaction_id?: string | null
         }
         Relationships: [
@@ -5864,9 +5972,42 @@ export type Database = {
       }
     }
     Functions: {
+      approve_invoice_generation_run: {
+        Args: {
+          p_approver_id: string
+          p_confirmation: string
+          p_run_id: string
+        }
+        Returns: Json
+      }
+      claim_invoice_generation_candidates: {
+        Args: { p_limit?: number; p_run_id: string }
+        Returns: {
+          candidate_id: string
+        }[]
+      }
       create_generated_invoice: {
         Args: { p_actor_id: string; p_candidate_id: string }
         Returns: Json
+      }
+      create_personnel_resident_house_engagement: {
+        Args: {
+          p_end_date?: string
+          p_personnel_id: string
+          p_resident_house_id: string
+          p_responsibility: string
+          p_start_date: string
+        }
+        Returns: string
+      }
+      create_personnel_with_estate_engagement: {
+        Args: {
+          p_end_date?: string
+          p_personnel: Json
+          p_responsibility: string
+          p_start_date: string
+        }
+        Returns: string
       }
       generate_access_code: { Args: never; Returns: string }
       generate_house_shortname: {
@@ -5989,6 +6130,38 @@ export type Database = {
           p_resident_role: Database["public"]["Enums"]["resident_role"]
         }
         Returns: string
+      }
+      refresh_invoice_generation_run: {
+        Args: { p_run_id: string }
+        Returns: {
+          cancelled_count: number
+          candidate_count: number
+          completed_at: string | null
+          created_at: string
+          created_count: number
+          email_failed_count: number
+          email_queued_count: number
+          email_sent_count: number
+          failed_count: number
+          id: string
+          options: Json
+          requested_at: string
+          requested_by: string | null
+          result_summary: Json
+          scope: Json
+          skipped_count: number
+          started_at: string | null
+          status: string
+          total_amount: number
+          total_wallet_allocated: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoice_generation_runs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       requires_approval_for_action: {
         Args: {
@@ -6124,6 +6297,7 @@ export type Database = {
         | "finance"
         | "projects"
         | "personnel"
+      personnel_engagement_scope: "estate" | "resident_house"
       project_status: "planning" | "active" | "completed" | "on_hold"
       property_status:
         | "occupied"
@@ -6412,6 +6586,7 @@ export const Constants = {
         "projects",
         "personnel",
       ],
+      personnel_engagement_scope: ["estate", "resident_house"],
       project_status: ["planning", "active", "completed", "on_hold"],
       property_status: [
         "occupied",
