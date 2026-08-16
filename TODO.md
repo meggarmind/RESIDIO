@@ -12,7 +12,7 @@
 - [x] Cloud read-only verification: all WhatsApp identity/session tables are empty; RLS is enabled with service-role-only policies; rollout is disabled with empty pilot targeting.
 - [x] Admin operations surface wired: opt-in import, pending-contact attach/ignore, and session reset controls are now mounted on `/settings/whatsapp`.
 - [x] Import action uses the canonical normalized CSV parser and fails closed on existing-opt-in lookup errors.
-- [ ] Browser-level authenticated verification: blocked until the Playwright Chromium binary is installed.
+- [x] Browser-level authenticated verification: `/settings/whatsapp` loaded as admin; import control and all three live empty states matched the cloud counts; no write controls were triggered.
 - [ ] Non-production fixture verification: requires an approved reversible fixture before testing import/attach/reset writes.
 
 ### Admin UI — Resident Detail & Analytics (2026-08-15)

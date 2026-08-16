@@ -14,8 +14,8 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 - **Cloud verification:** `whatsapp_optins`, `whatsapp_pending_contacts`, `whatsapp_sessions`, and `whatsapp_link_tokens` each contain 0 rows. All four tables have RLS enabled and only `service_role` policies. Production WhatsApp rollout remains safely disabled (`whatsapp_rollout_mode=disabled`, empty pilot resident/street targeting, force PIN off, outbound cap 100, financial lookup cap 50).
 - **Admin surface repaired:** `/settings/whatsapp` now mounts the existing opt-in import, pending-contact attach/ignore, and session-reset controls. Corrected the opt-in table's source/number/state column ordering.
 - **Import hardening:** `importWhatsAppOptIns` now uses the canonical phone-normalizing `parseWhatsAppOptInImport` parser, reports malformed-row errors, and fails closed if the existing-opt-in lookup errors.
-- **Verification:** WhatsApp-focused tests 21/21 pass; full Vitest 180/180 pass; scoped ESLint passes; `npm run build` passes. Browser-level verification was attempted but blocked because the local Playwright Chromium executable is not installed. No production writes were attempted.
-- **Next:** Install the Playwright browser binary for authenticated UI verification, or proceed with a separately approved non-production WhatsApp fixture before exercising import/attach/reset writes.
+- **Verification:** WhatsApp-focused tests 21/21 pass; full Vitest 180/180 pass; scoped ESLint passes; `npm run build` passes. Authenticated browser verification passed against `/settings/whatsapp`: the import control is visible, all three live empty states match the cloud counts, and write controls are absent with zero rows. No production writes were attempted.
+- **Next:** Proceed with a separately approved non-production WhatsApp fixture before exercising import/attach/reset writes.
 
 ---
 

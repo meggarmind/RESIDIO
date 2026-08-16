@@ -21,7 +21,7 @@ Status: IN PROGRESS
 
 - **Cloud read-only verification (2026-08-16):** All four WhatsApp identity/session tables are empty, RLS is enabled with service-role-only policies, and production rollout remains disabled with empty pilot targeting.
 - **Admin surface wiring:** Mounted opt-in import, pending-contact attach/ignore, and session-reset controls on `/settings/whatsapp`; import now uses the canonical phone-normalizing parser and fails closed on lookup errors.
-- **Remaining:** Authenticated browser verification needs the local Playwright Chromium binary; write-path verification needs an approved reversible non-production fixture.
+- **Remaining:** Write-path verification needs an approved reversible non-production fixture. Authenticated browser verification now passes against the empty live state.
 
 Payment gateway integration is explicitly deferred and is not part of the current finance fast-track.
 
