@@ -2,6 +2,9 @@ import { getWhatsAppForcePin, getWhatsAppOptIns, getWhatsAppPendingContacts } fr
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
+import { OptInImport } from '@/app/(dashboard)/settings/whatsapp/opt-in-import';
+import { PendingContactActions } from '@/app/(dashboard)/settings/whatsapp/pending-contact-actions';
+import { SessionReset } from '@/app/(dashboard)/settings/whatsapp/session-reset';
 
 type ResidentSummary = {
   first_name: string;
@@ -21,6 +24,7 @@ type PendingRow = {
   phone_number: string;
   status: string;
   source: string;
+  resident_id: string | null;
   first_seen_at: string;
   last_seen_at: string;
 };
@@ -71,6 +75,16 @@ export default async function WhatsAppOperationsPage() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Import opt-ins</CardTitle>
+            <CardDescription>Load approved resident consent records from CSV.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <OptInImport />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Opt-ins</CardTitle>
             <CardDescription>{optIns.length} linked WhatsApp number(s)</CardDescription>
           </CardHeader>
@@ -95,13 +109,13 @@ export default async function WhatsAppOperationsPage() {
                         <td className="py-3 pr-4">
                           {row.resident ? `${row.resident.first_name} ${row.resident.last_name}` : 'Unknown'}
                         </td>
-                        <td className="py-3 pr-4 text-xs text-muted-foreground">{row.source}</td>
                         <td className="py-3 pr-4 font-mono text-xs">{maskPhone(row.phone_number)}</td>
                         <td className="py-3 pr-4">
                           <Badge variant={row.opted_in ? 'default' : 'secondary'}>
                             {row.opted_in ? 'Opted in' : 'Opted out'}
                           </Badge>
                         </td>
+                        <td className="py-3 pr-4 text-xs text-muted-foreground">{row.source}</td>
                         <td className="py-3 text-xs text-muted-foreground">{formatDate(row.updated_at)}</td>
                       </tr>
                     ))}
@@ -129,6 +143,7 @@ export default async function WhatsAppOperationsPage() {
                       <th className="pb-2 pr-4 font-medium">State</th>
                       <th className="pb-2 pr-4 font-medium">Source</th>
                       <th className="pb-2 pr-4 font-medium">First seen</th>
+                      <th className="pb-2 pr-4 font-medium">Actions</th>
                       <th className="pb-2 font-medium">Last seen</th>
                     </tr>
                   </thead>
@@ -139,6 +154,9 @@ export default async function WhatsAppOperationsPage() {
                         <td className="py-3 pr-4"><Badge variant="secondary">{row.status}</Badge></td>
                         <td className="py-3 pr-4 text-xs text-muted-foreground">{row.source}</td>
                         <td className="py-3 pr-4 text-xs text-muted-foreground">{formatDate(row.first_seen_at)}</td>
+                        <td className="py-3 pr-4">
+                          {row.status === 'pending' ? <PendingContactActions phoneNumber={row.phone_number} /> : null}
+                        </td>
                         <td className="py-3 text-xs text-muted-foreground">{formatDate(row.last_seen_at)}</td>
                       </tr>
                     ))}
@@ -149,6 +167,30 @@ export default async function WhatsAppOperationsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Active session controls</CardTitle>
+          <CardDescription>Reset a linked number&apos;s active conversation session when support requires it.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {optIns.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No linked numbers with sessions to reset.</p>
+          ) : (
+            <div className="space-y-2">
+              {optIns.map((row) => (
+                <div key={`session-${row.phone_number}-${row.resident?.resident_code}`} className="flex items-center justify-between gap-4 rounded-md border p-3">
+                  <div>
+                    <p className="text-sm font-medium">{row.resident ? `${row.resident.first_name} ${row.resident.last_name}` : 'Unknown resident'}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{maskPhone(row.phone_number)}</p>
+                  </div>
+                  <SessionReset phoneNumber={row.phone_number} />
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

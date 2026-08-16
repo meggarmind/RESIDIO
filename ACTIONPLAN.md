@@ -17,6 +17,12 @@ Status: IN PROGRESS
 - **#75/#76/#77 Personnel Accountability (2026-08-15):** Estate and Resident-House engagement schema/RPCs, authorized/audited actions, directory badges and filters, engagement editing, history, and end lifecycle actions are implemented.
 - **Coverage closed (2026-08-16):** Deeper Resident-House coverage added — 21 tests covering creation (including duplicate `23505` and inactive-target rejection), scoped updates, end-lifecycle (including the already-ended path), and `getActiveResidentHouses` join/fallback labelling, plus resident-house accountability in the lib. Repo test suite green at 180/180.
 
+## WhatsApp Operations Verification
+
+- **Cloud read-only verification (2026-08-16):** All four WhatsApp identity/session tables are empty, RLS is enabled with service-role-only policies, and production rollout remains disabled with empty pilot targeting.
+- **Admin surface wiring:** Mounted opt-in import, pending-contact attach/ignore, and session-reset controls on `/settings/whatsapp`; import now uses the canonical phone-normalizing parser and fails closed on lookup errors.
+- **Remaining:** Authenticated browser verification needs the local Playwright Chromium binary; write-path verification needs an approved reversible non-production fixture.
+
 Payment gateway integration is explicitly deferred and is not part of the current finance fast-track.
 
 **Schema baseline:** On 2026-08-10, the cloud Supabase inventory was reconciled with the architecture documentation. Finance, reporting, operations, and assistant tables are documented; the legacy DDL export is flagged as incomplete.

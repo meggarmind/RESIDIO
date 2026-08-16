@@ -6,6 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { parseWhatsAppOptInImport } from '@/lib/whatsapp/admin-import';
 
 type ActionResult<T> = {
   success: boolean;
@@ -86,18 +87,14 @@ export async function importWhatsAppOptIns(
   const adminClient = createAdminClient();
   const result: OptInImportResult = { imported: 0, duplicates: 0, errors: [] };
 
-  const rows = csv
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.split(',').map((cell) => cell.trim()))
-    .filter((cells) => cells.length >= 2 && !(cells[0] === 'resident_code' && cells[1] === 'phone_number'));
+  const parsed = parseWhatsAppOptInImport(csv);
+  result.errors.push(...parsed.errors.map(({ line, error }) => `Line ${line}: ${error}`));
 
-  if (rows.length === 0) {
+  if (parsed.rows.length === 0) {
     return { success: true, data: result, error: null };
   }
 
-  const codes = [...new Set(rows.map((cells) => cells[0]))];
+  const codes = [...new Set(parsed.rows.map((row) => row.residentCode))];
   const { data: residents, error: residentError } = await adminClient
     .from('residents')
     .select('id, resident_code')
@@ -112,20 +109,23 @@ export async function importWhatsAppOptIns(
   const residentIds = [...new Set(residents?.map((r) => r.id) ?? [])];
 
   if (residentIds.length > 0) {
-    const { data: existing } = await adminClient
+    const { data: existing, error: existingError } = await adminClient
       .from('whatsapp_optins')
       .select('resident_id')
       .in('resident_id', residentIds);
+    if (existingError) {
+      return { success: false, data: null, error: 'Failed to check existing WhatsApp opt-ins.' };
+    }
     existing?.forEach((optin) => existingIds.add(optin.resident_id));
   }
 
   const insertedIds = new Set<string>();
   const now = new Date().toISOString();
 
-  for (const [code, phone] of rows) {
-    const residentId = residentByCode.get(code);
+  for (const { residentCode, phoneNumber } of parsed.rows) {
+    const residentId = residentByCode.get(residentCode);
     if (!residentId) {
-      result.errors.push(`Unknown resident code: ${code}`);
+      result.errors.push(`Unknown resident code: ${residentCode}`);
       continue;
     }
     if (existingIds.has(residentId) || insertedIds.has(residentId)) {
@@ -134,13 +134,13 @@ export async function importWhatsAppOptIns(
     }
     const { error } = await adminClient.from('whatsapp_optins').insert({
       resident_id: residentId,
-      phone_number: phone,
+      phone_number: phoneNumber,
       opted_in: true,
       source: 'admin_import',
       opted_in_at: now,
     });
     if (error) {
-      result.errors.push(`Failed to import ${code}: ${error.message}`);
+      result.errors.push(`Failed to import ${residentCode}: ${error.message}`);
       continue;
     }
     insertedIds.add(residentId);

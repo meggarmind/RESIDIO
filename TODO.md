@@ -8,6 +8,13 @@
 - [x] **#75/#76/#77 Estate and Resident-House Accountability:** Cloud engagement schema/RPCs, admin-only write/query path, duplicate-active protection, Estate/Resident-House/Unassigned directory badges and filters, engagement editor, history, and end lifecycle actions are implemented.
 - [x] **Deeper Resident-House coverage (2026-08-16):** 21 tests added — lib accountability (resident-house label, precedence, ended/future, filter) and action coverage (create via RPC incl. duplicate `23505`, inactive-target rejection, read-back; update scoped; end lifecycle incl. already-ended; `getActiveResidentHouses` join/fallback). Repo at 180/180 passing.
 
+### WhatsApp Operations Verification (2026-08-16)
+- [x] Cloud read-only verification: all WhatsApp identity/session tables are empty; RLS is enabled with service-role-only policies; rollout is disabled with empty pilot targeting.
+- [x] Admin operations surface wired: opt-in import, pending-contact attach/ignore, and session reset controls are now mounted on `/settings/whatsapp`.
+- [x] Import action uses the canonical normalized CSV parser and fails closed on existing-opt-in lookup errors.
+- [ ] Browser-level authenticated verification: blocked until the Playwright Chromium binary is installed.
+- [ ] Non-production fixture verification: requires an approved reversible fixture before testing import/attach/reset writes.
+
 ### Admin UI — Resident Detail & Analytics (2026-08-15)
 - [x] Resident detail Overview tab: compacted Identity/Financial cards, fixed a real force-stretch layout bug, added Resident Since/ID Verification/Portal Access/Company fields.
 - [x] Analytics page: URL-synced tabs (Financial/Residents/Houses & Streets/Collections & Indebtedness/Payment Behavior), fixed the always-empty Revenue vs Expenses chart, fixed the always-empty Dues Expected vs Collected chart, replaced a silently-truncated payment-cadence query with a nightly-refreshed summary table.
