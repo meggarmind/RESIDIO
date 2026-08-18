@@ -157,7 +157,9 @@
       "Read(//c/Users/ohiom/.agents/skills//**)",
       "Bash(gh project *)",
       "Bash(node -e ' *)",
-      "Bash(gh api graphql -f 'query= *)"
+      "Bash(gh api graphql -f 'query= *)",
+      "Bash(git log:*)",
+      "Bash(gh issue:*)"
     ],
     "deny": [],
     "ask": []

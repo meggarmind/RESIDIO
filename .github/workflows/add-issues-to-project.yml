@@ -12,6 +12,5 @@ jobs:
     steps:
       - uses: actions/add-to-project@v1.0.2
         with:
-          # User project for meggarmind, project number 1.
           project-url: https://github.com/users/meggarmind/projects/1
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
