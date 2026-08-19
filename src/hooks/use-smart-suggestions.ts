@@ -1,65 +1,37 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getSmartSuggestions, SmartSuggestion } from '@/actions/dashboard/get-smart-suggestions';
+import { POLLING_INTERVALS } from '@/lib/config/polling';
 
-export interface SmartSuggestion {
-    id: string;
-    title: string;
-    description: string;
-    actionLabel: string;
-    actionUrl: string;
-    priority: 'high' | 'medium' | 'low';
-    type: 'finance' | 'occupancy' | 'security' | 'maintenance';
-}
+export type { SmartSuggestion };
 
 /**
  * useSmartSuggestions Hook
- * 
- * Analyzes current estate state and provides proactive recommendations.
- * 
- * Future Integration:
- * - Connect to 'useEnhancedDashboardStats' to get real values
- * - Use AI model to rank suggestions based on user behavior
+ *
+ * Runs a small set of rule-based checks against existing estate aggregate data
+ * and surfaces the resulting actionable suggestions.
  */
 export function useSmartSuggestions() {
-    // Mock data for Phase 1 - simulating rule engine output
-    const suggestions: SmartSuggestion[] = useMemo(() => [
-        {
-            id: 'sugg-1',
-            title: 'End of Month Approaching',
-            description: 'Utility bills are typically generated on the 25th. Would you like to draft them now?',
-            actionLabel: 'Draft Invoices',
-            actionUrl: '/billing',
-            priority: 'medium',
-            type: 'finance',
+    const query = useQuery({
+        queryKey: ['smart-suggestions'],
+        queryFn: async () => {
+            const result = await getSmartSuggestions();
+            if (result.error) throw new Error(result.error);
+            return result.data;
         },
-        {
-            id: 'sugg-2',
-            title: 'High Visitor Volume',
-            description: '5 visitors are scheduled for tomorrow afternoon. Consider notifying security.',
-            actionLabel: 'View Schedule',
-            actionUrl: '/security/log',
-            priority: 'low',
-            type: 'security',
-        },
-        {
-            id: 'sugg-3',
-            title: 'Pending Approvals',
-            description: '3 resident applications have been waiting for more than 48 hours.',
-            actionLabel: 'Review Apps',
-            actionUrl: '/residents/approvals',
-            priority: 'high',
-            type: 'occupancy',
-        },
-    ], []);
+        staleTime: POLLING_INTERVALS.SLOW,
+        refetchInterval: POLLING_INTERVALS.SLOW,
+    });
 
     const dismissSuggestion = (id: string) => {
+        // Dismissal is session-local only for now - see SmartSuggestions component.
         console.log('Dismissed suggestion:', id);
-        // Implementation for dismissing would go here (local storage or backend)
     };
 
     return {
-        suggestions,
+        suggestions: query.data ?? [],
+        isLoading: query.isLoading,
         dismissSuggestion,
     };
 }

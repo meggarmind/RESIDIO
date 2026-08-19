@@ -58,16 +58,18 @@ function SuggestionItem({
 }
 
 export function SmartSuggestions() {
-    const { suggestions, dismissSuggestion } = useSmartSuggestions();
-    // Local state to track dismissed items for this session demo
-    const [visibleSuggestions, setVisibleSuggestions] = useState(suggestions);
+    const { suggestions, isLoading, dismissSuggestion } = useSmartSuggestions();
+    // Tracks dismissed ids for this session only (see useSmartSuggestions)
+    const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
     const handleDismiss = (id: string) => {
         dismissSuggestion(id);
-        setVisibleSuggestions(prev => prev.filter(s => s.id !== id));
+        setDismissedIds(prev => new Set(prev).add(id));
     };
 
-    if (visibleSuggestions.length === 0) return null;
+    const visibleSuggestions = suggestions.filter(s => !dismissedIds.has(s.id));
+
+    if (isLoading || visibleSuggestions.length === 0) return null;
 
     return (
         <Card className="border-none shadow-none bg-transparent">
