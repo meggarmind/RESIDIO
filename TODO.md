@@ -2,7 +2,13 @@
 
 > **🎯 PRODUCT FOCUS (2026-08-06): ADMIN DASHBOARD ONLY.** Resident Portal / self-service (`src/app/(resident)/**`, resident-portal components) is **NOT planned for rollout** in the foreseeable future. De-prioritize all self-service work listed below (portal wallet, resident payments, announcements/documents/profile, impersonation, onboarding). Keep it stable/local only; do not extend or polish it. Prioritize admin management/finance/security/operations/reporting instead.
 
-**Last Updated:** 2026-08-15 (resident detail + Analytics tabbed dashboards)
+**Last Updated:** 2026-08-20 (settings page restructuring)
+
+### Settings Page Restructuring (2026-08-20)
+- [x] Split 6 monolithic settings pages into focused sub-routes (20+ new routes created)
+- [x] Sidebar navigation upgraded with nested children support and auto-expand on active route
+- [x] Billing (970→5 pages), General (589→4), Security (486→3), Reminders (722→2), System (389→4), Email (389→2), Import (437→2)
+- [x] Lint clean, build GREEN
 
 ### Personnel Accountability (2026-08-15)
 - [x] **#75/#76/#77 Estate and Resident-House Accountability:** Cloud engagement schema/RPCs, admin-only write/query path, duplicate-active protection, Estate/Resident-House/Unassigned directory badges and filters, engagement editor, history, and end lifecycle actions are implemented.

@@ -18,13 +18,14 @@ type SettingsSidebarProps = React.HTMLAttributes<HTMLElement>
 
 export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
     const pathname = usePathname();
-    // State to track open groups
     const [openGroups, setOpenGroups] = React.useState<string[]>([]);
 
     React.useEffect(() => {
-        // Find group containing current path and ensure it's open
         const activeGroup = settingsConfig.find(g =>
-            g.items.some(item => item.href === pathname)
+            g.items.some(item =>
+                item.href === pathname ||
+                (item.children?.some(child => pathname === child.href || pathname.startsWith(child.href + '/')))
+            )
         );
         if (activeGroup) {
             setOpenGroups(prev => {
@@ -42,13 +43,18 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
         );
     };
 
+    const isActiveChild = (href: string) => pathname === href || pathname.startsWith(href + '/');
+
     return (
         <aside className={cn("lg:w-1/5 sticky top-8 h-[calc(100vh-8rem)]", className)} {...props}>
             <ScrollArea className="h-full pr-4">
                 <nav className="space-y-4 pb-10">
                     {settingsConfig.map((group) => {
                         const isOpen = openGroups.includes(group.title);
-                        const isActiveGroup = group.items.some(item => item.href === pathname);
+                        const isActiveGroup = group.items.some(item =>
+                            item.href === pathname ||
+                            item.children?.some(child => pathname === child.href || pathname.startsWith(child.href + '/'))
+                        );
 
                         return (
                             <Collapsible
@@ -82,22 +88,57 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                 </CollapsibleTrigger>
                                 <CollapsibleContent className="space-y-1 animate-collapsible-slide-down">
                                     <div className="pt-1 space-y-1">
-                                        {group.items.map((item) => (
-                                            <Button
-                                                key={item.href}
-                                                variant={pathname === item.href ? "secondary" : "ghost"}
-                                                size="sm"
-                                                asChild
-                                                className={cn(
-                                                    "w-full justify-start pl-8 h-8",
-                                                    pathname === item.href && "bg-secondary/50 font-medium text-primary shadow-sm"
-                                                )}
-                                            >
-                                                <Link href={item.href}>
-                                                    {item.title}
-                                                </Link>
-                                            </Button>
-                                        ))}
+                                        {group.items.map((item) => {
+                                            if (item.children) {
+                                                const parentActive = item.children.some(child => isActiveChild(child.href));
+                                                return (
+                                                    <div key={item.href} className="space-y-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className={cn(
+                                                                "w-full justify-start pl-8 h-8 font-medium",
+                                                                parentActive ? "text-primary" : "text-muted-foreground"
+                                                            )}
+                                                        >
+                                                            {item.title}
+                                                        </Button>
+                                                        {item.children.map((child) => (
+                                                            <Button
+                                                                key={child.href}
+                                                                variant={isActiveChild(child.href) ? "secondary" : "ghost"}
+                                                                size="sm"
+                                                                asChild
+                                                                className={cn(
+                                                                    "w-full justify-start pl-12 h-8",
+                                                                    isActiveChild(child.href) && "bg-secondary/50 font-medium text-primary shadow-sm"
+                                                                )}
+                                                            >
+                                                                <Link href={child.href}>
+                                                                    {child.title}
+                                                                </Link>
+                                                            </Button>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            }
+                                            return (
+                                                <Button
+                                                    key={item.href}
+                                                    variant={pathname === item.href ? "secondary" : "ghost"}
+                                                    size="sm"
+                                                    asChild
+                                                    className={cn(
+                                                        "w-full justify-start pl-8 h-8",
+                                                        pathname === item.href && "bg-secondary/50 font-medium text-primary shadow-sm"
+                                                    )}
+                                                >
+                                                    <Link href={item.href}>
+                                                        {item.title}
+                                                    </Link>
+                                                </Button>
+                                            );
+                                        })}
                                     </div>
                                 </CollapsibleContent>
                             </Collapsible>

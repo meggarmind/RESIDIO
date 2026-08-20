@@ -2,33 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, Loader2, Save, Server, Clock, Database, ShieldAlert, Trash2, Copy } from 'lucide-react';
-import { toast } from 'sonner';
-import { useSystemSettings, useUpdateSettings, useUpdateSetting } from '@/hooks/use-settings';
-import { updateMaintenanceMode } from '@/actions/settings/update-maintenance-mode';
+import { Badge } from '@/components/ui/badge';
+import { ArrowRight, ShieldAlert, Database, Activity } from 'lucide-react';
+import Link from 'next/link';
+import { useSystemSettings } from '@/hooks/use-settings';
 import { CronHealthCard } from '@/components/dashboard/cron-health-card';
-import { pruneSystemData } from '@/actions/system/prune-data';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 
-// Helper to convert settings array to key-value object
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
   if (!settings) return {};
   return settings.reduce((acc, setting) => {
@@ -37,353 +16,102 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
   }, {} as Record<string, unknown>);
 }
 
-export default function SystemSettingsPage() {
-  const { data: systemSettings, isLoading } = useSystemSettings();
-  const updateSettings = useUpdateSettings();
-  const updateSetting = useUpdateSetting();
+export default function SystemOverviewPage() {
+  const { data: systemSettings } = useSystemSettings();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [maintenanceMessage, setMaintenanceMessage] = useState('');
-  const [auditLogRetentionDays, setAuditLogRetentionDays] = useState(365);
-  const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState(60);
-  const [duplicateMatchingThreshold, setDuplicateMatchingThreshold] = useState(90);
-  const [isDirty, setIsDirty] = useState(false);
-  const [isPruning, setIsPruning] = useState(false);
-
-  // Load settings into form when data is fetched
-  useEffect(() => {
-    if (systemSettings) {
-      const settingsObj = settingsToObject(systemSettings);
-      setMaintenanceMode(settingsObj.maintenance_mode === true);
-      setMaintenanceMessage((settingsObj.maintenance_message as string) || 'The system is currently under maintenance. Please try again later.');
-      setAuditLogRetentionDays(Number(settingsObj.audit_log_retention_days) || 365);
-      setSessionTimeoutMinutes(Number(settingsObj.session_timeout_minutes) || 60);
-      setDuplicateMatchingThreshold(Number(settingsObj.duplicate_matching_threshold) || 90);
-      setIsDirty(false);
-    }
-  }, [systemSettings]);
-
-  const handleMaintenanceModeToggle = async () => {
-    const newValue = !maintenanceMode;
-    setMaintenanceMode(newValue);
-
-    // Use the proper server action with permission checks and audit logging
-    const result = await updateMaintenanceMode(newValue, maintenanceMessage);
-
-    if (result.success) {
-      toast.success(`Maintenance mode ${newValue ? 'enabled' : 'disabled'}`);
-      // Refresh settings to show updated value
-      updateSetting.mutate({ key: 'maintenance_mode', value: newValue });
-    } else {
-      // Revert on error
-      setMaintenanceMode(!newValue);
-      toast.error(result.error || 'Failed to update maintenance mode');
-    }
-  };
-
-  const handleSaveSettings = () => {
-    updateSettings.mutate({
-      maintenance_message: maintenanceMessage,
-      audit_log_retention_days: auditLogRetentionDays,
-      session_timeout_minutes: sessionTimeoutMinutes,
-      duplicate_matching_threshold: duplicateMatchingThreshold,
-    }, {
-      onSuccess: () => {
-        setIsDirty(false);
-      }
-    });
-  };
-
-  const handlePruneData = async () => {
-    setIsPruning(true);
-    try {
-      const result = await pruneSystemData();
-      if (result.error) {
-        toast.error(result.error);
-      } else if (result.data) {
-        toast.success(
-          `Pruned ${result.data.notifications} notifications, ${result.data.auditLogs} audit logs, and ${result.data.searchLogs} search logs.`
-        );
-      }
-    } catch (error) {
-      toast.error('Failed to prune data');
-    } finally {
-      setIsPruning(false);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h3 className="text-lg font-medium">System Settings</h3>
-          <p className="text-sm text-muted-foreground">
-            Configure system-level settings and maintenance options.
-          </p>
-        </div>
-        <Separator />
-        <div className="space-y-6">
-          <Skeleton className="h-48 w-full" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
-        </div>
-      </div>
-    );
-  }
+  const settingsObj = settingsToObject(systemSettings);
+  const maintenanceMode = settingsObj.maintenance_mode === true;
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium">System Settings</h3>
+        <h3 className="text-lg font-medium">System Overview</h3>
         <p className="text-sm text-muted-foreground">
-          Configure system-level settings and maintenance options. Only administrators can access these settings.
+          Monitor system health and access administrative tools.
         </p>
       </div>
-      <Separator />
 
-      <div className="space-y-6">
-        {/* Maintenance Mode Card */}
-        <Card className={maintenanceMode ? 'border-amber-300 bg-amber-50/30 dark:bg-amber-950/30' : ''}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5" />
-              Maintenance Mode
-            </CardTitle>
-            <CardDescription>
-              Enable maintenance mode to lock out non-admin users from the application.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="maintenance_mode">Enable Maintenance Mode</Label>
-                <p className="text-sm text-muted-foreground">
-                  When enabled, only admin users can access the application
-                </p>
+      {maintenanceMode && (
+        <Card className="border-amber-300 bg-amber-50/30 dark:bg-amber-950/30">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <ShieldAlert className="h-5 w-5 text-amber-600" />
+              <div>
+                <p className="font-medium text-amber-800 dark:text-amber-200">Maintenance Mode Active</p>
+                <p className="text-sm text-amber-700 dark:text-amber-300">Non-admin users cannot access the application.</p>
               </div>
-              <Switch
-                id="maintenance_mode"
-                checked={maintenanceMode}
-                onCheckedChange={handleMaintenanceModeToggle}
-                disabled={updateSetting.isPending}
-              />
-            </div>
-
-            {maintenanceMode && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Maintenance Mode Active</AlertTitle>
-                <AlertDescription>
-                  Non-admin users will be redirected to the maintenance page and cannot access the application.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <Separator />
-
-            <div className="space-y-2">
-              <Label htmlFor="maintenance_message">Maintenance Message</Label>
-              <Textarea
-                id="maintenance_message"
-                value={maintenanceMessage}
-                onChange={(e) => {
-                  setMaintenanceMessage(e.target.value);
-                  setIsDirty(true);
-                }}
-                placeholder="Enter the message to display during maintenance..."
-                rows={3}
-              />
-              <p className="text-xs text-muted-foreground">
-                This message will be shown to users on the maintenance page.
-              </p>
             </div>
           </CardContent>
         </Card>
+      )}
 
-        {/* Data Retention Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Database className="h-5 w-5" />
-              Data Retention
-            </CardTitle>
-            <CardDescription>
-              Configure how long to retain audit logs and other system data.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="audit_log_retention">Audit Log Retention (days)</Label>
-                <p className="text-sm text-muted-foreground">
-                  Number of days to keep audit log entries before cleanup
-                </p>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Link href="/settings/system/maintenance">
+          <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4" />
+                Maintenance Mode
+              </CardTitle>
+              <CardDescription>
+                Enable maintenance mode and configure the maintenance message.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <Badge variant={maintenanceMode ? 'destructive' : 'outline'}>
+                  {maintenanceMode ? 'Active' : 'Inactive'}
+                </Badge>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
               </div>
-              <Input
-                id="audit_log_retention"
-                type="number"
-                min={30}
-                max={3650}
-                value={auditLogRetentionDays}
-                onChange={(e) => {
-                  setAuditLogRetentionDays(parseInt(e.target.value) || 365);
-                  setIsDirty(true);
-                }}
-                className="w-24 text-center"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Note: Audit log cleanup functionality will be implemented in a future release.
-            </p>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        {/* Session Settings Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Session Settings
-            </CardTitle>
-            <CardDescription>
-              Configure user session behavior.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="session_timeout">Session Timeout (minutes)</Label>
-                <p className="text-sm text-muted-foreground">
-                  Inactive users will be logged out after this duration
-                </p>
+        <Link href="/settings/system/data">
+          <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                Data & Retention
+              </CardTitle>
+              <CardDescription>
+                Configure data retention policies and prune old data.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Retention and cleanup tools</span>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
               </div>
-              <Input
-                id="session_timeout"
-                type="number"
-                min={5}
-                max={1440}
-                value={sessionTimeoutMinutes}
-                onChange={(e) => {
-                  setSessionTimeoutMinutes(parseInt(e.target.value) || 60);
-                  setIsDirty(true);
-                }}
-                className="w-24 text-center"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Note: Session timeout functionality will be implemented in a future release.
-            </p>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        {/* Duplicate Matching Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Copy className="h-5 w-5" />
-              Duplicate Matching
-            </CardTitle>
-            <CardDescription>
-              Configure the sensitivity for detecting duplicate transactions.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="duplicate_threshold">Duplicate Confidence Threshold (%)</Label>
-                <p className="text-sm text-muted-foreground">
-                  Transactions with a match score above this percentage will be flagged as duplicates
-                </p>
+        <Link href="/settings/system/health">
+          <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                System Health
+              </CardTitle>
+              <CardDescription>
+                Monitor cron jobs and background task health.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Cron status and job health</span>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
               </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="duplicate_threshold"
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={duplicateMatchingThreshold}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    if (!isNaN(val) && val >= 0 && val <= 100) {
-                      setDuplicateMatchingThreshold(val);
-                      setIsDirty(true);
-                    }
-                  }}
-                  className="w-24 text-center"
-                />
-                <span className="text-sm text-muted-foreground">%</span>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Higher values (e.g., 90-100%) require stricter matches. Lower values may flag more potential duplicates but increase false positives.
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Data Management Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Database className="h-5 w-5" />
-              Data Management
-            </CardTitle>
-            <CardDescription>
-              Manage system data storage and cleanup.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Prune Old Data</Label>
-                <p className="text-sm text-muted-foreground">
-                  Remove old notifications ({'>'}30 days read, {'>'}90 days unread), audit logs ({'>'}6 months), and search history ({'>'}30 days).
-                </p>
-              </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Prune Data
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete old notifications, audit logs, and search history from the database to free up space.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handlePruneData}
-                      className="bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      {isPruning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      Yes, Prune Data
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* System Health Card */}
-        <CronHealthCard />
-
-        {/* Save Button */}
-        <div className="flex justify-end">
-          <Button
-            onClick={handleSaveSettings}
-            disabled={!isDirty || updateSettings.isPending}
-          >
-            {updateSettings.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            <Save className="mr-2 h-4 w-4" />
-            Save Settings
-          </Button>
-        </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
-    </div >
+
+      {mounted && <CronHealthCard />}
+    </div>
   );
 }

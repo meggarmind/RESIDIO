@@ -9,7 +9,22 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Last session (OpenCode, 2026-08-16 — WhatsApp live verification)
+## Last session (OpenCode, 2026-08-20 — Settings page restructuring)
+
+- **Settings page restructuring complete.** Split 6 monolithic settings pages into focused sub-routes with collapsible sidebar navigation. Total: 20+ new sub-routes created across the settings section.
+- **Sidebar navigation upgraded.** Added `children?: SettingsItem[]` type to `settings-nav.ts`. Desktop sidebar (`settings-sidebar.tsx`) and mobile nav (`settings-mobile-nav.tsx`) both support nested items with auto-expand on active route.
+- **Billing & Finance (970→5 pages):** `/settings/billing` (toggles+reminders), `/settings/billing/late-fees` (config+waivers), `/settings/billing/invoices`, `/settings/billing/development-levies`, `/settings/billing/profiles`.
+- **General & Preferences (589→4 pages):** `/settings` (hub), `/settings/estate-info` (form+assistant+social), `/settings/branding` (logo), `/settings/data-management` (backfill).
+- **Access & Security (486→3 pages):** `/settings/security` (general+reset), `/settings/security/permissions` (matrix), `/settings/security/categories` (CRUD).
+- **Notifications/Reminders (722→2 pages):** `/settings/notifications/reminders` (status+overview), `/settings/notifications/reminders/schedule` (table+dialogs).
+- **System Health (389→4 pages):** `/settings/system` (hub), `/settings/system/maintenance` (mode+session+duplicates), `/settings/system/data` (retention+prune), `/settings/system/health` (cron card).
+- **Communications/Email (389→2 pages):** `/settings/email` (config+toggles), `/settings/email/debug` (debug mode+test+manual).
+- **Import Integration (437→2 pages):** `/settings/email-integration` (connection), `/settings/email-integration/config` (import rules+quick actions).
+- **Verification:** `npm run lint` clean (0 errors); `npm run build` GREEN — all new routes registered in build output.
+
+---
+
+## Previous session (OpenCode, 2026-08-16 — WhatsApp live verification)
 
 - **Cloud verification:** `whatsapp_optins`, `whatsapp_pending_contacts`, `whatsapp_sessions`, and `whatsapp_link_tokens` each contain 0 rows. All four tables have RLS enabled and only `service_role` policies. Production WhatsApp rollout remains safely disabled (`whatsapp_rollout_mode=disabled`, empty pilot resident/street targeting, force PIN off, outbound cap 100, financial lookup cap 50).
 - **Admin surface repaired:** `/settings/whatsapp` now mounts the existing opt-in import, pending-contact attach/ignore, and session-reset controls. Corrected the opt-in table's source/number/state column ordering.

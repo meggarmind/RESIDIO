@@ -21,11 +21,13 @@ export function SettingsMobileNav() {
     const [open, setOpen] = React.useState(false);
     const [expandedGroup, setExpandedGroup] = React.useState<string | null>(null);
 
-    // Auto-expand the group containing the current page
     React.useEffect(() => {
         if (open) {
             const currentGroup = settingsConfig.find(g =>
-                g.items.some(item => item.href === pathname)
+                g.items.some(item =>
+                    item.href === pathname ||
+                    (item.children?.some(child => pathname === child.href || pathname.startsWith(child.href + '/')))
+                )
             );
             if (currentGroup) {
                 setExpandedGroup(currentGroup.title);
@@ -36,6 +38,8 @@ export function SettingsMobileNav() {
     const toggleGroup = (title: string) => {
         setExpandedGroup(expandedGroup === title ? null : title);
     };
+
+    const isActiveChild = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
     return (
         <Sheet open={open} onOpenChange={setOpen}>
@@ -56,7 +60,10 @@ export function SettingsMobileNav() {
                     <div className="flex flex-col p-4 space-y-4">
                         {settingsConfig.map((group) => {
                             const isExpanded = expandedGroup === group.title;
-                            const isActiveGroup = group.items.some(item => item.href === pathname);
+                            const isActiveGroup = group.items.some(item =>
+                                item.href === pathname ||
+                                item.children?.some(child => pathname === child.href || pathname.startsWith(child.href + '/'))
+                            );
 
                             return (
                                 <div key={group.title} className="space-y-1">
@@ -64,7 +71,7 @@ export function SettingsMobileNav() {
                                         onClick={() => toggleGroup(group.title)}
                                         className={cn(
                                             "flex items-center justify-between w-full p-2 text-sm font-medium rounded-md transition-colors hover:bg-muted/50",
-                                            isActiveGroup && !isExpanded && "bg-muted/30 text-primary" // Highlight closed active group
+                                            isActiveGroup && !isExpanded && "bg-muted/30 text-primary"
                                         )}
                                     >
                                         <div className="flex items-center">
@@ -87,21 +94,53 @@ export function SettingsMobileNav() {
 
                                     {isExpanded && (
                                         <div className="ml-11 space-y-1 border-l pl-2 animate-in slide-in-from-top-2 duration-200">
-                                            {group.items.map((item) => (
-                                                <Link
-                                                    key={item.href}
-                                                    href={item.href}
-                                                    onClick={() => setOpen(false)}
-                                                    className={cn(
-                                                        "block px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 hover:text-primary",
-                                                        pathname === item.href
-                                                            ? "bg-primary/5 font-medium text-primary"
-                                                            : "text-muted-foreground"
-                                                    )}
-                                                >
-                                                    {item.title}
-                                                </Link>
-                                            ))}
+                                            {group.items.map((item) => {
+                                                if (item.children) {
+                                                    const parentActive = item.children.some(child => isActiveChild(child.href));
+                                                    return (
+                                                        <div key={item.href} className="space-y-1">
+                                                            <span className={cn(
+                                                                "block px-2 py-1.5 text-sm font-medium rounded-md",
+                                                                parentActive ? "text-primary" : "text-muted-foreground"
+                                                            )}>
+                                                                {item.title}
+                                                            </span>
+                                                            <div className="space-y-1">
+                                                                {item.children.map((child) => (
+                                                                    <Link
+                                                                        key={child.href}
+                                                                        href={child.href}
+                                                                        onClick={() => setOpen(false)}
+                                                                        className={cn(
+                                                                            "block px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 hover:text-primary",
+                                                                            isActiveChild(child.href)
+                                                                                ? "bg-primary/5 font-medium text-primary"
+                                                                                : "text-muted-foreground"
+                                                                        )}
+                                                                    >
+                                                                        {child.title}
+                                                                    </Link>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                                return (
+                                                    <Link
+                                                        key={item.href}
+                                                        href={item.href}
+                                                        onClick={() => setOpen(false)}
+                                                        className={cn(
+                                                            "block px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 hover:text-primary",
+                                                            pathname === item.href
+                                                                ? "bg-primary/5 font-medium text-primary"
+                                                                : "text-muted-foreground"
+                                                        )}
+                                                    >
+                                                        {item.title}
+                                                    </Link>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
