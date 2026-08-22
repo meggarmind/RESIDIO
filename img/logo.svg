@@ -1,0 +1,4 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Residio">
+  <rect width="200" height="200" rx="44" fill="#007c5d"/>
+  <path d="M57 48h58c22 0 38 14 38 34 0 15-8 26-22 31l28 39h-30l-24-34H85v34H57V48Zm28 23v24h29c8 0 13-5 13-12s-5-12-13-12H85Z" fill="#f5f1e9"/>
+</svg>
