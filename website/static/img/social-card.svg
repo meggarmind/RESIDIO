@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f5f1e9"/>
+  <circle cx="1020" cy="80" r="300" fill="#e8ad88" opacity=".55"/>
+  <rect x="80" y="80" width="112" height="112" rx="26" fill="#007c5d"/>
+  <path d="M112 113h32c15 0 26 9 26 22 0 9-5 17-15 21l20 27h-20l-17-24h-10v24h-16v-70Zm16 15v17h16c7 0 11-3 11-9s-4-8-11-8h-16Z" fill="#f5f1e9"/>
+  <text x="80" y="300" font-family="Arial, sans-serif" font-size="72" font-weight="700" fill="#17211f">Residio Admin Guide</text>
+  <text x="84" y="365" font-family="Arial, sans-serif" font-size="30" fill="#6d7872">The practical field guide for running your estate.</text>
+  <path d="M84 490h450" stroke="#c56b32" stroke-width="8"/>
+</svg>

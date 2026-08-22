@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+:root {
+  --ifm-color-primary: #c56b32;
+  --ifm-color-primary-dark: #ae5e2b;
+  --ifm-color-primary-darker: #965126;
+  --ifm-color-primary-darkest: #713d1d;
+  --ifm-color-primary-light: #d27d47;
+  --ifm-color-primary-lighter: #dc9061;
+  --ifm-color-primary-lightest: #e8ad88;
+  --ifm-font-family-base: 'DM Sans', system-ui, sans-serif;
+  --ifm-heading-font-family: 'Space Grotesk', system-ui, sans-serif;
+  --ifm-heading-font-weight: 650;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(197, 107, 50, 0.12);
+  --guide-ink: #17211f;
+  --guide-paper: #f5f1e9;
+  --guide-muted: #6d7872;
+  --guide-line: rgba(23, 33, 31, 0.12);
+}
+
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+[data-theme='dark'] {
+  --ifm-color-primary: #e89a61;
+  --ifm-color-primary-dark: #d9824c;
+  --ifm-color-primary-darker: #c87340;
+  --ifm-color-primary-darkest: #a35b32;
+  --ifm-color-primary-light: #efad7b;
+  --ifm-color-primary-lighter: #f2bc91;
+  --ifm-color-primary-lightest: #f7d0b3;
+  --docusaurus-highlighted-code-line-bg: rgba(232, 154, 97, 0.16);
+  --guide-ink: #f4f0e8;
+  --guide-paper: #121a18;
+  --guide-muted: #a4b0aa;
+  --guide-line: rgba(244, 240, 232, 0.14);
+}
+
+body { background: var(--guide-paper); color: var(--guide-ink); }
+.navbar { border-bottom: 1px solid var(--guide-line); box-shadow: none; background: color-mix(in srgb, var(--guide-paper) 92%, transparent); backdrop-filter: blur(14px); }
+.navbar__title { font-family: var(--ifm-heading-font-family); letter-spacing: -0.04em; }
+.navbar__logo img { border-radius: 8px; }
+.theme-doc-sidebar-container { border-right: 1px solid var(--guide-line); }
+.theme-doc-markdown h1 { letter-spacing: -0.05em; }
+.theme-doc-markdown h2 { letter-spacing: -0.035em; margin-top: 2.6rem; }
+.theme-doc-markdown img { border: 1px solid var(--guide-line); border-radius: 14px; box-shadow: 0 18px 40px rgba(23, 33, 31, 0.12); }
+.theme-doc-markdown figcaption, .screenshot-caption { color: var(--guide-muted); font-size: 0.86rem; margin-top: -1rem; }
+.alert--info { --ifm-alert-background-color: rgba(197, 107, 50, 0.09); --ifm-alert-border-color: rgba(197, 107, 50, 0.36); }
+.footer { background: #17211f; }

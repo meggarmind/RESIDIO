@@ -1,0 +1,25 @@
+/**
+ * CSS files with the .module.css suffix will be treated as CSS modules
+ * and scoped locally.
+ */
+
+.homepage { background: var(--guide-paper); }
+.hero { padding: 8rem 0 7rem; background: radial-gradient(circle at 80% 25%, rgba(197,107,50,.25), transparent 26rem), linear-gradient(125deg, var(--guide-paper), color-mix(in srgb, var(--guide-paper) 84%, #d57b40)); }
+.hero h1 { max-width: 850px; color: var(--guide-ink); font-size: clamp(3.5rem, 9vw, 8rem); line-height: .9; letter-spacing: -.08em; }
+.hero h1 span { color: var(--ifm-color-primary); }
+.eyebrow, .sectionKicker { color: var(--ifm-color-primary); font-family: var(--ifm-font-family-monospace); font-size: .75rem; font-weight: 700; letter-spacing: .14em; }
+.lede { max-width: 620px; color: var(--guide-muted); font-size: 1.25rem; line-height: 1.6; margin: 2rem 0; }
+.buttons {
+  display: flex;
+  gap: .8rem;
+  flex-wrap: wrap;
+}
+.routeGrid { padding: 5rem 0 7rem; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.card { display: flex; min-height: 280px; flex-direction: column; padding: 1.6rem; border: 1px solid var(--guide-line); border-radius: 18px; background: color-mix(in srgb, var(--guide-paper) 88%, white); color: var(--guide-ink); transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+.card:hover { color: var(--guide-ink); transform: translateY(-5px); border-color: var(--ifm-color-primary); box-shadow: 0 22px 50px rgba(23,33,31,.12); text-decoration: none; }
+.cardNumber { color: var(--ifm-color-primary); font-family: var(--ifm-font-family-monospace); font-size: .8rem; font-weight: 700; }
+.card h2 { margin-top: auto; font-size: 1.65rem; letter-spacing: -.04em; }
+.card p { color: var(--guide-muted); line-height: 1.55; }
+.cardArrow { margin-top: 1.2rem; color: var(--ifm-color-primary); font-weight: 700; }
+@media screen and (max-width: 996px) { .hero { padding: 5rem 0 4rem; } .cards { grid-template-columns: 1fr; } .card { min-height: 220px; } }
