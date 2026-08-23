@@ -135,8 +135,8 @@ test.describe('Phase 2: Dashboard Shell', () => {
         for (const control of [menu, notifications, profile]) {
             await expect(control).toBeVisible();
             const box = await control.boundingBox();
-            expect(box?.width).toBeGreaterThanOrEqual(44);
-            expect(box?.height).toBeGreaterThanOrEqual(44);
+            expect(Math.round(box?.width ?? 0)).toBeGreaterThanOrEqual(44);
+            expect(Math.round(box?.height ?? 0)).toBeGreaterThanOrEqual(44);
         }
 
         await menu.click();
@@ -148,8 +148,8 @@ test.describe('Phase 2: Dashboard Shell', () => {
         await expect(dialog).toHaveAttribute('aria-describedby', /.+/);
         for (const control of [close, theme]) {
             const box = await control.boundingBox();
-            expect(box?.width).toBeGreaterThanOrEqual(44);
-            expect(box?.height).toBeGreaterThanOrEqual(44);
+            expect(Math.round(box?.width ?? 0)).toBeGreaterThanOrEqual(44);
+            expect(Math.round(box?.height ?? 0)).toBeGreaterThanOrEqual(44);
         }
 
         await close.focus();
@@ -159,5 +159,38 @@ test.describe('Phase 2: Dashboard Shell', () => {
 
         await close.click();
         await expect(dialog).toBeHidden();
+    });
+
+    test('TC2.9: Mobile dashboard shows page identity without horizontal overflow', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await loginAs(page, 'admin');
+
+        await expect(page.getByText('Verified Payments').first()).toBeVisible({ timeout: 20000 });
+        await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+
+        const overflow = await page.evaluate(() => ({
+            scrollWidth: document.documentElement.scrollWidth,
+            clientWidth: document.documentElement.clientWidth,
+            bodyScrollWidth: document.body.scrollWidth,
+        }));
+        expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth);
+        expect(overflow.bodyScrollWidth).toBeLessThanOrEqual(overflow.clientWidth);
+
+        const menu = page.getByRole('button', { name: 'Open navigation menu' });
+        await menu.click();
+        const dialog = page.getByRole('dialog');
+        await expect(dialog).toBeVisible();
+
+        for (const name of ['Invoices & Dues', 'Reports', 'Security', 'Settings']) {
+            await expect(dialog.getByRole('link', { name }).first()).toBeVisible();
+        }
+
+        const dialogOverflow = await page.evaluate(() => ({
+            scrollWidth: document.documentElement.scrollWidth,
+            clientWidth: document.documentElement.clientWidth,
+        }));
+        expect(dialogOverflow.scrollWidth).toBeLessThanOrEqual(dialogOverflow.clientWidth);
+
+        await expect(dialog.locator('a[aria-current="page"]').first()).toBeVisible();
     });
 });

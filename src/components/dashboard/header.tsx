@@ -119,6 +119,15 @@ export function Header({ onMenuClick }: HeaderProps) {
               ) : null}
             </div>
 
+            {/* Mobile Page Identity */}
+            <div className="md:hidden ml-2 flex-1 overflow-hidden">
+              {pathname === '/dashboard' ? (
+                <h1 className="text-xl font-bold tracking-tight truncate">Dashboard</h1>
+              ) : (
+                <AdminBreadcrumb hideDashboard className="mb-0 whitespace-nowrap truncate" />
+              )}
+            </div>
+
             <div className="hidden lg:block ml-2 overflow-hidden max-w-[200px] xl:max-w-none">
               <AdminBreadcrumb hideDashboard className="mb-0 whitespace-nowrap" />
             </div>

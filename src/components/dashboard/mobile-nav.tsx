@@ -14,7 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { useMobileNavigation } from '@/hooks/use-navigation';
+import { useSectionedNavigation } from '@/hooks/use-navigation';
 
 interface MobileNavProps {
   open: boolean;
@@ -24,16 +24,15 @@ interface MobileNavProps {
 /**
  * Mobile Navigation Component
  *
- * Displays a simplified navigation menu for mobile devices.
+ * Displays the admin navigation menu for mobile devices.
  * Uses shared navigation config with permission-based filtering.
+ * Mirrors the desktop sidebar information architecture, grouped by section.
  * Adapts styling based on active visual theme (Default vs Modern).
- *
- * Shows subset: Dashboard, Residents, Payments, Security, Settings
  */
 export function MobileNav({ open, onOpenChange }: MobileNavProps) {
   const pathname = usePathname();
   const { profile } = useAuth();
-  const { navItems: filteredNavItems } = useMobileNavigation();
+  const { sections } = useSectionedNavigation();
   const { themeId } = useVisualTheme();
   const { logoUrl } = useEstateLogo();
 
@@ -86,40 +85,53 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
           </SheetDescription>
         </SheetHeader>
 
-        <nav className={cn('flex-1 px-4 py-4', isModern && 'px-6 py-6')}>
-          <ul className={cn('space-y-1', isModern && 'space-y-2')}>
-            {filteredNavItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return (
-                <li key={item.id}>
-                  <Link
-                    href={item.href}
-                    onClick={() => onOpenChange(false)}
-                    className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                      isModern
-                        ? cn(
-                            // Modern theme styles
-                            'rounded-xl px-4 py-3 gap-4 transition-all duration-200 relative',
-                            isActive
-                              ? 'bg-[#0EA5E9]/10 text-[#0EA5E9] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-6 before:w-1 before:rounded-r-full before:bg-[#0EA5E9]'
-                              : 'text-gray-300 hover:bg-[#334155] hover:text-white'
-                          )
-                        : cn(
-                            // Default theme styles
-                            isActive
-                              ? 'bg-primary text-primary-foreground'
-                              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                          )
-                    )}
-                  >
-                    <item.icon className={cn('h-4 w-4', isModern && 'h-5 w-5')} />
-                    {item.title}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+        <nav className={cn('flex-1 overflow-y-auto px-4 py-4', isModern && 'px-6 py-6')}>
+          {sections.map((section) => (
+            <div key={section.id} className={cn(sections[0] !== section && 'mt-5')}>
+              {section.label && (
+                <p
+                  className={cn(
+                    'mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground',
+                    isModern && 'px-4 text-gray-400'
+                  )}
+                >
+                  {section.label}
+                </p>
+              )}
+              <ul className={cn('space-y-1', isModern && 'space-y-2')}>
+                {section.items.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <li key={item.id}>
+                      <Link
+                        href={item.href}
+                        onClick={() => onOpenChange(false)}
+                        aria-current={isActive ? 'page' : undefined}
+                        className={cn(
+                          'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                          isModern
+                            ? cn(
+                                'rounded-xl px-4 py-3 gap-4 transition-all duration-200 relative',
+                                isActive
+                                  ? 'bg-[#0EA5E9]/10 text-[#0EA5E9] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-6 before:w-1 before:rounded-r-full before:bg-[#0EA5E9]'
+                                  : 'text-gray-300 hover:bg-[#334155] hover:text-white'
+                              )
+                            : cn(
+                                isActive
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                              )
+                        )}
+                      >
+                        <item.icon className={cn('h-4 w-4', isModern && 'h-5 w-5')} />
+                        <span className="truncate">{item.mobileLabel ?? item.title}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
 
         <div
