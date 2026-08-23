@@ -9,6 +9,16 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (OpenCode, 2026-08-23 — Full issue sweep)
+
+- **Issues implemented this session:** #16 (archive safety), #78 (backfill profile error), #82 (invoice naming format), #84 (role terminology), #95 (generation workflow separation), #97 (billing date filter), #102 (mobile dashboard parity), #103 (shell variant cleanup). Combined with prior work, 18 issues are now at In review.
+- **Dashboard:** Mobile header shows page identity; mobile menu mirrors desktop IA; canonical shell identified (header.tsx + sidebar.tsx); modern-header.tsx and modern-sidebar.tsx removed (810 lines); all 9 Playwright dashboard specs pass at 390x844.
+- **Billing:** New /billing/generate page with generation dialog, banner, and table-format history; prepayment invoices use `INV-{short_name}-{YYYY}-{MM}` format with null short_name fallback; billing filter bar includes This Month/Last Month/Last 3 Months/This Year date presets; `/billing?resident_id=` deep-link filter persists.
+- **Resident management:** Archive uses AlertDialog with operational-impact summary; corporate fields hidden-but-preserved on entity_type toggle; display labels updated system-wide (Property Owner, Owner-Occupier, Renter, Occupant, Family Member).
+- **Verification:** TypeScript clean; 221/221 Vitest tests pass; 9/9 dashboard Playwright specs pass; production build clean.
+- **Git:** Commits 42a5be3, bbfb7e6, 5abf147, 6a1c8dc, e677795 on master. No uncommitted changes.
+- **Remaining open issues not at In review:** #88 (Estate AI chatbot), #90 (Live Status Widgets), #91 (Cinematic Transitions), #92 (Premium Digital Passes) — all Ready with loose specs needing clarification. #73 (full-estate backfill) needs human decision. Performance chain (#58-63), WhatsApp chain (#1/6/7/8), and Financial Reports PRD (#24) are backlog epics.
+
 ## Last session (OpenCode, 2026-08-23 — Billing issues #79, #80, #94)
 
 - **Parallel implementation:** Secured billing/resident query actions (#94) while implementing resident invoice deep-link filtering and the enhanced billing resident selector (#79/#80).

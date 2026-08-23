@@ -2,7 +2,7 @@
 
 > **🎯 PRODUCT FOCUS (2026-08-06): ADMIN DASHBOARD ONLY.** Resident Portal / self-service (`src/app/(resident)/**`, resident-portal components) is **NOT planned for rollout** in the foreseeable future. De-prioritize all self-service work listed below (portal wallet, resident payments, announcements/documents/profile, impersonation, onboarding). Keep it stable/local only; do not extend or polish it. Prioritize admin management/finance/security/operations/reporting instead.
 
-**Last Updated:** 2026-08-23 (billing issues #79, #80, and #94 implemented)
+**Last Updated:** 2026-08-23 (dashboard #102/#103, billing #78/#82/#95/#97, resident #16/#84 implemented)
 
 ### Admin User Guide (2026-08-22)
 - [x] Docusaurus admin guide created under `website/` with role-aware workflows across all admin areas.
@@ -10,18 +10,26 @@
 - [x] GitHub Pages deployment published at `https://meggarmind.github.io/RESIDIO/`.
 - [ ] Keep screenshots and workflow instructions synchronized with future admin UI changes.
 
-### Billing Filter and Query Security (2026-08-23)
+### Billing (2026-08-23)
 - [x] **#94 Billing query authorization:** Added fail-closed permissions to invoice, indebtedness, house-payment, cross-property, resident-list, and billing-filter reads.
 - [x] **#79 Resident invoice deep link:** `/billing?resident_id=...` initializes the invoice query with that resident while preserving the unfiltered default.
 - [x] **#80 Resident filter enhancement:** Added a complete, alphabetized, searchable name/alias selector backed by a focused authorized query.
+- [x] **#78 Backfill profile error:** Backfill through periods before any profile version bills at the earliest documented version; profiles with zero versions produce per-house skips.
+- [x] **#95 Generation workflow separation:** New /billing/generate page hosts dialog, last-run banner, and history as a table; sidebar gained gated child entry; quick-action links resolve.
+- [x] **#82 Invoice naming format:** Prepayment invoices use `INV-{short_name}-{YYYY}-{MM}` when house.short_name exists, falling back to UUID-prefix format.
+- [x] **#97 Period date filter:** Added This Month/Last Month/Last 3 Months/This Year presets to the billing filter bar.
 
-### Dashboard Review Follow-up (2026-08-22)
+### Dashboard (2026-08-23)
 - [x] **#99 Mobile navigation accessibility:** Added dialog description, accessible control names, visible focus, 44px targets, and Playwright regression coverage.
 - [x] **#100 Dashboard hydration and loading hardening:** Replaced direct browser-global debug rendering with hydration-safe navigation state and distinct route/auth/error states.
 - [x] **#101 Trustworthy dashboard metrics and actions:** Added real attention counts, unambiguous finance labels, query failure propagation, and distinct zero/unavailable states.
 - [x] **#98 Scannable audit activity:** Humanized activity labels, preserved transaction references, improved wrapping/timestamps, and retained the audit-log route.
-- [ ] **#102 Mobile dashboard orientation and navigation parity:** Restore mobile page identity and required admin navigation. Blocked by #99.
-- [ ] **#103 Dashboard shell variant cleanup:** Consolidate legacy and modern shell variants. Blocked by #99 and #102.
+- [x] **#102 Mobile dashboard orientation and navigation parity:** Mobile header shows page identity; mobile menu mirrors desktop IA with permission-filtered sections.
+- [x] **#103 Dashboard shell variant cleanup:** Identified canonical header/sidebar shell; removed unused modern-header.tsx and modern-sidebar.tsx (810 lines deleted).
+
+### Resident Management (2026-08-23)
+- [x] **#16 Archive Safety & Form Data Preservation:** Archive uses AlertDialog with impact summary; corporate fields preserved on entity_type toggle, cleared only on non-corporate submit.
+- [x] **#84 Role terminology system-wide:** Display labels updated (Property Owner, Owner-Occupier, Renter, Occupant, Family Member); internal identifiers unchanged.
 
 ### Settings Page Restructuring (2026-08-20)
 - [x] Split 6 monolithic settings pages into focused sub-routes (20+ new routes created)
