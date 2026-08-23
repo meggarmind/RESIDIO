@@ -1,11 +1,11 @@
 'use client';
 
-import { Wallet, FileText, Shield, TrendingUp, TrendingDown, Info, ChevronRight, Hash, Users, Sparkles, ArrowRight, Zap } from 'lucide-react';
+import { TrendingUp, Info, Sparkles, ArrowRight, Zap } from 'lucide-react';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
 import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { FinancialHealthMetrics, QuickStats } from '@/actions/dashboard/get-enhanced-dashboard-stats';
+import type { DashboardActionMetrics, FinancialHealthMetrics, QuickStats } from '@/actions/dashboard/get-enhanced-dashboard-stats';
 import type { SmartSuggestion } from '@/hooks/use-smart-suggestions';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
@@ -14,9 +14,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface ModernStatsCardsProps {
   financialHealth: FinancialHealthMetrics | null;
   quickStats: QuickStats | null;
-  unpaidCount: number;
+  actionMetrics?: DashboardActionMetrics | null;
   suggestions?: SmartSuggestion[];
   isLoading?: boolean;
+  isUnavailable?: boolean;
+  areActionMetricsUnavailable?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -25,13 +27,6 @@ interface ModernStatsCardsProps {
 
 const formatValue = (value: number) => {
   return new Intl.NumberFormat('en-NG').format(Math.round(value));
-};
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('en-NG', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(value);
 };
 
 // ─────────────────────────────────────────────────────────────────
@@ -86,25 +81,23 @@ function HealthStat({ title, percentage, label }: { title: string; percentage: n
   );
 }
 
-function ActionStat({ title, count, label, secondaryLabel, href }: { title: string; count: number; label: string; secondaryLabel: string; href: string }) {
+function ActionStat({ title, count, label, secondaryLabel }: { title: string; count: number; label: string; secondaryLabel: string }) {
   return (
-    <Link href={href} className="group h-full">
-      <div className="flex flex-col bg-card rounded-xl border p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 group-hover:border-primary/30 h-full">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center py-2">
-          <span className="text-4xl font-bold mb-1">
-            <AnimatedCounter value={count} duration={800} />
-          </span>
-          <span className="text-[11px] font-medium text-foreground/80 mb-2">{label}</span>
-          <p className="text-[10px] text-muted-foreground text-center border-t border-muted/50 pt-2 w-full">
-            {secondaryLabel}
-          </p>
-        </div>
+    <div className="flex h-full flex-col rounded-xl border bg-card p-4 shadow-sm">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</span>
+        <Zap className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
       </div>
-    </Link>
+      <div className="flex flex-1 flex-col items-center justify-center py-2">
+        <span className="mb-1 text-4xl font-bold">
+          <AnimatedCounter value={count} duration={800} />
+        </span>
+        <span className="mb-2 text-[11px] font-medium text-foreground/80">{label}</span>
+        <p className="w-full border-t border-muted/50 pt-2 text-center text-[10px] text-muted-foreground">
+          {secondaryLabel}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -240,14 +233,6 @@ function SuggestionsCarousel({ suggestions }: { suggestions: SmartSuggestion[] }
   );
 }
 
-function IconContainer({ icon: Icon, color, bgColor }: { icon: any, color: string, bgColor: string }) {
-  return (
-    <div className={cn("p-1.5 rounded-lg mb-3", bgColor)}>
-      <Icon className={cn("h-4 w-4", color)} />
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────
 // Skeleton Loader
 // ─────────────────────────────────────────────────────────────────
@@ -278,16 +263,32 @@ function StatsCardsSkeleton() {
 export function ModernStatsCards({
   financialHealth,
   quickStats,
-  unpaidCount,
+  actionMetrics,
   suggestions = [],
   isLoading,
+  isUnavailable = false,
+  areActionMetricsUnavailable = false,
 }: ModernStatsCardsProps) {
-  if (isLoading || !financialHealth || !quickStats) {
+  if (isLoading) {
     return <StatsCardsSkeleton />;
   }
 
+  if (isUnavailable || !financialHealth || !quickStats) {
+    return (
+      <div className="rounded-xl border bg-card p-6 text-center" role="status">
+        <p className="text-sm font-semibold">Dashboard metrics unavailable</p>
+        <p className="mt-1 text-xs text-muted-foreground">Financial and estate statistics could not be loaded.</p>
+      </div>
+    );
+  }
+
   const collectionRate = Math.round(financialHealth.collectionRate);
-  const pendingActions = (unpaidCount ?? 0) + (quickStats.pendingVerification ?? 0);
+  const pendingActions = actionMetrics?.totalRequiringAttention ?? 0;
+  const actionDetails = areActionMetricsUnavailable
+    ? 'Attention status unavailable'
+    : actionMetrics
+      ? `${actionMetrics.unverifiedPayments} unverified payments • ${actionMetrics.pendingResidentVerifications} resident verifications • ${actionMetrics.expiringSecurityContacts} expiring contacts`
+      : '0 items need attention';
 
   return (
     <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 animate-fade-in-up">
@@ -295,7 +296,7 @@ export function ModernStatsCards({
       <HealthStat
         title="Collection"
         percentage={collectionRate}
-        label={`${formatValue(financialHealth.totalCollected)} of ${formatValue(financialHealth.totalCollected + financialHealth.totalOutstanding)} Invoices`}
+        label={`₦${formatValue(financialHealth.totalCollected)} collected of ₦${formatValue(financialHealth.totalCollected + financialHealth.totalOutstanding)} invoiced`}
       />
 
       {/* 2. Action Needed (Large Number) */}
@@ -303,24 +304,21 @@ export function ModernStatsCards({
         title="Action Needed"
         count={pendingActions}
         label="items need attention"
-        secondaryLabel={`${unpaidCount} unpaid • ${quickStats.pendingVerification} pending verification`}
-        href="/approvals"
+        secondaryLabel={actionDetails}
       />
 
-      {/* 3. Portfolio Value (Bank + Petty Cash) */}
       <CurrencyStat
-        title="Portfolio Value"
-        value={financialHealth.portfolioValue}
-        label="Bank + Petty Cash"
-        subLabel="Total Estate Balance"
+        title="Estate Cash"
+        value={financialHealth.estateCash}
+        label="Imported bank net cash + petty cash"
+        subLabel="Excludes resident wallet credits"
       />
 
-      {/* 4. Monthly Revenue (Verified with Total) */}
       <HighlightStat
-        title="Monthly Revenue"
+        title="Verified Payments"
         value={financialHealth.monthlyRevenue}
-        label="verified this month"
-        details={`₦${formatValue(financialHealth.totalMonthlyRevenue)} total`}
+        label="received this month"
+        details={`₦${formatValue(financialHealth.totalMonthlyRevenue)} all paid records`}
       />
 
       {/* 5. Suggestions Carousel (Replaced Occupancy) */}

@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { sanitizeSearchInput } from '@/lib/utils';
 import type { ResidentWithHouses } from '@/types/database';
 import type { ResidentSearchParams, ContactVerificationFilter } from '@/lib/validators/resident';
@@ -41,6 +43,11 @@ function getContactVerificationStatus(resident: ResidentWithHouses): ContactVeri
 }
 
 export async function getResidents(params: Partial<ResidentSearchParams> = {}): Promise<GetResidentsResponse> {
+  const auth = await authorizePermission(PERMISSIONS.RESIDENTS_VIEW);
+  if (!auth.authorized) {
+    return { data: [], count: 0, error: auth.error || 'Unauthorized' };
+  }
+
   const supabase = await createServerSupabaseClient();
   const { search, status, verification, contact_verification, type, street_id, house_id, resident_role, sort_by, sort_order, page = 1, limit = 20 } = params;
 

@@ -1,12 +1,11 @@
 'use client';
 
 import { Suspense, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-provider';
 import {
+  useDashboardActionMetrics,
   useDashboardFinancialHealth,
   useDashboardInvoiceDistribution,
-  useDashboardSecurityAlerts,
   useDashboardQuickStats,
   useDashboardRecentActivity,
 } from '@/hooks/use-dashboard';
@@ -19,13 +18,12 @@ import { ModernStatsCards } from '@/components/dashboard/modern-stats-cards';
 import { ModernFinancialHealth } from '@/components/dashboard/modern-financial-health';
 import { ModernPendingPayments } from '@/components/dashboard/modern-pending-payments';
 import { ModernRecentActivity } from '@/components/dashboard/modern-recent-activity';
+import { useDashboardNavigationState } from '@/hooks/use-dashboard-navigation-state';
 
-function ErrorHandler() {
-    const searchParams = useSearchParams();
+function NavigationStateHandler({ unauthorized }: { unauthorized: boolean }) {
     useEffect(() => {
-        const error = searchParams.get('error');
-        if (error === 'unauthorized') toast.error('You do not have permission to access that page');
-    }, [searchParams]);
+        if (unauthorized) toast.error('You do not have permission to access that page');
+    }, [unauthorized]);
     return null;
 }
 
@@ -34,18 +32,20 @@ function StatCardSkeleton() {
 }
 
 function StatsCards() {
-  const { data: financialHealth, isLoading: fhLoading } = useDashboardFinancialHealth();
-  const { data: quickStats, isLoading: qsLoading } = useDashboardQuickStats();
-  const { data: invoiceDist } = useDashboardInvoiceDistribution();
+  const { data: financialHealth, isLoading: fhLoading, isError: fhError } = useDashboardFinancialHealth();
+  const { data: quickStats, isLoading: qsLoading, isError: qsError } = useDashboardQuickStats();
+  const { data: actionMetrics, isError: actionMetricsError } = useDashboardActionMetrics();
   const { suggestions } = useSmartSuggestions();
 
   return (
     <ModernStatsCards
       financialHealth={financialHealth ?? null}
       quickStats={quickStats ?? null}
-      unpaidCount={invoiceDist?.unpaid ?? 0}
+      actionMetrics={actionMetrics ?? null}
       suggestions={suggestions}
       isLoading={fhLoading || qsLoading}
+      isUnavailable={fhError || qsError}
+      areActionMetricsUnavailable={actionMetricsError}
     />
   );
 }
@@ -56,9 +56,14 @@ function FinancialHealthCard() {
 }
 
 function ActionsCard() {
-  const { data: securityAlerts } = useDashboardSecurityAlerts();
-  const { data: quickStats } = useDashboardQuickStats();
-  return <UnifiedActionsCard securityAlerts={securityAlerts ?? null} quickStats={quickStats ?? null} unverifiedPaymentsCount={0} isLoading={false} />;
+  const { data, isLoading, isError } = useDashboardActionMetrics();
+  return (
+    <UnifiedActionsCard
+      actionMetrics={data ?? null}
+      isLoading={isLoading}
+      isUnavailable={isError}
+    />
+  );
 }
 
 function PendingPaymentsCard() {
@@ -71,14 +76,17 @@ function RecentActivityCardStream() {
   return <ModernRecentActivity activities={data ?? null} isLoading={isLoading} />;
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
     const { profile, isLoading: authLoading } = useAuth();
+    const navigationState = useDashboardNavigationState();
 
-    if (authLoading) return <DashboardSkeleton />;
+    if (authLoading) {
+        return <DashboardSkeleton label="Loading dashboard authentication" state="auth" />;
+    }
 
     return (
-        <div className="space-y-6">
-            <Suspense fallback={null}><ErrorHandler /></Suspense>
+        <div className="space-y-6" data-dashboard-state="ready">
+            <NavigationStateHandler unauthorized={navigationState.unauthorized} />
 
             <Suspense fallback={<StatCardSkeleton />}>
               <StatsCards />
@@ -106,12 +114,20 @@ export default function DashboardPage() {
                 </Suspense>
             </div>
 
-            {typeof window !== 'undefined' && window.location.search.includes('debug=true') && (
-                <div className="mt-8 p-4 bg-muted rounded-lg font-mono text-xs overflow-auto max-h-64">
-                    <h4 className="font-bold mb-2">Debug Info:</h4>
+            {navigationState.debug && (
+                <div className="mt-8 max-h-64 overflow-auto rounded-lg bg-muted p-4 font-mono text-xs" data-dashboard-debug="true">
+                    <h4 className="mb-2 font-bold">Debug Info:</h4>
                     <pre>{JSON.stringify({ profile: { id: profile?.id, role: profile?.role, name: profile?.full_name }, auth: { loading: authLoading } }, null, 2)}</pre>
                 </div>
             )}
         </div>
+    );
+}
+
+export default function DashboardPage() {
+    return (
+        <Suspense fallback={<DashboardSkeleton label="Loading dashboard navigation" state="route" />}>
+            <DashboardContent />
+        </Suspense>
     );
 }

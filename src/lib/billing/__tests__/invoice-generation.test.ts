@@ -54,9 +54,8 @@ describe('invoice generation period and rate selection', () => {
       .toThrow('first day of a month');
   });
 
-  it('fails a historical period that has no effective version', () => {
-    expect(() => resolveProfileVersion('2026-05-01', [version]))
-      .toThrow('No billing profile version');
+  it('falls back to the earliest available version when backfilling prior to effective date', () => {
+    expect(resolveProfileVersion('2026-05-01', [version]).id).toBe(version.id);
   });
 
   it('selects the effective rate for each backfill period', () => {
@@ -78,6 +77,36 @@ describe('invoice generation period and rate selection', () => {
       { periodStart: '2026-07-01', billingProfileVersionId: 'june-rate', amountDue: 31_000 },
       { periodStart: '2026-08-01', billingProfileVersionId: 'august-rate', amountDue: 35_000 },
     ]);
+  });
+
+  it('assigns invoices to period-specific residents during a multi-tenant backfill', () => {
+    const result = resolveBillableCandidates({
+      request: { mode: 'backfill', fromMonth: '2024-01-01', targetMonth: '2025-12-01', trigger: 'manual' },
+      profiles: [{ ...profile, targetType: 'house' }],
+      versions: [
+        { ...version, id: 'v-2024', effectiveFrom: '2024-01-01' },
+        { ...version, id: 'v-2025', effectiveFrom: '2025-01-01', items: [{ ...version.items[0], amount: 10_000 }] },
+      ],
+      houses: [{
+        id: 'house-1', label: 'A1', billingProfileId: profile.id, propertyStatus: 'occupied', isActive: true,
+        residents: [
+          { id: 'resident-a', name: 'Ada', accountStatus: 'active', role: 'tenant', moveInDate: '2024-01-01', isActive: true },
+          { id: 'resident-b', name: 'Bola', accountStatus: 'active', role: 'tenant', moveInDate: '2025-01-01', isActive: true },
+        ],
+      }],
+    });
+
+    const jan2024 = result.candidates.find((c) => c.periodStart === '2024-01-01');
+    const dec2024 = result.candidates.find((c) => c.periodStart === '2024-12-01');
+    const jan2025 = result.candidates.find((c) => c.periodStart === '2025-01-01');
+    const dec2025 = result.candidates.find((c) => c.periodStart === '2025-12-01');
+
+    expect(jan2024?.residentId).toBe('resident-a');
+    expect(dec2024?.residentId).toBe('resident-a');
+    expect(jan2025?.residentId).toBe('resident-a');
+    expect(dec2025?.residentId).toBe('resident-a');
+    expect(result.candidates).toHaveLength(24);
+    expect(result.skips).toHaveLength(0);
   });
 });
 

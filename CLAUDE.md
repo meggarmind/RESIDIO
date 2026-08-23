@@ -35,6 +35,44 @@ Single-context — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents
 
 Shared coordination file: `SESSION_STATE.md` — read/update it at session start/end.
 
+### Commit hygiene
+
+If a task touches multiple concerns, prefer splitting into smaller sequential commits.
+
+## Delegating to sub-agents
+
+Model tiers for ANY delegated work – Agent-tool calls and Workflow-script `agent()` calls alike. Set the `model` parameter explicitly on every call; never omit it (omission silently inherits the session model):
+
+- `haiku` – mechanical bulk work: renames, boilerplate, format conversion, log triage
+- `sonnet` – default for well-specified implementation with clear acceptance criteria
+- `opus` – genuinely tricky work: concurrency, subtle algorithms, adversarial verify/judge panels, gnarly debugging
+- `fable` – NEVER use. Not a valid tier; do not spawn Fable sub-agents under any circumstances, prompted or not.
+
+When unsure between tiers, pick the cheaper and escalate on failure.
+
+## Dynamic workflows (Workflow tool)
+
+Applies to ALL sessions, any model. Dynamic workflows do not need to be avoided – reach for the Workflow tool when a task has 3+ independent parallelizable subtasks or would benefit from a pipeline/judge panel. Standing rule on opt-in: if ultracode is NOT on for the session (no "ultracode" keyword, toggle, or an orchestration request in my own words), check with me first – propose the workflow in one or two sentences with the rough shape and cost, and wait for my reply; my "yes" is the opt-in. If ultracode IS on, invoke directly.
+
+**Agent models inside workflow scripts:** every `agent()` call MUST set the `model` parameter explicitly, chosen per "Delegating to sub-agents" above – `haiku`, `sonnet`, or `opus` only. `fable` is banned everywhere (see above), so it never appears as a workflow stage.
+
+## Coordinating sub-agent work
+
+Beyond model-tier selection (above), when a task is actually split across agents:
+
+- **Split by independence, not by file.** Fan out to parallel agents or workflow stages only when subtasks don't depend on each other's output; sequence dependent steps instead of racing them.
+- **Brief each fresh agent like a stranger.** A non-fork agent starts with zero context — the dispatch prompt must carry the specific files, line numbers, and acceptance criteria itself, never "based on the plan above." A `fork` inherits full context, so use it when the sub-task needs continuity (extending an investigation); use a fresh agent when independence from your own framing is the point (a second opinion, an adversarial review).
+- **Verify before relaying.** Don't pass a sub-agent's summary straight through to me — check its claims against the actual diff or files, then report the verified result.
+
+## Learning from feedback
+
+Two mechanisms capture what I teach you during a session — different scopes, use both where they apply:
+
+- **Memory** (the account-level memory system already in effect) — persistent, cross-session record of project facts and how I want this project run. Save a `feedback` memory whenever I correct your approach or confirm a non-obvious one worked; that's how you avoid re-litigating the same guidance next session.
+- **`task-observer` skill** — session-scoped pattern-watching that can graduate a repeated correction or workflow into a documented, reusable skill. Invoke it at the start of any multi-step, tool-using task in this repo, per its own description.
+
+Memory answers "what should I do differently next time"; `task-observer` answers "should this become a skill." A one-off preference belongs in memory only — don't reach for skill-writing on the first occurrence.
+
 ## Project Overview
 
 Residio is a residential estate access management web application. It automates resident access control by managing payment status, security contact lists, and providing APIs for external systems (e.g., security barriers).
@@ -59,215 +97,6 @@ For detailed technical information, see the `docs/` folder:
 | [docs/security/access-control.md](docs/security/access-control.md) | Authentication, RBAC, RLS, audit logging |
 
 ---
-
-## Development Inbox Workflow
-
-This project uses a Notion-based mobile inbox for capturing development tasks. Claude Code processes these **automatically via SessionStart hook**.
-
-### Automatic Session Start (Hook-Based)
-
-A **SessionStart hook** runs automatically at every Claude Code session start. It:
-1. Runs NSMA (Notion Sync Manager) to fetch new tasks from mobile inbox
-2. Analyzes all prompts in `/prompts/pending/` folder
-3. Categorizes prompts by phase alignment
-4. Displays summary to user
-
-**Hook location**: `.claude/hooks/session-start.sh`
-**Hook config**: `.claude/settings.json`
-**NSMA Dashboard**: http://localhost:3100
-
-You do NOT need to manually run sync - it happens automatically.
-
-### Manual Sync (if needed)
-
-```bash
-node /home/feyijimiohioma/projects/Nsma/cli/index.js --project residio
-```
-
-Or type `sync_dev_inbox` to trigger manual sync.
-
-### Workflow Triggers
-
-| Trigger | When | Automatic? |
-|---------|------|------------|
-| **SessionStart** | Every Claude Code session start | Yes (hook) |
-| **Manual** | User types `sync_dev_inbox` | Manual |
-| **Resume** | `resume_session` command | Yes (hook) |
-
-### Session Start Procedure
-
-The SessionStart hook displays a summary. After that, Claude should:
-
-1. **Read each prompt in `/prompts/pending/`** folder
-2. **Categorize by alignment** (see Prompt Processing Behavior below)
-3. **Process ALL prompts** - do not skip any silently
-
-4. **Complete Task & Update Notion (Bidirectional Sync)**:
-   After successfully completing a prompt task:
-
-   a. **Extract Notion page ID from YAML frontmatter**:
-      ```yaml
-      ---
-      notion_page_id: 2ca2bfe3ea0c80c68727cbda365dfcd3
-      notion_url: https://www.notion.so/...
-      ---
-      ```
-
-   b. **Update Notion status** using MCP (if available):
-      ```
-      mcp__notion__notion-update-page
-      data:
-        page_id: [notion_page_id from frontmatter]
-        command: update_properties
-        properties:
-          Status: Done
-          Processed Date: [today's date YYYY-MM-DD]
-          Analysis Notes: "Completed by Claude Code on [date]. [brief summary of what was done]"
-      ```
-
-      Or manage via NSMA dashboard: http://localhost:3100
-
-   c. **Move file to processed folder**:
-      ```bash
-      mv prompts/pending/<filename> prompts/processed/<filename>
-      ```
-
-### Prompt File Format
-
-Prompts now include YAML frontmatter with:
-- `notion_page_id`: For updating Notion after completion
-- `notion_url`: Link back to original Notion item
-- Related files section based on affected module
-- Explicit completion actions
-
-### Prompt Processing Behavior
-
-**IMPORTANT: Process ALL prompts** - do not skip based on phase alone.
-
-**Phase-Aligned (auto-execute):**
-- Matches current phase (as defined in TODO.md)
-- Type: Bug Fix, Documentation, Security Fix, or Technical Debt
-- Phase: Backlog
-
-Action: Add to task list and execute.
-
-**Non-Aligned (user decision required):**
-- Different phase than current (e.g., Phase 3, Phase 6)
-- Not a universally-executable type
-
-Action: Present user with THREE options using `AskUserQuestion`:
-
-| Option | Description | File Action | Notion Status |
-|--------|-------------|-------------|---------------|
-| **Defer** | Save for later phase | `mv prompts/pending/X prompts/deferred/X` | "Deferred" |
-| **Execute anyway** | Override phase restriction | Process normally | (per completion) |
-| **Archive** | Skip permanently | `mv prompts/pending/X prompts/archived/X` | "Archived" |
-
-### Deferring a Prompt
-
-When user chooses "Defer":
-
-1. **Update Notion status** using MCP (if available):
-   ```
-   mcp__notion__notion-update-page
-   data:
-     page_id: [notion_page_id from frontmatter]
-     command: update_properties
-     properties:
-       Status: Deferred
-       Analysis Notes: "Deferred to [target phase] by user on [date]"
-   ```
-
-   Or manage via NSMA dashboard: http://localhost:3100
-
-2. **Move file**:
-   ```bash
-   mv prompts/pending/<filename> prompts/deferred/<filename>
-   ```
-
-**Re-check behavior**: Deferred prompts are automatically re-checked at every session start. If the current phase (from TODO.md) matches the prompt's phase, it will be flagged as `[NOW ALIGNED]` with a suggestion to move it back to `prompts/pending/`.
-
-### Archiving a Prompt
-
-When user chooses "Archive":
-
-1. **Update Notion status** using MCP (if available):
-   ```
-   mcp__notion__notion-update-page
-   data:
-     page_id: [notion_page_id from frontmatter]
-     command: update_properties
-     properties:
-       Status: Archived
-       Analysis Notes: "Archived by user on [date]. Reason: [if provided]"
-   ```
-
-   Or manage via NSMA dashboard: http://localhost:3100
-
-2. **Move file**:
-   ```bash
-   mv prompts/pending/<filename> prompts/archived/<filename>
-   ```
-
-### Folder Structure
-
-```
-residio/
-├── prompts/                    # NSMA managed prompts directory
-│   ├── pending/                # Active prompts (auto-populated by NSMA)
-│   │   └── *.md
-│   ├── processed/              # Completed prompts
-│   │   └── *.md
-│   ├── deferred/               # Deferred to later phase
-│   │   └── *.md
-│   └── archived/               # Permanently skipped
-│       └── *.md
-├── docs/
-│   └── validation/             # QA-Director validation reports
-│       └── *.md
-├── .nsma-config.md             # NSMA phase/module configuration (auto-imported)
-└── .claude/
-    ├── settings.json           # Hook configuration
-    ├── agents/
-    │   └── qa-director.md      # QA-Director agent definition
-    ├── commands/
-    │   └── qa-director-validate.md  # Manual validation trigger
-    └── hooks/
-        ├── session-start.sh    # NSMA SessionStart hook
-        └── task-complete.sh    # QA-Director PostToolUse hook
-```
-
-**NSMA Dashboard**: http://localhost:3100 (when running)
-
----
-
-## QA-Director Validation System
-
-The QA-Director Agent automatically validates completed work across security, code quality, documentation, and performance domains.
-
-### Automatic Triggers
-
-A **PostToolUse hook** monitors for prompt completion:
-- **Prompt Completion**: Triggers when file moves from `prompts/pending/` to `prompts/processed/`
-- **Phase Completion**: Triggers when all prompts in a phase are completed (pending count = 0)
-
-**Hook location**: `.claude/hooks/task-complete.sh`
-
-### Manual Trigger
-
-```
-/qa-director-validate [scope]
-```
-
-**Scope Options:**
-| Scope | Example |
-|-------|---------|
-| `prompt <filename>` | `/qa-director-validate prompt feature-auth.md` |
-| `phase <number>` | `/qa-director-validate phase 15` |
-| `module <name>` | `/qa-director-validate module auth` |
-| `files <paths>` | `/qa-director-validate files src/actions/auth.ts` |
-| `all` | `/qa-director-validate all` |
-| *(no arg)* | Auto-detect from git diff |
 
 ### Validation Domains
 
@@ -656,3 +485,5 @@ Follow this pattern for all new write operations:
      newValues: {...},
    });
    ```
+
+

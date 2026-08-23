@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { TrendingUp, TrendingDown, AlertTriangle, Wallet, CircleDollarSign } from 'lucide-react';
 import { ProgressRing } from '@/components/ui/progress-ring';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
@@ -46,18 +45,27 @@ function FinancialHealthSkeleton() {
  * Features Modern theme styling with blue-teal accents
  */
 export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFinancialHealthProps) {
-  if (isLoading || !financialHealth) {
+  if (isLoading) {
     return <FinancialHealthSkeleton />;
+  }
+
+  if (!financialHealth) {
+    return (
+      <div className="rounded-xl border bg-white p-6 dark:bg-[#1E293B] dark:border-[#334155] h-[270px] flex flex-col items-center justify-center text-center">
+        <CircleDollarSign className="h-10 w-10 text-muted-foreground mb-2 opacity-30" />
+        <h3 className="text-sm font-semibold">Financial metrics unavailable</h3>
+        <p className="text-xs text-muted-foreground">Estate balances could not be loaded.</p>
+      </div>
+    );
   }
 
   const {
     totalOutstanding,
     collectionRate,
     monthlyRevenue,
-    previousMonthRevenue,
     revenueChange,
     overdueAmount,
-    totalWalletBalance,
+    walletCredits,
     totalCollected,
   } = financialHealth;
 
@@ -107,7 +115,7 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
             <div className="flex items-center gap-1.5 mb-1">
               <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
               <p className="text-[10px] font-medium text-amber-700 dark:text-amber-300 leading-tight">
-                Outstanding Balance
+                Unpaid Invoice Balance
               </p>
             </div>
             <AnimatedCounter
@@ -123,7 +131,7 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
           <div className="rounded-lg bg-gray-50 p-2.5 dark:bg-[#0F172A] flex flex-col justify-between min-h-0">
             <div className="flex items-center justify-between mb-1 gap-1">
               <p className="text-[10px] font-medium text-gray-600 dark:text-gray-400 leading-tight">
-                Monthly Revenue
+                Verified Payments This Month
               </p>
               <div className={cn(
                 'flex items-center gap-0.5 rounded-full px-1 py-0.5 text-[9px] font-semibold shrink-0',
@@ -161,7 +169,7 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
                 ? 'text-red-700 dark:text-red-300'
                 : 'text-gray-600 dark:text-gray-400'
             )}>
-              Overdue Amount
+              Overdue Invoice Balance
             </p>
             <AnimatedCounter
               value={overdueAmount}
@@ -182,11 +190,11 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
             <div className="flex items-center gap-1.5 mb-1">
               <Wallet className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
               <p className="text-[10px] font-medium text-green-700 dark:text-green-300 leading-tight">
-                Wallet Credits
+                Resident Wallet Credits
               </p>
             </div>
             <AnimatedCounter
-              value={totalWalletBalance}
+              value={walletCredits}
               prefix="₦"
               formatNumber
               className="text-lg font-bold text-green-900 dark:text-green-100"

@@ -62,8 +62,18 @@ function PendingPaymentsSkeleton() {
 }
 
 export function ModernPendingPayments({ distribution, isLoading }: ModernPendingPaymentsProps) {
-  if (isLoading || !distribution) {
+  if (isLoading) {
     return <PendingPaymentsSkeleton />;
+  }
+
+  if (!distribution) {
+    return (
+      <div className="rounded-xl border bg-card p-4 h-[205px] flex flex-col items-center justify-center text-center">
+        <FileText className="h-10 w-10 text-muted-foreground mb-2 opacity-30" />
+        <h3 className="text-[11px] font-semibold mb-0.5">Invoice counts unavailable</h3>
+        <p className="text-[10px] text-muted-foreground">Invoice status data could not be loaded.</p>
+      </div>
+    );
   }
 
   const { overdue, unpaid, partiallyPaid, void: voidCount, paid } = distribution;
@@ -74,8 +84,8 @@ export function ModernPendingPayments({ distribution, isLoading }: ModernPending
     return (
       <div className="rounded-xl border bg-card p-4 h-[205px] flex flex-col items-center justify-center text-center">
         <CheckCircle2 className="h-10 w-10 text-status-success mb-2 opacity-20" />
-        <h4 className="text-[11px] font-semibold mb-0.5">Quiet Flow</h4>
-        <p className="text-[10px] text-muted-foreground">Invoices will show trends here.</p>
+        <h3 className="text-[11px] font-semibold mb-0.5">No invoices recorded</h3>
+        <p className="text-[10px] text-muted-foreground">All invoice status counts are zero.</p>
       </div>
     );
   }
@@ -89,7 +99,7 @@ export function ModernPendingPayments({ distribution, isLoading }: ModernPending
       <div className="mb-3.5 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileText className="h-3.5 w-3.5 text-primary" />
-          <h3 className="text-xs font-bold tracking-tight uppercase">Payments Traffic</h3>
+          <h3 className="text-xs font-bold tracking-tight uppercase">Invoice Status Counts</h3>
         </div>
         <Link
           href="/billing"
@@ -105,7 +115,7 @@ export function ModernPendingPayments({ distribution, isLoading }: ModernPending
         <div className="w-full h-5 bg-muted/30 rounded-full flex overflow-hidden p-0.5 border border-muted-foreground/10">
           <StatusSegment count={overdue} total={total} color="bg-status-error" label="Overdue" />
           <StatusSegment count={unpaid} total={total} color="bg-status-warning" label="Unpaid" />
-          <StatusSegment count={partiallyPaid} total={total} color="bg-accent-primary" label="Partial" />
+          <StatusSegment count={partiallyPaid} total={total} color="bg-accent-primary" label="Partially paid" />
           <StatusSegment count={paid} total={total} color="bg-status-success" label="Paid" />
           <StatusSegment count={voidCount} total={total} color="bg-muted-foreground/30" label="Void" />
         </div>
@@ -115,7 +125,7 @@ export function ModernPendingPayments({ distribution, isLoading }: ModernPending
       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 border-t border-muted/50 pt-3">
         <LegendItem label="Overdue" count={overdue} color="bg-status-error" />
         <LegendItem label="Unpaid" count={unpaid} color="bg-status-warning" />
-        <LegendItem label="Partial" count={partiallyPaid} color="bg-accent-primary" />
+        <LegendItem label="Partially paid" count={partiallyPaid} color="bg-accent-primary" />
         <LegendItem label="Paid" count={paid} color="bg-status-success" />
         <LegendItem label="Void" count={voidCount} color="bg-muted-foreground/30" />
       </div>

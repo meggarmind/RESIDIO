@@ -7,6 +7,7 @@ import {
   getDashboardFinancialHealth,
   getDashboardInvoiceDistribution,
   getDashboardSecurityAlerts,
+  getDashboardActionMetrics,
   getDashboardQuickStats,
   getDashboardRecentActivity,
 } from '@/actions/dashboard/get-enhanced-dashboard-stats';
@@ -88,6 +89,18 @@ export function useDashboardSecurityAlerts() {
             return result.data;
         },
         staleTime: POLLING_INTERVALS.SLOW,
+    });
+}
+
+export function useDashboardActionMetrics() {
+    return useQuery({
+        queryKey: ['dashboard-action-metrics'],
+        queryFn: async () => {
+            const result = await getDashboardActionMetrics();
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        staleTime: POLLING_INTERVALS.STANDARD,
     });
 }
 

@@ -147,7 +147,12 @@ export function NotificationBell() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative size-11 min-h-11 min-w-11 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-label={hasUnread ? `${unreadCount} unread notifications` : 'Open notifications'}
+        >
           {hasUnread ? (
             <BellRing className="h-5 w-5" />
           ) : (

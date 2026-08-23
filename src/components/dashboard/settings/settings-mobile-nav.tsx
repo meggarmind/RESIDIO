@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import {
     Sheet,
     SheetContent,
+    SheetDescription,
     SheetHeader,
     SheetTitle,
     SheetTrigger,
@@ -55,6 +56,9 @@ export function SettingsMobileNav() {
             <SheetContent side="left" className="w-[300px] sm:w-[400px] p-0">
                 <SheetHeader className="p-4 border-b text-left">
                     <SheetTitle>Settings</SheetTitle>
+                    <SheetDescription className="sr-only">
+                        Navigate between administration settings areas.
+                    </SheetDescription>
                 </SheetHeader>
                 <ScrollArea className="h-[calc(100vh-5rem)]">
                     <div className="flex flex-col p-4 space-y-4">

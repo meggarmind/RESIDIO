@@ -1,8 +1,17 @@
 import { Skeleton } from '@/components/ui/skeleton';
 
-export function DashboardSkeleton() {
+interface DashboardSkeletonProps {
+    label?: string;
+    state?: 'route' | 'auth';
+}
+
+export function DashboardSkeleton({
+    label = 'Loading dashboard',
+    state = 'route',
+}: DashboardSkeletonProps) {
     return (
-        <div className="space-y-6">
+        <div className="space-y-6" role="status" aria-label={label} data-loading-state={state}>
+            <p className="text-sm font-medium text-muted-foreground">{label}</p>
             {/* Header */}
             <div className="animate-slide-up">
                 <Skeleton className="h-9 w-64 rounded-lg" />

@@ -20,14 +20,16 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 import { formatCurrency } from '@/lib/utils';
 import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertCircle, Clock, CheckCircle2, Receipt, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
 import { GenerateInvoicesDialog } from '@/components/billing/generate-invoices-dialog';
 import { GenerationHistoryPanel } from '@/components/billing/generation-history-panel';
-import { getResidents } from '@/actions/residents/get-residents';
+import { getBillingResidentFilterOptions } from '@/actions/billing/get-invoices';
 import { INVOICE_TYPE_LABELS, type InvoiceType, type InvoiceStatus } from '@/types/database';
 import {
     EnhancedStatCard,
@@ -52,14 +54,50 @@ const invoiceTypeColors: Record<InvoiceType, string> = {
     OTHER: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300',
 };
 
+type BillingResident = {
+    id: string;
+    first_name: string;
+    last_name: string;
+};
+
+export function getInitialBillingResidentId(residentId: string | null) {
+    return residentId || 'all';
+}
+
+export function buildBillingResidentOptions(
+    residents: BillingResident[],
+    aliasesByResident: Map<string, string[]>
+) {
+    return [
+        { value: 'all', label: 'All residents' },
+        ...residents
+            .toSorted((left, right) =>
+                left.first_name.localeCompare(right.first_name, undefined, { sensitivity: 'base' }) ||
+                left.last_name.localeCompare(right.last_name, undefined, { sensitivity: 'base' })
+            )
+            .map((resident) => {
+                const aliases = aliasesByResident.get(resident.id) ?? [];
+                const name = `${resident.first_name} ${resident.last_name}`;
+                return {
+                    value: resident.id,
+                    label: aliases.length > 0 ? `${name} (${aliases.join(', ')})` : name,
+                };
+            }),
+    ];
+}
+
 export default function BillingPage() {
+    const searchParams = useSearchParams();
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(20);
     const [status, setStatus] = useState<string>('all');
     const [invoiceType, setInvoiceType] = useState<string>('all');
-    const [residentId, setResidentId] = useState<string>('all');
+    const requestedResidentId = searchParams.get('resident_id');
+    const [selectedResidentId, setSelectedResidentId] = useState<string | null>(null);
+    const residentId = selectedResidentId ?? getInitialBillingResidentId(requestedResidentId);
     const [search, setSearch] = useState('');
-    const [residents, setResidents] = useState<Array<{ id: string; first_name: string; last_name: string }>>([]);
+    const [residents, setResidents] = useState<BillingResident[]>([]);
+    const [residentAliases, setResidentAliases] = useState<Map<string, string[]>>(new Map());
     const [showGenerateDialog, setShowGenerateDialog] = useState(false);
 
     const { themeId } = useVisualTheme();
@@ -81,16 +119,26 @@ export default function BillingPage() {
     const totalCount = data?.total ?? 0;
     const totalPages = Math.ceil(totalCount / limit);
 
-    // Fetch residents for filter dropdown
     useEffect(() => {
-        async function fetchResidents() {
-            const result = await getResidents({ limit: 100 });
-            if (result.data) {
-                setResidents(result.data);
-            }
+        async function fetchResidentOptions() {
+            const result = await getBillingResidentFilterOptions();
+            if (!result.data) return;
+
+            setResidents(result.data.map((resident) => ({
+                id: resident.id,
+                first_name: resident.first_name,
+                last_name: resident.last_name,
+            })));
+            setResidentAliases(new Map(result.data.map((resident) => [resident.id, resident.aliases])));
         }
-        fetchResidents();
+
+        void fetchResidentOptions();
     }, []);
+
+    const residentOptions = useMemo(
+        () => buildBillingResidentOptions(residents, residentAliases),
+        [residentAliases, residents]
+    );
 
     const handleGenerateInvoices = async () => {
         setShowGenerateDialog(true);
@@ -99,7 +147,7 @@ export default function BillingPage() {
     const handleClearFilters = () => {
         setStatus('all');
         setInvoiceType('all');
-        setResidentId('all');
+        setSelectedResidentId('all');
         setSearch('');
         setPage(1);
     };
@@ -255,22 +303,18 @@ export default function BillingPage() {
                             />
                         </div>
 
-                        <Select value={residentId} onValueChange={(value) => {
-                            setResidentId(value);
-                            setPage(1);
-                        }}>
-                            <SelectTrigger className={cn("w-[140px] h-9 text-sm", isModern && 'rounded-xl')}>
-                                <SelectValue placeholder="Residents" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All residents</SelectItem>
-                                {residents.map((resident) => (
-                                    <SelectItem key={resident.id} value={resident.id}>
-                                        {resident.first_name} {resident.last_name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <SearchableSelect
+                            options={residentOptions}
+                            value={residentId}
+                            onValueChange={(value) => {
+                                setSelectedResidentId(value);
+                                setPage(1);
+                            }}
+                            placeholder="All residents"
+                            searchPlaceholder="Search name or alias..."
+                            emptyMessage="No residents found."
+                            className={cn('h-9 w-full min-w-[280px] max-w-[360px] text-sm', isModern && 'rounded-xl')}
+                        />
 
                         <Select value={status} onValueChange={(value) => {
                             setStatus(value);

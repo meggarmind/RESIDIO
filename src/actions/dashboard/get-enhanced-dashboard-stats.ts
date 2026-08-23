@@ -14,12 +14,16 @@ export interface FinancialHealthMetrics {
     totalOutstanding: number;
     totalCollected: number;
     collectionRate: number;
-    monthlyRevenue: number; // verified revenue
-    totalMonthlyRevenue: number; // all revenue including unverified
+    monthlyRevenue: number;
+    totalMonthlyRevenue: number;
     previousMonthRevenue: number;
-    revenueChange: number; // percentage change
-    totalWalletBalance: number; // deprecated - use portfolioValue
-    portfolioValue: number; // bank accounts + petty cash
+    revenueChange: number;
+    totalWalletBalance: number;
+    portfolioValue: number;
+    importedBankNetCash: number;
+    pettyCashBalance: number;
+    estateCash: number;
+    walletCredits: number;
     overdueAmount: number;
     overdueCount: number;
 }
@@ -63,6 +67,13 @@ export interface QuickStats {
     pendingVerification: number;
     totalSecurityContacts: number;
     activeSecurityContacts: number;
+}
+
+export interface DashboardActionMetrics {
+    pendingResidentVerifications: number;
+    unverifiedPayments: number;
+    expiringSecurityContacts: number;
+    totalRequiringAttention: number;
 }
 
 export interface RecentActivityItem {
@@ -237,7 +248,8 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
             financialHealth: financialData || {
                 totalOutstanding: 0, totalCollected: 0, collectionRate: 0,
                 monthlyRevenue: 0, totalMonthlyRevenue: 0, previousMonthRevenue: 0, revenueChange: 0,
-                totalWalletBalance: 0, portfolioValue: 0, overdueAmount: 0, overdueCount: 0
+                totalWalletBalance: 0, portfolioValue: 0, importedBankNetCash: 0, pettyCashBalance: 0,
+                estateCash: 0, walletCredits: 0, overdueAmount: 0, overdueCount: 0
             },
             invoiceDistribution: invoiceDistribution || {
                 unpaid: 0, paid: 0, partiallyPaid: 0, overdue: 0, void: 0
@@ -291,21 +303,25 @@ async function fetchFinancialHealth(
     prevMonthEnd: Date
 ): Promise<FinancialHealthMetrics> {
     // Get invoice totals
-    const { data: invoices } = await supabase
+    const { data: invoices, error: invoicesError } = await supabase
         .from('invoices')
         .select('amount_due, amount_paid, status')
         .neq('status', 'void');
+
+    if (invoicesError) throw invoicesError;
 
     const totalDue = invoices?.reduce((sum: number, i) => sum + (Number(i.amount_due) || 0), 0) ?? 0;
     const totalCollected = invoices?.reduce((sum: number, i) => sum + (Number(i.amount_paid) || 0), 0) ?? 0;
     const totalOutstanding = totalDue - totalCollected;
 
     // Get overdue invoices
-    const { data: overdueInvoices } = await supabase
+    const { data: overdueInvoices, error: overdueInvoicesError } = await supabase
         .from('invoices')
         .select('amount_due, amount_paid')
         .in('status', ['unpaid', 'partially_paid'])
         .lt('due_date', new Date().toISOString().split('T')[0]);
+
+    if (overdueInvoicesError) throw overdueInvoicesError;
 
     const overdueAmount = overdueInvoices?.reduce(
         (sum: number, i) => sum + ((Number(i.amount_due) || 0) - (Number(i.amount_paid) || 0)),
@@ -314,12 +330,14 @@ async function fetchFinancialHealth(
     const overdueCount = overdueInvoices?.length ?? 0;
 
     // Current month payments - verified and total
-    const { data: currentPayments } = await supabase
+    const { data: currentPayments, error: currentPaymentsError } = await supabase
         .from('payment_records')
         .select('amount, is_verified, import_id, email_import_id')
         .gte('payment_date', monthStart.toISOString())
         .lte('payment_date', monthEnd.toISOString())
         .eq('status', 'paid');
+
+    if (currentPaymentsError) throw currentPaymentsError;
 
     const totalMonthlyRevenue = currentPayments?.reduce((sum: number, p) => sum + (Number(p.amount) || 0), 0) ?? 0;
     const monthlyRevenue = currentPayments?.reduce((sum: number, p) => {
@@ -329,12 +347,14 @@ async function fetchFinancialHealth(
     }, 0) ?? 0;
 
     // Previous month payments
-    const { data: prevPayments } = await supabase
+    const { data: prevPayments, error: prevPaymentsError } = await supabase
         .from('payment_records')
         .select('amount, is_verified, import_id, email_import_id')
         .gte('payment_date', prevMonthStart.toISOString())
         .lte('payment_date', prevMonthEnd.toISOString())
         .eq('status', 'paid');
+
+    if (prevPaymentsError) throw prevPaymentsError;
 
     const previousMonthRevenue = prevPayments?.reduce((sum: number, p) => {
         const isVerified = p.is_verified === true || p.import_id !== null || p.email_import_id !== null;
@@ -345,16 +365,17 @@ async function fetchFinancialHealth(
         ? ((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 100
         : monthlyRevenue > 0 ? 100 : 0;
 
-    // Total wallet balance (keeping for backward compatibility)
-    const { data: wallets } = await supabase
+    const { data: wallets, error: walletsError } = await supabase
         .from('resident_wallets')
         .select('balance');
 
-    const totalWalletBalance = wallets?.reduce((sum: number, w) => sum + (Number(w.balance) || 0), 0) ?? 0;
+    if (walletsError) throw walletsError;
+
+    const walletCredits = wallets?.reduce((sum: number, w) => sum + (Number(w.balance) || 0), 0) ?? 0;
 
     // Portfolio Value: Bank accounts balance + Petty cash
     // Calculate bank balance from completed statement rows (credits - debits)
-    const { data: bankRows } = await supabase
+    const { data: bankRows, error: bankRowsError } = await supabase
         .from('bank_statement_rows')
         .select(`
             amount,
@@ -363,19 +384,23 @@ async function fetchFinancialHealth(
         `)
         .eq('bank_statement_imports.status', 'completed');
 
+    if (bankRowsError) throw bankRowsError;
+
     const bankBalance = bankRows?.reduce((sum: number, row) => {
         const amount = Number(row.amount) || 0;
         return row.transaction_type === 'credit' ? sum + amount : sum - amount;
     }, 0) ?? 0;
 
     // Get petty cash balance
-    const { data: pettyCash } = await supabase
+    const { data: pettyCash, error: pettyCashError } = await supabase
         .from('petty_cash_accounts')
         .select('current_balance')
         .eq('is_active', true);
 
+    if (pettyCashError) throw pettyCashError;
+
     const pettyCashBalance = pettyCash?.reduce((sum: number, pc) => sum + (Number(pc.current_balance) || 0), 0) ?? 0;
-    const portfolioValue = bankBalance + pettyCashBalance;
+    const estateCash = bankBalance + pettyCashBalance;
 
     const collectionRate = totalDue > 0 ? (totalCollected / totalDue) * 100 : 0;
 
@@ -387,8 +412,12 @@ async function fetchFinancialHealth(
         totalMonthlyRevenue,
         previousMonthRevenue,
         revenueChange,
-        totalWalletBalance,
-        portfolioValue,
+        totalWalletBalance: walletCredits,
+        portfolioValue: estateCash,
+        importedBankNetCash: bankBalance,
+        pettyCashBalance,
+        estateCash,
+        walletCredits,
         overdueAmount,
         overdueCount
     };
@@ -397,13 +426,16 @@ async function fetchFinancialHealth(
 async function fetchInvoiceDistribution(supabase: SupabaseClient): Promise<InvoiceStatusDistribution> {
     // Use parallel COUNT queries instead of fetching all invoices
     // This is ~100x faster for large invoice tables
-    const [unpaid, paid, partiallyPaid, overdueData, voided] = await Promise.all([
+    const results = await Promise.all([
         supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'unpaid'),
         supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'paid'),
         supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'partially_paid'),
         supabase.from('invoices').select('*', { count: 'exact', head: true }).in('status', ['unpaid', 'partially_paid']).lt('due_date', new Date().toISOString().split('T')[0]),
         supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'void'),
     ]);
+    const error = results.find((result) => result.error)?.error;
+    if (error) throw error;
+    const [unpaid, paid, partiallyPaid, overdueData, voided] = results;
 
     return {
         unpaid: unpaid.count ?? 0,
@@ -720,6 +752,44 @@ export async function getDashboardSecurityAlerts(): Promise<{ data: SecurityAler
         return { data, error: null };
     } catch (err) {
         return { data: null, error: err instanceof Error ? err.message : 'Failed to fetch security alerts' };
+    }
+}
+
+export async function getDashboardActionMetrics(): Promise<{ data: DashboardActionMetrics | null; error: string | null }> {
+    try {
+        const supabase = await requireAuthClient();
+        const now = new Date();
+        const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const [pendingResidents, unverifiedPayments, expiringContacts] = await Promise.all([
+            supabase.from('residents').select('id', { count: 'exact', head: true }).eq('verification_status', 'pending'),
+            supabase.from('payment_records').select('id', { count: 'exact', head: true }).eq('is_verified', false).eq('status', 'paid'),
+            supabase
+                .from('security_contacts')
+                .select('id, access_codes!inner(id)', { count: 'exact', head: true })
+                .eq('status', 'active')
+                .eq('access_codes.is_active', true)
+                .not('access_codes.valid_until', 'is', null)
+                .gt('access_codes.valid_until', now.toISOString())
+                .lte('access_codes.valid_until', sevenDaysFromNow.toISOString()),
+        ]);
+        const error = pendingResidents.error || unverifiedPayments.error || expiringContacts.error;
+        if (error) throw error;
+
+        const pendingResidentVerifications = pendingResidents.count ?? 0;
+        const unverifiedPaymentCount = unverifiedPayments.count ?? 0;
+        const expiringSecurityContacts = expiringContacts.count ?? 0;
+
+        return {
+            data: {
+                pendingResidentVerifications,
+                unverifiedPayments: unverifiedPaymentCount,
+                expiringSecurityContacts,
+                totalRequiringAttention: pendingResidentVerifications + unverifiedPaymentCount + expiringSecurityContacts,
+            },
+            error: null,
+        };
+    } catch (err) {
+        return { data: null, error: err instanceof Error ? err.message : 'Failed to fetch dashboard actions' };
     }
 }
 

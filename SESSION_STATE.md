@@ -9,7 +9,59 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (OpenCode, 2026-08-23 — Billing issues #79, #80, #94)
+
+- **Parallel implementation:** Secured billing/resident query actions (#94) while implementing resident invoice deep-link filtering and the enhanced billing resident selector (#79/#80).
+- **Security:** `getInvoices`, invoice detail, resident indebtedness, house payment status, cross-property payment summary, and the focused billing resident options query now fail closed on `BILLING_VIEW`; the general resident list uses `RESIDENTS_VIEW`.
+- **Billing UX:** `/billing?resident_id=<id>` filters on first render; the selector loads all residents through a minimal-column query, sorts first/last name, searches active aliases, and uses a wider responsive trigger.
+- **Verification:** `npx tsc --noEmit` passed; 9 focused Vitest tests passed; scoped ESLint passed; full `npm test -- --run` completed without reported failures; `npm run build` passed with only the known Paystack route-config warning. One low review follow-up remains: add component-level URL-to-query wiring coverage.
+- **Git:** No commit created; all earlier dashboard and unrelated billing changes remain preserved in the working tree.
+- **Tracking:** Issues #79, #80, and #94 have implementation evidence and are ready to move from In progress to In review.
+
+## Last session (OpenCode, 2026-08-22 — Dashboard issues #98-#101)
+
+- **Parallel implementation:** Used four independent sub-agents for scannable audit activity (#98), mobile navigation accessibility (#99), dashboard hydration/loading hardening (#100), and trustworthy dashboard metrics/actions (#101), then integrated and reviewed their work.
+- **Dashboard behavior:** Activity labels and descriptions are human-readable while preserving transaction identifiers; mobile sheet controls have descriptions, names, visible focus, and 44px targets; debug rendering uses hydration-safe URL state; route/auth/error states are distinct; attention counts are queried from live resident/payment/security data; finance labels distinguish estate cash, wallet credits, verified payments, invoice counts, zero values, and unavailable data.
+- **Verification:** `npx tsc --noEmit` passed; 16 focused Vitest tests passed; scoped ESLint has no errors (one pre-existing header image warning); `npm run build` passed; focused Playwright debug-path and mobile-navigation tests passed. Full `npm run lint` still fails on 125 pre-existing errors in generated/static artifacts outside this change. Full Vitest command completed without reported failures in captured output.
+- **Git:** No commit created. Existing unrelated dirty changes in `.claude`, billing, searchable-select, and coordination files were preserved.
+- **Next:** Close #98-#101 after user review, then start unblocked #102 (mobile orientation/navigation parity); #103 remains blocked by #102.
+
+## Last session (OpenCode, 2026-08-22 — Admin guide deployment)
+
+- **Docusaurus guide:** Added a TypeScript Docusaurus site under `website/` with a screenshot-led admin manual covering getting started, residents, properties, finance, security, operations, settings, and administration.
+- **Screenshot safety:** Captured desktop/mobile admin screenshots through Playwright with browser-side masking for names, contact values, financial amounts, resident codes, house labels, UUIDs, and legacy contact placeholders. Added a reusable `website/scripts/capture-admin-screenshots.mjs` script requiring local credentials through environment variables.
+- **Verification:** `website` typecheck and production build pass. Local Playwright verification passed for the homepage, key doc routes, image loading, desktop navigation, mobile navigation, and zero browser console errors on the fresh public deployment.
+- **Deployment:** Published commit `fa37650` to `master` and static commit `9a77050` to `gh-pages`. GitHub Pages is configured in legacy branch mode and is live at [meggarmind.github.io/RESIDIO](https://meggarmind.github.io/RESIDIO/). The Actions workflow is present but its first run was blocked by the GitHub account billing lock; direct Pages publishing completed successfully.
+- **Next:** Keep the guide synchronized with admin UI changes and resolve the existing mobile dialog accessibility warning tracked in TODO/dashboard follow-up issues.
+
+## Last session (OpenCode, 2026-08-22 — Dashboard review tickets)
+
+- Published the approved dashboard review slices as GitHub issues #98–#103, all labeled `ready-for-agent`.
+- Independent issues: #98 Scannable audit activity, #99 Mobile navigation accessibility, #100 Dashboard hydration and loading hardening, and #101 Trustworthy dashboard metrics and actions.
+- Dependencies: #102 Mobile dashboard orientation and navigation parity is blocked by #99; #103 Dashboard shell variant cleanup is blocked by #99 and #102.
+- GitHub issue creation and labels verified. Project-board verification was unavailable because the current GitHub token lacks `read:project`; repository automation is configured to auto-add new issues.
+
+---
+
 ## Last session (OpenCode, 2026-08-20 — Settings page restructuring)
+
+## Last session (OpenCode, 2026-08-22 — Dashboard review via impeccable)
+
+- **Scope:** UX critique + technical audit of `src/app/(dashboard)/dashboard` (admin focus). Parallel assessment sub-agents returned unusable output; review completed inline (degraded run) with direct code inspection + Impeccable detector.
+- **Detector:** `detect.mjs` over the dashboard route returned **0 findings** (no slop patterns).
+- **Top findings:** P1 hydration-risk debug block in `dashboard/page.tsx:109` (`window.location.search` during render); P2 hardcoded placeholder props in `ActionsCard` (`page.tsx:61`: `unverifiedPaymentsCount={0}`, `isLoading={false}`); P2 duplicate component families (`sidebar.tsx`/`modern-sidebar.tsx`, `header.tsx`/`modern-header.tsx`) drifting.
+- **Strengths confirmed:** Suspense-streamed cards with skeletons, a11y touches (offline banner `aria-live`, breadcrumb `aria-current`, collapse buttons labeled).
+- **Live-browser pass added:** Authenticated as seeded super-admin and inspected `/dashboard` at 1440x1000 and 390x844. No horizontal overflow and no browser errors. Confirmed coherent desktop content hierarchy and responsive single-column mobile flow.
+- **Browser findings:** P1 mobile navigation Radix dialog emits the missing `Description` / `aria-describedby` warning twice; P1 multiple mobile controls are below 44x44 (menu/notifications 36x36, profile/theme 40x40, dialog close 16x16); P1 header includes an unlabelled icon-only button; P2 mobile header loses page identity (no visible Dashboard/greeting heading); P2 content labels expose weak/ambiguous semantics (`3,100,000 of 3,285,000 Invoices`, `Portfolio Value ₦0` vs `Wallet Credits ₦2,800,964`, generic audit verbs); P2 mobile nav is a reduced five-link subset versus the full desktop IA.
+- **No product files changed. Next:** fix merged P1/P2 findings or extend review to billing surface.
+
+## Last session (OpenCode, 2026-08-22 — Admin Playwright smoke pass)
+
+- **Authenticated browser verification:** Used `playwright-cli` with the seeded super-admin account against the existing local server on port 3000. Dashboard, main admin modules, and the primary settings routes loaded without application error text or browser console errors.
+- **Responsive check:** At 390x844, the dashboard rendered and the mobile menu opened with Dashboard, Residents, Transactions, Security, and Settings links.
+- **Finding:** The mobile menu emits two Radix dialog accessibility warnings because `DialogContent` has no description/`aria-describedby`. No data-changing controls were exercised.
+- **Worktree:** Existing uncommitted billing/searchable-select changes were preserved. No revert was performed because the requested revert target was not specified.
+- **Next:** Clarify which change or interface state should be reverted; optionally add a dialog description and rerun the mobile check.
 
 - **Settings page restructuring complete.** Split 6 monolithic settings pages into focused sub-routes with collapsible sidebar navigation. Total: 20+ new sub-routes created across the settings section.
 - **Sidebar navigation upgraded.** Added `children?: SettingsItem[]` type to `settings-nav.ts`. Desktop sidebar (`settings-sidebar.tsx`) and mobile nav (`settings-mobile-nav.tsx`) both support nested items with auto-expand on active route.

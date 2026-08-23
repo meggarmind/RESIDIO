@@ -75,4 +75,5 @@ Follow `DESIGN_AGENTS.md` (the repo's design standard) for all UI work: OKLCH co
 - `SESSION_STATE.md` is the live cross-agent handoff and current verified baseline. Read it before substantive work and update its snapshot, last-session entry, and next steps before finishing, whether or not the user explicitly asks.
 - Maintain `TODO.md` as the product backlog: mark completed items, add newly discovered follow-up work, and keep priorities aligned with the current delivery focus.
 - Update `ACTIONPLAN.md` whenever work completes, changes, or invalidates an active plan step.
+- When implementation is complete and the ticket has been updated with verification results, move its project-board status to **Review** before finishing the session. Keep it open until review is accepted; if project access is unavailable, report the blocker explicitly.
 - Record the work actually performed, decisions, verification results, known failures, and remaining work. Do not create separate handoff files; `SESSION_STATE.md` is the sole live handoff.

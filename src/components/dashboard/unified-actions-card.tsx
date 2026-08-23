@@ -14,15 +14,17 @@ import {
     Zap,
     ChevronRight
 } from 'lucide-react';
-import type { SecurityAlerts, QuickStats } from '@/actions/dashboard/get-enhanced-dashboard-stats';
+import type { DashboardActionMetrics, QuickStats, SecurityAlerts } from '@/actions/dashboard/get-enhanced-dashboard-stats';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
 interface UnifiedActionsCardProps {
-    securityAlerts: SecurityAlerts | null;
-    quickStats: QuickStats | null;
+    actionMetrics?: DashboardActionMetrics | null;
+    securityAlerts?: SecurityAlerts | null;
+    quickStats?: QuickStats | null;
     unverifiedPaymentsCount?: number;
     isLoading?: boolean;
+    isUnavailable?: boolean;
 }
 
 interface QuickAction {
@@ -143,19 +145,24 @@ function UnifiedActionsCardSkeleton() {
 }
 
 export function UnifiedActionsCard({
+    actionMetrics,
     securityAlerts,
     quickStats,
-    unverifiedPaymentsCount = 0,
-    isLoading
+    unverifiedPaymentsCount,
+    isLoading,
+    isUnavailable = false,
 }: UnifiedActionsCardProps) {
-    if (isLoading || !securityAlerts || !quickStats) {
+    if (isLoading) {
         return <UnifiedActionsCardSkeleton />;
     }
 
-    const pendingVerifications = quickStats.pendingVerification ?? 0;
-    const expiringContacts = securityAlerts.expiringCodesCount ?? 0;
-    const totalActions = pendingVerifications + unverifiedPaymentsCount + expiringContacts;
-    const hasActions = totalActions > 0;
+    const legacyMetricsAvailable = Boolean(securityAlerts && quickStats && unverifiedPaymentsCount !== undefined);
+    const totalActions = actionMetrics?.totalRequiringAttention
+        ?? (legacyMetricsAvailable
+            ? (quickStats?.pendingVerification ?? 0) + (securityAlerts?.expiringCodesCount ?? 0) + (unverifiedPaymentsCount ?? 0)
+            : 0);
+    const unavailable = isUnavailable || (!actionMetrics && !legacyMetricsAvailable);
+    const hasActions = !unavailable && totalActions > 0;
 
     return (
         <Card className="overflow-hidden relative animate-fade-in-up h-[270px] flex flex-col">
@@ -171,7 +178,9 @@ export function UnifiedActionsCard({
                             "h-5 w-5",
                             hasActions ? "text-amber-500" : "text-emerald-500"
                         )} />
-                        {hasActions ? (
+                        {unavailable ? (
+                            <span className="text-sm text-muted-foreground">Attention status unavailable</span>
+                        ) : hasActions ? (
                             <>
                                 <AnimatedCounter
                                     value={totalActions}
@@ -186,12 +195,12 @@ export function UnifiedActionsCard({
                                 </span>
                             </>
                         ) : (
-                            <span className="text-emerald-600 dark:text-emerald-400">All Clear</span>
+                            <span className="text-emerald-600 dark:text-emerald-400">0 items need attention</span>
                         )}
                     </div>
                     <Button variant="ghost" size="sm" asChild className="text-xs h-7 px-2">
                         <Link href="/approvals">
-                            View All
+                            Payment approvals
                             <ChevronRight className="h-3.5 w-3.5 ml-1" />
                         </Link>
                     </Button>

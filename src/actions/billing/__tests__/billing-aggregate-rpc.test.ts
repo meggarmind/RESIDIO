@@ -5,17 +5,41 @@ import {
   getResidentIndebtedness,
 } from '@/actions/billing/get-invoices';
 
-const { rpc, createServerSupabaseClient } = vi.hoisted(() => ({
+const { authorizePermission, rpc, createServerSupabaseClient } = vi.hoisted(() => ({
+  authorizePermission: vi.fn(),
   rpc: vi.fn(),
   createServerSupabaseClient: vi.fn(),
 }));
 
+vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
 vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient }));
 
 describe('billing aggregate RPC adapters', () => {
   beforeEach(() => {
+    authorizePermission.mockReset();
     rpc.mockReset();
+    createServerSupabaseClient.mockReset();
+    authorizePermission.mockResolvedValue({ authorized: true, error: null });
     createServerSupabaseClient.mockResolvedValue({ rpc });
+  });
+
+  it('rejects unauthorized aggregate reads before creating a data client', async () => {
+    authorizePermission.mockResolvedValue({ authorized: false, error: 'Unauthorized: Missing permission' });
+
+    await expect(getResidentIndebtedness('resident-2')).resolves.toEqual({
+      data: null,
+      error: 'Unauthorized: Missing permission',
+    });
+    await expect(getHousePaymentStatus('house-2')).resolves.toEqual({
+      data: null,
+      error: 'Unauthorized: Missing permission',
+    });
+
+    expect(authorizePermission).toHaveBeenCalledTimes(2);
+    expect(authorizePermission).toHaveBeenNthCalledWith(1, 'billing.view');
+    expect(authorizePermission).toHaveBeenNthCalledWith(2, 'billing.view');
+    expect(createServerSupabaseClient).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it('uses the bounded resident indebtedness aggregate', async () => {

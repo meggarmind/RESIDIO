@@ -8,8 +8,8 @@ test.describe('Phase 2: Dashboard Shell', () => {
         // Check dashboard has loaded
         await expect(page).toHaveURL(/\/dashboard/);
 
-        // Look for dashboard stats cards (modern UI uses Collection / Monthly Revenue etc.)
-        await expect(page.getByText('Monthly Revenue').first()).toBeVisible({ timeout: 20000 });
+        // Look for dashboard stats cards (modern UI uses Collection / Verified Payments etc.)
+        await expect(page.getByText('Verified Payments').first()).toBeVisible({ timeout: 20000 });
         await expect(page.getByText('Collection').first()).toBeVisible({ timeout: 20000 });
     });
 
@@ -44,8 +44,6 @@ test.describe('Phase 2: Dashboard Shell', () => {
         await loginAs(page, 'admin');
 
         // Look for user menu or dropdown
-        const userMenu = page.locator('[data-user-menu], button:has-text("Sign out"), button:has-text("Logout"), [aria-label*="user"], [aria-label*="account"]');
-
         // Either sign out is directly visible or we need to open a dropdown
         const signOutButton = page.getByRole('button', { name: /sign out|logout/i });
         const menuTrigger = page.locator('button:has([class*="avatar"]), [data-user-menu-trigger]');
@@ -86,7 +84,7 @@ test.describe('Phase 2: Dashboard Shell', () => {
         await expandSidebar(page);
 
         // Wait for dashboard to fully load and sidebar nav to settle
-        await expect(page.getByText('Monthly Revenue').first()).toBeVisible({ timeout: 10000 });
+        await expect(page.getByText('Verified Payments').first()).toBeVisible({ timeout: 10000 });
         await expect(page.locator('aside a[href="/residents"]').first()).toBeVisible({ timeout: 15000 });
 
         // Click on Residents link
@@ -104,5 +102,62 @@ test.describe('Phase 2: Dashboard Shell', () => {
         await expect(page.locator('aside a[href="/dashboard"]').first()).toBeVisible({ timeout: 15000 });
         await page.locator('aside a[href="/dashboard"]').first().click();
         await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 });
+    });
+
+    test('TC2.7: Dashboard debug state is hydration-safe', async ({ page }) => {
+        const hydrationWarnings: string[] = [];
+        page.on('console', (message) => {
+            if (/hydration|did not match|server rendered html/i.test(message.text())) {
+                hydrationWarnings.push(message.text());
+            }
+        });
+        await loginAs(page, 'admin');
+        await expect(page.locator('[data-dashboard-debug="true"]')).toHaveCount(0);
+        await page.goto('/dashboard?debug=true');
+        await expect(page.locator('[data-dashboard-debug="true"]')).toBeVisible();
+        expect(hydrationWarnings).toEqual([]);
+    });
+
+    test('TC2.8: Mobile navigation controls are accessible', async ({ page }) => {
+        const accessibilityWarnings: string[] = [];
+        page.on('console', (message) => {
+            if (/DialogContent.*Description|aria-describedby/i.test(message.text())) {
+                accessibilityWarnings.push(message.text());
+            }
+        });
+        await page.setViewportSize({ width: 390, height: 844 });
+        await loginAs(page, 'admin');
+
+        const menu = page.getByRole('button', { name: 'Open navigation menu' });
+        const notifications = page.getByRole('button', { name: /notifications/i });
+        const profile = page.getByRole('button', { name: 'Open profile menu' });
+
+        for (const control of [menu, notifications, profile]) {
+            await expect(control).toBeVisible();
+            const box = await control.boundingBox();
+            expect(box?.width).toBeGreaterThanOrEqual(44);
+            expect(box?.height).toBeGreaterThanOrEqual(44);
+        }
+
+        await menu.click();
+        const dialog = page.getByRole('dialog');
+        const close = page.getByRole('button', { name: 'Close panel' });
+        const theme = page.getByRole('button', { name: 'Change color theme' });
+
+        await expect(dialog).toBeVisible();
+        await expect(dialog).toHaveAttribute('aria-describedby', /.+/);
+        for (const control of [close, theme]) {
+            const box = await control.boundingBox();
+            expect(box?.width).toBeGreaterThanOrEqual(44);
+            expect(box?.height).toBeGreaterThanOrEqual(44);
+        }
+
+        await close.focus();
+        await expect(close).toBeFocused();
+        await expect(close).toHaveClass(/focus-visible:ring-2/);
+        expect(accessibilityWarnings).toEqual([]);
+
+        await close.click();
+        await expect(dialog).toBeHidden();
     });
 });

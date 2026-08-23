@@ -1,5 +1,3 @@
-import { formatDistanceToNow } from 'date-fns';
-
 export interface AuditLogEntry {
     id: string;
     action: string;
@@ -7,7 +5,11 @@ export interface AuditLogEntry {
     entity_display?: string;
     description: string;
     created_at: string;
-    new_values?: any;
+    new_values?: {
+        month?: string;
+        amount?: string | number;
+        [key: string]: unknown;
+    };
     actor?: {
         full_name: string;
     };
@@ -44,10 +46,65 @@ const ACTION_MAPPINGS: Record<string, string> = {
     'UPDATE': 'Updated',
     'DELETE': 'Deleted',
     'RESTORE': 'Restored',
+    'APPROVE': 'Approved',
+    'REJECT': 'Rejected',
+    'IMPORT': 'Imported',
+    'EXPORT': 'Exported',
 };
 
+function toTitleCase(value: string): string {
+    return value
+        .trim()
+        .toLowerCase()
+        .replace(/(^|[\s_-])\p{L}/gu, (character) => character.toUpperCase())
+        .replace(/[_-]+/g, ' ');
+}
+
+function humanizeAction(action: string): string {
+    return ACTION_MAPPINGS[action.toUpperCase()] || toTitleCase(action);
+}
+
+function humanizeEntity(entityType: string): string {
+    return ENTITY_MAPPINGS[entityType] || toTitleCase(entityType);
+}
+
+function isGenericDescription(log: AuditLogEntry): boolean {
+    if (!log.description?.trim()) {
+        return true;
+    }
+
+    const normalizedDescription = log.description.trim().toLowerCase().replace(/[_-]+/g, ' ');
+    const normalizedAction = log.action.trim().toLowerCase().replace(/[_-]+/g, ' ');
+    const normalizedEntity = log.entity_type.trim().toLowerCase().replace(/[_-]+/g, ' ');
+
+    return normalizedDescription === `${normalizedAction} ${normalizedEntity}`;
+}
+
+function normalizeDescription(description: string): string {
+    const trimmedDescription = description.trim().replace(/\s+/g, ' ');
+
+    if (/^[A-Z\d\s_:/.-]+$/.test(trimmedDescription)) {
+        const identifiers = new Map<string, string>();
+        const protectedDescription = trimmedDescription.replace(/\b[A-Z\d]+(?:_[A-Z\d]+)+\b/g, (identifier) => {
+            const placeholder = `§${identifiers.size}§`;
+            identifiers.set(placeholder, identifier);
+            return placeholder;
+        });
+        const normalizedDescription = protectedDescription
+            .toLowerCase()
+            .replace(/_/g, ' ')
+            .replace(/(^|[.!?]\s+)\p{L}/gu, (character) => character.toUpperCase());
+
+        return Array.from(identifiers).reduce(
+            (value, [placeholder, identifier]) => value.replace(placeholder, identifier),
+            normalizedDescription
+        );
+    }
+
+    return trimmedDescription;
+}
+
 export function formatAuditLog(log: AuditLogEntry): FormattedAuditLog {
-    // Determine the type for the icon
     let type: FormattedAuditLog['type'] = 'resident';
 
     switch (log.entity_type) {
@@ -72,45 +129,29 @@ export function formatAuditLog(log: AuditLogEntry): FormattedAuditLog {
             break;
     }
 
-    // Format the Action
-    const humanAction = ACTION_MAPPINGS[log.action] || log.action;
+    const humanAction = humanizeAction(log.action);
+    const humanEntity = humanizeEntity(log.entity_type);
+    const entityDisplay = log.entity_display?.trim();
+    let description = normalizeDescription(log.description || '');
 
-    // Format the Entity Name
-    const humanEntity = ENTITY_MAPPINGS[log.entity_type] || log.entity_type.replace(/_/g, ' ');
-
-    // Construct a human-readable description
-    let description = log.description;
-
-    // If the description is just the default "ACTION entity_type", improve it
-    if (!description || description === `${log.action} ${log.entity_type}`) {
-        // Try to distinguish based on context using new_values if available
+    if (isGenericDescription(log)) {
         if (log.entity_type === 'bank_statement_imports' && log.new_values?.month) {
-            description = `${humanAction} ${humanEntity} for ${log.new_values.month}`;
-        } else if (log.action === 'CREATE' && log.entity_type === 'estate_bank_account_passwords') {
-            description = `Added new ${humanEntity}`;
+            description = `${humanEntity} for ${log.new_values.month}`;
+        } else if (log.entity_type === 'estate_bank_account_passwords' && log.action.toUpperCase() === 'CREATE') {
+            description = 'A new banking password was added';
         } else {
-            description = `${humanAction} ${humanEntity}`;
+            description = entityDisplay ? `${humanEntity}: ${entityDisplay}` : humanEntity;
         }
-
-        // Add specific entity identifier if available and not too long
-        if (log.entity_display) {
-            description += `: ${log.entity_display}`;
-        }
-    }
-
-    // Special case for "CREATE estate_bank_account_passwords" specifically mentioned by user
-    if (log.entity_type === 'estate_bank_account_passwords' && log.action === 'CREATE') {
-        description = 'Added new banking password';
     }
 
     return {
         id: log.id,
         type,
-        action: humanAction.toUpperCase(), // Pulse UI expects uppercase action often, or we can keep it standard
+        action: `${humanAction} ${humanEntity}`,
         description,
         timestamp: log.created_at,
         actorName: log.actor?.full_name,
-        entityName: log.entity_display,
+        entityName: entityDisplay,
         amount: log.new_values?.amount ? Number(log.new_values.amount) : undefined
     };
 }

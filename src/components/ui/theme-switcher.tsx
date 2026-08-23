@@ -39,7 +39,7 @@ export function ThemeSwitcher({ variant = 'default', className }: ThemeSwitcherP
         variant="ghost"
         size={variant === 'compact' ? 'icon' : 'sm'}
         className={cn(
-          variant === 'compact' ? 'h-8 w-8' : 'h-8 w-full justify-start gap-2',
+          variant === 'compact' ? 'size-11' : 'min-h-11 w-full justify-start gap-2',
           className
         )}
         disabled
@@ -62,7 +62,11 @@ export function ThemeSwitcher({ variant = 'default', className }: ThemeSwitcherP
           <Button
             variant="ghost"
             size="icon"
-            className={cn('h-8 w-8', className)}
+            className={cn(
+              'size-11 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              className
+            )}
+            aria-label="Change color theme"
           >
             <CurrentIcon className="h-4 w-4" />
             <span className="sr-only">Toggle theme</span>
@@ -91,7 +95,7 @@ export function ThemeSwitcher({ variant = 'default', className }: ThemeSwitcherP
         <Button
           variant="ghost"
           size="sm"
-          className={cn('h-8 w-full justify-start gap-2', className)}
+          className={cn('min-h-11 w-full justify-start gap-2', className)}
         >
           <CurrentIcon className="h-4 w-4" />
           <span className="flex-1 text-left text-xs">{currentTheme.label}</span>

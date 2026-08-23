@@ -6,9 +6,11 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
+import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
@@ -79,6 +81,9 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
               </>
             )}
           </SheetTitle>
+          <SheetDescription className="sr-only">
+            Navigate between administration areas and account controls.
+          </SheetDescription>
         </SheetHeader>
 
         <nav className={cn('flex-1 px-4 py-4', isModern && 'px-6 py-6')}>
@@ -123,6 +128,13 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
             isModern && 'border-[#334155] p-6'
           )}
         >
+          <ThemeSwitcher
+            variant="compact"
+            className={cn(
+              'mb-3',
+              isModern && 'text-gray-300 hover:bg-[#334155] hover:text-white'
+            )}
+          />
           <div
             className={cn(
               'flex items-center gap-3 px-3 py-2',

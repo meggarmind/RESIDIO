@@ -2,7 +2,26 @@
 
 > **🎯 PRODUCT FOCUS (2026-08-06): ADMIN DASHBOARD ONLY.** Resident Portal / self-service (`src/app/(resident)/**`, resident-portal components) is **NOT planned for rollout** in the foreseeable future. De-prioritize all self-service work listed below (portal wallet, resident payments, announcements/documents/profile, impersonation, onboarding). Keep it stable/local only; do not extend or polish it. Prioritize admin management/finance/security/operations/reporting instead.
 
-**Last Updated:** 2026-08-20 (settings page restructuring)
+**Last Updated:** 2026-08-23 (billing issues #79, #80, and #94 implemented)
+
+### Admin User Guide (2026-08-22)
+- [x] Docusaurus admin guide created under `website/` with role-aware workflows across all admin areas.
+- [x] Playwright screenshot capture and browser-side sensitive-value masking added.
+- [x] GitHub Pages deployment published at `https://meggarmind.github.io/RESIDIO/`.
+- [ ] Keep screenshots and workflow instructions synchronized with future admin UI changes.
+
+### Billing Filter and Query Security (2026-08-23)
+- [x] **#94 Billing query authorization:** Added fail-closed permissions to invoice, indebtedness, house-payment, cross-property, resident-list, and billing-filter reads.
+- [x] **#79 Resident invoice deep link:** `/billing?resident_id=...` initializes the invoice query with that resident while preserving the unfiltered default.
+- [x] **#80 Resident filter enhancement:** Added a complete, alphabetized, searchable name/alias selector backed by a focused authorized query.
+
+### Dashboard Review Follow-up (2026-08-22)
+- [x] **#99 Mobile navigation accessibility:** Added dialog description, accessible control names, visible focus, 44px targets, and Playwright regression coverage.
+- [x] **#100 Dashboard hydration and loading hardening:** Replaced direct browser-global debug rendering with hydration-safe navigation state and distinct route/auth/error states.
+- [x] **#101 Trustworthy dashboard metrics and actions:** Added real attention counts, unambiguous finance labels, query failure propagation, and distinct zero/unavailable states.
+- [x] **#98 Scannable audit activity:** Humanized activity labels, preserved transaction references, improved wrapping/timestamps, and retained the audit-log route.
+- [ ] **#102 Mobile dashboard orientation and navigation parity:** Restore mobile page identity and required admin navigation. Blocked by #99.
+- [ ] **#103 Dashboard shell variant cleanup:** Consolidate legacy and modern shell variants. Blocked by #99 and #102.
 
 ### Settings Page Restructuring (2026-08-20)
 - [x] Split 6 monolithic settings pages into focused sub-routes (20+ new routes created)

@@ -189,8 +189,12 @@ export function resolveProfileVersion(periodStart: string, versions: BillingProf
   const applicable = versions
     .filter((version) => version.effectiveFrom <= periodStart)
     .sort((left, right) => right.effectiveFrom.localeCompare(left.effectiveFrom));
-  if (!applicable[0]) throw new Error(`No billing profile version is effective for ${periodStart}`);
-  return applicable[0];
+  if (applicable[0]) return applicable[0];
+
+  const sorted = [...versions].sort((left, right) => left.effectiveFrom.localeCompare(right.effectiveFrom));
+  if (sorted[0]) return sorted[0];
+
+  throw new Error(`No billing profile version is effective for ${periodStart}`);
 }
 
 function isHouseEligible(house: GenerationHouse, eligibility: InvoiceGenerationEligibility): string | null {
@@ -285,12 +289,17 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
       const housePriority = house.propertyStatus === 'vacant'
         ? [...ROLE_PRIORITY, 'non_resident_landlord' as const]
         : ROLE_PRIORITY;
-      const billable = housePriority.map((role) => eligibleResidents.find((resident) => resident.role === role)).find(Boolean);
+
+      const billable = housePriority
+        .map((role) => eligibleResidents.find((resident) => resident.role === role))
+        .find(Boolean);
+
       if (!billable) {
         const firstReason = residentRoles[0] ? residentEligible(residentRoles[0], profile) : 'No active residents';
         skips.push({ houseId: house.id, house: house.label, reason: firstReason || 'No billable resident found' });
         continue;
       }
+
       for (const period of periods) {
         const version = resolveProfileVersion(period, input.versions.filter((item) => item.billingProfileId === profile.id));
         const evaluation = evaluateCandidate(billable, house, profile, version, period, eligibility.dueWindowDays);

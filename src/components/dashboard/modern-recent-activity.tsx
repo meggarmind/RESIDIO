@@ -54,31 +54,38 @@ const activityConfig: Record<RecentActivityItem['type'], {
 function ActivityListItem({ activity, index }: { activity: RecentActivityItem; index: number }) {
   const config = activityConfig[activity.type] || activityConfig.approval;
   const Icon = config.icon;
-  const timeAgo = formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true });
+  const timestamp = new Date(activity.timestamp);
+  const timeAgo = formatDistanceToNow(timestamp, { addSuffix: true });
+  const exactTime = format(timestamp, 'MMM d, yyyy, h:mm a');
 
   return (
     <motion.div
       initial={{ opacity: 0, x: -5 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.02, duration: 0.2 }}
-      className="flex items-start gap-2.5 py-1.5 px-1.5 rounded-md transition-all hover:bg-muted/40 cursor-pointer group h-full"
+      className="flex h-full items-start gap-2.5 rounded-md px-1.5 py-2 transition-colors hover:bg-muted/40 group"
     >
       <div className={cn(
         'flex h-7 w-7 shrink-0 items-center justify-center rounded-md shadow-sm border border-transparent group-hover:border-primary/20 transition-colors mt-0.5',
         config.bgColor
       )}>
-        <Icon className={cn('h-3 w-3', config.color)} />
+        <Icon className={cn('h-3.5 w-3.5', config.color)} aria-hidden="true" />
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-bold text-foreground truncate group-hover:text-primary transition-colors">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 text-xs font-semibold leading-4 text-foreground transition-colors group-hover:text-primary">
             {activity.action}
           </p>
-          <span className="text-[9px] font-medium text-muted-foreground whitespace-nowrap opacity-60">
+          <time
+            dateTime={activity.timestamp}
+            title={exactTime}
+            aria-label={`${timeAgo}, ${exactTime}`}
+            className="shrink-0 whitespace-nowrap text-[10px] font-medium leading-4 text-muted-foreground"
+          >
             {timeAgo}
-          </span>
+          </time>
         </div>
-        <p className="text-[10px] text-muted-foreground opacity-80 leading-tight break-all whitespace-normal">
+        <p className="mt-0.5 whitespace-normal break-words text-[11px] leading-4 text-muted-foreground [overflow-wrap:anywhere]">
           {activity.description}
         </p>
       </div>
@@ -138,32 +145,29 @@ export function ModernRecentActivity({ activities, isLoading }: ModernRecentActi
       'rounded-xl border bg-card p-4 transition-all duration-300 h-[205px] flex flex-col overflow-hidden',
       'shadow-soft hover:shadow-elevated'
     )}>
-      {/* Header */}
-      <div className="mb-4 flex items-center justify-between shrink-0">
+      <div className="mb-3 flex shrink-0 items-center justify-between">
         <div className="flex items-center gap-2">
-          <Activity className="h-3.5 w-3.5 text-primary" />
-          <h3 className="text-xs font-bold tracking-tight uppercase">Audit Pulse</h3>
+          <Activity className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+          <h3 className="text-xs font-bold tracking-tight">Recent activity</h3>
         </div>
         <Link
           href="/settings/audit-logs"
-          className="flex items-center gap-0.5 text-[10px] font-bold text-muted-foreground hover:text-primary transition-colors"
+          className="flex min-h-7 items-center gap-1 rounded-md px-1.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          Logs
-          <ChevronRight className="h-2.5 w-2.5" />
+          View audit logs
+          <ChevronRight className="h-3 w-3" aria-hidden="true" />
         </Link>
       </div>
-
-      {/* Activity List with ScrollArea */}
       <ScrollArea className="flex-1 min-h-0 -mx-1 px-1 pr-3">
         <div className="space-y-4 pb-2">
           {activities.length > 0 ? (
             Object.entries(groupedActivities).map(([label, items]) => (
               <div key={label} className="space-y-0.5">
                 <div className="flex items-center gap-2 px-1 mb-1.5">
-                  <span className="text-[8px] font-black uppercase tracking-widest text-primary/40">
+                  <span className="text-[10px] font-semibold text-muted-foreground">
                     {label}
                   </span>
-                  <div className="h-px flex-1 bg-muted/50" />
+                  <div className="h-px flex-1 bg-muted/50" aria-hidden="true" />
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-4 gap-y-1">
                   {items.map((activity, idx) => (
@@ -178,8 +182,8 @@ export function ModernRecentActivity({ activities, isLoading }: ModernRecentActi
             ))
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <FileText className="h-6 w-6 text-muted-foreground/20 mb-2" />
-              <p className="text-[10px] text-muted-foreground">No events found.</p>
+              <FileText className="mb-2 h-6 w-6 text-muted-foreground/40" aria-hidden="true" />
+              <p className="text-xs text-muted-foreground">No recent activity.</p>
             </div>
           )}
         </div>

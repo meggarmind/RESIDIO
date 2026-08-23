@@ -6,6 +6,11 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { getHouses } from '@/actions/houses/get-houses';
+import { getStreets } from '@/actions/reference/get-streets';
+import { getResidents } from '@/actions/residents/get-residents';
+import { getLateFeeSettings } from '@/actions/billing/apply-late-fees';
 import {
   useGenerateInvoicesPreview,
   useInvoiceGenerationRun,
@@ -36,9 +41,15 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
   const [fromMonth, setFromMonth] = useState('');
   const [scopeType, setScopeType] = useState<ScopeType>('estate');
   const [scopeId, setScopeId] = useState('');
+  const [houses, setHouses] = useState<Array<{ id: string; house_number: string; street?: { name: string } | null }>>([]);
+  const [streets, setStreets] = useState<Array<{ id: string; name: string }>>([]);
+  const [residents, setResidents] = useState<Array<{ id: string; first_name: string; last_name: string; resident_code?: string | null }>>([]);
+  const [scopeLoading, setScopeLoading] = useState(false);
   const [walletAllocation, setWalletAllocation] = useState(true);
   const [sendEmails, setSendEmails] = useState(true);
   const [assessLateFees, setAssessLateFees] = useState(true);
+  const [lateFeeEnabled, setLateFeeEnabled] = useState(false);
+  const [confirmationCode, setConfirmationCode] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [preview, setPreview] = useState<NonNullable<Awaited<ReturnType<typeof useGenerateInvoicesPreview>>['data']> | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
@@ -50,10 +61,60 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
   const run = runQuery.data;
 
   const requiresConfirmation = mode === 'backfill';
-  const confirmationText = preview?.summary ? `GENERATE ${formatCurrency(preview.summary.totalAmount)}` : '';
-  const confirmationMatches = !requiresConfirmation || confirmation.trim() === confirmationText;
+  const confirmationText = confirmationCode;
+  const confirmationMatches = !requiresConfirmation || confirmation.trim().toUpperCase() === confirmationCode.toUpperCase();
   const scopeError = scopeType !== 'estate' && !scopeId.trim();
   const previewKey = useMemo(() => JSON.stringify({ mode, targetMonth, fromMonth, scopeType, scopeId, walletAllocation, sendEmails, assessLateFees }), [mode, targetMonth, fromMonth, scopeType, scopeId, walletAllocation, sendEmails, assessLateFees]);
+
+  const generateRandomCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 10; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    getLateFeeSettings()
+      .then((settings) => {
+        setLateFeeEnabled(settings.enabled);
+        if (!settings.enabled) {
+          setAssessLateFees(false);
+        }
+      })
+      .catch((err) => console.error('Failed to load late fee settings', err));
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (scopeType === 'house' && houses.length === 0) {
+      setScopeLoading(true);
+      getHouses({ limit: 200 })
+        .then((res) => {
+          if (!res.error && res.data) setHouses(res.data);
+        })
+        .catch((err) => console.error('Failed to load houses', err))
+        .finally(() => setScopeLoading(false));
+    } else if (scopeType === 'street' && streets.length === 0) {
+      setScopeLoading(true);
+      getStreets()
+        .then((res) => {
+          if (!res.error && res.data) setStreets(res.data);
+        })
+        .catch((err) => console.error('Failed to load streets', err))
+        .finally(() => setScopeLoading(false));
+    } else if (scopeType === 'resident' && residents.length === 0) {
+      setScopeLoading(true);
+      getResidents({ limit: 200 })
+        .then((res) => {
+          if (!res.error && res.data) setResidents(res.data);
+        })
+        .catch((err) => console.error('Failed to load residents', err))
+        .finally(() => setScopeLoading(false));
+    }
+  }, [open, scopeType, houses.length, streets.length, residents.length]);
 
   const handleModeChange = (nextMode: GenerationMode) => {
     setMode(nextMode);
@@ -94,6 +155,7 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
         assessLateFees,
       });
       setPreview(result);
+      setConfirmationCode(generateRandomCode());
       setConfirmation('');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Preview failed');
@@ -174,17 +236,59 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
                   <div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
                     <select className="h-9 rounded-md border bg-background px-3 text-sm" value={scopeType} onChange={(event) => { setScopeType(event.target.value as ScopeType); setScopeId(''); setPreview(null); }}>
                       <option value="estate">Entire estate</option>
-                      <option value="house">House ID</option>
-                      <option value="street">Street ID</option>
-                      <option value="resident">Resident ID</option>
+                      <option value="house">House</option>
+                      <option value="street">Street</option>
+                      <option value="resident">Resident</option>
                     </select>
-                    {scopeType !== 'estate' && <input className="h-9 rounded-md border bg-background px-3 text-sm" placeholder={`Paste ${scopeType} UUID`} value={scopeId} onChange={(event) => { setScopeId(event.target.value); setPreview(null); }} />}
+                    {scopeType === 'house' && (
+                      <SearchableSelect
+                        options={houses.map((h) => ({
+                          value: h.id,
+                          label: `${h.house_number}${h.street?.name ? `, ${h.street.name}` : ''}`,
+                        }))}
+                        value={scopeId}
+                        onValueChange={(val) => { setScopeId(val); setPreview(null); }}
+                        placeholder={scopeLoading ? 'Loading houses...' : 'Select house...'}
+                        searchPlaceholder="Search house number or street..."
+                        disabled={scopeLoading}
+                      />
+                    )}
+                    {scopeType === 'street' && (
+                      <SearchableSelect
+                        options={streets.map((s) => ({
+                          value: s.id,
+                          label: s.name,
+                        }))}
+                        value={scopeId}
+                        onValueChange={(val) => { setScopeId(val); setPreview(null); }}
+                        placeholder={scopeLoading ? 'Loading streets...' : 'Select street...'}
+                        searchPlaceholder="Search street name..."
+                        disabled={scopeLoading}
+                      />
+                    )}
+                    {scopeType === 'resident' && (
+                      <SearchableSelect
+                        options={residents.map((r) => ({
+                          value: r.id,
+                          label: `${r.first_name} ${r.last_name}${r.resident_code ? ` (${r.resident_code})` : ''}`,
+                        }))}
+                        value={scopeId}
+                        onValueChange={(val) => { setScopeId(val); setPreview(null); }}
+                        placeholder={scopeLoading ? 'Loading residents...' : 'Select resident...'}
+                        searchPlaceholder="Search resident name or code..."
+                        disabled={scopeLoading}
+                      />
+                    )}
                   </div>
                   {scopeError && <p className="text-xs text-destructive">Enter a scope ID or choose entire estate.</p>}
                 </div>
 
                 <div className="grid gap-2 sm:grid-cols-3">
-                  {[['wallet', walletAllocation, setWalletAllocation, 'Wallet allocation'], ['email', sendEmails, setSendEmails, 'Resident emails'], ['lateFees', assessLateFees, setAssessLateFees, 'Assess late fees']].map(([key, checked, setter, label]) => (
+                  {[
+                    ['wallet', walletAllocation, setWalletAllocation, 'Wallet allocation'],
+                    ['email', sendEmails, setSendEmails, 'Resident emails'],
+                    ...(lateFeeEnabled ? [['lateFees', assessLateFees, setAssessLateFees, 'Assess late fees']] : []),
+                  ].map(([key, checked, setter, label]) => (
                     <label key={String(key)} className="flex items-center gap-2 rounded-md border p-3 text-sm">
                       <input type="checkbox" checked={Boolean(checked)} onChange={(event) => { (setter as (value: boolean) => void)(event.target.checked); setPreview(null); }} />
                       {String(label)}
@@ -206,9 +310,23 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
                     <Metric label="Candidates" value={String(preview.preview.length)} />
                   </div>
                   <div className="flex flex-wrap gap-2"><Badge variant="secondary">{preview.summary.eligibleHouses} houses</Badge><Badge variant="secondary">{preview.summary.totalResidents} residents</Badge><Badge variant="outline">{preview.summary.existingInvoices} existing</Badge></div>
-                  {preview.summary.warnings.length > 0 && <div className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100">{preview.summary.warnings.map((warning) => <p key={warning} className="flex gap-2"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{warning}</p>)}</div>}
+                  {preview.summary.warnings.length > 0 && (
+                    <div className="max-h-36 space-y-1 overflow-y-auto rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100">
+                      {preview.summary.warnings.map((warning) => (
+                        <p key={warning} className="flex gap-2">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                          {warning}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">{newItems.length} new candidate(s) will be prepared. Existing invoices are skipped by the database business key.</p>
-                  {requiresConfirmation && <label className="block space-y-1.5 text-sm font-medium">Type <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{confirmationText}</code> to confirm<input className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={confirmationText} /></label>}
+                  {requiresConfirmation && (
+                    <label className="block space-y-1.5 text-sm font-medium">
+                      Type security code <code className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono font-bold">{confirmationText}</code> to confirm
+                      <input className="h-9 w-full rounded-md border bg-background px-3 text-sm font-mono uppercase" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={confirmationText} />
+                    </label>
+                  )}
                   <Button className="w-full" onClick={handlePrepare} disabled={prepareMutation.isPending || !confirmationMatches || preview.summary.newInvoices === 0}>
                     {prepareMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}Prepare durable run
                   </Button>

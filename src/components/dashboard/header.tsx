@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-provider';
@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import { NotificationBell } from '@/components/notifications';
 import { GlobalSearchCommand } from './global-search-command';
 import { AdminBreadcrumb } from './admin-breadcrumb';
@@ -38,9 +37,6 @@ import {
   FileText,
   BadgeCheck,
   Sparkles,
-  Activity,
-  Command,
-  LayoutGrid,
   ShieldCheck,
   Upload,
 } from 'lucide-react';
@@ -52,14 +48,14 @@ interface HeaderProps {
 export function Header({ onMenuClick }: HeaderProps) {
   const { profile, signOut, residentId, isSigningOut, isLoading } = useAuth();
   const { isDismissed, restoreAssistant } = useAiAssistant();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const [searchOpen, setSearchOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const pathname = usePathname();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Simple greeting based on time of day
   const getGreeting = () => {
@@ -83,8 +79,9 @@ export function Header({ onMenuClick }: HeaderProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden hover:bg-accent/50 transition-colors rounded-xl"
+              className="size-11 min-h-11 min-w-11 rounded-xl transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:hidden"
               onClick={onMenuClick}
+              aria-label="Open navigation menu"
             >
               <Menu className="h-5 w-5" />
               <span className="sr-only">Toggle menu</span>
@@ -157,7 +154,8 @@ export function Header({ onMenuClick }: HeaderProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-10 w-10 rounded-xl hover:bg-accent/50 transition-all hover:scale-105 active:scale-95 group"
+                  className="size-11 rounded-xl transition-all hover:scale-105 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-95 group"
+                  aria-label="Open quick actions"
                 >
                   <div className="relative h-6 w-6">
                     {/* Three small squares of the layout grid */}
@@ -222,7 +220,11 @@ export function Header({ onMenuClick }: HeaderProps) {
             {mounted && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-10 w-10 rounded-xl p-0 transition-all hover:bg-accent/50 hover:scale-105 active:scale-95">
+                  <Button
+                    variant="ghost"
+                    className="relative size-11 min-h-11 min-w-11 rounded-xl p-0 transition-all hover:scale-105 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-95"
+                    aria-label="Open profile menu"
+                  >
                     <Avatar className="h-9 w-9 border-2 border-background shadow-sm">
                       <AvatarFallback className="bg-accent-primary text-white font-bold">
                         {isLoading || !profile?.full_name ? (

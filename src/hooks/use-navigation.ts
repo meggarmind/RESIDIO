@@ -73,9 +73,6 @@ export function useNavigation(
       // Check permissions (skip during loading for optimistic UI)
       if (item.permissions && !isLoading) {
         const hasPerm = hasAnyPermission(item.permissions);
-        if (typeof window !== 'undefined' && window.location.search.includes('debug=true')) {
-          console.log(`[useNavigation] Filtering ${item.id}: required=${JSON.stringify(item.permissions)} hasAny=${hasPerm}`);
-        }
         if (!hasPerm) {
           return null;
         }

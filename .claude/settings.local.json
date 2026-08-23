@@ -159,7 +159,9 @@
       "Bash(node -e ' *)",
       "Bash(gh api graphql -f 'query= *)",
       "Bash(git log:*)",
-      "Bash(gh issue:*)"
+      "Bash(gh issue:*)",
+      "Bash(gh issue *)",
+      "Read(//tmp/**)"
     ],
     "deny": [],
     "ask": []

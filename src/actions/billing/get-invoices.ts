@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { sanitizeSearchInput } from '@/lib/utils';
 import type { InvoiceWithDetails, InvoiceStatus, InvoiceType } from '@/types/database';
 
@@ -22,7 +24,52 @@ type GetInvoicesResponse = {
     error: string | null;
 }
 
+type BillingResidentFilterOption = {
+    id: string;
+    first_name: string;
+    last_name: string;
+    aliases: string[];
+};
+
+export async function getBillingResidentFilterOptions(): Promise<{
+    data: BillingResidentFilterOption[] | null;
+    error: string | null;
+}> {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_VIEW);
+    if (!auth.authorized) {
+        return { data: null, error: auth.error || 'Unauthorized' };
+    }
+
+    const supabase = await createServerSupabaseClient();
+    const { data, error } = await supabase
+        .from('residents')
+        .select('id, first_name, last_name, resident_payment_aliases(alias_name, is_active)')
+        .order('first_name')
+        .order('last_name');
+
+    if (error) {
+        return { data: null, error: error.message };
+    }
+
+    return {
+        data: (data ?? []).map((resident) => ({
+            id: resident.id,
+            first_name: resident.first_name,
+            last_name: resident.last_name,
+            aliases: resident.resident_payment_aliases
+                .filter((alias) => alias.is_active)
+                .map((alias) => alias.alias_name),
+        })),
+        error: null,
+    };
+}
+
 export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetInvoicesResponse> {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_VIEW);
+    if (!auth.authorized) {
+        return { data: [], total: 0, error: auth.error || 'Unauthorized' };
+    }
+
     const supabase = await createServerSupabaseClient();
     const { status, invoiceType, residentId, houseId, search, page = 1, limit = 20 } = params;
 
@@ -73,6 +120,11 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
 }
 
 export async function getInvoiceById(id: string): Promise<{ data: InvoiceWithDetails | null; error: string | null }> {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_VIEW);
+    if (!auth.authorized) {
+        return { data: null, error: auth.error || 'Unauthorized' };
+    }
+
     const supabase = await createServerSupabaseClient();
 
     const { data, error } = await supabase
@@ -102,6 +154,11 @@ type ResidentIndebtedness = {
 }
 
 export async function getResidentIndebtedness(residentId: string): Promise<{ data: ResidentIndebtedness | null; error: string | null }> {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_VIEW);
+    if (!auth.authorized) {
+        return { data: null, error: auth.error || 'Unauthorized' };
+    }
+
     const supabase = await createServerSupabaseClient();
 
     const { data, error } = await supabase.rpc('get_resident_indebtedness', { p_resident_id: residentId });
@@ -136,6 +193,11 @@ export type HousePaymentStatus = {
 };
 
 export async function getHousePaymentStatus(houseId: string): Promise<{ data: HousePaymentStatus | null; error: string | null }> {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_VIEW);
+    if (!auth.authorized) {
+        return { data: null, error: auth.error || 'Unauthorized' };
+    }
+
     const supabase = await createServerSupabaseClient();
 
     const { data, error } = await supabase.rpc('get_house_payment_status', { p_house_id: houseId });
@@ -168,6 +230,11 @@ export type ResidentCrossPropertyPaymentSummary = {
 };
 
 export async function getResidentCrossPropertyPaymentSummary(residentId: string): Promise<{ data: ResidentCrossPropertyPaymentSummary | null; error: string | null }> {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_VIEW);
+    if (!auth.authorized) {
+        return { data: null, error: auth.error || 'Unauthorized' };
+    }
+
     const supabase = await createServerSupabaseClient();
 
     const { data, error } = await supabase.rpc('get_resident_cross_property_payment_summary', { p_resident_id: residentId });

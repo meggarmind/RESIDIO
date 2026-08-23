@@ -8,6 +8,8 @@ Status: IN PROGRESS
 
 ## Fast-Track Priorities
 
+**Billing filter and query security (2026-08-23):** Issues #79, #80, and #94 are implemented. Billing resident deep links now initialize filtering, the resident selector loads all residents through a focused authorized name/alias query, and invoice/resident financial reads fail closed on permission checks. TypeScript, 9 focused tests, scoped ESLint, full tests, and production build pass.
+
 1. **P0 Finance:** Financial statements, automatic statement import, reconciliation, billing, payments, and reports.
 2. **P0 Performance:** Complete Phase 6 before expanding heavy admin workflows.
 3. **P1 Communications:** WhatsApp and SMS integrations for estate/admin operational communications.
@@ -22,6 +24,12 @@ Status: IN PROGRESS
 - **Cloud read-only verification (2026-08-16):** All four WhatsApp identity/session tables are empty, RLS is enabled with service-role-only policies, and production rollout remains disabled with empty pilot targeting.
 - **Admin surface wiring:** Mounted opt-in import, pending-contact attach/ignore, and session-reset controls on `/settings/whatsapp`; import now uses the canonical phone-normalizing parser and fails closed on lookup errors.
 - **Remaining:** Write-path verification needs an approved reversible non-production fixture. Authenticated browser verification now passes against the empty live state.
+
+**Admin browser smoke pass (2026-08-22):** `playwright-cli` authenticated as the seeded super-admin and loaded the dashboard, primary admin modules, and key settings routes without application runtime errors. The 390x844 mobile menu opened successfully.
+
+**Dashboard review issues #98-#101 (2026-08-22):** Implemented scannable audit activity, accessible mobile navigation, hydration-safe debug/loading/error states, and trustworthy action/financial metrics. Focused Vitest, TypeScript, scoped ESLint, production build, and dashboard Playwright debug/mobile checks pass. Full lint remains blocked by pre-existing generated/static-artifact errors outside this work.
+
+**Admin user guide deployment (2026-08-22):** Added the TypeScript Docusaurus site under `website/`, covering all admin workflow areas with masked Playwright screenshots and a reusable capture script. `npm run typecheck` and `npm run build` pass in `website/`. Published the static site to GitHub Pages at `https://meggarmind.github.io/RESIDIO/`; GitHub Actions automation is included but currently blocked by an account billing lock.
 
 Payment gateway integration is explicitly deferred and is not part of the current finance fast-track.
 
