@@ -14,6 +14,8 @@ type GetInvoicesParams = {
     residentId?: string;
     houseId?: string;
     search?: string;
+    periodFrom?: string;
+    periodTo?: string;
     page?: number;
     limit?: number;
 }
@@ -71,7 +73,7 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
     }
 
     const supabase = await createServerSupabaseClient();
-    const { status, invoiceType, residentId, houseId, search, page = 1, limit = 20 } = params;
+    const { status, invoiceType, residentId, houseId, search, periodFrom, periodTo, page = 1, limit = 20 } = params;
 
     let query = supabase
         .from('invoices')
@@ -99,6 +101,12 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
     if (search) {
         const sanitized = sanitizeSearchInput(search);
         query = query.or(`invoice_number.ilike.%${sanitized}%`);
+    }
+    if (periodFrom) {
+        query = query.gte('period_start', periodFrom);
+    }
+    if (periodTo) {
+        query = query.lte('period_start', periodTo);
     }
 
     // Pagination

@@ -93,11 +93,26 @@ export default function BillingPage() {
     const [selectedResidentId, setSelectedResidentId] = useState<string | null>(null);
     const residentId = selectedResidentId ?? getInitialBillingResidentId(requestedResidentId);
     const [search, setSearch] = useState('');
+    const [datePreset, setDatePreset] = useState<string>('all');
     const [residents, setResidents] = useState<BillingResident[]>([]);
     const [residentAliases, setResidentAliases] = useState<Map<string, string[]>>(new Map());
 
     const { themeId } = useVisualTheme();
     const isModern = themeId === 'modern';
+
+    const dateRange = useMemo(() => {
+        if (datePreset === 'all') return {};
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        switch (datePreset) {
+            case 'this_month': return { periodFrom: `${y}-${String(m + 1).padStart(2, '0')}-01`, periodTo: `${y}-${String(m + 1).padStart(2, '0')}-31` };
+            case 'last_month': { const d = new Date(y, m - 1, 1); return { periodFrom: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`, periodTo: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-31` }; }
+            case 'last_3_months': { const d = new Date(y, m - 2, 1); return { periodFrom: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`, periodTo: `${y}-${String(m + 1).padStart(2, '0')}-31` }; }
+            case 'this_year': return { periodFrom: `${y}-01-01`, periodTo: `${y}-12-31` };
+            default: return {};
+        }
+    }, [datePreset]);
 
     const { data, isLoading, refetch } = useInvoices({
         page,
@@ -106,6 +121,7 @@ export default function BillingPage() {
         invoiceType: invoiceType === 'all' ? undefined : (invoiceType as InvoiceType),
         residentId: residentId === 'all' ? undefined : residentId,
         search: search || undefined,
+        ...dateRange,
     });
     const checkOverdueMutation = useCheckOverdueInvoices();
     const { data: overdueStats } = useOverdueStats();
@@ -140,6 +156,7 @@ export default function BillingPage() {
         setInvoiceType('all');
         setSelectedResidentId('all');
         setSearch('');
+        setDatePreset('all');
         setPage(1);
     };
 
@@ -310,7 +327,23 @@ export default function BillingPage() {
                             </SelectContent>
                         </Select>
 
-                        {(status !== 'all' || invoiceType !== 'all' || residentId !== 'all' || search) && (
+                        <Select value={datePreset} onValueChange={(value) => {
+                            setDatePreset(value);
+                            setPage(1);
+                        }}>
+                            <SelectTrigger className={cn("w-[120px] h-9 text-sm", isModern && 'rounded-xl')}>
+                                <SelectValue placeholder="Date" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Dates</SelectItem>
+                                <SelectItem value="this_month">This Month</SelectItem>
+                                <SelectItem value="last_month">Last Month</SelectItem>
+                                <SelectItem value="last_3_months">Last 3 Months</SelectItem>
+                                <SelectItem value="this_year">This Year</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        {(status !== 'all' || invoiceType !== 'all' || residentId !== 'all' || search || datePreset !== 'all') && (
                             <Button
                                 variant="ghost"
                                 size="sm"

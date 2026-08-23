@@ -81,7 +81,7 @@ export async function prepayFutureInvoices(
 
     const { data: house, error: houseError } = await supabase
         .from('houses')
-        .select('id, house_number, billing_profile_id, house_type_id')
+        .select('id, house_number, short_name, billing_profile_id, house_type_id')
         .eq('id', parsed.data.houseId)
         .single();
     if (houseError || !house) {
@@ -171,7 +171,9 @@ export async function prepayFutureInvoices(
                 resident_id: parsed.data.residentId,
                 house_id: parsed.data.houseId,
                 billing_profile_id: billingProfile.id,
-                invoice_number: `INV-${year}${monthNumber}-${house.id.substring(0, 8).toUpperCase()}`,
+                invoice_number: house.short_name
+                    ? `INV-${house.short_name}-${year}-${monthNumber}`
+                    : `INV-${year}${monthNumber}-${house.id.substring(0, 8).toUpperCase()}`,
                 amount_due: monthlyTotal,
                 amount_paid: 0,
                 status: 'unpaid',
