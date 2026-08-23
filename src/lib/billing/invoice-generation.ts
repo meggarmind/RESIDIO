@@ -197,6 +197,17 @@ export function resolveProfileVersion(periodStart: string, versions: BillingProf
   throw new Error(`No billing profile version is effective for ${periodStart}`);
 }
 
+function resolveVersionForPeriod(
+  periodStart: string,
+  versions: BillingProfileVersion[],
+): { version: BillingProfileVersion | null; skipReason: string | null } {
+  try {
+    return { version: resolveProfileVersion(periodStart, versions), skipReason: null };
+  } catch {
+    return { version: null, skipReason: `No billing profile version effective for ${periodStart}` };
+  }
+}
+
 function isHouseEligible(house: GenerationHouse, eligibility: InvoiceGenerationEligibility): string | null {
   if (!house.isActive) return 'House is inactive';
   if (house.propertyStatus === 'vacant' && !eligibility.billVacantHouses) return 'Vacant (billing disabled)';
@@ -278,6 +289,7 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
       continue;
     }
     const profile = profiles.get(house.billingProfileId)!;
+    const profileVersions = input.versions.filter((item) => item.billingProfileId === profile.id);
     const residentRoles = house.residents.filter((resident) => !request.residentId || resident.id === request.residentId);
     if (request.residentId && !residentRoles.length) {
       skips.push({ houseId: house.id, house: house.label, reason: 'Not in selected resident scope' });
@@ -301,8 +313,12 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
       }
 
       for (const period of periods) {
-        const version = resolveProfileVersion(period, input.versions.filter((item) => item.billingProfileId === profile.id));
-        const evaluation = evaluateCandidate(billable, house, profile, version, period, eligibility.dueWindowDays);
+        const resolved = resolveVersionForPeriod(period, profileVersions);
+        if (!resolved.version) {
+          skips.push({ houseId: house.id, house: house.label, reason: resolved.skipReason! });
+          continue;
+        }
+        const evaluation = evaluateCandidate(billable, house, profile, resolved.version, period, eligibility.dueWindowDays);
         if (evaluation.candidate) candidates.push(evaluation.candidate);
         else if (evaluation.skipReason) skips.push({ houseId: house.id, house: house.label, reason: evaluation.skipReason });
       }
@@ -315,8 +331,12 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
     }
     for (const resident of eligibleResidents) {
       for (const period of periods) {
-        const version = resolveProfileVersion(period, input.versions.filter((item) => item.billingProfileId === profile.id));
-        const evaluation = evaluateCandidate(resident, house, profile, version, period, eligibility.dueWindowDays);
+        const resolved = resolveVersionForPeriod(period, profileVersions);
+        if (!resolved.version) {
+          skips.push({ houseId: house.id, house: house.label, reason: resolved.skipReason! });
+          continue;
+        }
+        const evaluation = evaluateCandidate(resident, house, profile, resolved.version, period, eligibility.dueWindowDays);
         if (evaluation.candidate) candidates.push(evaluation.candidate);
         else if (evaluation.skipReason) skips.push({ houseId: house.id, house: house.label, reason: evaluation.skipReason });
       }

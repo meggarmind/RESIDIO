@@ -209,3 +209,24 @@ export function isValidCorporateRole(role: ResidentRole): role is CorporateRole 
 
 // Export role constants for UI
 export { sponsorRequiredRoles, residencyRoles, corporateAllowedRoles };
+
+export interface CorporateFieldCarrier {
+  entity_type?: EntityType;
+  company_name?: string | null;
+  rc_number?: string | null;
+  liaison_contact_name?: string | null;
+  liaison_contact_phone?: string | null;
+}
+
+export function resolveSubmittedCorporateFields<T extends CorporateFieldCarrier>(data: T): T {
+  if ((data.entity_type ?? 'individual') !== 'corporate') {
+    return {
+      ...data,
+      company_name: '',
+      rc_number: '',
+      liaison_contact_name: '',
+      liaison_contact_phone: '',
+    };
+  }
+  return data;
+}

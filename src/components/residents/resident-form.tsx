@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select';
 import { useHousesWithRoles, useHouseResidents } from '@/hooks/use-houses';
 import { useCreateResident, useUpdateResident, useResidents } from '@/hooks/use-residents';
-import { createResidentBaseSchema, type CreateResidentData, type ResidentFormData, requiresSponsor } from '@/lib/validators/resident';
+import { createResidentBaseSchema, resolveSubmittedCorporateFields, type CreateResidentData, type ResidentFormData, requiresSponsor } from '@/lib/validators/resident';
 import { toast } from 'sonner';
 import type { Resident, ResidentRole, EntityType } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, CORPORATE_ROLE_OPTIONS, ENTITY_TYPE_LABELS, RESIDENT_ROLE_LABELS, RESIDENT_TYPE_LABELS } from '@/types/database';
@@ -159,34 +159,32 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
     }
   }, [residentType, availableRoles, form]);
 
-  // Corporate fields are preserved in form state when entity_type changes;
-  // they are conditionally rendered (hidden for non-corporate) and
-  // the server-side schema discards them when entity_type !== 'corporate'.
   async function onSubmit(data: CreateResidentData) {
     try {
+      const submitted = resolveSubmittedCorporateFields(data);
       if (isEditing) {
         const updateData: ResidentFormData = {
-          first_name: data.first_name,
-          last_name: data.last_name,
-          email: data.email,
-          phone_primary: data.phone_primary,
-          phone_secondary: data.phone_secondary,
-          resident_type: data.resident_type,
-          entity_type: data.entity_type,
-          company_name: data.company_name,
-          rc_number: data.rc_number,
-          liaison_contact_name: data.liaison_contact_name,
-          liaison_contact_phone: data.liaison_contact_phone,
-          emergency_contact_name: data.emergency_contact_name,
-          emergency_contact_phone: data.emergency_contact_phone,
-          emergency_contact_relationship: data.emergency_contact_relationship,
-          emergency_contact_resident_id: data.emergency_contact_resident_id,
-          notes: data.notes,
+          first_name: submitted.first_name,
+          last_name: submitted.last_name,
+          email: submitted.email,
+          phone_primary: submitted.phone_primary,
+          phone_secondary: submitted.phone_secondary,
+          resident_type: submitted.resident_type,
+          entity_type: submitted.entity_type,
+          company_name: submitted.company_name,
+          rc_number: submitted.rc_number,
+          liaison_contact_name: submitted.liaison_contact_name,
+          liaison_contact_phone: submitted.liaison_contact_phone,
+          emergency_contact_name: submitted.emergency_contact_name,
+          emergency_contact_phone: submitted.emergency_contact_phone,
+          emergency_contact_relationship: submitted.emergency_contact_relationship,
+          emergency_contact_resident_id: submitted.emergency_contact_resident_id,
+          notes: submitted.notes,
         };
         await updateMutation.mutateAsync({ id: resident.id, data: updateData });
         toast.success('Resident updated successfully');
       } else {
-        await createMutation.mutateAsync(data);
+        await createMutation.mutateAsync(submitted);
         toast.success('Resident created successfully');
       }
       onSuccess?.();

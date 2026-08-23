@@ -19,6 +19,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { ResidentForm } from '@/components/residents/resident-form';
+import { ResidentArchiveDialog } from '@/components/residents/resident-archive-dialog';
 import { AccountStatusBadge } from '@/components/residents/status-badge';
 import { GranularVerificationBadge } from '@/components/residents/contact-verification-badge';
 import { useResident, useDeleteResident, useUpdateResidentStatus, useVerifyResident } from '@/hooks/use-residents';
@@ -298,28 +299,17 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Archive this resident?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove the resident from the active roster and unlink their house assignments.
-              Payment history and audit trails are preserved for record-keeping.
-              This action cannot be undone from this screen.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleteMutation.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Archive Resident
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {canDeleteResident && (
+        <ResidentArchiveDialog
+          open={isArchiveDialogOpen}
+          onOpenChange={setIsArchiveDialogOpen}
+          residentId={id}
+          residentName={`${resident.first_name} ${resident.last_name}`}
+          activeHouseCount={(resident.resident_houses ?? []).filter((rh) => rh.is_active).length}
+          onConfirm={handleDelete}
+          isPending={deleteMutation.isPending}
+        />
+      )}
 
       <Tabs defaultValue={tabParam ?? 'overview'} className="w-full" onValueChange={handleTabChange}>
         <TabsList className="h-9 p-1 sticky top-0 z-10 glass">

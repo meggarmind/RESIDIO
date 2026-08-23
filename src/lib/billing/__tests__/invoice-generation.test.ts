@@ -58,6 +58,54 @@ describe('invoice generation period and rate selection', () => {
     expect(resolveProfileVersion('2026-05-01', [version]).id).toBe(version.id);
   });
 
+  it('backfills a period that precedes every effective version instead of failing', () => {
+    const result = resolveBillableCandidates({
+      request: { mode: 'backfill', fromMonth: '2025-01-01', targetMonth: '2025-02-01', trigger: 'manual' },
+      profiles: [profile],
+      versions: [{ ...version, effectiveFrom: '2025-06-01' }],
+      houses: [{
+        id: 'f866af4d-4f58-48fc-826e-df7684bdaa83', label: 'B7', billingProfileId: profile.id, propertyStatus: 'occupied', isActive: true,
+        residents: [{ id: 'resident-1', name: 'Ada', accountStatus: 'active', role: 'tenant', moveInDate: '2024-01-01', isActive: true }],
+      }],
+    });
+
+    expect(result.skips).toHaveLength(0);
+    expect(result.candidates.map((candidate) => ({
+      periodStart: candidate.periodStart,
+      billingProfileVersionId: candidate.billingProfileVersionId,
+      amountDue: candidate.amountDue,
+    }))).toEqual([
+      { periodStart: '2025-01-01', billingProfileVersionId: 'version-1', amountDue: 31_000 },
+      { periodStart: '2025-02-01', billingProfileVersionId: 'version-1', amountDue: 31_000 },
+    ]);
+  });
+
+  it('skips houses whose billing profile has no versions and keeps resolving the rest of the batch', () => {
+    const result = resolveBillableCandidates({
+      request: { mode: 'backfill', fromMonth: '2025-01-01', targetMonth: '2025-02-01', trigger: 'manual' },
+      profiles: [profile],
+      versions: [],
+      houses: [
+        {
+          id: 'house-1', label: 'A1', billingProfileId: profile.id, propertyStatus: 'occupied', isActive: true,
+          residents: [{ id: 'resident-1', name: 'Ada', accountStatus: 'active', role: 'tenant', moveInDate: '2024-01-01', isActive: true }],
+        },
+        {
+          id: 'house-2', label: 'A2', billingProfileId: profile.id, propertyStatus: 'occupied', isActive: true,
+          residents: [{ id: 'resident-2', name: 'Bola', accountStatus: 'active', role: 'tenant', moveInDate: '2024-01-01', isActive: true }],
+        },
+      ],
+    });
+
+    expect(result.candidates).toEqual([]);
+    expect(result.skips).toEqual([
+      { houseId: 'house-1', house: 'A1', reason: 'No billing profile version effective for 2025-01-01' },
+      { houseId: 'house-1', house: 'A1', reason: 'No billing profile version effective for 2025-02-01' },
+      { houseId: 'house-2', house: 'A2', reason: 'No billing profile version effective for 2025-01-01' },
+      { houseId: 'house-2', house: 'A2', reason: 'No billing profile version effective for 2025-02-01' },
+    ]);
+  });
+
   it('selects the effective rate for each backfill period', () => {
     const result = resolveBillableCandidates({
       request: { mode: 'backfill', fromMonth: '2026-06-01', targetMonth: '2026-08-01', trigger: 'manual' },
