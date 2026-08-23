@@ -127,7 +127,7 @@ export function RoleAssignmentRulesEditor() {
         <AlertDescription>
           These rules determine which executive roles can be assigned to users based on their
           resident type. When a user has a resident profile, their resident type (e.g.,
-          Resident Landlord, Tenant) is checked against these rules before allowing role
+          Owner-Occupier, Renter) is checked against these rules before allowing role
           assignment. Users without a resident profile are not restricted.
         </AlertDescription>
       </Alert>
@@ -237,7 +237,7 @@ export function RoleAssignmentRulesEditor() {
                 <TableRow>
                   <TableCell colSpan={executiveRoles.length + 1} className="bg-muted/50">
                     <span className="text-xs font-medium uppercase text-muted-foreground">
-                      Secondary Residents (Household Members)
+                      Secondary Residents (Family Members)
                     </span>
                   </TableCell>
                 </TableRow>

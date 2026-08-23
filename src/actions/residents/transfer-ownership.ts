@@ -82,7 +82,7 @@ export async function transferOwnership(
   if (currentRole !== 'non_resident_landlord' && currentRole !== 'developer') {
     return {
       success: false,
-      error: `Only Non-Resident Landlord or Developer can transfer ownership. Current role is ${RESIDENT_ROLE_LABELS[currentRole]}.`
+      error: `Only Property Owners or Developers can transfer ownership. Current role is ${RESIDENT_ROLE_LABELS[currentRole]}.`
     };
   }
 

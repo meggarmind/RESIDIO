@@ -482,10 +482,10 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
                     </Select>
                     <FormDescription>
                       {residentType === 'secondary'
-                        ? 'Secondary residents include co-residents, household members, and staff'
+                        ? 'Secondary residents include occupants, family members, and staff'
                         : entityType === 'corporate'
-                          ? 'Corporate entities can be Property Owners, Corporate Tenants, or Developers'
-                          : 'Primary residents are landlords (resident or non-resident), tenants, or developers'}
+                          ? 'Corporate entities can be Property Owners, Corporate Renters, or Developers'
+                          : 'Primary residents are owners (occupier or non-resident), renters, or developers'}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

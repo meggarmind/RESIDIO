@@ -509,9 +509,9 @@ export type BillableRole = 'resident_landlord' | 'non_resident_landlord' | 'tena
 
 // Billable role options for forms
 export const BILLABLE_ROLE_OPTIONS = [
-  { value: 'resident_landlord' as const, label: 'Resident Landlord' },
-  { value: 'non_resident_landlord' as const, label: 'Non-Resident Landlord' },
-  { value: 'tenant' as const, label: 'Tenant' },
+  { value: 'resident_landlord' as const, label: 'Owner-Occupier' },
+  { value: 'non_resident_landlord' as const, label: 'Property Owner' },
+  { value: 'tenant' as const, label: 'Renter' },
   { value: 'developer' as const, label: 'Developer' },
 ];
 
@@ -524,8 +524,8 @@ export const BILLING_TARGET_LABELS: Record<BillingTargetType, string> = {
 // Role display labels for UI
 // Updated terminology (Jan 2026): More professional property-focused labels
 export const RESIDENT_ROLE_LABELS: Record<ResidentRole, string> = {
-  resident_landlord: 'Resident Landlord',
-  non_resident_landlord: 'Non-resident Landlord',
+  resident_landlord: 'Owner-Occupier',
+  non_resident_landlord: 'Property Owner',
   tenant: 'Renter',
   developer: 'Developer',
   co_resident: 'Occupant',
@@ -549,10 +549,10 @@ export const PRIMARY_ROLE_OPTIONS = [
   { value: 'developer' as const, label: RESIDENT_ROLE_LABELS.developer },
 ];
 
-// Corporate entities may own, develop, or occupy a property as the billable tenant.
+// Corporate entities may own, develop, or occupy a property as the billable renter.
 export const CORPORATE_ROLE_OPTIONS = [
   { value: 'non_resident_landlord' as const, label: RESIDENT_ROLE_LABELS.non_resident_landlord },
-  { value: 'tenant' as const, label: 'Corporate Tenant' },
+  { value: 'tenant' as const, label: 'Corporate Renter' },
   { value: 'developer' as const, label: RESIDENT_ROLE_LABELS.developer },
 ];
 

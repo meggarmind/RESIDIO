@@ -70,9 +70,9 @@ const STEPS: { id: WizardStep; title: string; icon: React.ReactNode }[] = [
 ];
 
 const DESTINATION_ROLES: { value: ResidentRole; label: string }[] = [
-  { value: 'tenant', label: 'Renter / Tenant' },
-  { value: 'co_resident', label: 'Co-Resident / Occupant' },
-  { value: 'household_member', label: 'Household Member / Family' },
+  { value: 'tenant', label: 'Renter' },
+  { value: 'co_resident', label: 'Occupant' },
+  { value: 'household_member', label: 'Family Member' },
 ];
 
 export function MoveOutWizard({

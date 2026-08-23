@@ -41,7 +41,7 @@ export async function createResident(formData: CreateResidentData): Promise<Crea
     if (entityType === 'corporate' && !isValidCorporateRole(role)) {
       return {
         data: null,
-        error: 'Corporate entities can only be Property Owner, Corporate Tenant, or Developer',
+        error: 'Corporate entities can only be Property Owner, Corporate Renter, or Developer',
       };
     }
 

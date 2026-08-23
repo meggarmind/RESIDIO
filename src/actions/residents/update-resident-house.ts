@@ -104,7 +104,7 @@ export async function updateResidentHouse(
       if (!sponsorAssignment) {
         return {
           data: null,
-          error: 'Sponsor must be a Resident Landlord, Non-Resident Landlord, or Tenant of the same house.'
+          error: 'Sponsor must be an Owner-Occupier, Property Owner, or Renter of the same house.'
         };
       }
     }

@@ -177,7 +177,7 @@ export function EmailReceiptDialog({ paymentId, trigger }: EmailReceiptDialogPro
                       <div className="flex items-center gap-2 mt-4 mb-2">
                         <Users className="h-4 w-4 text-muted-foreground" />
                         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                          Co-Residents ({recipients.coResidents.length})
+                          Occupants ({recipients.coResidents.length})
                         </span>
                       </div>
                     )}

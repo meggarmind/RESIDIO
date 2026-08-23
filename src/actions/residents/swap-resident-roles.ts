@@ -65,7 +65,7 @@ export async function swapResidentRoles(
   if (promoteAssignment.resident_role !== 'co_resident') {
     return {
       success: false,
-      error: `Only Co-Residents can be promoted. This resident is a ${RESIDENT_ROLE_LABELS[promoteAssignment.resident_role as ResidentRole]}.`
+      error: `Only Occupants can be promoted. This resident is a ${RESIDENT_ROLE_LABELS[promoteAssignment.resident_role as ResidentRole]}.`
     };
   }
 
@@ -165,7 +165,7 @@ export async function swapResidentRoles(
         event_type: 'role_change',
         previous_role: 'co_resident' as ResidentRole,
         event_date: today,
-        notes: `Promoted from Co-Resident to ${RESIDENT_ROLE_LABELS[demoteRole]} (swapped with ${demoteName})`,
+        notes: `Promoted from Occupant to ${RESIDENT_ROLE_LABELS[demoteRole]} (swapped with ${demoteName})`,
         is_current: demoteRole === 'resident_landlord', // Mark as current owner if landlord
         created_by: user.id,
       });
@@ -180,7 +180,7 @@ export async function swapResidentRoles(
         event_type: 'role_change',
         previous_role: demoteRole,
         event_date: today,
-        notes: `Demoted from ${RESIDENT_ROLE_LABELS[demoteRole]} to Co-Resident (swapped with ${promoteName})`,
+        notes: `Demoted from ${RESIDENT_ROLE_LABELS[demoteRole]} to Occupant (swapped with ${promoteName})`,
         is_current: false,
         created_by: user.id,
       });

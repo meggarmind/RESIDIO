@@ -130,7 +130,7 @@ export const createResidentSchema = createResidentBaseSchema.refine(
     return true;
   },
   {
-    message: 'Corporate entities can only be Property Owner, Corporate Tenant, or Developer',
+    message: 'Corporate entities can only be Property Owner, Corporate Renter, or Developer',
     path: ['resident_role'],
   }
 ).refine(
