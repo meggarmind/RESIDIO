@@ -1,6 +1,6 @@
 'use client';
 
-import { useInvoices, useCheckOverdueInvoices, useOverdueStats, useLatestGenerationLog } from '@/hooks/use-billing';
+import { useInvoices, useCheckOverdueInvoices, useOverdueStats } from '@/hooks/use-billing';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -27,15 +27,12 @@ import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertC
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
-import { GenerateInvoicesDialog } from '@/components/billing/generate-invoices-dialog';
-import { GenerationHistoryPanel } from '@/components/billing/generation-history-panel';
 import { getBillingResidentFilterOptions } from '@/actions/billing/get-invoices';
 import { INVOICE_TYPE_LABELS, type InvoiceType, type InvoiceStatus } from '@/types/database';
 import {
     EnhancedStatCard,
     EnhancedTableCard,
     EnhancedPageHeader,
-    EnhancedAlertBanner,
 } from '@/components/dashboard/enhanced-stat-card';
 import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { cn } from '@/lib/utils';
@@ -98,7 +95,6 @@ export default function BillingPage() {
     const [search, setSearch] = useState('');
     const [residents, setResidents] = useState<BillingResident[]>([]);
     const [residentAliases, setResidentAliases] = useState<Map<string, string[]>>(new Map());
-    const [showGenerateDialog, setShowGenerateDialog] = useState(false);
 
     const { themeId } = useVisualTheme();
     const isModern = themeId === 'modern';
@@ -113,7 +109,6 @@ export default function BillingPage() {
     });
     const checkOverdueMutation = useCheckOverdueInvoices();
     const { data: overdueStats } = useOverdueStats();
-    const { data: lastGeneration } = useLatestGenerationLog();
 
     const invoices = data?.data ?? [];
     const totalCount = data?.total ?? 0;
@@ -140,10 +135,6 @@ export default function BillingPage() {
         [residentAliases, residents]
     );
 
-    const handleGenerateInvoices = async () => {
-        setShowGenerateDialog(true);
-    };
-
     const handleClearFilters = () => {
         setStatus('all');
         setInvoiceType('all');
@@ -158,7 +149,7 @@ export default function BillingPage() {
     const totalAmount = invoices.reduce((sum, inv) => sum + (Number(inv.amount_due) || 0), 0);
 
     return (
-        <><div className="space-y-6">
+        <div className="space-y-6">
             <EnhancedPageHeader
                 title="Billing & Invoices"
                 description="Manage monthly invoices and billing runs"
@@ -188,13 +179,15 @@ export default function BillingPage() {
                             Check Overdue
                         </Button>
                         <Button
-                            onClick={handleGenerateInvoices}
+                            asChild
                             className={cn(
                                 isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
                             )}
                         >
-                            <FileText className="mr-2 h-4 w-4" />
-                            Generate Invoices
+                            <Link href="/billing/generate">
+                                <FileText className="mr-2 h-4 w-4" />
+                                Generate Invoices
+                            </Link>
                         </Button>
                     </div>
                 }
@@ -249,37 +242,6 @@ export default function BillingPage() {
                     onClick={() => setStatus('unpaid')}
                 />
             </div>
-
-            {/* Last Generation Info */}
-            {lastGeneration && (
-                <EnhancedAlertBanner
-                    type="success"
-                    icon={CheckCircle2}
-                    title={`Last generated: ${new Date(lastGeneration.generated_at).toLocaleDateString('en-NG', {
-                        weekday: 'short',
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                    })}`}
-                    description={`${lastGeneration.generated_count} generated, ${lastGeneration.skipped_count} skipped${lastGeneration.error_count > 0 ? `, ${lastGeneration.error_count} errors` : ''} • ${lastGeneration.trigger_type}${lastGeneration.actor?.full_name ? ` by ${lastGeneration.actor.full_name}` : ''}${lastGeneration.duration_ms ? ` • ${(lastGeneration.duration_ms / 1000).toFixed(1)}s` : ''}`}
-                    action={
-                        lastGeneration.target_period && (
-                            <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
-                                <Clock className="h-4 w-4" />
-                                {new Date(lastGeneration.target_period).toLocaleDateString('en-NG', {
-                                    month: 'short',
-                                    year: 'numeric',
-                                })}
-                            </div>
-                        )
-                    }
-                />
-            )}
-
-            {/* Generation History */}
-            <GenerationHistoryPanel onRetry={() => setShowGenerateDialog(true)} />
 
             {/* Invoices Table */}
             <EnhancedTableCard
@@ -547,8 +509,5 @@ export default function BillingPage() {
                 </div>
             )}
         </div>
-
-        <GenerateInvoicesDialog open={showGenerateDialog} onClose={() => setShowGenerateDialog(false)} />
-        </>
     );
 }

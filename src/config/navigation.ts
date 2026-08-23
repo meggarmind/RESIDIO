@@ -144,6 +144,15 @@ const NAV_BILLING: NavItem = {
   href: '/billing',
   icon: Receipt,
   permissions: [PERMISSIONS.BILLING_VIEW],
+  children: [
+    {
+      id: 'billing-generate',
+      title: 'Generate Invoices',
+      href: '/billing/generate',
+      icon: FilePlus,
+      permissions: [PERMISSIONS.BILLING_CREATE_INVOICE],
+    },
+  ],
 };
 
 const NAV_SECURITY: NavItem = {
