@@ -7,6 +7,9 @@ import type { CreateAccessCodeData, RevokeAccessCodeData, VerifyAccessCodeData }
 import { hasSecurityPermission } from './settings';
 import { logAudit } from '@/lib/audit/logger';
 import { formatDateTime } from '@/lib/utils';
+import { getRenewalReminderConfig } from '@/lib/security/renewal-reminders';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 type AccessCodeResponse = {
   data: AccessCode | null;
@@ -568,7 +571,6 @@ export async function generateTimeLimitedAccessCode(
   }
 
   // Audit log
-  const residentData = contact.resident as unknown as { first_name: string; last_name: string } | null;
   const categoryName = (contact.category as unknown as { name: string })?.name || 'Unknown';
   await logAudit({
     action: 'GENERATE',
@@ -759,29 +761,25 @@ export async function getCodesNeedingRenewalReminder(): Promise<{ data: Expiring
     return { data: [], error: 'Failed to fetch codes' };
   }
 
+  const settingKeys = (codes || []).flatMap((code) => [
+    `access_code_reminder_${code.id}`,
+    `access_code_reminder_sent_${code.id}`,
+  ]);
+  const { data: settings, error: settingsError } = settingKeys.length === 0
+    ? { data: [], error: null }
+    : await supabase.from('system_settings').select('key, value').in('key', settingKeys);
+
+  if (settingsError) {
+    console.error('Get renewal reminder settings error:', settingsError);
+    return { data: [], error: 'Failed to fetch reminder settings' };
+  }
+
   const now = new Date();
   const needsReminder: ExpiringCodeInfo[] = [];
 
   for (const code of codes || []) {
-    // Get reminder setting for this code
-    const { data: reminderSetting } = await supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', `access_code_reminder_${code.id}`)
-      .single();
-
-    const reminderDays = reminderSetting?.value ? parseInt(reminderSetting.value, 10) : 3;
-
-    // Check if already reminded
-    const { data: sentSetting } = await supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', `access_code_reminder_sent_${code.id}`)
-      .single();
-
-    if (sentSetting?.value === 'true') {
-      continue; // Already sent
-    }
+    const { reminderDays, reminderSent } = getRenewalReminderConfig(settings || [], code.id);
+    if (reminderSent) continue;
 
     const validUntil = new Date(code.valid_until);
     const daysUntilExpiry = Math.ceil((validUntil.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
@@ -812,8 +810,10 @@ export async function getCodesNeedingRenewalReminder(): Promise<{ data: Expiring
  * Mark a code's reminder as sent
  */
 export async function markReminderSent(codeId: string): Promise<{ success: boolean; error: string | null }> {
-  const supabase = await createServerSupabaseClient();
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_GENERATE_CODES);
+  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
 
+  const supabase = await createServerSupabaseClient();
   const { error } = await supabase.from('system_settings').upsert({
     key: `access_code_reminder_sent_${codeId}`,
     value: 'true',
@@ -822,6 +822,14 @@ export async function markReminderSent(codeId: string): Promise<{ success: boole
   if (error) {
     return { success: false, error: 'Failed to mark reminder as sent' };
   }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'access_codes',
+    entityId: codeId,
+    entityDisplay: `Renewal reminder for access code ${codeId}`,
+    newValues: { renewal_reminder_sent: true },
+  });
 
   return { success: true, error: null };
 }

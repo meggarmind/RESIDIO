@@ -13,6 +13,7 @@ const settleWalletInvoicesSchema = z.object({
     invoiceIds: z.array(z.string().uuid()).min(1),
     houseId: z.string().uuid().nullable().optional(),
     paymentDate: z.string().date().optional(),
+    requestKey: z.string().uuid(),
 });
 
 export type SettleWalletInvoicesInput = z.infer<typeof settleWalletInvoicesSchema>;
@@ -111,6 +112,7 @@ export async function settleWalletInvoices(
     const paymentDate = parsed.data.paymentDate || new Date().toISOString().slice(0, 10);
 
     const { data, error } = await callWalletPaymentRpc(supabase, {
+        p_request_key: parsed.data.requestKey,
         p_resident_id: parsed.data.residentId,
         p_invoice_ids: orderedInvoiceIds,
         p_batch_type: 'existing_wallet_settlement',
@@ -137,6 +139,7 @@ export async function settleWalletInvoices(
             status_after?: 'paid' | 'partially_paid';
             balance_after?: number;
         }>;
+        existing?: boolean;
     } | null;
     if (!result?.success || !result.batch_id) {
         return { success: false, error: 'No invoices were settled from the wallet' };
@@ -150,7 +153,7 @@ export async function settleWalletInvoices(
         0,
     );
 
-    await logAudit({
+    if (!result.existing) await logAudit({
         action: 'ALLOCATE',
         entityType: 'wallet_payment_batches',
         entityId: result.batch_id,

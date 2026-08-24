@@ -102,7 +102,12 @@ export function WalletPaymentBatchTools({
             return;
         }
         setIsSettling(true);
-        const result = await settleWalletInvoices({ residentId, invoiceIds: selected, paymentDate });
+        const result = await settleWalletInvoices({
+            residentId,
+            invoiceIds: selected,
+            paymentDate,
+            requestKey: crypto.randomUUID(),
+        });
         setIsSettling(false);
         if (!result.success) {
             toast.error(result.error || 'Wallet settlement failed');

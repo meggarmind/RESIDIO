@@ -42,6 +42,8 @@
 - [x] **Deeper Resident-House coverage (2026-08-16):** 21 tests added — lib accountability (resident-house label, precedence, ended/future, filter) and action coverage (create via RPC incl. duplicate `23505`, inactive-target rejection, read-back; update scoped; end lifecycle incl. already-ended; `getActiveResidentHouses` join/fallback). Repo at 180/180 passing.
 
 ### WhatsApp Operations Verification (2026-08-16)
+
+- [x] **Issue #7 Operations Console (2026-08-24):** Added searchable/filterable consent registry, validated opt-in import launch, pending-contact review, estate-wide force-PIN control, disclosure-log filters, active-session inspection/reset, bot health counters, permission-first reads, audit-compliant writes, and focused redaction/authorization tests.
 - [x] Cloud read-only verification: all WhatsApp identity/session tables are empty; RLS is enabled with service-role-only policies; rollout is disabled with empty pilot targeting.
 - [x] Admin operations surface wired: opt-in import, pending-contact attach/ignore, and session reset controls are now mounted on `/settings/whatsapp`.
 - [x] Import action uses the canonical normalized CSV parser and fails closed on existing-opt-in lookup errors.

@@ -21,6 +21,9 @@ Status: IN PROGRESS
 
 ## WhatsApp Operations Verification
 
+- **Operations console #7 (2026-08-24):** Added admin-only opt-in registry search/state filters, validated CSV import launch with duplicate handling and audit, pending-contact review controls, force-PIN policy controls, disclosure-log search/filtering, active-session inspection/reset, and health counters for inbound/outbound/failures/template errors/cap-limit events. Financial values are excluded from all list projections.
+- **Verification:** Focused WhatsApp tests pass 37/37; full Vitest passes 280/280; TypeScript and scoped ESLint pass. Full lint remains blocked by existing generated/static `website/build` findings; build was terminated by the Windows runner.
+
 - **Cloud read-only verification (2026-08-16):** All four WhatsApp identity/session tables are empty, RLS is enabled with service-role-only policies, and production rollout remains disabled with empty pilot targeting.
 - **Admin surface wiring:** Mounted opt-in import, pending-contact attach/ignore, and session-reset controls on `/settings/whatsapp`; import now uses the canonical phone-normalizing parser and fails closed on lookup errors.
 - **Remaining:** Write-path verification needs an approved reversible non-production fixture. Authenticated browser verification now passes against the empty live state.

@@ -26,6 +26,7 @@ const residentId = '11111111-1111-4111-8111-111111111111';
 const earlyInvoiceId = '22222222-2222-4222-8222-222222222222';
 const lateInvoiceId = '33333333-3333-4333-8333-333333333333';
 const batchId = '44444444-4444-4444-8444-444444444444';
+const requestKey = '77777777-7777-4777-8777-777777777777';
 
 function queryResult<T>(data: T, error: { message: string } | null = null) {
   const chain = {
@@ -72,7 +73,7 @@ describe('admin wallet settlement actions', () => {
   it('checks authorization before opening the database client', async () => {
     mocks.authorizePermission.mockResolvedValue({ authorized: false, error: 'Denied' });
 
-    await expect(settleWalletInvoices({ residentId, invoiceIds: [earlyInvoiceId] })).resolves.toEqual({
+    await expect(settleWalletInvoices({ residentId, invoiceIds: [earlyInvoiceId, lateInvoiceId], requestKey })).resolves.toEqual({
       success: false,
       error: 'Denied',
     });
@@ -100,6 +101,7 @@ describe('admin wallet settlement actions', () => {
       residentId,
       invoiceIds: [lateInvoiceId, earlyInvoiceId],
       paymentDate: '2025-10-01',
+      requestKey,
     });
 
     expect(result).toMatchObject({
@@ -111,11 +113,42 @@ describe('admin wallet settlement actions', () => {
       remainingOutstanding: 30000,
     });
     expect(mocks.callWalletPaymentRpc).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      p_request_key: requestKey,
       p_invoice_ids: [earlyInvoiceId, lateInvoiceId],
       p_credit_amount: 0,
       p_payment_date: '2025-10-01',
     }));
     expect(mocks.logAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a retry result without changing financial totals', async () => {
+    mocks.callWalletPaymentRpc.mockResolvedValue({
+      data: {
+        success: true,
+        existing: true,
+        batch_id: batchId,
+        receipt_number: 'RCP-20260813-00001',
+        total_allocated: 50000,
+        allocations: [{ status_after: 'paid', balance_after: 0 }],
+      },
+      error: null,
+    });
+
+    const result = await settleWalletInvoices({ residentId, invoiceIds: [earlyInvoiceId, lateInvoiceId], requestKey });
+
+    expect(result).toMatchObject({ success: true, batchId, totalAllocated: 50000, fullyPaidCount: 1 });
+    expect(mocks.callWalletPaymentRpc).toHaveBeenCalledTimes(1);
+    expect(mocks.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('does not audit when the transaction rolls back', async () => {
+    mocks.callWalletPaymentRpc.mockResolvedValue({ data: null, error: { message: 'Invoice update failed' } });
+
+    await expect(settleWalletInvoices({ residentId, invoiceIds: [earlyInvoiceId, lateInvoiceId], requestKey })).resolves.toEqual({
+      success: false,
+      error: 'Invoice update failed',
+    });
+    expect(mocks.logAudit).not.toHaveBeenCalled();
   });
 
   it('does not reverse an invalid batch identifier', async () => {

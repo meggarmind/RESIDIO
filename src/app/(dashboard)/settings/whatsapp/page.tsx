@@ -1,196 +1,43 @@
 import { getWhatsAppForcePin, getWhatsAppOptIns, getWhatsAppPendingContacts } from '@/actions/whatsapp/identity';
-import { Badge } from '@/components/ui/badge';
+import { getWhatsAppDisclosureLogs, getWhatsAppHealth, getWhatsAppSessions } from '@/actions/whatsapp/admin-console';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ForcePinToggle } from '@/app/(dashboard)/settings/whatsapp/force-pin-toggle';
 import { OptInImport } from '@/app/(dashboard)/settings/whatsapp/opt-in-import';
-import { PendingContactActions } from '@/app/(dashboard)/settings/whatsapp/pending-contact-actions';
-import { SessionReset } from '@/app/(dashboard)/settings/whatsapp/session-reset';
-
-type ResidentSummary = {
-  first_name: string;
-  last_name: string;
-  resident_code: string;
-};
-
-type OptInRow = {
-  phone_number: string;
-  opted_in: boolean;
-  source: string;
-  updated_at: string;
-  resident: ResidentSummary | null;
-};
-
-type PendingRow = {
-  phone_number: string;
-  status: string;
-  source: string;
-  resident_id: string | null;
-  first_seen_at: string;
-  last_seen_at: string;
-};
-
-function maskPhone(phone: string): string {
-  if (phone.length < 7) return phone;
-  return `${phone.slice(0, 4)}****${phone.slice(-3)}`;
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('en-NG', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
-}
+import { OperationsConsole, type Disclosure, type Health, type OptIn, type Pending, type Session } from '@/app/(dashboard)/settings/whatsapp/operations-console';
 
 export default async function WhatsAppOperationsPage() {
-  const [optInResult, pendingResult, forcePinResult] = await Promise.all([
+  const [optInResult, pendingResult, forcePinResult, sessionsResult, disclosuresResult, healthResult] = await Promise.all([
     getWhatsAppOptIns(),
     getWhatsAppPendingContacts(),
     getWhatsAppForcePin(),
+    getWhatsAppSessions(),
+    getWhatsAppDisclosureLogs(),
+    getWhatsAppHealth(),
   ]);
-  const optIns = (optInResult.data || []) as OptInRow[];
-  const pendingContacts = (pendingResult.data || []) as PendingRow[];
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">WhatsApp Operations</h1>
-        <p className="text-sm text-muted-foreground">
-          Review WhatsApp consent and unrostered contacts. Financial data is not shown here.
-        </p>
+        <p className="text-sm text-muted-foreground">Admin-only consent, identity, session, disclosure, and bot health controls.</p>
       </div>
-
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle>Financial PIN policy</CardTitle>
-            <CardDescription>Require a PIN before any financial answer.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
-              Residents can still set a personal PIN when this is off.
-            </p>
-            <ForcePinToggle initialValue={forcePinResult.data === true} />
-          </CardContent>
+          <CardHeader><CardTitle>Financial PIN policy</CardTitle><CardDescription>Require a PIN before any financial answer.</CardDescription></CardHeader>
+          <CardContent className="flex items-center justify-between gap-4"><p className="text-sm text-muted-foreground">Residents can still set a personal PIN when this is off.</p><ForcePinToggle initialValue={forcePinResult.data === true} /></CardContent>
         </Card>
-
         <Card>
-          <CardHeader>
-            <CardTitle>Import opt-ins</CardTitle>
-            <CardDescription>Load approved resident consent records from CSV.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <OptInImport />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Opt-ins</CardTitle>
-            <CardDescription>{optIns.length} linked WhatsApp number(s)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {optIns.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No WhatsApp consent records yet.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="pb-2 pr-4 font-medium">Resident</th>
-                      <th className="pb-2 pr-4 font-medium">Number</th>
-                      <th className="pb-2 pr-4 font-medium">State</th>
-                      <th className="pb-2 pr-4 font-medium">Source</th>
-                      <th className="pb-2 font-medium">Updated</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {optIns.map((row) => (
-                      <tr key={`${row.phone_number}-${row.resident?.resident_code}`} className="border-b last:border-0">
-                        <td className="py-3 pr-4">
-                          {row.resident ? `${row.resident.first_name} ${row.resident.last_name}` : 'Unknown'}
-                        </td>
-                        <td className="py-3 pr-4 font-mono text-xs">{maskPhone(row.phone_number)}</td>
-                        <td className="py-3 pr-4">
-                          <Badge variant={row.opted_in ? 'default' : 'secondary'}>
-                            {row.opted_in ? 'Opted in' : 'Opted out'}
-                          </Badge>
-                        </td>
-                        <td className="py-3 pr-4 text-xs text-muted-foreground">{row.source}</td>
-                        <td className="py-3 text-xs text-muted-foreground">{formatDate(row.updated_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Pending contacts</CardTitle>
-            <CardDescription>{pendingContacts.length} unrostered number(s)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {pendingContacts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No pending contacts.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="pb-2 pr-4 font-medium">Number</th>
-                      <th className="pb-2 pr-4 font-medium">State</th>
-                      <th className="pb-2 pr-4 font-medium">Source</th>
-                      <th className="pb-2 pr-4 font-medium">First seen</th>
-                      <th className="pb-2 pr-4 font-medium">Actions</th>
-                      <th className="pb-2 font-medium">Last seen</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingContacts.map((row) => (
-                      <tr key={row.phone_number} className="border-b last:border-0">
-                        <td className="py-3 pr-4 font-mono text-xs">{maskPhone(row.phone_number)}</td>
-                        <td className="py-3 pr-4"><Badge variant="secondary">{row.status}</Badge></td>
-                        <td className="py-3 pr-4 text-xs text-muted-foreground">{row.source}</td>
-                        <td className="py-3 pr-4 text-xs text-muted-foreground">{formatDate(row.first_seen_at)}</td>
-                        <td className="py-3 pr-4">
-                          {row.status === 'pending' ? <PendingContactActions phoneNumber={row.phone_number} /> : null}
-                        </td>
-                        <td className="py-3 text-xs text-muted-foreground">{formatDate(row.last_seen_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
+          <CardHeader><CardTitle>Import opt-ins</CardTitle><CardDescription>Load approved resident consent records from CSV.</CardDescription></CardHeader>
+          <CardContent><OptInImport /></CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Active session controls</CardTitle>
-          <CardDescription>Reset a linked number&apos;s active conversation session when support requires it.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {optIns.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No linked numbers with sessions to reset.</p>
-          ) : (
-            <div className="space-y-2">
-              {optIns.map((row) => (
-                <div key={`session-${row.phone_number}-${row.resident?.resident_code}`} className="flex items-center justify-between gap-4 rounded-md border p-3">
-                  <div>
-                    <p className="text-sm font-medium">{row.resident ? `${row.resident.first_name} ${row.resident.last_name}` : 'Unknown resident'}</p>
-                    <p className="font-mono text-xs text-muted-foreground">{maskPhone(row.phone_number)}</p>
-                  </div>
-                  <SessionReset phoneNumber={row.phone_number} />
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <OperationsConsole
+        optIns={(optInResult.data || []) as OptIn[]}
+        pending={(pendingResult.data || []) as Pending[]}
+        sessions={(sessionsResult.data || []) as Session[]}
+        disclosures={(disclosuresResult.data || []) as Disclosure[]}
+        health={(healthResult.data || { inboundToday: 0, outboundToday: 0, deliveryFailuresToday: 0, templateErrorsToday: 0, capLimitEventsToday: 0 }) as Health}
+      />
     </div>
   );
 }

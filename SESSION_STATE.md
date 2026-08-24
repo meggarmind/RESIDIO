@@ -11,6 +11,14 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ## Last session (OpenCode, 2026-08-24 — OpenCode review agent)
 
+## Last session (OpenCode, 2026-08-24 — WhatsApp Operations Console #7)
+
+- Implemented the admin-only `/settings/whatsapp` operations console with searchable consent registry, consent-state filtering, masked numbers, timestamps, pending-contact review, active-session inspection/reset, disclosure-log filtering, and bot health counters.
+- Added permission-first read actions for sessions, disclosure logs, and health metrics. Existing identity writes remain permission-first and audit successful writes; bulk opt-in import, pending attach/ignore, force-PIN updates, and session resets are covered by the existing action boundary.
+- Added focused action tests for authorization boundaries, financial-field redaction, health aggregation, and registry/disclosure filters. Focused WhatsApp suite: 37/37; full Vitest: 280/280; TypeScript and scoped ESLint pass.
+- Full repository lint remains blocked by existing generated/static `website/build` lint findings (123 errors, 1,522 warnings). Production build was attempted but the Windows child process was terminated by the runner before completion.
+- No commit created. Existing unrelated wallet/property/security changes remain untouched.
+
 - Added the project-local `meggar-review` OpenCode subagent at `.opencode/agent/meggar-review.md`. It verifies only `ready-for-agent` issues in the `In review` column of `meggarmind/projects/1`, moves unambiguous approvals to Done, and otherwise hands the issue back with `ready-for-human`.
 
 ## Last session (OpenCode, 2026-08-23 — Full issue sweep)
