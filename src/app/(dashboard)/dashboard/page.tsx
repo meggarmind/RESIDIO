@@ -2,14 +2,7 @@
 
 import { Suspense, useEffect } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
-import {
-  useDashboardActionMetrics,
-  useDashboardFinancialHealth,
-  useDashboardInvoiceDistribution,
-  useDashboardQuickStats,
-  useDashboardRecentActivity,
-} from '@/hooks/use-dashboard';
-import { Skeleton } from '@/components/ui/skeleton';
+import { useAdminDashboardSnapshot } from '@/hooks/use-dashboard';
 import { toast } from 'sonner';
 import { DashboardSkeleton } from '@/components/dashboard/dashboard-skeleton';
 import { UnifiedActionsCard } from '@/components/dashboard/unified-actions-card';
@@ -27,58 +20,11 @@ function NavigationStateHandler({ unauthorized }: { unauthorized: boolean }) {
     return null;
 }
 
-function StatCardSkeleton() {
-  return <div className="grid gap-4 md:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}</div>;
-}
-
-function StatsCards() {
-  const { data: financialHealth, isLoading: fhLoading, isError: fhError } = useDashboardFinancialHealth();
-  const { data: quickStats, isLoading: qsLoading, isError: qsError } = useDashboardQuickStats();
-  const { data: actionMetrics, isError: actionMetricsError } = useDashboardActionMetrics();
-  const { suggestions } = useSmartSuggestions();
-
-  return (
-    <ModernStatsCards
-      financialHealth={financialHealth ?? null}
-      quickStats={quickStats ?? null}
-      actionMetrics={actionMetrics ?? null}
-      suggestions={suggestions}
-      isLoading={fhLoading || qsLoading}
-      isUnavailable={fhError || qsError}
-      areActionMetricsUnavailable={actionMetricsError}
-    />
-  );
-}
-
-function FinancialHealthCard() {
-  const { data, isLoading } = useDashboardFinancialHealth();
-  return <ModernFinancialHealth financialHealth={data ?? null} isLoading={isLoading} />;
-}
-
-function ActionsCard() {
-  const { data, isLoading, isError } = useDashboardActionMetrics();
-  return (
-    <UnifiedActionsCard
-      actionMetrics={data ?? null}
-      isLoading={isLoading}
-      isUnavailable={isError}
-    />
-  );
-}
-
-function PendingPaymentsCard() {
-  const { data, isLoading } = useDashboardInvoiceDistribution();
-  return <ModernPendingPayments distribution={data ?? null} isLoading={isLoading} />;
-}
-
-function RecentActivityCardStream() {
-  const { data, isLoading } = useDashboardRecentActivity();
-  return <ModernRecentActivity activities={data ?? null} isLoading={isLoading} />;
-}
-
 function DashboardContent() {
     const { profile, isLoading: authLoading } = useAuth();
     const navigationState = useDashboardNavigationState();
+    const { data: snapshot, isLoading, isError } = useAdminDashboardSnapshot();
+    const { suggestions } = useSmartSuggestions();
 
     if (authLoading) {
         return <DashboardSkeleton label="Loading dashboard authentication" state="auth" />;
@@ -88,30 +34,32 @@ function DashboardContent() {
         <div className="space-y-6" data-dashboard-state="ready">
             <NavigationStateHandler unauthorized={navigationState.unauthorized} />
 
-            <Suspense fallback={<StatCardSkeleton />}>
-              <StatsCards />
-            </Suspense>
+            <ModernStatsCards
+              financialHealth={snapshot?.financialHealth ?? null}
+              quickStats={snapshot?.quickStats ?? null}
+              actionMetrics={snapshot?.actionMetrics ?? null}
+              suggestions={suggestions}
+              isLoading={isLoading}
+              isUnavailable={isError}
+              areActionMetricsUnavailable={isError}
+            />
 
             <div className="grid gap-6 lg:grid-cols-4">
                 <div className="lg:col-span-2">
-                    <Suspense fallback={<Skeleton className="h-64 rounded-xl" />}>
-                      <FinancialHealthCard />
-                    </Suspense>
+                    <ModernFinancialHealth financialHealth={snapshot?.financialHealth ?? null} isLoading={isLoading} />
                 </div>
                 <div className="lg:col-span-2">
-                    <Suspense fallback={<Skeleton className="h-64 rounded-xl" />}>
-                      <ActionsCard />
-                    </Suspense>
+                    <UnifiedActionsCard
+                      actionMetrics={snapshot?.actionMetrics ?? null}
+                      isLoading={isLoading}
+                      isUnavailable={isError}
+                    />
                 </div>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
-                <Suspense fallback={<Skeleton className="h-64 rounded-xl" />}>
-                  <PendingPaymentsCard />
-                </Suspense>
-                <Suspense fallback={<Skeleton className="h-64 rounded-xl" />}>
-                  <RecentActivityCardStream />
-                </Suspense>
+                <ModernPendingPayments distribution={snapshot?.invoiceDistribution ?? null} isLoading={isLoading} />
+                <ModernRecentActivity activities={snapshot?.recentActivity ?? null} isLoading={isLoading} />
             </div>
 
             {navigationState.debug && (

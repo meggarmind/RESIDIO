@@ -103,6 +103,7 @@ export interface EnhancedDashboardStats {
     quickStats: QuickStats;
     recentActivity: RecentActivityItem[];
     monthlyTrends: MonthlyTrend[];
+    actionMetrics: DashboardActionMetrics;
     lastUpdated: string;
 }
 
@@ -186,7 +187,8 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
         levyData,
         quickStatsData,
         activityData,
-        trendsData
+        trendsData,
+        actionMetricsData
     ] = await Promise.all([
         withTimeout(
             fetchFinancialHealth(supabase, monthStart, monthEnd, prevMonthStart, prevMonthEnd),
@@ -229,6 +231,12 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
             TIMEOUT,
             [],
             'fetchMonthlyTrends'
+        ),
+        withTimeout(
+            fetchActionMetrics(supabase, now, sevenDaysFromNow),
+            TIMEOUT,
+            null,
+            'fetchActionMetrics'
         )
     ]);
 
@@ -269,6 +277,12 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
             },
             recentActivity: activityData || [],
             monthlyTrends: trendsData || [],
+            actionMetrics: actionMetricsData || {
+                pendingResidentVerifications: 0,
+                unverifiedPayments: 0,
+                expiringSecurityContacts: 0,
+                totalRequiringAttention: 0
+            },
             lastUpdated: now.toISOString()
         },
         error: null
@@ -755,39 +769,45 @@ export async function getDashboardSecurityAlerts(): Promise<{ data: SecurityAler
     }
 }
 
+async function fetchActionMetrics(
+    supabase: SupabaseClient,
+    now: Date,
+    sevenDaysFromNow: Date
+): Promise<DashboardActionMetrics> {
+    const [pendingResidents, unverifiedPayments, expiringContacts] = await Promise.all([
+        supabase.from('residents').select('id', { count: 'exact', head: true }).eq('verification_status', 'pending'),
+        supabase.from('payment_records').select('id', { count: 'exact', head: true }).eq('is_verified', false).eq('status', 'paid'),
+        supabase
+            .from('security_contacts')
+            .select('id, access_codes!inner(id)', { count: 'exact', head: true })
+            .eq('status', 'active')
+            .eq('access_codes.is_active', true)
+            .not('access_codes.valid_until', 'is', null)
+            .gt('access_codes.valid_until', now.toISOString())
+            .lte('access_codes.valid_until', sevenDaysFromNow.toISOString()),
+    ]);
+    const error = pendingResidents.error || unverifiedPayments.error || expiringContacts.error;
+    if (error) throw error;
+
+    const pendingResidentVerifications = pendingResidents.count ?? 0;
+    const unverifiedPaymentCount = unverifiedPayments.count ?? 0;
+    const expiringSecurityContacts = expiringContacts.count ?? 0;
+
+    return {
+        pendingResidentVerifications,
+        unverifiedPayments: unverifiedPaymentCount,
+        expiringSecurityContacts,
+        totalRequiringAttention: pendingResidentVerifications + unverifiedPaymentCount + expiringSecurityContacts,
+    };
+}
+
 export async function getDashboardActionMetrics(): Promise<{ data: DashboardActionMetrics | null; error: string | null }> {
     try {
         const supabase = await requireAuthClient();
         const now = new Date();
         const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-        const [pendingResidents, unverifiedPayments, expiringContacts] = await Promise.all([
-            supabase.from('residents').select('id', { count: 'exact', head: true }).eq('verification_status', 'pending'),
-            supabase.from('payment_records').select('id', { count: 'exact', head: true }).eq('is_verified', false).eq('status', 'paid'),
-            supabase
-                .from('security_contacts')
-                .select('id, access_codes!inner(id)', { count: 'exact', head: true })
-                .eq('status', 'active')
-                .eq('access_codes.is_active', true)
-                .not('access_codes.valid_until', 'is', null)
-                .gt('access_codes.valid_until', now.toISOString())
-                .lte('access_codes.valid_until', sevenDaysFromNow.toISOString()),
-        ]);
-        const error = pendingResidents.error || unverifiedPayments.error || expiringContacts.error;
-        if (error) throw error;
-
-        const pendingResidentVerifications = pendingResidents.count ?? 0;
-        const unverifiedPaymentCount = unverifiedPayments.count ?? 0;
-        const expiringSecurityContacts = expiringContacts.count ?? 0;
-
-        return {
-            data: {
-                pendingResidentVerifications,
-                unverifiedPayments: unverifiedPaymentCount,
-                expiringSecurityContacts,
-                totalRequiringAttention: pendingResidentVerifications + unverifiedPaymentCount + expiringSecurityContacts,
-            },
-            error: null,
-        };
+        const data = await fetchActionMetrics(supabase, now, sevenDaysFromNow);
+        return { data, error: null };
     } catch (err) {
         return { data: null, error: err instanceof Error ? err.message : 'Failed to fetch dashboard actions' };
     }
