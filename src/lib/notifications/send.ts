@@ -1,8 +1,9 @@
 /**
  * Notification Sender - Channel Dispatcher Pattern
  *
- * Sends notifications through the appropriate channel (email, SMS, WhatsApp).
- * SMS remains dormant; WhatsApp uses the Meta provider boundary.
+ * Sends notifications through the appropriate channel (email, WhatsApp).
+ * SMS is not implemented; WhatsApp uses the Meta provider boundary and
+ * enforces approved template-only sends for proactive delivery.
  *
  * Provider-specific senders stay behind this dispatcher so queue/history
  * behavior remains shared across channels.
@@ -21,7 +22,6 @@ import { isChannelImplemented } from './types';
 import { truncateForPreview } from './templates';
 import {
   isApprovedWhatsAppTemplateName,
-  sendWhatsAppMessage,
   sendWhatsAppTemplate,
 } from '@/lib/whatsapp';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
@@ -101,64 +101,22 @@ async function sendViaEmail(
 }
 
 /**
- * Send a notification via SMS using Termii
+ * Send a notification via SMS. SMS is not operational; this sender
+ * exists so the dispatcher map stays complete but calls are caught
+ * early by the isChannelImplemented guard before reaching here.
  */
 async function sendViaSms(
-  item: NotificationQueueItem
+  _item: NotificationQueueItem
 ): Promise<SendNotificationResult> {
-  // Check if SMS is globally enabled
-  const smsEnabled = await getSettingValue('sms_enabled');
-  if (smsEnabled === false) {
-    return {
-      success: false,
-      error: 'SMS notifications are disabled in system settings',
-    };
-  }
-
-  // Validate recipient phone
-  if (!item.recipient_phone) {
-    return {
-      success: false,
-      error: 'No recipient phone number provided',
-    };
-  }
-
-  try {
-    // Dynamic import to avoid circular dependencies
-    const { sendSms } = await import('@/lib/sms/send-sms');
-
-    const result = await sendSms({
-      to: {
-        phone: item.recipient_phone,
-        residentId: item.recipient_id,
-      },
-      message: item.body,
-      smsType: 'notification',
-      metadata: item.metadata as Record<string, unknown> | undefined,
-    });
-
-    if (!result.success) {
-      return {
-        success: false,
-        error: result.error,
-      };
-    }
-
-    return {
-      success: true,
-      externalId: result.messageId,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error sending SMS',
-    };
-  }
+  return {
+    success: false,
+    error: 'SMS is not implemented',
+  };
 }
 
 /**
- * Send a notification via WhatsApp text. Template enforcement is added by
- * the outbound messaging slice; this foundation only establishes dispatch.
+ * Send a notification via WhatsApp. Only approved template sends are allowed
+ * for proactive delivery; free-form text is rejected.
  */
 async function sendViaWhatsApp(
   item: NotificationQueueItem
@@ -219,22 +177,23 @@ async function sendViaWhatsApp(
   }
 
   const whatsappTemplate = item.metadata?.whatsapp_template;
-  if (typeof whatsappTemplate === 'object' && whatsappTemplate !== null) {
-    const templateName = (whatsappTemplate as Record<string, unknown>).name;
-    if (!isApprovedWhatsAppTemplateName(templateName)) {
-      return { success: false, error: 'WhatsApp template is not approved for proactive delivery' };
-    }
+  if (typeof whatsappTemplate !== 'object' || whatsappTemplate === null) {
+    return { success: false, error: 'WhatsApp proactive sends require an approved template' };
   }
-  const result = typeof whatsappTemplate === 'object' && whatsappTemplate !== null
-    ? await sendWhatsAppTemplate({
-        to: normalizedRecipientPhone,
-        templateName: String((whatsappTemplate as Record<string, unknown>).name),
-        languageCode: String((whatsappTemplate as Record<string, unknown>).languageCode || 'en_US'),
-        parameters: Array.isArray((whatsappTemplate as Record<string, unknown>).parameters)
-          ? ((whatsappTemplate as Record<string, unknown>).parameters as unknown[]).map(String)
-          : [],
-      })
-    : await sendWhatsAppMessage({ to: normalizedRecipientPhone, body: item.body });
+
+  const templateName = (whatsappTemplate as Record<string, unknown>).name;
+  if (!isApprovedWhatsAppTemplateName(templateName)) {
+    return { success: false, error: 'WhatsApp template is not approved for proactive delivery' };
+  }
+
+  const result = await sendWhatsAppTemplate({
+    to: normalizedRecipientPhone,
+    templateName: String(templateName),
+    languageCode: String((whatsappTemplate as Record<string, unknown>).languageCode || 'en_US'),
+    parameters: Array.isArray((whatsappTemplate as Record<string, unknown>).parameters)
+      ? ((whatsappTemplate as Record<string, unknown>).parameters as unknown[]).map(String)
+      : [],
+  });
 
   return {
     success: result.success,

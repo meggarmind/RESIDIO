@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
 import { sendNotification } from '@/lib/notifications/send';
 import { getSettingValue } from '@/actions/settings/get-settings';
-import { sendWhatsAppMessage } from '@/lib/whatsapp';
+import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 
@@ -11,7 +11,10 @@ vi.mock('@/actions/settings/get-settings', () => ({
 }));
 
 vi.mock('@/lib/whatsapp', () => ({
-  sendWhatsAppMessage: vi.fn(),
+  sendWhatsAppTemplate: vi.fn(),
+  isApprovedWhatsAppTemplateName: vi.fn((name: string) =>
+    ['invoice_reminder', 'payment_received', 'announcement'].includes(name)
+  ),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -40,8 +43,8 @@ describe('WhatsApp notification dispatch', () => {
     expect(IMPLEMENTED_CHANNELS).toEqual(['email', 'whatsapp']);
   });
 
-  it('sends a WhatsApp queue item through the provider seam', async () => {
-    vi.mocked(sendWhatsAppMessage).mockResolvedValue({
+  it('sends a WhatsApp template through the provider seam', async () => {
+    vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
       success: true,
       messageId: 'wamid.outbound-1',
     });
@@ -68,15 +71,23 @@ describe('WhatsApp notification dispatch', () => {
       last_attempt_at: null,
       sent_at: null,
       error_message: null,
-      metadata: null,
+      metadata: {
+        whatsapp_template: {
+          name: 'invoice_reminder',
+          languageCode: 'en_US',
+          parameters: ['Ada', 'INV-001', 'NGN 10,000', '1 Sep'],
+        },
+      },
       created_at: new Date().toISOString(),
       created_by: null,
     });
 
     expect(result).toEqual({ success: true, externalId: 'wamid.outbound-1', error: undefined });
-    expect(sendWhatsAppMessage).toHaveBeenCalledWith({
+    expect(sendWhatsAppTemplate).toHaveBeenCalledWith({
       to: '+2348000000000',
-      body: 'Reminder',
+      templateName: 'invoice_reminder',
+      languageCode: 'en_US',
+      parameters: ['Ada', 'INV-001', 'NGN 10,000', '1 Sep'],
     });
   });
 
@@ -124,7 +135,13 @@ describe('WhatsApp notification dispatch', () => {
       last_attempt_at: null,
       sent_at: null,
       error_message: null,
-      metadata: null,
+      metadata: {
+        whatsapp_template: {
+          name: 'invoice_reminder',
+          languageCode: 'en_US',
+          parameters: ['Ada', 'INV-001', 'NGN 10,000', '1 Sep'],
+        },
+      },
       created_at: new Date().toISOString(),
       created_by: null,
     })).resolves.toEqual({ success: false, error: 'WhatsApp daily outbound limit reached' });
@@ -155,7 +172,13 @@ describe('WhatsApp notification dispatch', () => {
       last_attempt_at: null,
       sent_at: null,
       error_message: null,
-      metadata: null,
+      metadata: {
+        whatsapp_template: {
+          name: 'payment_received',
+          languageCode: 'en_US',
+          parameters: ['Ada', 'NGN 5,000', '01/09', 'REF'],
+        },
+      },
       created_at: new Date().toISOString(),
       created_by: null,
     })).resolves.toEqual({

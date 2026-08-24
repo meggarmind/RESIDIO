@@ -9,6 +9,10 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (OpenCode, 2026-08-24 — OpenCode review agent)
+
+- Added the project-local `meggar-review` OpenCode subagent at `.opencode/agent/meggar-review.md`. It verifies only `ready-for-agent` issues in the `In review` column of `meggarmind/projects/1`, moves unambiguous approvals to Done, and otherwise hands the issue back with `ready-for-human`.
+
 ## Last session (OpenCode, 2026-08-23 — Full issue sweep)
 
 - **Issues implemented this session:** #16 (archive safety), #78 (backfill profile error), #82 (invoice naming format), #84 (role terminology), #95 (generation workflow separation), #97 (billing date filter), #102 (mobile dashboard parity), #103 (shell variant cleanup). Combined with prior work, 18 issues are now at In review.

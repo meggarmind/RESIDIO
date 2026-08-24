@@ -42,7 +42,7 @@ import {
 } from '@/lib/notifications/escalation';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
 import { shouldSendToResident } from '@/lib/notifications/preferences';
-import { whatsappTemplate, WHATSAPP_TEMPLATE_NAMES } from '@/lib/whatsapp';
+import { buildInvoiceReminderWhatsApp } from '@/lib/whatsapp/outbound';
 
 /**
  * Invoice with related data for reminder sending
@@ -325,22 +325,15 @@ async function sendReminderToChannels(params: {
             break;
           }
 
-          const result = await addToQueue({
-            recipient_id: invoice.resident.id,
-            recipient_phone: invoice.resident.phone_primary,
-            channel: 'whatsapp',
-            body: `Invoice ${invoice.invoice_number}: NGN ${amountRemaining.toLocaleString('en-NG')} due ${formattedDueDate}.`,
-            metadata: {
-              invoiceId: invoice.id,
-              invoiceNumber: invoice.invoice_number,
-              whatsapp_template: whatsappTemplate(WHATSAPP_TEMPLATE_NAMES.invoiceReminder, [
-                residentName,
-                invoice.invoice_number,
-                `NGN ${amountRemaining.toLocaleString('en-NG')}`,
-                formattedDueDate,
-              ]),
-            },
-          });
+          const result = await addToQueue(buildInvoiceReminderWhatsApp({
+            invoiceId: invoice.id,
+            invoiceNumber: invoice.invoice_number,
+            residentId: invoice.resident.id,
+            residentPhone: invoice.resident.phone_primary,
+            residentName,
+            amountRemaining,
+            dueDate: formattedDueDate,
+          }));
           if (result.success) results.whatsapp = true;
           else results.errors.push(`WhatsApp: ${result.error}`);
         }

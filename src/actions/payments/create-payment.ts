@@ -9,8 +9,8 @@ import { authorizePermission } from '@/lib/auth/authorize'
 import { PERMISSIONS } from '@/lib/auth/action-roles'
 import type { PaymentRecord } from '@/types/database'
 import { shouldSendToResident } from '@/lib/notifications/preferences'
-import { whatsappTemplate, WHATSAPP_TEMPLATE_NAMES } from '@/lib/whatsapp'
-import { addToQueue, PRIORITY } from '@/lib/notifications/queue'
+import { buildPaymentReceivedWhatsApp } from '@/lib/whatsapp/outbound'
+import { addToQueue } from '@/lib/notifications/queue'
 
 // Extended schema to include import tracking fields, house association, and verification
 const extendedPaymentSchema = paymentFormSchema.extend({
@@ -159,23 +159,15 @@ export async function createPayment(data: CreatePaymentInput): Promise<CreatePay
             .single()
 
         if (paymentRecipient?.phone_primary) {
-            await addToQueue({
-                recipient_id: result.data.resident_id,
-                recipient_phone: paymentRecipient.phone_primary,
-                channel: 'whatsapp',
-                body: `Payment received: NGN ${result.data.amount.toLocaleString('en-NG')}.`,
-                priority: PRIORITY.NORMAL,
-                deduplication_key: `payment_received:${paymentRecord.id}`,
-                metadata: {
-                    paymentId: paymentRecord.id,
-                    whatsapp_template: whatsappTemplate(WHATSAPP_TEMPLATE_NAMES.paymentReceived, [
-                        `${paymentRecipient.first_name} ${paymentRecipient.last_name}`,
-                        `NGN ${result.data.amount.toLocaleString('en-NG')}`,
-                        result.data.payment_date.toLocaleDateString('en-NG'),
-                        result.data.reference_number || 'Not provided',
-                    ]),
-                },
-            })
+            await addToQueue(buildPaymentReceivedWhatsApp({
+                paymentId: paymentRecord.id,
+                residentId: result.data.resident_id,
+                residentPhone: paymentRecipient.phone_primary,
+                residentName: `${paymentRecipient.first_name} ${paymentRecipient.last_name}`,
+                amount: result.data.amount,
+                paymentDate: result.data.payment_date.toLocaleDateString('en-NG'),
+                referenceNumber: result.data.reference_number || null,
+            }))
         }
     }
 
