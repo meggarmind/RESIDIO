@@ -4,12 +4,17 @@ import { CloudOff, RefreshCw } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsOffline } from "@/lib/offline/network-status";
 import { cn } from "@/lib/utils";
+import { formatDistanceToNow } from "date-fns";
 
-export function OfflineAdminBanner() {
+export function OfflineAdminBanner({ isStale = false, savedAt = null }: { isStale?: boolean; savedAt?: number | null }) {
   const isOffline = useIsOffline();
   const queryClient = useQueryClient();
 
-  if (!isOffline) return null;
+  if (!isOffline && !isStale) return null;
+
+  const message = isOffline
+    ? "You’re offline. Recent admin data may be stale; writes are disabled."
+    : `Showing cached admin data from ${savedAt ? formatDistanceToNow(savedAt, { addSuffix: true }) : "an earlier session"}.`;
 
   return (
     <div
@@ -21,7 +26,7 @@ export function OfflineAdminBanner() {
       )}
     >
       <CloudOff className="size-4" aria-hidden="true" />
-      <span>You’re offline. Recent admin data may be stale; writes are disabled.</span>
+       <span>{message}</span>
       <button
         type="button"
         className="inline-flex items-center gap-1 rounded-md px-2 py-1 font-medium underline underline-offset-2 hover:bg-amber-100 dark:hover:bg-amber-900"

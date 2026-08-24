@@ -25,6 +25,8 @@ import { removeOwnership } from '@/actions/residents/remove-ownership';
 import { verifyResident, rejectResidentVerification } from '@/actions/residents/verify-resident';
 import type { ResidentSearchParams, CreateResidentData, ResidentFormData, HouseAssignmentData } from '@/lib/validators/resident';
 import type { ResidentRole } from '@/types/database';
+import { useOfflineAdminSnapshot } from '@/hooks/use-offline-admin-snapshot';
+import { ADMIN_READ_CACHE_TTLS } from '@/lib/offline/admin-read-cache';
 
 // Type for resident house update data (defined inline since it's from 'use server' file)
 type UpdateResidentHouseData = {
@@ -41,6 +43,19 @@ export function useResidents(params: Partial<ResidentSearchParams> = {}) {
       if (result.error) throw new Error(result.error);
       return { data: result.data, count: result.count };
     },
+  });
+}
+
+export function useAdminResidents(params: Partial<ResidentSearchParams> = {}) {
+  return useOfflineAdminSnapshot({
+    queryKey: ['residents', params],
+    cacheKey: `residents:${JSON.stringify(params)}`,
+    queryFn: async () => {
+      const result = await getResidents(params);
+      if (result.error) throw new Error(result.error);
+      return { data: result.data, count: result.count };
+    },
+    ttlMs: ADMIN_READ_CACHE_TTLS.list,
   });
 }
 

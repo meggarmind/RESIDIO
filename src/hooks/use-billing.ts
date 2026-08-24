@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useOfflineAdminSnapshot } from '@/hooks/use-offline-admin-snapshot';
+import { ADMIN_READ_CACHE_TTLS } from '@/lib/offline/admin-read-cache';
 import {
     createBillingProfile,
     getBillingProfiles,
@@ -166,6 +168,19 @@ export function useInvoices(params: GetInvoicesParams = {}) {
             if (result.error) throw new Error(result.error);
             return { data: result.data, total: result.total };
         }
+    });
+}
+
+export function useAdminInvoices(params: GetInvoicesParams = {}) {
+    return useOfflineAdminSnapshot({
+        queryKey: ['invoices', params],
+        cacheKey: `invoices:${JSON.stringify(params)}`,
+        queryFn: async () => {
+            const result = await getInvoices(params);
+            if (result.error) throw new Error(result.error);
+            return { data: result.data, total: result.total };
+        },
+        ttlMs: ADMIN_READ_CACHE_TTLS.list,
     });
 }
 

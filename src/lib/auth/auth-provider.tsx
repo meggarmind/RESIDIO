@@ -6,6 +6,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { UserRole, AppRoleName } from '@/types/database';
 import { getServerSession } from '@/actions/auth/get-server-session';
+import { clearAdminReadCache } from '@/lib/offline/admin-read-cache';
 
 // Profile with both legacy and new RBAC fields
 interface Profile {
@@ -125,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             fetchProfile(newSession.user.id).finally(() => setIsLoading(false));
           }
         } else if (event === 'SIGNED_OUT') {
+          void clearAdminReadCache();
           setSession(null);
           setUser(null);
           setProfile(null);

@@ -34,7 +34,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { ContactVerificationBadge } from '@/components/residents/contact-verification-badge';
 import { ResidentQuickView } from '@/components/residents/resident-quick-view';
-import { useResidents, useContactVerificationStats } from '@/hooks/use-residents';
+import { useAdminResidents, useContactVerificationStats } from '@/hooks/use-residents';
 import { useStreets } from '@/hooks/use-reference';
 import { Users, Plus, Search, Pencil, UserPlus, ChevronDown, ChevronUp, ChevronsUpDown, X, CheckCircle2, AlertCircle, Clock, Eye } from 'lucide-react';
 import type { ResidentSearchParams, ContactVerificationFilter } from '@/lib/validators/resident';
@@ -157,7 +157,7 @@ export function ResidentsTable() {
       setSortOrder('asc');
     }
     setPage(1);
-  }, [sortBy]);
+  }, [setPage, setSortBy, setSortOrder, sortBy]);
 
   const handleNavigate = useCallback((id: string) => {
     router.push(`/residents/${id}`);
@@ -174,7 +174,7 @@ export function ResidentsTable() {
     );
     // Reset page when filter changes
     setPage(1);
-  }, []);
+  }, [setPage, setSelectedRoles]);
 
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -193,7 +193,7 @@ export function ResidentsTable() {
     limit,
   }), [debouncedSearch, status, streetId, contactVerification, selectedRoles, sortBy, sortOrder, page, limit]);
 
-  const { data, isLoading, error } = useResidents(params);
+  const { data, isLoading, error } = useAdminResidents(params);
   const { data: streets } = useStreets();
   const { data: verificationStats } = useContactVerificationStats();
 

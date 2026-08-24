@@ -12,6 +12,7 @@ import { ModernFinancialHealth } from '@/components/dashboard/modern-financial-h
 import { ModernPendingPayments } from '@/components/dashboard/modern-pending-payments';
 import { ModernRecentActivity } from '@/components/dashboard/modern-recent-activity';
 import { useDashboardNavigationState } from '@/hooks/use-dashboard-navigation-state';
+import { OfflineAdminBanner } from '@/components/dashboard/offline-admin-banner';
 
 function NavigationStateHandler({ unauthorized }: { unauthorized: boolean }) {
     useEffect(() => {
@@ -23,7 +24,7 @@ function NavigationStateHandler({ unauthorized }: { unauthorized: boolean }) {
 function DashboardContent() {
     const { profile, isLoading: authLoading } = useAuth();
     const navigationState = useDashboardNavigationState();
-    const { data: snapshot, isLoading, isError } = useAdminDashboardSnapshot();
+    const { data: snapshot, isLoading, isError, isStaleSnapshot, snapshotSavedAt } = useAdminDashboardSnapshot();
     const { suggestions } = useSmartSuggestions();
 
     if (authLoading) {
@@ -32,6 +33,7 @@ function DashboardContent() {
 
     return (
         <div className="space-y-6" data-dashboard-state="ready">
+            <OfflineAdminBanner isStale={isStaleSnapshot} savedAt={snapshotSavedAt} />
             <NavigationStateHandler unauthorized={navigationState.unauthorized} />
 
             <ModernStatsCards

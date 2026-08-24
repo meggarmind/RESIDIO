@@ -17,7 +17,7 @@ const TELEMETRY_CACHE_NAME = "admin.read";
 
 export type AdminReadCacheScope = {
   userId: string;
-  estateId?: string | null;
+  estateId: string;
 };
 
 export type AdminReadSnapshot<T> = {
@@ -50,6 +50,10 @@ function snapshotKey(scope: AdminReadCacheScope, key: string): string {
   return `${scopeKey(scope)}:${key}`;
 }
 
+export function getAdminReadCacheScope(userId: string, estateId = "default"): AdminReadCacheScope {
+  return { userId, estateId };
+}
+
 function openDatabase(): Promise<IDBDatabase | null> {
   if (!databaseAvailable()) return Promise.resolve(null);
 
@@ -79,7 +83,7 @@ export async function saveAdminReadSnapshot<T>(
   data: T,
   options: { ttlMs: number; maxStaleMs?: number },
 ): Promise<void> {
-  const database = await openDatabase();
+  const database = await openDatabase().catch(() => null);
   if (!database) return;
 
   const savedAt = Date.now();
@@ -104,7 +108,7 @@ export async function readAdminReadSnapshot<T>(
   scope: AdminReadCacheScope,
   key: string,
 ): Promise<AdminReadSnapshot<T> | null> {
-  const database = await openDatabase();
+  const database = await openDatabase().catch(() => null);
   if (!database) {
     recordPerformanceEvent({ type: "cache_miss", cache: TELEMETRY_CACHE_NAME });
     return null;
@@ -140,7 +144,7 @@ export async function readAdminReadSnapshot<T>(
 }
 
 export async function deleteAdminReadSnapshot(scope: AdminReadCacheScope, key: string): Promise<void> {
-  const database = await openDatabase();
+  const database = await openDatabase().catch(() => null);
   if (!database) return;
   try {
     await requestResult(database.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(snapshotKey(scope, key)));
@@ -150,7 +154,7 @@ export async function deleteAdminReadSnapshot(scope: AdminReadCacheScope, key: s
 }
 
 export async function clearAdminReadCache(scope?: AdminReadCacheScope): Promise<void> {
-  const database = await openDatabase();
+  const database = await openDatabase().catch(() => null);
   if (!database) return;
 
   try {

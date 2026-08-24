@@ -1,6 +1,6 @@
 'use client';
 
-import { useInvoices, useCheckOverdueInvoices, useOverdueStats } from '@/hooks/use-billing';
+import { useAdminInvoices, useCheckOverdueInvoices, useOverdueStats } from '@/hooks/use-billing';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -114,7 +114,7 @@ export default function BillingPage() {
         }
     }, [datePreset]);
 
-    const { data, isLoading, refetch } = useInvoices({
+    const { data, isLoading, refetch } = useAdminInvoices({
         page,
         limit,
         status: status === 'all' ? undefined : (status as InvoiceStatus),

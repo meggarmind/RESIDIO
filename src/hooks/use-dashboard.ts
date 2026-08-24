@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { getDashboardStats } from '@/actions/dashboard/get-dashboard-stats';
 import { getAdminDashboardSnapshot } from '@/actions/dashboard/get-enhanced-dashboard-stats';
 import { POLLING_INTERVALS } from '@/lib/config/polling';
+import { ADMIN_READ_CACHE_TTLS } from '@/lib/offline/admin-read-cache';
+import { useOfflineAdminSnapshot } from '@/hooks/use-offline-admin-snapshot';
 
 export const ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY = ['admin-dashboard-snapshot'] as const;
 
@@ -21,15 +23,20 @@ export function useDashboardStats() {
 }
 
 export function useAdminDashboardSnapshot() {
-    return useQuery({
+    return useOfflineAdminSnapshot({
         queryKey: ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY,
+        cacheKey: 'dashboard:snapshot',
         queryFn: async () => {
             const result = await getAdminDashboardSnapshot();
             if (result.error) throw new Error(result.error);
             return result.data;
         },
-        refetchInterval: POLLING_INTERVALS.SLOW,
-        staleTime: POLLING_INTERVALS.STANDARD,
+        ttlMs: ADMIN_READ_CACHE_TTLS.dashboard,
+        queryOptions: {
+            refetchInterval: POLLING_INTERVALS.SLOW,
+            staleTime: POLLING_INTERVALS.STANDARD,
+            refetchOnReconnect: true,
+        },
     });
 }
 
