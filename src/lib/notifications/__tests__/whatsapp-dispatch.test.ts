@@ -147,6 +147,28 @@ describe('WhatsApp notification dispatch', () => {
     })).resolves.toEqual({ success: false, error: 'WhatsApp daily outbound limit reached' });
   });
 
+  it('rejects WhatsApp sends when the rolling burst cap is reached', async () => {
+    vi.mocked(getSettingValue).mockImplementation(async (key) => {
+      if (key === 'whatsapp_outbound_burst_cap') return 1;
+      if (key === 'whatsapp_outbound_burst_window_minutes') return 10;
+      return key === 'whatsapp_outbound_daily_cap' ? 100 : true;
+    });
+    vi.mocked(createAdminClient).mockReturnValue({
+      from: vi.fn().mockImplementation((table: string) => table === 'notification_history'
+        ? { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), gte: vi.fn().mockResolvedValue({ count: 1, error: null }) }
+        : { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }) }),
+    } as unknown as ReturnType<typeof createAdminClient>);
+
+    await expect(sendNotification({
+      id: 'queue-burst-cap', template_id: null, schedule_id: null, recipient_id: 'resident-1', recipient_email: null,
+      recipient_phone: '2348000000000', channel: 'whatsapp', subject: null, body: 'Reminder', html_body: null,
+      variables: null, priority: 5, status: 'pending', deduplication_key: null, dedup_window_minutes: null,
+      scheduled_for: new Date().toISOString(), attempts: 0, max_attempts: 3, last_attempt_at: null, sent_at: null,
+      error_message: null, metadata: { whatsapp_template: { name: 'invoice_reminder', languageCode: 'en_US', parameters: ['Ada'] } },
+      created_at: new Date().toISOString(), created_by: null,
+    })).resolves.toEqual({ success: false, error: 'WhatsApp outbound burst limit reached' });
+  });
+
   it('pauses safely before checking consent or invoking the provider', async () => {
     vi.mocked(isWhatsAppRecipientAllowed).mockResolvedValueOnce(false);
 

@@ -9,6 +9,13 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (OpenCode, 2026-08-24 — WhatsApp Pilot and Estate-Wide Controls #8)
+
+- Completed the missing admin rollout controls: mounted pilot settings on `/settings/whatsapp`, added explicit pilot-to-estate promotion with permission-first authorization and an `ACTIVATE` audit record, and kept pilot targeting fail-closed for inbound financial access and proactive sends.
+- Added configurable rolling outbound burst caps alongside the existing daily cap, scheduled bounded retention for expired sessions and processed webhook IDs, and seeded safe disabled defaults through Supabase MCP. Consent and immutable disclosure-log boundaries remain unchanged.
+- Added focused promotion and burst-limit coverage. Verification: focused WhatsApp/notification suite **61/61**; module-integration **3/3**; TypeScript clean; scoped ESLint clean with one pre-existing unused-parameter warning in `send.ts`; `git diff --check` clean.
+- `npm run build` was attempted but the Windows runner terminated the Next child process (`ChildProcess.kill`). No commit created; all changes remain in the working tree.
+
 ## Last session (OpenCode, 2026-08-24 — OpenCode review agent)
 
 ## Last session (OpenCode, 2026-08-24 — WhatsApp Operations Console #7)

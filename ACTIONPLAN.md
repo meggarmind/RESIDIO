@@ -161,6 +161,7 @@ Based on the 2026-08-08 performance audit. Quick wins implemented; remaining wor
 - [x] Implement issue #5: Period-Based WhatsApp Statements is complete and closed.
 - [ ] Implement issue #6 next: Outbound Estate Messaging.
 - [ ] Resolve the SMS implementation-status discrepancy before marking outbound channel work complete.
+- [x] Implement issue #8: admin pilot controls, audited estate-wide promotion, configurable daily/burst caps, bounded retention cron, and focused verification are complete. Controlled Meta provider exercise remains credential-dependent.
 
 ## Change Log
 

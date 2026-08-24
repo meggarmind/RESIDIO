@@ -147,13 +147,13 @@ The project is fast-tracked around financial operations, financial statements/im
 - [x] **Core financial standing:** Implemented and closed [issue #4](https://github.com/meggarmind/RESIDIO/issues/4).
 - [x] **Period-based statements:** Implemented and closed [issue #5](https://github.com/meggarmind/RESIDIO/issues/5).
 - [~] **Outbound estate messaging:** Implement [issue #6](https://github.com/meggarmind/RESIDIO/issues/6); template producers, queue/retry behavior, outbound caps, and financial lookup limits are wired, with producer-level integration tests still pending.
-- [~] **Pilot and estate-wide controls:** Implement [issue #8](https://github.com/meggarmind/RESIDIO/issues/8); disabled/pilot/estate modes, targeting, caps, retention, monitoring, cloud defaults, and inbound/outbound pause enforcement are wired. Production is safely disabled; pilot-specific tests pass, while the full suite has unrelated concurrent dashboard/billing failures. Controlled Meta exercise remains credential-dependent.
+- [x] **Pilot and estate-wide controls:** Implemented [issue #8](https://github.com/meggarmind/RESIDIO/issues/8); admin pilot controls, explicit audited estate-wide promotion, resident/street targeting, daily and rolling burst caps, financial lookup caps, bounded scheduled retention, monitoring, and inbound/outbound pause enforcement are wired. Production remains safely disabled; controlled Meta exercise remains credential-dependent.
 - [ ] **Identity and consent:** [Issue #3](https://github.com/meggarmind/RESIDIO/issues/3), blocked by #2.
 - [ ] **Core financial standing:** [Issue #4](https://github.com/meggarmind/RESIDIO/issues/4), blocked by #3.
 - [ ] **Period-based statements:** [Issue #5](https://github.com/meggarmind/RESIDIO/issues/5), blocked by #4.
 - [ ] **Outbound estate messaging:** [Issue #6](https://github.com/meggarmind/RESIDIO/issues/6), blocked by #2 and #3.
 - [ ] **Operations console:** [Issue #7](https://github.com/meggarmind/RESIDIO/issues/7), blocked by #3, #4, and #6.
-- [~] **Pilot and estate-wide controls:** [Issue #8](https://github.com/meggarmind/RESIDIO/issues/8), implementation complete pending controlled provider exercise.
+- [x] **Pilot and estate-wide controls:** [Issue #8](https://github.com/meggarmind/RESIDIO/issues/8), implementation complete; controlled provider exercise remains credential-dependent.
 - [ ] **SMS status:** Correct the stale implemented-channel claim; SMS is not currently operational.
 
 ### Recent Session Work (2026-01-24): Style Guide Compliance (Layout 2) - Part 2

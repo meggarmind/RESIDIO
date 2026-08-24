@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { updateWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
+import { promoteWhatsAppPilotToEstate, updateWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
 import type { WhatsAppRolloutMode } from '@/lib/whatsapp/rollout';
 
 export function PilotControls({ initial }: { initial: {
@@ -11,6 +11,8 @@ export function PilotControls({ initial }: { initial: {
   residentIds: string[];
   streetId: string;
   outboundDailyCap: number;
+  outboundBurstCap: number;
+  outboundBurstWindowMinutes: number;
   financialLookupDailyCap: number;
 } }) {
   const [mode, setMode] = useState(initial.mode);
@@ -18,6 +20,8 @@ export function PilotControls({ initial }: { initial: {
   const [streetId, setStreetId] = useState(initial.streetId);
   const [outboundCap, setOutboundCap] = useState(String(initial.outboundDailyCap));
   const [lookupCap, setLookupCap] = useState(String(initial.financialLookupDailyCap));
+  const [burstCap, setBurstCap] = useState(String(initial.outboundBurstCap));
+  const [burstWindow, setBurstWindow] = useState(String(initial.outboundBurstWindowMinutes));
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -28,10 +32,16 @@ export function PilotControls({ initial }: { initial: {
         residentIds: residentIds.split(',').map((value) => value.trim()).filter(Boolean),
         streetId: streetId.trim(),
         outboundDailyCap: Number(outboundCap),
+        outboundBurstCap: Number(burstCap),
+        outboundBurstWindowMinutes: Number(burstWindow),
         financialLookupDailyCap: Number(lookupCap),
       });
       setMessage(result.error || 'Pilot controls saved');
     });
+  }
+
+  function promote() {
+    startTransition(async () => setMessage((await promoteWhatsAppPilotToEstate()).error || 'Pilot promoted estate-wide'));
   }
 
   return (
@@ -41,9 +51,11 @@ export function PilotControls({ initial }: { initial: {
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Pilot street ID</span><Input value={streetId} onChange={(event) => setStreetId(event.target.value)} placeholder="Optional" /></label>
         <label className="space-y-1 text-sm sm:col-span-2"><span className="text-muted-foreground">Pilot resident IDs</span><Input value={residentIds} onChange={(event) => setResidentIds(event.target.value)} placeholder="Comma-separated UUIDs" /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Daily outbound cap</span><Input type="number" min="0" value={outboundCap} onChange={(event) => setOutboundCap(event.target.value)} /></label>
+        <label className="space-y-1 text-sm"><span className="text-muted-foreground">Burst cap</span><Input type="number" min="0" value={burstCap} onChange={(event) => setBurstCap(event.target.value)} /></label>
+        <label className="space-y-1 text-sm"><span className="text-muted-foreground">Burst window (minutes)</span><Input type="number" min="1" value={burstWindow} onChange={(event) => setBurstWindow(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Daily financial lookup cap</span><Input type="number" min="0" value={lookupCap} onChange={(event) => setLookupCap(event.target.value)} /></label>
       </div>
-      <div className="flex items-center gap-3"><Button type="button" size="sm" disabled={isPending} onClick={save}>Save rollout controls</Button>{message ? <span className="text-xs text-muted-foreground">{message}</span> : null}</div>
+      <div className="flex items-center gap-3"><Button type="button" size="sm" disabled={isPending} onClick={save}>Save rollout controls</Button>{mode === 'pilot' ? <Button type="button" size="sm" variant="outline" disabled={isPending} onClick={promote}>Promote estate-wide</Button> : null}{message ? <span className="text-xs text-muted-foreground">{message}</span> : null}</div>
     </div>
   );
 }

@@ -158,6 +158,21 @@ async function sendViaWhatsApp(
     return { success: false, error: 'WhatsApp daily outbound limit reached' };
   }
 
+  const configuredBurstCap = await getSettingValue('whatsapp_outbound_burst_cap');
+  const burstCap = typeof configuredBurstCap === 'number' && Number.isInteger(configuredBurstCap) ? configuredBurstCap : 20;
+  const configuredBurstWindow = await getSettingValue('whatsapp_outbound_burst_window_minutes');
+  const burstWindow = typeof configuredBurstWindow === 'number' && Number.isInteger(configuredBurstWindow) && configuredBurstWindow > 0 ? configuredBurstWindow : 10;
+  if (burstCap <= 0) return { success: false, error: 'WhatsApp outbound burst limit reached' };
+  const burstStart = new Date(Date.now() - burstWindow * 60 * 1000).toISOString();
+  const { count: sentInBurst, error: burstError } = await createAdminClient()
+    .from('notification_history')
+    .select('id', { count: 'exact', head: true })
+    .eq('channel', 'whatsapp')
+    .eq('status', 'sent')
+    .gte('sent_at', burstStart);
+  if (burstError) return { success: false, error: 'Unable to verify WhatsApp burst limit' };
+  if ((sentInBurst || 0) >= burstCap) return { success: false, error: 'WhatsApp outbound burst limit reached' };
+
   const normalizedRecipientPhone = normalizePhoneNumber(item.recipient_phone);
 
   const { data: optIn, error: optInError } = await createAdminClient()
