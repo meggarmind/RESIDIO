@@ -5,7 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { sanitizeSearchInput } from '@/lib/utils';
 import type { ResidentWithHouses } from '@/types/database';
-import type { ResidentSearchParams, ContactVerificationFilter } from '@/lib/validators/resident';
+import type { ResidentSearchParams } from '@/lib/validators/resident';
 
 // Type moved to avoid 'use server' export restriction
 type GetResidentsResponse = {
@@ -13,34 +13,6 @@ type GetResidentsResponse = {
   count: number;
   error: string | null;
 };
-
-/**
- * Helper to determine contact verification status
- * - 'verified': all available contacts are verified (email if exists + phone)
- * - 'unverified': has contacts but none are verified
- * - 'incomplete': missing required contact info (no email AND no phone verified)
- * - 'partial': some contacts verified, some not
- */
-function getContactVerificationStatus(resident: ResidentWithHouses): ContactVerificationFilter {
-  const hasEmail = !!resident.email;
-  const emailVerified = !!resident.email_verified_at;
-  const phoneVerified = !!resident.phone_verified_at;
-
-  // Calculate what needs verification
-  const emailComplete = !hasEmail || emailVerified; // No email = considered complete
-  const phoneComplete = phoneVerified;
-
-  if (emailComplete && phoneComplete) {
-    return 'verified';
-  }
-
-  if (!emailVerified && !phoneVerified) {
-    return 'unverified';
-  }
-
-  // Partial: one verified, one not
-  return 'partial';
-}
 
 export async function getResidents(params: Partial<ResidentSearchParams> = {}): Promise<GetResidentsResponse> {
   const auth = await authorizePermission(PERMISSIONS.RESIDENTS_VIEW);
@@ -55,13 +27,17 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
   // If we filter by house-related fields, we use inner join (via !inner)
   // to filter the parent residents records.
   let selectQuery = `
-    *,
+    id, resident_code, first_name, last_name, email, phone_primary,
+    resident_type, verification_status, account_status, entity_type,
+    company_name, email_verified_at, phone_verified_at, created_at,
     resident_houses!resident_id(
-      *,
+      id, resident_id, house_id, resident_role, is_primary, move_in_date,
+      move_out_date, is_active, sponsor_resident_id,
       house:houses(
-        *,
-        street:streets(*),
-        house_type:house_types(*)
+        id, house_number, street_id, house_type_id, short_name,
+        is_occupied, is_active,
+        street:streets(id, name),
+        house_type:house_types(id, name)
       )
     )
   `;
@@ -71,13 +47,17 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
   if (needsInnerJoin) {
     // Use resident_id!inner to specify the FK and enable inner join filtering
     selectQuery = `
-      *,
+      id, resident_code, first_name, last_name, email, phone_primary,
+      resident_type, verification_status, account_status, entity_type,
+      company_name, email_verified_at, phone_verified_at, created_at,
       resident_houses!resident_id!inner(
-        *,
+        id, resident_id, house_id, resident_role, is_primary, move_in_date,
+        move_out_date, is_active, sponsor_resident_id,
         house:houses!inner(
-          *,
-          street:streets(*),
-          house_type:house_types(*)
+          id, house_number, street_id, house_type_id, short_name,
+          is_occupied, is_active,
+          street:streets(id, name),
+          house_type:house_types(id, name)
         )
       )
     `;
@@ -118,9 +98,16 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
       .eq('resident_houses.is_active', true);
   }
 
-  // Filter by contact verification status (This one depends on multiple fields and might still need JS filtering or complex DB logic)
-  // For now, we'll keep it as JS filtering but we should warn that it affects pagination
-  // UNLESS we calculate it in a view or use a more complex query.
+  if (contact_verification === 'verified') {
+    query = query.or('email.is.null,email_verified_at.not.is.null')
+      .not('phone_verified_at', 'is', null);
+  } else if (contact_verification === 'unverified') {
+    query = query.is('email_verified_at', null)
+      .is('phone_verified_at', null);
+  } else if (contact_verification === 'partial') {
+    query = query.or('email_verified_at.is.null,phone_verified_at.is.null')
+      .or('email_verified_at.not.is.null,phone_verified_at.not.is.null');
+  }
 
   // Pagination + sorting
   const from = (page - 1) * limit;
@@ -139,18 +126,8 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
 
   const { data, error, count } = await query;
 
-  let filteredData = (data as unknown as ResidentWithHouses[]) ?? [];
-
-  // Filter by contact verification status (still JS-based as it involves logic)
-  if (contact_verification) {
-    filteredData = filteredData.filter(resident => {
-      const status = getContactVerificationStatus(resident);
-      return status === contact_verification;
-    });
-  }
-
   return {
-    data: filteredData,
+    data: (data as unknown as ResidentWithHouses[]) ?? [],
     count: count ?? 0,
     error: error?.message ?? null,
   };

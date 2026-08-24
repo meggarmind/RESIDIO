@@ -78,7 +78,10 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
     let query = supabase
         .from('invoices')
         .select(`
-      *,
+      id, invoice_number, resident_id, house_id, billing_profile_id,
+      amount_due, amount_paid, status, invoice_type, due_date,
+      rate_snapshot, period_start, period_end, notes, created_at,
+      updated_at, created_by, is_correction, parent_invoice_id, correction_type,
       resident:residents(id, first_name, last_name, resident_code),
       house:houses(id, house_number, short_name, street:streets(name)),
       billing_profile:billing_profiles(id, name),
@@ -121,7 +124,7 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
     }
 
     return {
-        data: data || [],
+        data: (data as unknown as InvoiceWithDetails[]) || [],
         total: count || 0,
         error: null,
     };
@@ -253,4 +256,3 @@ export async function getResidentCrossPropertyPaymentSummary(residentId: string)
 
     return { data: data as ResidentCrossPropertyPaymentSummary, error: null };
 }
-
