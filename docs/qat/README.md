@@ -7,6 +7,7 @@ Browser-driven, page-by-page functional QA of the Residio **Admin Dashboard**, e
 | **Campaign** | 2026-08-29 |
 | **Build** | `43579eb` (master) |
 | **Environment** | `http://localhost:3000` → cloud Supabase |
+| **Branch** | `qa/manual-qat-20260829`, worktree at `C:/projects/RESIDIO-qat`, based on `master` (`43579eb`) |
 | **Actors** | super_admin (`admin@residio.test`), unauthenticated visitor |
 | **Status** | Session 1 complete — all 10 modules reported; execution halted early by build drift (see below) |
 
@@ -37,23 +38,24 @@ Browser-driven, page-by-page functional QA of the Residio **Admin Dashboard**, e
 
 ## Defect register
 
-Severity definitions follow `docs/validation/README.md`. CRITICAL and HIGH are filed as GitHub issues; MEDIUM and LOW stay in this register.
+Severity definitions follow `docs/validation/README.md`. **Every confirmed defect is filed as a GitHub issue**, labelled `bug` + `needs-triage`.
 
 | ID | Severity | Summary | Module | Issue |
 |---|---|---|---|---|
 | QAT-AUTH-10-D1 | **HIGH** | Seven admin routes (`/documents`, `/announcements`, `/personnel`, `/projects`, `/expenditure`, `/analytics`, `/notifications`) are missing from the middleware route table and render to unauthenticated visitors. No data leaked — RLS holds — but the same gap removes the permission check for under-privileged authenticated roles. | AUTH | [#104](https://github.com/meggarmind/RESIDIO/issues/104) |
 | QAT-PAY-D1 | **HIGH** | `/payments/new` crashes to an error boundary — a lucide icon is passed from a Server Component to a Client Component. The primary payment-entry path is unusable, blocking 12 downstream test cases. | PAY | [#105](https://github.com/meggarmind/RESIDIO/issues/105) |
 | QAT-SMK-D1 | **HIGH** | `/settings/system` and `/settings/system/health` crash in `<CronHealthCard>` — missing optional chaining on a fallback term at `cron-health-card.tsx:152`. Disables the very page that would reveal a cron outage. | SMK | [#106](https://github.com/meggarmind/RESIDIO/issues/106) |
-| QAT-PAY-D2 | MEDIUM | The "Completed" stat card on `/payments` hardcodes `'0'` whenever `pending_count === 0` — so it reads zero precisely when every payment is paid. Includes a secondary enum divergence: `'overdue'` exists in the payment validator but not in the database type. | PAY | register only |
-| QAT-SMK-42 | MEDIUM | `resetEmailImports` has no `authorizePermission()` guard despite globally deleting all email imports, messages, transactions and linked payment records. Only RLS gates it. It appears to have inherited a directory-wide allowlist exemption intended for cron/webhook flows, which this UI-triggered admin action does not fit. | SMK | register only |
+| QAT-PAY-D2 | MEDIUM | The "Completed" stat card on `/payments` hardcodes `'0'` whenever `pending_count === 0` — so it reads zero precisely when every payment is paid. Includes a secondary enum divergence: `'overdue'` exists in the payment validator but not in the database type. | PAY | [#114](https://github.com/meggarmind/RESIDIO/issues/114) |
+| QAT-SMK-42 | MEDIUM | `resetEmailImports` has no `authorizePermission()` guard despite globally deleting all email imports, messages, transactions and linked payment records. Only RLS gates it. It appears to have inherited a directory-wide allowlist exemption intended for cron/webhook flows, which this UI-triggered admin action does not fit. | SMK | [#116](https://github.com/meggarmind/RESIDIO/issues/116) |
 | QAT-HSE-D1 | **HIGH** | House detail pages report hardcoded `Financial Status: Clear — No pending payments` and `Last Inspection 2025-12-01 — Compliance verified` on all 179 properties. Verified against house 18A, which has seven unpaid invoices. `pendingDues={0}` and the date are literals at `houses/[id]/page.tsx:596`, rendered beside two correctly-wired cards. | HSE | [#109](https://github.com/meggarmind/RESIDIO/issues/109) |
-| QAT-SEC-D1 | MEDIUM | The Nigerian phone regex in `security-contact.ts:15` is declared and never referenced — dead code. Only `min(10)` is enforced, so `+1234567890` and `0912345678` create live security contacts. | SEC | register only |
-| QAT-BIL-D1 | MEDIUM | The invoice-status donut sums five overlapping buckets as if they partition. `overdue` is a derived subset of `unpaid`, so 18 invoices are counted twice — the chart totals 607 against a true count of 589, and every segment is drawn against an inflated denominator. | BIL | register only |
-| QAT-BIL-D2 | MEDIUM | `/billing` "Paid 12 / Unpaid 8" cards are current-page counts labelled "Completed payments" / "Pending invoices" with no page qualifier, beside a genuinely all-time "Total Invoices 589". The estate actually has 570 paid. | BIL | register only |
-| QAT-XC-D1 | MEDIUM | A 15-second RBAC fetch timeout is swallowed and the resulting empty-permission profile is cached in `sessionStorage` for 5 minutes — silently stripping every permission-gated control with no user-facing message. Fails closed, so not a security hole. | XC | register only |
-| QAT-RPT-D1 | LOW | `/analytics/announcements` renders nothing below the period selector when there is no data, where its sibling page shows zero cards and an explicit empty state. | RPT | register only |
-| QAT-SEC-O2 | LOW | A one-time code used once reports "Access code has been revoked" rather than "already used" — the sentence a guard reads while deciding about the person in front of them. | SEC | register only |
-| QAT-NAV-D1 | MEDIUM | Global search never returns results for payments, security contacts or documents, while residents and houses work. Also, house search matches the house number but not the House ID shown in the UI. | NAV | register only |
+| QAT-SEC-D1 | MEDIUM | The Nigerian phone regex in `security-contact.ts:15` is declared and never referenced — dead code. Only `min(10)` is enforced, so `+1234567890` and `0912345678` create live security contacts. | SEC | [#112](https://github.com/meggarmind/RESIDIO/issues/112) |
+| QAT-HSE-O1 | LOW | Two pre-existing house records render corrupted characters in their identifiers (`IBB-3?F?`, `KOA-10F-?`), so they cannot be typed or searched for. Likely legacy import encoding rather than an application fault. | HSE | [#119](https://github.com/meggarmind/RESIDIO/issues/119) |
+| QAT-BIL-D1 | MEDIUM | The invoice-status donut sums five overlapping buckets as if they partition. `overdue` is a derived subset of `unpaid`, so 18 invoices are counted twice — the chart totals 607 against a true count of 589, and every segment is drawn against an inflated denominator. | BIL | [#110](https://github.com/meggarmind/RESIDIO/issues/110) |
+| QAT-BIL-D2 | MEDIUM | `/billing` "Paid 12 / Unpaid 8" cards are current-page counts labelled "Completed payments" / "Pending invoices" with no page qualifier, beside a genuinely all-time "Total Invoices 589". The estate actually has 570 paid. | BIL | [#111](https://github.com/meggarmind/RESIDIO/issues/111) |
+| QAT-XC-D1 | MEDIUM | A 15-second RBAC fetch timeout is swallowed and the resulting empty-permission profile is cached in `sessionStorage` for 5 minutes — silently stripping every permission-gated control with no user-facing message. Fails closed, so not a security hole. | XC | [#113](https://github.com/meggarmind/RESIDIO/issues/113) |
+| QAT-RPT-D1 | LOW | `/analytics/announcements` renders nothing below the period selector when there is no data, where its sibling page shows zero cards and an explicit empty state. | RPT | [#117](https://github.com/meggarmind/RESIDIO/issues/117) |
+| QAT-SEC-O2 | LOW | A one-time code used once reports "Access code has been revoked" rather than "already used" — the sentence a guard reads while deciding about the person in front of them. | SEC | [#118](https://github.com/meggarmind/RESIDIO/issues/118) |
+| QAT-NAV-D1 | MEDIUM | Global search never returns results for payments, security contacts or documents, while residents and houses work. Also, house search matches the house number but not the House ID shown in the UI. | NAV | [#115](https://github.com/meggarmind/RESIDIO/issues/115) |
 
 ## Build drift during the campaign
 
