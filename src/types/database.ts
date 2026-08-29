@@ -50,6 +50,19 @@ export const APP_ROLE_LABELS: Record<AppRoleName, string> = {
   resident: 'Resident',
 };
 
+// Account approval lifecycle (profiles.account_status).
+// Only 'active' resolves a role, resident link or permissions — the auth helpers
+// used by every RLS policy (get_my_role, get_my_resident_id, is_super_admin,
+// has_permission) return NULL/false for every other value.
+export type ProfileApprovalStatus = 'pending' | 'active' | 'rejected' | 'suspended';
+
+export const PROFILE_APPROVAL_STATUS_LABELS: Record<ProfileApprovalStatus, string> = {
+  pending: 'Pending approval',
+  active: 'Active',
+  rejected: 'Rejected',
+  suspended: 'Suspended',
+};
+
 // Legacy: User roles for app access (profiles table) - DEPRECATED, use AppRoleName
 // Kept for backwards compatibility during migration
 export type UserRole = 'chairman' | 'financial_secretary' | 'security_officer' | 'admin';
@@ -580,7 +593,14 @@ export interface Database {
           id: string;
           email: string;
           full_name: string;
-          role: UserRole;
+          /** @deprecated Legacy role. Not authoritative — `role_id` is the source of truth. */
+          role: UserRole | null;
+          role_id: string | null; // FK to app_roles — authoritative role
+          resident_id: string | null; // FK to residents — set for portal users
+          approval_status: ProfileApprovalStatus; // Approval gate; only 'active' resolves permissions
+          approved_at: string | null;
+          approved_by: string | null;
+          rejection_reason: string | null;
           dashboard_theme_override: string | null; // Personal theme preference for Admin Dashboard
           portal_theme_override: string | null; // Personal theme preference for Resident Portal
           created_at: string;

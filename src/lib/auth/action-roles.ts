@@ -202,6 +202,50 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
 };
 
 // =====================================================
+// Role name groupings
+// =====================================================
+
+/**
+ * RBAC role names that land on the admin dashboard rather than the resident
+ * portal. Used for post-login routing only — never for authorization, which
+ * always goes through permissions.
+ *
+ * Single source of truth: previously duplicated verbatim in the login page and
+ * the OAuth callback, where the two copies could silently drift.
+ */
+export const ADMIN_ROLE_NAMES: readonly AppRoleName[] = [
+  'super_admin',
+  'chairman',
+  'vice_chairman',
+  'financial_officer',
+  'security_officer',
+  'secretary',
+  'project_manager',
+] as const;
+
+/** True when the given role name routes to the admin dashboard. */
+export function isAdminRoleName(roleName: string | null | undefined): boolean {
+  return roleName != null && (ADMIN_ROLE_NAMES as readonly string[]).includes(roleName);
+}
+
+/**
+ * Reads the role name out of a `app_roles!profiles_role_id_fkey (name)` join.
+ *
+ * PostgREST returns either an object or a single-element array depending on how
+ * it infers the relation, and the hand-maintained Database type does not model
+ * the FK at all, so the join arrives untyped. Normalises both shapes in one
+ * place instead of repeating the cast at every call site.
+ */
+export function extractRoleName(joined: unknown): AppRoleName | null {
+  const record = Array.isArray(joined) ? joined[0] : joined;
+  if (record && typeof record === 'object' && 'name' in record) {
+    const name = (record as { name: unknown }).name;
+    if (typeof name === 'string') return name as AppRoleName;
+  }
+  return null;
+}
+
+// =====================================================
 // Legacy: Role-based authorization (backwards compat)
 // =====================================================
 
