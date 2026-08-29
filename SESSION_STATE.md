@@ -9,6 +9,48 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-08-29 — Pilot readiness review, build fix, audit coverage)
+
+**Branch:** `fix/build-and-audit-coverage` (pushed to origin, 2 commits, **not merged**). Open a PR against `master` when ready.
+
+### Review performed
+Full controlled-pilot readiness review of the admin dashboard. Baseline measured this session: 292/292 Vitest across 54 files; app TypeScript clean; 77 admin routes, 24 API routes, 239 server actions, 120 migrations, 73 Playwright specs across 8 files.
+
+### Fixed and committed
+- **`192a810` build:** `npm run build` was failing at the TypeScript step (exit 1) while the Next compile succeeded — `tsconfig.json` included `**/*.ts` and excluded only root `node_modules`, so the app build type-checked the committed `website/` Docusaurus workspace whose deps are absent on a clean checkout or CI runner. Added `"website"` to `exclude`. Build now exits 0, 111 pages generated.
+- **`93ed5d0` audit:** Write actions missing `logAudit` reduced **28 → 5**. `deletePayment` (a hard `DELETE` on `payment_records`) and `updatePayment` now log; extended to houses, `billing/profiles` (rate card), six resident-lifecycle actions, hierarchical settings, estate logo, reference data, document categories, import matching, approvals, in-app notifications, and admin report subscriptions. The 5 remaining cannot produce a meaningful entry (`logAudit` attributes to the session user): pre-auth registration/2FA, cron with no actor, and reads whose only write is their own access log.
+- **Allowlists corrected.** `module-integration.test.ts` had drifted into a false clean bill of health: **42 of 52** audit entries and **21 of 72** permission entries named files that already complied, so a regression in any of them would have passed silently. Both lists now hold only genuine gaps with per-entry reasons. Gap summary now prints true counts: **42 permission, 5 audit**.
+
+### Verification
+292/292 Vitest; `npx tsc --noEmit` clean; ESLint on changed files 0 errors (2 warnings, byte-identical to HEAD); `npm run build` exit 0.
+
+### Corrections to prior handoff claims
+- Earlier entries recorded `npm run build` as passing — it was failing (exit 1) before `192a810`.
+- SESSION_STATE attributed the lint failures to generated `website/build` artifacts. **All 107 lint errors are in `src/` and `scripts/`** (~29 in the out-of-scope resident portal, including a real `react-hooks/rules-of-hooks` violation at `src/app/(resident)/portal/page.tsx:255`; ~26 in admin/shared). Mostly `no-explicit-any` (37) and `react/no-unescaped-entities` (15).
+- TODO.md lists Paystack integration as unbuilt; the webhook, initialize and verify paths all exist.
+
+### Filed this session
+- **#107** — Occupier approvals mark requests approved without applying the change (`approveAsOccupier` flips status but never applies; admin `approveRequest` does). Gates billing-profile effective-date and estate bank-account changes. `bug`, `ready-for-agent`.
+- **#108** — 25 admin write actions authenticate but never check RBAC (`billing/profiles.ts` has no check at all; RLS is the only boundary). All target permission constants already exist — no new migrations needed. `bug`, `ready-for-agent`.
+
+### Explicitly out of scope (confirmed with user)
+Security module (`src/actions/security/**` — verified already fully permission-checked), `/security/verify`, and the unbuilt external access-verification API (`/api/v1/access/verify`). Resident Portal / self-service remains out of scope per standing direction.
+
+### Outstanding for pilot — not addressed here
+1. **Environment provisioning (blocker).** Code reads 33 env vars; `.env.local` defines 4 (Supabase only). No `RESEND_API_KEY` → all email paths fail closed. No `CRON_SECRET` → `verifyCronAuth` returns 500 in production but **allows all requests through outside production**, exposing 9 cron endpoints on an unconfigured staging deploy.
+2. **Billing ledger backfill (#73).** Only 6 of 139 billable residents ever invoiced. **User is handling this manually** — do not action.
+3. **SMS not wired.** Complete Termii client at `src/lib/sms/send-sms.ts`; dispatcher hard-returns `'SMS is not implemented'` (`src/lib/notifications/send.ts:113`). Channel still surfaced in admin UI.
+4. **WhatsApp never exercised against Meta.** Code-complete, rollout `disabled`, tables empty. Needs credentials *and* Meta template approval.
+5. **Docs/tooling drift.** `db:types` and `db:migrate` npm scripts pass `--local`, contradicting the cloud-only rule.
+
+### Working tree note
+`website/**` docs, `website/docs/integrations/` and `docs/qat/` carry **concurrent uncommitted edits from another session** (Docusaurus Integrations section + `:::warning[Title]` admonition fix). Deliberately excluded from both commits — stage explicit paths in this repo, never `git add -A`.
+
+### Next steps
+Provision the environment; decide #73; then #107 and #108. Open the PR for `fix/build-and-audit-coverage`.
+
+---
+
 ## Last session (OpenCode, 2026-08-24 — WhatsApp Pilot and Estate-Wide Controls #8)
 
 - Completed the missing admin rollout controls: mounted pilot settings on `/settings/whatsapp`, added explicit pilot-to-estate promotion with permission-first authorization and an `ACTIVATE` audit record, and kept pilot targeting fail-closed for inbound financial access and proactive sends.

@@ -2,7 +2,34 @@
 
 > **🎯 PRODUCT FOCUS (2026-08-06): ADMIN DASHBOARD ONLY.** Resident Portal / self-service (`src/app/(resident)/**`, resident-portal components) is **NOT planned for rollout** in the foreseeable future. De-prioritize all self-service work listed below (portal wallet, resident payments, announcements/documents/profile, impersonation, onboarding). Keep it stable/local only; do not extend or polish it. Prioritize admin management/finance/security/operations/reporting instead.
 
-**Last Updated:** 2026-08-23 (dashboard #102/#103, billing #78/#82/#95/#97, resident #16/#84 implemented)
+**Last Updated:** 2026-08-29 (pilot readiness review; build fix + audit coverage on `fix/build-and-audit-coverage`; #107/#108 filed)
+
+### Controlled-Pilot Readiness (2026-08-29)
+
+Full readiness review of the admin dashboard. Baseline measured: 292/292 Vitest (54 files), app TypeScript clean, 77 admin routes, 239 server actions, 120 migrations, 73 Playwright specs.
+
+**Done — branch `fix/build-and-audit-coverage`, pushed, not merged:**
+- [x] **Production build restored.** `npm run build` was exiting 1 at the TypeScript step (the Next compile succeeded) because `tsconfig.json` included `**/*.ts` and excluded only root `node_modules`, so it type-checked the committed `website/` Docusaurus workspace whose deps are absent on a clean checkout or CI. Added `"website"` to `exclude` — build now exits 0, 111 pages.
+- [x] **Audit coverage 28 → 5 unaudited write actions.** `deletePayment` (hard `DELETE` on `payment_records`) and `updatePayment` now log; extended to houses, `billing/profiles`, six resident-lifecycle actions, hierarchical settings, estate logo, reference data, document categories, import matching, approvals, in-app notifications, admin report subscriptions. The 5 remaining cannot produce a meaningful entry (pre-auth, cron with no actor, or reads whose only write is their own access log).
+- [x] **Compliance allowlists corrected.** 42 of 52 audit entries and 21 of 72 permission entries were suppressing files that already complied — regressions in them would have gone unreported. Both lists now hold only genuine gaps with per-entry reasons; the gap summary prints true counts (42 permission, 5 audit).
+
+**Outstanding — blockers:**
+- [ ] **Environment provisioning.** Code reads 33 env vars; `.env.local` defines 4 (Supabase only). No `RESEND_API_KEY` → every email path fails closed. No `CRON_SECRET` → `verifyCronAuth` allows all requests through outside production, exposing 9 cron endpoints on an unconfigured staging deploy.
+- [ ] **#73 full-estate invoice backfill** — only 6 of 139 billable residents ever invoiced. **User is handling manually; do not action.**
+
+**Outstanding — filed as issues:**
+- [ ] **[#107](https://github.com/meggarmind/RESIDIO/issues/107) Occupier approvals never apply the change.** `approveAsOccupier` flips status to approved but skips the apply step; the admin `approveRequest` path applies correctly. Gates billing-profile effective-date and estate bank-account changes.
+- [ ] **[#108](https://github.com/meggarmind/RESIDIO/issues/108) 25 admin write actions lack RBAC checks.** They authenticate but never check role; `billing/profiles.ts` has no check at all. RLS is the only boundary. All target permission constants already exist — no new migrations required.
+
+**Outstanding — lower priority:**
+- [ ] **SMS not wired.** Complete Termii client exists at `src/lib/sms/send-sms.ts`; the dispatcher hard-returns `'SMS is not implemented'` (`src/lib/notifications/send.ts:113`) while the channel is still shown in the admin UI. Connect it or hide it for the pilot.
+- [ ] **WhatsApp never exercised against Meta.** Code-complete and safely disabled; needs credentials *and* Meta template approval before any proactive send.
+- [ ] **Lint: 107 errors / 423 warnings.** Includes a real `react-hooks/rules-of-hooks` violation at `src/app/(resident)/portal/page.tsx:255` (out-of-scope portal code). Mostly `no-explicit-any` (37) and `react/no-unescaped-entities` (15).
+- [ ] **`db:types` / `db:migrate` npm scripts pass `--local`**, contradicting the cloud-only rule stated everywhere else.
+
+**Explicitly out of scope (confirmed 2026-08-29):** Security module (`src/actions/security/**` — verified already fully permission-checked), `/security/verify`, and the unbuilt external access-verification API (`/api/v1/access/verify`, API keys, rate limiting). Resident Portal / self-service remains out of scope per standing direction.
+
+**Corrections to earlier entries in this file:** the build was recorded as passing while it was failing (fixed above), and the Paystack section below lists integration work as unbuilt although the webhook, initialize and verify paths all exist.
 
 ### Admin User Guide (2026-08-22)
 - [x] Docusaurus admin guide created under `website/` with role-aware workflows across all admin areas.
@@ -1900,12 +1927,15 @@ Online gateway work is not part of the current fast-track. Prioritize financial 
 
 Online payment processing:
 
-- [ ] Paystack/Flutterwave integration
+> **Status correction (2026-08-29):** Paystack is partly built, not unbuilt. `src/actions/paystack/` (initialize, verify), `src/actions/payments/verify-paystack-payment.ts`, and the signature-verified webhook at `src/app/api/payments/paystack/webhook/route.ts` all exist and ship in the build. The items below are unverified against a live gateway and remain deprioritized; Flutterwave is genuinely unbuilt.
+
+- [x] Paystack integration — initialize, verify, and signature-verified webhook implemented (never exercised against a live gateway)
+- [ ] Flutterwave integration
 - [ ] Online invoice payment
 - [ ] Payment confirmation automation
 - [ ] Wallet top-up online
 - [ ] Transaction reconciliation
-- [ ] Payment webhook handlers
+- [x] Payment webhook handlers — Paystack webhook handler implemented (`paystack/webhook-handler.ts`)
 
 ---
 
