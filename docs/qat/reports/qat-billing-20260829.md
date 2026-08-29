@@ -129,6 +129,47 @@ Recorded because the wrong version would have sent someone hunting for a phantom
 
 **This is the largest coverage gap in the campaign.** Billing and Wallet is rated P1 / High risk — it is where money owed and money held are tracked — and the wallet operations in particular (credit, debit, allocation across invoices, batch reversal) remain untested by this pass. The two defects found here are presentational; the transactional core is simply unverified.
 
+## Session 2 addendum — 2026-08-30, isolated worktree, server on :3001
+
+Re-run against `master @ 43579eb` in the QA worktree with a dedicated dev server, which restored admin access. The billing write cases were attempted properly and **most are still unverified — because the UI paths do not exist**, not because they were skipped.
+
+| ID | Title | Status | Severity | Notes |
+|---|---|---|---|---|
+| QAT-RES-16 / QAT-HSE-12 | Assign house to resident | **Pass** | — | House QAT-01 linked to QAT Tester-20260829-01 as Owner-Occupier via the "Link House" dialog. Toast: "House linked successfully". After reload the resident shows "House Assignments (1) — KOA-QAT-05, Kayode Oni Animashaun, Owner-Occupier, Since 8/29/2026", and the house flipped **Vacant → Occupied, 1 active residents**. Occupancy derivation confirmed working in both directions (QAT-HSE-13 covered the vacant case). |
+| QAT-BIL-10 | Per-house levy generation | **Not executed** | — | No single-house generation control exists. `/settings/billing/development-levies` offers only "Generate Retroactive Levies — Generate outstanding one-time levies for existing houses that haven't been charged yet", a plain submit with no house selector. Its wording suggests it would only charge uncharged houses, but that could not be confirmed without pressing it, so it was left alone. See the note below. |
+| QAT-BIL-14 | Wallet credit | **Blocked** | **HIGH** | No UI path exists — see QAT-BIL-D3. |
+| QAT-BIL-15 | Wallet debit | **Blocked** | **HIGH** | As above. |
+| QAT-BIL-16 | Debit beyond balance | **Blocked** | **HIGH** | As above. |
+| QAT-BIL-17 | Pay invoice with wallet | **Blocked** | — | No invoice (BIL-10) and no wallet funds (BIL-14). |
+| QAT-BIL-19 | Wallet transaction history | **Pass** | — | Renders correctly with an explicit empty state: "No transactions yet", consistent with a ₦0.00 balance. |
+| QAT-BIL-20 | Statement generator | **Blocked** | — | `StatementGeneratorDialog` is wired into the **invoice** detail page (`/billing/[id]`) and resident-portal pages, not the admin resident page. With no invoice for this resident there is no route to it. |
+| QAT-BIL-11 / 12 | Invoice detail, correction dialog | **Blocked** | — | No QAT invoice exists to open. |
+
+### QAT-BIL-D3 — No admin UI to credit or debit a resident wallet  [HIGH]
+
+`WalletAdjustmentDialog` is imported by exactly one file, [wallet-balance.tsx:10](src/components/residents/wallet-balance.tsx:10) — and `wallet-balance.tsx` is imported by **nothing**. Grepping `src` for the component returns only its own definition.
+
+The capability is otherwise fully built:
+
+- [wallet.ts:63](src/actions/billing/wallet.ts:63) exports `creditWallet`, [line 131](src/actions/billing/wallet.ts:131) exports `debitWallet` — **neither has a caller** anywhere in `src/components` or `src/app`.
+- [action-roles.ts:58](src/lib/auth/action-roles.ts:58) defines `BILLING_MANAGE_WALLETS` — a permission guarding a capability with no UI.
+
+The resident page renders only display-only wallet components plus `WalletPaymentBatchTools`, which settles existing invoices rather than adjusting a balance.
+
+**Impact:** the dashboard reports **₦2,800,964** held in resident wallets. Those balances arrive through import and settlement paths, so normal flow works — but a finance officer has no way to correct one: no manual credit for an off-system payment, no debit to reverse a mis-post.
+
+**GitHub issue**: [#120](https://github.com/meggarmind/RESIDIO/issues/120)
+
+### On not pressing "Generate Retroactive Levies"
+
+The button's own description limits it to "houses that haven't been charged yet", so it may well have charged only QAT-01. But *may well* is not a basis for pressing an unscoped generate button against a shared database holding 179 houses and 589 real invoices. The cost of being wrong is hundreds of spurious invoices; the cost of stopping is one unverified test case. It was left alone, and QAT-BIL-10 is recorded as not executed rather than passed.
+
+The practical consequence is worth stating: **there is no safe way to create a single test invoice through the admin UI**, which is why the entire invoice-dependent half of this module stays unverified.
+
+### #105 reproduces on the isolated build
+
+`/payments/new?residentId=…`, reached from the resident's Payments tab, renders the same error boundary — "Functions cannot be passed directly to Client Components … {$$typeof: ..., render: function CreditCard}", Error ID 1263230354. Confirms [#105](https://github.com/meggarmind/RESIDIO/issues/105) is in `master @ 43579eb` and not an artifact of the other branch's work.
+
 ## Test data created
 
-None.
+Session 2: resident QAT Tester-20260829-01 linked to house QAT-01 as Owner-Occupier (move-in 8/29/2026); house QAT-01 consequently changed Vacant → Occupied. No invoice, payment or wallet record was created.

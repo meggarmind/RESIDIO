@@ -9,7 +9,7 @@ Browser-driven, page-by-page functional QA of the Residio **Admin Dashboard**, e
 | **Environment** | `http://localhost:3000` → cloud Supabase |
 | **Branch** | `qa/manual-qat-20260829`, worktree at `C:/projects/RESIDIO-qat`, based on `master` (`43579eb`) |
 | **Actors** | super_admin (`admin@residio.test`), unauthenticated visitor |
-| **Status** | Session 1 complete — all 10 modules reported; execution halted early by build drift (see below) |
+| **Status** | Session 2 in progress — running isolated on `:3001` against the QA worktree |
 
 ## Contents
 
@@ -29,12 +29,12 @@ Browser-driven, page-by-page functional QA of the Residio **Admin Dashboard**, e
 | Smoke pass | [qat-smoke](reports/qat-smoke-20260829.md) | 44 | 39 | 2 | 0 | 3 |
 | Navigation & dashboard | [qat-navigation](reports/qat-navigation-20260829.md) | 13 | 7 | 1 | 1 | 4 |
 | Houses | [qat-houses](reports/qat-houses-20260829.md) | 19 | 11 | 1 | 0 | 7 |
-| Billing & wallet | [qat-billing](reports/qat-billing-20260829.md) | 28 | 6 | 2 | 1 | 19 |
+| Billing & wallet | [qat-billing](reports/qat-billing-20260829.md) | 28 | 8 | 3 | 7 | 10 |
 | Security | [qat-security](reports/qat-security-20260829.md) | 28 | 12 | 1 | 3 | 12 |
 | Approvals | [qat-approvals](reports/qat-approvals-20260829.md) | 11 | 3 | 0 | 8 | 0 |
 | Reports & analytics | [qat-reports](reports/qat-reports-20260829.md) | 14 | 8 | 1 | 0 | 5 |
 | Cross-cutting | [qat-cross-cutting](reports/qat-cross-cutting-20260829.md) | — | — | 1 | — | — |
-| **Total** | | **225** | **102** | **12** | **33** | **79** |
+| **Total** | | **225** | **104** | **13** | **39** | **69** |
 
 ## Defect register
 
@@ -48,6 +48,7 @@ Severity definitions follow `docs/validation/README.md`. **Every confirmed defec
 | QAT-PAY-D2 | MEDIUM | The "Completed" stat card on `/payments` hardcodes `'0'` whenever `pending_count === 0` — so it reads zero precisely when every payment is paid. Includes a secondary enum divergence: `'overdue'` exists in the payment validator but not in the database type. | PAY | [#114](https://github.com/meggarmind/RESIDIO/issues/114) |
 | QAT-SMK-42 | MEDIUM | `resetEmailImports` has no `authorizePermission()` guard despite globally deleting all email imports, messages, transactions and linked payment records. Only RLS gates it. It appears to have inherited a directory-wide allowlist exemption intended for cron/webhook flows, which this UI-triggered admin action does not fit. | SMK | [#116](https://github.com/meggarmind/RESIDIO/issues/116) |
 | QAT-HSE-D1 | **HIGH** | House detail pages report hardcoded `Financial Status: Clear — No pending payments` and `Last Inspection 2025-12-01 — Compliance verified` on all 179 properties. Verified against house 18A, which has seven unpaid invoices. `pendingDues={0}` and the date are literals at `houses/[id]/page.tsx:596`, rendered beside two correctly-wired cards. | HSE | [#109](https://github.com/meggarmind/RESIDIO/issues/109) |
+| QAT-BIL-D3 | **HIGH** | No admin UI to credit or debit a resident wallet. `WalletAdjustmentDialog` is reachable only through `wallet-balance.tsx`, which nothing imports; `creditWallet`/`debitWallet` have zero callers, while `BILLING_MANAGE_WALLETS` guards the missing capability. ₦2,800,964 sits in wallets with no correction path. Blocked 5 test cases. | BIL | [#120](https://github.com/meggarmind/RESIDIO/issues/120) |
 | QAT-SEC-D1 | MEDIUM | The Nigerian phone regex in `security-contact.ts:15` is declared and never referenced — dead code. Only `min(10)` is enforced, so `+1234567890` and `0912345678` create live security contacts. | SEC | [#112](https://github.com/meggarmind/RESIDIO/issues/112) |
 | QAT-HSE-O1 | LOW | Two pre-existing house records render corrupted characters in their identifiers (`IBB-3?F?`, `KOA-10F-?`), so they cannot be typed or searched for. Likely legacy import encoding rather than an application fault. | HSE | [#119](https://github.com/meggarmind/RESIDIO/issues/119) |
 | QAT-BIL-D1 | MEDIUM | The invoice-status donut sums five overlapping buckets as if they partition. `overdue` is a derived subset of `unpaid`, so 18 invoices are counted twice — the chart totals 607 against a true count of 589, and every segment is drawn against an inflated denominator. | BIL | [#110](https://github.com/meggarmind/RESIDIO/issues/110) |
