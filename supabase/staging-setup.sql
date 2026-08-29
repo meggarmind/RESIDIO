@@ -1,3 +1,16 @@
+-- ============================================================================
+-- LOCAL / TEST ENVIRONMENTS ONLY - NEVER RUN AGAINST PRODUCTION
+-- ============================================================================
+-- This file seeds well-known accounts whose passwords are published in the repo
+-- (see CLAUDE.md, README.md, e2e/fixtures.ts). Anyone who can read the source can
+-- sign in with them. Running it against a production or internet-reachable
+-- database hands over administrator access.
+--
+-- Note also that handle_new_user() no longer honours raw_user_meta_data->>'role',
+-- so accounts created by this file start pending with no role until an
+-- administrator approves them.
+-- ============================================================================
+
 -- Migration: Create profiles table with RLS policies
 -- Description: User profiles linked to Supabase Auth with role-based access control
 
