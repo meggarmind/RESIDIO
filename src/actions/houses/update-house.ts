@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import type { House } from '@/types/database';
 import type { HouseFormData } from '@/lib/validators/house';
 import { createApprovalRequest, canAutoApprove } from '@/actions/approvals';
+import { logAudit, getChangedValues } from '@/lib/audit/logger';
 
 type UpdateHouseResponse = {
   data: House | null;
@@ -102,6 +103,18 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
         return { data: null, error: error.message };
       }
 
+      const partialChanges = getChangedValues(currentHouse, data);
+      await logAudit({
+        action: 'UPDATE',
+        entityType: 'houses',
+        entityId: id,
+        entityDisplay: data.house_number,
+        oldValues: partialChanges.old,
+        newValues: partialChanges.new,
+        description: `Plots change to ${newPlots} deferred pending approval`,
+        metadata: { approval_required: true, request_id: result.request_id },
+      });
+
       revalidatePath('/houses');
       revalidatePath(`/houses/${id}`);
 
@@ -137,6 +150,16 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
     }
     return { data: null, error: error.message };
   }
+
+  const changes = getChangedValues(currentHouse, data);
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'houses',
+    entityId: id,
+    entityDisplay: data.house_number,
+    oldValues: changes.old,
+    newValues: changes.new,
+  });
 
   revalidatePath('/houses');
   revalidatePath(`/houses/${id}`);

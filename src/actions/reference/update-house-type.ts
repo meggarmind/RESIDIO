@@ -5,6 +5,7 @@ import { authorizeAction } from '@/lib/auth/authorize';
 import { ACTION_ROLES } from '@/lib/auth/action-roles';
 import type { HouseType } from '@/types/database';
 import type { HouseTypeFormData } from '@/lib/validators/house';
+import { logAudit, getChangedValues } from '@/lib/audit/logger';
 
 type UpdateHouseTypeResponse = {
     data: HouseType | null;
@@ -19,6 +20,13 @@ export async function updateHouseType(id: string, formData: HouseTypeFormData): 
     }
 
     const supabase = await createServerSupabaseClient();
+
+    // Capture the pre-update state so the audit entry records what actually changed
+    const { data: existing } = await supabase
+        .from('house_types')
+        .select('*')
+        .eq('id', id)
+        .single();
 
     // Update
     const { data, error } = await supabase
@@ -37,6 +45,16 @@ export async function updateHouseType(id: string, formData: HouseTypeFormData): 
     if (error) {
         return { data: null, error: error.message };
     }
+
+    const changes = getChangedValues(existing ?? {}, data);
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'house_types',
+        entityId: id,
+        entityDisplay: data.name,
+        oldValues: changes.old,
+        newValues: changes.new,
+    });
 
     return { data, error: null };
 }

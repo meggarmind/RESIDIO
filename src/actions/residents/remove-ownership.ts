@@ -4,6 +4,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
+import { logAudit } from '@/lib/audit/logger';
 
 type RemoveOwnershipResponse = {
   success: boolean;
@@ -188,6 +189,17 @@ export async function removeOwnership(
     console.error('[removeOwnership] Error recording history:', historyError);
     // Don't fail for history errors
   }
+
+  await logAudit({
+    action: 'UNASSIGN',
+    entityType: 'resident_houses',
+    entityId: ownerAssignment.id,
+    entityDisplay: `${ownerName} — ${RESIDENT_ROLE_LABELS[ownerRole as ResidentRole]}`,
+    oldValues: { is_active: true, resident_role: ownerRole },
+    newValues: { is_active: false, move_out_date: today },
+    description: notes || `${ownerName} ownership removed. House is now vacant.`,
+    metadata: { house_id: houseId, resident_id: ownerId },
+  });
 
   revalidatePath('/houses');
   revalidatePath(`/houses/${houseId}`);

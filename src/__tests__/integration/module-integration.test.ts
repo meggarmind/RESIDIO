@@ -35,182 +35,94 @@ const WRITE_PATTERNS = [
   '.upsert(',
 ];
 
-// Known gaps that are temporarily allowlisted
-// These should be removed as each module is fixed
+// Known gaps that are still allowlisted.
+//
+// These lists are enforcement holes, not documentation: anything named here is
+// exempt from the checks below. Keep them minimal and prune an entry as soon as
+// the file complies, otherwise a later regression in that file goes unnoticed.
+//
+// Regenerate the true state rather than trusting the comments:
+//   files with a write pattern but no permission check -> PERMISSION_ALLOWLIST
+//   files with a write pattern but no logAudit call    -> AUDIT_ALLOWLIST
 const PERMISSION_ALLOWLIST = [
-  // CRITICAL Priority - Residents
-  'residents/create-resident.ts',
-  'residents/delete-resident.ts',
-  'residents/add-household-member.ts',
-  'residents/assign-house.ts',
-  'residents/unassign-house.ts',
-  'residents/transfer-ownership.ts',
-  'residents/remove-ownership.ts',
-  'residents/swap-resident-roles.ts',
-  'residents/move-out-landlord.ts',
-  'residents/inherit-domestic-staff.ts',
-  'residents/update-resident-house.ts',
-  'residents/sponsor-cascade.ts',
-  'residents/aliases.ts',
-  // CRITICAL Priority - Billing
-  'billing/generate-invoices.ts',
-  'billing/generate-levies.ts',
-  'billing/wallet.ts',
+  // ---- Admin-facing writes that authenticate (auth.getUser) but do not check
+  // an RBAC role/permission. RLS on the underlying tables is currently the only
+  // authorization boundary for these. Genuine gaps; close them per module.
+  'approvals/developer-owner-approvals.ts',
   'billing/profiles.ts',
-  'billing/apply-late-fees.ts',
-  // CRITICAL Priority - Payments
-  'payments/create-payment.ts',
-  'payments/create-split-payment.ts',
-  'payments/bulk-update-payments.ts',
-  // HIGH Priority - Houses
-  'houses/create-house.ts',
-  'houses/property-transition.ts',
-  // HIGH Priority - Documents
-  'documents/upload-document.ts',
-  'documents/update-document.ts',
-  'documents/delete-document.ts',
   'documents/categories.ts',
-  // HIGH Priority - Security
-  'security/categories.ts',
-  'security/settings.ts',
-  // HIGH Priority - Settings
-  'settings/update-setting.ts',
-  'settings/upload-estate-logo.ts',
-  'settings/backfill-ownership-history.ts',
-  'settings/hierarchical-settings.ts',
-  // HIGH Priority - Auth
-  'auth/register-resident-portal.ts',
-  // MEDIUM Priority - References
-  'reference/create-street.ts',
-  'reference/create-house-type.ts',
-  'reference/update-house-type.ts',
-  'reference/delete-house-type.ts',
-  'reference/duplicate-street.ts',
-  'reference/transaction-tags.ts',
-  // MEDIUM Priority - Imports
-  'imports/create-import.ts',
-  'imports/process-import.ts',
   'imports/bank-accounts.ts',
+  'imports/create-import.ts',
   'imports/match-residents.ts',
-  // MEDIUM Priority - Notifications
-  'notifications/send.ts',
-  'notifications/preferences.ts',
-  'notifications/queue.ts',
+  'imports/process-import.ts',
   'notifications/schedules.ts',
   'notifications/templates.ts',
-  // MEDIUM Priority - Email
-  'email/send-payment-reminders.ts',
-  'email/send-invoice-email.ts',
-  'email/send-payment-receipt-email.ts',
-  'email/send-welcome-email.ts',
-  'email/test-email.ts',
-  // MEDIUM Priority - Reports
+  'reference/create-house-type.ts',
+  'reference/create-street.ts',
+  'reference/duplicate-street.ts',
+  'reference/transaction-tags.ts',
   'reports/report-schedules.ts',
-  // MEDIUM Priority - Approvals
-  'approvals/developer-owner-approvals.ts',
-  // Verification
+  'residents/aliases.ts',
+  'residents/inherit-domestic-staff.ts',
+  'residents/move-out-landlord.ts',
+  'residents/remove-ownership.ts',
+  'residents/sponsor-cascade.ts',
+  'residents/swap-resident-roles.ts',
+  'residents/update-resident-house.ts',
+  'settings/backfill-ownership-history.ts',
+  'settings/hierarchical-settings.ts',
+  'settings/upload-estate-logo.ts',
   'verification/send-verification.ts',
-  // Read-related files that have write patterns but are read operations
-  'documents/download-document.ts',
-  'announcements/read-receipts.ts',
-  // ---- Not covered by admin RBAC permission checks (ownership/service auth) ----
-  // Resident self-service flows: authorize via supabase.auth.getUser() + resource ownership,
-  // NOT admin RBAC permissions. Never add authorizePermission here.
+
+  // ---- Not covered by admin RBAC by design (ownership / service / pre-auth).
+  // Do NOT add authorizePermission to these.
+  //
+  // Business-rule authorization: validates the caller is the primary resident.
+  'residents/add-household-member.ts',
+  // Resident self-service: authorizes via auth.getUser() + resource ownership.
   'payments/verify-paystack-payment.ts',
   'payments/submit-payment-proof.ts',
   'billing/pay-invoice-with-wallet.ts',
   'billing/pay-multiple-invoices-with-wallet.ts',
   'paystack/initialize-payment.ts',
   'paystack/verify-payment.ts',
-  // Unauthenticated Paystack webhook: auth is the webhook signature, no user session.
+  // Unauthenticated Paystack webhook: auth is the webhook signature.
   'paystack/webhook-handler.ts',
-  // Email import pipeline: driven by Vercel cron (CRON_SECRET bearer auth, no user session)
-  // in addition to manual user triggers. Cannot hard-authorize without breaking automation.
+  // Vercel cron (CRON_SECRET bearer auth, no user session) as well as manual
+  // triggers; a hard permission check would break the automated path.
   'email-imports/reset-email-imports.ts',
   'email-imports/parse-email.ts',
   'email-imports/create-email-import.ts',
-  // Report schedule delivery: driven by Vercel cron (no user session)
   'reports/process-schedules.ts',
-  // Payment cadence summary refresh: driven by Vercel cron (CRON_SECRET bearer
-  // auth, no user session). Recomputes an analytics cache table only.
   'analytics/refresh-payment-cadence-summary.ts',
-  // Pre-auth 2FA login flow: executes before the user has a session; writes its own
-  // two_factor_audit_log. Resolves the user under test, not an admin RBAC permission.
+  // Pre-auth: runs before the caller has a session.
+  'auth/register-resident-portal.ts',
   'two-factor/verify.ts',
+  // Read operations whose only write is their own access log / read receipt.
+  'documents/download-document.ts',
+  'announcements/read-receipts.ts',
 ];
 
 const AUDIT_ALLOWLIST = [
-  // CRITICAL Priority - Residents (same as permission, most are missing both)
-  'residents/create-resident.ts',
-  'residents/delete-resident.ts',
-  'residents/add-household-member.ts',
-  'residents/assign-house.ts',
-  'residents/unassign-house.ts',
-  'residents/transfer-ownership.ts',
-  'residents/remove-ownership.ts',
-  'residents/swap-resident-roles.ts',
-  'residents/move-out-landlord.ts',
-  'residents/inherit-domestic-staff.ts',
-  'residents/update-resident-house.ts',
-  'residents/sponsor-cascade.ts',
-  // CRITICAL Priority - Billing
-  'billing/generate-levies.ts',
-  'billing/wallet.ts',
-  'billing/profiles.ts',
-  // CRITICAL Priority - Payments
-  'payments/create-split-payment.ts',
-  'payments/bulk-update-payments.ts',
-  // HIGH Priority - Houses
-  'houses/create-house.ts',
-  'houses/property-transition.ts',
-  // HIGH Priority - Documents
-  'documents/upload-document.ts',
-  'documents/update-document.ts',
-  'documents/delete-document.ts',
-  'documents/categories.ts',
-  // HIGH Priority - Security
-  'security/categories.ts',
-  'security/settings.ts',
-  // HIGH Priority - Settings
-  'settings/update-setting.ts',
-  'settings/upload-estate-logo.ts',
-  'settings/hierarchical-settings.ts',
-  // HIGH Priority - Auth
+  // logAudit() attributes an entry to the acting user from the session and
+  // no-ops without one, so these flows cannot produce a meaningful entry here.
+  //
+  // Pre-auth: runs before the caller has a session.
   'auth/register-resident-portal.ts',
-  // MEDIUM Priority - References
-  'reference/create-street.ts',
-  'reference/create-house-type.ts',
-  'reference/update-house-type.ts',
-  'reference/delete-house-type.ts',
-  'reference/duplicate-street.ts',
-  // MEDIUM Priority - Email
-  'email/send-invoice-email.ts',
-  'email/send-payment-receipt-email.ts',
-  'email/send-welcome-email.ts',
-  'email/test-email.ts',
-  // MEDIUM Priority - Approvals
-  'approvals/developer-owner-approvals.ts',
-  // Verification
-  'verification/send-verification.ts',
-  // Read-related files that have write patterns but are read operations
-  'documents/download-document.ts',
-  'announcements/read-receipts.ts',
-  // MEDIUM Priority - Imports
-  'imports/match-residents.ts',
-  // Missing audit on modules that have permission checks
-  'report-subscriptions/update-subscription.ts',
-  'payments/update-payment.ts',
-  'payments/delete-payment.ts',
-  'in-app-notifications/update-notification.ts',
-  'in-app-notifications/create-notification.ts',
-  'houses/update-house.ts',
-  'houses/delete-house.ts',
-  // Pre-auth 2FA login flow: writes to its own two_factor_audit_log instead of logAudit,
-  // because there is no authenticated actor session to attribute a logAudit event to.
+  // Pre-auth 2FA login flow: writes its own two_factor_audit_log instead.
   'two-factor/verify.ts',
-  // Payment cadence summary refresh: Vercel cron with no user session; recomputes
-  // an analytics cache table with no admin-attributable actor.
+  // Vercel cron (CRON_SECRET bearer auth, no user session): recomputes an
+  // analytics cache table with no admin-attributable actor.
   'analytics/refresh-payment-cadence-summary.ts',
+
+  // ---- Reads that the write-pattern scan sees as writes.
+  //
+  // Issues signed storage URLs; its only write is its own document_access_logs
+  // entry, which is that module's access trail.
+  'documents/download-document.ts',
+  // Per-resident read tracking. Auditing every announcement view would flood
+  // the audit log without recording an administrative decision.
+  'announcements/read-receipts.ts',
 ];
 
 function isReadOnlyFile(filename: string): boolean {
