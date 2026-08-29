@@ -96,14 +96,17 @@ export function RoleAssignmentSection() {
   const canAssignRoles = hasPermission('system.assign_roles');
   const isSuperAdmin = profile?.role === 'admin';
 
-  // Filter roles based on what the current user can assign
+  // Filter roles based on what the current user can assign.
+  // Mirrors the server-side guards in assignRoleToProfile — the server is the
+  // enforcement boundary, this just avoids offering choices that would be
+  // rejected.
   const assignableRoles = roles?.filter(role => {
     // Don't show resident role (base role)
     if (role.name === 'resident') return false;
-    // Don't show super_admin role in dropdown
-    if (role.name === 'super_admin') return false;
-    // Only super admin can assign chairman role
-    if (role.name === 'chairman' && !isSuperAdmin) return false;
+    // Super admin and chairman may only be granted by an existing super admin.
+    // Previously super_admin was hidden unconditionally, which meant no super
+    // admin could ever be appointed through the app at all.
+    if ((role.name === 'super_admin' || role.name === 'chairman') && !isSuperAdmin) return false;
     // Only active roles
     if (!role.is_active) return false;
     return true;

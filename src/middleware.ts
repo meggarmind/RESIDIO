@@ -1,7 +1,8 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { supabaseConfig } from '@/lib/supabase/config';
-import { ROUTE_PERMISSIONS, Permission } from '@/lib/auth/action-roles';
+import { ROUTE_PERMISSIONS, Permission, extractRoleName, isAdminRoleName } from '@/lib/auth/action-roles';
+import type { ProfileApprovalStatus } from '@/types/database';
 
 // Route protection configuration using new permission system
 // Maps route prefixes to required permissions (empty array = any authenticated user)
@@ -28,7 +29,7 @@ const adminOnlyRoutes = [
 ];
 
 // Routes that should be accessible even during maintenance mode
-const maintenanceExemptRoutes = ['/login', '/maintenance', '/api'];
+const maintenanceExemptRoutes = ['/login', '/maintenance', '/pending-approval', '/api'];
 
 export async function middleware(request: NextRequest) {
     let response = NextResponse.next({
@@ -73,7 +74,13 @@ export async function middleware(request: NextRequest) {
     // PERFORMANCE: getUser() first, then batch maintenance check and
     // profiles query into a single Promise.all round trip.
     let isMaintenanceMode = false;
-    let profile: { role_id: string | null; resident_id: string | null; role: string | null } | null = null;
+    let profile: {
+        role_id: string | null;
+        resident_id: string | null;
+        role: string | null;
+        approval_status: ProfileApprovalStatus | null;
+        app_roles?: unknown;
+    } | null = null;
 
     const { data: userAuthData } = await supabase.auth.getUser();
     const user = userAuthData.user;
@@ -85,7 +92,7 @@ export async function middleware(request: NextRequest) {
                 : Promise.resolve({ data: null, error: null }),
             supabase
                 .from('profiles')
-                .select('role_id, resident_id, role')
+                .select('role_id, resident_id, role, approval_status, app_roles!profiles_role_id_fkey (name)')
                 .eq('id', user.id)
                 .single(),
         ]);
@@ -93,20 +100,36 @@ export async function middleware(request: NextRequest) {
         isMaintenanceMode = maintenanceData?.data?.value === true;
     }
 
-    // Handle maintenance mode
-    if (!isExemptRoute && isMaintenanceMode) {
-        if (user && profile?.role_id) {
-            const { data: roleData } = await supabase
-                .from('app_roles')
-                .select('name')
-                .eq('id', profile.role_id)
-                .single();
+    // Approval gate. Accounts that are not active hold no permissions at the
+    // database level either (the RLS helpers are gated on approval_status), so
+    // this is a redirect for the user's benefit rather than the enforcement
+    // boundary. Runs before the maintenance check so a pending user gets the
+    // explanation that actually applies to them.
+    if (user && !pathname.startsWith('/api')) {
+        const status = profile?.approval_status ?? null;
 
-            const isSuperAdmin = roleData?.name === 'super_admin';
-            if (!isSuperAdmin) {
-                return NextResponse.redirect(new URL('/maintenance', request.url));
+        // A revoked account is signed out wherever it lands, /login included —
+        // otherwise it would keep a live session it can no longer use.
+        if (status === 'rejected' || status === 'suspended') {
+            await supabase.auth.signOut();
+            if (pathname !== '/login') {
+                const redirectUrl = new URL('/login', request.url);
+                redirectUrl.searchParams.set('error', `account_${status}`);
+                return NextResponse.redirect(redirectUrl);
             }
-        } else {
+        } else if (status !== 'active'
+            && !pathname.startsWith('/pending-approval')
+            && !pathname.startsWith('/login')) {
+            return NextResponse.redirect(new URL('/pending-approval', request.url));
+        }
+    }
+
+    // Handle maintenance mode
+    // The role name comes from the profiles join above, so no extra round trip.
+    const roleName = profile ? extractRoleName(profile.app_roles) : null;
+
+    if (!isExemptRoute && isMaintenanceMode) {
+        if (roleName !== 'super_admin') {
             return NextResponse.redirect(new URL('/maintenance', request.url));
         }
     }
@@ -119,7 +142,7 @@ export async function middleware(request: NextRequest) {
         }
 
         const isResidentUser = profile?.resident_id != null;
-        const hasAdminRole = profile?.role_id != null;
+        const hasAdminRole = isAdminRoleName(roleName);
 
         if (pathname.startsWith('/portal')) {
             const isImpersonationRequest = request.nextUrl.searchParams.has('impersonate');
@@ -165,10 +188,20 @@ export async function middleware(request: NextRequest) {
         }
     }
 
+    // Already signed in and hitting /login — send them where they belong.
+    // Non-active accounts must not be bounced to the dashboard; the approval
+    // gate above deliberately exempts /login so this is the branch that decides.
     if (pathname === '/login' && user && profile) {
-        const hasAdminRole = profile.role_id != null;
+        if (profile.approval_status !== 'active') {
+            return NextResponse.redirect(new URL('/pending-approval', request.url));
+        }
+
         const isResident = profile.resident_id != null;
-        const redirectPath = (hasAdminRole || !isResident) ? '/dashboard' : '/portal';
+        const redirectPath = isAdminRoleName(roleName)
+            ? '/dashboard'
+            : isResident
+                ? '/portal'
+                : '/pending-approval';
         return NextResponse.redirect(new URL(redirectPath, request.url));
     }
 

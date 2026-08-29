@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { sanitizeSearchInput } from '@/lib/utils';
+import type { ProfileApprovalStatus } from '@/types/database';
 
 // =====================================================
 // Types
@@ -160,17 +161,114 @@ export async function searchResidentsForRoleAssignment(
   return { data: results };
 }
 
+
 // =====================================================
-// Assign Role to Resident
+// Search Profiles for Role Assignment
+// =====================================================
+
+export type ProfileSearchResult = {
+  profile_id: string;
+  email: string;
+  full_name: string;
+  approval_status: ProfileApprovalStatus;
+  resident_id: string | null;
+  current_role_id: string | null;
+  current_role_name: string | null;
+  current_role_display_name: string | null;
+};
+
+/**
+ * Search accounts by email or name for role assignment.
+ *
+ * The account-centric counterpart to searchResidentsForRoleAssignment. That one
+ * can only reach people who exist as a resident on an estate property, so staff
+ * who only have a login — a hired security officer, a treasurer, anyone signed
+ * in with Google but not living on the estate — were invisible to the role
+ * assignment UI and could not be given any role at all.
+ */
+export async function searchProfilesForRoleAssignment(
+  query: string
+): Promise<{
+  data?: ProfileSearchResult[];
+  error?: string;
+}> {
+  const auth = await authorizePermission(PERMISSIONS.SYSTEM_ASSIGN_ROLES);
+  if (!auth.authorized) {
+    return { error: auth.error || 'Unauthorized' };
+  }
+
+  if (!query || query.length < 2) {
+    return { data: [] };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const searchPattern = `%${sanitizeSearchInput(query)}%`;
+
+  const { data: profiles, error } = await supabase
+    .from('profiles')
+    .select(`
+      id,
+      email,
+      full_name,
+      approval_status,
+      resident_id,
+      role_id,
+      app_roles!profiles_role_id_fkey (name, display_name)
+    `)
+    .or(`email.ilike.${searchPattern},full_name.ilike.${searchPattern}`)
+    .limit(20);
+
+  if (error) {
+    console.error('Error searching profiles:', error);
+    return { error: 'Failed to search accounts' };
+  }
+
+  const results: ProfileSearchResult[] = (profiles || []).map((profile) => {
+    const role = Array.isArray(profile.app_roles) ? profile.app_roles[0] : profile.app_roles;
+
+    return {
+      profile_id: profile.id,
+      email: profile.email,
+      full_name: profile.full_name,
+      approval_status: profile.approval_status,
+      resident_id: profile.resident_id,
+      current_role_id: profile.role_id,
+      current_role_name: role?.name ?? null,
+      current_role_display_name: role?.display_name ?? null,
+    };
+  });
+
+  return { data: results };
+}
+
+// =====================================================
+// Assign Role to a Profile (primitive)
 // =====================================================
 
 /**
- * Assign an admin role to a resident
- * If the resident has a linked profile, updates the profile's role_id
- * If no profile exists, this will fail (resident needs an account first)
+ * Legacy profiles.role values, kept in sync for backwards compatibility.
+ *
+ * Roughly fifteen server actions still read profiles.role directly for their
+ * own authorization checks, so this column cannot simply be abandoned. Roles
+ * with no legacy equivalent (vice_chairman, secretary, project_manager,
+ * resident) map to null — which is exactly why profiles.role had to become
+ * nullable before those four roles could be assigned at all.
  */
-export async function assignRoleToResident(
-  residentId: string,
+const LEGACY_ROLE_MAP: Record<string, string | null> = {
+  super_admin: 'admin',
+  chairman: 'chairman',
+  financial_officer: 'financial_secretary',
+  security_officer: 'security_officer',
+};
+
+/**
+ * Assign a role directly to an account.
+ *
+ * This is the primitive; assignRoleToResident wraps it. Works for any profile,
+ * whether or not it is linked to a resident record.
+ */
+export async function assignRoleToProfile(
+  profileId: string,
   roleId: string
 ): Promise<{
   success: boolean;
@@ -183,25 +281,16 @@ export async function assignRoleToResident(
 
   const supabase = await createServerSupabaseClient();
 
-  // Get resident info
-  const { data: resident, error: residentError } = await supabase
-    .from('residents')
-    .select('id, first_name, last_name, profile_id')
-    .eq('id', residentId)
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, role_id, role')
+    .eq('id', profileId)
     .single();
 
-  if (residentError || !resident) {
-    return { success: false, error: 'Resident not found' };
+  if (profileError || !profile) {
+    return { success: false, error: 'Account not found' };
   }
 
-  if (!resident.profile_id) {
-    return {
-      success: false,
-      error: 'This resident does not have an account. They must register and link their account first.'
-    };
-  }
-
-  // Get role info
   const { data: role, error: roleError } = await supabase
     .from('app_roles')
     .select('id, name, display_name, is_active')
@@ -216,70 +305,53 @@ export async function assignRoleToResident(
     return { success: false, error: 'Cannot assign an inactive role' };
   }
 
-  // Check if trying to assign super_admin (only super_admin can do this)
+  // Escalation guards: the two highest roles may only be granted by a super
+  // admin. This is the real enforcement — the UI merely mirrors it.
   if (role.name === 'super_admin' && auth.roleName !== 'super_admin') {
     return { success: false, error: 'Only Super Administrator can assign the Super Administrator role' };
   }
 
-  // Check if trying to assign chairman (only super_admin can do this)
   if (role.name === 'chairman' && auth.roleName !== 'super_admin') {
     return { success: false, error: 'Only Super Administrator can assign the Chairman role' };
   }
 
-  // Get old role for audit
-  const { data: oldProfile } = await supabase
-    .from('profiles')
-    .select('role_id, role')
-    .eq('id', resident.profile_id)
-    .single();
+  const legacyRole = LEGACY_ROLE_MAP[role.name] ?? null;
 
-  // Map app_role name to legacy role for backwards compatibility
-  // The legacy 'role' field is still used by some components during migration
-  const legacyRoleMap: Record<string, string | null> = {
-    super_admin: 'admin',
-    chairman: 'chairman',
-    financial_officer: 'financial_secretary',
-    security_officer: 'security_officer',
-    // Other roles (vice_chairman, secretary, project_manager, resident) don't have legacy equivalents
-  };
-  const legacyRole = legacyRoleMap[role.name] || null;
-
-  // Update the profile's role (both new RBAC role_id and legacy role field)
   const { error: updateError } = await supabase
     .from('profiles')
     .update({
       role_id: roleId,
-      role: legacyRole,  // Sync legacy field for backwards compatibility
+      role: legacyRole,
     })
-    .eq('id', resident.profile_id);
+    .eq('id', profileId);
 
   if (updateError) {
     console.error('Error updating role:', updateError);
     return { success: false, error: 'Failed to assign role' };
   }
 
-  // Audit log
   await logAudit({
     action: 'ASSIGN',
     entityType: 'profiles',
-    entityId: resident.profile_id,
-    entityDisplay: `${resident.first_name} ${resident.last_name}`,
-    oldValues: { role_id: oldProfile?.role_id, role: oldProfile?.role },
+    entityId: profileId,
+    entityDisplay: profile.full_name || profile.email,
+    oldValues: { role_id: profile.role_id, role: profile.role },
     newValues: { role_id: roleId, role: legacyRole, role_name: role.display_name },
   });
 
   return { success: true };
 }
 
-// =====================================================
-// Remove Role from Resident
-// =====================================================
-
 /**
- * Remove admin role from a resident (set back to base resident role)
+ * Revoke a role from an account.
+ *
+ * A resident-linked account drops to the base 'resident' role so the portal
+ * keeps working. An account with no resident link has no floor to drop to, so
+ * it loses its role entirely and returns to pending — leaving it role-less but
+ * active would give it a dashboard with nothing on it.
  */
-export async function removeRoleFromResident(
-  residentId: string
+export async function removeRoleFromProfile(
+  profileId: string
 ): Promise<{
   success: boolean;
   error?: string;
@@ -291,37 +363,23 @@ export async function removeRoleFromResident(
 
   const supabase = await createServerSupabaseClient();
 
-  // Get resident info
-  const { data: resident, error: residentError } = await supabase
-    .from('residents')
-    .select('id, first_name, last_name, profile_id')
-    .eq('id', residentId)
-    .single();
-
-  if (residentError || !resident) {
-    return { success: false, error: 'Resident not found' };
-  }
-
-  if (!resident.profile_id) {
-    return { success: false, error: 'This resident does not have an account' };
-  }
-
-  // Get current role for permission check
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('role_id, role')
-    .eq('id', resident.profile_id)
+    .select('id, email, full_name, role_id, role, resident_id, approval_status')
+    .eq('id', profileId)
     .single();
 
-  if (profile?.role_id) {
-    // Get the role being removed
+  if (profileError || !profile) {
+    return { success: false, error: 'Account not found' };
+  }
+
+  if (profile.role_id) {
     const { data: currentRole } = await supabase
       .from('app_roles')
       .select('name')
       .eq('id', profile.role_id)
       .single();
 
-    // Only super_admin can remove chairman or super_admin roles
     if (currentRole?.name === 'chairman' && auth.roleName !== 'super_admin') {
       return { success: false, error: 'Only Super Administrator can remove the Chairman role' };
     }
@@ -330,41 +388,131 @@ export async function removeRoleFromResident(
     }
   }
 
-  // Get the base resident role ID
-  const { data: residentRole } = await supabase
-    .from('app_roles')
-    .select('id')
-    .eq('name', 'resident')
-    .single();
+  let newRoleId: string | null = null;
+  let newRoleLabel = 'None';
+  let newStatus = profile.approval_status;
 
-  if (!residentRole) {
-    return { success: false, error: 'Base resident role not found' };
+  if (profile.resident_id) {
+    const { data: residentRole } = await supabase
+      .from('app_roles')
+      .select('id')
+      .eq('name', 'resident')
+      .single();
+
+    if (!residentRole) {
+      return { success: false, error: 'Base resident role not found' };
+    }
+
+    newRoleId = residentRole.id;
+    newRoleLabel = 'Resident';
+  } else {
+    newStatus = 'pending';
   }
 
-  // Update the profile to have the base resident role
-  // Also clear the legacy role field since 'resident' has no legacy equivalent
   const { error: updateError } = await supabase
     .from('profiles')
     .update({
-      role_id: residentRole.id,
-      role: null,  // Clear legacy field when removing admin role
+      role_id: newRoleId,
+      role: null,
+      approval_status: newStatus,
     })
-    .eq('id', resident.profile_id);
+    .eq('id', profileId);
 
   if (updateError) {
     console.error('Error removing role:', updateError);
     return { success: false, error: 'Failed to remove role' };
   }
 
-  // Audit log
   await logAudit({
     action: 'UNASSIGN',
     entityType: 'profiles',
-    entityId: resident.profile_id,
-    entityDisplay: `${resident.first_name} ${resident.last_name}`,
-    oldValues: { role_id: profile?.role_id, role: profile?.role },
-    newValues: { role_id: residentRole.id, role: null, role_name: 'Resident' },
+    entityId: profileId,
+    entityDisplay: profile.full_name || profile.email,
+    oldValues: { role_id: profile.role_id, role: profile.role, approval_status: profile.approval_status },
+    newValues: { role_id: newRoleId, role: null, role_name: newRoleLabel, approval_status: newStatus },
   });
 
   return { success: true };
+}
+
+// =====================================================
+// Resident-scoped wrappers
+// =====================================================
+
+/**
+ * Assign a role to the account linked to a resident.
+ *
+ * Thin wrapper over assignRoleToProfile; kept because the resident-centric
+ * search is still the primary way admins find people who live on the estate.
+ */
+export async function assignRoleToResident(
+  residentId: string,
+  roleId: string
+): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const profileId = await resolveResidentProfileId(residentId);
+  if ('error' in profileId) {
+    return { success: false, error: profileId.error };
+  }
+
+  return assignRoleToProfile(profileId.profileId, roleId);
+}
+
+/**
+ * Remove the role from the account linked to a resident.
+ */
+export async function removeRoleFromResident(
+  residentId: string
+): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const profileId = await resolveResidentProfileId(residentId);
+  if ('error' in profileId) {
+    return { success: false, error: profileId.error };
+  }
+
+  return removeRoleFromProfile(profileId.profileId);
+}
+
+/**
+ * Resolve a resident to the profile its role actually lives on.
+ *
+ * Note that residents.profile_id and profiles.resident_id are two independent
+ * links; this checks both so a resident linked from either direction resolves.
+ */
+async function resolveResidentProfileId(
+  residentId: string
+): Promise<{ profileId: string } | { error: string }> {
+  const supabase = await createServerSupabaseClient();
+
+  const { data: resident, error: residentError } = await supabase
+    .from('residents')
+    .select('id, profile_id')
+    .eq('id', residentId)
+    .single();
+
+  if (residentError || !resident) {
+    return { error: 'Resident not found' };
+  }
+
+  if (resident.profile_id) {
+    return { profileId: resident.profile_id };
+  }
+
+  const { data: linkedProfile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('resident_id', residentId)
+    .maybeSingle();
+
+  if (linkedProfile?.id) {
+    return { profileId: linkedProfile.id };
+  }
+
+  return {
+    error: 'This resident does not have an account. They must register and link their account first.',
+  };
 }
