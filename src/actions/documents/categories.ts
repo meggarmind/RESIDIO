@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { DocumentCategory } from '@/types/database';
+import { logAudit, getChangedValues } from '@/lib/audit/logger';
 
 type GetCategoriesResponse = {
   data: DocumentCategory[];
@@ -88,6 +89,14 @@ export async function createDocumentCategory(input: {
     return { data: null, error: error.message };
   }
 
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'document_categories',
+    entityId: data.id,
+    entityDisplay: data.name,
+    newValues: data,
+  });
+
   return { data: data as DocumentCategory, error: null };
 }
 
@@ -106,6 +115,12 @@ export async function updateDocumentCategory(
 ): Promise<CategoryResponse> {
   const supabase = await createServerSupabaseClient();
 
+  const { data: existing } = await supabase
+    .from('document_categories')
+    .select('*')
+    .eq('id', id)
+    .single();
+
   const { data, error } = await supabase
     .from('document_categories')
     .update(input)
@@ -118,6 +133,16 @@ export async function updateDocumentCategory(
     return { data: null, error: error.message };
   }
 
+  const changes = getChangedValues(existing ?? {}, data);
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'document_categories',
+    entityId: id,
+    entityDisplay: data.name,
+    oldValues: changes.old,
+    newValues: changes.new,
+  });
+
   return { data: data as DocumentCategory, error: null };
 }
 
@@ -128,15 +153,26 @@ export async function deleteDocumentCategory(id: string): Promise<{ success: boo
   const supabase = await createServerSupabaseClient();
 
   // Soft delete - set is_active to false
-  const { error } = await supabase
+  const { data: deactivated, error } = await supabase
     .from('document_categories')
     .update({ is_active: false })
-    .eq('id', id);
+    .eq('id', id)
+    .select()
+    .single();
 
   if (error) {
     console.error('Error deleting document category:', error);
     return { success: false, error: error.message };
   }
+
+  await logAudit({
+    action: 'DEACTIVATE',
+    entityType: 'document_categories',
+    entityId: id,
+    entityDisplay: deactivated?.name ?? id,
+    oldValues: { is_active: true },
+    newValues: { is_active: false },
+  });
 
   return { success: true, error: null };
 }

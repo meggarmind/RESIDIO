@@ -3,6 +3,7 @@
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
+import { logAudit } from '@/lib/audit/logger';
 
 type MoveOutLandlordResponse = {
   success: boolean;
@@ -154,6 +155,21 @@ export async function moveOutLandlord(
     console.error('[moveOutLandlord] Error recording history:', historyError);
     // Don't fail the operation for history errors
   }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'resident_houses',
+    entityId: residentId,
+    entityDisplay: `Owner-Occupier move-out at house ${houseId}`,
+    oldValues: { resident_role: 'resident_landlord', is_occupied: true },
+    newValues: { resident_role: 'non_resident_landlord', is_occupied: false },
+    description: notes || 'Owner-Occupier moved out, converted to Property Owner',
+    metadata: {
+      house_id: houseId,
+      resident_id: residentId,
+      cascaded_secondary_residents: secondaryCount,
+    },
+  });
 
   // Revalidate paths
   revalidatePath('/houses');

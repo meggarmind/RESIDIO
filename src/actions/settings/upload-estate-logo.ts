@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { logAudit } from '@/lib/audit/logger';
 
 // Allowed image types for logo
 const ALLOWED_IMAGE_TYPES = [
@@ -128,6 +129,15 @@ export async function uploadEstateLogo(formData: FormData): Promise<UploadLogoRe
     }
   }
 
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'system_settings',
+    entityId: 'estate_logo_url',
+    entityDisplay: 'Estate logo',
+    oldValues: { value: currentSetting?.value ?? null },
+    newValues: { value: publicUrl },
+  });
+
   revalidatePath('/settings');
   revalidatePath('/');
   return { data: { url: publicUrl }, error: null };
@@ -177,6 +187,15 @@ export async function removeEstateLogo(): Promise<{ success: boolean; error: str
     console.error('Setting update error:', settingError);
     return { success: false, error: 'Failed to remove logo' };
   }
+
+  await logAudit({
+    action: 'DELETE',
+    entityType: 'system_settings',
+    entityId: 'estate_logo_url',
+    entityDisplay: 'Estate logo',
+    oldValues: { value: currentSetting?.value ?? null },
+    newValues: { value: '' },
+  });
 
   revalidatePath('/settings');
   revalidatePath('/');

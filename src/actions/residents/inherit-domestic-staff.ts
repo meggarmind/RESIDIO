@@ -3,6 +3,7 @@
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
+import { logAudit } from '@/lib/audit/logger';
 
 /**
  * Inheritable staff member info
@@ -257,6 +258,22 @@ export async function inheritDomesticStaff(
 
   const declined = staffAssignmentIds.length - inherited;
 
+  await logAudit({
+    action: 'ASSIGN',
+    entityType: 'resident_houses',
+    entityId: houseId,
+    entityDisplay: `${inherited} domestic staff inherited at house ${houseId}`,
+    newValues: { sponsor_resident_id: newSponsorResidentId, move_in_date: today },
+    description: `New sponsor inherited ${inherited} of ${staffAssignmentIds.length} staff assignment(s)`,
+    metadata: {
+      house_id: houseId,
+      new_sponsor_resident_id: newSponsorResidentId,
+      staff_assignment_ids: staffAssignmentIds,
+      inherited,
+      declined,
+    },
+  });
+
   // Revalidate paths
   revalidatePath('/residents');
   revalidatePath('/houses');
@@ -322,6 +339,15 @@ export async function declineInheritance(
       return { success: false, error: 'Failed to decline inheritance' };
     }
   }
+
+  await logAudit({
+    action: 'UNASSIGN',
+    entityType: 'resident_houses',
+    entityId: houseId,
+    entityDisplay: `${staffAssignmentIds.length} staff inheritance declined at house ${houseId}`,
+    description: 'New sponsor declined inheriting previous domestic staff assignments',
+    metadata: { house_id: houseId, staff_assignment_ids: staffAssignmentIds },
+  });
 
   return { success: true, error: null };
 }

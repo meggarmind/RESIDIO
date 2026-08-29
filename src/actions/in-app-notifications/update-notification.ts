@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { InAppNotification } from '@/types/database';
+import { logAudit } from '@/lib/audit/logger';
 
 /**
  * Mark a notification as read
@@ -180,12 +181,28 @@ export async function adminDeleteNotification(id: string): Promise<{
 
   const supabase = await createServerSupabaseClient();
 
+  // Capture before removal: this is a hard delete performed by an admin on
+  // someone else's notification, so the audit entry is the only remaining record.
+  const { data: existing } = await supabase
+    .from('in_app_notifications')
+    .select('*')
+    .eq('id', id)
+    .single();
+
   const { error } = await supabase.from('in_app_notifications').delete().eq('id', id);
 
   if (error) {
     console.error('Error deleting notification:', error);
     return { success: false, error: error.message };
   }
+
+  await logAudit({
+    action: 'DELETE',
+    entityType: 'in_app_notifications',
+    entityId: id,
+    entityDisplay: existing?.title ?? id,
+    oldValues: existing ?? undefined,
+  });
 
   return { success: true, error: null };
 }

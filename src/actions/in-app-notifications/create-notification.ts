@@ -5,6 +5,7 @@ import { embed } from '@/lib/utils';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { InAppNotification } from '@/types/database';
+import { logAudit } from '@/lib/audit/logger';
 
 export interface NotificationCreateInput {
   recipient_id: string;
@@ -59,6 +60,14 @@ export async function createNotification(input: NotificationCreateInput): Promis
     return { data: null, error: error.message };
   }
 
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'in_app_notifications',
+    entityId: data.id,
+    entityDisplay: input.title,
+    newValues: { recipient_id: input.recipient_id, category: input.category, priority: input.priority || 'normal' },
+  });
+
   return { data, error: null };
 }
 
@@ -107,6 +116,15 @@ export async function createBulkNotifications(
     console.error('Error creating bulk notifications:', error);
     return { count: 0, error: error.message };
   }
+
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'in_app_notifications',
+    entityId: data?.[0]?.id ?? 'bulk',
+    entityDisplay: `${data?.length || 0} notification(s): ${notifications[0]?.title ?? ''}`,
+    newValues: { count: data?.length || 0, category: notifications[0]?.category },
+    metadata: { recipient_count: notifications.length },
+  });
 
   return { count: data?.length || 0, error: null };
 }
