@@ -9,7 +9,7 @@ residio_sources:
   - src/app/(dashboard)/settings/user-roles/**
   - src/components/admin/role-assignment-section.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: e51b591
+residio_verified_commit: 5590715
 residio_verified_at: '2026-08-30'
 residio_app_version: '0.4.0'
 ---
@@ -36,7 +36,7 @@ Approval is the gate. Everyone in this queue is asking for access to resident na
 | Role | Typical responsibility | Primary guide sections |
 | --- | --- | --- |
 | Super Administrator | Full estate configuration and oversight | All sections |
-| Chairman | Governance, approvals, reports, and oversight | Dashboard, operations, reports |
+| Chairman | Governance, approvals, reports, and oversight — everything the Super Administrator can do apart from Settings | Dashboard, operations, reports |
 | Vice Chairman | Deputises for the chairman | Dashboard, operations, reports |
 | Financial Officer | Payments, billing, imports, expenditure, and finance reports | Finance |
 | Secretary | Documents, communications, and resident records | Residents, operations |
@@ -44,7 +44,31 @@ Approval is the gate. Everyone in this queue is asking for access to resident na
 | Project Manager | Capital projects and development levies | Operations |
 | Resident | Self-service portal only, no admin dashboard | — |
 
-Your deployment may contain additional custom roles, created under **Role Definitions**. Ask a super administrator to confirm the exact permission set before assigning responsibility.
+:::info[Chairman and the Settings module]
+The Chairman is the Super Administrator without configuration. Every operational module is available — residents, houses, payments, billing, security, reports, documents, announcements, approvals — but the whole **Settings** section is not, and does not appear in the sidebar. That includes Roles & Permissions itself, so creating roles and assigning them is the Super Administrator's job.
+:::
+
+Your deployment may contain additional custom roles, created under **Role Definitions**. A custom role behaves exactly like a built-in one: its holder signs in to the admin dashboard and sees the modules it was granted. Ask a super administrator to confirm the exact permission set before assigning responsibility.
+
+## Creating a role
+
+**Settings → Roles & Permissions → Role Definitions → Add Role**.
+
+Name the role, give it a display name, pick its category and level, then choose its access in the same dialog:
+
+- **Start from** copies another role's access as a starting point. This is usually the quickest route — "the same as the Secretary, plus finance" is one selection and a few ticks.
+- Tick a **module** to grant everything in it.
+- Open a module to grant **individual privileges** within it, when a role should read a module but not change it.
+
+The footer counts what you have selected. A role created with nothing selected is created with no access at all and its holder will see an empty dashboard, so grant something before saving.
+
+If the privileges cannot be saved, the role is not created either — you will not be left with a half-made role to clean up.
+
+To change a role later, use the **Access** column in the roles table. It shows how many modules and privileges the role holds and opens the same picker.
+
+:::warning[Changes apply at next sign-in]
+Permission changes take effect when the affected user next signs in. Ask them to sign out and back in rather than waiting.
+:::
 
 ## Assigning a role
 
@@ -68,7 +92,7 @@ An account only holds permissions once it is approved, so the Accounts search wi
 - Someone with a resident record drops back to the plain resident role. They lose every administrative permission and keep nothing but resident access.
 - An account with no resident record has no role to fall back on, so it returns to **pending** and loses access entirely until it is approved again. You are warned before this happens.
 
-**Super Administrator** and **Chairman** can only be granted by an existing super administrator, and only a super administrator is offered them in the role list. The Chairman role can likewise only be removed by a super administrator, and the Super Administrator role cannot be removed through the app at all.
+Role assignment lives in the Settings module, so it sits with the **Super Administrator**. The Super Administrator role cannot be removed through the app at all.
 
 **Assignment Rules** controls which resident types are eligible for each executive role. Set that before assigning, not after.
 
@@ -88,5 +112,5 @@ Give a user the smallest role that lets them complete their job. Financial and s
 1. Confirm the user is signed in with the expected account.
 2. Confirm the account has been approved. An unapproved account never reaches the dashboard — it is sent to the waiting-for-approval page instead. Check **Pending Accounts**.
 3. Confirm the correct role is assigned. Search for them under **Role Assignments** — switch to **Accounts** if they are staff without a resident record.
-4. Ask a super administrator to review **Settings → Roles & Permissions**.
+4. Ask a super administrator to review the role's access under **Settings → Roles & Permissions → Role Definitions**, using the **Access** column to see exactly which modules and privileges it holds.
 5. Retry after the role or permission change has propagated.
