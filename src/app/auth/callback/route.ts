@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { extractRoleName, isAdminRoleName } from '@/lib/auth/action-roles';
+import { extractRole, isAdminRole, isResidentRole } from '@/lib/auth/action-roles';
 import { NextResponse } from 'next/server';
 
 /**
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
   // Join the role in the same round trip rather than issuing a second query.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('approval_status, resident_id, app_roles!profiles_role_id_fkey (name)')
+    .select('approval_status, resident_id, app_roles!profiles_role_id_fkey (name, category)')
     .eq('id', user.id)
     .single();
 
@@ -78,17 +78,17 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${origin}/login?error=account_${profile.approval_status}`);
   }
 
-  const roleName = extractRoleName(profile.app_roles);
+  const role = extractRole(profile.app_roles);
 
   if (next) {
     return NextResponse.redirect(`${origin}${next}`);
   }
 
-  if (isAdminRoleName(roleName)) {
+  if (isAdminRole(role)) {
     return NextResponse.redirect(`${origin}/dashboard`);
   }
 
-  if (roleName === 'resident' || profile.resident_id) {
+  if (isResidentRole(role) || profile.resident_id) {
     return NextResponse.redirect(`${origin}/portal`);
   }
 

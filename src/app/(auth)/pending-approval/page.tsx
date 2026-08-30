@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { Clock, ShieldX, MailQuestion } from 'lucide-react';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { extractRoleName, isAdminRoleName } from '@/lib/auth/action-roles';
+import { extractRole, isAdminRole, isResidentRole } from '@/lib/auth/action-roles';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { SignOutButton } from './sign-out-button';
 
@@ -25,16 +25,16 @@ export default async function PendingApprovalPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, approval_status, resident_id, rejection_reason, app_roles!profiles_role_id_fkey (name)')
+    .select('full_name, approval_status, resident_id, rejection_reason, app_roles!profiles_role_id_fkey (name, category)')
     .eq('id', user.id)
     .single();
 
   // Approved while this tab was open — send them on rather than stranding them.
   if (profile?.approval_status === 'active') {
-    const roleName = extractRoleName(profile.app_roles);
+    const role = extractRole(profile.app_roles);
 
-    if (isAdminRoleName(roleName)) redirect('/dashboard');
-    if (roleName === 'resident' || profile.resident_id) redirect('/portal');
+    if (isAdminRole(role)) redirect('/dashboard');
+    if (isResidentRole(role) || profile.resident_id) redirect('/portal');
   }
 
   const isRejected = profile?.approval_status === 'rejected';

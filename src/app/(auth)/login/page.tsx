@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/client';
-import { extractRoleName, isAdminRoleName } from '@/lib/auth/action-roles';
+import { extractRole, isAdminRole, isResidentRole } from '@/lib/auth/action-roles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -108,12 +108,12 @@ function LoginForm() {
           role_id,
           resident_id,
           approval_status,
-          app_roles!profiles_role_id_fkey (name)
+          app_roles!profiles_role_id_fkey (name, category)
         `)
         .eq('id', authData.user.id)
         .single();
 
-      const roleName = extractRoleName(profileWithRole?.app_roles);
+      const role = extractRole(profileWithRole?.app_roles);
       const status = profileWithRole?.approval_status;
 
       // Approval status decides before role does. An account that has not been
@@ -136,9 +136,9 @@ function LoginForm() {
 
       if (status !== 'active') {
         router.push('/pending-approval');
-      } else if (isAdminRoleName(roleName)) {
+      } else if (isAdminRole(role)) {
         router.push('/dashboard');
-      } else if (roleName === 'resident' || profileWithRole?.resident_id) {
+      } else if (isResidentRole(role) || profileWithRole?.resident_id) {
         router.push('/portal');
       } else {
         // Approved but with no role — nothing to show, so explain rather than
