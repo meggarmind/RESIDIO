@@ -4,7 +4,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { AccessLog, AccessLogWithDetails } from '@/types/database';
 import type { CheckInData, CheckOutData, FlagAccessData, AccessLogsFilters } from '@/lib/validators/security-contact';
-import { hasSecurityPermission } from './settings';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 
 type AccessLogResponse = {
@@ -25,9 +26,9 @@ export async function recordCheckIn(data: CheckInData): Promise<AccessLogRespons
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canRecord = await hasSecurityPermission('record_checkin');
-  if (!canRecord) {
-    return { data: null, error: 'Permission denied: Cannot record check-ins' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_RECORD_ACCESS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Cannot record check-ins' };
   }
 
   // Get current user (security officer)
@@ -128,9 +129,9 @@ export async function recordCheckOut(data: CheckOutData): Promise<AccessLogRespo
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canRecord = await hasSecurityPermission('record_checkin');
-  if (!canRecord) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_RECORD_ACCESS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   // Get existing log
@@ -188,9 +189,9 @@ export async function flagAccess(data: FlagAccessData): Promise<AccessLogRespons
   const supabase = await createServerSupabaseClient();
 
   // Check permission - only admin/chairman can flag
-  const canFlag = await hasSecurityPermission('view_access_logs');
-  if (!canFlag) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW_LOGS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   // Get existing log
@@ -244,9 +245,9 @@ export async function unflagAccess(logId: string): Promise<AccessLogResponse> {
   const supabase = await createServerSupabaseClient();
 
   // Check permission - only admin/chairman can unflag
-  const canUnflag = await hasSecurityPermission('view_access_logs');
-  if (!canUnflag) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW_LOGS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   const { data: accessLog, error: updateError } = await supabase
@@ -277,9 +278,9 @@ export async function getAccessLogs(filters: AccessLogsFilters = {}): Promise<Ac
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_access_logs');
-  if (!canView) {
-    return { data: [], count: 0, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW_LOGS);
+  if (!auth.authorized) {
+    return { data: [], count: 0, error: auth.error || 'Permission denied' };
   }
 
   const {
@@ -395,9 +396,9 @@ export async function getAccessLogStats(): Promise<{
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_access_logs');
-  if (!canView) {
-    return { today: 0, thisWeek: 0, flagged: 0, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW_LOGS);
+  if (!auth.authorized) {
+    return { today: 0, thisWeek: 0, flagged: 0, error: auth.error || 'Permission denied' };
   }
 
   const now = new Date();

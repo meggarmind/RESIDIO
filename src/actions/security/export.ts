@@ -1,7 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { hasSecurityPermission } from './settings';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { formatDateTime, sanitizeSearchInput } from '@/lib/utils';
 import type { SecurityContactFilters } from '@/lib/validators/security-contact';
 
@@ -19,9 +20,9 @@ export async function exportSecurityContactsCSV(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canExport = await hasSecurityPermission('export_contacts');
-  if (!canExport) {
-    return { data: null, error: 'Permission denied: Cannot export security contacts' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_EXPORT);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Cannot export security contacts' };
   }
 
   const { search, resident_id, category_id, status } = filters;
@@ -165,9 +166,9 @@ export async function exportAccessLogsCSV(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canViewLogs = await hasSecurityPermission('view_access_logs');
-  if (!canViewLogs) {
-    return { data: null, error: 'Permission denied: Cannot export access logs' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW_LOGS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Cannot export access logs' };
   }
 
   let query = supabase
