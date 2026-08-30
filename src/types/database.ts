@@ -67,15 +67,7 @@ export const PROFILE_APPROVAL_STATUS_LABELS: Record<ProfileApprovalStatus, strin
 // Kept for backwards compatibility during migration
 export type UserRole = 'chairman' | 'financial_secretary' | 'security_officer' | 'admin';
 
-// Legacy: Human-readable labels for user roles - DEPRECATED
-export const USER_ROLE_LABELS: Record<UserRole, string> = {
-  admin: 'Administrator',
-  chairman: 'Chairman',
-  financial_secretary: 'Financial Secretary',
-  security_officer: 'Security Officer',
-};
-
-// Mapping from old roles to new roles (for migration/backwards compat)
+//// Mapping from old roles to new roles (for migration/backwards compat)
 export const LEGACY_TO_NEW_ROLE_MAP: Record<UserRole, AppRoleName> = {
   admin: 'super_admin',
   chairman: 'chairman',
@@ -229,20 +221,6 @@ export type SecurityPermission =
   | 'suspend_revoke_contacts'
   | 'configure_categories'
   | 'view_access_logs';
-
-export const SECURITY_PERMISSION_LABELS: Record<SecurityPermission, string> = {
-  register_contacts: 'Register Contacts',
-  generate_codes: 'Generate Access Codes',
-  update_contacts: 'Update Contacts',
-  verify_codes: 'Verify Access Codes',
-  record_checkin: 'Record Check-In/Out',
-  view_contacts: 'View All Contacts',
-  search_contacts: 'Search Contacts',
-  export_contacts: 'Export Contact List',
-  suspend_revoke_contacts: 'Suspend/Revoke Contacts',
-  configure_categories: 'Configure Categories',
-  view_access_logs: 'View Access Logs',
-};
 
 // Billing types
 export type BillingTargetType = 'house' | 'resident';
@@ -1637,35 +1615,6 @@ export interface AccessLogWithDetails extends AccessLog {
 }
 
 // Security settings type (role permissions configuration)
-export interface SecurityRolePermissions {
-  register_contacts: UserRole[];
-  generate_codes: UserRole[];
-  update_contacts: UserRole[];
-  verify_codes: UserRole[];
-  record_checkin: UserRole[];
-  view_contacts: UserRole[];
-  search_contacts: UserRole[];
-  export_contacts: UserRole[];
-  suspend_revoke_contacts: UserRole[];
-  configure_categories: UserRole[];
-  view_access_logs: UserRole[];
-}
-
-// Default security role permissions
-export const DEFAULT_SECURITY_PERMISSIONS: SecurityRolePermissions = {
-  register_contacts: ['admin', 'chairman', 'financial_secretary'],
-  generate_codes: ['admin', 'chairman', 'financial_secretary'],
-  update_contacts: ['admin', 'chairman', 'financial_secretary'],
-  verify_codes: ['admin', 'chairman', 'financial_secretary', 'security_officer'],
-  record_checkin: ['admin', 'chairman', 'financial_secretary', 'security_officer'],
-  view_contacts: ['admin', 'chairman', 'financial_secretary', 'security_officer'],
-  search_contacts: ['admin', 'chairman', 'financial_secretary', 'security_officer'],
-  export_contacts: ['admin', 'chairman', 'financial_secretary', 'security_officer'],
-  suspend_revoke_contacts: ['admin', 'chairman'],
-  configure_categories: ['admin'],
-  view_access_logs: ['admin', 'chairman'],
-};
-
 // ============================================
 // Phase 6 (NEW): Bank Statement Import Types
 // ============================================

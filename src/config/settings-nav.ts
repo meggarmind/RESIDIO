@@ -72,7 +72,6 @@ export const settingsConfig: SettingsGroup[] = [
                 href: "/settings/security",
                 children: [
                     { title: "General", href: "/settings/security", description: "Security protocols and limits" },
-                    { title: "Permissions", href: "/settings/security/permissions", description: "Role-based access matrix" },
                     { title: "Contact Categories", href: "/settings/security/categories", description: "Validity periods and requirements" },
                 ]
             },
