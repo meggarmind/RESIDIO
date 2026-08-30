@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -465,14 +465,23 @@ export async function assignRoleToUser(
     .eq('id', roleId)
     .single();
 
-  // Update user's role
-  const { error } = await supabase
+  // Service role: profiles has no RLS policy letting an administrator update
+  // another account's row, so this write through the caller's client matched
+  // zero rows and returned no error - the action reported success while the
+  // role was never assigned. Permission is enforced by authorizePermission()
+  // above; .select() makes a zero-row write detectable.
+  const { data: updated, error } = await createAdminClient()
     .from('profiles')
     .update({ role_id: roleId })
-    .eq('id', userId);
+    .eq('id', userId)
+    .select('id');
 
   if (error) {
     return { success: false, error: error.message };
+  }
+
+  if (!updated || updated.length === 0) {
+    return { success: false, error: 'Failed to assign role: the account could not be updated' };
   }
 
   // Audit log
@@ -520,6 +529,8 @@ export async function getCurrentAdmins(): Promise<{
     .from('profiles')
     .select(`
       id,
+      email,
+      full_name,
       role_id,
       resident_id,
       residents:resident_id (
@@ -588,12 +599,19 @@ export async function getCurrentAdmins(): Promise<{
         ? `${house.house_number}${house.streets?.name ? `, ${house.streets.name}` : ''}`
         : null;
 
+      // Admin accounts are not always linked to a resident record — the super
+      // admin and chairman usually are not — so fall back to the profile's own
+      // name and email instead of rendering "Unknown User".
+      const [profileFirstName = '', ...profileRestName] =
+        (profile.full_name || '').trim().split(/\s+/);
+      const profileLastName = profileRestName.join(' ');
+
       return {
         id: resident?.id || profile.id,
         profile_id: profile.id,
-        first_name: resident?.first_name || 'Unknown',
-        last_name: resident?.last_name || 'User',
-        email: resident?.email || null,
+        first_name: resident?.first_name || profileFirstName || profile.email || 'Unknown',
+        last_name: resident?.last_name || profileLastName || '',
+        email: resident?.email || profile.email || null,
         house_address: houseAddress,
         role_id: role.id,
         role_name: role.name,

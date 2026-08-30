@@ -161,7 +161,11 @@ export async function approveAccount(
     }
   }
 
-  const { error: updateError } = await supabase
+  // Service role: profiles has no RLS policy permitting an administrator to
+  // update another account's row, so this write through the caller's client
+  // matched zero rows and returned no error. Permission is already enforced by
+  // the authorizePermission() check at the top of this action.
+  const { data: updated, error: updateError } = await createAdminClient()
     .from('profiles')
     .update({
       approval_status: 'active',
@@ -170,11 +174,17 @@ export async function approveAccount(
       rejection_reason: null,
       ...(residentId ? { resident_id: residentId } : {}),
     })
-    .eq('id', profileId);
+    .eq('id', profileId)
+    .select('id');
 
   if (updateError) {
     console.error('Error approving account:', updateError);
     return { success: false, error: 'Failed to approve account' };
+  }
+
+  if (!updated || updated.length === 0) {
+    console.error('Approval matched no rows for profile', profileId);
+    return { success: false, error: 'Failed to approve account: the account could not be updated' };
   }
 
   await logAudit({
@@ -228,7 +238,8 @@ export async function rejectAccount(
     return { success: false, error: 'Account not found' };
   }
 
-  const { error: updateError } = await supabase
+  // Service role for the same reason as approveAccount above.
+  const { data: updated, error: updateError } = await createAdminClient()
     .from('profiles')
     .update({
       approval_status: 'rejected',
@@ -238,11 +249,17 @@ export async function rejectAccount(
       approved_at: null,
       approved_by: null,
     })
-    .eq('id', profileId);
+    .eq('id', profileId)
+    .select('id');
 
   if (updateError) {
     console.error('Error rejecting account:', updateError);
     return { success: false, error: 'Failed to reject account' };
+  }
+
+  if (!updated || updated.length === 0) {
+    console.error('Rejection matched no rows for profile', profileId);
+    return { success: false, error: 'Failed to reject account: the account could not be updated' };
   }
 
   await logAudit({
