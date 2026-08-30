@@ -2,6 +2,12 @@
 id: access-and-gate-operations
 title: Access and gate operations
 sidebar_label: Access and gate operations
+residio_sources:
+  - src/actions/security/**
+  - src/lib/security/**
+residio_verified_commit: e51b591
+residio_verified_at: '2026-08-30'
+residio_app_version: '0.4.0'
 ---
 
 # Access and gate operations

@@ -3,6 +3,13 @@ id: dashboard-overview
 title: Dashboard overview
 sidebar_label: Dashboard overview
 description: Read the Residio admin dashboard and turn its signals into the next action.
+residio_sources:
+  - src/app/(dashboard)/dashboard/**
+  - src/components/dashboard/**
+  - src/actions/dashboard/**
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Dashboard overview
@@ -25,7 +32,7 @@ The dashboard is your operating picture for the estate. Start here before openin
 4. **Payments Traffic:** use the status counts to decide whether to inspect billing or payments.
 5. **Audit Pulse:** confirm recent changes are expected and traceable.
 
-:::tip Daily habit
+:::tip[Daily habit]
 Use the dashboard as a queue, not a report. Resolve the highest-risk exception first, then refresh before starting the next task.
 :::
 

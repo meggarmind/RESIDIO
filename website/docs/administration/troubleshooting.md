@@ -3,6 +3,13 @@ id: troubleshooting
 title: Troubleshooting the admin dashboard
 sidebar_label: Troubleshooting
 description: A short recovery guide for common admin dashboard problems.
+residio_sources:
+  - src/app/(dashboard)/settings/system/**
+  - src/app/api/health/**
+  - src/actions/system/**
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Troubleshooting
