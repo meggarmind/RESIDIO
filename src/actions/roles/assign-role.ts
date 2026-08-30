@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -317,17 +317,35 @@ export async function assignRoleToProfile(
 
   const legacyRole = LEGACY_ROLE_MAP[role.name] ?? null;
 
-  const { error: updateError } = await supabase
+  // Written with the service role deliberately. profiles has no RLS policy
+  // letting an administrator update anyone else's row, so this write through the
+  // caller's own client matched zero rows and returned no error — the action
+  // reported success while nothing changed.
+  //
+  // The service role is the right tool rather than a new RLS policy: the
+  // escalation guards above (super_admin and chairman may only be granted by a
+  // super_admin) live in this function, and a policy permissive enough to allow
+  // this write would also let any assign_roles holder set their own role_id
+  // straight through PostgREST, bypassing them.
+  //
+  // .select() makes a zero-row write impossible to mistake for success again.
+  const { data: updated, error: updateError } = await createAdminClient()
     .from('profiles')
     .update({
       role_id: roleId,
       role: legacyRole,
     })
-    .eq('id', profileId);
+    .eq('id', profileId)
+    .select('id');
 
   if (updateError) {
     console.error('Error updating role:', updateError);
     return { success: false, error: 'Failed to assign role' };
+  }
+
+  if (!updated || updated.length === 0) {
+    console.error('Role assignment matched no rows for profile', profileId);
+    return { success: false, error: 'Failed to assign role: the account could not be updated' };
   }
 
   await logAudit({
@@ -409,18 +427,25 @@ export async function removeRoleFromProfile(
     newStatus = 'pending';
   }
 
-  const { error: updateError } = await supabase
+  // Service role for the same reason as assignRoleToProfile above.
+  const { data: updated, error: updateError } = await createAdminClient()
     .from('profiles')
     .update({
       role_id: newRoleId,
       role: null,
       approval_status: newStatus,
     })
-    .eq('id', profileId);
+    .eq('id', profileId)
+    .select('id');
 
   if (updateError) {
     console.error('Error removing role:', updateError);
     return { success: false, error: 'Failed to remove role' };
+  }
+
+  if (!updated || updated.length === 0) {
+    console.error('Role removal matched no rows for profile', profileId);
+    return { success: false, error: 'Failed to remove role: the account could not be updated' };
   }
 
   await logAudit({

@@ -315,8 +315,11 @@ export async function linkAuthAccountToResident(
       .single();
 
     if (existingProfile) {
-      // Update existing profile
-      const { error: updateError } = await supabase
+      // Written with the service role: profiles carries no RLS policy allowing
+      // an administrator to update another account's row, so this write through
+      // the caller's own client matched zero rows and reported no error.
+      // Permission is enforced by the authorizePermission() check above.
+      const { data: updated, error: updateError } = await createAdminClient()
         .from('profiles')
         .update({
           resident_id: residentId,
@@ -329,16 +332,22 @@ export async function linkAuthAccountToResident(
           rejection_reason: null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', authUserId);
+        .eq('id', authUserId)
+        .select('id');
 
       if (updateError) {
         console.error('Error updating profile:', updateError);
         return { success: false, error: 'Failed to link account' };
       }
+
+      if (!updated || updated.length === 0) {
+        console.error('Account link matched no rows for profile', authUserId);
+        return { success: false, error: 'Failed to link account: the profile could not be updated' };
+      }
     } else {
       // Create new profile. Normally unreachable — handle_new_user() provisions
       // a row for every auth user — but kept for accounts predating that trigger.
-      const { error: insertError } = await supabase.from('profiles').insert({
+      const { error: insertError } = await createAdminClient().from('profiles').insert({
         id: authUserId,
         resident_id: residentId,
         full_name: fullName,
@@ -442,7 +451,7 @@ export async function unlinkAuthAccount(
     const residentName = resident ? `${resident.first_name} ${resident.last_name}` : 'Unknown';
 
     // Remove resident link
-    const { error: updateError } = await supabase
+    const { error: updateError } = await createAdminClient()
       .from('profiles')
       .update({
         resident_id: null,
