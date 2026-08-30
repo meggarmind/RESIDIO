@@ -2,8 +2,10 @@
 // Phase 10: New Flexible RBAC System
 // =====================================================
 
-// New role names (from app_roles table)
-export type AppRoleName =
+// Role names seeded with the RBAC system. Named separately from AppRoleName so
+// code that genuinely means "one of the built-ins" -- escalation guards, the
+// legacy get_my_role mapping -- can say so.
+export type BuiltInRoleName =
   | 'super_admin'
   | 'chairman'
   | 'vice_chairman'
@@ -12,6 +14,17 @@ export type AppRoleName =
   | 'secretary'
   | 'project_manager'
   | 'resident';
+
+/**
+ * A value of app_roles.name.
+ *
+ * Roles & Permissions can create roles, so this cannot be a closed union: a
+ * `treasurer` is as real as a `secretary`. The `string & {}` arm keeps
+ * autocomplete on the built-ins while accepting any name, and every existing
+ * `roleName === 'super_admin'` comparison still narrows correctly.
+ */
+// eslint-disable-next-line @typescript-eslint/ban-types
+export type AppRoleName = BuiltInRoleName | (string & {});
 
 // Role category (organizational structure)
 export type RoleCategory = 'exco' | 'bot' | 'staff' | 'resident';
@@ -33,22 +46,12 @@ export type PermissionCategory =
   | 'notifications'
   | 'report_subscriptions'
   | 'impersonation'  // Admin impersonation system
+  | 'notes'         // Notes on residents and houses
+  | 'personnel'     // Personnel and vendor directory
   | 'email_imports' // Gmail bank statement integration
   | 'two_factor'   // Two-factor authentication
   | 'finance'       // Expenditure and Petty Cash
   | 'projects';     // Capital Projects
-
-// Human-readable labels for new roles
-export const APP_ROLE_LABELS: Record<AppRoleName, string> = {
-  super_admin: 'Super Administrator',
-  chairman: 'Chairman',
-  vice_chairman: 'Vice Chairman',
-  financial_officer: 'Financial Officer',
-  security_officer: 'Security Officer',
-  secretary: 'Secretary',
-  project_manager: 'Project Manager',
-  resident: 'Resident',
-};
 
 // Account approval lifecycle (profiles.account_status).
 // Only 'active' resolves a role, resident link or permissions — the auth helpers
@@ -68,7 +71,7 @@ export const PROFILE_APPROVAL_STATUS_LABELS: Record<ProfileApprovalStatus, strin
 export type UserRole = 'chairman' | 'financial_secretary' | 'security_officer' | 'admin';
 
 //// Mapping from old roles to new roles (for migration/backwards compat)
-export const LEGACY_TO_NEW_ROLE_MAP: Record<UserRole, AppRoleName> = {
+export const LEGACY_TO_NEW_ROLE_MAP: Record<UserRole, BuiltInRoleName> = {
   admin: 'super_admin',
   chairman: 'chairman',
   financial_secretary: 'financial_officer',

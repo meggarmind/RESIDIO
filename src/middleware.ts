@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { supabaseConfig } from '@/lib/supabase/config';
-import { ROUTE_PERMISSIONS, Permission, extractRoleName, isAdminRoleName } from '@/lib/auth/action-roles';
+import { ROUTE_PERMISSIONS, Permission, extractRole, isAdminRole } from '@/lib/auth/action-roles';
 import type { ProfileApprovalStatus } from '@/types/database';
 
 // Route protection configuration using new permission system
@@ -92,7 +92,7 @@ export async function middleware(request: NextRequest) {
                 : Promise.resolve({ data: null, error: null }),
             supabase
                 .from('profiles')
-                .select('role_id, resident_id, role, approval_status, app_roles!profiles_role_id_fkey (name)')
+                .select('role_id, resident_id, role, approval_status, app_roles!profiles_role_id_fkey (name, category)')
                 .eq('id', user.id)
                 .single(),
         ]);
@@ -126,7 +126,8 @@ export async function middleware(request: NextRequest) {
 
     // Handle maintenance mode
     // The role name comes from the profiles join above, so no extra round trip.
-    const roleName = profile ? extractRoleName(profile.app_roles) : null;
+    const role = profile ? extractRole(profile.app_roles) : null;
+    const roleName = role?.name ?? null;
 
     if (!isExemptRoute && isMaintenanceMode) {
         if (roleName !== 'super_admin') {
@@ -142,7 +143,7 @@ export async function middleware(request: NextRequest) {
         }
 
         const isResidentUser = profile?.resident_id != null;
-        const hasAdminRole = isAdminRoleName(roleName);
+        const hasAdminRole = isAdminRole(role);
 
         if (pathname.startsWith('/portal')) {
             const isImpersonationRequest = request.nextUrl.searchParams.has('impersonate');
@@ -197,7 +198,7 @@ export async function middleware(request: NextRequest) {
         }
 
         const isResident = profile.resident_id != null;
-        const redirectPath = isAdminRoleName(roleName)
+        const redirectPath = isAdminRole(role)
             ? '/dashboard'
             : isResident
                 ? '/portal'

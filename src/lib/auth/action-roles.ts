@@ -5,7 +5,7 @@
  * Next.js 15/16 only allows async function exports from 'use server' files.
  */
 
-import type { UserRole, AppRoleName } from '@/types/database';
+import type { UserRole, AppRoleName, BuiltInRoleName, RoleCategory } from '@/types/database';
 
 export interface AuthorizationResult {
   authorized: boolean;
@@ -206,14 +206,17 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
 // =====================================================
 
 /**
- * RBAC role names that land on the admin dashboard rather than the resident
+ * Built-in role names that land on the admin dashboard rather than the resident
  * portal. Used for post-login routing only — never for authorization, which
  * always goes through permissions.
  *
- * Single source of truth: previously duplicated verbatim in the login page and
- * the OAuth callback, where the two copies could silently drift.
+ * This is now only a fallback for when the `app_roles` join is unavailable.
+ * Prefer `isAdminRole()`, which reads the role's category and so admits roles
+ * created through Roles & Permissions; while this list was the source of truth,
+ * a `treasurer` was bounced to /portal or /pending-approval no matter what it
+ * had been granted.
  */
-export const ADMIN_ROLE_NAMES: readonly AppRoleName[] = [
+export const ADMIN_ROLE_NAMES: readonly BuiltInRoleName[] = [
   'super_admin',
   'chairman',
   'vice_chairman',
@@ -223,26 +226,62 @@ export const ADMIN_ROLE_NAMES: readonly AppRoleName[] = [
   'project_manager',
 ] as const;
 
-/** True when the given role name routes to the admin dashboard. */
-export function isAdminRoleName(roleName: string | null | undefined): boolean {
-  return roleName != null && (ADMIN_ROLE_NAMES as readonly string[]).includes(roleName);
+/** A role as read from an `app_roles!profiles_role_id_fkey (name, category)` join. */
+export interface JoinedRole {
+  name: AppRoleName;
+  category: RoleCategory | null;
 }
 
 /**
- * Reads the role name out of a `app_roles!profiles_role_id_fkey (name)` join.
+ * True when the role routes to the admin dashboard.
+ *
+ * Decided by category rather than by name, so any non-resident role — seeded or
+ * created by an admin — reaches the dashboard. Falls back to the built-in name
+ * list when the join did not carry a category.
+ */
+export function isAdminRole(role: JoinedRole | null | undefined): boolean {
+  if (!role) return false;
+  if (role.category) return role.category !== 'resident';
+  return (ADMIN_ROLE_NAMES as readonly string[]).includes(role.name);
+}
+
+/**
+ * True when the role belongs to the resident portal. The mirror of
+ * `isAdminRole`, so a resident-category role an admin creates routes with the
+ * seeded `resident` role rather than falling through to /pending-approval.
+ */
+export function isResidentRole(role: JoinedRole | null | undefined): boolean {
+  if (!role) return false;
+  return role.category === 'resident' || role.name === 'resident';
+}
+
+/**
+ * Reads a role out of an `app_roles!profiles_role_id_fkey (name, category)` join.
  *
  * PostgREST returns either an object or a single-element array depending on how
  * it infers the relation, and the hand-maintained Database type does not model
  * the FK at all, so the join arrives untyped. Normalises both shapes in one
  * place instead of repeating the cast at every call site.
+ *
+ * `category` comes back null when the caller selected only `(name)`; callers
+ * that need admin routing should select both.
  */
-export function extractRoleName(joined: unknown): AppRoleName | null {
+export function extractRole(joined: unknown): JoinedRole | null {
   const record = Array.isArray(joined) ? joined[0] : joined;
-  if (record && typeof record === 'object' && 'name' in record) {
-    const name = (record as { name: unknown }).name;
-    if (typeof name === 'string') return name as AppRoleName;
-  }
-  return null;
+  if (!record || typeof record !== 'object' || !('name' in record)) return null;
+
+  const { name, category } = record as { name: unknown; category?: unknown };
+  if (typeof name !== 'string') return null;
+
+  return {
+    name: name as AppRoleName,
+    category: typeof category === 'string' ? (category as RoleCategory) : null,
+  };
+}
+
+/** Convenience wrapper for callers that only need the name. */
+export function extractRoleName(joined: unknown): AppRoleName | null {
+  return extractRole(joined)?.name ?? null;
 }
 
 // =====================================================
