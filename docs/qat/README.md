@@ -9,7 +9,7 @@ Browser-driven, page-by-page functional QA of the Residio **Admin Dashboard**, e
 | **Environment** | `http://localhost:3000` → cloud Supabase |
 | **Branch** | `qa/manual-qat-20260829`, worktree at `C:/projects/RESIDIO-qat`, based on `master` (`43579eb`) |
 | **Actors** | super_admin (`admin@residio.test`), unauthenticated visitor |
-| **Status** | Session 2 in progress — running isolated on `:3001` against the QA worktree |
+| **Status** | Session 2 complete — 20 defects filed; remaining gaps are stated, not hidden |
 
 ## Contents
 
@@ -23,7 +23,7 @@ Browser-driven, page-by-page functional QA of the Residio **Admin Dashboard**, e
 
 | Module | Report | Total | Pass | Fail | Blocked / Deferred | Not yet run |
 |---|---|---|---|---|---|---|
-| Authentication & session | [qat-auth](reports/qat-auth-20260829.md) | 14 | 5 | 1 | 8 | 0 |
+| Authentication & session | [qat-auth](reports/qat-auth-20260829.md) | 14 | 12 | 2 | 0 | 0 |
 | Residents | [qat-residents](reports/qat-residents-20260829.md) | 28 | 8 | 0 | 0 | 20 |
 | Payments | [qat-payments](reports/qat-payments-20260829.md) | 26 | 3 | 2 | 12 | 9 |
 | Smoke pass | [qat-smoke](reports/qat-smoke-20260829.md) | 44 | 39 | 2 | 0 | 3 |
@@ -34,7 +34,7 @@ Browser-driven, page-by-page functional QA of the Residio **Admin Dashboard**, e
 | Approvals | [qat-approvals](reports/qat-approvals-20260829.md) | 11 | 3 | 0 | 8 | 0 |
 | Reports & analytics | [qat-reports](reports/qat-reports-20260829.md) | 14 | 8 | 1 | 0 | 5 |
 | Cross-cutting | [qat-cross-cutting](reports/qat-cross-cutting-20260829.md) | — | — | 1 | — | — |
-| **Total** | | **225** | **107** | **17** | **42** | **59** |
+| **Total** | | **225** | **114** | **18** | **34** | **59** |
 
 ## Defect register
 
@@ -53,6 +53,7 @@ Severity definitions follow `docs/validation/README.md`. **Every confirmed defec
 | QAT-SEC-D3 | MEDIUM | A code labelled "Permanent" expires after the category's `default_validity_days` — 23 hours for a Visitor — and is badged "Expiring Soon" at creation. `generateAccessCode` computes expiry regardless of `code_type`. | SEC | [#122](https://github.com/meggarmind/RESIDIO/issues/122) |
 | QAT-SEC-O1 | MEDIUM | The same contact shows "Expired" in the list and "Active" on its detail page. Reproduced in a second session. The Status filter's "Expired" option also disagrees with the "Show Expired" toggle. | SEC | [#123](https://github.com/meggarmind/RESIDIO/issues/123) |
 | QAT-SEC-O3 | LOW | `/security/contacts` default view renders a blank table with no empty state while a "Show Expired (2)" toggle shows records exist. Filter-driven empties render correctly — the earlier broader claim was refuted. | SEC | [#124](https://github.com/meggarmind/RESIDIO/issues/124) |
+| QAT-AUTH-14 | LOW | `/auth/verify-2fa` renders a blank page when unauthenticated — no form, no error, no redirect. The authenticated path correctly redirects to `/dashboard`, so only the no-session case is unhandled. | AUTH | [#125](https://github.com/meggarmind/RESIDIO/issues/125) |
 | QAT-SEC-D1 | MEDIUM | The Nigerian phone regex in `security-contact.ts:15` is declared and never referenced — dead code. Only `min(10)` is enforced, so `+1234567890` and `0912345678` create live security contacts. | SEC | [#112](https://github.com/meggarmind/RESIDIO/issues/112) |
 | QAT-HSE-O1 | LOW | Two pre-existing house records render corrupted characters in their identifiers (`IBB-3?F?`, `KOA-10F-?`), so they cannot be typed or searched for. Likely legacy import encoding rather than an application fault. | HSE | [#119](https://github.com/meggarmind/RESIDIO/issues/119) |
 | QAT-BIL-D1 | MEDIUM | The invoice-status donut sums five overlapping buckets as if they partition. `overdue` is a derived subset of `unpaid`, so 18 invoices are counted twice — the chart totals 607 against a true count of 589, and every segment is drawn against an inflated denominator. | BIL | [#110](https://github.com/meggarmind/RESIDIO/issues/110) |
@@ -110,8 +111,8 @@ Run against a **stable checkout** — ideally a dedicated branch or a local data
 
 1. Restore admin access (the `approval_status` gate now blocks `admin@residio.test`), or re-run once that work has landed.
 2. **Billing & Wallet write operations — the largest gap.** Wallet credit, debit, allocation across invoices, batch reversal, statements, invoice corrections and disputes are all untested on the campaign's highest-risk module.
-3. **Approvals state transitions** — 8 of 11 cases are Blocked on an empty queue. Unblock by driving a plots change on the `QAT-01` test house, which yields a disposable request.
+3. **Approvals state transitions** — 8 of 11 cases are Blocked and **cannot be unblocked by a super_admin**. `canAutoApprove()` returns true for `role === 'admin' || 'chairman'`, and all six approval producers check it first. Sign in as `financial_officer` and edit a bank account: that path has no data precondition, so a request appears immediately.
 4. Remaining Security cases: regenerate/revoke codes, time-limited windows, flag/unflag, share pass, vehicles, CSV export, visitor analytics. Re-verify QAT-SEC-O1 (list vs detail status disagreement) and QAT-SEC-O3.
-5. Deferred unauthenticated AUTH cases (login validation, invalid credentials, register, forgot-password, sign-out) — these need a sign-out and so were held to the end.
+5. ~~Deferred unauthenticated AUTH cases~~ — **done**. All eight executed; the module is now fully covered and clean apart from [#125](https://github.com/meggarmind/RESIDIO/issues/125).
 6. Re-run the 12 Payments cases blocked by [#105](https://github.com/meggarmind/RESIDIO/issues/105).
 7. Mobile layout checks — need a visible Browser pane.

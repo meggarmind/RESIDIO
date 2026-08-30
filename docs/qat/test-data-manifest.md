@@ -7,11 +7,13 @@ Every record created during the 2026-08-29 QA campaign, for later pruning. All r
 | # | Entity | Identifier | Key values | Created by | Status |
 |---|---|---|---|---|---|
 | 1 | Resident | `resident_code` **177754** | First name `QAT`, last name `Tester-20260829-01`, phone `08012345678`, email `bad-emailqat.tester01@residio.test`, status Active, house Unassigned | QAT-RES-09 | Live |
-| 2 | House | `QAT-01` — UUID `a6a5f7df-9cfb-485e-8219-d1d00084d4c9` | Street Kayode Oni Animashaun, 1 plot, no house type, Status Vacant, generated ID `KOA-QAT-05` | QAT-HSE-09 | Live |
+| 2 | House | `QAT-01` — UUID `a6a5f7df-9cfb-485e-8219-d1d00084d4c9` | Street Kayode Oni Animashaun, **2 plots** (changed from 1 in QAT-APR Step 1), no house type, **Occupied** by record #1 as Owner-Occupier since 8/29/2026, generated ID `KOA-QAT-05` | QAT-HSE-09 | Live |
 | 3 | Security contact | `e6a510dd-246b-40d2-b4e1-0fc3b6bfa814` | `QAT-20260829 Visitor 01`, phone `08012345678`, category Visitor, resident QAT Tester-20260829-01 | QAT-SEC-07 → renamed for QAT-SEC-11 | Live |
 | 4 | Security contact | id not captured | `ABB`, phone `+2348012345678`, category Visitor, resident QAT Tester-20260829-01 | QAT-SEC-07 side effect | Live |
 | 5 | Access code | `RES-KS6-GSJT` | One-time code on contact #3; now used (`Uses: 1/1`, Inactive), window 8/29/2026–8/30/2026 | QAT-SEC-12 | Spent |
-| 6 | Access log entry | — | Check-in 8/29/2026 22:13:08 for contact #3, status "Still inside" — **check-out never recorded** | QAT-SEC-19 | Open |
+| 6 | Access log entry | `bc15de8d-b27d-4c1b-acfb-b8051c05d440` | Check-in 8/29 22:13:08, checked out 8/30 00:21:24, then **flagged** "QA test flag - QAT-SEC-22" — **cannot be unflagged, no UI exists** (#121) | QAT-SEC-19/20/22 | Flagged |
+| 7 | Access code | `RES-MRD-7624` | One-time on contact #3, unused (`Uses 0/1`), valid 8/30–8/31 | QAT-SEC-16 | Live |
+| 8 | Access code | `RES-RH7-56MQ` | Labelled "Permanent" but valid only 8/30–8/31 (#122), verified twice | QAT-SEC-18 | Live |
 
 ## Note on records 3 and 4 — two contacts where one was planned
 
