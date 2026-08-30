@@ -352,14 +352,28 @@ export async function updateRolePermissions(
 
   const oldPermIds = oldPerms?.map((p) => p.permission_id) || [];
 
-  // Delete all existing permissions for this role
-  const { error: deleteError } = await supabase
+  // Delete all existing permissions for this role.
+  //
+  // .select() is not decoration: without it an RLS policy that filters the rows
+  // out returns success with zero rows deleted, and the revocation half of this
+  // update vanishes silently while the insert half appears to work. Comparing
+  // the deleted count against what we just read is the only way to notice.
+  const { data: deleted, error: deleteError } = await supabase
     .from('role_permissions')
     .delete()
-    .eq('role_id', roleId);
+    .eq('role_id', roleId)
+    .select('permission_id');
 
   if (deleteError) {
     return { success: false, error: deleteError.message };
+  }
+
+  if ((deleted?.length ?? 0) !== oldPermIds.length) {
+    return {
+      success: false,
+      error:
+        'Could not clear the role\'s existing permissions. The changes were not saved.',
+    };
   }
 
   // Insert new permissions
