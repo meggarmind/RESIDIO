@@ -4,22 +4,23 @@ import { supabaseConfig } from '@/lib/supabase/config';
 import { ROUTE_PERMISSIONS, Permission, extractRole, isAdminRole } from '@/lib/auth/action-roles';
 import type { ProfileApprovalStatus } from '@/types/database';
 
-// Route protection configuration using new permission system
-// Maps route prefixes to required permissions (empty array = any authenticated user)
+/**
+ * Routes the middleware guards, and what each requires.
+ *
+ * ROUTE_PERMISSIONS is consumed directly. A hand-written copy used to live here
+ * and index into it entry by entry, which meant adding a route there changed
+ * nothing -- and the copy had silently dropped eight routes it already defined
+ * (/settings/appearance, /settings/document-categories, /settings/email-integration,
+ * /settings/announcement-categories, /settings/message-templates,
+ * /payments/email-imports, /documents and /announcements), leaving them
+ * unenforced.
+ *
+ * /portal is middleware-only: access there is decided by resident_id, not by a
+ * permission.
+ */
 const routePermissionConfig: Record<string, Permission[]> = {
-    '/residents': [ROUTE_PERMISSIONS['/residents'][0]],
-    '/houses': [ROUTE_PERMISSIONS['/houses'][0]],
-    '/payments': [ROUTE_PERMISSIONS['/payments'][0]],
-    '/payments/import': [ROUTE_PERMISSIONS['/payments/import'][0]],
-    '/billing': [ROUTE_PERMISSIONS['/billing'][0]],
-    '/security': [ROUTE_PERMISSIONS['/security'][0]],
-    '/reports': ROUTE_PERMISSIONS['/reports'], // Any of these permissions
-    '/approvals': [ROUTE_PERMISSIONS['/approvals'][0]],
-    '/settings/roles': [ROUTE_PERMISSIONS['/settings/roles'][0]],
-    '/settings/system': [ROUTE_PERMISSIONS['/settings/system'][0]],
-    '/settings': [ROUTE_PERMISSIONS['/settings'][0]],
-    '/dashboard': [], // All authenticated users
-    '/portal': [], // Resident portal - requires resident_id (checked separately)
+    ...ROUTE_PERMISSIONS,
+    '/portal': [],
 };
 
 // Admin routes that residents should NOT access
