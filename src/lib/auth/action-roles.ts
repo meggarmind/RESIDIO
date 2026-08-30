@@ -176,29 +176,74 @@ export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
 
 /**
  * Route permission mapping for middleware.
- * Maps route prefixes to required permissions.
+ *
+ * Consumed directly by `src/middleware.ts`, which resolves by longest matching
+ * prefix — so `/settings/roles` wins over `/settings`. Holding ANY listed
+ * permission authorizes the route.
+ *
+ * Every settings route is listed. Previously only four were, so most settings
+ * pages were reachable by any authenticated admin regardless of what their role
+ * had been granted. Each entry mirrors the permissions its `settingsConfig`
+ * entry uses, so the nav never links somewhere the middleware will bounce;
+ * `settings-nav-coverage.test.ts` holds the two in step.
  */
 export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/residents': [PERMISSIONS.RESIDENTS_VIEW],
   '/houses': [PERMISSIONS.HOUSES_VIEW],
   '/payments': [PERMISSIONS.PAYMENTS_VIEW],
   '/payments/import': [PERMISSIONS.IMPORTS_CREATE],
+  '/payments/email-imports': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/billing': [PERMISSIONS.BILLING_VIEW],
   '/security': [PERMISSIONS.SECURITY_VIEW],
   '/reports': [PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_OCCUPANCY, PERMISSIONS.REPORTS_VIEW_SECURITY],
   '/documents': [PERMISSIONS.DOCUMENTS_VIEW],
   '/announcements': [PERMISSIONS.ANNOUNCEMENTS_VIEW],
-  '/settings/announcement-categories': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
-  '/settings/message-templates': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES],
   '/approvals': [PERMISSIONS.APPROVALS_VIEW],
-  '/settings': [PERMISSIONS.SETTINGS_VIEW],
-  '/settings/appearance': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
-  '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES],
-  '/settings/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
-  '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
-  '/settings/email-integration': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
-  '/payments/email-imports': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/dashboard': [], // All authenticated users
+
+  // Settings — fallback first, then the specific pages that override it.
+  '/settings': [PERMISSIONS.SETTINGS_VIEW],
+
+  // General & Preferences
+  '/settings/estate-info': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/branding': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/data-management': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/appearance': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/notifications': [PERMISSIONS.NOTIFICATIONS_MANAGE],
+  '/settings/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
+  '/settings/whatsapp': [PERMISSIONS.WHATSAPP_VIEW],
+
+  // Estate configuration
+  '/settings/streets': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+  '/settings/house-types': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+  '/settings/transaction-tags': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+  '/settings/bank-accounts': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+  '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
+
+  // Access & security
+  '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],
+  '/settings/user-roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],
+  '/settings/security': [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
+  '/settings/security/categories': [PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
+  '/settings/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
+
+  // Billing & finance
+  '/settings/billing': [PERMISSIONS.SETTINGS_MANAGE_BILLING, PERMISSIONS.BILLING_MANAGE_PROFILES],
+  '/settings/billing/profiles': [PERMISSIONS.BILLING_MANAGE_PROFILES],
+  '/settings/email-integration': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
+  '/settings/email-integration/config': [PERMISSIONS.EMAIL_IMPORTS_CONFIGURE],
+
+  // Communications
+  '/settings/email': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/message-templates': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES],
+  '/settings/announcement-categories': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
+
+  // System health
+  '/settings/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
+  '/settings/system/maintenance': [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+  '/settings/system/data': [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
+  '/settings/system/health': [PERMISSIONS.SYSTEM_MONITOR],
+  '/settings/cron-status': [PERMISSIONS.SYSTEM_MONITOR],
 };
 
 // =====================================================
