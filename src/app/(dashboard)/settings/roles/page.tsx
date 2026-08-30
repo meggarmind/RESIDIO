@@ -80,7 +80,8 @@ function RolesSettingsContent() {
             <CardHeader>
               <CardTitle>Current Administrators</CardTitle>
               <CardDescription>
-                Residents currently assigned to administrative roles.
+                Everyone currently assigned to an administrative role, whether or not they
+                live on the estate.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -90,11 +91,11 @@ function RolesSettingsContent() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Assign Roles to Residents</CardTitle>
+              <CardTitle>Assign Roles</CardTitle>
               <CardDescription>
-                Search for residents and assign administrative roles. Only the Super Administrator
-                can assign the Chairman role. The Chairman and Super Administrator can assign other
-                admin roles.
+                Search residents, or search accounts to reach staff who have a login but no
+                resident record. Role assignment is part of the Settings module, so it sits
+                with the Super Administrator.
               </CardDescription>
             </CardHeader>
             <CardContent>
