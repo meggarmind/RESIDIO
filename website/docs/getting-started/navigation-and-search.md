@@ -2,6 +2,13 @@
 id: navigation-and-search
 title: Navigation and search
 sidebar_label: Navigation and search
+residio_sources:
+  - src/components/layout/**
+  - src/app/api/search/**
+  - src/lib/auth/action-roles.ts
+residio_verified_commit: e51b591
+residio_verified_at: '2026-08-30'
+residio_app_version: '0.4.0'
 ---
 
 # Navigation and search

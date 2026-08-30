@@ -3,6 +3,12 @@ id: resident-directory
 title: Resident directory
 sidebar_label: Resident directory
 description: Find, filter, and maintain resident records.
+residio_sources:
+  - src/app/(dashboard)/residents/page.tsx
+  - src/components/residents/**
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Resident directory

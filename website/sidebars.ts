@@ -51,6 +51,11 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Integrations',
+      items: ['integrations/integrations-overview', 'integrations/whatsapp-operations', 'integrations/email-and-sms', 'integrations/bank-feeds-and-email-import', 'integrations/payment-gateway', 'integrations/scheduled-jobs'],
+    },
+    {
+      type: 'category',
       label: 'Administration',
       items: ['administration/audit-logs-and-data-management', 'administration/troubleshooting'],
     },

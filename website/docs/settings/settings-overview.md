@@ -3,6 +3,13 @@ id: settings-overview
 title: Settings overview
 sidebar_label: Settings overview
 description: Navigate the admin configuration areas without losing control of dependencies.
+residio_sources:
+  - src/app/(dashboard)/settings/page.tsx
+  - src/app/(dashboard)/settings/estate-info/**
+  - src/app/(dashboard)/settings/branding/**
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Settings overview

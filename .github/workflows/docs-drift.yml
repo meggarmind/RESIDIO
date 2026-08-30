@@ -1,0 +1,36 @@
+name: Admin Guide Drift
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'vercel.json'
+      - 'website/docs/**'
+      - 'scripts/docs-drift.mjs'
+      - '.github/workflows/docs-drift.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: Check admin guide against app
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # Each page stores the commit it was verified against, so the full
+          # history has to be present for those SHAs to resolve.
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Reports drifted pages to the job summary. Deliberately non-blocking:
+      # a stale doc should prompt a review, not stop an unrelated app PR.
+      - name: Report drift
+        run: node scripts/docs-drift.mjs --ci

@@ -3,6 +3,12 @@ id: houses-and-occupancy
 title: Houses and occupancy
 sidebar_label: Houses and occupancy
 description: Manage the estate property registry and occupancy state.
+residio_sources:
+  - src/app/(dashboard)/houses/**
+  - src/actions/houses/**
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Houses and occupancy

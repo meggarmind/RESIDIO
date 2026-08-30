@@ -1,6 +1,6 @@
 {
   "name": "residio",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -17,6 +17,8 @@
     "test:e2e:headed": "playwright test --headed",
     "db:migrate": "npx supabase db push --local",
     "db:types": "npx supabase gen types typescript --local > src/types/database.generated.ts",
+    "docs:drift": "node scripts/docs-drift.mjs",
+    "docs:verify": "node scripts/docs-verify.mjs",
     "supabase:status": "npx supabase status"
   },
   "dependencies": {
