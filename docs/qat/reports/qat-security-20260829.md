@@ -136,3 +136,57 @@ One of those records was subsequently renamed and reused as the `QAT-20260829 Vi
 | Security contact | (id not captured) | `ABB`, phone `+2348012345678`, category Visitor, resident QAT Tester-20260829-01 — created by QAT-SEC-07 |
 | Access code | `RES-KS6-GSJT` | One-time, issued to the contact above, now used (`Uses: 1/1`, Inactive) |
 | Access log entry | — | Check-in 8/29/2026 22:13:08, status "Still inside" — **left open**, no check-out recorded |
+
+
+---
+
+# Session 2 addendum — 2026-08-30, isolated worktree, server on :3001
+
+Re-run against `master @ 43579eb` in the QA worktree, which restored admin access.
+
+## Results
+
+| ID | Title | Status | Severity | Notes |
+|---|---|---|---|---|
+| QAT-SEC-O1 | List vs detail status disagreement | **Fail — REPRODUCED** | **MEDIUM** | Confirmed before any code was generated: list showed **Expired** (Expires: "No expiry"), detail showed **Active**, same contact, same moment. After generating a valid code the list flipped to Active and both agreed — consistent with the list deriving status from code validity and the detail page from the contact's own status field. Upgraded from unverified lead to confirmed defect. [#123](https://github.com/meggarmind/RESIDIO/issues/123) |
+| QAT-SEC-20 | Record check-out | **Pass** | — | The open entry closed in place; "Still inside" and the Check Out button were replaced by a check-out timestamp 8/30/2026 12:21:24 AM. Confirmed in the network response as `check_out_time: 2026-08-29T23:21:24.902+00:00`. |
+| QAT-SEC-16 | Regenerate code | **Partial** | — | No regenerate control exists (`useRegenerateAccessCode` is orphaned). Generating adds a code alongside the old one rather than replacing it. New code `RES-MRD-7624`; old `RES-KS6-GSJT` remained listed, unchanged. Verifying the old code returned "Access code has been revoked" — corroborating [#118](https://github.com/meggarmind/RESIDIO/issues/118). |
+| QAT-SEC-17 | Revoke a code and compare messages | **Not executed** | — | No per-code revoke control exists; only contact-scoped "Revoke Contact". Attempting that was blocked by the harness safety classifier as destructive, and the agent correctly did not work around the block. **The central question of [#118](https://github.com/meggarmind/RESIDIO/issues/118) therefore remains open**: whether a genuinely revoked code is distinguishable from a used one at the gate is still untested. |
+| QAT-SEC-18 | Permanent code | **Fail** | **MEDIUM** | `RES-RH7-56MQ` created as "Permanent" **and** "Expiring Soon (23h)", valid 8/30–8/31. Multi-use behaviour is correct (verified twice, both ACCESS GRANTED, no use counter). The expiry is the defect. [#122](https://github.com/meggarmind/RESIDIO/issues/122) |
+| QAT-SEC-22 | Flag / unflag | **Partial Fail** | **HIGH** | Flagging works well: dialog with mandatory reason, badge and "Flag reason: …" persist across reload. **Unflagging is impossible** — the row's controls vanish once flagged and `useUnflagAccess` is orphaned. Log `bc15de8d-…` is now permanently flagged. [#121](https://github.com/meggarmind/RESIDIO/issues/121) |
+| QAT-SEC-23 | Share pass | **Partial** | — | Not a modal — a dropdown offering "Share via WhatsApp" and "Copy Invitation". WhatsApp deliberately not clicked (external send). "Copy Invitation" threw `NotAllowedError: Document is not focused` — a hidden-pane limitation, **not** an application defect. |
+| QAT-SEC-24 | Vehicles | **Blocked** | **HIGH** | No vehicle UI exists anywhere; all 7 vehicle hooks orphaned. [#121](https://github.com/meggarmind/RESIDIO/issues/121) |
+| QAT-SEC-26 | CSV export | **Inconclusive** | — | Export issued a POST reported as `net::ERR_ABORTED` — the normal Chrome pattern when a response becomes a file download. File contents not verifiable with a hidden pane. |
+| QAT-SEC-27 | Visitor analytics | **Blocked** | **HIGH** | No such view exists; `/security/analytics` 404s and all 6 visitor-analytics hooks are orphaned. [#121](https://github.com/meggarmind/RESIDIO/issues/121) |
+| QAT-SEC-04 | Contact filters | **Pass, with one Fail** | LOW | Filters compose correctly and empty filter results render "No security contacts found". The **default** no-filter view renders a blank table with no message while a "Show Expired (2)" toggle indicates records exist. [#124](https://github.com/meggarmind/RESIDIO/issues/124) |
+
+## Investigated and cleared — Security Overview counters
+
+The Overview cards read `Today's Check-ins 0`, `Currently Inside 0`, `Flagged Today 0` and "No access events recorded today", despite a check-out and a flag having just been performed. That looks wrong, and is not.
+
+[security/page.tsx:72](src/app/(dashboard)/security/page.tsx:72):
+
+```ts
+const currentlyInside = todayLogs?.filter(log => log.check_in_time && !log.check_out_time)?.length || 0;
+const flaggedToday = todayLogs?.filter(log => log.flagged)?.length || 0;
+```
+
+Both derive from `todayLogs` — logs whose **access date** is today. The QAT log is dated 8/29; the check-out and flag happened on 8/30. So every counter is correct under that definition: the check-in was yesterday, the visitor did leave, and no log *dated today* is flagged.
+
+"Flagged Today" is arguably misnamed — it means "flagged among today's logs", not "flagged today" — but the behaviour is defensible and consistent. **Not filed**, to avoid adding noise to a register that a developer has to work through.
+
+## The theme running through this module
+
+Five of this session's blocked or partial results have the same cause: the capability exists in the action and hook layers and was never wired to a screen. Vehicles, visitor analytics, unflag, regenerate, and per-code revoke are all reachable in code and unreachable in the product — 22 orphaned hooks in `use-security.ts` alone, plus `generateTimeLimitedAccessCode` and `extendAccessCodeValidity` with no references at all.
+
+It is the same pattern as [#120](https://github.com/meggarmind/RESIDIO/issues/120) in Billing, where `creditWallet`/`debitWallet` and their dialog are orphaned. Two modules showing the same drift suggests a systemic gap rather than two oversights, which is why [#121](https://github.com/meggarmind/RESIDIO/issues/121) recommends a check that every exported hook has a consumer.
+
+## Test data created or modified in session 2
+
+| Entity | Identifier | State |
+|---|---|---|
+| Access code | `RES-MRD-7624` | One-time on contact `e6a510dd-…`, unused (`Uses 0/1`), valid 8/30–8/31 |
+| Access code | `RES-RH7-56MQ` | "Permanent" on the same contact, verified twice, valid 8/30–8/31 |
+| Access log | `bc15de8d-b27d-4c1b-acfb-b8051c05d440` | Checked out 8/30 00:21:24, then **flagged** with reason "QA test flag - QAT-SEC-22" — **cannot be unflagged**, no UI path exists |
+
+No pre-existing record was modified. "Revoke Contact" was attempted as the nearest available control for QAT-SEC-17, was blocked as destructive, and was not worked around.

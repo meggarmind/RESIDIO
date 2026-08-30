@@ -30,11 +30,11 @@ Browser-driven, page-by-page functional QA of the Residio **Admin Dashboard**, e
 | Navigation & dashboard | [qat-navigation](reports/qat-navigation-20260829.md) | 13 | 7 | 1 | 1 | 4 |
 | Houses | [qat-houses](reports/qat-houses-20260829.md) | 19 | 11 | 1 | 0 | 7 |
 | Billing & wallet | [qat-billing](reports/qat-billing-20260829.md) | 28 | 8 | 3 | 7 | 10 |
-| Security | [qat-security](reports/qat-security-20260829.md) | 28 | 12 | 1 | 3 | 12 |
+| Security | [qat-security](reports/qat-security-20260829.md) | 28 | 15 | 5 | 6 | 2 |
 | Approvals | [qat-approvals](reports/qat-approvals-20260829.md) | 11 | 3 | 0 | 8 | 0 |
 | Reports & analytics | [qat-reports](reports/qat-reports-20260829.md) | 14 | 8 | 1 | 0 | 5 |
 | Cross-cutting | [qat-cross-cutting](reports/qat-cross-cutting-20260829.md) | — | — | 1 | — | — |
-| **Total** | | **225** | **104** | **13** | **39** | **69** |
+| **Total** | | **225** | **107** | **17** | **42** | **59** |
 
 ## Defect register
 
@@ -49,6 +49,10 @@ Severity definitions follow `docs/validation/README.md`. **Every confirmed defec
 | QAT-SMK-42 | MEDIUM | `resetEmailImports` has no `authorizePermission()` guard despite globally deleting all email imports, messages, transactions and linked payment records. Only RLS gates it. It appears to have inherited a directory-wide allowlist exemption intended for cron/webhook flows, which this UI-triggered admin action does not fit. | SMK | [#116](https://github.com/meggarmind/RESIDIO/issues/116) |
 | QAT-HSE-D1 | **HIGH** | House detail pages report hardcoded `Financial Status: Clear — No pending payments` and `Last Inspection 2025-12-01 — Compliance verified` on all 179 properties. Verified against house 18A, which has seven unpaid invoices. `pendingDues={0}` and the date are literals at `houses/[id]/page.tsx:596`, rendered beside two correctly-wired cards. | HSE | [#109](https://github.com/meggarmind/RESIDIO/issues/109) |
 | QAT-BIL-D3 | **HIGH** | No admin UI to credit or debit a resident wallet. `WalletAdjustmentDialog` is reachable only through `wallet-balance.tsx`, which nothing imports; `creditWallet`/`debitWallet` have zero callers, while `BILLING_MANAGE_WALLETS` guards the missing capability. ₦2,800,964 sits in wallets with no correction path. Blocked 5 test cases. | BIL | [#120](https://github.com/meggarmind/RESIDIO/issues/120) |
+| QAT-SEC-D2 | **HIGH** | Security vehicles (7 hooks), visitor analytics (6 hooks) and unflag are implemented in the action/hook layer with no UI — 22 orphaned hooks in `use-security.ts`. Contradicts user stories SG-02 and AD-04. A flagged access log cannot be unflagged. | SEC | [#121](https://github.com/meggarmind/RESIDIO/issues/121) |
+| QAT-SEC-D3 | MEDIUM | A code labelled "Permanent" expires after the category's `default_validity_days` — 23 hours for a Visitor — and is badged "Expiring Soon" at creation. `generateAccessCode` computes expiry regardless of `code_type`. | SEC | [#122](https://github.com/meggarmind/RESIDIO/issues/122) |
+| QAT-SEC-O1 | MEDIUM | The same contact shows "Expired" in the list and "Active" on its detail page. Reproduced in a second session. The Status filter's "Expired" option also disagrees with the "Show Expired" toggle. | SEC | [#123](https://github.com/meggarmind/RESIDIO/issues/123) |
+| QAT-SEC-O3 | LOW | `/security/contacts` default view renders a blank table with no empty state while a "Show Expired (2)" toggle shows records exist. Filter-driven empties render correctly — the earlier broader claim was refuted. | SEC | [#124](https://github.com/meggarmind/RESIDIO/issues/124) |
 | QAT-SEC-D1 | MEDIUM | The Nigerian phone regex in `security-contact.ts:15` is declared and never referenced — dead code. Only `min(10)` is enforced, so `+1234567890` and `0912345678` create live security contacts. | SEC | [#112](https://github.com/meggarmind/RESIDIO/issues/112) |
 | QAT-HSE-O1 | LOW | Two pre-existing house records render corrupted characters in their identifiers (`IBB-3?F?`, `KOA-10F-?`), so they cannot be typed or searched for. Likely legacy import encoding rather than an application fault. | HSE | [#119](https://github.com/meggarmind/RESIDIO/issues/119) |
 | QAT-BIL-D1 | MEDIUM | The invoice-status donut sums five overlapping buckets as if they partition. `overdue` is a derived subset of `unpaid`, so 18 invoices are counted twice — the chart totals 607 against a true count of 589, and every segment is drawn against an inflated denominator. | BIL | [#110](https://github.com/meggarmind/RESIDIO/issues/110) |
