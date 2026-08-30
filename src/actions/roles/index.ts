@@ -196,6 +196,45 @@ export async function createRole(roleData: AppRoleInsert): Promise<{
 }
 
 /**
+ * Create a role and grant it permissions in one step.
+ *
+ * Creating and granting used to be two separate journeys — a role was born with
+ * nothing and an admin had to remember to open a second dialog — so roles
+ * routinely sat unpermissioned and looked broken.
+ *
+ * There is no transaction across the two writes, so this compensates instead:
+ * if the grant fails, the role just created is deleted rather than left behind
+ * as an unpermissioned shell that the admin has to notice and clean up.
+ */
+export async function createRoleWithPermissions(
+  roleData: AppRoleInsert,
+  permissionIds: string[]
+): Promise<{
+  success: boolean;
+  data?: AppRole;
+  error?: string;
+}> {
+  const created = await createRole(roleData);
+  if (!created.success || !created.data) return created;
+
+  if (permissionIds.length === 0) return created;
+
+  const granted = await updateRolePermissions(created.data.id, permissionIds);
+  if (granted.success) return created;
+
+  // Roll back so a failed grant does not leave a role nobody asked for.
+  const rolledBack = await deleteRole(created.data.id);
+
+  return {
+    success: false,
+    error: rolledBack.success
+      ? `Could not grant permissions, so the role was not created: ${granted.error}`
+      : `The role "${created.data.display_name}" was created but its permissions could not be ` +
+        `set (${granted.error}), and it could not be removed. Edit or delete it manually.`,
+  };
+}
+
+/**
  * Update an existing role
  */
 export async function updateRole(
