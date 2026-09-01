@@ -2,13 +2,22 @@
 
 > **🎯 PRODUCT FOCUS (2026-08-06): ADMIN DASHBOARD ONLY.** Resident Portal / self-service (`src/app/(resident)/**`, resident-portal components) is **NOT planned for rollout** in the foreseeable future. De-prioritize all self-service work listed below (portal wallet, resident payments, announcements/documents/profile, impersonation, onboarding). Keep it stable/local only; do not extend or polish it. Prioritize admin management/finance/security/operations/reporting instead.
 
-**Last Updated:** 2026-08-23 (dashboard #102/#103, billing #78/#82/#95/#97, resident #16/#84 implemented)
+**Last Updated:** 2026-09-01 (docs site deploy investigation logged under Admin User Guide)
 
 ### Admin User Guide (2026-08-22)
 - [x] Docusaurus admin guide created under `website/` with role-aware workflows across all admin areas.
 - [x] Playwright screenshot capture and browser-side sensitive-value masking added.
 - [x] GitHub Pages deployment published at `https://meggarmind.github.io/RESIDIO/`.
 - [ ] Keep screenshots and workflow instructions synchronized with future admin UI changes.
+
+#### Docs site is stale — deploy automation never worked (revisit, 2026-09-01)
+Investigated why `https://meggarmind.github.io/RESIDIO/` has not updated and why no integrations page appears. Findings:
+- [ ] **GitHub Pages is in branch mode, not Actions mode.** `gh api repos/meggarmind/RESIDIO/pages` returns `"build_type": "legacy"` with `"source": {"branch": "gh-pages"}`. `.github/workflows/deploy-admin-guide.yml` ends in `actions/deploy-pages@v4`, which cannot publish while Pages is in branch mode. Fix = flip Pages to "GitHub Actions" in Settings → Pages (or set `build_type: workflow` via API). Nothing else in the pipeline matters until this is done.
+- [ ] **The deploy workflow has run exactly once and it failed.** Run `32586296177` (2026-08-22T16:57Z, commit `docs: add deployable admin guide`) failed after 4s; logs have since expired. Re-run via `workflow_dispatch` to surface the real error (suspect the `npm ci` cache path `website/package-lock.json` or the `npm run typecheck` step).
+- [ ] **The live site is a manual one-off publish.** `gh-pages` has only two commits, both 2026-08-22: `57c9c2b deploy: publish admin guide` and `9a77050 deploy: fix admin guide base path`. Nothing has been pushed there since.
+- [ ] **There is no integrations page in the docs site — it was never committed.** `find website/docs -iname "*integration*"` returns nothing; `website/sidebars.ts` has 8 categories (Getting started, Residents, Properties, Finance, Security, Operations, Settings, Administration) and no Integrations entry; `git log --all` shows the only commit ever touching `website/` is `fa37650 docs: add deployable admin guide`. The nearest existing content is `docs/features/gmail-integration.md`, which lives in the repo docs and is NOT part of the Docusaurus site. Locate or rewrite the integrations page before chasing the deploy.
+- [ ] **Consider widening the trigger.** The workflow only fires on `website/**` and its own path. If repo docs under `docs/` should feed the site, that needs an added path or an explicit sync step.
+
 
 ### Billing (2026-08-23)
 - [x] **#94 Billing query authorization:** Added fail-closed permissions to invoice, indebtedness, house-payment, cross-property, resident-list, and billing-filter reads.
