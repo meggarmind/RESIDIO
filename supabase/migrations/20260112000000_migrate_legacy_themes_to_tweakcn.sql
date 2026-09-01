@@ -17,14 +17,24 @@
 -- ============================================================================
 
 -- Step 1: Update estate-wide default themes in system_settings table
+-- NOTE: system_settings.value is JSONB, not text. Theme IDs are stored as JSON
+-- strings (e.g. '"supabase"'), so the comparison must unwrap the JSON scalar with
+-- #>> '{}' and the assignment must write a JSON string via to_jsonb(). Comparing
+-- or assigning a bare text literal here raises
+--   22P02: invalid input syntax for type json
+-- and aborts the migration. The IS NULL arm also repairs a JSON-null theme, which
+-- would otherwise slip through NOT IN (NULL comparisons yield NULL, not TRUE).
 UPDATE system_settings
-SET value = 'supabase',
+SET value = to_jsonb('supabase'::text),
     updated_at = NOW()
 WHERE category = 'appearance'
   AND key IN ('portal_theme', 'dashboard_theme')
-  AND value NOT IN (
-    'supabase', 'doom-64', 'catppuccin', 'elegant-luxury', 'tangerine',
-    'caffeine', 'ocean-breeze', 'northern-lights', 'retro-arcade', 'twitter'
+  AND (
+    value #>> '{}' IS NULL
+    OR value #>> '{}' NOT IN (
+      'supabase', 'doom-64', 'catppuccin', 'elegant-luxury', 'tangerine',
+      'caffeine', 'ocean-breeze', 'northern-lights', 'retro-arcade', 'twitter'
+    )
   );
 
 -- Step 2: Update user-level theme overrides in profiles table

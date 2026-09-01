@@ -65,13 +65,13 @@ export function CurrentAdminsList() {
           >
             <Avatar className="h-10 w-10">
               <AvatarFallback className="bg-primary/10 text-primary">
-                {admin.first_name[0]}
-                {admin.last_name[0]}
+                {admin.first_name.charAt(0)}
+                {admin.last_name.charAt(0)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <div className="font-medium">
-                {admin.first_name} {admin.last_name}
+                {`${admin.first_name} ${admin.last_name}`.trim()}
               </div>
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 {admin.email && (
