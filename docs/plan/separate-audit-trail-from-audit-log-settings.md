@@ -1,6 +1,6 @@
 # Separate Audit Trail from Audit Log Settings
 
-**Repo:** `C:\Users\ohiom\Claude\RESIDIO` (Next.js 16 / React 19 / Supabase, branch `master`)
+**Repo:** `C:\projects\RESIDIO` (Next.js 16 / React 19 / Supabase, branch `master`)
 
 ## Context
 
