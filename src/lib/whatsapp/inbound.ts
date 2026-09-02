@@ -96,11 +96,16 @@ export function createInMemoryProcessedMessageStore(): ProcessedMessageStore {
   };
 }
 
-export async function handleInboundMessage(
-  payload: WhatsAppInboundPayload,
+/**
+ * Provider-neutral core of inbound message handling: dedupe claim/release
+ * plus dispatch into `onMessage`. Takes already-extracted, canonical-shaped
+ * messages, so it has no idea whether they came from Meta's JSON payload or
+ * Twilio's form-encoded params -- extraction is entirely the caller's job.
+ */
+export async function processInboundMessages(
+  messages: WhatsAppInboundMessage[],
   options: InboundMessageHandlerOptions = {}
 ): Promise<InboundMessageResult> {
-  const messages = extractWhatsAppMessages(payload);
   const store = options.store || createSupabaseProcessedMessageStore();
   let processedCount = 0;
   let duplicateCount = 0;
@@ -147,4 +152,11 @@ export async function handleInboundMessage(
     duplicateCount,
     ignoredCount,
   };
+}
+
+export async function handleInboundMessage(
+  payload: WhatsAppInboundPayload,
+  options: InboundMessageHandlerOptions = {}
+): Promise<InboundMessageResult> {
+  return processInboundMessages(extractWhatsAppMessages(payload), options);
 }

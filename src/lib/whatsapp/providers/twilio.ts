@@ -1,5 +1,7 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { TwilioWhatsAppConfig } from '@/lib/whatsapp/config';
 import type { WhatsAppProvider } from '@/lib/whatsapp/provider';
+import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 
 const TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01';
 
@@ -113,4 +115,78 @@ export function createTwilioWhatsAppProvider(
       return postForm(body);
     },
   };
+}
+
+/**
+ * Verifies Twilio's inbound webhook signature.
+ *
+ * This is NOT the same scheme as Meta's (`signature.ts`): Twilio signs the
+ * full request URL plus its POST params, HMAC-SHA1, base64 -- not an
+ * HMAC-SHA256 over the raw body. See
+ * https://www.twilio.com/docs/usage/security#validating-requests for the
+ * canonical description.
+ *
+ * Algorithm:
+ * 1. Start with the full request URL (scheme, host, path, query string).
+ * 2. Sort the POST params by key, and for each append the key immediately
+ *    followed by its value -- no separators, no delimiters, no encoding.
+ * 3. HMAC-SHA1 that string with the Twilio auth token, base64-encode it.
+ * 4. Compare to the `X-Twilio-Signature` header in constant time.
+ */
+export function verifyTwilioSignature(
+  url: string,
+  params: Record<string, string>,
+  authToken: string,
+  header: string | null
+): boolean {
+  if (!header || !authToken) {
+    return false;
+  }
+
+  const signedPayload = Object.keys(params)
+    .sort()
+    .reduce((payload, key) => payload + key + params[key], url);
+
+  const expected = createHmac('sha1', authToken).update(signedPayload, 'utf8').digest('base64');
+
+  const providedBuffer = Buffer.from(header, 'utf8');
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+
+  return providedBuffer.length === expectedBuffer.length && timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
+/**
+ * Parses Twilio's inbound WhatsApp webhook form params into the same
+ * canonical `WhatsAppInboundMessage` shape the Meta parser produces, so
+ * `processInboundMessages` (dedupe, dispatch) is entirely provider-neutral.
+ */
+export function extractTwilioMessages(params: Record<string, string>): WhatsAppInboundMessage[] {
+  const id = params.MessageSid;
+  if (!id) {
+    return [];
+  }
+
+  // Twilio addresses WhatsApp numbers as `whatsapp:+<E164>`. Strip the
+  // prefix explicitly here, rather than leaning on a downstream normaliser,
+  // so the resulting `from` matches the bare-number shape Meta delivers --
+  // identity lookup (matching against a resident's stored phone number) then
+  // behaves identically regardless of which provider the message arrived on.
+  const from = params.From?.startsWith('whatsapp:') ? params.From.slice('whatsapp:'.length) : params.From;
+
+  if (!from) {
+    return [];
+  }
+
+  return [
+    {
+      id,
+      from,
+      // Twilio's inbound webhook carries no timestamp field (unlike Meta's
+      // payload), so synthesise one here, shaped the same way Meta's is:
+      // whole seconds since epoch, as a string.
+      timestamp: String(Math.floor(Date.now() / 1000)),
+      type: 'text',
+      text: params.Body && params.Body.length > 0 ? params.Body : null,
+    },
+  ];
 }

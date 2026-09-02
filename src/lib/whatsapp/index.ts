@@ -16,6 +16,7 @@ export {
   createSupabaseProcessedMessageStore,
   extractWhatsAppMessages,
   handleInboundMessage,
+  processInboundMessages,
 } from '@/lib/whatsapp/inbound';
 export { createWhatsAppSimulator, type WhatsAppSimulator } from '@/lib/whatsapp/simulator';
 export {
