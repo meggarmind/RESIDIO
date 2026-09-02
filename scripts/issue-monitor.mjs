@@ -54,9 +54,20 @@ function issueView(config, issueNumber, cwd) {
   ], cwd);
 }
 
+// The board is shared across repositories, so issue numbers collide: a card for
+// another repo's #13 must never be read as this repo's #13. Every consumer of
+// the item list depends on that, because findings are written back with
+// `gh issue edit`/`gh issue comment` against this repository.
+export function belongsToRepository(item, repository) {
+  const url = String(item?.content?.url ?? item?.url ?? '');
+  if (!url) return false;
+  return new RegExp(`^https://github\\.com/${repository}/(issues|pull)/\\d+$`).test(url);
+}
+
 function projectItems(config, cwd) {
   const result = runJson('gh', ['project', 'item-list', String(config.project.number), '--owner', config.project.owner, '--format', 'json', '--limit', '1000'], cwd);
-  return result.items ?? result;
+  const items = result.items ?? result;
+  return items.filter((item) => belongsToRepository(item, config.repository));
 }
 
 function projectFields(config, cwd) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   alertActions,
+  belongsToRepository,
   detectFindings,
   hoursSince,
   isMonitorComment,
@@ -105,5 +106,21 @@ describe('issue monitor helpers', () => {
 
   it('does not count future-dated activity as negative age', () => {
     expect(hoursSince('2026-08-13T13:00:00.000Z', now)).toBe(0);
+  });
+
+  it('keeps only board cards belonging to the configured repository', () => {
+    const repository = 'meggarmind/RESIDIO';
+    const card = (url: string) => ({ content: { number: 13, url } });
+
+    expect(belongsToRepository(card('https://github.com/meggarmind/RESIDIO/issues/13'), repository)).toBe(true);
+    expect(belongsToRepository(card('https://github.com/meggarmind/RESIDIO/pull/13'), repository)).toBe(true);
+
+    // The board is shared, so another repository's #13 must not be mistaken for ours.
+    expect(belongsToRepository(card('https://github.com/meggarmind/tomtracker/issues/13'), repository)).toBe(false);
+    expect(belongsToRepository(card('https://github.com/meggarmind/CMBVsaq/issues/13'), repository)).toBe(false);
+
+    // A draft card carries no URL, and a look-alike host or path must not pass.
+    expect(belongsToRepository({ content: { number: 13 } }, repository)).toBe(false);
+    expect(belongsToRepository(card('https://github.com/evil/meggarmind/RESIDIO/issues/13'), repository)).toBe(false);
   });
 });
