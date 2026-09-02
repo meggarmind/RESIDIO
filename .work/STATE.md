@@ -13,8 +13,8 @@
 
 | | |
 |---|---|
-| Phase | Waves 0+1 dispatched, 5 agents in flight |
-| Last completed | Verified every issue's cited file:line (see ISSUE-CLAIMS-VERIFIED.md) |
+| Phase | Wave 1 landing; 5 agents in flight (163, 167, 169, 170-remediation, 168-QA) |
+| Last completed | #168 implemented + one factual error corrected; #170 implemented, one defect sent back |
 | Epic HEAD | `8d3ee77` fix(monitor): restore a clean typecheck baseline |
 | Blocked issues | none |
 | Consecutive QA failures | 0 |
@@ -27,9 +27,9 @@ Legend: TODO / IN-PROGRESS / QA / MERGED / CLOSED / BLOCKED
 |---|-------|------|--------|--------|-------|
 | 163 | prettier undeclared | 0 | IN-PROGRESS | issue/163-* | |
 | 167 | middleware safety net | 1 | IN-PROGRESS | issue/167-* | blocks all of wave 2 |
-| 168 | chairman settings.view | 1 | IN-PROGRESS | issue/168-* | needs a DB migration applied |
+| 168 | chairman settings.view | 1 | QA | issue/168-chairman-settings-view | migration NOT yet applied to DB |
 | 169 | main sidebar nav state | 1 | IN-PROGRESS | issue/169-* | |
-| 170 | settings sidebar reopen | 1 | IN-PROGRESS | issue/170-* | |
+| 170 | settings sidebar reopen | 1 | IN-PROGRESS (remediation 1/3) | issue/170-settings-group-reopen | |
 | 171 | audit logs → /system | 2a | TODO | — | template slice |
 | 172 | account admin → /system | 2b | TODO | — | |
 | 173 | notification queue | 2b | TODO | — | |

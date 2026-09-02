@@ -70,3 +70,32 @@ Options: (a) run them together and merge by hand, (b) serialize #174 → #176.
 **Taken: (b).** #174 carries a security fix and must not be entangled with a rename;
 #176's job is easier once #174 has already emptied the overview of its cron content.
 **Reversible:** ordering only.
+
+---
+
+**D7 — #168 | The implementing agent rewrote `src/lib/audit/README.md` to assert
+"Currently, only the super_admin role holds this permission."** That is a factual claim
+about the live database, made without querying it.
+Options: (a) accept it, (b) verify it.
+**Taken: (b), and it was wrong.** A query against the live database shows
+`settings.view_audit_logs` is held by **`super_admin` and `vice_chairman`**. Corrected
+the line myself rather than spending a remediation cycle on a one-line factual fix —
+disclosed here and in the report. The same query independently confirmed the issue's own
+premise: `settings.view` is held by `financial_officer, project_manager, secretary,
+security_officer, super_admin, vice_chairman` and **not** `chairman`, so the migration is
+not a no-op. **Reversible:** one line of Markdown.
+
+---
+
+**D8 — #170 | The reopen-on-entry rule did not fire for one of the three cases the issue
+names.** `lastActiveGroup` was held in an unpersisted module variable, so a full page load
+straight into a collapsed group hit the `previous === undefined` guard and left the group
+shut — hiding the very page the reader had just opened. The landing-grid and search-result
+cases worked (client-side navigations); the **external link** case did not.
+Options: (a) accept it as an edge case, (b) send it back to persist the previous-group
+value in sessionStorage.
+**Taken: (b).** The issue names "an external link" explicitly as a case that must reopen,
+and persisting the value also *sharpens* the rule rather than blurring it: a reload while
+already inside the group keeps `previous === G`, so a deliberate collapse still survives,
+while an arrival from group H is correctly seen as a transition. The implementer's own
+test 4 conflated those two situations. **Reversible:** yes, localized to one hook.
