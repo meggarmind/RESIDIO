@@ -86,8 +86,11 @@ from every tool, on every machine, including the repo owner. A rejected push is 
 working — open a PR rather than routing around it or asking another session to push for you.
 
 This repo is worked by two machines running Claude Code, OpenCode and Codex, sometimes
-concurrently. **No session may assume it is the only one.** Declare your tool, branch and
-intent in `SESSION_STATE.md` at session start, and check it before taking a branch.
+concurrently. **No session may assume it is the only one.** The live registry of who is
+working on what is the remote branch list — `git ls-remote --heads origin`. Check it before
+taking a branch, and **push your own branch early** so your work is visible; the push is the
+declaration. `SESSION_STATE.md` is the end-of-session handoff record, not a live signal — it
+lives on protected `master`, so writing to it needs a PR and arrives too late to coordinate.
 
 Branch prefixes declare the lane: `codex/issue-<n>-<slug>` (repo and board issues),
 `feat/<slug>` and `fix/<slug>` (features and fixes), `qa/<date>`, `merge/<slug>`.
