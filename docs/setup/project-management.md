@@ -51,6 +51,32 @@ This document covers git configuration, documentation update cadence, session wo
 
 ---
 
+## Issue-driven vertical-slice workflow
+
+All initiatives use Matt Pocock's `to-issues` process before implementation:
+
+1. Break the initiative into independently verifiable tracer-bullet slices that cross the required integration layers end to end.
+2. Present the numbered slices, dependencies, and user stories for approval.
+3. Publish the approved issues in dependency order with the `to-issues` body template and `ready-for-agent` label. Reference real issue numbers in each `Blocked by` section; do not close or modify a parent initiative issue.
+4. Start work only through the issue workflow helper, which creates the issue-specific worktree and moves the issue to `In progress`.
+
+The workflow is configured in `.github/issue-workflow.json` and uses user Project 1 as the canonical tracker. Project status names are exact: `Backlog`, `In progress`, `In review`, and `Done`; `Backlog` is the board's equivalent of the initial Todo state. Run `npm run issue:doctor` when setting up a new machine or after Project configuration changes. The GitHub CLI token must include the `project` scope.
+
+### Issue lifecycle commands
+
+```text
+npm run issue:workflow -- start <issue>
+npm run issue:workflow -- review <issue> [--check "issue-specific command"]
+npm run issue:workflow -- resume <issue>
+npm run issue:workflow -- finish <issue> [--check "issue-specific command"]
+```
+
+Worktrees live at `.worktrees/issue-<number>` with branches named `codex/issue-<number>-<slug>`. `review` sets `In review` before running the configured lint, test, and build checks. `finish` reruns those checks, refuses dirty worktrees or integration branches, merges the issue branch into `master` with `--no-ff`, then verifies that the integration commit has reached `origin/master` before it closes the child issue, sets Project status to `Done`, and removes the worktree and merged branch. A failed check, merge conflict, or unpublished integration leaves the issue in review and preserves its worktree. `resume` returns an issue to `In progress` for fixes.
+
+The helper resolves Project, field, item, and option IDs by name at runtime and fails closed if any required project data is missing. Pushing the resulting `master` commit requires explicit authorization; after it succeeds, rerun `finish` to complete the remote issue and Project status transition.
+
+---
+
 ## Session Commands
 
 When the user types any of these keyphrases, execute the associated action:

@@ -6,6 +6,14 @@
 Created: 2026-01-08T00:00:00Z
 Status: IN PROGRESS
 
+## Issue-Driven Delivery Workflow (2026-08-13)
+
+- [x] Publish approved vertical-slice issues #64 → #65 → #66 with dependency metadata.
+- [x] Add the configured issue workflow helper, worktree naming contract, status lifecycle, and repository guidance.
+- [x] Add focused helper tests and run the full Vitest suite.
+- [x] Grant `project` scope to the GitHub CLI, verify Project 1's live `Backlog`, `In progress`, `In review`, and `Done` options, and run `npm run issue:doctor`.
+- [x] Add an hourly monitor with cooldown-based attention alerts, shell-safe dispatch inputs, and publish-before-Done lifecycle enforcement.
+
 ## Fast-Track Priorities
 
 **Billing filter and query security (2026-08-23):** Issues #79, #80, and #94 are implemented. Billing resident deep links now initialize filtering, the resident selector loads all residents through a focused authorized name/alias query, and invoice/resident financial reads fail closed on permission checks. TypeScript, 9 focused tests, scoped ESLint, full tests, and production build pass.

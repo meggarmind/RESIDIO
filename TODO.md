@@ -77,6 +77,12 @@ The project is fast-tracked around financial operations, financial statements/im
 3. **P1 — Communications:** WhatsApp and SMS integrations for estate/admin operational notifications and workflows.
 4. **P2 — Supporting admin work:** Security, residents, houses, documents, approvals, and remaining platform hardening.
 
+### Delivery Workflow
+- [x] **Issue-driven vertical slices:** Published #64, #65, and #66 with dependency links and `ready-for-agent` triage labels.
+- [x] **Issue workflow automation:** Added issue-scoped worktree/status lifecycle tooling and repository guidance in the isolated implementation worktree.
+- [x] **Issue workflow monitor:** Added hourly stale/inconsistency monitoring with cooldown-based alerts; workflow dispatch is shell-safe and issue completion waits for the integration commit on `origin/master`.
+- [x] **GitHub Project setup:** Verified Project 1's live status options (`Backlog`, `In progress`, `In review`, `Done`) and confirmed `npm run issue:doctor` passes with the `project` scope.
+
 ### Recent Session Work (2026-08-10): Backlog Reconciliation
 - [x] **Scope Alignment**: Removed portal refinement from the active phase; admin dashboard work is the only forward priority.
 - [x] **Completed Item Reconciliation**: Marked the context-aware Smart Action Center, visitor quick-access carousel, and UI/UX review work as completed where implementation is already documented.

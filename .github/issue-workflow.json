@@ -1,0 +1,45 @@
+{
+  "repository": "meggarmind/RESIDIO",
+  "project": {
+    "owner": "meggarmind",
+    "number": 1
+  },
+  "defaultBranch": "master",
+  "worktreeDirectory": ".worktrees",
+  "branchPrefix": "codex/issue-",
+  "statusField": "Status",
+  "statuses": {
+    "backlog": "Backlog",
+    "inProgress": "In progress",
+    "inReview": "In review",
+    "done": "Done"
+  },
+  "issueBranchPattern": "codex/issue-<number>-<slug>",
+  "lifecycleCommentMarker": "<!-- issue-workflow-lifecycle -->",
+  "monitor": {
+    "enabled": true,
+    "cadence": "hourly",
+    "staleAfterHours": 24,
+    "alertCooldownHours": 24,
+    "attentionLabel": "needs-attention",
+    "pausedLabel": "workflow:paused",
+    "commentMarker": "<!-- issue-workflow-monitor -->"
+  },
+  "checks": [
+    {
+      "label": "lint",
+      "command": "npm",
+      "args": ["run", "lint"]
+    },
+    {
+      "label": "tests",
+      "command": "npm",
+      "args": ["test"]
+    },
+    {
+      "label": "build",
+      "command": "npm",
+      "args": ["run", "build"]
+    }
+  ]
+}
