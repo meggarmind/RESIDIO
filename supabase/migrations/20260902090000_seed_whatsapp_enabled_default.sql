@@ -29,7 +29,7 @@
 -- where the row is missing.
 INSERT INTO public.system_settings (key, value, description, category)
 VALUES
-  ('whatsapp_enabled', 'false'::jsonb, 'Master on/off switch for the WhatsApp channel. Distinct from the rollout mode, which chooses who receives -- this decides whether the channel runs at all.', 'whatsapp'),
-  ('whatsapp_session_retention_days', '1'::jsonb, 'Bounded retention for expired WhatsApp sessions', 'whatsapp'),
-  ('whatsapp_processed_message_retention_days', '2'::jsonb, 'Bounded retention for processed WhatsApp webhook IDs', 'whatsapp')
+  ('whatsapp_enabled', 'false'::jsonb, 'Master on/off switch for the WhatsApp channel. Distinct from the rollout mode, which chooses who receives -- this decides whether the channel runs at all.', 'notifications'),
+  ('whatsapp_session_retention_days', '1'::jsonb, 'Bounded retention for expired WhatsApp sessions', 'notifications'),
+  ('whatsapp_processed_message_retention_days', '2'::jsonb, 'Bounded retention for processed WhatsApp webhook IDs', 'notifications')
 ON CONFLICT (key) DO NOTHING;
