@@ -15,7 +15,7 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 - Removed the unmerged `get_my_role()` fallback that mapped arbitrary custom roles to `admin` or `chairman`. Only the five established built-in roles now map to legacy RLS buckets; custom and resident roles resolve to `NULL` until the affected policies are migrated to explicit permissions.
 - Added a migration-contract regression test protecting that deny-by-default boundary.
 - Verification: focused regression 2/2 and full Vitest 317/317 pass; `git diff --check` passes. Changed-file ESLint did not finish within the Windows runner timeout. Build compiled successfully with the existing Paystack route-config warning, then exceeded the runner timeout while TypeScript/prerendering.
-- Next: commit/push the issue branch, update #141 with verification, and move it to In review. Do not apply the migration to cloud until the dependent social-login branch is approved and merged.
+- Pushed `ea96bc3` and attached verification to #141. Moving the issue to In review is blocked: `issue-workflow review 141` compares the registered `C:/projects/...` worktree path with Windows' `C:\projects\...` path as unequal, from both the repository root and the worktree. Do not apply the migration to cloud until the dependent social-login branch is approved and merged.
 
 ## Last session (OpenCode, 2026-09-02 — build/audit merge and workflow hardening)
 
