@@ -183,7 +183,7 @@ function integrationEvidence(issue, pullRequestsForIssue, marker = DEFAULT_MONIT
   return lifecycle || pullRequestsForIssue.some((pullRequest) => Boolean(pullRequest.mergedAt) || pullRequest.state === 'MERGED');
 }
 
-export function detectFindings({ issue, status, config, branchNames = [], commits = [], pullRequests: allPullRequests = [], timeline: timelineEvents = [], worktrees = [], now = new Date() }) {
+export function detectFindings({ issue, status, config, branchNames = /** @type {string[]} */ ([]), commits = [], pullRequests: allPullRequests = [], timeline: timelineEvents = [], worktrees = [], now = new Date() }) {
   const monitor = config.monitor ?? {};
   const marker = monitor.commentMarker ?? DEFAULT_MONITOR_MARKER;
   const issueLabels = labels(issue);
