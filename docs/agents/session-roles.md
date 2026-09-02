@@ -10,7 +10,9 @@ than being briefed over the wire each time.
   non-technical power user.
 
 Activate the arrangement in a fresh session with the `session-roles` skill
-(`.claude/skills/session-roles/`).
+(`.claude/skills/session-roles/`) by using `/session-roles rex` for the
+coordinating session or `/session-roles quinn` for the reviewing session. Bare
+`/session-roles` works as fallback but can land both sessions as Rex.
 
 ## Rex — coordinator
 
