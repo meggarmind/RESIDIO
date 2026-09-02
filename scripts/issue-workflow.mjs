@@ -23,6 +23,17 @@ function binary(command) {
   return WINDOWS && command === 'npm' ? 'npm.cmd' : command;
 }
 
+export function commandInvocation(command, args, windows = WINDOWS) {
+  if (windows && command === 'npm') {
+    return {
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', ['npm.cmd', ...args].join(' ')],
+    };
+  }
+
+  return { command: binary(command), args };
+}
+
 function run(command, args, cwd, options = {}) {
   try {
     return execFileSync(binary(command), args, {
@@ -48,7 +59,8 @@ function runJson(command, args, cwd) {
 
 function runVisible(command, args, cwd) {
   try {
-    execFileSync(binary(command), args, {
+    const invocation = commandInvocation(command, args);
+    execFileSync(invocation.command, invocation.args, {
       cwd,
       stdio: 'inherit',
       windowsHide: true,

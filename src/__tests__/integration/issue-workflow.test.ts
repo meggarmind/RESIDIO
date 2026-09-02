@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checksFromArgs, findStatusOption, lifecycleComment, parseWorktrees, pathsMatch, slugify, statusName } from '../../../scripts/issue-workflow.mjs';
+import { checksFromArgs, commandInvocation, findStatusOption, lifecycleComment, parseWorktrees, pathsMatch, slugify, statusName } from '../../../scripts/issue-workflow.mjs';
 
 describe('issue workflow helpers', () => {
   it('creates stable issue slugs for branch names', () => {
@@ -26,6 +26,13 @@ describe('issue workflow helpers', () => {
 
   it('matches Windows worktree paths regardless of slash style', () => {
     expect(pathsMatch('C:/repo/.worktrees/issue-64', 'C:\\repo\\.worktrees\\issue-64')).toBe(true);
+  });
+
+  it('runs npm checks through cmd.exe on Windows', () => {
+    expect(commandInvocation('npm', ['run', 'lint'], true)).toEqual({
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', 'npm.cmd run lint'],
+    });
   });
 
   it('resolves status options by exact name', () => {
