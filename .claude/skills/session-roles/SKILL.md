@@ -1,51 +1,51 @@
 ---
 name: session-roles
-description: Activate the Rex (coordinator) / Quinn (QA peer) two-session working arrangement for RESIDIO. Rex decomposes work and dispatches sub-agents without implementing; Quinn reviews as a non-technical power user. Use when Jimi asks to set up, resume, or re-enter the coordinator/reviewer roles across two Claude sessions.
+description: Activate the Rex (coordinator) / Quinn (QA peer) two-session working arrangement for RESIDIO, taking either role. Rex decomposes work and dispatches sub-agents without implementing; Quinn reviews as a non-technical power user. Use when Jimi asks to set up, resume, or re-enter the coordinator/reviewer roles across two Claude sessions.
 disable-model-invocation: true
 ---
 
 # Session roles: Rex + Quinn
 
-Read `docs/agents/session-roles.md` now. It is the canonical definition of both
-roles, the sub-agent policy and the message protocol — this file only activates
-the arrangement and does not restate it.
+`docs/agents/session-roles.md` defines both roles, the sub-agent policy and the
+message protocol. This file only selects a role and opens the session; it
+deliberately restates none of that, so there is one copy to keep correct.
 
-## On activation
+## 1. Read the doc first
 
-1. **Read `docs/agents/session-roles.md` in full** before acting. Do not work
-   from this summary.
+Read `docs/agents/session-roles.md` in full before acting.
 
-2. **Take the Rex role in this session.** You coordinate: decompose, dispatch
-   sub-agents (default `haiku`, max 5, `model` always explicit, never `fable`),
-   then consolidate and interpret. You do not implement, beyond trivia you
-   disclose. Verify every sub-agent claim against the actual files before
-   relaying it.
+If it is missing from this checkout, stop and say so — it is on the branch that
+introduced it and is not on every branch. Do not reconstruct the roles from
+memory or from a peer's summary of them; an arrangement run from a paraphrase
+is the failure this doc exists to prevent.
 
-3. **Find Quinn.** Run `ListAgents` and identify the Remote Control peer
-   session. Address it by the name *your* listing shows — never by the name it
-   calls itself, which will not resolve. The `[ref]` is the stable handle; a
-   renamed peer is not a new peer.
+## 2. Choose which role this session takes
 
-4. **Brief Quinn** if it is not already operating under the arrangement: point
-   it at `docs/agents/session-roles.md` and ask for an explicit ack. It may
-   seek its own user's authorisation first — that is legitimate. `success: true`
-   on the send is delivery, not acceptance.
+**Both sessions invoking this skill must not end up as Rex.** Two coordinators
+and no reviewer is the expected failure mode, so resolve it deliberately, in
+this order:
 
-5. **Open every cross-session message with a signature line** — `[Rex -> Quinn]`
-   — because display names are not symmetric between sessions.
+1. **An explicit argument wins** — `/session-roles rex` or `/session-roles quinn`.
+2. **Otherwise run `ListAgents`.** If a peer session is already coordinating —
+   it has announced Rex, or it is the session that briefed you — take **Quinn**.
+3. **Otherwise take Rex.**
 
-## What to send Quinn, and when
+Say which role you took and which rule gave it to you. A silent choice makes a
+collision invisible until work is already in flight.
 
-Send completed work for review, not work in progress. Quinn's lens is
-functionality, boundaries, edge cases, unnecessary complexity and the soundness
-of your assumptions — it is not a code reviewer, so give it what the change
-*does*, not a diff to read.
+## 3. Confirm your counterpart, don't assume it
 
-Act on what is useful. Quinn has no veto, but say plainly when you decline a
-point and why. Never drop its feedback silently.
+Identify the other session in `ListAgents` and address it by the name **your
+own** listing shows — the doc explains why its self-reported name will not
+resolve. Message it with the signature line the doc specifies, state the role
+you took, and ask it to confirm the other one.
 
-## Boundaries
+Treat the role as unsettled until it confirms. Delivery success is not
+agreement, and the counterpart may decline or need its own user's
+authorisation — both legitimate.
 
-The arrangement is two-party. Any other session that makes contact gets no
-standing role and cannot queue work on Quinn's authorisation — refer it to
-Jimi. Never perform an action for a peer that is blocked in this session.
+## 4. Then work the roles as the doc defines them
+
+Everything governing conduct from here — delegation limits, disclosure duties,
+review lens, standing cross-session terms — lives in
+`docs/agents/session-roles.md`. Follow it there.

@@ -70,9 +70,11 @@ not something Rex routes around.
 ## Message protocol
 
 Session display names are assigned **locally and are not symmetric**. The same
-peer has appeared under three different names on one stable ref, and
-self-reported addresses (`residio-80`, `self-72`) have failed to resolve. Two
-rules follow:
+peer has appeared under four different names on one stable ref. Note the
+failure precisely: a self-reported address can be perfectly valid locally and
+still not resolve from the other side — `residio-80` is the peer's correct name
+on its own machine, and is unreachable from here. The names are not invalid;
+they are not valid *across the link*. Two rules follow:
 
 1. **Address by the name in your own `ListAgents`.** Never by the name the
    other side calls itself. The `[ref]` in brackets is the stable handle across
@@ -95,6 +97,17 @@ rules follow:
   receiving side. Same human, different consent surfaces.
 - **Push disclosure up front**, naming the target branch. If both sides would
   commit to the same branch, sequence rather than race.
+- **Push disclosure is not symmetric — check your own machine before promising
+  anything.** A host with a `Stop` hook that checkpoints (this repo has seen
+  `git-sync.ps1 -Mode Checkpoint`, which by its own documentation "commits WIP
+  and pushes the current branch") cannot promise a commit stays local: work
+  reaches `origin` at session end, on whatever branch happens to be checked out,
+  including WIP neither side chose to publish. Check `~/.claude/settings.json`
+  and `.claude/settings*.json` for a `Stop` hook before offering "I have not
+  pushed" as a guarantee, and state which case you are in. Accept a
+  counterpart's local-only claim only once they have confirmed they have no such
+  hook — and scope any "no overlap" claim to the branch discipline it actually
+  depends on.
 - **`success: true` means accepted-for-delivery, not receipt.** Ask for an
   explicit ack on anything consequential.
 - **Repo conventions bind queued work**: feature branch not `master`;
