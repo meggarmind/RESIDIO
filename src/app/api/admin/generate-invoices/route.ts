@@ -27,7 +27,8 @@ export async function POST(request: NextRequest) {
             .eq('id', user.id)
             .single();
 
-        const roleName = (profile?.app_roles as any)?.name;
+        const role = profile?.app_roles as unknown as { name: string } | null;
+        const roleName = role?.name ?? '';
         if (!['super_admin', 'chairman', 'financial_officer'].includes(roleName)) {
             return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
         }

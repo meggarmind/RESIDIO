@@ -15,14 +15,14 @@ import { TweakcnTheme } from '@/types/theme';
  */
 export function ThemeScript() {
   // Serialize only the essential theme data to keep the script small
-  const themeData = Object.entries(TWEAKCN_THEME_REGISTRY).reduce((acc, [id, theme]: [string, TweakcnTheme]) => {
+  const themeData = Object.entries(TWEAKCN_THEME_REGISTRY).reduce<Record<string, Pick<TweakcnTheme['cssVars'], 'light' | 'dark' | 'theme'>>>((acc, [id, theme]: [string, TweakcnTheme]) => {
     acc[id] = {
       light: theme.cssVars.light,
       dark: theme.cssVars.dark,
       theme: theme.cssVars.theme,
     };
     return acc;
-  }, {} as any);
+  }, {});
 
   const script = `
     (function() {

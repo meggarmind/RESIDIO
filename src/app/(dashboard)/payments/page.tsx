@@ -32,7 +32,7 @@ function PaymentsContent() {
   const params: PaymentSearchParams = {
     page,
     limit,
-    status: searchParams.get('status') as any,
+    status: searchParams.get('status') as PaymentSearchParams['status'],
     query: searchParams.get('query') as string,
     resident_id: searchParams.get('resident_id') as string,
     start_date: searchParams.get('start_date') as string,

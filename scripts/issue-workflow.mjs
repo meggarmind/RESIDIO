@@ -23,6 +23,17 @@ function binary(command) {
   return WINDOWS && command === 'npm' ? 'npm.cmd' : command;
 }
 
+export function commandInvocation(command, args, windows = WINDOWS) {
+  if (windows && command === 'npm') {
+    return {
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', ['npm.cmd', ...args].join(' ')],
+    };
+  }
+
+  return { command: binary(command), args };
+}
+
 function run(command, args, cwd, options = {}) {
   try {
     return execFileSync(binary(command), args, {
@@ -48,7 +59,8 @@ function runJson(command, args, cwd) {
 
 function runVisible(command, args, cwd) {
   try {
-    execFileSync(binary(command), args, {
+    const invocation = commandInvocation(command, args);
+    execFileSync(invocation.command, invocation.args, {
       cwd,
       stdio: 'inherit',
       windowsHide: true,
@@ -103,6 +115,10 @@ export function parseWorktrees(output) {
 
   if (entry) entries.push(entry);
   return entries;
+}
+
+export function pathsMatch(left, right) {
+  return resolve(left) === resolve(right);
 }
 
 function worktrees(cwd) {
@@ -253,8 +269,8 @@ function currentStatus(config, cwd, issueNumber) {
 
 function matchingWorktree(cwd, config, issue) {
   const expected = issueWorktree(cwd, config, issue);
-  const listed = worktrees(cwd).find((item) => item.path === expected.path || item.branch === expected.branch);
-  if (listed && listed.path !== expected.path) {
+  const listed = worktrees(cwd).find((item) => pathsMatch(item.path, expected.path) || item.branch === expected.branch);
+  if (listed && !pathsMatch(listed.path, expected.path)) {
     throw new WorkflowError(`Issue #${issue.number} already uses branch ${expected.branch} at ${listed.path}, not ${expected.path}.`);
   }
   return { ...expected, listed };
@@ -301,7 +317,39 @@ function checksFromArgs(args) {
   return checks;
 }
 
+function loadEnvFile(cwd) {
+  const candidates = [
+    resolve(cwd, '.env.local'),
+    resolve(commonRoot(cwd), '.env.local'),
+    resolve(commonRoot(cwd), '.env'),
+  ];
+  for (const envPath of candidates) {
+    if (!existsSync(envPath)) continue;
+    try {
+      const content = readFileSync(envPath, 'utf8');
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eq = trimmed.indexOf('=');
+        if (eq === -1) continue;
+        const key = trimmed.slice(0, eq).trim();
+        let value = trimmed.slice(eq + 1).trim();
+        if (
+          (value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))
+        ) {
+          value = value.slice(1, -1);
+        }
+        if (!(key in process.env)) process.env[key] = value;
+      }
+      console.log(`Loaded env from ${envPath}`);
+      break;
+    } catch {}
+  }
+}
+
 function runChecks(config, cwd, extraChecks) {
+  loadEnvFile(cwd);
   for (const check of config.checks) {
     console.log(`\n==> ${check.label}`);
     runVisible(check.command, check.args ?? [], cwd);

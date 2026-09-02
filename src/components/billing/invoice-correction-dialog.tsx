@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -81,6 +81,15 @@ export function InvoiceCorrectionDialog({
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [reversing, setReversing] = useState(false);
+  const [wasOpen, setWasOpen] = useState(open);
+
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setCorrections([{ type: 'credit', amount: 0, description: '' }]);
+      setReason('');
+    }
+  }
 
   const {
     handleSubmit,
@@ -103,14 +112,6 @@ export function InvoiceCorrectionDialog({
   // Has partial payment?
   const hasPartialPayment = (invoice.amount_paid || 0) > 0;
 
-  // Reset form when dialog opens
-  useEffect(() => {
-    if (open) {
-      setCorrections([{ type: 'credit', amount: 0, description: '' }]);
-      setReason('');
-    }
-  }, [open]);
-
   const addCorrectionRow = () => {
     setCorrections([...corrections, { type: 'credit', amount: 0, description: '' }]);
   };
@@ -121,7 +122,11 @@ export function InvoiceCorrectionDialog({
     }
   };
 
-  const updateCorrection = (index: number, field: keyof CorrectionEntry, value: any) => {
+  const updateCorrection = <K extends keyof CorrectionEntry>(
+    index: number,
+    field: K,
+    value: CorrectionEntry[K]
+  ) => {
     const updated = [...corrections];
     updated[index] = { ...updated[index], [field]: value };
     setCorrections(updated);

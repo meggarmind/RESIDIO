@@ -15,6 +15,13 @@ Status: IN PROGRESS
 - [x] Add an hourly monitor with cooldown-based attention alerts, shell-safe dispatch inputs, and publish-before-Done lifecycle enforcement.
 - [x] **#141 Custom-role legacy RLS boundary (2026-09-02):** Preserve legacy buckets only for the five built-in roles. Arbitrary custom roles now resolve to `NULL`, preventing direct database access from bypassing application RBAC; a later explicit-permission policy migration is required before granting custom roles direct data access.
 
+## Lint Baseline Remediation (2026-09-02)
+
+- Parent #143 is split into dependency-ordered slices #144 -> #145 -> #146 -> #147.
+- **#144 scope decision:** the global lint program ignores generated Docusaurus output (`website/.docusaurus/**`, `website/build/**`) and the unplanned web resident portal (`src/app/(resident)/**`, `src/components/resident-portal/**`). It continues to enforce every admin-dashboard, shared, scripts, tests, and Docusaurus source file. This preserves the lint gate while aligning it with the admin-dashboard-only rollout policy. Baseline reduced from 108 errors / 423 warnings to 68 errors / 339 warnings.
+- #145 was a verified no-op after #144; no in-scope ESLint/type-rule compatibility or TypeScript lint errors remained. #146 resolved admin React Compiler errors. #147 cleared the remaining in-scope unsafe-type, directive, and JSX entity errors.
+- Final verification in `.worktrees/issue-147`: after merging current `master`, `npm run lint` passes with 0 errors / 328 warnings, `npm test -- --run` passes 371/371, and `npm run build` passes when the existing ignored root `.env.local` is loaded for Supabase prerendering. The worktree intentionally has no `.env.local`; without it, prerendering correctly fails due to missing Supabase credentials. #147 lifecycle review passed; merge and issue completion remain next.
+
 ## Fast-Track Priorities
 
 **Billing filter and query security (2026-08-23):** Issues #79, #80, and #94 are implemented. Billing resident deep links now initialize filtering, the resident selector loads all residents through a focused authorized name/alias query, and invoice/resident financial reads fail closed on permission checks. TypeScript, 9 focused tests, scoped ESLint, full tests, and production build pass.

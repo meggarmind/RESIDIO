@@ -23,7 +23,6 @@ export type BuiltInRoleName =
  * autocomplete on the built-ins while accepting any name, and every existing
  * `roleName === 'super_admin'` comparison still narrows correctly.
  */
-// eslint-disable-next-line @typescript-eslint/ban-types
 export type AppRoleName = BuiltInRoleName | (string & {});
 
 // Role category (organizational structure)

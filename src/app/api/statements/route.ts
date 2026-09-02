@@ -127,7 +127,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Get estate name from settings
-    const estateName = await getSettingValue('estate_name') || 'Residio Estate';
+    const estateNameSetting = await getSettingValue('estate_name');
+    const estateName = typeof estateNameSetting === 'string' ? estateNameSetting : 'Residio Estate';
 
     // Generate PDF
     const pdfBuffer = await renderToBuffer(

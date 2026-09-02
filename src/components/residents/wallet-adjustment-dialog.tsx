@@ -189,7 +189,7 @@ export function WalletAdjustmentDialog({
               <Label htmlFor="reason">Reason</Label>
               <Select
                 value={watch('reason')}
-                onValueChange={(value) => setValue('reason', value as any)}
+                onValueChange={(value) => setValue('reason', value as AdjustmentFormData['reason'])}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select reason" />

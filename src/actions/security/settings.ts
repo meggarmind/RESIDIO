@@ -16,7 +16,6 @@ type SecuritySettingsResponse = {
   } | null;
   error: string | null;
 }
-
 type UpdateSecuritySettingsResponse = {
   success: boolean;
   error: string | null;
@@ -61,7 +60,7 @@ export async function getSecuritySettings(): Promise<SecuritySettingsResponse> {
  */
 export async function updateSecuritySetting(
   key: string,
-  value: string | number | boolean
+  value: string | number | boolean | number[]
 ): Promise<UpdateSecuritySettingsResponse> {
   const supabase = await createServerSupabaseClient();
 
@@ -175,4 +174,3 @@ export async function resetSecuritySettingsToDefault(): Promise<UpdateSecuritySe
   revalidatePath('/settings/security');
   return { success: true, error: null };
 }
-

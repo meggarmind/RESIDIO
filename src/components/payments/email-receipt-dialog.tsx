@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -30,13 +30,14 @@ export function EmailReceiptDialog({ paymentId, trigger }: EmailReceiptDialogPro
 
   const { data: recipients, isLoading, error } = usePaymentRecipients(open ? paymentId : undefined);
   const sendEmailMutation = useSendPaymentReceiptEmail();
+  const [previousRecipients, setPreviousRecipients] = useState(recipients);
 
-  // Auto-select main resident when data loads
-  useEffect(() => {
+  if (recipients !== previousRecipients) {
+    setPreviousRecipients(recipients);
     if (recipients?.mainResident?.email) {
       setSelectedEmails(new Set([recipients.mainResident.email]));
     }
-  }, [recipients]);
+  }
 
   const handleToggleEmail = (email: string) => {
     const newSelected = new Set(selectedEmails);

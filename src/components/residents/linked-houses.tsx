@@ -55,7 +55,6 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
     const unassignMutation = useUnassignHouse();
 
     const activeHouses = resident.resident_houses?.filter((rh) => rh.is_active) ?? [];
-    const linkedHouseIds = new Set(activeHouses.map(rh => rh.house_id));
 
     // Determine if resident is primary or secondary type
     const isPrimaryResident = resident.resident_type === 'primary';
@@ -77,8 +76,9 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
     }, [isPrimaryResident, isCorporate]);
 
     // Filter houses based on selected role
-    const availableHouses = useMemo(() => {
+    const availableHouses = (() => {
         const allHouses = housesData?.data ?? [];
+        const linkedHouseIds = new Set(activeHouses.map(rh => rh.house_id));
         // Filter out houses already linked
         const unlinkedHouses = allHouses.filter(h => !linkedHouseIds.has(h.id));
 
@@ -100,7 +100,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
             );
         }
         return unlinkedHouses;
-    }, [housesData?.data, linkedHouseIds, selectedRole]);
+    })();
 
     // Get sponsors (primary residents of selected house) for domestic_staff and caretaker
     const availableSponsors = useMemo(() => {

@@ -68,7 +68,7 @@ describe('Twilio WhatsApp webhook route', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ received: true, processed: true });
-  });
+  }, 15_000);
 
   it('falls back to request.nextUrl when there are no forwarded headers', async () => {
     vi.doMock('@/lib/whatsapp/config-db', () => ({

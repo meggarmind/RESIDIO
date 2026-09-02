@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { CronHealthCard } from '@/components/dashboard/cron-health-card';
 
+const subscribeToMount = () => () => {};
+
 export default function HealthPage() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const mounted = useSyncExternalStore(subscribeToMount, () => true, () => false);
 
   if (!mounted) return null;
 

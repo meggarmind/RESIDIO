@@ -87,9 +87,8 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
       .catch((err) => console.error('Failed to load late fee settings', err));
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    if (scopeType === 'house' && houses.length === 0) {
+  const loadScopeOptions = (nextScopeType: ScopeType) => {
+    if (nextScopeType === 'house' && houses.length === 0) {
       setScopeLoading(true);
       getHouses({ limit: 200 })
         .then((res) => {
@@ -97,7 +96,7 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
         })
         .catch((err) => console.error('Failed to load houses', err))
         .finally(() => setScopeLoading(false));
-    } else if (scopeType === 'street' && streets.length === 0) {
+    } else if (nextScopeType === 'street' && streets.length === 0) {
       setScopeLoading(true);
       getStreets()
         .then((res) => {
@@ -105,7 +104,7 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
         })
         .catch((err) => console.error('Failed to load streets', err))
         .finally(() => setScopeLoading(false));
-    } else if (scopeType === 'resident' && residents.length === 0) {
+    } else if (nextScopeType === 'resident' && residents.length === 0) {
       setScopeLoading(true);
       getResidents({ limit: 200 })
         .then((res) => {
@@ -114,7 +113,14 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
         .catch((err) => console.error('Failed to load residents', err))
         .finally(() => setScopeLoading(false));
     }
-  }, [open, scopeType, houses.length, streets.length, residents.length]);
+  };
+
+  const handleScopeTypeChange = (nextScopeType: ScopeType) => {
+    setScopeType(nextScopeType);
+    setScopeId('');
+    setPreview(null);
+    loadScopeOptions(nextScopeType);
+  };
 
   const handleModeChange = (nextMode: GenerationMode) => {
     setMode(nextMode);
@@ -234,7 +240,7 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
                     <p className="text-xs text-muted-foreground">Scope narrows candidates; eligibility rules still apply.</p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
-                    <select className="h-9 rounded-md border bg-background px-3 text-sm" value={scopeType} onChange={(event) => { setScopeType(event.target.value as ScopeType); setScopeId(''); setPreview(null); }}>
+                    <select className="h-9 rounded-md border bg-background px-3 text-sm" value={scopeType} onChange={(event) => handleScopeTypeChange(event.target.value as ScopeType)}>
                       <option value="estate">Entire estate</option>
                       <option value="house">House</option>
                       <option value="street">Street</option>

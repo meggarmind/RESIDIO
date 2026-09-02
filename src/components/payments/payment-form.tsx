@@ -29,6 +29,7 @@ import {
 import { useCreatePayment, useUpdatePayment, useResidentPropertiesForPayment } from '@/hooks/use-payments';
 import { useResidents } from '@/hooks/use-residents';
 import { paymentFormSchema, type PaymentFormData } from '@/lib/validators/payment';
+import type { Database } from '@/types/database.generated';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { formatCurrency, cn } from '@/lib/utils';
@@ -36,7 +37,7 @@ import { Home, AlertTriangle, MapPin, Loader2, CheckCircle2 } from 'lucide-react
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface PaymentFormProps {
-    initialData?: any;
+    initialData?: Database['public']['Tables']['payment_records']['Row'];
     residentId?: string;
     onSuccess?: () => void;
 }
@@ -88,7 +89,6 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
         setSubmitState('loading');
         try {
             if (isEditing) {
-                // @ts-ignore
                 await updateMutation.mutateAsync({ id: initialData.id, data });
                 toast.success('Payment updated');
             } else {

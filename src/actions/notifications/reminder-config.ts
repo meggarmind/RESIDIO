@@ -445,7 +445,7 @@ export async function getReminderSettings(): Promise<{
     smsEnabled: smsEnabled === true,
     whatsappEnabled: whatsappEnabled === true,
     schedule: scheduleResult.data,
-    lastRun,
+    lastRun: typeof lastRun === 'string' ? lastRun : null,
   };
 }
 

@@ -107,11 +107,14 @@ function YearRow({ row }: { row: YearlyPaymentSummary }) {
 }
 
 export function YearlyPaymentTable({ houseId }: YearlyPaymentTableProps) {
+  return <YearlyPaymentTableContent key={houseId} houseId={houseId} />;
+}
+
+function YearlyPaymentTableContent({ houseId }: YearlyPaymentTableProps) {
   const [data, setData] = useState<YearlyPaymentSummary[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
     getHouseYearlySummary(houseId).then((result) => {
       setData(result.data);
       setLoading(false);

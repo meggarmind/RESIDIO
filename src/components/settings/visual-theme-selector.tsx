@@ -144,7 +144,7 @@ export function VisualThemeSelector({
   const handleHoverEnd = useCallback(() => {
     setPreviewThemeId(null);
     setMobilePreviewId(null);
-  }, [setPreviewThemeId]);
+  }, [setMobilePreviewId, setPreviewThemeId]);
 
   // Handle tap (mobile behavior: tap to preview, tap again to select)
   const handleTap = useCallback((themeId: string) => {
@@ -160,7 +160,7 @@ export function VisualThemeSelector({
       setMobilePreviewId(themeId);
       setPreviewThemeId(themeId);
     }
-  }, [disabled, mobilePreviewId, onChange, setPreviewThemeId]);
+  }, [disabled, mobilePreviewId, onChange, setMobilePreviewId, setPreviewThemeId]);
 
   return (
     <RadioGroup value={value} onValueChange={onChange} disabled={disabled}>

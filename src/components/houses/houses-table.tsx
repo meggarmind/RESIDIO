@@ -133,7 +133,7 @@ export function HousesTable() {
       setSortOrder('asc');
     }
     setPage(1);
-  }, [sortBy]);
+  }, [setPage, setSortBy, setSortOrder, sortBy]);
 
   const handleNavigate = useCallback((id: string) => {
     router.push(`/houses/${id}`);
@@ -176,7 +176,18 @@ export function HousesTable() {
       filters.push({ id: 'search', label: `Search: "${debouncedSearch}"`, onRemove: () => setSearch('') });
     }
     return filters;
-  }, [streetId, houseTypeId, isOccupied, streets, houseTypes, debouncedSearch]);
+  }, [
+    debouncedSearch,
+    houseTypeId,
+    houseTypes,
+    isOccupied,
+    setHouseTypeId,
+    setIsOccupied,
+    setSearch,
+    setStreetId,
+    streetId,
+    streets,
+  ]);
 
   // Reset page when filters change
   // Note: We don't need a useEffect for this if we just ensure we setPage(1) when setting filters

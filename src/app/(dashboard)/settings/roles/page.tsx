@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,15 +18,6 @@ function RolesSettingsContent() {
   const validTabs = ['roles', 'assignments', 'pending', 'rules', 'orphaned'];
   const initialTab = tabFromUrl && validTabs.includes(tabFromUrl) ? tabFromUrl : 'roles';
 
-  const [activeTab, setActiveTab] = useState(initialTab);
-
-  // Sync tab state with URL parameter changes
-  useEffect(() => {
-    if (tabFromUrl && validTabs.includes(tabFromUrl)) {
-      setActiveTab(tabFromUrl);
-    }
-  }, [tabFromUrl]);
-
   return (
     <div className="space-y-6">
       <div>
@@ -36,7 +27,7 @@ function RolesSettingsContent() {
         </p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs key={initialTab} defaultValue={initialTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="roles" className="gap-2">
             <Shield className="h-4 w-4" />
