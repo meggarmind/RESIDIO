@@ -10,7 +10,7 @@
  */
 
 import { resend, emailConfig, isEmailConfigured } from '@/lib/email/resend';
-import { getSettingValueAsService } from '@/actions/settings/get-settings';
+import { getSettingValueAsService, getSettingResultAsService } from '@/actions/settings/get-settings';
 import { createAdminClient } from '@/lib/supabase/server';
 import type {
   NotificationChannel,
@@ -129,10 +129,24 @@ async function sendViaWhatsApp(
   // Runs from cron/queue processing with no authenticated user — must use
   // the service-role read (see #136), or this kill switch does nothing
   // under cron regardless of what's configured.
-  // NOTE: `=== false` fails OPEN on null/absent/error; making this fail
-  // closed is tracked separately in #134 and must not be bundled here.
-  const whatsappEnabled = await getSettingValueAsService('whatsapp_enabled');
-  if (whatsappEnabled === false) {
+  //
+  // Fails CLOSED (#134): an absent row or a read error must BLOCK sending,
+  // not allow it. `getSettingValueAsService` collapses "no row" and "query
+  // errored" to `null`, and `null !== false` used to let every send through
+  // whenever the setting was unconfigured or unreadable — i.e. by default,
+  // since nothing writes this row until an admin visits the WhatsApp
+  // settings page. `getSettingResultAsService` keeps the three cases apart
+  // so 'absent' and 'error' can each be blocked with a distinct message —
+  // an operator needs to know "nobody has turned this on" apart from "we
+  // could not check", since the fix for each is different.
+  const whatsappEnabledResult = await getSettingResultAsService('whatsapp_enabled');
+  if (whatsappEnabledResult.status === 'absent') {
+    return { success: false, error: 'WhatsApp is not enabled in system settings' };
+  }
+  if (whatsappEnabledResult.status === 'error') {
+    return { success: false, error: 'WhatsApp enablement could not be verified' };
+  }
+  if (whatsappEnabledResult.value !== true) {
     return { success: false, error: 'WhatsApp notifications are disabled in system settings' };
   }
 

@@ -10,6 +10,7 @@ import {
   testWhatsAppConnection,
   type WhatsAppConnectionStatus,
 } from '@/actions/whatsapp/connection';
+import { TemplateContentSids } from '@/app/(dashboard)/settings/whatsapp/template-content-sids';
 
 const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   connected: false,
@@ -23,6 +24,7 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   hasVerifyToken: false,
   hasAppSecret: false,
   hasAuthToken: false,
+  templateContentSids: null,
 };
 
 function formatSavedAt(status: WhatsAppConnectionStatus): string {
@@ -165,6 +167,10 @@ export function ConnectionSettings({
         <p className="text-sm text-muted-foreground">
           Not connected. WhatsApp will fall back to environment variable credentials, if configured.
         </p>
+      )}
+
+      {status.connected && status.provider === 'twilio' && (
+        <TemplateContentSids initial={status.templateContentSids} />
       )}
 
       <div className="flex flex-wrap items-center gap-3">

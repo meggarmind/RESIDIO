@@ -24,6 +24,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
 import { encrypt, isEncryptionConfigured } from '@/lib/encryption';
 import { resolveWhatsAppConfig, invalidateWhatsAppConfigCache } from '@/lib/whatsapp/config';
+import { isApprovedWhatsAppTemplateName } from '@/lib/whatsapp/templates';
 
 type ActionResult<T> = {
   success: boolean;
@@ -50,6 +51,12 @@ export type WhatsAppConnectionStatus = {
   hasVerifyToken: boolean;
   hasAppSecret: boolean;
   hasAuthToken: boolean;
+  // Twilio Content SIDs, keyed by approved template name (see
+  // src/lib/whatsapp/templates.ts). Unlike the secret booleans above, these
+  // are not sensitive -- a Content SID identifies a template, it does not
+  // authenticate anything -- so this returns the actual mapping, not just a
+  // "configured" flag.
+  templateContentSids: Record<string, string> | null;
 };
 
 const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
@@ -64,6 +71,7 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   hasVerifyToken: false,
   hasAppSecret: false,
   hasAuthToken: false,
+  templateContentSids: null,
 };
 
 /**
@@ -83,7 +91,7 @@ export async function getWhatsAppConnectionStatus(): Promise<ActionResult<WhatsA
   const { data, error } = await adminClient
     .from('whatsapp_provider_credentials')
     .select(
-      'provider, phone_number_id, whatsapp_from_number, api_version, updated_at, access_token_encrypted, verify_token_encrypted, app_secret_encrypted, auth_token_encrypted, account_sid_encrypted, updated_by_profile:profiles!updated_by(full_name)'
+      'provider, phone_number_id, whatsapp_from_number, api_version, updated_at, access_token_encrypted, verify_token_encrypted, app_secret_encrypted, auth_token_encrypted, account_sid_encrypted, template_content_sids, updated_by_profile:profiles!updated_by(full_name)'
     )
     .eq('is_active', true)
     .maybeSingle();
@@ -119,6 +127,7 @@ export async function getWhatsAppConnectionStatus(): Promise<ActionResult<WhatsA
       hasVerifyToken: Boolean(data.verify_token_encrypted),
       hasAppSecret: Boolean(data.app_secret_encrypted),
       hasAuthToken: Boolean(data.auth_token_encrypted),
+      templateContentSids: (data.template_content_sids as Record<string, string> | null) || null,
     },
     error: null,
   };
@@ -415,4 +424,97 @@ export async function testWhatsAppConnection(): Promise<ActionResult<TestWhatsAp
       error: null,
     };
   }
+}
+
+// ============================================================
+// Twilio template content SIDs
+// ============================================================
+
+/**
+ * Updates the Twilio Content SID mapping on the active credentials row,
+ * without touching any other field (account SID, auth token, from number).
+ *
+ * A lighter, targeted update rather than routing through
+ * saveWhatsAppCredentials()/replace_whatsapp_credentials deliberately:
+ * that RPC requires a full account SID + auth token resubmission (its Zod
+ * schema enforces both as non-empty), and those secrets are never sent
+ * back to the client to prefill a form with -- see the "Secret fields"
+ * comment in connection-settings.tsx. An admin who only wants to update a
+ * Content SID should not have to re-enter (or worse, blank out) the
+ * account credentials to do it.
+ */
+export async function updateWhatsAppTemplateContentSids(
+  templateContentSids: Record<string, string>
+): Promise<ActionResult<null>> {
+  const authorization = await authorizePermission(PERMISSIONS.WHATSAPP_MANAGE);
+  if (!authorization.authorized) {
+    return { success: false, data: null, error: authorization.error || 'Unauthorized' };
+  }
+
+  // Template NAMES are not editable through this action -- they are the
+  // approved-sender allowlist enforced by isApprovedWhatsAppTemplateName()
+  // in src/lib/notifications/send.ts, which only allows a proactive
+  // WhatsApp send to use one of the three pre-approved template names.
+  // That check is a compliance boundary (WhatsApp Business only allows
+  // sending pre-approved templates outside the 24-hour customer service
+  // window); if an admin could type an arbitrary key into this JSONB map
+  // and it were trusted as a template name, it would let them route an
+  // unapproved template through the same send path. So every key supplied
+  // here must already be one of the fixed WHATSAPP_TEMPLATE_NAMES -- only
+  // which Twilio Content SID is bound to which approved name is
+  // admin-editable.
+  const entries = Object.entries(templateContentSids);
+  for (const [name] of entries) {
+    if (!isApprovedWhatsAppTemplateName(name)) {
+      return { success: false, data: null, error: `Unknown WhatsApp template name: ${name}` };
+    }
+  }
+
+  const sanitized: Record<string, string> = {};
+  for (const [name, sid] of entries) {
+    const trimmed = typeof sid === 'string' ? sid.trim() : '';
+    if (trimmed) sanitized[name] = trimmed;
+  }
+
+  const adminClient = createAdminClient();
+  const { data: active, error: readError } = await adminClient
+    .from('whatsapp_provider_credentials')
+    .select('id, template_content_sids')
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (readError) {
+    console.error('Failed to look up active WhatsApp connection:', readError);
+    return { success: false, data: null, error: 'Failed to look up the active WhatsApp connection' };
+  }
+  if (!active) {
+    return { success: false, data: null, error: 'No active WhatsApp connection to update' };
+  }
+
+  const { error } = await adminClient
+    .from('whatsapp_provider_credentials')
+    .update({ template_content_sids: sanitized, updated_by: authorization.userId })
+    .eq('id', active.id);
+
+  if (error) {
+    console.error('Failed to update WhatsApp template content SIDs:', error);
+    return { success: false, data: null, error: 'Failed to update WhatsApp template content SIDs' };
+  }
+
+  // Not a secret (see the WhatsAppConnectionStatus.templateContentSids
+  // comment) -- safe to record the full mapping, unlike saveWhatsAppCredentials()
+  // above which must never put a plaintext secret in newValues.
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'whatsapp_provider_credentials',
+    entityId: active.id,
+    entityDisplay: 'WhatsApp Twilio template content SIDs',
+    oldValues: { templateContentSids: active.template_content_sids },
+    newValues: { templateContentSids: sanitized },
+  });
+
+  invalidateWhatsAppConfigCache();
+  revalidatePath('/settings/whatsapp');
+
+  return { success: true, data: null, error: null };
 }

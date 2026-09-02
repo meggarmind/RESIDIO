@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
 import { sendNotification } from '@/lib/notifications/send';
-import { getSettingValueAsService } from '@/actions/settings/get-settings';
+import { getSettingValueAsService, getSettingResultAsService } from '@/actions/settings/get-settings';
 import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 
 vi.mock('@/actions/settings/get-settings', () => ({
   getSettingValueAsService: vi.fn(),
+  getSettingResultAsService: vi.fn(),
 }));
 
 vi.mock('@/lib/whatsapp', () => ({
@@ -74,6 +75,10 @@ describe('WhatsApp outbound dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getSettingValueAsService).mockResolvedValue(true);
+    // whatsapp_enabled is read via getSettingResultAsService (#134, fail
+    // closed) — default it to an explicit 'ok'/true so every test other
+    // than the ones below that exercise this gate directly gets through it.
+    vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'ok', value: true });
     vi.mocked(createAdminClient).mockReturnValue(mockSupabaseChain());
   });
 
@@ -237,10 +242,7 @@ describe('WhatsApp outbound dispatch', () => {
   });
 
   it('rejects sends when WhatsApp is disabled in settings', async () => {
-    vi.mocked(getSettingValueAsService).mockImplementation(async (key) => {
-      if (key === 'whatsapp_enabled') return false;
-      return true;
-    });
+    vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'ok', value: false });
 
     const result = await sendNotification(
       queueItem({
@@ -255,6 +257,72 @@ describe('WhatsApp outbound dispatch', () => {
     );
 
     expect(result).toEqual({ success: false, error: 'WhatsApp notifications are disabled in system settings' });
+  });
+
+  // Issue #134: the master kill switch used to fail OPEN. `whatsappEnabled
+  // === false` is `false` for both an absent row and a read error (both
+  // collapsed to `null` by the old getSettingValueAsService call), so an
+  // estate that had never touched the WhatsApp settings page — i.e. every
+  // estate by default — sent WhatsApp messages with nobody having turned
+  // the channel on. These three tests assert the fixed, fail-closed
+  // behaviour directly against sendNotification().
+  it('blocks the send when whatsapp_enabled is absent (fails closed, not open)', async () => {
+    vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'absent' });
+
+    const result = await sendNotification(
+      queueItem({
+        metadata: {
+          whatsapp_template: {
+            name: 'payment_received',
+            languageCode: 'en_US',
+            parameters: ['Ada', 'NGN 5,000', '01/09', 'REF'],
+          },
+        },
+      })
+    );
+
+    expect(result).toEqual({ success: false, error: 'WhatsApp is not enabled in system settings' });
+  });
+
+  it('blocks the send when whatsapp_enabled cannot be read, with an error distinguishable from the absent case', async () => {
+    vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'error', message: 'db unavailable' });
+
+    const result = await sendNotification(
+      queueItem({
+        metadata: {
+          whatsapp_template: {
+            name: 'payment_received',
+            languageCode: 'en_US',
+            parameters: ['Ada', 'NGN 5,000', '01/09', 'REF'],
+          },
+        },
+      })
+    );
+
+    expect(result).toEqual({ success: false, error: 'WhatsApp enablement could not be verified' });
+    expect(result.error).not.toBe('WhatsApp is not enabled in system settings');
+  });
+
+  it('allows the send when whatsapp_enabled is explicitly true', async () => {
+    vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'ok', value: true });
+    vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
+      success: true,
+      messageId: 'wamid.enabled-true-1',
+    });
+
+    const result = await sendNotification(
+      queueItem({
+        metadata: {
+          whatsapp_template: {
+            name: 'payment_received',
+            languageCode: 'en_US',
+            parameters: ['Ada', 'NGN 5,000', '01/09', 'REF'],
+          },
+        },
+      })
+    );
+
+    expect(result).toEqual({ success: true, externalId: 'wamid.enabled-true-1', error: undefined });
   });
 
   it('rejects when recipient phone is missing', async () => {

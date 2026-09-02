@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
 import { sendNotification } from '@/lib/notifications/send';
-import { getSettingValueAsService } from '@/actions/settings/get-settings';
+import { getSettingValueAsService, getSettingResultAsService } from '@/actions/settings/get-settings';
 import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 
 vi.mock('@/actions/settings/get-settings', () => ({
   getSettingValueAsService: vi.fn(),
+  getSettingResultAsService: vi.fn(),
 }));
 
 vi.mock('@/lib/whatsapp', () => ({
@@ -29,6 +30,10 @@ describe('WhatsApp notification dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getSettingValueAsService).mockResolvedValue(true);
+    // whatsapp_enabled is read via getSettingResultAsService (#134, fail
+    // closed) — default it 'ok'/true so this gate doesn't block sends this
+    // file isn't testing.
+    vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'ok', value: true });
     vi.mocked(createAdminClient).mockReturnValue({
       from: vi.fn().mockReturnValue({
          select: vi.fn().mockReturnThis(),
