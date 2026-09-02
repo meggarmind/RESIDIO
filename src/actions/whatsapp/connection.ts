@@ -83,9 +83,7 @@ export async function getWhatsAppConnectionStatus(): Promise<ActionResult<WhatsA
   const { data, error } = await adminClient
     .from('whatsapp_provider_credentials')
     .select(
-      'provider, phone_number_id, whatsapp_from_number, api_version, updated_at, ' +
-        'access_token_encrypted, verify_token_encrypted, app_secret_encrypted, auth_token_encrypted, account_sid_encrypted, ' +
-        'updated_by_profile:profiles!updated_by(full_name)'
+      'provider, phone_number_id, whatsapp_from_number, api_version, updated_at, access_token_encrypted, verify_token_encrypted, app_secret_encrypted, auth_token_encrypted, account_sid_encrypted, updated_by_profile:profiles!updated_by(full_name)'
     )
     .eq('is_active', true)
     .maybeSingle();
