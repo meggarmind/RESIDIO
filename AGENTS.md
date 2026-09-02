@@ -67,6 +67,7 @@ Follow `DESIGN_AGENTS.md` (the repo's design standard) for all UI work: OKLCH co
 - `docs/README.md` — master index
 - `docs/setup/development-environment.md` — full setup, env vars, conventions
 - `docs/api/supabase-integration.md` — data-layer & MCP patterns
+- `docs/agents/branching.md` — **branching, isolation, concurrent sessions, the `stage` backup**
 - `CLAUDE.md` — auth/audit integration contract, MCP tools, session workflow
 - `TODO.md` / `ACTIONPLAN.md` — current phase and in-progress plan; update `ACTIONPLAN.md` as you complete steps.
 
@@ -77,6 +78,27 @@ Follow `DESIGN_AGENTS.md` (the repo's design standard) for all UI work: OKLCH co
 - Update `ACTIONPLAN.md` whenever work completes, changes, or invalidates an active plan step.
 - When implementation is complete and the ticket has been updated with verification results, move its project-board status to **Review** before finishing the session. Keep it open until review is accepted; if project access is unavailable, report the blocker explicitly.
 - Record the work actually performed, decisions, verification results, known failures, and remaining work. Do not create separate handoff files; `SESSION_STATE.md` is the sole live handoff.
+
+## Branching and isolation
+
+**Never work on `master`.** It is a merge target. Branch protection refuses direct pushes
+from every tool, on every machine, including the repo owner. A rejected push is the rule
+working — open a PR rather than routing around it or asking another session to push for you.
+
+This repo is worked by two machines running Claude Code, OpenCode and Codex, sometimes
+concurrently. **No session may assume it is the only one.** Declare your tool, branch and
+intent in `SESSION_STATE.md` at session start, and check it before taking a branch.
+
+Branch prefixes declare the lane: `codex/issue-<n>-<slug>` (repo and board issues),
+`feat/<slug>` and `fix/<slug>` (features and fixes), `qa/<date>`, `merge/<slug>`.
+
+Sync `master` into your branch **before** starting work that is not central to the feature.
+Apply a migration only from the branch that introduces it, only after that branch merges.
+
+`stage` is the last `master` that passed checks — the rollback point. It advances only via
+`.github/workflows/stage-backup.yml`; never push to it by hand.
+
+**Full rules: `docs/agents/branching.md`.**
 
 ## Mandatory issue-driven delivery workflow
 
