@@ -56,13 +56,14 @@ function DonutChart({ distribution }: { distribution: InvoiceStatusDistribution 
     const strokeWidth = 16;
     const circumference = 2 * Math.PI * radius;
 
-    let cumulativeOffset = 0;
-    const segments = statusConfig.map((status) => {
+    const segments = statusConfig.map((status, index) => {
         const value = distribution[status.key];
         const percentage = (value / total) * 100;
         const strokeDasharray = (percentage / 100) * circumference;
+        const cumulativeOffset = statusConfig
+            .slice(0, index)
+            .reduce((sum, previousStatus) => sum + (distribution[previousStatus.key] / total) * 100, 0);
         const rotation = (cumulativeOffset / 100) * 360 - 90;
-        cumulativeOffset += percentage;
 
         return {
             ...status,
@@ -88,7 +89,7 @@ function DonutChart({ distribution }: { distribution: InvoiceStatusDistribution 
                     className="text-muted/10"
                 />
                 {/* Segments */}
-                {segments.map((segment, index) => (
+                {segments.map((segment) => (
                     <circle
                         key={segment.key}
                         cx="60"

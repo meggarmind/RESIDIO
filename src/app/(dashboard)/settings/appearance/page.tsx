@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -13,6 +13,92 @@ import {
   useSetEstateDefaultTheme,
 } from '@/hooks/use-theme-preferences';
 
+type AppearanceSettingsFormProps = {
+  initialTheme: string;
+  dashboardTheme: string | undefined;
+  portalTheme: string | undefined;
+  isSaving: boolean;
+  onSave: (theme: string) => Promise<boolean>;
+};
+
+function AppearanceSettingsForm({
+  initialTheme,
+  dashboardTheme,
+  portalTheme,
+  isSaving,
+  onSave,
+}: AppearanceSettingsFormProps) {
+  const [selectedTheme, setSelectedTheme] = useState(initialTheme);
+  const [hasSaved, setHasSaved] = useState(false);
+  const isDirty = !hasSaved && (selectedTheme !== dashboardTheme || selectedTheme !== portalTheme);
+
+  const handleSave = async () => {
+    if (await onSave(selectedTheme)) {
+      setHasSaved(true);
+    }
+  };
+
+  const handleThemeChange = (theme: string) => {
+    setSelectedTheme(theme);
+    setHasSaved(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div>
+        <h3 className="text-lg font-medium">Appearance Settings</h3>
+        <p className="text-sm text-muted-foreground">
+          Configure the visual appearance of the application.
+        </p>
+      </div>
+      <Separator />
+
+      {/* Global Theme Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5" />
+            Global Theme
+          </CardTitle>
+          <CardDescription>
+            Choose the visual theme for the entire estate interface (Admin Dashboard & Resident Portal).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <VisualThemeSelector
+            value={selectedTheme}
+            onChange={handleThemeChange}
+            context="admin-dashboard" // Context mainly used for preview/class application internally if needed
+            disabled={isSaving}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <Button
+          onClick={handleSave}
+          disabled={!isDirty || isSaving}
+          size="lg"
+        >
+          {isSaving ? (
+            <>
+              <Save className="mr-2 h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="mr-2 h-4 w-4" />
+              Save Changes
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function AppearanceSettingsPage() {
   // Dashboard theme state
   const { data: dashboardTheme, isLoading: dashboardLoading } = useEstateDefaultTheme('admin-dashboard');
@@ -22,32 +108,10 @@ export default function AppearanceSettingsPage() {
   const { data: portalTheme, isLoading: portalLoading } = useEstateDefaultTheme('resident-portal');
   const setPortalTheme = useSetEstateDefaultTheme('resident-portal');
 
-  // Local state for form - unified to single selection
-  const [selectedTheme, setSelectedTheme] = useState('default');
-  const [isDirty, setIsDirty] = useState(false);
-
   const isLoading = dashboardLoading || portalLoading;
   const isSaving = setDashboardTheme.isPending || setPortalTheme.isPending;
 
-  // Load settings when data is fetched
-  // We prioritize dashboard theme as the source of truth if they differ
-  useEffect(() => {
-    if (dashboardTheme) {
-      setSelectedTheme(dashboardTheme);
-    } else if (portalTheme) {
-      setSelectedTheme(portalTheme);
-    }
-  }, [dashboardTheme, portalTheme]);
-
-  // Track dirty state
-  useEffect(() => {
-    // Dirty if matches neither dashboard nor portal (should be synced, but check both)
-    const matchesDashboard = dashboardTheme && selectedTheme === dashboardTheme;
-    const matchesPortal = portalTheme && selectedTheme === portalTheme;
-    setIsDirty(!matchesDashboard || !matchesPortal);
-  }, [selectedTheme, dashboardTheme, portalTheme]);
-
-  const handleSave = async () => {
+  const handleSave = async (selectedTheme: string) => {
     const promises = [];
 
     // Save to dashboard theme
@@ -76,16 +140,17 @@ export default function AppearanceSettingsPage() {
 
     if (promises.length === 0) {
       toast.info('No changes to save');
-      return;
+      return false;
     }
 
     try {
       await Promise.all(promises);
-      setIsDirty(false);
       toast.success('Global appearance settings saved successfully');
+      return true;
     } catch (error) {
       console.error('Failed to save appearance settings:', error);
       toast.error('Failed to save settings');
+      return false;
     }
   };
 
@@ -107,57 +172,13 @@ export default function AppearanceSettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div>
-        <h3 className="text-lg font-medium">Appearance Settings</h3>
-        <p className="text-sm text-muted-foreground">
-          Configure the visual appearance of the application.
-        </p>
-      </div>
-      <Separator />
-
-      {/* Global Theme Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="h-5 w-5" />
-            Global Theme
-          </CardTitle>
-          <CardDescription>
-            Choose the visual theme for the entire estate interface (Admin Dashboard & Resident Portal).
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <VisualThemeSelector
-            value={selectedTheme}
-            onChange={setSelectedTheme}
-            context="admin-dashboard" // Context mainly used for preview/class application internally if needed
-            disabled={isSaving}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <Button
-          onClick={handleSave}
-          disabled={!isDirty || isSaving}
-          size="lg"
-        >
-          {isSaving ? (
-            <>
-              <Save className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="mr-2 h-4 w-4" />
-              Save Changes
-            </>
-          )}
-        </Button>
-      </div>
-    </div>
+    <AppearanceSettingsForm
+      key={`${dashboardTheme ?? ''}:${portalTheme ?? ''}`}
+      initialTheme={dashboardTheme || portalTheme || 'default'}
+      dashboardTheme={dashboardTheme}
+      portalTheme={portalTheme}
+      isSaving={isSaving}
+      onSave={handleSave}
+    />
   );
 }

@@ -1,36 +1,39 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 export function usePersistedState<T>(
   key: string,
   defaultValue: T
 ): [T, (value: T | ((prev: T) => T)) => void] {
-  const [state, setState] = useState<T>(defaultValue);
-  const hydrated = useRef(false);
-
-  useEffect(() => {
+  const [state, setState] = useState<T>(() => {
     try {
       const stored = window.sessionStorage.getItem(key);
       if (stored !== null) {
-        setState(JSON.parse(stored) as T);
+        return JSON.parse(stored) as T;
       }
     } catch {
       // ignore
     }
-    hydrated.current = true;
-  }, [key]);
+    return defaultValue;
+  });
+  const stateRef = useRef(state);
 
-  useEffect(() => {
-    if (!hydrated.current) return;
+  const setPersistedState = useCallback((value: T | ((prev: T) => T)) => {
+    const nextState = typeof value === 'function'
+      ? (value as (prev: T) => T)(stateRef.current)
+      : value;
+
+    stateRef.current = nextState;
+    setState(nextState);
     try {
-      window.sessionStorage.setItem(key, JSON.stringify(state));
+      window.sessionStorage.setItem(key, JSON.stringify(nextState));
     } catch {
       // sessionStorage might be full or unavailable
     }
-  }, [key, state]);
+  }, [key]);
 
-  return [state, setState];
+  return [state, setPersistedState];
 }
 
 export function usePersistedCallback<T extends unknown[]>(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export interface ProgressRingProps {
@@ -31,19 +31,14 @@ export function ProgressRing({
   lineCap = 'round',
 }: ProgressRingProps) {
   const [progress, setProgress] = useState(0);
-  const circleRef = useRef<SVGCircleElement>(null);
   const rafRef = useRef<number | undefined>(undefined);
   const startTimeRef = useRef<number | undefined>(undefined);
-  const gradientIdRef = useRef<string>('');
+  const gradientId = useId();
 
   const clampedValue = Math.min(Math.max(value, 0), 100);
   const center = size / 2;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-
-  useEffect(() => {
-    gradientIdRef.current = `progress-gradient-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-  }, []);
 
   useEffect(() => {
     startTimeRef.current = undefined;
@@ -76,14 +71,14 @@ export function ProgressRing({
       <svg width={size} height={size} className="transform -rotate-90" style={{ overflow: 'visible' }}>
         {gradientColor && (
           <defs>
-            <linearGradient id={gradientIdRef.current} x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" style={{ stopColor: color, stopOpacity: 1 }} />
               <stop offset="100%" style={{ stopColor: gradientColor, stopOpacity: 1 }} />
             </linearGradient>
           </defs>
         )}
         <circle cx={center} cy={center} r={radius} fill="none" stroke={trackColor} strokeWidth={strokeWidth} className="opacity-30" />
-        <circle ref={circleRef} cx={center} cy={center} r={radius} fill="none" stroke={gradientColor ? `url(#${gradientIdRef.current})` : color} strokeWidth={strokeWidth} strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap={lineCap} className="transition-all duration-300 ease-out" style={{ filter: 'drop-shadow(0 0 4px rgba(0, 0, 0, 0.1))' }} />
+        <circle cx={center} cy={center} r={radius} fill="none" stroke={gradientColor ? `url(#${gradientId})` : color} strokeWidth={strokeWidth} strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap={lineCap} className="transition-all duration-300 ease-out" style={{ filter: 'drop-shadow(0 0 4px rgba(0, 0, 0, 0.1))' }} />
       </svg>
       {(showValue || label) && (
         <div className="absolute inset-0 flex flex-col items-center justify-center">

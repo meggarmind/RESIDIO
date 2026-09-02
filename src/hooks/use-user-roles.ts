@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useResident } from './use-residents';
 import type { ResidentRole } from '@/types/database';
@@ -29,8 +29,7 @@ export function useUserRoles(): UserRolesHook {
     const { residentId } = useAuth();
     const { data: resident, isLoading } = useResident(residentId || undefined);
 
-    // Initialize mode from localStorage if available, otherwise default depending on roles
-    const [mode, setModeState] = useState<PortalMode>('home');
+    const [selectedMode, setModeState] = useState<PortalMode | null>(null);
 
     // Compute roles and derived state
     const { roles, hasLandlordRole, hasResidentRole, isMixedRole, availableModes } = useMemo(() => {
@@ -87,27 +86,20 @@ export function useUserRoles(): UserRolesHook {
         };
     }, [resident]);
 
+    const storedMode = typeof window === 'undefined'
+        ? null
+        : localStorage.getItem('residio-portal-mode') as PortalMode | null;
+    const preferredMode = selectedMode ?? storedMode;
+    const mode = preferredMode && availableModes.includes(preferredMode)
+        ? preferredMode
+        : availableModes.includes('home') ? 'home' : 'portfolio';
+
     // Persist mode selection
     const setMode = (newMode: PortalMode) => {
         if (!availableModes.includes(newMode)) return;
         setModeState(newMode);
         localStorage.setItem('residio-portal-mode', newMode);
     };
-
-    // Hydrate mode from storage on mount or when availableModes change
-    useEffect(() => {
-        const savedMode = localStorage.getItem('residio-portal-mode') as PortalMode;
-        if (savedMode && availableModes.includes(savedMode)) {
-            setModeState(savedMode);
-        } else {
-            // Default priority: Home > Portfolio
-            if (availableModes.includes('home')) {
-                setModeState('home');
-            } else if (availableModes.includes('portfolio')) {
-                setModeState('portfolio');
-            }
-        }
-    }, [availableModes]);
 
     return {
         isLoading,

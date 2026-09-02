@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, ShieldAlert, Database, Activity } from 'lucide-react';
 import Link from 'next/link';
 import { useSystemSettings } from '@/hooks/use-settings';
 import { CronHealthCard } from '@/components/dashboard/cron-health-card';
+
+const subscribeToMount = () => () => {};
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
   if (!settings) return {};
@@ -18,8 +20,7 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
 
 export default function SystemOverviewPage() {
   const { data: systemSettings } = useSystemSettings();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const mounted = useSyncExternalStore(subscribeToMount, () => true, () => false);
 
   const settingsObj = settingsToObject(systemSettings);
   const maintenanceMode = settingsObj.maintenance_mode === true;
