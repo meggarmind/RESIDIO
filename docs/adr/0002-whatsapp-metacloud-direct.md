@@ -1,3 +1,5 @@
 # WhatsApp delivery goes through Meta Cloud API, provider-agnostic behind src/lib/whatsapp/
 
+> **Note**: This decision is superseded by [ADR-0003](0003-whatsapp-multi-provider.md), which adds support for runtime provider selection with Twilio as an alternative to Meta.
+
 The Assistant sends and receives via the Meta WhatsApp Cloud API directly, not a Business Solution Provider (360dialog, Twilio, Termii, Infobip). Rationale: the earlier SMS module (`src/lib/sms/termii.ts`) is dormant — there is no existing vendor relationship to reuse, so nothing argues for a middleman BSP; Meta is the platform every BSP wraps, with no per-conversation margin or third-party subscription. All provider specifics are isolated behind `src/lib/whatsapp/` (mirroring `src/lib/sms/`), so if number onboarding, template approval, or ops overhead ever bite, swapping providers stays cheap. BSP was rejected because it adds cost and a dependency on top of the same platform without reducing the fundamental Meta requirements.

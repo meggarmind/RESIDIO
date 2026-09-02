@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the example, which carries no secrets and is the only place a new
+# deployer can discover what the app needs. It was previously force-added on a
+# feature branch, which meant edits to it silently failed to commit.
+!.env.example
 
 # vercel
 .vercel
