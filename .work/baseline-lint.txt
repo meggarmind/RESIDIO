@@ -1,0 +1,748 @@
+
+> residio@0.4.0 lint
+> eslint
+
+
+C:\projects\RESIDIO\e2e\residents-houses.spec.ts
+  367:27  warning  'withinOption' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\scripts\apply-verified-legacy-payment-deltas.ts
+  34:73  warning  'exists' is defined but never used        @typescript-eslint/no-unused-vars
+  34:81  warning  'house_number' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\scripts\cleanup-duplicate-residents.mjs
+  38:57  warning  '_' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\scripts\generate-dec-invoices.ts
+  26:36  warning  'invoiceError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\scripts\generate-invoices-manual.ts
+  62:11  warning  'House' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\scripts\verify-seed-data.mjs
+  125:68  warning  '_' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\analytics\get-analytics-data.ts
+  6:3  warning  'AnalyticsData' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\email-imports\bank-passwords.ts
+  324:12  warning  'err' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\email-imports\control-import.ts
+  9:10  warning  'createServerSupabaseClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\email-imports\fetch-emails.ts
+  12:10  warning  'logAudit' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\email-imports\process-email-import.ts
+  718:3  warning  'userId' is defined but never used  @typescript-eslint/no-unused-vars
+  751:3  warning  'userId' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\email\send-payment-reminders.ts
+  28:13  warning  'user' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\expenses\get-expense-categories.ts
+  10:6  warning  'GetExpenseCategoriesResponse' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\finance\manual-verification.ts
+  100:5  warning  'notes' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\impersonation\approval.ts
+  12:10  warning  'startImpersonationSession' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\impersonation\index.ts
+  9:3  warning  'ImpersonationSession' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\imports\create-import.ts
+  6:36  warning  'BankStatementRow' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\imports\process-import.ts
+  9:15  warning  'BankStatementImport' is defined but never used  @typescript-eslint/no-unused-vars
+  9:36  warning  'BankStatementRow' is defined but never used     @typescript-eslint/no-unused-vars
+  9:54  warning  'PaymentRecord' is defined but never used        @typescript-eslint/no-unused-vars
+  9:69  warning  'Expense' is defined but never used              @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\notifications\history.ts
+  11:3  warning  'NotificationHistoryEntry' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\notifications\invoice-reminders.ts
+   14:10  warning  'getSettingValue' is defined but never used       @typescript-eslint/no-unused-vars
+   20:3   warning  'getActiveDays' is defined but never used         @typescript-eslint/no-unused-vars
+   36:3   warning  'InvoiceReminderState' is defined but never used  @typescript-eslint/no-unused-vars
+  207:3   warning  'daysFromDue' is defined but never used           @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\notifications\preferences.ts
+   9:10  warning  'createServerSupabaseClient' is defined but never used  @typescript-eslint/no-unused-vars
+  14:3   warning  'getPreference' is defined but never used               @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\notifications\queue.ts
+  16:3  warning  'getQueueItems' is defined but never used             @typescript-eslint/no-unused-vars
+  23:3  warning  'generateDeduplicationKey' is defined but never used  @typescript-eslint/no-unused-vars
+  27:3  warning  'NotificationQueueItem' is defined but never used     @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\notifications\reminder-config.ts
+  10:10  warning  'createServerSupabaseClient' is defined but never used  @typescript-eslint/no-unused-vars
+  25:3   warning  'NotificationChannel' is defined but never used         @typescript-eslint/no-unused-vars
+  26:3   warning  'ReminderEscalationLevel' is defined but never used     @typescript-eslint/no-unused-vars
+  27:3   warning  'DEFAULT_REMINDER_SCHEDULE' is defined but never used   @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\notifications\templates.ts
+  9:38  warning  'createAdminClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\payments\check-overdue.ts
+  12:17  warning  'data' is assigned a value but never used   @typescript-eslint/no-unused-vars
+  12:30  warning  'count' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\payments\update-payment.ts
+  10:7  warning  'updatePaymentSchema' is assigned a value but only used as a type  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\reports\report-engine.ts
+   868:9  warning  'brackets' is assigned a value but never used         @typescript-eslint/no-unused-vars
+  1309:7  warning  'paidCount' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  1310:7  warning  'collectedAmount' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\residents\create-resident.ts
+  3:38  warning  'createAdminClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\residents\sponsor-cascade.ts
+  344:9  warning  'supabase' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\residents\validation.ts
+  32:11  warning  'roleLabel' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\roles\assignment-rules.ts
+  8:3  warning  'RoleAssignmentRule' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\two-factor\get-status.ts
+  11:3  warning  'TwoFactorEnforcement' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\two-factor\verify.ts
+  3:10  warning  'createServerSupabaseClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\actions\verification\verify-contact.ts
+  22:19  warning  'user' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(auth)\login\page.tsx
+  83:22  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\projects\RESIDIO\src\app\(auth)\login\page.tsx:83:22
+  81 |   });
+  82 |
+> 83 |   const rememberMe = watch('rememberMe');
+     |                      ^^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  84 |
+  85 |   const onSubmit = async (data: LoginFormData) => {
+  86 |     setLoginState('loading');  react-hooks/incompatible-library
+
+C:\projects\RESIDIO\src\app\(auth)\register\page.tsx
+    3:20  warning  'useCallback' is defined but never used      @typescript-eslint/no-unused-vars
+   13:10  warning  'Checkbox' is defined but never used         @typescript-eslint/no-unused-vars
+  111:9   warning  'router' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\announcements\[id]\page.tsx
+   9:10  warning  'Badge' is defined but never used  @typescript-eslint/no-unused-vars
+  41:3   warning  'User' is defined but never used   @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\approvals\page.tsx
+    5:10  warning  'Card' is defined but never used                                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+    5:16  warning  'CardContent' is defined but never used                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+    5:29  warning  'CardDescription' is defined but never used                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+    5:46  warning  'CardHeader' is defined but never used                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+    5:58  warning  'CardTitle' is defined but never used                                                                                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+   32:61  warning  'Eye' is defined but never used                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+   36:10  warning  'toast' is defined but never used                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+   39:10  warning  'cn' is defined but never used                                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+  453:53  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\projects\RESIDIO\src\app\(dashboard)\billing\[id]\page.tsx
+  31:13  warning  'user' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\documents\[id]\page.tsx
+   22:10  warning  'Tabs' is defined but never used                     @typescript-eslint/no-unused-vars
+   22:16  warning  'TabsContent' is defined but never used              @typescript-eslint/no-unused-vars
+   22:29  warning  'TabsList' is defined but never used                 @typescript-eslint/no-unused-vars
+   22:39  warning  'TabsTrigger' is defined but never used              @typescript-eslint/no-unused-vars
+   66:9   warning  'router' is assigned a value but never used          @typescript-eslint/no-unused-vars
+  486:3   warning  'parentDocumentId' is defined but never used         @typescript-eslint/no-unused-vars
+  494:9   warning  'uploadMutation' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\houses\[id]\page.tsx
+   27:3   warning  'AlertDialogTrigger' is defined but never used                                                                                                                                                                  @typescript-eslint/no-unused-vars
+   51:29  warning  'ResidentHouse' is defined but never used                                                                                                                                                                       @typescript-eslint/no-unused-vars
+   51:44  warning  'Resident' is defined but never used                                                                                                                                                                            @typescript-eslint/no-unused-vars
+  164:17  warning  'pendingMoveOut' is assigned a value but never used                                                                                                                                                             @typescript-eslint/no-unused-vars
+  165:9   warning  'confirmMoveOutMutation' is assigned a value but never used                                                                                                                                                     @typescript-eslint/no-unused-vars
+  168:9   warning  The 'activeResidents' logical expression could make the dependencies of useMemo Hook (at line 169) change on every render. To fix this, wrap the initialization of 'activeResidents' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  168:9   warning  The 'activeResidents' logical expression could make the dependencies of useMemo Hook (at line 176) change on every render. To fix this, wrap the initialization of 'activeResidents' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  168:9   warning  The 'activeResidents' logical expression could make the dependencies of useMemo Hook (at line 183) change on every render. To fix this, wrap the initialization of 'activeResidents' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  168:9   warning  The 'activeResidents' logical expression could make the dependencies of useMemo Hook (at line 188) change on every render. To fix this, wrap the initialization of 'activeResidents' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  168:9   warning  The 'activeResidents' logical expression could make the dependencies of useMemo Hook (at line 193) change on every render. To fix this, wrap the initialization of 'activeResidents' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  168:9   warning  The 'activeResidents' logical expression could make the dependencies of useMemo Hook (at line 203) change on every render. To fix this, wrap the initialization of 'activeResidents' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  168:9   warning  The 'activeResidents' logical expression could make the dependencies of useMemo Hook (at line 257) change on every render. To fix this, wrap the initialization of 'activeResidents' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  168:9   warning  The 'activeResidents' logical expression could make the dependencies of useMemo Hook (at line 264) change on every render. To fix this, wrap the initialization of 'activeResidents' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  168:9   warning  The 'activeResidents' logical expression could make the dependencies of useMemo Hook (at line 347) change on every render. To fix this, wrap the initialization of 'activeResidents' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  267:59  warning  'residentRole' is defined but never used                                                                                                                                                                        @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\payments\email-imports\[importId]\page.tsx
+  58:15  warning  'EmailImport' is defined but never used                 @typescript-eslint/no-unused-vars
+  84:46  warning  'connectionLoading' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\payments\email-imports\page.tsx
+  26:3  warning  'useGmailConnectionStatus' is defined but never used  @typescript-eslint/no-unused-vars
+  72:9  warning  'resetMutation' is assigned a value but never used    @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\payments\import\page.tsx
+   9:10  warning  'Tabs' is defined but never used         @typescript-eslint/no-unused-vars
+   9:16  warning  'TabsContent' is defined but never used  @typescript-eslint/no-unused-vars
+   9:29  warning  'TabsList' is defined but never used     @typescript-eslint/no-unused-vars
+   9:39  warning  'TabsTrigger' is defined but never used  @typescript-eslint/no-unused-vars
+  10:56  warning  'Loader2' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\security\contacts\[id]\page.tsx
+    7:10  warning  'Badge' is defined but never used                @typescript-eslint/no-unused-vars
+  117:9   warning  'activeCode' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\security\logs\page.tsx
+  33:3   warning  'Search' is defined but never used                   @typescript-eslint/no-unused-vars
+  34:3   warning  'Calendar' is defined but never used                 @typescript-eslint/no-unused-vars
+  59:10  warning  'searchQuery' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  59:23  warning  'setSearchQuery' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\security\page.tsx
+  36:3   warning  'EnhancedTableCard' is defined but never used           @typescript-eslint/no-unused-vars
+  45:26  warning  'setContactFilters' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  54:17  warning  'contactsData' is assigned a value but never used       @typescript-eslint/no-unused-vars
+  54:42  warning  'contactsLoading' is assigned a value but never used    @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\settings\announcement-categories\page.tsx
+  124:21  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\projects\RESIDIO\src\app\(dashboard)\settings\announcement-categories\page.tsx:124:21
+  122 |   });
+  123 |
+> 124 |   const watchName = watch('name');
+      |                     ^^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  125 |   const watchColor = watch('color');
+  126 |   const isActive = watch('is_active');
+  127 |  react-hooks/incompatible-library
+
+C:\projects\RESIDIO\src\app\(dashboard)\settings\cron-status\page.tsx
+  26:10  warning  'Skeleton' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\settings\document-categories\page.tsx
+  91:32  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\projects\RESIDIO\src\app\(dashboard)\settings\document-categories\page.tsx:91:32
+  89 |   });
+  90 |
+> 91 |   const isResidentAccessible = watch('is_resident_accessible');
+     |                                ^^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  92 |
+  93 |   const handleOpenDialog = (category?: DocumentCategory) => {
+  94 |     if (category) {  react-hooks/incompatible-library
+
+C:\projects\RESIDIO\src\app\(dashboard)\settings\email\page.tsx
+  10:42  warning  'Loader2' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\settings\message-templates\page.tsx
+  448:38  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\projects\RESIDIO\src\app\(dashboard)\settings\message-templates\page.tsx:448:38
+  446 |                           <Checkbox
+  447 |                             id={`required-${index}`}
+> 448 |                             checked={watch(`variables.${index}.required`)}
+      |                                      ^^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  449 |                             onCheckedChange={(checked) =>
+  450 |                               setValue(`variables.${index}.required`, checked === true)
+  451 |                             }  react-hooks/incompatible-library
+
+C:\projects\RESIDIO\src\app\(dashboard)\settings\notification-queue\page.tsx
+  95:6  warning  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\projects\RESIDIO\src\app\(dashboard)\settings\notifications\page.tsx
+  19:3  warning  'Settings2' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\(dashboard)\settings\notifications\reminders\schedule\page.tsx
+  49:3  warning  'CheckCircle' is defined but never used  @typescript-eslint/no-unused-vars
+  50:3  warning  'XCircle' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\api\admin\generate-invoices\route.ts
+  13:28  warning  'request' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\app\auth\verify-2fa\page.tsx
+  42:10  warning  'codeSent' is assigned a value but never used                                                                            @typescript-eslint/no-unused-vars
+  84:6   warning  React Hook useEffect has a missing dependency: 'sendVerificationCode'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\projects\RESIDIO\src\components\admin\bank-accounts-list.tsx
+  57:42  warning  'refetch' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\admin\current-admins-list.tsx
+  7:18  warning  'User' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\admin\impersonation-approval-list.tsx
+  26:34  warning  'AvatarImage' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\admin\resident-impersonation-selector.tsx
+   4:23  warning  'User' is defined but never used   @typescript-eslint/no-unused-vars
+  62:14  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\analytics\kpi-summary-cards.tsx
+  3:48  warning  'Percent' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\analytics\occupancy-gauge.tsx
+  8:10  warning  'cn' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\analytics\payment-compliance-card.tsx
+  3:24  warning  'Clock' is defined but never used        @typescript-eslint/no-unused-vars
+  7:10  warning  'StatusBadge' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\announcements\announcement-form.tsx
+   3:10  warning  'useState' is defined but never used         @typescript-eslint/no-unused-vars
+  29:57  warning  'Send' is defined but never used             @typescript-eslint/no-unused-vars
+  68:9   warning  'router' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\announcements\announcements-table.tsx
+  69:10  warning  'cn' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\announcements\status-badges.tsx
+  4:42  warning  'AlertTriangle' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\assistant\floating-ai-assistant.tsx
+   5:39  warning  'Maximize2' is defined but never used             @typescript-eslint/no-unused-vars
+  21:9   warning  'sendMessage' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\billing\billing-profile-edit-dialog.tsx
+  33:61  warning  'BillingProfileWithItems' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-unused-vars
+  92:24  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\projects\RESIDIO\src\components\billing\billing-profile-edit-dialog.tsx:92:24
+  90 |     });
+  91 |
+> 92 |     const targetType = form.watch('target_type');
+     |                        ^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  93 |     const effectiveDate = form.watch('effective_date');
+  94 |
+  95 |     // Check impact of effective date change  react-hooks/incompatible-library
+
+C:\projects\RESIDIO\src\components\billing\billing-profile-form.tsx
+   25:61  warning  'BillableRole' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+   25:80  warning  'BillingTargetType' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+   86:24  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\projects\RESIDIO\src\components\billing\billing-profile-form.tsx:86:24
+  84 |     });
+  85 |
+> 86 |     const targetType = form.watch('target_type');
+     |                        ^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  87 |     const isOneTime = form.watch('is_one_time');
+  88 |
+  89 |     const { fields, append, remove } = useFieldArray({  react-hooks/incompatible-library
+  100:18  warning  'error' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\billing\invoice-correction-dialog.tsx
+  95:5   warning  'handleSubmit' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  96:18  warning  'errors' is assigned a value but never used        @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\billing\statement-generator-dialog.tsx
+  4:55  warning  'subYears' is defined but never used   @typescript-eslint/no-unused-vars
+  4:78  warning  'endOfYear' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\dashboard\financial-health-card.tsx
+    4:10  warning  'Badge' is defined but never used                          @typescript-eslint/no-unused-vars
+    9:59  warning  'ArrowUpRight' is defined but never used                   @typescript-eslint/no-unused-vars
+    9:73  warning  'ArrowDownRight' is defined but never used                 @typescript-eslint/no-unused-vars
+  187:9   warning  'previousMonthRevenue' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\dashboard\mobile-nav.tsx
+  59:15  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\projects\RESIDIO\src\components\dashboard\quick-actions-panel.tsx
+   4:10  warning  'Button' is defined but never used    @typescript-eslint/no-unused-vars
+  11:5   warning  'Receipt' is defined but never used   @typescript-eslint/no-unused-vars
+  13:5   warning  'Users' is defined but never used     @typescript-eslint/no-unused-vars
+  15:5   warning  'Settings' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\dashboard\quick-stats-card.tsx
+  10:5  warning  'CheckCircle' is defined but never used  @typescript-eslint/no-unused-vars
+  12:5  warning  'Building' is defined but never used     @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\dashboard\recent-activity-card.tsx
+  21:18  warning  'AnimatePresence' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\dashboard\security-alerts-card.tsx
+  13:5   warning  'UserX' is defined but never used         @typescript-eslint/no-unused-vars
+  52:48  warning  'residentName' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\dashboard\sidebar.tsx
+  68:6   warning  React Hook useEffect has a missing dependency: 'hasActiveChild'. Either include it or remove the dependency array                                                                                                                                                                        react-hooks/exhaustive-deps
+  88:13  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\projects\RESIDIO\src\components\documents\document-preview.tsx
+   3:20  warning  'useEffect' is defined but never used    @typescript-eslint/no-unused-vars
+  24:3   warning  'AlertCircle' is defined but never used  @typescript-eslint/no-unused-vars
+  57:14  warning  'error' is defined but never used        @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\documents\documents-table.tsx
+  62:10  warning  'cn' is defined but never used    @typescript-eslint/no-unused-vars
+  65:8   warning  'Link' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\expenditure\log-expense-dialog.tsx
+   34:10  warning  'cn' is defined but never used          @typescript-eslint/no-unused-vars
+   35:29  warning  'CreditCard' is defined but never used  @typescript-eslint/no-unused-vars
+  171:18  warning  'error' is defined but never used       @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\expenditure\petty-cash-dashboard.tsx
+    1:10  warning  'useState' is defined but never used           @typescript-eslint/no-unused-vars
+    1:20  warning  'useRef' is defined but never used             @typescript-eslint/no-unused-vars
+    3:52  warning  'CardDescription' is defined but never used    @typescript-eslint/no-unused-vars
+    8:10  warning  'useAuth' is defined but never used            @typescript-eslint/no-unused-vars
+   10:10  warning  'toast' is defined but never used              @typescript-eslint/no-unused-vars
+   26:44  warning  'onSnapLog' is defined but never used          @typescript-eslint/no-unused-vars
+  127:10  warning  'ActivityIndicator' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\expenditure\petty-cash\manage-accounts-dialog.tsx
+   14:5   warning  'Archive' is defined but never used       @typescript-eslint/no-unused-vars
+   15:5   warning  'RefreshCcw' is defined but never used    @typescript-eslint/no-unused-vars
+   24:5   warning  'DialogFooter' is defined but never used  @typescript-eslint/no-unused-vars
+  148:18  warning  'error' is defined but never used         @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\expenditure\snap-log-dialog.tsx
+  13:19  warning  'Receipt' is defined but never used  @typescript-eslint/no-unused-vars
+  13:36  warning  'X' is defined but never used        @typescript-eslint/no-unused-vars
+  54:35  warning  'file' is defined but never used     @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\houses\house-stats-cards.tsx
+  3:39  warning  'CheckCircle2' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\imports\column-mapper.tsx
+  24:76  warning  'FIRSTBANK_COLUMNS' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\imports\import-breakdown.tsx
+  7:16  warning  'TabsContent' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\imports\import-confirmation.tsx
+  50:14  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\imports\import-history-table.tsx
+  4:8  warning  'Link' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\imports\import-preview.tsx
+   24:16  warning  'TabsContent' is defined but never used                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+   46:3   warning  'Sparkles' is defined but never used                                                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+  174:9   warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 348) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook                                                                                                                             react-hooks/exhaustive-deps
+  174:9   warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 368) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook                                                                                                                             react-hooks/exhaustive-deps
+  285:6   warning  React Hook useEffect has missing dependencies: 'bankAccountId', 'columnMapping', 'createImportMutation', 'createRowsMutation', 'file', 'fileName', 'fileType', 'importId', 'isCreating', 'matchRowsMutation', 'parsedRows', 'refetchRows', and 'refetchSummary'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  375:9   warning  'getStatusBadge' is assigned a value but never used                                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+  446:9   warning  'getConfidenceBadge' is assigned a value but never used                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\imports\import-results.tsx
+   5:10  warning  'Badge' is defined but never used      @typescript-eslint/no-unused-vars
+  22:3   warning  'RotateCcw' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\notifications\preferences-form.tsx
+  40:10  warning  'toast' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\notifications\queue-viewer.tsx
+  51:3   warning  'Play' is defined but never used             @typescript-eslint/no-unused-vars
+  59:10  warning  'toast' is defined but never used            @typescript-eslint/no-unused-vars
+  68:3   warning  'PRIORITY_LABELS' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\notifications\schedule-form.tsx
+   95:23  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\projects\RESIDIO\src\components\notifications\schedule-form.tsx:95:23
+  93 |   });
+  94 |
+> 95 |   const triggerType = form.watch('trigger_type');
+     |                       ^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  96 |
+  97 |   const onSubmit = async (data: ScheduleFormData) => {
+  98 |     try {  react-hooks/incompatible-library
+  119:14  warning  'error' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\notifications\schedule-list.tsx
+  44:3  warning  'Clock' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\notifications\template-form.tsx
+   32:10  warning  'Badge' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+  107:21  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\projects\RESIDIO\src\components\notifications\template-form.tsx:107:21
+  105 |   });
+  106 |
+> 107 |   const variables = form.watch('variables');
+      |                     ^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  108 |   const channel = form.watch('channel');
+  109 |
+  110 |   const addVariable = () => {  react-hooks/incompatible-library
+  141:14  warning  'error' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\payments\bulk-payment-sheet.tsx
+  17:5   warning  'Loader2' is defined but never used       @typescript-eslint/no-unused-vars
+  19:5   warning  'CheckCircle2' is defined but never used  @typescript-eslint/no-unused-vars
+  20:5   warning  'AlertCircle' is defined but never used   @typescript-eslint/no-unused-vars
+  74:18  warning  'error' is defined but never used         @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\payments\payment-result.tsx
+  11:5  warning  'ArrowRight' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\payments\payment-table.tsx
+  189:18  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+  239:18  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\payments\paystack-pay-button.tsx
+  31:3  warning  'invoiceNumber' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\reports\financial-overview.tsx
+  3:20  warning  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\reports\report-request-wizard.tsx
+     4:19  warning  'Controller' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+     7:29  warning  'CardDescription' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+     9:10  warning  'Checkbox' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+    13:10  warning  'Progress' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+    42:5   warning  'ClipboardList' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-unused-vars
+    46:5   warning  'Repeat' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+    61:40  warning  'CreateScheduleInput' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  1003:13  warning  'control' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars
+  1022:22  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\projects\RESIDIO\src\components\reports\report-request-wizard.tsx:1022:22
+  1020 |     });
+  1021 |
+> 1022 |     const formData = watch();
+       |                      ^^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  1023 |
+  1024 |     // Watch periodPreset specifically to avoid unnecessary re-renders
+  1025 |     const periodPreset = watch('periodPreset');  react-hooks/incompatible-library
+  1122:21  warning  'reportType' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  1122:33  warning  'periodPreset' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  1122:47  warning  'bankAccountIds' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+  1122:63  warning  'includeCharts' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+  1122:78  warning  'includeDetails' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+  1150:22  warning  'error' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\reports\report-schedules.tsx
+   4:29  warning  'CardDescription' is defined but never used      @typescript-eslint/no-unused-vars
+   4:46  warning  'CardHeader' is defined but never used           @typescript-eslint/no-unused-vars
+   4:58  warning  'CardTitle' is defined but never used            @typescript-eslint/no-unused-vars
+  16:5   warning  'DialogTrigger' is defined but never used        @typescript-eslint/no-unused-vars
+  30:5   warning  'Calendar' is defined but never used             @typescript-eslint/no-unused-vars
+  38:5   warning  'Settings2' is defined but never used            @typescript-eslint/no-unused-vars
+  52:18  warning  'formatDistanceToNow' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\reports\reports-page-client.tsx
+   35:5   warning  'Loader2' is defined but never used                @typescript-eslint/no-unused-vars
+   45:76  warning  'useReportSchedules' is defined but never used     @typescript-eslint/no-unused-vars
+  327:11  warning  'reportsCount' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\residents\linked-houses.tsx
+  211:18  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\residents\owner-move-out-wizard.tsx
+  167:8  warning  React Hook useEffect has a missing dependency: 'clearanceMutation'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\projects\RESIDIO\src\components\residents\payment-aliases.tsx
+   55:10  warning  'toast' is defined but never used  @typescript-eslint/no-unused-vars
+  108:14  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+  128:14  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+  137:14  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+  150:14  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\residents\resident-form.tsx
+  112:24  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\projects\RESIDIO\src\components\residents\resident-form.tsx:112:24
+  110 |
+  111 |   // Watch fields for conditional rendering
+> 112 |   const residentType = form.watch('resident_type');
+      |                        ^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  113 |   const residentRole = form.watch('resident_role');
+  114 |   const entityType = form.watch('entity_type');
+  115 |   const selectedHouseId = form.watch('house_id');  react-hooks/incompatible-library
+  198:9   warning  The 'allHouses' logical expression could make the dependencies of useMemo Hook (at line 211) change on every render. To fix this, wrap the initialization of 'allHouses' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   react-hooks/exhaustive-deps
+  198:9   warning  The 'allHouses' logical expression could make the dependencies of useEffect Hook (at line 245) change on every render. To fix this, wrap the initialization of 'allHouses' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 react-hooks/exhaustive-deps
+
+C:\projects\RESIDIO\src\components\residents\resident-security-contacts.tsx
+   7:10  warning  'Badge' is defined but never used                       @typescript-eslint/no-unused-vars
+  70:9   warning  'canUpdateContacts' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\residents\wallet-adjustment-dialog.tsx
+   16:10  warning  'Input' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-unused-vars
+   76:16  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\projects\RESIDIO\src\components\residents\wallet-adjustment-dialog.tsx:76:16
+  74 |   });
+  75 |
+> 76 |   const type = watch('type');
+     |                ^^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  77 |   const amount = watch('amount');
+  78 |
+  79 |   // Update preview when amount or type changes  react-hooks/incompatible-library
+  124:14  warning  'error' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\security\code-verification.tsx
+  14:3   warning  'FormLabel' is defined but never used      @typescript-eslint/no-unused-vars
+  38:34  warning  'checkInSchema' is defined but never used  @typescript-eslint/no-unused-vars
+  45:3   warning  'AlertTriangle' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\security\security-badges.tsx
+  185:39  warning  'color' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\security\security-contact-form.tsx
+  33:43  warning  'IdDocumentType' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+  88:30  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+C:\projects\RESIDIO\src\components\security\security-contact-form.tsx:88:30
+  86 |   });
+  87 |
+> 88 |   const selectedCategoryId = form.watch('category_id');
+     |                              ^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  89 |   const selectedCategory = categories?.find((c) => c.id === selectedCategoryId);
+  90 |
+  91 |   async function onSubmit(data: CreateSecurityContactData) {  react-hooks/incompatible-library
+
+C:\projects\RESIDIO\src\components\security\share-pass-modal.tsx
+   8:5   warning  'DialogFooter' is defined but never used  @typescript-eslint/no-unused-vars
+  13:10  warning  'Input' is defined but never used         @typescript-eslint/no-unused-vars
+  14:10  warning  'Label' is defined but never used         @typescript-eslint/no-unused-vars
+  15:16  warning  'Mail' is defined but never used          @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\settings\visual-theme-selector.tsx
+  129:3  warning  'context' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\ui\avatar-circle.tsx
+  111:9  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\projects\RESIDIO\src\components\ui\responsive-sheet.tsx
+   8:3  warning  'SheetHeader' is defined but never used        @typescript-eslint/no-unused-vars
+   9:3  warning  'SheetFooter' is defined but never used        @typescript-eslint/no-unused-vars
+  10:3  warning  'SheetTitle' is defined but never used         @typescript-eslint/no-unused-vars
+  11:3  warning  'SheetDescription' is defined but never used   @typescript-eslint/no-unused-vars
+  12:3  warning  'SheetClose' is defined but never used         @typescript-eslint/no-unused-vars
+  17:3  warning  'DialogHeader' is defined but never used       @typescript-eslint/no-unused-vars
+  18:3  warning  'DialogFooter' is defined but never used       @typescript-eslint/no-unused-vars
+  19:3  warning  'DialogTitle' is defined but never used        @typescript-eslint/no-unused-vars
+  20:3  warning  'DialogDescription' is defined but never used  @typescript-eslint/no-unused-vars
+  21:3  warning  'DialogClose' is defined but never used        @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\components\ui\searchable-select.tsx
+  4:33  warning  'Search' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\emails\components\email-header.tsx
+  1:28  warning  'Text' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\hooks\use-auth-accounts.ts
+  7:8  warning  'AuthAccountSearchResult' is defined but never used  @typescript-eslint/no-unused-vars
+  8:8  warning  'OrphanedAuthAccount' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\hooks\use-debounced-value.ts
+  4:48  warning  '_delay' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\hooks\use-notifications.ts
+  29:3  warning  'getQueueItem' is defined but never used                @typescript-eslint/no-unused-vars
+  32:3  warning  'queueDirectNotification' is defined but never used     @typescript-eslint/no-unused-vars
+  47:3  warning  'toggleChannelNotifications' is defined but never used  @typescript-eslint/no-unused-vars
+  56:3  warning  'NotificationTemplate' is defined but never used        @typescript-eslint/no-unused-vars
+  57:3  warning  'NotificationSchedule' is defined but never used        @typescript-eslint/no-unused-vars
+  58:3  warning  'NotificationQueueItem' is defined but never used       @typescript-eslint/no-unused-vars
+  59:3  warning  'NotificationHistoryEntry' is defined but never used    @typescript-eslint/no-unused-vars
+  60:3  warning  'NotificationPreference' is defined but never used      @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\hooks\use-paystack.ts
+  18:9  warning  'queryClient' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\hooks\use-portal-permissions.ts
+  1:8  warning  'React' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\hooks\use-two-factor.ts
+  18:3  warning  'TwoFactorStatus' is defined but never used               @typescript-eslint/no-unused-vars
+  21:3  warning  'TwoFactorPolicyWithRole' is defined but never used       @typescript-eslint/no-unused-vars
+  23:3  warning  'TwoFactorAuditLogWithProfile' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\auth\auth-provider.tsx
+  163:25  warning  'err' is defined but never used                   @typescript-eslint/no-unused-vars
+  196:48  warning  'serverError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\email-imports\parsers\first-bank-alert.ts
+  374:9  warning  'balanceStr' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\email-imports\parsers\first-bank-pdf.ts
+  209:9   warning  'lastIndex' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  247:11  warning  'rowText' is assigned a value but never used          @typescript-eslint/no-unused-vars
+  260:15  warning  'balanceItem' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  296:10  warning  'isHeaderOrSummaryLine' is defined but never used     @typescript-eslint/no-unused-vars
+  323:10  warning  'determineTransactionType' is defined but never used  @typescript-eslint/no-unused-vars
+  440:18  warning  'decryptError' is defined but never used              @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\email\send-email.ts
+  11:10  warning  'truncateForPreview' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\matching\duplicate-matcher.ts
+  2:8  warning  'Fuse' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\notifications\__tests__\admin-notifier.test.ts
+  98:47  warning  'table' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\notifications\queue.ts
+  15:23  warning  'generateDeduplicationKey' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\notifications\send.ts
+  114:3  warning  '_item' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\parsers\bank-formats\index.ts
+  71:34  warning  'data' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\sms\templates\payment-reminder.ts
+  139:9  warning  'isOverdue' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\supabase\server.ts
+  19:20  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+  26:20  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\validators\billing.ts
+  2:48  warning  'BillingFrequency' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\validators\resident.ts
+  20:7  warning  'primaryRoleEnum' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  21:7  warning  'secondaryRoleEnum' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  22:7  warning  'corporateRoleEnum' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  34:7  warning  'corporateFieldsSchema' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\projects\RESIDIO\src\lib\validators\security-contact.ts
+   2:15   warning  'SecurityContactStatus' is defined but never used             @typescript-eslint/no-unused-vars
+   2:38   warning  'AccessCodeType' is defined but never used                    @typescript-eslint/no-unused-vars
+   2:54   warning  'IdDocumentType' is defined but never used                    @typescript-eslint/no-unused-vars
+   2:70   warning  'VisitorRecurrencePattern' is defined but never used          @typescript-eslint/no-unused-vars
+   2:96   warning  'DayOfWeek' is defined but never used                         @typescript-eslint/no-unused-vars
+   2:107  warning  'VehicleType' is defined but never used                       @typescript-eslint/no-unused-vars
+  15:7    warning  'phoneRegex' is assigned a value but never used               @typescript-eslint/no-unused-vars
+  18:7    warning  'recurringScheduleSchema' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+✖ 328 problems (0 errors, 328 warnings)
+
+EXIT=0
