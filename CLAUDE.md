@@ -41,6 +41,15 @@ Single-context — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents
 
 Shared coordination file: `SESSION_STATE.md` — read/update it at session start/end.
 
+### Branching and isolation
+
+**Never work on `master`** — branch protection refuses direct pushes from every tool,
+including the owner. Two machines run Claude Code, OpenCode and Codex against this repo,
+sometimes concurrently; declare your tool, branch and intent in `SESSION_STATE.md` and check
+it before taking a branch. Claude Code's lane is `feat/<slug>` and `fix/<slug>`.
+
+Canonical rules: `AGENTS.md` `## Branching and isolation` and `docs/agents/branching.md`.
+
 ### Session roles (Rex / Quinn)
 
 A standing two-role split across two sessions, for when work runs as coordinator + reviewer. See `docs/agents/session-roles.md` for the full definition; invoke the `session-roles` skill to activate it in a fresh session.

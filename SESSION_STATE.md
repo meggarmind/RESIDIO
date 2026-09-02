@@ -241,9 +241,11 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 
 1. **One source of truth for project setup**: `AGENTS.md`. `CLAUDE.md` defers to it for stack/commands/architecture; `CLAUDE.md` keeps the auth/audit integration contract only. Don't let these diverge.
 2. **Update this file** at end of every session: bump "Current snapshot", log what changed, set next steps.
-3. **Commit + push** the end of every session so the tree the other agent opens is clean and shared (do not leave 18 modified files sitting in the tree).
+3. **Commit + push your branch** at the end of every session so the tree the other agent opens is clean and shared (do not leave modified files sitting in the tree). **Never `master`** — it is protected and a direct push is refused. Open a PR.
 4. **Test baseline**: `npm test` is currently red on integration. This is a known, intentional gap list — do not treat it as "all good". Fix gaps (add `authorizePermission` + `logAudit`) or add allowlist entries as you complete modules.
 5. Shared credentials are LOCAL-ONLY: never commit `.env` or service keys. `.env*` is gitignored.
+6. **Declare yourself before you work**: add your tool (Claude Code / OpenCode / Codex), your branch, and your intent to the entry below at session start. Two machines run three tools against this repo, sometimes concurrently — check this list before taking a branch, and never push to a branch another session has declared without asking and waiting for an explicit answer.
+7. **Branching, isolation and the `stage` backup**: `docs/agents/branching.md`. `master` is a merge target, never a workspace; `stage` is the last `master` that passed checks and advances only via `.github/workflows/stage-backup.yml`.
 
 ---
 
