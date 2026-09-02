@@ -53,6 +53,12 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 - Verification before the build/audit merge: full Vitest 292/292; `git diff --check` clean. Full lint remains baseline-red at 107 errors and 423 warnings. The isolated-worktree build requires the intentionally untracked `.env.local` for Supabase page prerendering.
 - Next: push and merge the rebased issue-monitor workflow, then begin the separately approved social-login approval-queue rebase and security review.
 
+## Current session (OpenCode, 2026-09-02 — lint baseline remediation #143)
+
+- Published parent #143 and dependency-ordered slices #144 -> #145 -> #146 -> #147, all `ready-for-agent`.
+- **#144 scope decision:** lint excludes generated Docusaurus output (`website/.docusaurus/**`, `website/build/**`) and the resident self-service paths (`src/app/(resident)/**`, `src/components/resident-portal/**`). This retains the global lint gate for Docusaurus source, every admin-dashboard/shared path, scripts, and tests, while avoiding investment in the explicitly unplanned portal rollout surface.
+- Initial #144 baseline on `master`: `npm run lint` reports 108 errors / 423 warnings. After the approved scope boundary, it reports 68 errors / 339 warnings. The generated-output diagnosis alone does not explain the active baseline; the portal also carries out-of-scope errors. The next slices will clear all remaining in-scope errors without weakening the gate.
+
 ## Last session (OpenCode, 2026-08-24 — WhatsApp Pilot and Estate-Wide Controls #8)
 
 - Completed the missing admin rollout controls: mounted pilot settings on `/settings/whatsapp`, added explicit pilot-to-estate promotion with permission-first authorization and an `ACTIVATE` audit record, and kept pilot targeting fail-closed for inbound financial access and proactive sends.
