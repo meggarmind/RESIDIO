@@ -9,6 +9,29 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-02 — WhatsApp admin-configurable credentials and Twilio support)
+
+Branch `feat/whatsapp-provider-config`, branched from `master` at `7f5e751`, rebased onto `51dbd19`. Eight commits, all pushed. **Not merged.** Issues #127-#134 plus #136 in `meggarmind/RESIDIO`.
+
+- **The finding that framed the work:** the WhatsApp Assistant was already ~1,711 lines across 20 files with 8 test suites, wired into payment receipts, invoice reminders, announcements and emergency broadcasts. Only *configuration* was missing. The four required env vars were absent from `.env.example` entirely — and `.env.example` was itself gitignored by `.env*` with no negation, so documenting them there would never have committed. Fixed.
+- **Credentials** now live encrypted (AES-256-GCM) in `whatsapp_provider_credentials`, admin-editable from `/settings/whatsapp` with no redeploy. Exactly one row is active table-wide and that row names the live provider; switching provider is one atomic RPC call. Deliberately NOT in `system_settings`, whose RLS grants SELECT to every authenticated user.
+- **Both providers ship.** Meta and Twilio, outbound and inbound. Twilio signature verification (HMAC-SHA1 over URL + sorted params) was validated against an independently computed expected value rather than a self-consistent test, and the proxy URL reconstruction is asserted with forwarded headers that disagree with the internal request URL.
+- **`whatsapp_enabled` now fails closed.** It was compared with `=== false`, and an absent row read as `null !== false`, so the documented master kill switch did nothing unless someone hand-inserted the row. A migration seeds it explicitly.
+
+### Security findings from this work, filed separately
+
+- **#139** — eight more files read settings through the RLS-bound client from cron/webhook contexts, so configured values are silently replaced by code defaults. Includes `apply-late-fees.ts`, which decides what residents are charged.
+- **#140** — `cron/process-report-schedules` was a **public unauthenticated GET** registered as a daily cron that generates and emails reports. Every sibling route gated on `verifyCronAuth`; this was the only exception. **Fixed on this branch.** Confirm `CRON_SECRET` is set in production before deploying — `verifyCronAuth` returns 500 without it.
+- **#138** — five RBAC migrations on `feat/social-login-approval-queue` are timestamped *earlier* than this branch's migration. Applying ours first means they arrive out of order and may be silently skipped. Verify against the database's applied list, not the migrations directory, which looks correct in every failure mode.
+
+### Verification
+
+353 tests across 61 suites; `module-integration` passing; typecheck clean for every touched file; `docs:drift` reports 21 unmapped (pre-existing — master carries no verification stamps).
+
+### Outstanding
+
+Wiki documentation deferred: the `integrations/` section exists only on `feat/social-login-approval-queue` and is absent from master's `sidebars.ts`, so adding one page here would orphan it and guarantee a conflict. #133's integration-test half is still open. No migration on this branch has been applied to any database.
+
 ## Last session (OpenCode, 2026-09-02 — build/audit merge and workflow hardening)
 
 - Merged the rebased build/audit coverage changes into `master` via PR #135. The app TypeScript program now excludes the standalone `website/` workspace, and 24 write actions gained audit logging.
