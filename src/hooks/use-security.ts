@@ -142,7 +142,7 @@ export function useUpdateSecuritySetting() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ key, value }: { key: string; value: any }) => {
+    mutationFn: async ({ key, value }: { key: string; value: string | number | boolean | number[] }) => {
       const result = await updateSecuritySetting(key, value);
       if (!result.success) throw new Error(result.error || 'Failed to update setting');
       return true;

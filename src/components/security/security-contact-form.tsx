@@ -66,7 +66,7 @@ export function SecurityContactForm({
   const updateMutation = useUpdateSecurityContact();
 
   const form = useForm<CreateSecurityContactData>({
-    resolver: zodResolver(createSecurityContactSchema as any),
+    resolver: zodResolver(createSecurityContactSchema),
     defaultValues: {
       resident_id: effectiveResidentId || contact?.resident_id || '',
       category_id: contact?.category_id || '',
@@ -81,6 +81,7 @@ export function SecurityContactForm({
       employer: contact?.employer || '',
       relationship: contact?.relationship || '',
       notes: contact?.notes || '',
+      is_recurring: contact?.is_recurring ?? false,
     },
   });
 

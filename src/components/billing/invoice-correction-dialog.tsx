@@ -122,7 +122,11 @@ export function InvoiceCorrectionDialog({
     }
   };
 
-  const updateCorrection = (index: number, field: keyof CorrectionEntry, value: any) => {
+  const updateCorrection = <K extends keyof CorrectionEntry>(
+    index: number,
+    field: K,
+    value: CorrectionEntry[K]
+  ) => {
     const updated = [...corrections];
     updated[index] = { ...updated[index], [field]: value };
     setCorrections(updated);

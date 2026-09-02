@@ -13,11 +13,12 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Receipt, Upload, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import type { ExpenseFormValues } from './log-expense-dialog';
 
 interface SnapLogDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSnapLog: (receiptData: any) => void;
+    onSnapLog: (receiptData: Partial<ExpenseFormValues>) => void;
 }
 
 export function SnapLogDialog({ open, onOpenChange, onSnapLog }: SnapLogDialogProps) {

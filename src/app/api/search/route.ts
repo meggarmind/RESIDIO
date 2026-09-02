@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 
 interface ScoredResult {
     _score: number;
-    [key: string]: any;
 }
 
 export async function GET(request: Request) {

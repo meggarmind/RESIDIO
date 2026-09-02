@@ -60,11 +60,15 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 - Verification before the build/audit merge: full Vitest 292/292; `git diff --check` clean. Full lint remains baseline-red at 107 errors and 423 warnings. The isolated-worktree build requires the intentionally untracked `.env.local` for Supabase page prerendering.
 - Next: push and merge the rebased issue-monitor workflow, then begin the separately approved social-login approval-queue rebase and security review.
 
-## Current session (OpenCode, 2026-09-02 — lint baseline remediation #143)
+## Last session (OpenCode, 2026-09-02 — lint baseline remediation #143)
 
 - Published parent #143 and dependency-ordered slices #144 -> #145 -> #146 -> #147, all `ready-for-agent`.
 - **#144 scope decision:** lint excludes generated Docusaurus output (`website/.docusaurus/**`, `website/build/**`) and the resident self-service paths (`src/app/(resident)/**`, `src/components/resident-portal/**`). This retains the global lint gate for Docusaurus source, every admin-dashboard/shared path, scripts, and tests, while avoiding investment in the explicitly unplanned portal rollout surface.
 - Initial #144 baseline on `master`: `npm run lint` reports 108 errors / 423 warnings. After the approved scope boundary, it reports 68 errors / 339 warnings. The generated-output diagnosis alone does not explain the active baseline; the portal also carries out-of-scope errors. The next slices will clear all remaining in-scope errors without weakening the gate.
+- #145 was a verified no-op: the remaining active baseline did not contain ESLint configuration or TypeScript compatibility errors after #144. #146 resolved admin React Compiler violations in 23 files. #147 removed the remaining in-scope unsafe types, directives, and JSX lint errors across 29 files, with small type narrowing corrections surfaced by the production build.
+- **Verification in `.worktrees/issue-147`:** `npm run lint` passes with 0 errors / 330 warnings; `npm test -- --run` passes 359 tests in 62 files; `npm run build` passes when the existing ignored root `.env.local` is loaded for Supabase prerendering. The worktree intentionally has no `.env.local`; an unconfigured build correctly fails while prerendering `/settings/document-categories` because Supabase credentials are absent.
+- Known non-blocking build warnings remain: duplicate-worktree lockfile detection, deprecated middleware convention, Paystack route `config` export, Edge runtime static-generation limitation, and Node `--localstorage-file` warnings.
+- Next: commit and push #147, move the lint slices through Review, merge the integrated branch to `master`, then run the workflow finish steps before starting the #142 then #141 closure sequence. Do not apply the deliberately withheld social-login migration.
 
 ## Last session (OpenCode, 2026-08-24 — WhatsApp Pilot and Estate-Wide Controls #8)
 

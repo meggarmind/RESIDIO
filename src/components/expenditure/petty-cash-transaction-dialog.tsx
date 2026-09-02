@@ -27,6 +27,7 @@ import { replenishPettyCashAccount, recordCashCollection } from '@/actions/finan
 import { toast } from 'sonner';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import type { PettyCashAccount } from '@/types/database';
 
 const transactionSchema = z.object({
     amount: z.string().min(1, 'Amount is required'),
@@ -38,7 +39,7 @@ const transactionSchema = z.object({
 interface PettyCashTransactionDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    accounts: any[];
+    accounts: PettyCashAccount[];
     onSuccess: () => void;
 }
 
@@ -147,7 +148,7 @@ export function PettyCashTransactionDialog({
                                         <SelectContent>
                                             {accounts.map((account) => (
                                                 <SelectItem key={account.id} value={account.id}>
-                                                    {account.name} (Bal: ₦{account.currentBalance?.toLocaleString()})
+                                                    {account.name} (Bal: ₦{Number(account.current_balance).toLocaleString()})
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>

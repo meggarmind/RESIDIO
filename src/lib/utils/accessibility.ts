@@ -122,7 +122,7 @@ export function announceToScreenReader(
 
 export function handleListKeyNavigation(
   event: React.KeyboardEvent,
-  items: any[],
+  items: readonly unknown[],
   currentIndex: number,
   onChange: (index: number) => void
 ): void {

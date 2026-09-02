@@ -9,10 +9,11 @@ import { useAuth } from '@/lib/auth/auth-provider';
 import { PettyCashMetrics } from '@/actions/finance/petty-cash';
 import { toast } from 'sonner';
 import { ManagePettyCashDialog } from './petty-cash/manage-accounts-dialog';
+import type { ExpenseFormValues } from './log-expense-dialog';
 
 interface PettyCashDashboardProps {
     data: PettyCashMetrics;
-    onSnapLog?: (receiptData: any) => void;
+    onSnapLog?: (receiptData: Partial<ExpenseFormValues>) => void;
     onTopUp?: () => void;
 }
 

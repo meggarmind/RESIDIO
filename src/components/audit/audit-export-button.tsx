@@ -6,7 +6,13 @@ import { Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { getAuditLogs } from '@/actions/audit';
-import { AUDIT_ACTION_LABELS, AUDIT_ENTITY_LABELS, type AuditAction, type AuditEntityType } from '@/types/database';
+import {
+  AUDIT_ACTION_LABELS,
+  AUDIT_ENTITY_LABELS,
+  type AuditAction,
+  type AuditEntityType,
+  type AuditLogWithActor,
+} from '@/types/database';
 
 // Type for audit log params (defined inline since it's from 'use server' file)
 type GetAuditLogsParams = {
@@ -28,7 +34,7 @@ interface AuditExportButtonProps {
 export function AuditExportButton({ filters }: AuditExportButtonProps) {
   const [isExporting, setIsExporting] = useState(false);
 
-  const convertToCSV = (data: any[]) => {
+  const convertToCSV = (data: AuditLogWithActor[]) => {
     if (!data || data.length === 0) return '';
 
     // CSV Headers

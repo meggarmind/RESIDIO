@@ -8,10 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { formatCurrency } from '@/lib/utils';
+import type { Database } from '@/types/database.generated';
 import Link from 'next/link';
 
 interface ProjectsClientProps {
-    initialProjects: any[];
+    initialProjects: Database['public']['Tables']['projects']['Row'][];
 }
 
 export function ProjectsClient({ initialProjects }: ProjectsClientProps) {
@@ -46,7 +47,7 @@ export function ProjectsClient({ initialProjects }: ProjectsClientProps) {
                                     <div className="flex justify-between items-start">
                                         <CardTitle className="text-lg">{project.name}</CardTitle>
                                         <Badge variant={project.status === 'active' ? 'success' : 'secondary'}>
-                                            {project.status.replace('_', ' ')}
+                                            {project.status?.replace('_', ' ') ?? 'unknown'}
                                         </Badge>
                                     </div>
                                     <CardDescription className="line-clamp-2 min-h-[40px]">
@@ -57,15 +58,15 @@ export function ProjectsClient({ initialProjects }: ProjectsClientProps) {
                                     <div className="space-y-2">
                                         <div className="flex justify-between text-xs font-medium">
                                             <span>Progress</span>
-                                            <span>{project.current_progress}%</span>
+                                            <span>{project.current_progress ?? 0}%</span>
                                         </div>
-                                        <Progress value={project.current_progress} className="h-2" />
+                                        <Progress value={project.current_progress ?? 0} className="h-2" />
                                     </div>
 
                                     <div className="flex justify-between items-end">
                                         <div className="space-y-1">
                                             <p className="text-[10px] uppercase text-muted-foreground font-semibold">Budget</p>
-                                            <p className="text-sm font-bold">{formatCurrency(project.total_budget)}</p>
+                                            <p className="text-sm font-bold">{formatCurrency(project.total_budget ?? 0)}</p>
                                         </div>
                                         <div className="text-right space-y-1">
                                             <p className="text-[10px] uppercase text-muted-foreground font-semibold">Ends</p>

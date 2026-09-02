@@ -92,7 +92,6 @@ export default function ApprovalsPage() {
         setProofUrl(null);
 
         if (request.request_type === 'manual_payment_verification') {
-            const changes = request.requested_changes as any;
             // Get proof URL from the payment record if available
             // We need to fetch the payment record details to get proof_url
             // Actually, we can get it from the entity_id if we fetch it

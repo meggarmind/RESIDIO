@@ -50,7 +50,7 @@ import { PettyCashAccount } from '@/types/database';
 // Schema for create/edit
 const accountSchema = z.object({
     name: z.string().min(2, 'Name is required'),
-    initialFloat: z.string().transform((val) => Number(val)).pipe(z.number().min(0)),
+    initialFloat: z.string().refine((value) => Number(value) >= 0, 'Initial float must be zero or greater'),
     notes: z.string().optional(),
 });
 
@@ -68,10 +68,10 @@ export function ManagePettyCashDialog() {
 
     // Form for Add/Edit
     const form = useForm<AccountFormValues>({
-        resolver: zodResolver(accountSchema as any),
+        resolver: zodResolver(accountSchema),
         defaultValues: {
             name: '',
-            initialFloat: 0,
+            initialFloat: '0',
             notes: '',
         },
     });
@@ -96,7 +96,7 @@ export function ManagePettyCashDialog() {
         setIsCreating(false);
         form.reset({
             name: '',
-            initialFloat: 0,
+            initialFloat: '0',
             notes: ''
         });
     };
@@ -111,7 +111,7 @@ export function ManagePettyCashDialog() {
         setIsCreating(false);
         form.reset({
             name: account.name,
-            initialFloat: Number(account.initial_float) || 0,
+            initialFloat: String(Number(account.initial_float) || 0),
             notes: account.notes || '',
         });
     };
@@ -119,12 +119,13 @@ export function ManagePettyCashDialog() {
     async function onSubmit(values: AccountFormValues) {
         setIsSubmitting(true);
         try {
+            const account = { ...values, initialFloat: Number(values.initialFloat) };
             if (editingId) {
-                const { error } = await updatePettyCashAccount(editingId, values);
+                const { error } = await updatePettyCashAccount(editingId, account);
                 if (error) throw new Error(error);
                 toast.success('Account updated');
             } else {
-                const { error } = await createPettyCashAccount(values);
+                const { error } = await createPettyCashAccount(account);
                 if (error) throw new Error(error);
                 toast.success('Account created');
             }

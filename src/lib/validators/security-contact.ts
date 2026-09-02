@@ -51,7 +51,7 @@ const baseSecurityContactSchema = z.object({
   notes: z.string().optional().or(z.literal('')),
 
   // Recurring visitor fields
-  is_recurring: z.boolean().default(false),
+  is_recurring: z.boolean(),
   recurrence_pattern: visitorRecurrencePatternEnum.optional().nullable(),
   recurrence_days: z.array(dayOfWeekEnum).optional().nullable(),
   recurrence_start_date: z.string().optional().nullable(),

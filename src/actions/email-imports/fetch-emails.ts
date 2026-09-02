@@ -23,7 +23,7 @@ import { updateGmailSyncStatus } from './gmail-oauth';
 import { createEmailImport, updateEmailImportStatus } from './create-email-import';
 import { parseAllPendingEmails } from './parse-email';
 import { matchEmailTransactions, processEmailTransactions } from './process-email-import';
-import type { FetchEmailsOptions, FetchEmailsResult, EmailMessage } from '@/types/database';
+import type { FetchEmailsOptions, FetchEmailsResult, EmailMessage, GmailSyncCriteria } from '@/types/database';
 
 // ============================================================
 // Detect Email Type
@@ -277,7 +277,7 @@ export async function fetchNewEmails(
     .single();
 
   const sourceEmail = credentials?.email_address || 'unknown';
-  const criteria = credentials?.sync_criteria as any || {};
+  const criteria = credentials?.sync_criteria as Partial<GmailSyncCriteria> | null || {};
 
   // Create import session
   const { data: importSession, error: importError } = await createEmailImport({

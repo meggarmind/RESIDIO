@@ -23,6 +23,19 @@ import type { ParsedEmailTransaction } from '@/types/database';
 import { parseFirstBankAmount, parseFirstBankDate } from '@/lib/parsers/bank-formats/firstbank';
 import { getPasswordByAccountLast4 } from '@/actions/email-imports/bank-passwords';
 
+type PdfTextItem = {
+  transform: number[];
+  str?: string;
+};
+
+function isPdfTextItem(item: unknown): item is PdfTextItem {
+  if (typeof item !== 'object' || item === null) return false;
+
+  const transform = 'transform' in item ? item.transform : undefined;
+  const str = 'str' in item ? item.str : undefined;
+  return Array.isArray(transform) && transform.every((value) => typeof value === 'number') &&
+    (str === undefined || typeof str === 'string');
+}
 
 // ============================================================
 // PDF Decryption
@@ -143,8 +156,8 @@ export async function extractPdfText(pdfBuffer: Buffer): Promise<string> {
       const page = await pdfDoc.getPage(i);
       const textContent = await page.getTextContent();
       const pageText = textContent.items
-        .map((item: any) => {
-          if (!item.transform) return '';
+        .map((item) => {
+          if (!isPdfTextItem(item)) return '';
           const x = Math.round(item.transform[4]);
           const y = Math.round(item.transform[5]);
           return `[${x},${y}]${item.str || ''}`;

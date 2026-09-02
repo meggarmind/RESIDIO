@@ -53,7 +53,8 @@ async function main() {
 
     console.log(`Active houses: ${houses?.length || 0}`);
     houses?.forEach(h => {
-        console.log(`  - ${(h.streets as any)?.name || 'Unknown Street'} ${h.house_number} (billing: ${h.billing_profile_id ? 'assigned' : 'not assigned'})`);
+        const street = h.streets[0] ?? null;
+        console.log(`  - ${street?.name || 'Unknown Street'} ${h.house_number} (billing: ${h.billing_profile_id ? 'assigned' : 'not assigned'})`);
     });
 }
 

@@ -123,7 +123,7 @@ export function useUpdateSyncCriteria() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (criteria: any) => {
+    mutationFn: async (criteria: Record<string, unknown>) => {
       const result = await updateSyncCriteria(criteria);
       if (result.error) {
         throw new Error(result.error);

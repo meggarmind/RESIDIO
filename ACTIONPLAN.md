@@ -18,7 +18,8 @@ Status: IN PROGRESS
 
 - Parent #143 is split into dependency-ordered slices #144 -> #145 -> #146 -> #147.
 - **#144 scope decision:** the global lint program ignores generated Docusaurus output (`website/.docusaurus/**`, `website/build/**`) and the unplanned web resident portal (`src/app/(resident)/**`, `src/components/resident-portal/**`). It continues to enforce every admin-dashboard, shared, scripts, tests, and Docusaurus source file. This preserves the lint gate while aligning it with the admin-dashboard-only rollout policy. Baseline reduced from 108 errors / 423 warnings to 68 errors / 339 warnings.
-- #145 will repair in-scope ESLint/type-rule compatibility and TypeScript errors; #146 addresses admin React Compiler errors; #147 clears the remaining in-scope unsafe-type, directive, and JSX entity errors before the final global verification.
+- #145 was a verified no-op after #144; no in-scope ESLint/type-rule compatibility or TypeScript lint errors remained. #146 resolved admin React Compiler errors. #147 cleared the remaining in-scope unsafe-type, directive, and JSX entity errors.
+- Final verification in `.worktrees/issue-147`: `npm run lint` passes with 0 errors / 330 warnings, `npm test -- --run` passes 359/359, and `npm run build` passes when the existing ignored root `.env.local` is loaded for Supabase prerendering. The worktree intentionally has no `.env.local`; without it, prerendering correctly fails due to missing Supabase credentials. Review, merge, and issue lifecycle completion remain next.
 
 ## Fast-Track Priorities
 

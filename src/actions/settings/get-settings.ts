@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import type { SystemSetting } from '@/types/database';
+import type { Json } from '@/types/database.generated';
 
 type GetSettingsResponse = {
     data: SystemSetting[];
@@ -28,7 +29,7 @@ export type SettingReadResult<T = unknown> =
  * Handles conversion from JSONB storage format (string 'true'/'false' and
  * numeric strings get coerced to their native types).
  */
-function coerceSettingValue(value: unknown): unknown {
+function coerceSettingValue(value: Json): Json {
     if (typeof value === 'string') {
         if (value === 'true') return true;
         if (value === 'false') return false;
@@ -50,7 +51,7 @@ function coerceSettingValue(value: unknown): unknown {
 async function readSetting(
     supabase: Awaited<ReturnType<typeof createServerSupabaseClient>> | ReturnType<typeof createAdminClient>,
     key: string
-): Promise<SettingReadResult> {
+): Promise<SettingReadResult<Json>> {
     const { data, error } = await supabase
         .from('system_settings')
         .select('value')
@@ -125,7 +126,7 @@ export async function getSetting(key: string): Promise<GetSettingResponse> {
  * backwards compatibility with existing callers. Use
  * `getSettingResultAsService` when the distinction matters.
  */
-export async function getSettingValue(key: string): Promise<any> {
+export async function getSettingValue(key: string): Promise<Json | null> {
     const supabase = await createServerSupabaseClient();
     const result = await readSetting(supabase, key);
     return result.status === 'ok' ? result.value : null;
@@ -139,7 +140,7 @@ export async function getSettingValue(key: string): Promise<any> {
  * for every key in that context because the `system_settings` SELECT
  * policy is `TO authenticated`. See issue #136.
  */
-export async function getSettingValueAsService(key: string): Promise<any> {
+export async function getSettingValueAsService(key: string): Promise<Json | null> {
     const supabase = createAdminClient();
     const result = await readSetting(supabase, key);
     return result.status === 'ok' ? result.value : null;
@@ -171,7 +172,7 @@ export async function getCurrentDevelopmentLevyProfileId(): Promise<string | nul
     const value = await getSettingValue('current_development_levy_profile_id');
 
     // Handle null, 'null', empty string, or undefined as "not set"
-    if (!value || value === 'null' || value === '') {
+    if (typeof value !== 'string' || !value || value === 'null' || value === '') {
         return null;
     }
 

@@ -25,6 +25,8 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { POLLING_INTERVALS } from '@/lib/config/polling';
 import { Skeleton } from '@/components/ui/skeleton';
 
+type CronJobStatus = NonNullable<Awaited<ReturnType<typeof getCronStatus>>['data']>['jobs'][number];
+
 const statusIcons = {
   healthy: <CheckCircle className="h-5 w-5 text-green-600" />,
   warning: <AlertTriangle className="h-5 w-5 text-yellow-600" />,
@@ -138,7 +140,7 @@ export default function CronStatusPage() {
         </div>
       ) : status?.jobs ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {status.jobs.map((job: any) => (
+          {status.jobs.map((job: CronJobStatus) => (
             <Card
               key={job.name}
               className={`border-2 ${statusColors[job.status as keyof typeof statusColors]}`}

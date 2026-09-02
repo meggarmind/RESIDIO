@@ -140,7 +140,7 @@ export async function updateSecurityRolePermissions(
  */
 export async function updateSecuritySetting(
   key: string,
-  value: string | number | boolean
+  value: string | number | boolean | number[]
 ): Promise<UpdateSecuritySettingsResponse> {
   const supabase = await createServerSupabaseClient();
 
