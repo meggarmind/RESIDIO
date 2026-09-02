@@ -4,7 +4,6 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { AccessCode, AccessCodeWithContact } from '@/types/database';
 import type { CreateAccessCodeData, RevokeAccessCodeData, VerifyAccessCodeData } from '@/lib/validators/security-contact';
-import { hasSecurityPermission } from './settings';
 import { logAudit } from '@/lib/audit/logger';
 import { formatDateTime } from '@/lib/utils';
 import { getRenewalReminderConfig } from '@/lib/security/renewal-reminders';
@@ -37,9 +36,9 @@ export async function generateAccessCode(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canGenerate = await hasSecurityPermission('generate_codes');
-  if (!canGenerate) {
-    return { data: null, error: 'Permission denied: Cannot generate access codes' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_GENERATE_CODES);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Cannot generate access codes' };
   }
 
   // Get current user
@@ -124,9 +123,9 @@ export async function getContactAccessCodes(contactId: string): Promise<AccessCo
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { data: [], error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { data: [], error: auth.error || 'Permission denied' };
   }
 
   const { data, error } = await supabase
@@ -150,9 +149,9 @@ export async function regenerateAccessCode(codeId: string): Promise<AccessCodeRe
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canGenerate = await hasSecurityPermission('generate_codes');
-  if (!canGenerate) {
-    return { data: null, error: 'Permission denied: Cannot generate access codes' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_GENERATE_CODES);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Cannot generate access codes' };
   }
 
   // Get current user
@@ -229,9 +228,9 @@ export async function revokeAccessCode(data: RevokeAccessCodeData): Promise<{ su
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canRevoke = await hasSecurityPermission('suspend_revoke_contacts');
-  if (!canRevoke) {
-    return { success: false, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_SUSPEND_REVOKE);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Permission denied' };
   }
 
   // Get current user
@@ -291,9 +290,9 @@ export async function verifyAccessCode(data: VerifyAccessCodeData): Promise<Veri
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canVerify = await hasSecurityPermission('verify_codes');
-  if (!canVerify) {
-    return { data: null, valid: false, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VERIFY_CODES);
+  if (!auth.authorized) {
+    return { data: null, valid: false, error: auth.error || 'Permission denied' };
   }
 
   const code = data.code.toUpperCase().trim();
@@ -393,9 +392,9 @@ export async function getAccessCodeByCode(code: string): Promise<AccessCodeRespo
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   const { data, error } = await supabase
@@ -493,9 +492,9 @@ export async function generateTimeLimitedAccessCode(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canGenerate = await hasSecurityPermission('generate_codes');
-  if (!canGenerate) {
-    return { data: null, error: 'Permission denied: Cannot generate access codes' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_GENERATE_CODES);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Cannot generate access codes' };
   }
 
   // Get current user
@@ -846,9 +845,9 @@ export async function generateDailyAccessReport(date?: string): Promise<{ data: 
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   const reportDate = date || new Date().toISOString().split('T')[0];
@@ -946,9 +945,9 @@ export async function extendAccessCodeValidity(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canGenerate = await hasSecurityPermission('generate_codes');
-  if (!canGenerate) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_GENERATE_CODES);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   // Get current user

@@ -2,6 +2,14 @@
 id: audit-logs-and-data-management
 title: Audit logs and data management
 sidebar_label: Audit logs and data management
+residio_sources:
+  - src/lib/audit/**
+  - src/actions/audit/**
+  - src/app/(dashboard)/settings/data-management/**
+  - src/app/(dashboard)/settings/system/data/**
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Audit logs and data management
@@ -12,7 +20,7 @@ Auditability is part of every administrative workflow. After a successful write,
 
 Use **Settings → Data Management** for approved reconciliation or backfill tools. Read the preview and scope carefully before running any operation.
 
-:::warning Irreversible work
+:::warning[Irreversible work]
 If a tool changes many records, stop at the preview stage when the count or warning is unexpected. Ask a super administrator to confirm the intended scope.
 :::
 

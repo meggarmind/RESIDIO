@@ -249,6 +249,8 @@ export async function linkAuthAccountToResident(
       .select(`
         id,
         resident_id,
+        role_id,
+        approval_status,
         residents:resident_id (
           id,
           first_name,
@@ -300,30 +302,61 @@ export async function linkAuthAccountToResident(
     // 5. Create or update profile
     const fullName = `${resident.first_name} ${resident.last_name}`;
 
+    // Linking an account to a resident is an explicit administrative act, so it
+    // also approves the account — otherwise it would stay pending and remain
+    // locked out of everything, including the portal it was just linked to.
+    // An account that already holds a role keeps it; only a role-less one is
+    // given the base 'resident' role, so linking never demotes an admin who
+    // also happens to live on the estate.
+    const { data: residentRole } = await supabase
+      .from('app_roles')
+      .select('id')
+      .eq('name', 'resident')
+      .single();
+
     if (existingProfile) {
-      // Update existing profile
-      const { error: updateError } = await supabase
+      // Written with the service role: profiles carries no RLS policy allowing
+      // an administrator to update another account's row, so this write through
+      // the caller's own client matched zero rows and reported no error.
+      // Permission is enforced by the authorizePermission() check above.
+      const { data: updated, error: updateError } = await createAdminClient()
         .from('profiles')
         .update({
           resident_id: residentId,
           full_name: fullName,
           email: authUser.email,
+          role_id: existingProfile.role_id ?? residentRole?.id ?? null,
+          approval_status: 'active',
+          approved_at: new Date().toISOString(),
+          approved_by: auth.userId,
+          rejection_reason: null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', authUserId);
+        .eq('id', authUserId)
+        .select('id');
 
       if (updateError) {
         console.error('Error updating profile:', updateError);
         return { success: false, error: 'Failed to link account' };
       }
+
+      if (!updated || updated.length === 0) {
+        console.error('Account link matched no rows for profile', authUserId);
+        return { success: false, error: 'Failed to link account: the profile could not be updated' };
+      }
     } else {
-      // Create new profile
-      const { error: insertError } = await supabase.from('profiles').insert({
+      // Create new profile. Normally unreachable — handle_new_user() provisions
+      // a row for every auth user — but kept for accounts predating that trigger.
+      const { error: insertError } = await createAdminClient().from('profiles').insert({
         id: authUserId,
         resident_id: residentId,
         full_name: fullName,
         email: authUser.email,
-        role: 'security_officer', // Default role
+        role_id: residentRole?.id ?? null,
+        role: null,
+        approval_status: 'active',
+        approved_at: new Date().toISOString(),
+        approved_by: auth.userId,
       });
 
       if (insertError) {
@@ -418,7 +451,7 @@ export async function unlinkAuthAccount(
     const residentName = resident ? `${resident.first_name} ${resident.last_name}` : 'Unknown';
 
     // Remove resident link
-    const { error: updateError } = await supabase
+    const { error: updateError } = await createAdminClient()
       .from('profiles')
       .update({
         resident_id: null,

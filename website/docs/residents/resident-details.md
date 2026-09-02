@@ -2,6 +2,13 @@
 id: resident-details
 title: Resident details
 sidebar_label: Resident details
+residio_sources:
+  - src/app/(dashboard)/residents/[id]/**
+  - src/actions/residents/transfer-ownership.ts
+  - src/actions/residents/unassign-house.ts
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Resident details

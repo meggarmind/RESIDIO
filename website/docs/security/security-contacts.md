@@ -3,6 +3,13 @@ id: security-contacts
 title: Security contacts
 sidebar_label: Security contacts
 description: Maintain the contacts and access information used by gate operations.
+residio_sources:
+  - src/app/(dashboard)/security/**
+  - src/actions/security/**
+  - src/lib/security/**
+residio_verified_commit: e51b591
+residio_verified_at: '2026-08-30'
+residio_app_version: '0.4.0'
 ---
 
 # Security contacts
@@ -23,6 +30,6 @@ Open **Security** to review active contacts, access information, and security ac
 
 Filter by active status, category, resident, or expiration. End or update a contact when the underlying authorization changes. Avoid deleting historical records when the workflow provides an end or deactivate action.
 
-:::warning Access data
+:::warning[Access data]
 Treat contact details and access codes as sensitive operational data. Do not copy them into chat, screenshots, or external spreadsheets.
 :::

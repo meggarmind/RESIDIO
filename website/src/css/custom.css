@@ -53,3 +53,4 @@ body { background: var(--guide-paper); color: var(--guide-ink); }
 .theme-doc-markdown figcaption, .screenshot-caption { color: var(--guide-muted); font-size: 0.86rem; margin-top: -1rem; }
 .alert--info { --ifm-alert-background-color: rgba(197, 107, 50, 0.09); --ifm-alert-border-color: rgba(197, 107, 50, 0.36); }
 .footer { background: #17211f; }
+.residio-verified { color: var(--guide-muted); font-size: 0.78rem; margin: 1.25rem 0 0; padding-top: 0.9rem; border-top: 1px solid var(--guide-line); }

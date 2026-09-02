@@ -3,6 +3,14 @@ id: approvals-and-announcements
 title: Approvals and announcements
 sidebar_label: Approvals and announcements
 description: Review pending work and communicate clearly with the estate.
+residio_sources:
+  - src/app/(dashboard)/approvals/**
+  - src/app/(dashboard)/announcements/**
+  - src/actions/approvals/**
+  - src/actions/announcements/**
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Approvals and announcements
@@ -24,6 +32,6 @@ Use the approval decision that matches the evidence. If the record is incomplete
 5. Preview the result before publishing.
 6. Publish immediately only for time-sensitive communication.
 
-:::tip Clear communication
+:::tip[Clear communication]
 Put the action and deadline in the first two lines. Use emergency priority only when the message needs immediate attention.
 :::

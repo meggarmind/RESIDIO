@@ -13,6 +13,7 @@ Status: IN PROGRESS
 - [x] Add focused helper tests and run the full Vitest suite.
 - [x] Grant `project` scope to the GitHub CLI, verify Project 1's live `Backlog`, `In progress`, `In review`, and `Done` options, and run `npm run issue:doctor`.
 - [x] Add an hourly monitor with cooldown-based attention alerts, shell-safe dispatch inputs, and publish-before-Done lifecycle enforcement.
+- [x] **#141 Custom-role legacy RLS boundary (2026-09-02):** Preserve legacy buckets only for the five built-in roles. Arbitrary custom roles now resolve to `NULL`, preventing direct database access from bypassing application RBAC; a later explicit-permission policy migration is required before granting custom roles direct data access.
 
 ## Lint Baseline Remediation (2026-09-02)
 

@@ -29,6 +29,12 @@ Don't set `In review` automatically, and don't move things back to Backlog/Ready
 
 The `to-issues` skill (`~/.claude/skills/to-issues`) has `disable-model-invocation: true`, so it will never trigger automatically off its description. This is a standing instruction that overrides that gate: whenever a plan, spec, or PRD for this project is finalized (e.g. after `superpowers:writing-plans`, `superpowers:brainstorming`, or any planning discussion converges on a concrete set of next steps), invoke the `to-issues` skill directly to break it into vertical-slice issues on the tracker described in `docs/agents/issue-tracker.md`. Do not just describe the plan back to the user and stop — file it.
 
+### Admin guide drift
+
+The wiki in `website/docs` is pinned to the app: each page declares the source globs it documents and the commit it was last verified against. `npm run docs:drift` reports pages whose sources have moved on; `npm run docs:verify -- <path>` re-stamps one after review. See `docs/agents/doc-drift.md`.
+
+Standing instruction: when a change under `src/**` alters something a page describes — a renamed control, a new or removed setting, a changed rule or sequence of steps — update the page in the same piece of work and re-stamp it. Run `npm run docs:drift` before wrapping up any session that touched `src/**`. Never run `docs:verify -- --all` to clear a report you have not read.
+
 ### Domain docs
 
 Single-context — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

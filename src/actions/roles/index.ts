@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -196,6 +196,45 @@ export async function createRole(roleData: AppRoleInsert): Promise<{
 }
 
 /**
+ * Create a role and grant it permissions in one step.
+ *
+ * Creating and granting used to be two separate journeys — a role was born with
+ * nothing and an admin had to remember to open a second dialog — so roles
+ * routinely sat unpermissioned and looked broken.
+ *
+ * There is no transaction across the two writes, so this compensates instead:
+ * if the grant fails, the role just created is deleted rather than left behind
+ * as an unpermissioned shell that the admin has to notice and clean up.
+ */
+export async function createRoleWithPermissions(
+  roleData: AppRoleInsert,
+  permissionIds: string[]
+): Promise<{
+  success: boolean;
+  data?: AppRole;
+  error?: string;
+}> {
+  const created = await createRole(roleData);
+  if (!created.success || !created.data) return created;
+
+  if (permissionIds.length === 0) return created;
+
+  const granted = await updateRolePermissions(created.data.id, permissionIds);
+  if (granted.success) return created;
+
+  // Roll back so a failed grant does not leave a role nobody asked for.
+  const rolledBack = await deleteRole(created.data.id);
+
+  return {
+    success: false,
+    error: rolledBack.success
+      ? `Could not grant permissions, so the role was not created: ${granted.error}`
+      : `The role "${created.data.display_name}" was created but its permissions could not be ` +
+        `set (${granted.error}), and it could not be removed. Edit or delete it manually.`,
+  };
+}
+
+/**
  * Update an existing role
  */
 export async function updateRole(
@@ -352,14 +391,28 @@ export async function updateRolePermissions(
 
   const oldPermIds = oldPerms?.map((p) => p.permission_id) || [];
 
-  // Delete all existing permissions for this role
-  const { error: deleteError } = await supabase
+  // Delete all existing permissions for this role.
+  //
+  // .select() is not decoration: without it an RLS policy that filters the rows
+  // out returns success with zero rows deleted, and the revocation half of this
+  // update vanishes silently while the insert half appears to work. Comparing
+  // the deleted count against what we just read is the only way to notice.
+  const { data: deleted, error: deleteError } = await supabase
     .from('role_permissions')
     .delete()
-    .eq('role_id', roleId);
+    .eq('role_id', roleId)
+    .select('permission_id');
 
   if (deleteError) {
     return { success: false, error: deleteError.message };
+  }
+
+  if ((deleted?.length ?? 0) !== oldPermIds.length) {
+    return {
+      success: false,
+      error:
+        'Could not clear the role\'s existing permissions. The changes were not saved.',
+    };
   }
 
   // Insert new permissions
@@ -465,14 +518,23 @@ export async function assignRoleToUser(
     .eq('id', roleId)
     .single();
 
-  // Update user's role
-  const { error } = await supabase
+  // Service role: profiles has no RLS policy letting an administrator update
+  // another account's row, so this write through the caller's client matched
+  // zero rows and returned no error - the action reported success while the
+  // role was never assigned. Permission is enforced by authorizePermission()
+  // above; .select() makes a zero-row write detectable.
+  const { data: updated, error } = await createAdminClient()
     .from('profiles')
     .update({ role_id: roleId })
-    .eq('id', userId);
+    .eq('id', userId)
+    .select('id');
 
   if (error) {
     return { success: false, error: error.message };
+  }
+
+  if (!updated || updated.length === 0) {
+    return { success: false, error: 'Failed to assign role: the account could not be updated' };
   }
 
   // Audit log
@@ -520,6 +582,8 @@ export async function getCurrentAdmins(): Promise<{
     .from('profiles')
     .select(`
       id,
+      email,
+      full_name,
       role_id,
       resident_id,
       residents:resident_id (
@@ -588,12 +652,19 @@ export async function getCurrentAdmins(): Promise<{
         ? `${house.house_number}${house.streets?.name ? `, ${house.streets.name}` : ''}`
         : null;
 
+      // Admin accounts are not always linked to a resident record — the super
+      // admin and chairman usually are not — so fall back to the profile's own
+      // name and email instead of rendering "Unknown User".
+      const [profileFirstName = '', ...profileRestName] =
+        (profile.full_name || '').trim().split(/\s+/);
+      const profileLastName = profileRestName.join(' ');
+
       return {
         id: resident?.id || profile.id,
         profile_id: profile.id,
-        first_name: resident?.first_name || 'Unknown',
-        last_name: resident?.last_name || 'User',
-        email: resident?.email || null,
+        first_name: resident?.first_name || profileFirstName || profile.email || 'Unknown',
+        last_name: resident?.last_name || profileLastName || '',
+        email: resident?.email || profile.email || null,
         house_address: houseAddress,
         role_id: role.id,
         role_name: role.name,

@@ -209,23 +209,6 @@ export const updateSecuritySettingsSchema = z.object({
 
 export type UpdateSecuritySettingsData = z.infer<typeof updateSecuritySettingsSchema>;
 
-// Role permissions schema (for settings UI)
-export const securityRolePermissionsSchema = z.object({
-  register_contacts: z.array(z.string()),
-  generate_codes: z.array(z.string()),
-  update_contacts: z.array(z.string()),
-  verify_codes: z.array(z.string()),
-  record_checkin: z.array(z.string()),
-  view_contacts: z.array(z.string()),
-  search_contacts: z.array(z.string()),
-  export_contacts: z.array(z.string()),
-  suspend_revoke_contacts: z.array(z.string()),
-  configure_categories: z.array(z.string()),
-  view_access_logs: z.array(z.string()),
-});
-
-export type SecurityRolePermissionsData = z.infer<typeof securityRolePermissionsSchema>;
-
 // Export schemas for code verification
 export const codePatternSchema = z.string().regex(
   /^RES-[A-HJ-NP-Z2-9]{3}-[A-HJ-NP-Z2-9]{4}$/,

@@ -1,14 +1,12 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   // Settings
   getSecuritySettings,
-  getSecurityRolePermissions,
-  updateSecurityRolePermissions,
   updateSecuritySetting,
   resetSecuritySettingsToDefault,
-  getCurrentUserSecurityPermissions,
   // Contacts
   getSecurityContacts,
   getSecurityContact,
@@ -84,8 +82,46 @@ import type {
   VisitorAnalyticsFilters,
 } from '@/lib/validators/security-contact';
 
-import type { SecurityRolePermissions } from '@/types/database';
 import { POLLING_INTERVALS } from '@/lib/config/polling';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+
+/**
+ * The security screens' view of the current user's permissions.
+ *
+ * Previously this hit a server action that read the deprecated `profiles.role`
+ * column and a JSON blob in `system_settings`, entirely separate from the RBAC
+ * the Roles & Permissions screen edits. It now derives from the same
+ * `role_permissions` set the server actions enforce, so what an admin grants is
+ * what these screens show — and it needs no round trip, because the auth
+ * provider already caches the permission list.
+ *
+ * The keys stay in the security module's own vocabulary; the mapping onto
+ * `security.*` is the same one the server actions use.
+ */
+export function useCurrentUserSecurityPermissions() {
+  const { hasPermission, isLoading } = useAuth();
+
+  const permissions = useMemo(
+    () => ({
+      register_contacts: hasPermission(PERMISSIONS.SECURITY_REGISTER_CONTACTS),
+      generate_codes: hasPermission(PERMISSIONS.SECURITY_GENERATE_CODES),
+      update_contacts: hasPermission(PERMISSIONS.SECURITY_UPDATE_CONTACTS),
+      verify_codes: hasPermission(PERMISSIONS.SECURITY_VERIFY_CODES),
+      record_checkin: hasPermission(PERMISSIONS.SECURITY_RECORD_ACCESS),
+      view_contacts: hasPermission(PERMISSIONS.SECURITY_VIEW),
+      // Search is not separable from view; both map to security.view.
+      search_contacts: hasPermission(PERMISSIONS.SECURITY_VIEW),
+      export_contacts: hasPermission(PERMISSIONS.SECURITY_EXPORT),
+      suspend_revoke_contacts: hasPermission(PERMISSIONS.SECURITY_SUSPEND_REVOKE),
+      configure_categories: hasPermission(PERMISSIONS.SECURITY_MANAGE_CATEGORIES),
+      view_access_logs: hasPermission(PERMISSIONS.SECURITY_VIEW_LOGS),
+    }),
+    [hasPermission]
+  );
+
+  return { data: { permissions }, isLoading };
+}
 
 // ==================== Settings Hooks ====================
 
@@ -96,44 +132,6 @@ export function useSecuritySettings() {
       const result = await getSecuritySettings();
       if (result.error) throw new Error(result.error);
       return result.data;
-    },
-  });
-}
-
-export function useSecurityRolePermissions() {
-  return useQuery({
-    queryKey: ['securityRolePermissions'],
-    queryFn: async () => {
-      const result = await getSecurityRolePermissions();
-      if (result.error) throw new Error(result.error);
-      return result.data;
-    },
-  });
-}
-
-export function useCurrentUserSecurityPermissions() {
-  return useQuery({
-    queryKey: ['currentUserSecurityPermissions'],
-    queryFn: async () => {
-      const result = await getCurrentUserSecurityPermissions();
-      return result;
-    },
-  });
-}
-
-export function useUpdateSecurityRolePermissions() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (permissions: SecurityRolePermissions) => {
-      const result = await updateSecurityRolePermissions(permissions);
-      if (!result.success) throw new Error(result.error || 'Failed to update permissions');
-      return true;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['securitySettings'] });
-      queryClient.invalidateQueries({ queryKey: ['securityRolePermissions'] });
-      queryClient.invalidateQueries({ queryKey: ['currentUserSecurityPermissions'] });
     },
   });
 }

@@ -732,14 +732,21 @@ export async function toggleImpersonationEnabled(
     return { success: false, error: 'User is not an admin' };
   }
 
-  // Update the setting
-  const { error: updateError } = await supabase
+  // Service role: an administrator cannot update another account's profile row
+  // under RLS, so this silently affected zero rows. Permission is enforced by
+  // the authorization check above.
+  const { data: updated, error: updateError } = await createAdminClient()
     .from('profiles')
     .update({ impersonation_enabled: enabled })
-    .eq('id', profileId);
+    .eq('id', profileId)
+    .select('id');
 
   if (updateError) {
     return { success: false, error: updateError.message };
+  }
+
+  if (!updated || updated.length === 0) {
+    return { success: false, error: 'Failed to update the setting: the account could not be updated' };
   }
 
   // Log audit event

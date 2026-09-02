@@ -7,6 +7,7 @@ import {
   getRoleById,
   getAllPermissions,
   createRole,
+  createRoleWithPermissions,
   updateRole,
   deleteRole,
   updateRolePermissions,
@@ -76,6 +77,45 @@ export function usePermissions() {
 /**
  * Create a new role
  */
+/**
+ * Create a role and grant its permissions together.
+ *
+ * Kept separate from useCreateRole so the plain create path stays available;
+ * the Add Role dialog uses this one, because a role with no permissions is not
+ * a useful thing to have made.
+ */
+export function useCreateRoleWithPermissions() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      role,
+      permissionIds,
+    }: {
+      role: AppRoleInsert;
+      permissionIds: string[];
+    }) => {
+      const result = await createRoleWithPermissions(role, permissionIds);
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      return result.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ROLES_KEY });
+      const count = variables.permissionIds.length;
+      toast.success(
+        count > 0
+          ? `Role created with ${count} privilege${count === 1 ? '' : 's'}`
+          : 'Role created. It has no access yet.'
+      );
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to create role');
+    },
+  });
+}
+
 export function useCreateRole() {
   const queryClient = useQueryClient();
 

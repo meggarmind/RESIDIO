@@ -10,6 +10,9 @@
 - [x] **#146 Admin React Compiler cleanup:** Resolved in-scope effect, refs/purity, and memoization violations.
 - [x] **#147 Final unsafe-type/directive/JSX cleanup:** `npm run lint` passes with zero errors; Vitest passes 361/361; production build passes with the existing root `.env.local` loaded for Supabase prerendering. Lifecycle review passed; integration/finish remains pending.
 
+### Security (2026-09-02)
+- [x] **#141 Custom role legacy-RLS escalation:** Removed the unmerged `get_my_role()` fallback that granted arbitrary custom roles the legacy `admin` or `chairman` bucket. Custom roles now fail closed at legacy RLS policies until those policies are converted to explicit permission checks.
+
 ### Admin User Guide (2026-08-22)
 - [x] Docusaurus admin guide created under `website/` with role-aware workflows across all admin areas.
 - [x] Playwright screenshot capture and browser-side sensitive-value masking added.

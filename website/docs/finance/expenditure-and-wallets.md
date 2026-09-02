@@ -2,6 +2,14 @@
 id: expenditure-and-wallets
 title: Expenditure and wallets
 sidebar_label: Expenditure and wallets
+residio_sources:
+  - src/app/(dashboard)/expenditure/**
+  - src/actions/expenses/**
+  - src/actions/finance/**
+  - src/actions/billing/wallet.ts
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Expenditure and wallets
@@ -14,7 +22,7 @@ Use **Expenditure** to record and review estate costs. Include a clear descripti
 
 Wallet credit represents resident funds that may be allocated against eligible invoices. When a payment is recorded, review the allocation result rather than assuming the amount remains unallocated.
 
-:::warning Financial control
+:::warning[Financial control]
 Never use an expenditure record to correct a resident payment. Correct the source transaction through the payment workflow so the audit trail stays accurate.
 :::
 
