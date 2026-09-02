@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { billingProfileSchema, type BillingProfileData } from '@/lib/validators/billing';
 import { createApprovalRequest, canAutoApprove } from '@/actions/approvals';
+import { logAudit, getChangedValues } from '@/lib/audit/logger';
 import type { BillingProfileWithItems } from '@/types/database';
 
 export { type BillingProfileData } from '@/lib/validators/billing';
@@ -62,6 +63,15 @@ export async function createBillingProfile(data: BillingProfileData) {
         }
     }
 
+    await logAudit({
+        action: 'CREATE',
+        entityType: 'billing_profiles',
+        entityId: profile.id,
+        entityDisplay: profile.name,
+        newValues: profile,
+        metadata: { item_count: result.data.items?.length ?? 0 },
+    });
+
     revalidatePath('/settings/billing');
     return { success: true, data: profile };
 }
@@ -111,6 +121,14 @@ export async function getDevelopmentLevyProfiles() {
 export async function deleteBillingProfile(id: string) {
     const supabase = await createServerSupabaseClient();
 
+    // Capture the rate card before removal: this is a hard delete, so the audit
+    // entry is the only remaining record of what residents were charged under it.
+    const { data: existing } = await supabase
+        .from('billing_profiles')
+        .select('*, items:billing_items(*)')
+        .eq('id', id)
+        .single();
+
     const { error } = await supabase
         .from('billing_profiles')
         .delete()
@@ -120,6 +138,14 @@ export async function deleteBillingProfile(id: string) {
         console.error('Delete profile error:', error);
         return { error: 'Failed to delete profile' };
     }
+
+    await logAudit({
+        action: 'DELETE',
+        entityType: 'billing_profiles',
+        entityId: id,
+        entityDisplay: existing?.name ?? id,
+        oldValues: existing ?? undefined,
+    });
 
     revalidatePath('/settings/billing');
     return { success: true };
@@ -267,15 +293,28 @@ export async function updateBillingProfile(
     if (data.is_development_levy !== undefined) updateData.is_development_levy = data.is_development_levy;
     if (data.effective_date !== undefined) updateData.effective_date = data.effective_date;
 
-    const { error: updateError } = await supabase
+    const { data: updatedProfile, error: updateError } = await supabase
         .from('billing_profiles')
         .update(updateData)
-        .eq('id', id);
+        .eq('id', id)
+        .select()
+        .single();
 
     if (updateError) {
         console.error('Update profile error:', updateError);
         return { success: false, error: 'Failed to update profile' };
     }
+
+    const profileChanges = getChangedValues(currentProfile, updatedProfile);
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'billing_profiles',
+        entityId: id,
+        entityDisplay: updatedProfile?.name ?? currentProfile.name,
+        oldValues: profileChanges.old,
+        newValues: profileChanges.new,
+        ...(data.items ? { description: 'Billing items replaced' } : {}),
+    });
 
     // Update items if provided
     if (data.items) {
@@ -371,6 +410,16 @@ export async function duplicateBillingProfile(id: string) {
             };
         }
     }
+
+    await logAudit({
+        action: 'CREATE',
+        entityType: 'billing_profiles',
+        entityId: newProfile.id,
+        entityDisplay: newProfile.name,
+        newValues: newProfile,
+        description: `Duplicated from "${source.name}"`,
+        metadata: { source_profile_id: id },
+    });
 
     revalidatePath('/settings/billing');
     return { success: true, data: newProfile };

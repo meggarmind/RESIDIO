@@ -9,6 +9,13 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (OpenCode, 2026-09-02 — build and audit coverage rebase)
+
+- Rebased the useful portions of `fix/build-and-audit-coverage` onto current `origin/master` as `fix/build-audit-rebased`: excludes the standalone `website/` workspace from the app TypeScript program and preserves successful audit logging for 24 write-action files.
+- Dropped the branch's stale pilot-readiness handoff rather than overwriting current coordination state.
+- Verification: full Vitest 292/292; module-integration reports 42 remaining permission and 5 remaining audit allowlist exceptions; `git diff --check` clean. Full lint remains baseline-red at 107 errors and 423 warnings. The isolated-worktree build reached page prerendering but cannot create a Supabase client because `.env.local` is intentionally absent from worktrees.
+- Next: push and merge `fix/build-audit-rebased`, then rebase the monitor workflow onto the updated master baseline.
+
 ## Last session (OpenCode, 2026-08-24 — WhatsApp Pilot and Estate-Wide Controls #8)
 
 - Completed the missing admin rollout controls: mounted pilot settings on `/settings/whatsapp`, added explicit pilot-to-estate promotion with permission-first authorization and an `ACTIVATE` audit record, and kept pilot targeting fail-closed for inbound financial access and proactive sends.

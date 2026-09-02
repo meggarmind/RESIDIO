@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import type { ResidentRole, ResidentHouse } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { requiresSponsor } from '@/lib/validators/resident';
+import { logAudit, getChangedValues } from '@/lib/audit/logger';
 
 type UpdateResidentHouseData = {
   resident_role?: ResidentRole;
@@ -181,6 +182,30 @@ export async function updateResidentHouse(
       // Don't fail the operation for history errors
     }
   }
+
+  // Compare only the fields this action can change: `assignment` is a partial
+  // select, so diffing it against the full updated row would report phantom changes.
+  const assignmentChanges = getChangedValues(
+    {
+      resident_role: assignment.resident_role,
+      sponsor_resident_id: assignment.sponsor_resident_id,
+    },
+    {
+      resident_role: updated.resident_role,
+      sponsor_resident_id: updated.sponsor_resident_id,
+    }
+  );
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'resident_houses',
+    entityId: assignment.id,
+    entityDisplay: data.resident_role
+      ? `Role: ${RESIDENT_ROLE_LABELS[currentRole]} → ${RESIDENT_ROLE_LABELS[data.resident_role]}`
+      : 'Assignment updated',
+    oldValues: assignmentChanges.old,
+    newValues: assignmentChanges.new,
+    metadata: { house_id: houseId, resident_id: residentId },
+  });
 
   revalidatePath('/houses');
   revalidatePath(`/houses/${houseId}`);

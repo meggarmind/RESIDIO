@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createMatcher, type ResidentMatchData } from '@/lib/matching';
 import type { BankStatementRow, MatchConfidence, MatchMethod, ResidentPaymentAlias } from '@/types/database';
 import { checkDuplicate } from './process-import';
+import { logAudit } from '@/lib/audit/logger';
 
 // ============================================================
 // Retry Helper with Exponential Backoff
@@ -403,6 +404,20 @@ export async function manualMatchRow(params: ManualMatchParams): Promise<ManualM
     }
   }
 
+  await logAudit({
+    action: 'ASSIGN',
+    entityType: 'bank_statement_imports',
+    entityId: row_id,
+    entityDisplay: `Statement row manually matched`,
+    newValues: {
+      matched_resident_id: resident_id ?? null,
+      matched_project_id: project_id ?? null,
+      matched_petty_cash_account_id: petty_cash_account_id ?? null,
+      matched_expense_category_id: expense_category_id ?? null,
+    },
+    metadata: { row_id, saved_as_alias: save_as_alias },
+  });
+
   return {
     data: updatedRow as BankStatementRow,
     error: null,
@@ -467,6 +482,15 @@ export async function unmatchRow(row_id: string): Promise<ManualMatchResponse> {
     };
   }
 
+  await logAudit({
+    action: 'UNASSIGN',
+    entityType: 'bank_statement_imports',
+    entityId: row_id,
+    entityDisplay: 'Statement row match cleared',
+    newValues: { matched_resident_id: null, status: 'unmatched' },
+    metadata: { row_id },
+  });
+
   return {
     data: data as BankStatementRow,
     error: null,
@@ -493,6 +517,15 @@ export async function skipRow(row_id: string): Promise<ManualMatchResponse> {
       error: error.message,
     };
   }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'bank_statement_imports',
+    entityId: row_id,
+    entityDisplay: 'Statement row skipped',
+    newValues: { status: 'skipped' },
+    metadata: { row_id },
+  });
 
   return {
     data: data as BankStatementRow,
@@ -522,6 +555,15 @@ export async function batchUpdateRowStatus(params: BatchUpdateParams): Promise<{
   if (error) {
     return { count: 0, error: error.message };
   }
+
+  await logAudit({
+    action: 'BULK_UPDATE',
+    entityType: 'bank_statement_imports',
+    entityId: row_ids[0] ?? 'batch',
+    entityDisplay: `${row_ids.length} statement row(s) set to ${status}`,
+    newValues: { status },
+    metadata: { row_ids, status },
+  });
 
   return { count: count ?? row_ids.length, error: null };
 }

@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { ReportSubscription } from '@/types/database';
+import { logAudit } from '@/lib/audit/logger';
 
 export interface ReportSubscriptionUpdateInput {
   receive_monthly_summary?: boolean;
@@ -216,6 +217,15 @@ export async function adminUpdateReportSubscription(
       return { data: null, error: error.message };
     }
 
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'report_subscriptions',
+      entityId: data.id,
+      entityDisplay: `Report subscription for resident ${residentId}`,
+      newValues: { ...input },
+      metadata: { resident_id: residentId, updated_by: 'admin' },
+    });
+
     return { data, error: null };
   } else {
     const { data, error } = await supabase
@@ -231,6 +241,15 @@ export async function adminUpdateReportSubscription(
       console.error('Error creating report subscription:', error);
       return { data: null, error: error.message };
     }
+
+    await logAudit({
+      action: 'CREATE',
+      entityType: 'report_subscriptions',
+      entityId: data.id,
+      entityDisplay: `Report subscription for resident ${residentId}`,
+      newValues: data,
+      metadata: { resident_id: residentId, created_by: 'admin' },
+    });
 
     return { data, error: null };
   }

@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { Street } from '@/types/database';
 import type { StreetFormData } from '@/lib/validators/house';
+import { logAudit } from '@/lib/audit/logger';
 
 type CreateStreetResponse = {
   data: Street | null;
@@ -31,6 +32,14 @@ export async function createStreet(formData: StreetFormData): Promise<CreateStre
   if (error) {
     return { data: null, error: error.message };
   }
+
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'streets',
+    entityId: data.id,
+    entityDisplay: data.name,
+    newValues: data,
+  });
 
   return { data, error: null };
 }

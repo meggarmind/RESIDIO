@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { HouseType } from '@/types/database';
 import type { HouseTypeFormData } from '@/lib/validators/house';
+import { logAudit } from '@/lib/audit/logger';
 
 type CreateHouseTypeResponse = {
   data: HouseType | null;
@@ -32,6 +33,14 @@ export async function createHouseType(formData: HouseTypeFormData): Promise<Crea
   if (error) {
     return { data: null, error: error.message };
   }
+
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'house_types',
+    entityId: data.id,
+    entityDisplay: data.name,
+    newValues: data,
+  });
 
   return { data, error: null };
 }

@@ -4,6 +4,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
+import { logAudit } from '@/lib/audit/logger';
 
 type SwapResidentRolesResponse = {
   success: boolean;
@@ -143,6 +144,8 @@ export async function swapResidentRoles(
   }
 
   // Record history for the swap
+  let promoteName = 'Resident';
+  let demoteName = 'Resident';
   try {
     // Get resident names for history notes
     const { data: residents } = await adminClient
@@ -152,8 +155,8 @@ export async function swapResidentRoles(
 
     const promoteResident = residents?.find(r => r.id === promoteResidentId);
     const demoteResident = residents?.find(r => r.id === demoteResidentId);
-    const promoteName = promoteResident ? `${promoteResident.first_name} ${promoteResident.last_name}` : 'Resident';
-    const demoteName = demoteResident ? `${demoteResident.first_name} ${demoteResident.last_name}` : 'Resident';
+    promoteName = promoteResident ? `${promoteResident.first_name} ${promoteResident.last_name}` : 'Resident';
+    demoteName = demoteResident ? `${demoteResident.first_name} ${demoteResident.last_name}` : 'Resident';
 
     // Record promotion
     await adminClient
@@ -188,6 +191,28 @@ export async function swapResidentRoles(
     console.error('[swapResidentRoles] Error recording history:', historyError);
     // Don't fail the operation for history errors
   }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'resident_houses',
+    entityId: promoteAssignment.id,
+    entityDisplay: `${promoteName} ↔ ${demoteName}`,
+    oldValues: {
+      [promoteResidentId]: 'co_resident',
+      [demoteResidentId]: demoteRole,
+    },
+    newValues: {
+      [promoteResidentId]: demoteRole,
+      [demoteResidentId]: 'co_resident',
+    },
+    description: `Swapped roles at house ${houseId}: ${promoteName} promoted to ${RESIDENT_ROLE_LABELS[demoteRole]}, ${demoteName} demoted to Occupant`,
+    metadata: {
+      house_id: houseId,
+      promoted_resident_id: promoteResidentId,
+      demoted_resident_id: demoteResidentId,
+      demoted_assignment_id: demoteAssignment.id,
+    },
+  });
 
   revalidatePath('/houses');
   revalidatePath(`/houses/${houseId}`);

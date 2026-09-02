@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { sendImmediate } from '@/lib/notifications/send';
 import { getEffectiveSettingValue } from '@/actions/settings/hierarchical-settings';
 import type { ApprovalRequestType, ApprovalEntityType } from '@/types/database';
+import { logAudit } from '@/lib/audit/logger';
 
 /**
  * Developer/Owner Approval Types
@@ -289,6 +290,22 @@ Residio Estate Management
     }
   }
 
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'approval_requests',
+    entityId: request.id,
+    entityDisplay: `Approval #${request.id.slice(0, 8)}`,
+    newValues: {
+      action_type: context.actionType,
+      house_id: context.houseId,
+      requested_changes: context.requestedChanges,
+    },
+    metadata: {
+      requester_resident_id: context.requesterResidentId,
+      target_resident_id: context.targetResidentId ?? null,
+    },
+  });
+
   revalidatePath('/approvals');
   return { success: true, requestId: request.id, error: null };
 }
@@ -356,6 +373,17 @@ export async function approveAsOccupier(
   // TODO: Apply the approved changes (would need to know the action type)
   // This would typically be handled by the calling code after approval
 
+  await logAudit({
+    action: 'APPROVE',
+    entityType: 'approval_requests',
+    entityId: requestId,
+    entityDisplay: `Approval #${requestId.slice(0, 8)}`,
+    oldValues: { status: 'pending' },
+    newValues: { status: 'approved', reviewed_by: user.id },
+    description: notes || 'Approved by affected occupier',
+    metadata: { request_type: request.request_type, approved_as: 'occupier' },
+  });
+
   revalidatePath('/approvals');
   revalidatePath('/portal');
   return { success: true, error: null };
@@ -421,6 +449,17 @@ export async function rejectAsOccupier(
     return { success: false, error: 'Failed to reject request' };
   }
 
+  await logAudit({
+    action: 'REJECT',
+    entityType: 'approval_requests',
+    entityId: requestId,
+    entityDisplay: `Approval #${requestId.slice(0, 8)}`,
+    oldValues: { status: 'pending' },
+    newValues: { status: 'rejected', reviewed_by: user.id },
+    description: notes || 'Rejected by occupier',
+    metadata: { request_type: request.request_type, rejected_as: 'occupier' },
+  });
+
   revalidatePath('/approvals');
   revalidatePath('/portal');
   return { success: true, error: null };
@@ -457,6 +496,15 @@ export async function processExpiredApprovals(): Promise<ProcessExpiredResponse>
     console.error('[processExpiredApprovals] Error:', error);
     return { success: false, processedCount: 0, error: 'Failed to process expired approvals' };
   }
+
+  await logAudit({
+    action: 'REJECT',
+    entityType: 'approval_requests',
+    entityId: 'expired-batch',
+    entityDisplay: `${count || 0} expired approval request(s) auto-rejected`,
+    newValues: { status: 'rejected', processed_count: count || 0 },
+    description: 'Auto-rejected approval requests past their expiry window',
+  });
 
   revalidatePath('/approvals');
   return { success: true, processedCount: count || 0, error: null };

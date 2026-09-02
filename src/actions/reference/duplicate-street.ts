@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { Street } from '@/types/database';
+import { logAudit } from '@/lib/audit/logger';
 
 type DuplicateStreetResponse = {
     data: Street | null;
@@ -44,6 +45,16 @@ export async function duplicateStreet(id: string): Promise<DuplicateStreetRespon
     if (error) {
         return { data: null, error: error.message };
     }
+
+    await logAudit({
+        action: 'CREATE',
+        entityType: 'streets',
+        entityId: data.id,
+        entityDisplay: data.name,
+        newValues: data,
+        description: `Duplicated from "${source.name}"`,
+        metadata: { source_street_id: id },
+    });
 
     return { data, error: null };
 }

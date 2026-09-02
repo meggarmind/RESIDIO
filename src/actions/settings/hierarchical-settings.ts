@@ -19,6 +19,8 @@ export type {
   SettingCategory,
 } from '@/lib/settings/hierarchical-settings-types';
 
+import { logAudit } from '@/lib/audit/logger';
+
 // Note: SETTING_METADATA is available from '@/lib/settings/hierarchical-settings-types'
 // It cannot be re-exported from "use server" files as it's not an async function
 
@@ -180,6 +182,18 @@ export async function setHierarchicalSetting(
     return { success: false, error: 'Failed to set setting' };
   }
 
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'system_settings',
+    entityId: data.id,
+    entityDisplay: `${key} (${level})`,
+    newValues: { setting_key: key, level, value: storageValue },
+    metadata: {
+      house_id: level === 'house' ? houseId : null,
+      resident_id: level === 'resident' ? residentId : null,
+    },
+  });
+
   revalidatePath('/settings');
   return { success: true, error: null, data: data as HierarchicalSetting };
 }
@@ -209,6 +223,22 @@ export async function removeSettingOverride(
     return { success: false, error: 'Resident ID required' };
   }
 
+  // Capture the override before removal: this is a hard delete, so the audit
+  // entry is the only remaining record of the value that applied here.
+  let existingQuery = supabase
+    .from('hierarchical_settings')
+    .select('*')
+    .eq('setting_key', key)
+    .eq('level', level);
+
+  if (level === 'house') {
+    existingQuery = existingQuery.eq('house_id', houseId!);
+  } else {
+    existingQuery = existingQuery.eq('resident_id', residentId!);
+  }
+
+  const { data: existing } = await existingQuery.maybeSingle();
+
   let query = supabase
     .from('hierarchical_settings')
     .delete()
@@ -227,6 +257,18 @@ export async function removeSettingOverride(
     console.error('[removeSettingOverride] Error:', error);
     return { success: false, error: 'Failed to remove override' };
   }
+
+  await logAudit({
+    action: 'DELETE',
+    entityType: 'system_settings',
+    entityId: existing?.id ?? `${key}:${level}`,
+    entityDisplay: `${key} (${level} override removed)`,
+    oldValues: existing ?? undefined,
+    metadata: {
+      house_id: level === 'house' ? houseId : null,
+      resident_id: level === 'resident' ? residentId : null,
+    },
+  });
 
   revalidatePath('/settings');
   return { success: true, error: null };

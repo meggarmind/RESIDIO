@@ -4,6 +4,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 import { requiresSponsor } from '@/lib/validators/resident';
+import { logAudit } from '@/lib/audit/logger';
 
 /**
  * Sponsored resident info for cascade operations
@@ -294,6 +295,23 @@ export async function processSponsorCascade(
       }
     }
   }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'resident_houses',
+    entityId: sponsorResidentId,
+    entityDisplay: `Sponsor cascade at house ${houseId}`,
+    newValues: results,
+    description:
+      notes ||
+      `Sponsor departure cascaded: ${results.removed} removed, ${results.transferred} transferred, ${results.kept} kept`,
+    metadata: {
+      house_id: houseId,
+      sponsor_resident_id: sponsorResidentId,
+      effective_date: today,
+      actions,
+    },
+  });
 
   // Revalidate paths
   revalidatePath('/residents');
