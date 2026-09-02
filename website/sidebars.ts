@@ -51,6 +51,11 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Integrations',
+      items: ['integrations/whatsapp-operations'],
+    },
+    {
+      type: 'category',
       label: 'Administration',
       items: ['administration/audit-logs-and-data-management', 'administration/troubleshooting'],
     },
