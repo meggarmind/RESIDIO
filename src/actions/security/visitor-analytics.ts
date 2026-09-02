@@ -11,7 +11,8 @@ import type {
   VisitorAnalyticsFilters,
   UpdateRecurringScheduleData,
 } from '@/lib/validators/security-contact';
-import { hasSecurityPermission } from './settings';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
 import { revalidatePath } from 'next/cache';
@@ -41,9 +42,9 @@ export async function getVisitorAnalytics(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_access_logs');
-  if (!canView) {
-    return { data: [], count: 0, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW_LOGS);
+  if (!auth.authorized) {
+    return { data: [], count: 0, error: auth.error || 'Permission denied' };
   }
 
   const {
@@ -105,9 +106,9 @@ export async function getFrequentVisitors(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_access_logs');
-  if (!canView) {
-    return { data: [], error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW_LOGS);
+  if (!auth.authorized) {
+    return { data: [], error: auth.error || 'Permission denied' };
   }
 
   const { data, error } = await supabase.rpc('get_frequent_visitors', {
@@ -134,9 +135,9 @@ export async function getVisitorHistorySummary(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_access_logs');
-  if (!canView) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW_LOGS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   const { data, error } = await supabase.rpc('get_visitor_history_summary', {
@@ -164,9 +165,9 @@ export async function updateRecurringSchedule(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canUpdate = await hasSecurityPermission('update_contacts');
-  if (!canUpdate) {
-    return { data: null, error: 'Permission denied: Cannot update recurring schedule' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_UPDATE_CONTACTS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Cannot update recurring schedule' };
   }
 
   const { contact_id, ...scheduleData } = data;
@@ -248,9 +249,9 @@ export async function getVisitorDashboardStats(): Promise<{
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_access_logs');
-  if (!canView) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW_LOGS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   try {
@@ -368,9 +369,9 @@ export async function getContactVisitHistory(
 }> {
   const supabase = await createServerSupabaseClient();
 
-  const canView = await hasSecurityPermission('view_access_logs');
-  if (!canView) {
-    return { data: [], count: 0, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW_LOGS);
+  if (!auth.authorized) {
+    return { data: [], count: 0, error: auth.error || 'Permission denied' };
   }
 
   const offset = (page - 1) * limit;
@@ -431,9 +432,9 @@ export async function getTodayExpectedRecurringVisitors(): Promise<{
 }> {
   const supabase = await createServerSupabaseClient();
 
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { data: [], error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { data: [], error: auth.error || 'Permission denied' };
   }
 
   // Get current day of week (lowercase)

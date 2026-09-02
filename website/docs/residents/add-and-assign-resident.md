@@ -2,6 +2,14 @@
 id: add-and-assign-resident
 title: Add and assign a resident
 sidebar_label: Add and assign a resident
+residio_sources:
+  - src/app/(dashboard)/residents/new/**
+  - src/actions/residents/create-resident.ts
+  - src/actions/residents/assign-house.ts
+  - src/actions/residents/add-household-member.ts
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Add and assign a resident
@@ -25,7 +33,7 @@ Use this workflow when a new resident needs an account and a property assignment
 5. Review the summary carefully, then select **Create resident**.
 6. Record the generated resident code in the approved estate process.
 
-:::warning Duplicate prevention
+:::warning[Duplicate prevention]
 Do not create a second record because a resident has changed phone number, role, or house. Update the existing record instead.
 :::
 

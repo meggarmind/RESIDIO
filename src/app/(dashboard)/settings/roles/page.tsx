@@ -9,12 +9,13 @@ import { RoleAssignmentSection } from '@/components/admin/role-assignment-sectio
 import { RoleAssignmentRulesEditor } from '@/components/admin/role-assignment-rules';
 import { OrphanedAccountsList } from '@/components/admin/orphaned-accounts-list';
 import { CurrentAdminsList } from '@/components/admin/current-admins-list';
-import { Shield, Users, Settings, Ghost, Loader2 } from 'lucide-react';
+import { PendingAccountsList } from '@/components/admin/pending-accounts-list';
+import { Shield, Users, Settings, Ghost, UserCheck, Loader2 } from 'lucide-react';
 
 function RolesSettingsContent() {
   const searchParams = useSearchParams();
   const tabFromUrl = searchParams.get('tab');
-  const validTabs = ['roles', 'assignments', 'rules', 'orphaned'];
+  const validTabs = ['roles', 'assignments', 'pending', 'rules', 'orphaned'];
   const initialTab = tabFromUrl && validTabs.includes(tabFromUrl) ? tabFromUrl : 'roles';
 
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -36,7 +37,7 @@ function RolesSettingsContent() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="roles" className="gap-2">
             <Shield className="h-4 w-4" />
             Role Definitions
@@ -44,6 +45,10 @@ function RolesSettingsContent() {
           <TabsTrigger value="assignments" className="gap-2">
             <Users className="h-4 w-4" />
             Role Assignments
+          </TabsTrigger>
+          <TabsTrigger value="pending" className="gap-2">
+            <UserCheck className="h-4 w-4" />
+            Pending Accounts
           </TabsTrigger>
           <TabsTrigger value="rules" className="gap-2">
             <Settings className="h-4 w-4" />
@@ -75,7 +80,8 @@ function RolesSettingsContent() {
             <CardHeader>
               <CardTitle>Current Administrators</CardTitle>
               <CardDescription>
-                Residents currently assigned to administrative roles.
+                Everyone currently assigned to an administrative role, whether or not they
+                live on the estate.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -85,15 +91,31 @@ function RolesSettingsContent() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Assign Roles to Residents</CardTitle>
+              <CardTitle>Assign Roles</CardTitle>
               <CardDescription>
-                Search for residents and assign administrative roles. Only the Super Administrator
-                can assign the Chairman role. The Chairman and Super Administrator can assign other
-                admin roles.
+                Search residents, or search accounts to reach staff who have a login but no
+                resident record. Role assignment is part of the Settings module, so it sits
+                with the Super Administrator.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <RoleAssignmentSection />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pending" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pending Accounts</CardTitle>
+              <CardDescription>
+                People who have signed up and are waiting to be let in. Until you approve one,
+                the account can sign in but has no access to any estate data. Approving it
+                assigns the role it will hold.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PendingAccountsList />
             </CardContent>
           </Card>
         </TabsContent>

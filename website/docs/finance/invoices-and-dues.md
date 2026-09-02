@@ -3,6 +3,13 @@ id: invoices-and-dues
 title: Invoices and dues
 sidebar_label: Invoices and dues
 description: Review invoice status, generate dues, and handle exceptions.
+residio_sources:
+  - src/app/(dashboard)/billing/**
+  - src/actions/billing/**
+  - src/app/(dashboard)/settings/billing/**
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Invoices and dues
@@ -24,7 +31,7 @@ Use status filters for **unpaid**, **partial**, **paid**, **overdue**, and **voi
 5. For a backfill, enter the displayed security code exactly.
 6. Prepare the durable run and monitor its progress.
 
-:::warning Preview before prepare
+:::warning[Preview before prepare]
 The preview is the control point. Do not prepare a run until the candidate count and warnings match the intended period and scope.
 :::
 

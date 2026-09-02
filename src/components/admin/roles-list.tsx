@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import {
   useRolesWithPermissions,
-  useCreateRole,
+  useCreateRoleWithPermissions,
   useUpdateRole,
   useDeleteRole,
+  usePermissions,
 } from '@/hooks/use-roles';
 import { Button } from '@/components/ui/button';
 import {
@@ -56,6 +57,8 @@ import {
 import { Plus, Loader2, Pencil, Trash2, Shield, Lock } from 'lucide-react';
 import type { AppRoleWithPermissions, RoleCategory } from '@/types/database';
 import { RolePermissionsDialog } from './role-permissions-dialog';
+import { PermissionPicker } from './permission-picker';
+import { resolvePermissionCategory } from '@/config/permission-categories';
 
 const CATEGORY_LABELS: Record<RoleCategory, string> = {
   exco: 'Executive Committee',
@@ -64,9 +67,19 @@ const CATEGORY_LABELS: Record<RoleCategory, string> = {
   resident: 'Resident',
 };
 
+/**
+ * How many modules a role can reach at all. The privilege count alone does not
+ * answer "what can this role do?" -- 12 privileges spread over 6 modules is a
+ * different role from 12 concentrated in one.
+ */
+function moduleCount(role: AppRoleWithPermissions): number {
+  return new Set(role.permissions.map((p) => resolvePermissionCategory(p.category))).size;
+}
+
 export function RolesList() {
   const { data: rolesData, isLoading } = useRolesWithPermissions();
-  const createMutation = useCreateRole();
+  const { data: allPermissions, isLoading: permissionsLoading } = usePermissions();
+  const createMutation = useCreateRoleWithPermissions();
   const updateMutation = useUpdateRole();
   const deleteMutation = useDeleteRole();
 
@@ -91,6 +104,9 @@ export function RolesList() {
   const [formCategory, setFormCategory] = useState<RoleCategory>('exco');
   const [formLevel, setFormLevel] = useState(5);
   const [formIsActive, setFormIsActive] = useState(true);
+  // Permissions chosen while creating, and the role they were seeded from.
+  const [formPermissionIds, setFormPermissionIds] = useState<Set<string>>(new Set());
+  const [cloneFromId, setCloneFromId] = useState<string>('none');
 
   const isEditing = editingId !== null;
   const isSystemRole = editingRole?.is_system_role ?? false;
@@ -104,6 +120,15 @@ export function RolesList() {
     setFormCategory('exco');
     setFormLevel(5);
     setFormIsActive(true);
+    setFormPermissionIds(new Set());
+    setCloneFromId('none');
+  };
+
+  /** Seed the picker from an existing role, so "same as the Secretary, plus finance" is one click. */
+  const handleCloneFrom = (roleId: string) => {
+    setCloneFromId(roleId);
+    const source = rolesData?.find((r) => r.id === roleId);
+    setFormPermissionIds(new Set(source ? source.permissions.map((p) => p.id) : []));
   };
 
   const openCreateDialog = () => {
@@ -161,12 +186,15 @@ export function RolesList() {
         // Create new role - convert display name to snake_case for name
         const roleName = formName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
         await createMutation.mutateAsync({
-          name: roleName,
-          display_name: formDisplayName,
-          description: formDescription || undefined,
-          category: formCategory,
-          level: formLevel,
-          is_active: formIsActive,
+          role: {
+            name: roleName,
+            display_name: formDisplayName,
+            description: formDescription || undefined,
+            category: formCategory,
+            level: formLevel,
+            is_active: formIsActive,
+          },
+          permissionIds: Array.from(formPermissionIds),
         });
       }
       setIsDialogOpen(false);
@@ -201,7 +229,7 @@ export function RolesList() {
               Add Role
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className={isEditing ? 'max-w-md' : 'flex max-h-[88vh] max-w-3xl flex-col'}>
             <DialogHeader>
               <DialogTitle>
                 {isEditing ? 'Edit Role' : 'Add New Role'}
@@ -211,11 +239,11 @@ export function RolesList() {
                   ? isSystemRole
                     ? 'System roles have limited editable fields.'
                     : 'Update the role details below.'
-                  : 'Create a new role for estate administration.'}
+                  : 'Name the role, then choose the modules and privileges it should have.'}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-4">
+            <form onSubmit={handleSubmit} className={isEditing ? undefined : 'flex min-h-0 flex-1 flex-col'}>
+              <div className={isEditing ? 'grid gap-4 py-4' : 'grid min-h-0 flex-1 gap-4 overflow-y-auto py-4'}>
                 {!isEditing && (
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="name" className="text-right">
@@ -328,8 +356,51 @@ export function RolesList() {
                     </span>
                   </div>
                 </div>
+
+                {!isEditing && (
+                  <div className="space-y-3 border-t pt-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-medium">Access</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Grant whole modules, or open one to pick individual privileges.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="clone_from" className="whitespace-nowrap text-sm">
+                          Start from
+                        </Label>
+                        <Select value={cloneFromId} onValueChange={handleCloneFrom}>
+                          <SelectTrigger id="clone_from" className="w-[220px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No access</SelectItem>
+                            {rolesData?.map((r) => (
+                              <SelectItem key={r.id} value={r.id}>
+                                {r.display_name} ({r.permissions.length})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <PermissionPicker
+                      permissions={allPermissions}
+                      isLoading={permissionsLoading}
+                      value={formPermissionIds}
+                      onChange={setFormPermissionIds}
+                    />
+                  </div>
+                )}
               </div>
-              <DialogFooter>
+              <DialogFooter className={isEditing ? undefined : 'items-center justify-between border-t pt-4 sm:justify-between'}>
+                {!isEditing && (
+                  <span className="text-sm text-muted-foreground">
+                    {formPermissionIds.size} privilege{formPermissionIds.size !== 1 ? 's' : ''} selected
+                  </span>
+                )}
                 <Button type="submit" disabled={isSubmitting || updateMutation.isPending}>
                   {(isSubmitting || updateMutation.isPending) && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -349,7 +420,7 @@ export function RolesList() {
               <TableHead>Role</TableHead>
               <TableHead>Category</TableHead>
               <TableHead className="text-center">Level</TableHead>
-              <TableHead className="text-center">Permissions</TableHead>
+              <TableHead className="text-center">Access</TableHead>
               <TableHead className="w-[100px]">Status</TableHead>
               <TableHead className="w-[150px] text-right">Actions</TableHead>
             </TableRow>
@@ -396,12 +467,15 @@ export function RolesList() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="gap-1.5 hover:bg-primary/10 hover:border-primary"
+                      className="gap-1.5 hover:border-primary hover:bg-primary/10"
                       onClick={() => openPermissionsDialog(role)}
                     >
                       <Shield className="h-4 w-4" />
-                      <span>{role.permissions.length}</span>
-                      <span className="text-xs text-muted-foreground">Edit</span>
+                      <span>
+                        {moduleCount(role)} module{moduleCount(role) !== 1 ? 's' : ''} ·{' '}
+                        {role.permissions.length} privilege
+                        {role.permissions.length !== 1 ? 's' : ''}
+                      </span>
                     </Button>
                   </TableCell>
                   <TableCell>

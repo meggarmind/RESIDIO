@@ -9,16 +9,39 @@ This document covers authentication, role-based access control, route protection
 Residio uses Supabase Auth with email/password authentication.
 
 ### Login Flow
-1. User submits email/password on `/login`
-2. Supabase Auth validates credentials
+1. User signs in on `/login`, either with Google or with email/password
+2. Supabase Auth validates the credentials or the OAuth exchange
 3. Session cookie set via `@supabase/ssr`
-4. Middleware checks session on each request
-5. Redirect to `/dashboard` on success
+4. Middleware checks the session and `profiles.approval_status` on each request
+5. Redirect to `/dashboard`, `/portal` or `/pending-approval` depending on approval status and role
+
+### Account Approval Lifecycle
+
+Signing up does **not** grant access. `handle_new_user()` provisions every new
+`auth.users` row with `approval_status = 'pending'`, no role and no resident link.
+
+`profiles.approval_status` is the single chokepoint: the SECURITY DEFINER helpers that
+~85 RLS policies depend on — `get_my_role()`, `get_my_resident_id()`, `is_resident()`,
+`is_super_admin()`, `has_permission()` — all return NULL/false unless the status is
+`active`. A pending, rejected or suspended account is therefore denied at the database
+level, not merely redirected by middleware.
+
+An administrator approves the account and assigns a role from
+**Settings → Roles → Pending Accounts**.
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Awaiting approval. No data access. Sees `/pending-approval`. |
+| `active` | Approved. Permissions resolve from `role_id`. |
+| `rejected` | Declined. Signed out at the callback, shown the reason. |
+| `suspended` | Access revoked after having been active. |
 
 ### Auth Callback
-Route: `src/app/api/auth/callback/route.ts`
+Route: `src/app/auth/callback/route.ts`
 
-Handles OAuth redirects and email confirmation links.
+Handles OAuth redirects and email confirmation links. Exchanges the code for a session,
+then branches on `approval_status` before role-based routing. Validates any `next`
+parameter as a same-origin relative path to prevent open redirects.
 
 ---
 

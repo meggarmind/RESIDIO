@@ -2,6 +2,14 @@
 id: reports-and-analytics
 title: Reports and analytics
 sidebar_label: Reports and analytics
+residio_sources:
+  - src/app/(dashboard)/analytics/**
+  - src/app/(dashboard)/reports/**
+  - src/actions/analytics/**
+  - src/actions/reports/**
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Reports and analytics

@@ -149,8 +149,7 @@ function hasPermissionCheck(content: string): boolean {
   return (
     content.includes('authorizePermission') ||
     content.includes('authorizeAction') ||
-    content.includes('authorizeAnyPermission') ||
-    content.includes('hasSecurityPermission')
+    content.includes('authorizeAnyPermission')
   );
 }
 

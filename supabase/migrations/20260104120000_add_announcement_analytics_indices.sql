@@ -31,21 +31,26 @@ ON announcement_read_receipts(announcement_id, resident_id);
 
 -- Index for notification center queries
 -- Enables fast filtering by recipient, category, and read status
+-- NOTE: the predicate cannot reference NOW(). It is STABLE, not IMMUTABLE, and a
+-- non-IMMUTABLE function in an index predicate raises
+--   42P17: functions in index predicate must be marked IMMUTABLE
+-- Postgres rejects this during parse analysis, BEFORE the IF NOT EXISTS name
+-- check, so the guard does not save a re-run. The expires_at > NOW() half is
+-- dropped; filtering live rows stays a runtime concern for the query.
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient_category
 ON in_app_notifications(recipient_id, category, is_read)
-WHERE expires_at IS NULL OR expires_at > NOW();
+WHERE expires_at IS NULL;
 
 -- Index for notification center date sorting
 -- Optimizes "recent notifications" queries
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient_created
-ON in_app_notifications(recipient_id, created_at DESC)
-WHERE expires_at IS NULL OR expires_at > NOW();
+ON in_app_notifications(recipient_id, created_at DESC);
 
 -- Index for unread notification counts
 -- Speeds up badge queries in portal header
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient_unread
 ON in_app_notifications(recipient_id)
-WHERE is_read = false AND (expires_at IS NULL OR expires_at > NOW());
+WHERE is_read = false;
 
 -- Comment documentation
 COMMENT ON INDEX idx_announcements_status_scheduled IS 

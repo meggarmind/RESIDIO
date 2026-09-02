@@ -106,13 +106,6 @@ const registrationSchema = z.object({
 
 type RegistrationFormData = z.infer<typeof registrationSchema>;
 
-// OAuth providers (reuse from login)
-const oauthProviders = [
-  { id: 'google', name: 'Google' },
-  { id: 'twitter', name: 'X' },
-  { id: 'linkedin_oidc', name: 'LinkedIn' },
-  { id: 'facebook', name: 'Facebook' },
-] as const;
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -243,16 +236,20 @@ export default function RegisterPage() {
   };
 
   // Handle OAuth registration
-  const handleOAuthRegister = async (providerId: string) => {
-    setOauthLoading(providerId);
+  const handleGoogleRegister = async () => {
+    setOauthLoading('google');
     setError(null);
 
     const supabase = createClient();
 
+    // The account still lands in the approval queue — signing up with Google
+    // creates a pending profile exactly like the form below does.
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: providerId as 'google' | 'twitter' | 'linkedin_oidc' | 'facebook',
+      provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?registration=true`,
+        redirectTo: `${siteUrl}/auth/callback`,
       },
     });
 
@@ -306,9 +303,10 @@ export default function RegisterPage() {
         throw new Error('Failed to create account');
       }
 
-      // Note: In a production system, you would create a pending_registrations record
-      // and have admins approve it before creating the resident record.
-      // For now, we show success and let them know it's pending approval.
+      // The handle_new_user() trigger provisions the profile as 'pending' with
+      // no role, so the account genuinely cannot see anything until an
+      // administrator approves it under Settings -> Roles -> Pending Accounts.
+      // The success message below is accurate as written.
 
       setIsSuccess(true);
     } catch (err) {
@@ -330,8 +328,10 @@ export default function RegisterPage() {
         <div className="space-y-2">
           <h2 className="text-xl font-semibold">Registration Submitted!</h2>
           <p className="text-sm text-muted-foreground">
-            Thank you for registering. Your application has been submitted for administrator approval.
-            You will receive an email notification once your registration has been reviewed.
+            Thank you for registering. Your application has been sent to your estate
+            administrator for approval. Once it is approved you will be able to sign in
+            normally — try signing in again later, or contact your estate office if it is
+            taking longer than expected.
           </p>
         </div>
         <Button asChild className="w-full">
@@ -549,24 +549,16 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-2">
-              {oauthProviders.map((provider) => (
-                <Button
-                  key={provider.id}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleOAuthRegister(provider.id)}
-                  disabled={oauthLoading !== null}
-                >
-                  {oauthLoading === provider.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    provider.name
-                  )}
-                </Button>
-              ))}
-            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2"
+              onClick={handleGoogleRegister}
+              disabled={oauthLoading !== null}
+            >
+              {oauthLoading === 'google' && <Loader2 className="h-4 w-4 animate-spin" />}
+              Continue with Google
+            </Button>
           </div>
         )}
 

@@ -119,16 +119,32 @@ export async function registerResidentPortal(
       };
     }
 
-    // 7. Create profile with resident_id link
+    // 7. Link the profile to the resident record.
+    //
+    // The handle_new_user() trigger already created this profiles row when the
+    // auth user was inserted above, so this must UPDATE rather than INSERT — a
+    // plain insert collided with the primary key and failed every registration.
+    //
+    // This account is auto-approved rather than left pending: an administrator
+    // already vetted it by enabling portal access on the resident record, and
+    // the caller proved ownership via resident_code plus a matching email.
+    const { data: residentRole } = await supabase
+      .from('app_roles')
+      .select('id')
+      .eq('name', 'resident')
+      .single();
+
     const { error: profileError } = await supabase
       .from('profiles')
-      .insert({
-        id: authData.user.id,
+      .update({
         email: email,
         full_name: fullName,
-        role: 'security_officer', // Default role, will use resident_id for portal access
+        role_id: residentRole?.id ?? null,
         resident_id: resident.id,
-      });
+        approval_status: 'active',
+        approved_at: new Date().toISOString(),
+      })
+      .eq('id', authData.user.id);
 
     if (profileError) {
       // Rollback: delete the auth user if profile creation fails

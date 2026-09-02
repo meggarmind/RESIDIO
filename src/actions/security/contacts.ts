@@ -13,7 +13,8 @@ import type {
   UpdateSecurityContactStatusData,
   SecurityContactFilters,
 } from '@/lib/validators/security-contact';
-import { hasSecurityPermission } from './settings';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
 import { sanitizeSearchInput } from '@/lib/utils';
@@ -43,9 +44,9 @@ export async function getSecurityContacts(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { data: [], count: 0, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { data: [], count: 0, error: auth.error || 'Permission denied' };
   }
 
   const {
@@ -136,9 +137,9 @@ export async function getSecurityContact(id: string): Promise<SecurityContactDet
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   const { data, error } = await supabase
@@ -181,9 +182,9 @@ export async function createSecurityContact(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canRegister = await hasSecurityPermission('register_contacts');
-  if (!canRegister) {
-    return { data: null, error: 'Permission denied: Cannot register security contacts' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_REGISTER_CONTACTS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Cannot register security contacts' };
   }
 
   // Get current user
@@ -302,9 +303,9 @@ export async function updateSecurityContact(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canUpdate = await hasSecurityPermission('update_contacts');
-  if (!canUpdate) {
-    return { data: null, error: 'Permission denied: Cannot update security contacts' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_UPDATE_CONTACTS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Cannot update security contacts' };
   }
 
   // Get current user
@@ -388,12 +389,12 @@ export async function updateSecurityContactStatus(
   // Check permission - suspend/revoke requires special permission
   const statusRequiresSuspendPermission: SecurityContactStatus[] = ['suspended', 'revoked'];
   const permission = statusRequiresSuspendPermission.includes(data.status)
-    ? 'suspend_revoke_contacts'
-    : 'update_contacts';
+    ? PERMISSIONS.SECURITY_SUSPEND_REVOKE
+    : PERMISSIONS.SECURITY_UPDATE_CONTACTS;
 
-  const hasPermission = await hasSecurityPermission(permission);
-  if (!hasPermission) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(permission);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   // Get existing contact for audit
@@ -445,9 +446,9 @@ export async function deleteSecurityContact(id: string): Promise<{ success: bool
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canDelete = await hasSecurityPermission('suspend_revoke_contacts');
-  if (!canDelete) {
-    return { success: false, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_SUSPEND_REVOKE);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Permission denied' };
   }
 
   // Get existing contact for audit
@@ -511,9 +512,9 @@ export async function getActiveContactCount(): Promise<{
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { count: 0, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { count: 0, error: auth.error || 'Permission denied' };
   }
 
   // Query to count contacts with at least one valid (non-expired) access code
@@ -555,9 +556,9 @@ export async function getExpiredContactCount(): Promise<{
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { count: 0, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { count: 0, error: auth.error || 'Permission denied' };
   }
 
   // Get all contacts with status='active' and check if they have any valid codes
@@ -612,9 +613,9 @@ export async function getExpiringContactCount(days: number = 7): Promise<{
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { count: 0, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { count: 0, error: auth.error || 'Permission denied' };
   }
 
   const now = new Date();
@@ -659,9 +660,9 @@ export async function getSuspendedContactCount(): Promise<{
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { count: 0, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { count: 0, error: auth.error || 'Permission denied' };
   }
 
   const { count, error } = await supabase
@@ -690,9 +691,9 @@ export async function searchSecurityContacts(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canSearch = await hasSecurityPermission('search_contacts');
-  if (!canSearch) {
-    return { data: [], count: 0, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { data: [], count: 0, error: auth.error || 'Permission denied' };
   }
 
   const { data, error } = await supabase

@@ -1,3 +1,14 @@
+-- ============================================================================
+-- ⚠️  LOCAL / TEST ENVIRONMENTS ONLY — NEVER RUN AGAINST PRODUCTION ⚠️
+-- ============================================================================
+-- This file seeds well-known accounts whose passwords are published in the repo
+-- (see CLAUDE.md, README.md, e2e/fixtures.ts). Anyone who can read the source can
+-- sign in with them. Running it against a production or internet-reachable
+-- database hands over administrator access.
+--
+-- The E2E suite depends on these accounts, which is the only reason they exist.
+-- ============================================================================
+
 -- Seed file for Residio database
 -- This file will be used to populate initial data
 
@@ -251,3 +262,55 @@ BEGIN
   VALUES ('Welcome to Residio', 'This is a test announcement for the resident portal.', 'published', NOW(), 'all');
 
 END $$;
+
+-- ============================================================================
+-- Activate and role-assign the seeded accounts
+-- ============================================================================
+-- handle_new_user() deliberately ignores raw_user_meta_data->>'role' — that
+-- value is client-supplied in real signups and was a privilege-escalation
+-- vector (see 20260829100400_harden_handle_new_user.sql). Every account above
+-- is therefore created as 'pending' with no role.
+--
+-- The seed must now state the roles it wants explicitly. Without this block the
+-- E2E suite has no administrator to sign in as.
+-- ============================================================================
+
+DO $seed_roles$
+DECLARE
+    v_mapping CONSTANT JSONB := jsonb_build_object(
+        'admin@residio.test',    'super_admin',
+        'chairman@residio.test', 'chairman',
+        'finance@residio.test',  'financial_officer',
+        'security@residio.test', 'security_officer',
+        'resident@residio.test', 'resident'
+    );
+    v_email TEXT;
+    v_role_name TEXT;
+BEGIN
+    FOR v_email, v_role_name IN SELECT * FROM jsonb_each_text(v_mapping)
+    LOOP
+        UPDATE public.profiles p
+        SET role_id = ar.id,
+            approval_status = 'active',
+            approved_at = NOW(),
+            role = CASE v_role_name
+                WHEN 'super_admin'       THEN 'admin'::public.user_role
+                WHEN 'chairman'          THEN 'chairman'::public.user_role
+                WHEN 'financial_officer' THEN 'financial_secretary'::public.user_role
+                WHEN 'security_officer'  THEN 'security_officer'::public.user_role
+                ELSE NULL
+            END
+        FROM public.app_roles ar
+        WHERE ar.name = v_role_name
+          AND p.email = v_email;
+    END LOOP;
+
+    -- Link the seeded resident account to its resident record so the portal works.
+    UPDATE public.profiles p
+    SET resident_id = r.id
+    FROM public.residents r
+    WHERE p.email = 'resident@residio.test'
+      AND r.email = 'resident@residio.test'
+      AND p.resident_id IS NULL;
+END
+$seed_roles$;
