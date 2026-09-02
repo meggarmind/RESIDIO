@@ -107,3 +107,19 @@ _Avoid_: Unknown user, stray number
 **WhatsApp Template**:
 A Meta pre-approved message template (copy + placeholders) used for all proactive Assistant messages; not modifiable at send time beyond placeholder fills.
 _Avoid_: Message body, broadcast copy
+
+**Setting**:
+A persisted value or rule an administrator changes that governs future system behaviour, such as the late-fee grace period or the maintenance-mode message. Distinct from anything an administrator merely watches.
+_Avoid_: Preference, option, config (when referring to one value)
+
+**Reference Data**:
+A maintained list of domain entities that other features select from — streets, house types, document categories, transaction tags, billing profiles. Distinct from a Setting because nothing is switched on or off; the list itself is the value.
+_Avoid_: Lookup table, master data
+
+**Integration**:
+An external service the estate connects to, such as WhatsApp, Gmail import, or Paystack. An Integration owns its credentials, its configuration and its operational console together, rather than being split across the subjects it serves.
+_Avoid_: Plugin, connector, third-party
+
+**Provider**:
+The vendor implementing a single Integration — Meta or Twilio for WhatsApp. An Integration may be served by several interchangeable Providers.
+_Avoid_: Integration (when referring to the vendor), vendor, backend
