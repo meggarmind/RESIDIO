@@ -2,6 +2,13 @@
 id: navigation-and-search
 title: Navigation and search
 sidebar_label: Navigation and search
+residio_sources:
+  - src/components/layout/**
+  - src/app/api/search/**
+  - src/lib/auth/action-roles.ts
+residio_verified_commit: 5590715
+residio_verified_at: '2026-08-30'
+residio_app_version: '0.4.0'
 ---
 
 # Navigation and search
@@ -26,6 +33,7 @@ Select **Search** in the header to search the records available to your role. Us
 
 ## Navigation rules
 
-- If a module is not visible, your role likely does not have its view permission.
+- If a module is not visible, your role likely does not have its view permission. The same applies inside **Settings**: its sidebar lists only the pages your role can open, so two admins will see different menus there.
+- In Settings, the group holding the page you are on stays expanded, and exactly one entry is highlighted — the page itself, not its section.
 - A page can be reachable by a direct link but still deny actions without the required create, update, or delete permission.
 - Use the breadcrumb or module link to return to the list rather than using browser history after a successful write.

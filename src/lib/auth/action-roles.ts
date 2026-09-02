@@ -5,7 +5,7 @@
  * Next.js 15/16 only allows async function exports from 'use server' files.
  */
 
-import type { UserRole, AppRoleName } from '@/types/database';
+import type { UserRole, AppRoleName, BuiltInRoleName, RoleCategory } from '@/types/database';
 
 export interface AuthorizationResult {
   authorized: boolean;
@@ -176,30 +176,158 @@ export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
 
 /**
  * Route permission mapping for middleware.
- * Maps route prefixes to required permissions.
+ *
+ * Consumed directly by `src/middleware.ts`, which resolves by longest matching
+ * prefix — so `/settings/roles` wins over `/settings`. Holding ANY listed
+ * permission authorizes the route.
+ *
+ * Every settings route is listed. Previously only four were, so most settings
+ * pages were reachable by any authenticated admin regardless of what their role
+ * had been granted. Each entry mirrors the permissions its `settingsConfig`
+ * entry uses, so the nav never links somewhere the middleware will bounce;
+ * `settings-nav-coverage.test.ts` holds the two in step.
  */
 export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/residents': [PERMISSIONS.RESIDENTS_VIEW],
   '/houses': [PERMISSIONS.HOUSES_VIEW],
   '/payments': [PERMISSIONS.PAYMENTS_VIEW],
   '/payments/import': [PERMISSIONS.IMPORTS_CREATE],
+  '/payments/email-imports': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/billing': [PERMISSIONS.BILLING_VIEW],
   '/security': [PERMISSIONS.SECURITY_VIEW],
   '/reports': [PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_OCCUPANCY, PERMISSIONS.REPORTS_VIEW_SECURITY],
   '/documents': [PERMISSIONS.DOCUMENTS_VIEW],
   '/announcements': [PERMISSIONS.ANNOUNCEMENTS_VIEW],
-  '/settings/announcement-categories': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
-  '/settings/message-templates': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES],
   '/approvals': [PERMISSIONS.APPROVALS_VIEW],
-  '/settings': [PERMISSIONS.SETTINGS_VIEW],
-  '/settings/appearance': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
-  '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES],
-  '/settings/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
-  '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
-  '/settings/email-integration': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
-  '/payments/email-imports': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/dashboard': [], // All authenticated users
+
+  // Settings — fallback first, then the specific pages that override it.
+  '/settings': [PERMISSIONS.SETTINGS_VIEW],
+
+  // General & Preferences
+  '/settings/estate-info': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/branding': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/data-management': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/appearance': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/notifications': [PERMISSIONS.NOTIFICATIONS_MANAGE],
+  '/settings/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
+  '/settings/whatsapp': [PERMISSIONS.WHATSAPP_VIEW],
+
+  // Estate configuration
+  '/settings/streets': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+  '/settings/house-types': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+  '/settings/transaction-tags': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+  '/settings/bank-accounts': [PERMISSIONS.SETTINGS_MANAGE_REFERENCE],
+  '/settings/document-categories': [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES],
+
+  // Access & security
+  '/settings/roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],
+  '/settings/user-roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],
+  '/settings/security': [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
+  '/settings/security/categories': [PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
+  '/settings/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
+
+  // Billing & finance
+  '/settings/billing': [PERMISSIONS.SETTINGS_MANAGE_BILLING, PERMISSIONS.BILLING_MANAGE_PROFILES],
+  '/settings/billing/profiles': [PERMISSIONS.BILLING_MANAGE_PROFILES],
+  '/settings/email-integration': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
+  '/settings/email-integration/config': [PERMISSIONS.EMAIL_IMPORTS_CONFIGURE],
+
+  // Communications
+  '/settings/email': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/message-templates': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES],
+  '/settings/announcement-categories': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
+
+  // System health
+  '/settings/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
+  '/settings/system/maintenance': [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+  '/settings/system/data': [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
+  '/settings/system/health': [PERMISSIONS.SYSTEM_MONITOR],
+  '/settings/cron-status': [PERMISSIONS.SYSTEM_MONITOR],
 };
+
+// =====================================================
+// Role name groupings
+// =====================================================
+
+/**
+ * Built-in role names that land on the admin dashboard rather than the resident
+ * portal. Used for post-login routing only — never for authorization, which
+ * always goes through permissions.
+ *
+ * This is now only a fallback for when the `app_roles` join is unavailable.
+ * Prefer `isAdminRole()`, which reads the role's category and so admits roles
+ * created through Roles & Permissions; while this list was the source of truth,
+ * a `treasurer` was bounced to /portal or /pending-approval no matter what it
+ * had been granted.
+ */
+export const ADMIN_ROLE_NAMES: readonly BuiltInRoleName[] = [
+  'super_admin',
+  'chairman',
+  'vice_chairman',
+  'financial_officer',
+  'security_officer',
+  'secretary',
+  'project_manager',
+] as const;
+
+/** A role as read from an `app_roles!profiles_role_id_fkey (name, category)` join. */
+export interface JoinedRole {
+  name: AppRoleName;
+  category: RoleCategory | null;
+}
+
+/**
+ * True when the role routes to the admin dashboard.
+ *
+ * Decided by category rather than by name, so any non-resident role — seeded or
+ * created by an admin — reaches the dashboard. Falls back to the built-in name
+ * list when the join did not carry a category.
+ */
+export function isAdminRole(role: JoinedRole | null | undefined): boolean {
+  if (!role) return false;
+  if (role.category) return role.category !== 'resident';
+  return (ADMIN_ROLE_NAMES as readonly string[]).includes(role.name);
+}
+
+/**
+ * True when the role belongs to the resident portal. The mirror of
+ * `isAdminRole`, so a resident-category role an admin creates routes with the
+ * seeded `resident` role rather than falling through to /pending-approval.
+ */
+export function isResidentRole(role: JoinedRole | null | undefined): boolean {
+  if (!role) return false;
+  return role.category === 'resident' || role.name === 'resident';
+}
+
+/**
+ * Reads a role out of an `app_roles!profiles_role_id_fkey (name, category)` join.
+ *
+ * PostgREST returns either an object or a single-element array depending on how
+ * it infers the relation, and the hand-maintained Database type does not model
+ * the FK at all, so the join arrives untyped. Normalises both shapes in one
+ * place instead of repeating the cast at every call site.
+ *
+ * `category` comes back null when the caller selected only `(name)`; callers
+ * that need admin routing should select both.
+ */
+export function extractRole(joined: unknown): JoinedRole | null {
+  const record = Array.isArray(joined) ? joined[0] : joined;
+  if (!record || typeof record !== 'object' || !('name' in record)) return null;
+
+  const { name, category } = record as { name: unknown; category?: unknown };
+  if (typeof name !== 'string') return null;
+
+  return {
+    name: name as AppRoleName,
+    category: typeof category === 'string' ? (category as RoleCategory) : null,
+  };
+}
+
+/** Convenience wrapper for callers that only need the name. */
+export function extractRoleName(joined: unknown): AppRoleName | null {
+  return extractRole(joined)?.name ?? null;
+}
 
 // =====================================================
 // Legacy: Role-based authorization (backwards compat)

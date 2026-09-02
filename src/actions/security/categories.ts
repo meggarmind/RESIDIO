@@ -4,7 +4,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { SecurityContactCategory } from '@/types/database';
 import type { UpdateCategoryData } from '@/lib/validators/security-contact';
-import { hasSecurityPermission } from './settings';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
 
@@ -74,9 +75,9 @@ export async function updateSecurityContactCategory(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canConfigure = await hasSecurityPermission('configure_categories');
-  if (!canConfigure) {
-    return { data: null, error: 'Permission denied: Only administrators can configure categories' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_MANAGE_CATEGORIES);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Only administrators can configure categories' };
   }
 
   const { id, ...updateData } = formData;
@@ -150,9 +151,9 @@ export async function createSecurityContactCategory(data: {
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canConfigure = await hasSecurityPermission('configure_categories');
-  if (!canConfigure) {
-    return { data: null, error: 'Permission denied: Only administrators can create categories' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_MANAGE_CATEGORIES);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Only administrators can create categories' };
   }
 
   // Check if category name already exists
@@ -208,9 +209,9 @@ export async function toggleCategoryActive(id: string): Promise<CategoryResponse
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canConfigure = await hasSecurityPermission('configure_categories');
-  if (!canConfigure) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_MANAGE_CATEGORIES);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   // Get current status
@@ -262,9 +263,9 @@ export async function reorderCategories(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canConfigure = await hasSecurityPermission('configure_categories');
-  if (!canConfigure) {
-    return { success: false, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_MANAGE_CATEGORIES);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Permission denied' };
   }
 
   const errors: string[] = [];

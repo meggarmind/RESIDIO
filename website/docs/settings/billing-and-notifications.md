@@ -2,6 +2,13 @@
 id: billing-and-notifications
 title: Billing and notifications settings
 sidebar_label: Billing and notifications
+residio_sources:
+  - src/app/(dashboard)/settings/billing/**
+  - src/app/(dashboard)/settings/notifications/**
+  - src/app/(dashboard)/settings/message-templates/**
+residio_verified_commit: 93ed5d0
+residio_verified_at: '2026-08-29'
+residio_app_version: '0.4.0'
 ---
 
 # Billing and notifications settings
@@ -20,6 +27,11 @@ Use **Settings → Notifications** to review reminders, schedules, templates, hi
 
 Email configuration and WhatsApp operations are separate controls. Confirm provider status and rollout mode before enabling an operational communication path.
 
-:::warning Production communication
+:::warning[Production communication]
 Test recipient scope, template content, and daily caps before enabling automated outbound messages.
 :::
+
+## Related
+
+- [Email and SMS channels](../integrations/email-and-sms) for provider status, templates, and the notification queue.
+- [WhatsApp operations](../integrations/whatsapp-operations) for rollout modes, consent, and caps.

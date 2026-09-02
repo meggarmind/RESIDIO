@@ -7,7 +7,8 @@ import type {
   CreateVisitorVehicleData,
   UpdateVisitorVehicleData,
 } from '@/lib/validators/security-contact';
-import { hasSecurityPermission } from './settings';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
 
@@ -29,9 +30,9 @@ export async function getContactVehicles(contactId: string): Promise<VehiclesRes
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { data: [], count: 0, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { data: [], count: 0, error: auth.error || 'Permission denied' };
   }
 
   const { data, error, count } = await supabase
@@ -56,9 +57,9 @@ export async function getContactVehicles(contactId: string): Promise<VehiclesRes
 export async function getVehicle(vehicleId: string): Promise<VehicleResponse> {
   const supabase = await createServerSupabaseClient();
 
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   const { data, error } = await supabase
@@ -83,9 +84,9 @@ export async function searchVehicleByPlate(
 ): Promise<{ data: VisitorVehicleWithContact | null; error: string | null }> {
   const supabase = await createServerSupabaseClient();
 
-  const canView = await hasSecurityPermission('view_contacts');
-  if (!canView) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_VIEW);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   // Normalize plate number (remove spaces, uppercase)
@@ -132,9 +133,9 @@ export async function createVehicle(formData: CreateVisitorVehicleData): Promise
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canRegister = await hasSecurityPermission('register_contacts');
-  if (!canRegister) {
-    return { data: null, error: 'Permission denied: Cannot register vehicles' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_REGISTER_CONTACTS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Cannot register vehicles' };
   }
 
   // Get current user
@@ -232,9 +233,9 @@ export async function updateVehicle(formData: UpdateVisitorVehicleData): Promise
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canUpdate = await hasSecurityPermission('update_contacts');
-  if (!canUpdate) {
-    return { data: null, error: 'Permission denied: Cannot update vehicles' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_UPDATE_CONTACTS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied: Cannot update vehicles' };
   }
 
   const { id, ...updateData } = formData;
@@ -319,9 +320,9 @@ export async function deactivateVehicle(
   const supabase = await createServerSupabaseClient();
 
   // Check permission
-  const canDelete = await hasSecurityPermission('suspend_revoke_contacts');
-  if (!canDelete) {
-    return { success: false, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_SUSPEND_REVOKE);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Permission denied' };
   }
 
   // Get existing vehicle for audit
@@ -370,9 +371,9 @@ export async function setPrimaryVehicle(
 ): Promise<VehicleResponse> {
   const supabase = await createServerSupabaseClient();
 
-  const canUpdate = await hasSecurityPermission('update_contacts');
-  if (!canUpdate) {
-    return { data: null, error: 'Permission denied' };
+  const auth = await authorizePermission(PERMISSIONS.SECURITY_UPDATE_CONTACTS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Permission denied' };
   }
 
   // Get the vehicle

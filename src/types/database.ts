@@ -2,8 +2,10 @@
 // Phase 10: New Flexible RBAC System
 // =====================================================
 
-// New role names (from app_roles table)
-export type AppRoleName =
+// Role names seeded with the RBAC system. Named separately from AppRoleName so
+// code that genuinely means "one of the built-ins" -- escalation guards, the
+// legacy get_my_role mapping -- can say so.
+export type BuiltInRoleName =
   | 'super_admin'
   | 'chairman'
   | 'vice_chairman'
@@ -12,6 +14,17 @@ export type AppRoleName =
   | 'secretary'
   | 'project_manager'
   | 'resident';
+
+/**
+ * A value of app_roles.name.
+ *
+ * Roles & Permissions can create roles, so this cannot be a closed union: a
+ * `treasurer` is as real as a `secretary`. The `string & {}` arm keeps
+ * autocomplete on the built-ins while accepting any name, and every existing
+ * `roleName === 'super_admin'` comparison still narrows correctly.
+ */
+// eslint-disable-next-line @typescript-eslint/ban-types
+export type AppRoleName = BuiltInRoleName | (string & {});
 
 // Role category (organizational structure)
 export type RoleCategory = 'exco' | 'bot' | 'staff' | 'resident';
@@ -33,37 +46,32 @@ export type PermissionCategory =
   | 'notifications'
   | 'report_subscriptions'
   | 'impersonation'  // Admin impersonation system
+  | 'notes'         // Notes on residents and houses
+  | 'personnel'     // Personnel and vendor directory
   | 'email_imports' // Gmail bank statement integration
   | 'two_factor'   // Two-factor authentication
   | 'finance'       // Expenditure and Petty Cash
   | 'projects';     // Capital Projects
 
-// Human-readable labels for new roles
-export const APP_ROLE_LABELS: Record<AppRoleName, string> = {
-  super_admin: 'Super Administrator',
-  chairman: 'Chairman',
-  vice_chairman: 'Vice Chairman',
-  financial_officer: 'Financial Officer',
-  security_officer: 'Security Officer',
-  secretary: 'Secretary',
-  project_manager: 'Project Manager',
-  resident: 'Resident',
+// Account approval lifecycle (profiles.account_status).
+// Only 'active' resolves a role, resident link or permissions — the auth helpers
+// used by every RLS policy (get_my_role, get_my_resident_id, is_super_admin,
+// has_permission) return NULL/false for every other value.
+export type ProfileApprovalStatus = 'pending' | 'active' | 'rejected' | 'suspended';
+
+export const PROFILE_APPROVAL_STATUS_LABELS: Record<ProfileApprovalStatus, string> = {
+  pending: 'Pending approval',
+  active: 'Active',
+  rejected: 'Rejected',
+  suspended: 'Suspended',
 };
 
 // Legacy: User roles for app access (profiles table) - DEPRECATED, use AppRoleName
 // Kept for backwards compatibility during migration
 export type UserRole = 'chairman' | 'financial_secretary' | 'security_officer' | 'admin';
 
-// Legacy: Human-readable labels for user roles - DEPRECATED
-export const USER_ROLE_LABELS: Record<UserRole, string> = {
-  admin: 'Administrator',
-  chairman: 'Chairman',
-  financial_secretary: 'Financial Secretary',
-  security_officer: 'Security Officer',
-};
-
-// Mapping from old roles to new roles (for migration/backwards compat)
-export const LEGACY_TO_NEW_ROLE_MAP: Record<UserRole, AppRoleName> = {
+//// Mapping from old roles to new roles (for migration/backwards compat)
+export const LEGACY_TO_NEW_ROLE_MAP: Record<UserRole, BuiltInRoleName> = {
   admin: 'super_admin',
   chairman: 'chairman',
   financial_secretary: 'financial_officer',
@@ -216,20 +224,6 @@ export type SecurityPermission =
   | 'suspend_revoke_contacts'
   | 'configure_categories'
   | 'view_access_logs';
-
-export const SECURITY_PERMISSION_LABELS: Record<SecurityPermission, string> = {
-  register_contacts: 'Register Contacts',
-  generate_codes: 'Generate Access Codes',
-  update_contacts: 'Update Contacts',
-  verify_codes: 'Verify Access Codes',
-  record_checkin: 'Record Check-In/Out',
-  view_contacts: 'View All Contacts',
-  search_contacts: 'Search Contacts',
-  export_contacts: 'Export Contact List',
-  suspend_revoke_contacts: 'Suspend/Revoke Contacts',
-  configure_categories: 'Configure Categories',
-  view_access_logs: 'View Access Logs',
-};
 
 // Billing types
 export type BillingTargetType = 'house' | 'resident';
@@ -582,7 +576,14 @@ export interface Database {
           id: string;
           email: string;
           full_name: string;
-          role: UserRole;
+          /** @deprecated Legacy role. Not authoritative — `role_id` is the source of truth. */
+          role: UserRole | null;
+          role_id: string | null; // FK to app_roles — authoritative role
+          resident_id: string | null; // FK to residents — set for portal users
+          approval_status: ProfileApprovalStatus; // Approval gate; only 'active' resolves permissions
+          approved_at: string | null;
+          approved_by: string | null;
+          rejection_reason: string | null;
           dashboard_theme_override: string | null; // Personal theme preference for Admin Dashboard
           portal_theme_override: string | null; // Personal theme preference for Resident Portal
           created_at: string;
@@ -1619,35 +1620,6 @@ export interface AccessLogWithDetails extends AccessLog {
 }
 
 // Security settings type (role permissions configuration)
-export interface SecurityRolePermissions {
-  register_contacts: UserRole[];
-  generate_codes: UserRole[];
-  update_contacts: UserRole[];
-  verify_codes: UserRole[];
-  record_checkin: UserRole[];
-  view_contacts: UserRole[];
-  search_contacts: UserRole[];
-  export_contacts: UserRole[];
-  suspend_revoke_contacts: UserRole[];
-  configure_categories: UserRole[];
-  view_access_logs: UserRole[];
-}
-
-// Default security role permissions
-export const DEFAULT_SECURITY_PERMISSIONS: SecurityRolePermissions = {
-  register_contacts: ['admin', 'chairman', 'financial_secretary'],
-  generate_codes: ['admin', 'chairman', 'financial_secretary'],
-  update_contacts: ['admin', 'chairman', 'financial_secretary'],
-  verify_codes: ['admin', 'chairman', 'financial_secretary', 'security_officer'],
-  record_checkin: ['admin', 'chairman', 'financial_secretary', 'security_officer'],
-  view_contacts: ['admin', 'chairman', 'financial_secretary', 'security_officer'],
-  search_contacts: ['admin', 'chairman', 'financial_secretary', 'security_officer'],
-  export_contacts: ['admin', 'chairman', 'financial_secretary', 'security_officer'],
-  suspend_revoke_contacts: ['admin', 'chairman'],
-  configure_categories: ['admin'],
-  view_access_logs: ['admin', 'chairman'],
-};
-
 // ============================================
 // Phase 6 (NEW): Bank Statement Import Types
 // ============================================

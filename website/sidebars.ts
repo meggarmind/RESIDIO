@@ -52,7 +52,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Integrations',
-      items: ['integrations/whatsapp-operations'],
+      items: ['integrations/integrations-overview', 'integrations/whatsapp-operations', 'integrations/email-and-sms', 'integrations/bank-feeds-and-email-import', 'integrations/payment-gateway', 'integrations/scheduled-jobs'],
     },
     {
       type: 'category',

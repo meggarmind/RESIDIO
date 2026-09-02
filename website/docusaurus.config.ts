@@ -105,6 +105,10 @@ const config: Config = {
               label: 'Settings',
               to: '/docs/settings/settings-overview',
             },
+            {
+              label: 'Integrations',
+              to: '/docs/integrations/integrations-overview',
+            },
           ],
         },
         {

@@ -4,7 +4,8 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { settingsConfig } from '@/config/settings-nav';
+import { isIndexChild, type SettingsGroup, type SettingsItem } from '@/config/settings-nav';
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -16,51 +17,55 @@ import {
 
 type SettingsSidebarProps = React.HTMLAttributes<HTMLElement>
 
+/**
+ * Is this the page being viewed?
+ *
+ * An index entry — one whose href is its parent's — has to match exactly.
+ * Matching on prefix made every ancestor look selected: on
+ * /settings/security/categories both "Security Settings" and "Contact
+ * Categories" lit up, and "Overview" was highlighted on every settings page.
+ */
+function isItemActive(pathname: string, item: SettingsItem, parent?: SettingsItem): boolean {
+    if (parent && isIndexChild(parent, item)) return pathname === item.href;
+    return pathname === item.href || pathname.startsWith(item.href + '/');
+}
+
+function isGroupActive(pathname: string, group: SettingsGroup): boolean {
+    return group.items.some((item) =>
+        item.children
+            ? item.children.some((child) => isItemActive(pathname, child, item))
+            : isItemActive(pathname, item)
+    );
+}
+
 export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
     const pathname = usePathname();
-    const [openGroups, setOpenGroups] = React.useState<string[]>([]);
+    const { groups } = useSettingsNavigation();
 
-    React.useEffect(() => {
-        const activeGroup = settingsConfig.find(g =>
-            g.items.some(item =>
-                item.href === pathname ||
-                (item.children?.some(child => pathname === child.href || pathname.startsWith(child.href + '/')))
-            )
-        );
-        if (activeGroup) {
-            setOpenGroups(prev => {
-                if (prev.includes(activeGroup.title)) return prev;
-                return [...prev, activeGroup.title];
-            });
-        }
-    }, [pathname]);
+    // Only groups the reader has opened or closed by hand. The group containing
+    // the current page is always open, derived below rather than pushed into
+    // state by an effect -- the effect version left the active group collapsed
+    // on first paint, and only ever added, so every group visited stayed open.
+    const [userToggled, setUserToggled] = React.useState<Record<string, boolean>>({});
 
-    const toggleGroup = (title: string) => {
-        setOpenGroups(prev =>
-            prev.includes(title)
-                ? prev.filter(t => t !== title)
-                : [...prev, title]
-        );
+    const toggleGroup = (title: string, isOpen: boolean) => {
+        setUserToggled((prev) => ({ ...prev, [title]: !isOpen }));
     };
-
-    const isActiveChild = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
     return (
         <aside className={cn("lg:w-1/5 sticky top-8 h-[calc(100vh-8rem)]", className)} {...props}>
             <ScrollArea className="h-full pr-4">
                 <nav className="space-y-4 pb-10">
-                    {settingsConfig.map((group) => {
-                        const isOpen = openGroups.includes(group.title);
-                        const isActiveGroup = group.items.some(item =>
-                            item.href === pathname ||
-                            item.children?.some(child => pathname === child.href || pathname.startsWith(child.href + '/'))
-                        );
+                    {groups.map((group) => {
+                        const isActiveGroup = isGroupActive(pathname, group);
+                        // The active group stays open unless the reader closes it.
+                        const isOpen = userToggled[group.title] ?? isActiveGroup;
 
                         return (
                             <Collapsible
                                 key={group.title}
                                 open={isOpen}
-                                onOpenChange={() => toggleGroup(group.title)}
+                                onOpenChange={() => toggleGroup(group.title, isOpen)}
                                 className="space-y-1"
                             >
                                 <CollapsibleTrigger asChild>
@@ -90,50 +95,55 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
                                     <div className="pt-1 space-y-1">
                                         {group.items.map((item) => {
                                             if (item.children) {
-                                                const parentActive = item.children.some(child => isActiveChild(child.href));
+                                                const parentActive = item.children.some((child) =>
+                                                    isItemActive(pathname, child, item)
+                                                );
                                                 return (
                                                     <div key={item.href} className="space-y-1">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
+                                                        <p
                                                             className={cn(
-                                                                "w-full justify-start pl-8 h-8 font-medium",
+                                                                "px-3 pl-8 py-1.5 text-sm font-medium",
                                                                 parentActive ? "text-primary" : "text-muted-foreground"
                                                             )}
                                                         >
                                                             {item.title}
-                                                        </Button>
-                                                        {item.children.map((child) => (
-                                                            <Button
-                                                                key={child.href}
-                                                                variant={isActiveChild(child.href) ? "secondary" : "ghost"}
-                                                                size="sm"
-                                                                asChild
-                                                                className={cn(
-                                                                    "w-full justify-start pl-12 h-8",
-                                                                    isActiveChild(child.href) && "bg-secondary/50 font-medium text-primary shadow-sm"
-                                                                )}
-                                                            >
-                                                                <Link href={child.href}>
-                                                                    {child.title}
-                                                                </Link>
-                                                            </Button>
-                                                        ))}
+                                                        </p>
+                                                        {item.children.map((child) => {
+                                                            const active = isItemActive(pathname, child, item);
+                                                            return (
+                                                                <Button
+                                                                    key={child.href}
+                                                                    variant={active ? "secondary" : "ghost"}
+                                                                    size="sm"
+                                                                    asChild
+                                                                    className={cn(
+                                                                        "w-full justify-start pl-12 h-8",
+                                                                        active && "bg-secondary/50 font-medium text-primary shadow-sm"
+                                                                    )}
+                                                                >
+                                                                    <Link href={child.href} aria-current={active ? 'page' : undefined}>
+                                                                        {child.title}
+                                                                    </Link>
+                                                                </Button>
+                                                            );
+                                                        })}
                                                     </div>
                                                 );
                                             }
+
+                                            const active = isItemActive(pathname, item);
                                             return (
                                                 <Button
                                                     key={item.href}
-                                                    variant={pathname === item.href ? "secondary" : "ghost"}
+                                                    variant={active ? "secondary" : "ghost"}
                                                     size="sm"
                                                     asChild
                                                     className={cn(
                                                         "w-full justify-start pl-8 h-8",
-                                                        pathname === item.href && "bg-secondary/50 font-medium text-primary shadow-sm"
+                                                        active && "bg-secondary/50 font-medium text-primary shadow-sm"
                                                     )}
                                                 >
-                                                    <Link href={item.href}>
+                                                    <Link href={item.href} aria-current={active ? 'page' : undefined}>
                                                         {item.title}
                                                     </Link>
                                                 </Button>
