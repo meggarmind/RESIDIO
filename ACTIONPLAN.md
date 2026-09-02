@@ -15,12 +15,12 @@ Status: IN PROGRESS
 - [x] Add an hourly monitor with cooldown-based attention alerts, shell-safe dispatch inputs, and publish-before-Done lifecycle enforcement.
 - [x] **#141 Custom-role legacy RLS boundary (2026-09-02):** Preserve legacy buckets only for the five built-in roles. Arbitrary custom roles now resolve to `NULL`, preventing direct database access from bypassing application RBAC; a later explicit-permission policy migration is required before granting custom roles direct data access.
 
-## Lint Baseline Remediation (2026-09-02)
+## Lint Baseline Remediation (2026-09-02) — Done (PR #155, 7271719)
 
-- Parent #143 is split into dependency-ordered slices #144 -> #145 -> #146 -> #147.
+- Parent #143 is split into dependency-ordered slices #144 -> #145 -> #146 -> #147. All 4 slices plus parent are Done.
 - **#144 scope decision:** the global lint program ignores generated Docusaurus output (`website/.docusaurus/**`, `website/build/**`) and the unplanned web resident portal (`src/app/(resident)/**`, `src/components/resident-portal/**`). It continues to enforce every admin-dashboard, shared, scripts, tests, and Docusaurus source file. This preserves the lint gate while aligning it with the admin-dashboard-only rollout policy. Baseline reduced from 108 errors / 423 warnings to 68 errors / 339 warnings.
-- #145 was a verified no-op after #144; no in-scope ESLint/type-rule compatibility or TypeScript lint errors remained. #146 resolved admin React Compiler errors. #147 cleared the remaining in-scope unsafe-type, directive, and JSX entity errors.
-- Final verification in `.worktrees/issue-147`: after merging current `master`, `npm run lint` passes with 0 errors / 328 warnings, `npm test -- --run` passes 371/371, and `npm run build` passes when the existing ignored root `.env.local` is loaded for Supabase prerendering. The worktree intentionally has no `.env.local`; without it, prerendering correctly fails due to missing Supabase credentials. #147 lifecycle review passed; merge and issue completion remain next.
+- #145 was a verified no-op after #144; no in-scope ESLint/type-rule compatibility or TypeScript lint errors remained. #146 resolved admin React Compiler errors. #147 cleared the remaining in-scope unsafe-type, directive, and JSX entity errors (29 files, plus build-discovered narrowing).
+- Final verification on `master` (7271719): `npm run lint` passes with 0 errors / 328 warnings, `npm test -- --run` passes 371/371, and `npm run build` passes with env loaded. The isolated worktree has no `.env.local` by design; `scripts/issue-workflow.mjs` now loads `../.env.local` automatically so `review`/`finish` no longer require manual dotenv wrapping. Workflow fixes: normalized Windows worktree paths (`pathsMatch`), routed `npm` through `cmd.exe` on Windows (`commandInvocation`), and closed the Twilio webhook 5s timing flake (15s timeout). #147 merged via PR #155; #142 consolidated via same PR.
 
 ## Fast-Track Priorities
 
