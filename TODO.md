@@ -8,7 +8,7 @@
 - [x] **#144 Scope boundary:** ESLint excludes generated Docusaurus output (`website/.docusaurus/**`, `website/build/**`) and the unplanned resident self-service paths (`src/app/(resident)/**`, `src/components/resident-portal/**`). The Docusaurus source, admin dashboard, shared code, scripts, and tests remain in the global lint program. This is an explicit admin-dashboard-first scope decision, not a relaxation of the lint gate.
 - [x] **#145 Type/configuration cleanup:** Verified no active in-scope ESLint rule compatibility or TypeScript lint work remained after #144.
 - [x] **#146 Admin React Compiler cleanup:** Resolved in-scope effect, refs/purity, and memoization violations.
-- [x] **#147 Final unsafe-type/directive/JSX cleanup:** `npm run lint` passes with zero errors; Vitest passes 359/359; production build passes with the existing root `.env.local` loaded for Supabase prerendering. Issue review/merge lifecycle remains pending.
+- [x] **#147 Final unsafe-type/directive/JSX cleanup:** `npm run lint` passes with zero errors; Vitest passes 360/360; production build passes with the existing root `.env.local` loaded for Supabase prerendering. Issue review/merge lifecycle remains pending.
 
 ### Admin User Guide (2026-08-22)
 - [x] Docusaurus admin guide created under `website/` with role-aware workflows across all admin areas.

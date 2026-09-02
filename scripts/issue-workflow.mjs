@@ -105,6 +105,10 @@ export function parseWorktrees(output) {
   return entries;
 }
 
+export function pathsMatch(left, right) {
+  return resolve(left) === resolve(right);
+}
+
 function worktrees(cwd) {
   return parseWorktrees(run('git', ['worktree', 'list', '--porcelain'], cwd));
 }
@@ -253,8 +257,8 @@ function currentStatus(config, cwd, issueNumber) {
 
 function matchingWorktree(cwd, config, issue) {
   const expected = issueWorktree(cwd, config, issue);
-  const listed = worktrees(cwd).find((item) => item.path === expected.path || item.branch === expected.branch);
-  if (listed && listed.path !== expected.path) {
+  const listed = worktrees(cwd).find((item) => pathsMatch(item.path, expected.path) || item.branch === expected.branch);
+  if (listed && !pathsMatch(listed.path, expected.path)) {
     throw new WorkflowError(`Issue #${issue.number} already uses branch ${expected.branch} at ${listed.path}, not ${expected.path}.`);
   }
   return { ...expected, listed };
