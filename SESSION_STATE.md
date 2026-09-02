@@ -24,6 +24,20 @@ Branch `feat/whatsapp-provider-config`, branched from `master` at `7f5e751`, reb
 - **#140** — `cron/process-report-schedules` was a **public unauthenticated GET** registered as a daily cron that generates and emails reports. Every sibling route gated on `verifyCronAuth`; this was the only exception. **Fixed on this branch.** Confirm `CRON_SECRET` is set in production before deploying — `verifyCronAuth` returns 500 without it.
 - **#138** — five RBAC migrations on `feat/social-login-approval-queue` are timestamped *earlier* than this branch's migration. Applying ours first means they arrive out of order and may be silently skipped. Verify against the database's applied list, not the migrations directory, which looks correct in every failure mode.
 
+### Commit provenance — read before reviewing this branch
+
+`b6aacfa` is a `wip: checkpoint from lp-forge` commit created by this machine's `Stop` hook mid-session, not a deliberate commit. It carries 834 insertions across 10 files, including three substantial pieces that therefore have **no issue-titled commit**:
+
+- `src/lib/whatsapp/providers/twilio.ts` + tests — **no commit on this branch references #129.** A commit was attempted, but the hook had already taken the working tree, so it was a no-op that I misread as success.
+- `src/actions/whatsapp/connection.ts` — 420 lines. The #131 commit touches it by 1 line.
+- `src/actions/settings/get-settings.ts` — 119 lines. The #136 commit does not touch it at all; it contains only the call-site swaps.
+
+Provenance is clean: `lp-forge` is `$env:COMPUTERNAME` on this machine (`git-sync.ps1:43`), and earlier `lp-forge` checkpoints predate this session on other branches. The content is this session's own work.
+
+The code was reviewed — Twilio's address helper and no-fetch-on-unmapped-template guarantee, `connection.ts`'s per-action permissions and secret-free audit payload, and `get-settings.ts`'s `maybeSingle()`-based absent-versus-error distinction. The commit history is what misrepresents it. Reviewers should read `b6aacfa` as three unnamed slices rather than as noise.
+
+Root cause: the `Stop` hook was moved to `SessionEnd` and gated behind a role-mode flag during this session, but the running process had already loaded the old config, so the change had no effect until a restart. Found by the reviewing session.
+
 ### Verification
 
 353 tests across 61 suites; `module-integration` passing; typecheck clean for every touched file; `docs:drift` reports 21 unmapped (pre-existing — master carries no verification stamps).
