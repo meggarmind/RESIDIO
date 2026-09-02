@@ -149,8 +149,6 @@ describe('loadWhatsAppConfigFromDb failure handling', () => {
         from: () => ({
           select: () => ({
             eq: () => ({
-              order: () => ({
-                limit: () => ({
                   maybeSingle: async () => ({
                     data: {
                       provider: 'meta',
@@ -163,8 +161,6 @@ describe('loadWhatsAppConfigFromDb failure handling', () => {
                     },
                     error: null,
                   }),
-                }),
-              }),
             }),
           }),
         }),
@@ -193,11 +189,7 @@ describe('loadWhatsAppConfigFromDb failure handling', () => {
         from: () => ({
           select: () => ({
             eq: () => ({
-              order: () => ({
-                limit: () => ({
-                  maybeSingle: async () => ({ data: null, error: { message: 'connection reset' } }),
-                }),
-              }),
+              maybeSingle: async () => ({ data: null, error: { message: 'connection reset' } }),
             }),
           }),
         }),

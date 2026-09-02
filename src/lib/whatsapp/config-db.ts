@@ -31,20 +31,23 @@ export type StoredWhatsAppConfig =
  * used is reported as `unusable` rather than as `absent`, so the caller can
  * refuse to fall back rather than quietly sending with different credentials.
  *
- * Provider selection is not hardcoded: the most recently updated active row
- * wins, whatever provider it names. The partial unique index permits one
- * active row per provider (so a cutover can stage both), and `updated_at`
- * breaks the tie in favour of whichever the admin configured last.
+ * Provider selection is explicit, not inferred: exactly one row is active
+ * table-wide and that row names the live provider. Switching provider is a
+ * single atomic call to `replace_whatsapp_credentials`, which retires the
+ * previous active row in the same transaction.
  */
 export async function loadWhatsAppConfigFromDb(): Promise<StoredWhatsAppConfig> {
   const supabase = createAdminClient();
 
+  // Exactly one row is active table-wide (enforced by a partial unique index),
+  // so this needs no ordering and no provider filter. Deliberately NOT
+  // "newest active row wins": recency is not a selection mechanism -- an
+  // UPDATE trigger maintains updated_at, so editing an unrelated field on a
+  // dormant row would silently switch providers.
   const { data, error } = await supabase
     .from('whatsapp_provider_credentials')
     .select('*')
     .eq('is_active', true)
-    .order('updated_at', { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (error) {

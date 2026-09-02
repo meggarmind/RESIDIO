@@ -39,9 +39,20 @@ CREATE TABLE IF NOT EXISTS whatsapp_provider_credentials (
   updated_by UUID REFERENCES profiles(id)
 );
 
--- Only one active credential row per provider
+-- Exactly one active credential row in the whole table, not one per provider.
+--
+-- The active row IS the answer to "which provider is this estate using".
+-- Allowing one active row per provider sounds like it supports staging a
+-- cutover, but nothing can stage: the RPC below only ever inserts active rows,
+-- and the read path takes the single active row. Two active rows would mean
+-- the live provider is decided by row order rather than by an admin, so
+-- saving credentials for the provider you are migrating TO would silently
+-- stop the provider you are still running ON.
+--
+-- Switching provider is therefore one atomic call to replace_whatsapp_credentials,
+-- which is a better cutover than stage-then-flip anyway.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_provider_credentials_single_active
-  ON whatsapp_provider_credentials (provider) WHERE (is_active = TRUE);
+  ON whatsapp_provider_credentials ((is_active)) WHERE (is_active = TRUE);
 
 -- Comments
 COMMENT ON TABLE whatsapp_provider_credentials IS 'Encrypted WhatsApp provider credentials (Meta / Twilio), admin-managed. Falls back to env vars when no active row exists.';
@@ -50,7 +61,7 @@ COMMENT ON COLUMN whatsapp_provider_credentials.verify_token_encrypted IS 'AES-2
 COMMENT ON COLUMN whatsapp_provider_credentials.app_secret_encrypted IS 'AES-256-GCM encrypted Meta app secret (used for webhook signature verification)';
 COMMENT ON COLUMN whatsapp_provider_credentials.account_sid_encrypted IS 'AES-256-GCM encrypted Twilio account SID (reserved; unused until Twilio support ships)';
 COMMENT ON COLUMN whatsapp_provider_credentials.auth_token_encrypted IS 'AES-256-GCM encrypted Twilio auth token (reserved; unused until Twilio support ships)';
-COMMENT ON COLUMN whatsapp_provider_credentials.is_active IS 'Only one active credential row per provider (see idx_whatsapp_provider_credentials_single_active)';
+COMMENT ON COLUMN whatsapp_provider_credentials.is_active IS 'Exactly one active row table-wide; the active row names the live provider (see idx_whatsapp_provider_credentials_single_active)';
 
 -- ============================================================
 -- Row Level Security
@@ -117,12 +128,14 @@ BEGIN
     RAISE EXCEPTION 'Invalid WhatsApp provider: %', p_provider;
   END IF;
 
+  -- Deactivate EVERY active row, not just this provider's. Switching from
+  -- Meta to Twilio must retire the Meta row in the same transaction, or both
+  -- stay active and the live provider becomes ambiguous.
   UPDATE whatsapp_provider_credentials
   SET is_active = FALSE,
       updated_at = NOW(),
       updated_by = p_actor_id
-  WHERE provider = p_provider
-    AND is_active = TRUE;
+  WHERE is_active = TRUE;
 
   INSERT INTO whatsapp_provider_credentials (
     provider,
