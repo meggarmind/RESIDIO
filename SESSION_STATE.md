@@ -68,6 +68,27 @@ Integrations are scattered with no home: WhatsApp (General & Preferences), Gmail
 
 376 tests pass / 64 suites; the 2 failures are the pre-existing `prettier` issue, confirmed on a clean tree. Typecheck clean, ESLint clean on touched files. Browser-verified 8/8 against the committed code. `docs:drift` reports 19 drifted pages, all pre-existing — no page describes sidebar expand/collapse, so nothing was re-stamped.
 
+### Second half of the session — Settings IA design, filed as issues
+
+Branch `feat/settings-ia-docs` (off `fix/settings-nav-quick-fixes`). **Not pushed, not merged.** Design settled by a seven-round interview; nothing implemented beyond the docs.
+
+- **`CONTEXT.md` gains four terms** — Setting, Reference Data, Integration, Provider. The Integration/Provider split is load-bearing: "provider" already means Meta-vs-Twilio in ADR-0003 and `src/lib/whatsapp/providers/`, so the outer concept needed its own word.
+- **Three new ADRs.** `0004` draws the configuration-only boundary; `0005` states the one exception to grouping by subject and why an Integration page keeps its operational console; `0006` records that Chairman's exclusion from Settings never actually held.
+- **18 issues filed: #163–#180.** Epic is **#180**. Thirteen slices #167–#179, four separate defects #163–#166.
+
+**#167 blocks every `/system` slice and is not optional.** Middleware is the *only* auth gate for the dashboard — `DashboardProviders` is theming-only and `DashboardShell` has no guard. When no `ROUTE_PERMISSIONS` key matches, the auth block is **skipped entirely** rather than denying, so a `/system/*` page shipped without its own entry is fully public, not merely under-permissioned.
+
+**#174 carries a live security hole**: `/api/health/cron-status` has no authentication at all and uses the service-role client. Sibling of the `cron/process-report-schedules` hole found earlier today.
+
+**#163 is active breakage**: `prettier` is imported by `@react-email/render` but is in neither `package.json` nor `node_modules`. It fails two test suites on a clean tree and takes the dev server down once an email route recompiles. Currently masked by `npm install --no-save prettier`, so **`npm ci` reproduces it**.
+
+### The concurrent tooling destroyed work twice, and committed a syntax error
+
+1. A `git reset` to `origin/master` plus a checkout off my branch wiped uncommitted tracked edits **and untracked new files**. Recovered only from a dangling `git stash -u` commit (`842566d`; untracked files live in its **third parent**, `00568ef`).
+2. Later, an automated merge of `feat/admin-dashboard-settings` into checkpoint branch `lp-forge/master-20260902-230012` **committed a conflict marker** — `};>>> feat/admin-dashboard-settings` plus a duplicated `};` in `settings-sidebar.tsx`, a syntax error. Repaired in `e1c89d2` on that branch, resolving by intent: that branch carries only the pre-fix `useState` baseline and had no competing change.
+
+**Commit early in this checkout, and do not leave new files untracked.**
+
 ## Last session (Claude Code, 2026-09-02 — WhatsApp admin-configurable credentials and Twilio support)
 
 Branch `feat/whatsapp-provider-config`, branched from `master` at `7f5e751`, rebased onto `51dbd19`. Eight commits, all pushed. **Not merged.** Issues #127-#134 plus #136 in `meggarmind/RESIDIO`.
