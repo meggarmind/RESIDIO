@@ -70,7 +70,7 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 - Known non-blocking build warnings remain: duplicate-worktree lockfile detection, deprecated middleware convention, Paystack route `config` export, Edge runtime static-generation limitation, and Node `--localstorage-file` warnings.
 - The issue workflow helper now normalizes worktree paths before comparing them and executes npm checks through `cmd.exe`, fixing false worktree rejection and Node's direct-`npm.cmd` failure on Windows. Focused workflow tests cover both behaviors; the first review attempt therefore failed before lint execution and must be rerun after resuming #147.
 - The Twilio webhook signature integration test now has a 15-second per-test timeout. It passes in isolation in under two seconds but twice crossed Vitest's five-second default during concurrent full-suite transforms; the larger limit retains coverage while removing this Windows timing flake.
-- Next: commit and push #147, move the lint slices through Review, merge the integrated branch to `master`, then run the workflow finish steps before starting the #142 then #141 closure sequence. Do not apply the deliberately withheld social-login migration.
+- #147 is committed and pushed at `7bf4541`; its full lifecycle review passed after the Windows helper and Twilio timing fixes. It remains In review pending integration into `master`. Next: integrate and finish the lint slices, then start the #142 then #141 closure sequence. Do not apply the deliberately withheld social-login migration.
 
 ## Last session (OpenCode, 2026-08-24 — WhatsApp Pilot and Estate-Wide Controls #8)
 
