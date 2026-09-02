@@ -115,6 +115,12 @@ they are not valid *across the link*. Two rules follow:
   (see `CLAUDE.md`'s module integration section); `npm run docs:drift` before
   wrapping a session that touched `src/**`. A queued task that skips one of
   these is the sender's error — bounce it rather than improvising around it.
+- **Do not queue work under a term the other side cannot run.** These
+  conventions are not present on every branch — `docs:drift` exists only where
+  `package.json` defines the script, and this document itself is not on every
+  branch. Before requiring one, confirm the counterpart's checkout provides it;
+  a term that is unrunnable there is the sender's error, not a failure by the
+  receiver.
 
 ## Sessions outside the arrangement
 
