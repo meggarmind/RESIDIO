@@ -20,14 +20,16 @@ Ground truth was taken from `supabase_migrations.schema_migrations`, never from 
 | `100000` add_impersonation_two_factor_permission_categories | already in effect (enum had both values) | ledger reconciled |
 | `100100` seed_missing_permission_catalog | **partially applied** — 10/12 perms existed; both `billing.*_late_fee_waiver` absent, chairman held no `impersonation.*` | **applied** |
 | `100200` chairman_excludes_settings_module | already in effect (0 chairman settings/system grants of 85) | ledger reconciled |
-| `100300` get_my_role_resolves_custom_roles | **Already in effect** (corrected — see note) | not applied; effect already deployed |
+| `100300` get_my_role_resolves_custom_roles | **Already in effect** (corrected — see note) | **ledger reconciled**; `COMMENT` aligned to file |
 | `100400` rbac_writes_follow_manage_roles_permission | **not in effect** (policies still `is_super_admin()`) | **applied** |
 
 Post-apply verification was by name in the ledger *and* by re-running each schema/data check — `app_permissions` 101 → 103 rows, all six RBAC write policies now read `(has_permission('system.manage_roles') OR is_super_admin())`. Dependency confirmed before applying `100400`: `system.manage_roles` exists and is held by **`super_admin` only**, `has_permission` is `SECURITY DEFINER` — so no access was widened.
 
 **Correction made later the same session:** I first reported `100300` as a withheld hazard whose file should be deleted, taking that from the stale note above **without reading the file**. It is actually #141's fix (`ea96bc3`), its effect is already deployed, and deleting it would remove the fix and break `src/__tests__/legacy-role-rls-boundary.test.ts`. Issue #138 carries the full retraction. **Lesson: the standing note named a filename, not a content hash — verify the file before acting on a note about it.**
 
-Nothing is blocked. `100300` is unapplied in the ledger only; whether to reconcile it there (its effect is present, as with `100000`/`100200`) is an open decision.
+**Ledger is now contiguous `100000`–`100400`, with no gap.** `100300` was reconciled after verifying the deployed `get_my_role()` matches the file attribute-by-attribute: `SECURITY DEFINER`, `STABLE`, `search_path=public, auth, extensions, pg_temp`, returns `user_role`, the `approval_status = 'active'` gate, all five built-in mappings, `ELSE NULL`, and no legacy `profiles.role` fallback. The only delta was the `COMMENT ON FUNCTION` text, which was the older wording; that was aligned to the file. **The function body was deliberately not replaced** — it is already equivalent and ~85 RLS policies depend on it, so a `CREATE OR REPLACE` would have been risk without benefit.
+
+Nothing is blocked and nothing is left unapplied.
 
 ---
 
