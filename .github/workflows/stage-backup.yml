@@ -37,11 +37,21 @@ jobs:
       - name: Test
         run: npx vitest run
 
+      # Prerendering builds a Supabase client, so the build needs these set.
+      # src/lib/supabase/config.ts reads SUFFIXED names chosen by
+      # NEXT_PUBLIC_ENV_MODE — the unsuffixed NEXT_PUBLIC_SUPABASE_URL /
+      # NEXT_PUBLIC_SUPABASE_ANON_KEY are never read, so setting those alone
+      # left the client undefined and failed the prerender of
+      # /settings/audit-logs. Pin the mode so which pair is read is explicit.
+      # Placeholders are sufficient: nothing here contacts Supabase, and no
+      # real credential belongs in this workflow.
       - name: Build
         run: npm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          NEXT_PUBLIC_ENV_MODE: cloud
+          NEXT_PUBLIC_SUPABASE_URL_CLOUD: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY_CLOUD: placeholder-service-role-key
 
       # Only reached when every step above succeeded.
       - name: Advance stage to this commit
