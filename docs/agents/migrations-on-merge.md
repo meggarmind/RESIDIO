@@ -46,8 +46,8 @@ highest version implies everything below it ran.
 **Version ordering.** A branch migration timestamped *earlier* than the last
 applied version will be treated as already past and silently skipped. Check the
 branch's lowest new version against the ledger's highest applied version before
-merging. Five migrations sit in exactly this state today — see the tracking
-issue.
+merging. Five migrations sat in exactly this state and were reconciled on
+2026-09-02 (#138, now closed); the ledger and `master` agree again.
 
 **`apply_migration` assigns its own version.** The Supabase MCP tool records the
 migration under a timestamp it chooses, not your filename. After applying
@@ -55,12 +55,26 @@ through it, filename and ledger disagree. Reconcile one to the other — renamin
 the file is usually right, since the ledger records what actually ran — and say
 in your report which side you changed.
 
-**Some migrations must not be applied.** Correct intent is not sufficient.
-`20260830100300_get_my_role_resolves_custom_roles.sql` is well-written, well-
-commented, fixes a real bug — and is the direct cause of an open P0, because
-its fallback grants every unrecognised role a legacy `admin`/`chairman` bucket
-that ~100 RLS policies trust. **Before applying anything touching RBAC, auth,
-or RLS, check open issues for that area.**
+**Some migrations must not be applied.** Correct intent is not sufficient. A
+migration can be well-written, well-commented, fix a real bug, and still be the
+direct cause of an open P0. **Before applying anything touching RBAC, auth, or
+RLS, check open issues for that area.**
+
+**A note about a file is not the file.** This document used to name
+`20260830100300_get_my_role_resolves_custom_roles.sql` as the standing example
+of a permanently withheld migration, because its fallback granted every
+unrecognised role a legacy `admin`/`chairman` bucket that ~100 RLS policies
+trust. That description stopped being true on 2026-09-02: the file was
+**rewritten in place** by `ea96bc3` into #141's *fix*, which denies custom roles
+(`ELSE RETURN NULL;`). The note tracked a filename; the content changed beneath
+it. A later session read the note, did not open the file, and came within one
+command of deleting the fix — which would also have broken
+`src/__tests__/legacy-role-rls-boundary.test.ts`, the regression guard that
+reads that exact path.
+
+So: **verify a withheld migration's current contents before acting on any note
+about it**, and when you withhold one, record what it *contains* — a commit SHA
+or the specific lines — not just its filename.
 
 **A withheld migration must be recorded twice.** On the tracking issue and in
 `SESSION_STATE.md`. Otherwise the next person sees a gap in the applied
