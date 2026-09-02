@@ -41,6 +41,15 @@ Single-context — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents
 
 Shared coordination file: `SESSION_STATE.md` — read/update it at session start/end.
 
+### Session roles (Rex / Quinn)
+
+A standing two-role split across two sessions, for when work runs as coordinator + reviewer. See `docs/agents/session-roles.md` for the full definition; invoke the `session-roles` skill to activate it in a fresh session.
+
+- **Rex** (coordinator) decomposes, dispatches sub-agents, consolidates and interprets — it does not implement, beyond trivia it discloses.
+- **Quinn** (QA peer) reviews as a non-technical power user: functionality, boundaries, edge cases, unnecessary complexity, and whether Rex's assumptions hold.
+
+While the roles are active, Rex's sub-agent defaults are **`haiku`, max 5**, overriding the general tier guidance in `## Delegating to sub-agents` below. Everything else there still binds — set `model` explicitly on every call, and never use `fable`.
+
 ### Commit hygiene
 
 If a task touches multiple concerns, prefer splitting into smaller sequential commits.
