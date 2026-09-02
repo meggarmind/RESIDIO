@@ -183,6 +183,38 @@ describe('loadWhatsAppConfigFromDb failure handling', () => {
     await expect(getWhatsAppConfig()).resolves.toBeNull();
   });
 
+  // If two rows were ever active at once, .maybeSingle() returns an error
+  // rather than picking one, which now maps to `unusable` and fails closed.
+  // The partial unique index makes that state unreachable, so this guards the
+  // code path rather than the data: it exists so nobody later "improves"
+  // .maybeSingle() into .limit(1) and quietly restores arbitrary selection.
+  it('fails closed rather than choosing arbitrarily if multiple rows are active', async () => {
+    vi.doMock('@/lib/supabase/server', () => ({
+      createAdminClient: vi.fn(() => ({
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: null,
+                error: { message: 'JSON object requested, multiple (or no) rows returned' },
+              }),
+            }),
+          }),
+        }),
+      })),
+    }));
+
+    const { loadWhatsAppConfigFromDb } = await import('@/lib/whatsapp/config-db');
+
+    const result = await loadWhatsAppConfigFromDb();
+    expect(result.status).toBe('unusable');
+
+    // and it must not silently hand over to env credentials
+    stubEnvCredentials();
+    const { getWhatsAppConfig } = await import('@/lib/whatsapp/config');
+    await expect(getWhatsAppConfig()).resolves.toBeNull();
+  });
+
   it('reports unusable when the credential lookup itself errors', async () => {
     vi.doMock('@/lib/supabase/server', () => ({
       createAdminClient: vi.fn(() => ({
