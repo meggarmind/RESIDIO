@@ -56,8 +56,24 @@ looks correct in every one of these failure modes.
 
 ## 5. Assume other workstreams exist
 
-At session start: read `SESSION_STATE.md`, then declare your **tool, branch and intent**
-there. Before taking a branch, check whether another session has declared it.
+**The remote branch list is the live registry — not `SESSION_STATE.md`.**
+
+`SESSION_STATE.md` lives on `master`, and `master` is protected, so writing to it needs a
+PR that only becomes visible once merged — by which time the coordination window it exists
+to protect has closed. Do not use it for live signalling.
+
+Instead:
+
+```bash
+git ls-remote --heads origin      # who is working on what, right now
+```
+
+**Push your branch early**, before you have much on it. The push is the declaration: the
+prefix names your lane and the branch name names your work, visible to every tool on every
+machine the moment it lands, with no PR in the way. Check that list before taking a branch.
+
+`SESSION_STATE.md` remains the end-of-session **handoff record** — what happened, what was
+verified, what is left. That is a record, not a signal, and a PR is the right speed for it.
 
 Never push to a branch another session has declared without asking that session and waiting
 for an explicit answer. A clear is true as of its timestamp, not indefinitely.
@@ -77,8 +93,31 @@ case you are in.
 - To roll back: branch from `origin/stage`, open a PR to `master`. Even a rollback goes
   through a PR — protection has no exceptions.
 
-If `stage` and `master` are equal, the current `master` passed its checks. If `stage` lags,
-the commits between them have not.
+If `stage` and `master` are equal, the current `master` passed its checks.
+
+**If `stage` lags, find out which of two very different things happened**, because they call
+for opposite responses:
+
+| What you see in the run | What it means | What to do |
+| --- | --- | --- |
+| The job ran and a step failed | Those commits did not pass | Investigate the commits |
+| The job never started — 0 steps, a few seconds | The gate could **not execute** | Fix the runner; the commits are unverified, not bad |
+
+```bash
+gh run list --workflow=stage-backup.yml --limit 1
+gh api repos/meggarmind/RESIDIO/check-runs/<job-id>/annotations -q '.[0].message'
+```
+
+A lagging `stage` is **not** evidence that `master` is bad. It is evidence that `master` is
+**unverified**, and the reason matters. Reading a frozen `stage` as "those commits failed"
+is the same error as reading a migrations directory as the database: the artefact reporting
+a state it cannot actually observe.
+
+> **Known, as of 2026-09-02:** GitHub Actions is locked account-wide — every workflow run
+> fails in ~2 seconds with 0 steps and the annotation *"The job was not started because your
+> account is locked due to a billing issue."* While that holds, **`stage` cannot advance at
+> all** and is pinned wherever it was. Branch protection still enforces ordering, but nothing
+> is verifying what merges. Treat `master` as unverified until the lock is cleared.
 
 ## What these rules cannot do
 
