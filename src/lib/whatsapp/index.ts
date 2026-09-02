@@ -1,4 +1,9 @@
-export { getWhatsAppConfig, isWhatsAppConfigured } from '@/lib/whatsapp/config';
+export {
+  getWhatsAppConfig,
+  resolveWhatsAppConfig,
+  isWhatsAppConfigured,
+  invalidateWhatsAppConfigCache,
+} from '@/lib/whatsapp/config';
 export {
   createMetaWhatsAppProvider,
   sendWhatsAppMessage,

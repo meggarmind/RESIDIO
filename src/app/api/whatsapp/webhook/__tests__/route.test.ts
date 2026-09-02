@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET, POST } from '@/app/api/whatsapp/webhook/route';
 
 vi.mock('@/lib/whatsapp/config-db', () => ({
-  loadWhatsAppConfigFromDb: async () => null,
+  loadWhatsAppConfigFromDb: async () => ({ status: 'absent' }),
 }));
 
 const verifyToken = 'test-verify-token';

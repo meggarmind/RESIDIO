@@ -7,13 +7,14 @@ import {
   canPerformWhatsAppFinancialLookup,
   handleResidentMessage,
   handleInboundMessage,
-  getWhatsAppConfig,
+  resolveWhatsAppConfig,
   verifyWhatsAppSignature,
   verifyWhatsAppToken,
 } from '@/lib/whatsapp';
 
 export async function GET(request: NextRequest) {
-  const config = await getWhatsAppConfig();
+  const resolved = await resolveWhatsAppConfig();
+  const config = resolved.status === 'ok' ? resolved.config : null;
   const mode = request.nextUrl.searchParams.get('hub.mode');
   const token = request.nextUrl.searchParams.get('hub.verify_token');
   const challenge = request.nextUrl.searchParams.get('hub.challenge');
@@ -32,11 +33,23 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const config = await getWhatsAppConfig();
+  const resolved = await resolveWhatsAppConfig();
 
-  if (!config || config.provider !== 'meta') {
+  if (resolved.status === 'unusable') {
+    // Distinct from "not configured": credentials are stored but unreadable,
+    // so every signature check would fail against the wrong app secret.
+    // Saying so here is the difference between a five-minute fix and a hunt.
+    return NextResponse.json(
+      { error: `Webhook credentials are unusable: ${resolved.reason}` },
+      { status: 503 }
+    );
+  }
+
+  if (resolved.status !== 'ok' || resolved.config.provider !== 'meta') {
     return NextResponse.json({ error: 'Webhook is not configured' }, { status: 503 });
   }
+
+  const config = resolved.config;
 
   const rawBody = await request.text();
   const signature = request.headers.get('x-hub-signature-256');

@@ -1,4 +1,4 @@
-import { getWhatsAppConfig, type MetaWhatsAppConfig } from '@/lib/whatsapp/config';
+import { resolveWhatsAppConfig, type MetaWhatsAppConfig } from '@/lib/whatsapp/config';
 import type {
   WhatsAppSendResult,
   WhatsAppTemplateMessage,
@@ -108,21 +108,27 @@ export async function sendWhatsAppMessage(
   message: WhatsAppTextMessage,
   provider?: WhatsAppProvider
 ): Promise<WhatsAppSendResult> {
-  const config = await getWhatsAppConfig();
+  const resolved = provider ? null : await resolveWhatsAppConfig();
 
-  if (!provider && !config) {
-    return {
-      success: false,
-      error: 'WhatsApp service is not configured',
-    };
+  if (resolved && resolved.status === 'unusable') {
+    // Stored credentials exist but cannot be used. Do not fall through to a
+    // generic "not configured" -- that sends an admin looking for a missing
+    // setting when the real cause is an unreadable one.
+    return { success: false, error: `WhatsApp credentials are unusable: ${resolved.reason}` };
   }
 
-  if (!provider && config?.provider !== 'meta') {
+  if (resolved && resolved.status !== 'ok') {
     return { success: false, error: 'WhatsApp service is not configured' };
   }
 
+  if (resolved && resolved.config.provider !== 'meta') {
+    return { success: false, error: 'WhatsApp provider is not supported yet' };
+  }
+
+  const config = resolved ? (resolved.config as MetaWhatsAppConfig) : null;
+
   try {
-    return await (provider || createMetaWhatsAppProvider(config as MetaWhatsAppConfig)).sendText(message);
+    return await (provider || createMetaWhatsAppProvider(config!)).sendText(message);
   } catch {
     return {
       success: false,
@@ -135,17 +141,27 @@ export async function sendWhatsAppTemplate(
   message: WhatsAppTemplateMessage,
   provider?: WhatsAppProvider
 ): Promise<WhatsAppSendResult> {
-  const config = await getWhatsAppConfig();
-  if (!provider && !config) {
+  const resolved = provider ? null : await resolveWhatsAppConfig();
+
+  if (resolved && resolved.status === 'unusable') {
+    // Stored credentials exist but cannot be used. Do not fall through to a
+    // generic "not configured" -- that sends an admin looking for a missing
+    // setting when the real cause is an unreadable one.
+    return { success: false, error: `WhatsApp credentials are unusable: ${resolved.reason}` };
+  }
+
+  if (resolved && resolved.status !== 'ok') {
     return { success: false, error: 'WhatsApp service is not configured' };
   }
 
-  if (!provider && config?.provider !== 'meta') {
-    return { success: false, error: 'WhatsApp service is not configured' };
+  if (resolved && resolved.config.provider !== 'meta') {
+    return { success: false, error: 'WhatsApp provider is not supported yet' };
   }
+
+  const config = resolved ? (resolved.config as MetaWhatsAppConfig) : null;
 
   try {
-    return await (provider || createMetaWhatsAppProvider(config as MetaWhatsAppConfig)).sendTemplate(message);
+    return await (provider || createMetaWhatsAppProvider(config!)).sendTemplate(message);
   } catch {
     return { success: false, error: 'WhatsApp provider request failed' };
   }
