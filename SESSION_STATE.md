@@ -9,6 +9,26 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-02 — #138 RBAC migration reconciliation)
+
+**Tool:** Claude Code. **Branch:** `fix/rbac-migration-ledger-reconciliation`, off `master` at `2dd3ab6`. **Intent:** validate/apply the outstanding `20260830100*` RBAC migrations per #138. Cloud Supabase via MCP only.
+
+Ground truth was taken from `supabase_migrations.schema_migrations`, never from the migrations directory. At session start **none** of the five `20260830100*` versions were in the ledger — #138's predicted hazard had materialised, with the WhatsApp migrations `20260902102528`/`20260902102537` sorting after them.
+
+| Migration | Verdict | Action |
+|---|---|---|
+| `100000` add_impersonation_two_factor_permission_categories | already in effect (enum had both values) | ledger reconciled |
+| `100100` seed_missing_permission_catalog | **partially applied** — 10/12 perms existed; both `billing.*_late_fee_waiver` absent, chairman held no `impersonation.*` | **applied** |
+| `100200` chairman_excludes_settings_module | already in effect (0 chairman settings/system grants of 85) | ledger reconciled |
+| `100300` get_my_role_resolves_custom_roles | **WITHHELD, permanently** | not applied — see below |
+| `100400` rbac_writes_follow_manage_roles_permission | **not in effect** (policies still `is_super_admin()`) | **applied** |
+
+Post-apply verification was by name in the ledger *and* by re-running each schema/data check — `app_permissions` 101 → 103 rows, all six RBAC write policies now read `(has_permission('system.manage_roles') OR is_super_admin())`. Dependency confirmed before applying `100400`: `system.manage_roles` exists and is held by **`super_admin` only**, `has_permission` is `SECURITY DEFINER` — so no access was widened.
+
+**Nothing is blocked and nothing was left unapplied except `100300`, which is deliberate.**
+
+---
+
 ## Last session (Claude Code, 2026-09-02 — Settings audit + two nav fixes)
 
 Branch `fix/settings-nav-quick-fixes`, off `master` at `7271719`. Two commits, **not pushed, not merged.** No migrations. Audit of the Settings module requested; the IA half is deliberately unbuilt and heading into `/grill-with-docs`.
@@ -25,7 +45,7 @@ Reported as inaccessible. Reproduced in a real browser as `admin@residio.test`: 
 
 The likely real complaint is **discoverability**: landing on `/settings`, only **12 of 34** links are visible, because five of six groups start collapsed and only the group holding the current page auto-opens. "System" sits inside a collapsed group labelled "System Health".
 
-Separately confirmed and intended: **chairman holds zero `settings.*` and zero `system.*` permissions** (migration `20260830100200`, which is on master but **absent from the applied-migrations list** — the DB matches its effect anyway, so it landed out of band). The wiki already documents this. User confirmed it is correct; do not "fix" it.
+Separately confirmed and intended: **chairman holds zero `settings.*` and zero `system.*` permissions** (migration `20260830100200`; its effect was already present in the DB, and as of 2026-09-02 it is also recorded in the applied-migrations ledger at its original version). The wiki already documents this. User confirmed it is correct; do not "fix" it.
 
 ### Fixed
 
@@ -57,8 +77,9 @@ Branch `feat/whatsapp-provider-config`, branched from `master` at `7f5e751`, reb
 
 - **Two WhatsApp migrations are applied**, recorded as `20260902102528` and `20260902102537`. The files were renamed to match, because the MCP `apply_migration` tool assigns its own version rather than using the filename.
 - **Six migrations are applied but have no file on `master`** — `20260829100000` through `20260830090000`. Their files live only on `feat/social-login-approval-queue`. Consequence: master's migrations misrepresent the live database. An audit of `get_my_role()` was misled by this today, quoting a definition production had already superseded.
-- **Five migrations on that branch are unapplied** and timestamped *earlier* than what is now applied, so ordinary tooling will skip them silently (#138). Four ride with the branch when it merges.
-- **`20260830100300_get_my_role_resolves_custom_roles.sql` is deliberately withheld, permanently.** It grants every unrecognised role a legacy `admin`/`chairman` bucket that ~100 RLS policies trust — the exact escalation in open P0 #141. The deployed `get_my_role()` currently ends in `ELSE NULL`; withholding preserves that. **Do not apply it to close the gap in the sequence.** #141's fix supersedes it.
+- **~~Five migrations on that branch are unapplied~~ — RESOLVED 2026-09-02 (Claude Code).** All five files are now on `master`. Ledger verified directly: `20260830100000`, `100100`, `100200`, `100400` are **applied and recorded** at their original version strings. `100100` and `100400` were genuinely applied this session; `100000` and `100200` were already in effect and were reconciled into the ledger so a future `db push` cannot silently re-run them (100200 is a `DELETE` that would revoke chairman settings access re-granted via the UI). See #138 for the verdict table and evidence queries.
+- **`20260830100300_get_my_role_resolves_custom_roles.sql` is deliberately withheld, permanently.** It grants every unrecognised role a legacy `admin`/`chairman` bucket that ~100 RLS policies trust — the exact escalation in P0 #141 (**closed 2026-09-02T13:05Z, fixed** — the brief describing it as still open is stale). The deployed `get_my_role()` currently ends in `ELSE NULL`; withholding preserves that. **Do not apply it to close the gap in the sequence.** #141's fix supersedes it. Re-verified 2026-09-02: the deployed `get_my_role()` still ends in `ELSE NULL`. The ledger deliberately shows `100000, 100100, 100200, 100400` with a **gap at `100300`** — that gap is correct, do not fill it.
+  - ⚠️ **Open hazard:** the file is still in `supabase/migrations/` and still absent from the ledger, so **any future `supabase db push` or CI migration step will apply it and regress #141.** Deleting the file is the honest fix; recording it as applied would put a falsehood in the ledger. Not actioned unilaterally — needs a decision.
 
 ### Security findings from this work, filed separately
 
