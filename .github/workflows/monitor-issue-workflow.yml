@@ -1,8 +1,24 @@
 name: Monitor issue workflow
 
 on:
-  schedule:
-    - cron: '0 * * * *'
+  # HELD 2026-09-02. The hourly schedule runs WITHOUT --dry-run, so re-enabling
+  # it starts live writes: a `needs-attention` label and an evidence comment on
+  # every flagged issue.
+  #
+  # The first successful dry run (once ISSUE_WORKFLOW_PAT gained read:org)
+  # reported healthy=36 stale=21 inconsistent=48. Of the 48, twenty-four are
+  # `done-no-integration` on issues that closed cleanly through merged PRs —
+  # including #138 and #143-#147 the same day. That points at the monitor not
+  # recognising PR-merge integration evidence, not at two dozen broken
+  # closures. Enabling the sweep first would label correctly-closed issues and
+  # teach everyone to ignore the label.
+  #
+  # Re-enable by uncommenting, once `done-no-integration` no longer fires on a
+  # cleanly merged issue. Verify with a dispatch at dry_run=true first.
+  # Tracking: see the follow-up issue referenced from #69.
+  #
+  # schedule:
+  #   - cron: '0 * * * *'
   workflow_dispatch:
     inputs:
       issue:
