@@ -110,13 +110,23 @@ they are not valid *across the link*. Two rules follow:
   counterpart's local-only claim only once they have confirmed they have no such
   hook — and scope any "no overlap" claim to the branch discipline it actually
   depends on.
+- **Ask before pushing to a branch the counterpart is on, and wait.** On the one
+  branch you know they occupy, disclosure after the fact is not enough: send a
+  one-line "about to push to <branch> — are you clear?" and hold until they
+  answer. Whose decision it is to land the work and when it lands are different
+  questions — a user's ruling settles the first, never the second, and the
+  sequencing belongs to whoever shares the branch. A clear is true as of its
+  timestamp and not indefinitely: if minutes have passed, or the counterpart's
+  checkout may have moved under them, ask again rather than trusting the earlier
+  answer.
 - **`success: true` means accepted-for-delivery, not receipt.** Ask for an
   explicit ack on anything consequential.
 - **Repo conventions bind queued work**: feature branch not `master`;
   `authorizePermission()` + `logAudit()` on write actions under `src/actions/**`
   (see `CLAUDE.md`'s module integration section); `npm run docs:drift` before
-  wrapping a session that touched `src/**`. A queued task that skips one of
-  these is the sender's error — bounce it rather than improvising around it.
+  wrapping a session that touched `src/**` — where the branch provides it (see
+  the next bullet). A queued task that skips one of these is the sender's error
+  — bounce it rather than improvising around it.
 - **Do not queue work under a term the other side cannot run.** These
   conventions are not present on every branch — `docs:drift` exists only where
   `package.json` defines the script, and this document itself is not on every
