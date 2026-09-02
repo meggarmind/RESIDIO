@@ -115,7 +115,8 @@ they are not valid *across the link*. Two rules follow:
 - **Repo conventions bind queued work**: feature branch not `master`;
   `authorizePermission()` + `logAudit()` on write actions under `src/actions/**`
   (see `CLAUDE.md`'s module integration section); `npm run docs:drift` before
-  wrapping a session that touched `src/**`. A queued task that skips one of
+  wrapping a session that touched `src/**` — where the branch provides it (see
+  the next bullet). A queued task that skips one of
   these is the sender's error — bounce it rather than improvising around it.
 - **Do not queue work under a term the other side cannot run.** These
   conventions are not present on every branch — `docs:drift` exists only where
