@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   canImpersonate,
@@ -56,6 +56,17 @@ function setStoredImpersonationState(state: ImpersonationState | null): void {
   }
 }
 
+function toImpersonationState(session: ImpersonationSessionWithDetails): ImpersonationState {
+  return {
+    isActive: true,
+    sessionId: session.id,
+    impersonatedResidentId: session.impersonated_resident_id,
+    impersonatedResidentName: `${session.resident.first_name} ${session.resident.last_name}`,
+    impersonatedHouseAddress: session.house?.address || null,
+    startedAt: session.started_at,
+  };
+}
+
 /**
  * Check if current user can impersonate
  * @param options.enabled - Set to false to skip this query (PERFORMANCE: for non-admin users)
@@ -74,15 +85,8 @@ export function useCanImpersonate(options?: { enabled?: boolean }) {
  * @param options.enabled - Set to false to skip this query (PERFORMANCE: for non-admin users)
  */
 export function useActiveImpersonation(options?: { enabled?: boolean }) {
-  const [localState, setLocalState] = useState<ImpersonationState | null>(null);
   const isEnabled = options?.enabled !== false;
-
-  // Initialize from session storage on mount
-  useEffect(() => {
-    if (!isEnabled) return;
-    const stored = getStoredImpersonationState();
-    setLocalState(stored);
-  }, [isEnabled]);
+  const [storedState] = useState(getStoredImpersonationState);
 
   const query = useQuery({
     queryKey: ACTIVE_IMPERSONATION_KEY,
@@ -97,36 +101,35 @@ export function useActiveImpersonation(options?: { enabled?: boolean }) {
     enabled: isEnabled,
   });
 
-  // Sync query result to local state and session storage
+  const queryState = useMemo(
+    () => query.data ? toImpersonationState(query.data) : null,
+    [query.data]
+  );
+  const impersonationState = queryState
+    ? queryState
+    : isEnabled && query.isLoading
+      ? storedState
+      : null;
+
+  // Keep the browser session in sync with the confirmed query result.
   useEffect(() => {
-    if (query.data) {
-      const newState: ImpersonationState = {
-        isActive: true,
-        sessionId: query.data.id,
-        impersonatedResidentId: query.data.impersonated_resident_id,
-        impersonatedResidentName: `${query.data.resident.first_name} ${query.data.resident.last_name}`,
-        impersonatedHouseAddress: query.data.house?.address || null,
-        startedAt: query.data.started_at,
-      };
-      setLocalState(newState);
-      setStoredImpersonationState(newState);
+    if (queryState) {
+      setStoredImpersonationState(queryState);
     } else if (query.isSuccess && !query.data) {
       // Query completed successfully with no active session - clear storage
-      setLocalState(null);
       setStoredImpersonationState(null);
     } else if (query.isError) {
       // Query failed - clear storage to prevent stale state
-      setLocalState(null);
       setStoredImpersonationState(null);
     }
-  }, [query.data, query.isSuccess, query.isError]);
+  }, [queryState, query.data, query.isSuccess, query.isError]);
 
   return {
     ...query,
-    impersonationState: localState,
+    impersonationState,
     // Only truly impersonating if query confirms OR still loading with storage data
     isImpersonating: query.isLoading
-      ? (localState?.isActive ?? false)  // Trust storage while loading (for fast UI)
+      ? (impersonationState?.isActive ?? false)  // Trust storage while loading (for fast UI)
       : (query.data != null),            // Only trust query result once loaded
   };
 }
@@ -318,9 +321,10 @@ export function useImpersonation(options?: { skip?: boolean }) {
   }, [endMutation, activeQuery.impersonationState?.sessionId]);
 
   const logPageView = useCallback(async (path: string) => {
-    if (activeQuery.impersonationState?.sessionId) {
+    const sessionId = activeQuery.impersonationState?.sessionId;
+    if (sessionId) {
       return logPageViewMutation.mutateAsync({
-        sessionId: activeQuery.impersonationState.sessionId,
+        sessionId,
         path,
       });
     }

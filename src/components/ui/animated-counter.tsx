@@ -61,12 +61,11 @@ export function AnimatedCounter({
   useEffect(() => {
     // PERFORMANCE: Skip animation if user prefers reduced motion or skipAnimation is set
     if (skipAnimation || prefersReducedMotion()) {
-      setDisplayValue(value);
+      rafRef.current = requestAnimationFrame(() => setDisplayValue(value));
       return;
     }
 
     // Reset animation when value changes
-    setDisplayValue(0);
     startTimeRef.current = undefined;
 
     const animate = (timestamp: number) => {

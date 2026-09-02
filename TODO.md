@@ -2,7 +2,13 @@
 
 > **🎯 PRODUCT FOCUS (2026-08-06): ADMIN DASHBOARD ONLY.** Resident Portal / self-service (`src/app/(resident)/**`, resident-portal components) is **NOT planned for rollout** in the foreseeable future. De-prioritize all self-service work listed below (portal wallet, resident payments, announcements/documents/profile, impersonation, onboarding). Keep it stable/local only; do not extend or polish it. Prioritize admin management/finance/security/operations/reporting instead.
 
-**Last Updated:** 2026-09-01 (docs site deploy investigation logged under Admin User Guide)
+**Last Updated:** 2026-09-02 (lint-baseline remediation scope recorded)
+
+### Lint Baseline Remediation (#143)
+- [x] **#144 Scope boundary:** ESLint excludes generated Docusaurus output (`website/.docusaurus/**`, `website/build/**`) and the unplanned resident self-service paths (`src/app/(resident)/**`, `src/components/resident-portal/**`). The Docusaurus source, admin dashboard, shared code, scripts, and tests remain in the global lint program. This is an explicit admin-dashboard-first scope decision, not a relaxation of the lint gate.
+- [ ] **#145 Type/configuration cleanup:** Resolve in-scope ESLint rule compatibility and TypeScript lint errors.
+- [ ] **#146 Admin React Compiler cleanup:** Resolve in-scope effect, refs/purity, and memoization violations.
+- [ ] **#147 Final unsafe-type/directive/JSX cleanup:** Reach `npm run lint` with zero errors, then verify tests and build.
 
 ### Admin User Guide (2026-08-22)
 - [x] Docusaurus admin guide created under `website/` with role-aware workflows across all admin areas.

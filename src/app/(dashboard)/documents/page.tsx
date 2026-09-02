@@ -5,18 +5,16 @@ import { useDocuments, useDocumentCategories } from '@/hooks/use-documents';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { FileText, FolderOpen, Upload, Archive } from 'lucide-react';
+import { useState } from 'react';
 import {
   EnhancedStatCard,
   EnhancedTableCard,
   EnhancedPageHeader,
 } from '@/components/dashboard/enhanced-stat-card';
 import { ModernDocumentsEmptyState } from '@/components/dashboard/modern-empty-state';
-import { useVisualTheme } from '@/contexts/visual-theme-context';
-import { cn } from '@/lib/utils';
 
 export default function DocumentsPage() {
-  const { themeId } = useVisualTheme();
-  const isModern = themeId === 'modern';
+  const [monthStart] = useState(() => Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   // Reduced limits - these queries include count for stats, actual display uses pagination
   const { data: documentsData, isLoading: docsLoading } = useDocuments({ limit: 100 });
@@ -36,7 +34,7 @@ export default function DocumentsPage() {
 
   // Calculate this month's uploads
   const thisMonthCount = documentsData?.data.filter(
-    (d) => new Date(d.created_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    (d) => new Date(d.created_at).getTime() > monthStart
   ).length ?? 0;
 
   return (

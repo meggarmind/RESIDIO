@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { usePermissions, useUpdateRolePermissions } from '@/hooks/use-roles';
 import { Button } from '@/components/ui/button';
 import {
@@ -80,7 +80,15 @@ export function RolePermissionsDialog({
   const updatePermissionsMutation = useUpdateRolePermissions();
 
   // Selected permission IDs (local state)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(role.permissions.map((permission) => permission.id))
+  );
+  const [previousRole, setPreviousRole] = useState(role);
+
+  if (role !== previousRole) {
+    setPreviousRole(role);
+    setSelectedIds(new Set(role.permissions.map((permission) => permission.id)));
+  }
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,13 +97,6 @@ export function RolePermissionsDialog({
   const [expandedCategories, setExpandedCategories] = useState<Set<PermissionCategory>>(
     new Set(CATEGORY_ORDER)
   );
-
-  // Initialize selected permissions from role
-  useEffect(() => {
-    if (role) {
-      setSelectedIds(new Set(role.permissions.map((p) => p.id)));
-    }
-  }, [role]);
 
   // Group permissions by category (merge 'imports' into 'payments')
   const permissionsByCategory = useMemo(() => {
@@ -139,13 +140,29 @@ export function RolePermissionsDialog({
     return filtered;
   }, [permissionsByCategory, searchQuery]);
 
-  // Auto-expand categories when searching
-  useEffect(() => {
-    if (searchQuery.trim()) {
-      // Expand all categories that have matching permissions
-      setExpandedCategories(new Set(filteredPermissionsByCategory.keys()));
+  const handleSearchChange = (nextSearchQuery: string) => {
+    setSearchQuery(nextSearchQuery);
+
+    if (nextSearchQuery.trim()) {
+      const query = nextSearchQuery.toLowerCase().trim();
+      const matchingCategories = new Set<PermissionCategory>();
+
+      for (const [category, permissions] of permissionsByCategory) {
+        if (
+          permissions.some(
+            (permission) =>
+              permission.display_name.toLowerCase().includes(query) ||
+              permission.name.toLowerCase().includes(query) ||
+              permission.description?.toLowerCase().includes(query)
+          )
+        ) {
+          matchingCategories.add(category);
+        }
+      }
+
+      setExpandedCategories(matchingCategories);
     }
-  }, [searchQuery, filteredPermissionsByCategory]);
+  };
 
   // Calculate category selection states (based on ALL permissions, not filtered)
   const categoryStates = useMemo(() => {
@@ -264,7 +281,7 @@ export function RolePermissionsDialog({
           <Input
             placeholder="Search permissions..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(event) => handleSearchChange(event.target.value)}
             className="pl-9 pr-9"
           />
           {searchQuery && (
@@ -272,7 +289,7 @@ export function RolePermissionsDialog({
               variant="ghost"
               size="icon"
               className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
-              onClick={() => setSearchQuery('')}
+              onClick={() => handleSearchChange('')}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -296,7 +313,7 @@ export function RolePermissionsDialog({
                   <Button
                     variant="link"
                     size="sm"
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => handleSearchChange('')}
                     className="mt-1"
                   >
                     Clear search

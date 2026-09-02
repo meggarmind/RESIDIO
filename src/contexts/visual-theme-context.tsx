@@ -7,6 +7,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
 import { useTheme } from 'next-themes';
@@ -88,7 +89,7 @@ export function VisualThemeProvider({
   }, [initialThemeId]);
 
   // Initialize theme state from session storage or provided initial value
-  const [themeId, setThemeIdState] = useState<string>(() => {
+  const [selectedThemeId, setThemeIdState] = useState<string>(() => {
     // Try to load from session storage first (for instant render without flash)
     try {
       const storageKey = `residio-visual-theme-${context}`;
@@ -104,37 +105,32 @@ export function VisualThemeProvider({
     return migratedThemeId;
   });
   const [previewThemeId, setPreviewThemeIdState] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const { resolvedTheme } = useTheme(); // Get light/dark mode from next-themes
 
   // Subscribe to effective theme from React Query cache
   const { data: effectiveThemeFromCache } = useEffectiveTheme(context);
 
-  // Mark as mounted and migrate legacy session storage
+  // Migrate legacy theme IDs from session storage.
   useEffect(() => {
-    setMounted(true);
-
-    // Migrate legacy theme IDs from session storage
     try {
       const storageKey = `residio-visual-theme-${context}`;
       const storedTheme = sessionStorage.getItem(storageKey);
 
       if (storedTheme && !isValidThemeId(storedTheme)) {
         sessionStorage.setItem(storageKey, 'supabase');
-        setThemeIdState('supabase');
       }
     } catch {
       // SessionStorage not available
     }
   }, [context]);
 
-  // Sync provider state when cache updates (e.g., after user changes theme in settings)
-  useEffect(() => {
-    if (effectiveThemeFromCache && effectiveThemeFromCache !== themeId) {
-      console.log('[VisualThemeProvider] Syncing theme from cache:', effectiveThemeFromCache);
-      setThemeIdState(effectiveThemeFromCache);
-    }
-  }, [effectiveThemeFromCache, themeId]);
+  // The cache is authoritative when it provides a theme selection.
+  const themeId = effectiveThemeFromCache || selectedThemeId;
 
   // Get the current theme object (use preview if set, otherwise selected)
   const activeThemeId = previewThemeId || themeId;

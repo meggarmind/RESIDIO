@@ -34,6 +34,44 @@ const COLORS = [
   'hsl(var(--muted-foreground))', // gray for others
 ];
 
+interface CategoryTooltipProps {
+  active?: boolean;
+  payload?: Array<{ payload: CategoryData }>;
+  label?: string;
+  showAmount: boolean;
+}
+
+function formatTooltipValue(value: number) {
+  return new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function CategoryTooltip({ active, payload, label, showAmount }: CategoryTooltipProps) {
+  const item = payload?.[0]?.payload;
+
+  if (!active || !item) {
+    return null;
+  }
+
+  return (
+    <div className="bg-card border rounded-lg p-2 shadow-lg text-sm">
+      <p className="font-medium">{label}</p>
+      {showAmount && (
+        <p className="text-muted-foreground">
+          {formatTooltipValue(item.amount)}
+        </p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        {item.count} {showAmount ? 'invoices' : 'residents'} ({item.percentage}%)
+      </p>
+    </div>
+  );
+}
+
 /**
  * Category Breakdown Chart Component
  *
@@ -77,36 +115,6 @@ export function CategoryBreakdownChart({
       return `₦${(value / 1000).toFixed(0)}K`;
     }
     return `₦${value}`;
-  };
-
-  const formatTooltipValue = (value: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const item = payload[0].payload;
-      return (
-        <div className="bg-card border rounded-lg p-2 shadow-lg text-sm">
-          <p className="font-medium">{label}</p>
-          {showAmount && (
-            <p className="text-muted-foreground">
-              {formatTooltipValue(item.amount)}
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            {item.count} {showAmount ? 'invoices' : 'residents'} ({item.percentage}%)
-          </p>
-        </div>
-      );
-    }
-    return null;
   };
 
   // Take top 5 categories to prevent chart overflow
@@ -156,7 +164,7 @@ export function CategoryBreakdownChart({
                 className="text-muted-foreground"
                 width={100}
               />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
+              <Tooltip content={<CategoryTooltip showAmount={showAmount} />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
               <Bar
                 dataKey={showAmount ? 'amount' : 'count'}
                 radius={[0, 4, 4, 0]}
