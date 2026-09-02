@@ -1,0 +1,56 @@
+name: Stage backup
+
+# `stage` is the last master that passed checks — the rollback point.
+#
+# It advances ONLY from master, ONLY when the gate below is green, and ONLY here.
+# Nothing pushes to `stage` by hand. If `stage` lags `master`, the commits between
+# them have not passed. See docs/agents/branching.md.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage-backup
+  cancel-in-progress: false
+
+jobs:
+  gate-and-advance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npx vitest run
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+
+      # Only reached when every step above succeeded.
+      - name: Advance stage to this commit
+        run: |
+          git push origin "${GITHUB_SHA}:refs/heads/stage"
+          echo "stage -> ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report when the gate fails
+        if: failure()
+        run: |
+          echo "Gate failed — \`stage\` was NOT advanced and still points at the last green master." >> "$GITHUB_STEP_SUMMARY"
+          echo "Roll back from \`origin/stage\` via a PR; see docs/agents/branching.md." >> "$GITHUB_STEP_SUMMARY"

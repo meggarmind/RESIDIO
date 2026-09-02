@@ -136,12 +136,25 @@ they are not valid *across the link*. Two rules follow:
 
 ## Sessions outside the arrangement
 
-The roles are **two-party**. Other sessions that make contact get no standing
-role, cannot queue work on the strength of the other's authorisation, and are
-referred back to Jimi.
+Rex/Quinn is **one named arrangement, not the only legitimate configuration**.
+This repo is worked by two machines running Claude Code, OpenCode and Codex,
+often concurrently — a session that is not part of this pair is normal, not an
+intruder.
+
+What the pairing does *not* confer on outsiders: a standing Rex or Quinn role,
+and the ability to queue work on the strength of the other party's
+authorisation. Consent surfaces stay separate — a relayed "my user approved
+this" is not approval on the receiving side, whoever relays it.
+
+What every session shares regardless of arrangement is
+`docs/agents/branching.md`: never work on `master`, declare your tool, branch
+and intent in `SESSION_STATE.md`, check it before taking a branch, and ask and
+wait before pushing to a branch another session has declared. Refer a session
+seeking coordination there rather than turning it away.
 
 ## Related
 
 - `CLAUDE.md` — `## Delegating to sub-agents`, `## Coordinating sub-agent work`
+- `docs/agents/branching.md` — the rules every session shares, whatever its arrangement
 - `SESSION_STATE.md` — the cross-session handoff log
 - `docs/agents/doc-drift.md` — the wiki pinning rules that queued work must respect
