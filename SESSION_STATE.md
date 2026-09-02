@@ -9,6 +9,41 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-02 — Settings audit + two nav fixes)
+
+Branch `fix/settings-nav-quick-fixes`, off `master` at `7271719`. Two commits, **not pushed, not merged.** No migrations. Audit of the Settings module requested; the IA half is deliberately unbuilt and heading into `/grill-with-docs`.
+
+### ⚠️ Something hard-reset this working tree mid-session and destroyed uncommitted work
+
+Reflog shows `reset: moving to origin/master` and a checkout from `fix/settings-nav-quick-fixes` back to `master` that neither I nor the user initiated, while `master` simultaneously gained commits `7271719`/`3b51998`. It wiped tracked edits **and untracked new files**. Recovered only because a `git stash -u` earlier in the session left a dangling commit (`842566d`, untracked files in its third parent `00568ef`).
+
+If you are working in this checkout: **commit early**, do not leave new files untracked, and expect a concurrent tool (another session, or a sync hook) to reset you to `origin/master`. This is more destructive than the auto-commit-and-push checkpoint behaviour previously recorded.
+
+### `/settings/system` is NOT broken — this was investigated and closed
+
+Reported as inaccessible. Reproduced in a real browser as `admin@residio.test`: `/settings`, `/settings/system`, `/settings/system/health` and `/settings/cron-status` all return **200, no redirect, full content, zero console errors**. `super_admin` holds `system.view_all_settings` in the live DB. Do not re-investigate as an access bug.
+
+The likely real complaint is **discoverability**: landing on `/settings`, only **12 of 34** links are visible, because five of six groups start collapsed and only the group holding the current page auto-opens. "System" sits inside a collapsed group labelled "System Health".
+
+Separately confirmed and intended: **chairman holds zero `settings.*` and zero `system.*` permissions** (migration `20260830100200`, which is on master but **absent from the applied-migrations list** — the DB matches its effect anyway, so it landed out of band). The wiki already documents this. User confirmed it is correct; do not "fix" it.
+
+### Fixed
+
+- **Settings sidebar lost expand/collapse state on every navigation**, not just on reload. Root cause is `src/app/template.tsx`: a Next.js `template` re-instantiates on every navigation, so every layout beneath it remounts. Proven by tagging the `<aside>` DOM node and watching it be replaced. State now lives in `src/hooks/use-settings-nav-state.ts` (external store + `sessionStorage`, read via `useSyncExternalStore`). 11 unit tests. **Note the wider implication: that template remounts the entire app tree on every navigation, so no client component below root keeps state.**
+- **Global search "View Security Log" pointed at `/security/log`; the page is `/security/logs`.** Every use hit a 404.
+
+### Pre-existing breakage found, NOT fixed (no issue filed yet)
+
+**`prettier` is imported by `@react-email/render` but is neither declared in `package.json` nor installed.** It fails 2 test suites (`billing-generation-history`, `billing-resident-filter`) on a clean tree, and takes down the **dev server** once a route pulling in `@react-email/render` recompiles — login stops working. I unblocked verification with `npm install --no-save prettier`, which leaves `package.json` and the lockfile untouched, so **a fresh `npm ci` will break again.**
+
+### Settings audit findings handed to the user, not acted on
+
+Integrations are scattered with no home: WhatsApp (General & Preferences), Gmail import (**Billing & Finance**), Resend email (Communications), and Paystack + SMS have **no settings page at all**. `/settings/cron-status` and `/settings/system/health` are near-duplicates in the same group. `/settings/data-management` and `/settings/system/data` are two data pages in two groups. Global search indexes residents, houses, streets, payments, contacts and documents — **not settings**, so "email import" finds nothing. Desktop sidebar allows many open groups; mobile is a strict single accordion.
+
+### Verification
+
+376 tests pass / 64 suites; the 2 failures are the pre-existing `prettier` issue, confirmed on a clean tree. Typecheck clean, ESLint clean on touched files. Browser-verified 8/8 against the committed code. `docs:drift` reports 19 drifted pages, all pre-existing — no page describes sidebar expand/collapse, so nothing was re-stamped.
+
 ## Last session (Claude Code, 2026-09-02 — WhatsApp admin-configurable credentials and Twilio support)
 
 Branch `feat/whatsapp-provider-config`, branched from `master` at `7f5e751`, rebased onto `51dbd19`. Eight commits, all pushed. **Not merged.** Issues #127-#134 plus #136 in `meggarmind/RESIDIO`.
@@ -67,17 +102,15 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 - Verification before the build/audit merge: full Vitest 292/292; `git diff --check` clean. Full lint remains baseline-red at 107 errors and 423 warnings. The isolated-worktree build requires the intentionally untracked `.env.local` for Supabase page prerendering.
 - Next: push and merge the rebased issue-monitor workflow, then begin the separately approved social-login approval-queue rebase and security review.
 
-## Last session (OpenCode, 2026-09-02 — lint baseline remediation #143)
+## Last session (OpenCode, 2026-09-02 — lint baseline remediation #143) — Done (PR #155, 7271719)
 
 - Published parent #143 and dependency-ordered slices #144 -> #145 -> #146 -> #147, all `ready-for-agent`.
 - **#144 scope decision:** lint excludes generated Docusaurus output (`website/.docusaurus/**`, `website/build/**`) and the resident self-service paths (`src/app/(resident)/**`, `src/components/resident-portal/**`). This retains the global lint gate for Docusaurus source, every admin-dashboard/shared path, scripts, and tests, while avoiding investment in the explicitly unplanned portal rollout surface.
-- Initial #144 baseline on `master`: `npm run lint` reports 108 errors / 423 warnings. After the approved scope boundary, it reports 68 errors / 339 warnings. The generated-output diagnosis alone does not explain the active baseline; the portal also carries out-of-scope errors. The next slices will clear all remaining in-scope errors without weakening the gate.
+- Initial #144 baseline on `master`: `npm run lint` reports 108 errors / 423 warnings. After the approved scope boundary, it reports 68 errors / 339 warnings. The generated-output diagnosis alone does not explain the active baseline; the portal also carries out-of-scope errors.
 - #145 was a verified no-op: the remaining active baseline did not contain ESLint configuration or TypeScript compatibility errors after #144. #146 resolved admin React Compiler violations in 23 files. #147 removed the remaining in-scope unsafe types, directives, and JSX lint errors across 29 files, with small type narrowing corrections surfaced by the production build.
-- **Verification in `.worktrees/issue-147`:** after merging current `master`, `npm run lint` passes with 0 errors / 328 warnings; `npm test -- --run` passes 371 tests in 65 files; `npm run build` passes when the existing ignored root `.env.local` is loaded for Supabase prerendering. The worktree intentionally has no `.env.local`; an unconfigured build correctly fails while prerendering `/settings/document-categories` because Supabase credentials are absent.
-- Known non-blocking build warnings remain: duplicate-worktree lockfile detection, deprecated middleware convention, Paystack route `config` export, Edge runtime static-generation limitation, and Node `--localstorage-file` warnings.
-- The issue workflow helper now normalizes worktree paths before comparing them and executes npm checks through `cmd.exe`, fixing false worktree rejection and Node's direct-`npm.cmd` failure on Windows. Focused workflow tests cover both behaviors; the first review attempt therefore failed before lint execution and must be rerun after resuming #147.
-- The Twilio webhook signature integration test now has a 15-second per-test timeout. It passes in isolation in under two seconds but twice crossed Vitest's five-second default during concurrent full-suite transforms; the larger limit retains coverage while removing this Windows timing flake.
-- #147 is committed and pushed at `86cbd4f`; it includes current `master`, preserved the newer role-security UI during conflict resolution, and passed lifecycle review. It remains In review pending integration into `master`. Next: integrate and finish the lint slices. Do not apply the deliberately withheld social-login migration.
+- **Verification on `master` (7271719):** `npm run lint` passes with 0 errors / 328 warnings; `npm test -- --run` passes 371/371; `npm run build` passes with env loaded (isolated worktree has no `.env.local` by design; `scripts/issue-workflow.mjs` now loads `../.env.local` automatically). Known non-blocking build warnings remain: duplicate-worktree lockfile detection, deprecated middleware convention, Paystack route `config` export, Edge runtime static-generation limitation, and Node `--localstorage-file` warnings.
+- Workflow fixes landed with the lint baseline: normalized Windows worktree paths (`pathsMatch`), routed `npm` through `cmd.exe` on Windows (`commandInvocation`), auto-loads `.env.local` for `review`/`finish` checks (`loadEnvFile`), and widened the Twilio webhook integration test to 15s. Two Windows-specific helper failures were caught and fixed during the 147 review cycle.
+- All 5 issues closed via PR #155: #143 (parent) + #144 + #145 + #146 + #147, plus #142 (Windows worktree path) consolidated in the same PR. Branches `codex/issue-144`, `146`, `147`, `142` deleted locally and remotely. `npm run lint` is now green on `master`; `npm test -- --run` is 371 passing. Do not apply the deliberately withheld social-login migration.
 
 ## Last session (OpenCode, 2026-08-24 — WhatsApp Pilot and Estate-Wide Controls #8)
 

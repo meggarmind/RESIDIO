@@ -90,9 +90,11 @@ const QUICK_ACTIONS: SearchResult[] = [
   },
   {
     id: 'security-log',
+    // The page on disk is /security/logs; this pointed at the singular and so
+    // dropped the user on a 404 every time.
     title: 'View Security Log',
     subtitle: 'Check recent security activity',
-    href: '/security/log',
+    href: '/security/logs',
     type: 'action',
   },
 ];

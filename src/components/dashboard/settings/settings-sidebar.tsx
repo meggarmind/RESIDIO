@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { isIndexChild, type SettingsGroup, type SettingsItem } from '@/config/settings-nav';
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
+import { useSettingsNavState } from '@/hooks/use-settings-nav-state';
 import { Button } from '@/components/ui/button';
 import { ChevronRight, ChevronDown } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -46,10 +47,14 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
     // the current page is always open, derived below rather than pushed into
     // state by an effect -- the effect version left the active group collapsed
     // on first paint, and only ever added, so every group visited stayed open.
-    const [userToggled, setUserToggled] = React.useState<Record<string, boolean>>({});
+    //
+    // Held outside React because the root `app/template.tsx` remounts this
+    // component on every navigation; as component state the reader's choice
+    // did not survive a single click. See `use-settings-nav-state.ts`.
+    const { userToggled, setGroupOpen } = useSettingsNavState();
 
     const toggleGroup = (title: string, isOpen: boolean) => {
-        setUserToggled((prev) => ({ ...prev, [title]: !isOpen }));
+        setGroupOpen(title, !isOpen);
     };
 
     return (
