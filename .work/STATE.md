@@ -13,8 +13,8 @@
 
 | | |
 |---|---|
-| Phase | Wave 0 — about to dispatch #163 |
-| Last completed | Step 0 grounding, green baseline, plan written |
+| Phase | Waves 0+1 dispatched, 5 agents in flight |
+| Last completed | Verified every issue's cited file:line (see ISSUE-CLAIMS-VERIFIED.md) |
 | Epic HEAD | `8d3ee77` fix(monitor): restore a clean typecheck baseline |
 | Blocked issues | none |
 | Consecutive QA failures | 0 |
@@ -25,11 +25,11 @@ Legend: TODO / IN-PROGRESS / QA / MERGED / CLOSED / BLOCKED
 
 | # | Slice | Wave | Status | Branch | Notes |
 |---|-------|------|--------|--------|-------|
-| 163 | prettier undeclared | 0 | TODO | — | |
-| 167 | middleware safety net | 1 | TODO | — | blocks all of wave 2 |
-| 168 | chairman settings.view | 1 | TODO | — | needs a DB migration applied |
-| 169 | main sidebar nav state | 1 | TODO | — | |
-| 170 | settings sidebar reopen | 1 | TODO | — | |
+| 163 | prettier undeclared | 0 | IN-PROGRESS | issue/163-* | |
+| 167 | middleware safety net | 1 | IN-PROGRESS | issue/167-* | blocks all of wave 2 |
+| 168 | chairman settings.view | 1 | IN-PROGRESS | issue/168-* | needs a DB migration applied |
+| 169 | main sidebar nav state | 1 | IN-PROGRESS | issue/169-* | |
+| 170 | settings sidebar reopen | 1 | IN-PROGRESS | issue/170-* | |
 | 171 | audit logs → /system | 2a | TODO | — | template slice |
 | 172 | account admin → /system | 2b | TODO | — | |
 | 173 | notification queue | 2b | TODO | — | |
@@ -46,5 +46,10 @@ Legend: TODO / IN-PROGRESS / QA / MERGED / CLOSED / BLOCKED
 
 ## Next action
 
-Dispatch wave 0: issue #163, solo, in the main checkout (it mutates
-`package.json`, the lockfile and `node_modules`, all shared).
+Await the five in-flight agents (see AGENTS-INFLIGHT.md), then per issue: review the
+diff myself, run the four gates, spawn a QA agent on `git diff epic/180...<branch>`,
+and only on a clean PASS commit + merge + close + push.
+
+**#163 is a reproduction run, not a fix.** Its premise looks stale — prettier is a
+committed transitive dependency. Decide the real fix from what the cold `npm ci`
+actually shows.
