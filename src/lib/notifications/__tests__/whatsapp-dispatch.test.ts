@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
 import { sendNotification } from '@/lib/notifications/send';
-import { getSettingValue } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/actions/settings/get-settings';
 import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 
 vi.mock('@/actions/settings/get-settings', () => ({
-  getSettingValue: vi.fn(),
+  getSettingValueAsService: vi.fn(),
 }));
 
 vi.mock('@/lib/whatsapp', () => ({
@@ -28,7 +28,7 @@ vi.mock('@/lib/whatsapp/rollout', () => ({
 describe('WhatsApp notification dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getSettingValue).mockResolvedValue(true);
+    vi.mocked(getSettingValueAsService).mockResolvedValue(true);
     vi.mocked(createAdminClient).mockReturnValue({
       from: vi.fn().mockReturnValue({
          select: vi.fn().mockReturnThis(),
@@ -92,7 +92,7 @@ describe('WhatsApp notification dispatch', () => {
   });
 
   it('rejects WhatsApp sends when the configured daily cap is reached', async () => {
-    vi.mocked(getSettingValue).mockImplementation(async (key) => {
+    vi.mocked(getSettingValueAsService).mockImplementation(async (key) => {
       if (key === 'whatsapp_outbound_daily_cap') return 1;
       return true;
     });
@@ -148,7 +148,7 @@ describe('WhatsApp notification dispatch', () => {
   });
 
   it('rejects WhatsApp sends when the rolling burst cap is reached', async () => {
-    vi.mocked(getSettingValue).mockImplementation(async (key) => {
+    vi.mocked(getSettingValueAsService).mockImplementation(async (key) => {
       if (key === 'whatsapp_outbound_burst_cap') return 1;
       if (key === 'whatsapp_outbound_burst_window_minutes') return 10;
       return key === 'whatsapp_outbound_daily_cap' ? 100 : true;
