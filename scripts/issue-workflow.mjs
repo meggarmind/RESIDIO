@@ -117,8 +117,19 @@ export function parseWorktrees(output) {
   return entries;
 }
 
+// Git reports worktree paths with forward slashes even on Windows, while
+// `resolve()` returns backslashes there. Unify separators before and after
+// resolving so the comparison does not depend on which platform is running --
+// `resolve()` alone treats a backslash as an ordinary character on POSIX.
+function normalizeComparablePath(value) {
+  const toSlashes = (input) => input.split('\\').join('/');
+  const trimmed = toSlashes(resolve(toSlashes(String(value)))).replace(/(?!^)\/+$/, '');
+  // Windows drive letters are case-insensitive; the rest of the path is not.
+  return trimmed.replace(/^([a-zA-Z]):\//, (_match, drive) => `${drive.toUpperCase()}:/`);
+}
+
 export function pathsMatch(left, right) {
-  return resolve(left) === resolve(right);
+  return normalizeComparablePath(left) === normalizeComparablePath(right);
 }
 
 function worktrees(cwd) {
