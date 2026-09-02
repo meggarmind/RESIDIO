@@ -411,6 +411,16 @@ function finish(config, cwd, issueNumber, args) {
       }
     }
 
+    try {
+      run('git', ['fetch', 'origin', config.defaultBranch], integrationPath);
+      run('git', ['merge-base', '--is-ancestor', 'HEAD', `origin/${config.defaultBranch}`], integrationPath);
+    } catch (error) {
+      throw new WorkflowError(
+        `Issue #${issue.number} is merged locally but has not been pushed to origin/${config.defaultBranch}. ` +
+        `Push the integration branch, then rerun finish to close the issue. ${error.message}`
+      );
+    }
+
     commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.done, {
       branch: target.branch,
       worktree: target.path,

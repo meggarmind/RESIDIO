@@ -9,12 +9,12 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Last session (OpenCode, 2026-09-02 — build and audit coverage rebase)
+## Last session (OpenCode, 2026-09-02 — build/audit merge and workflow hardening)
 
-- Rebased the useful portions of `fix/build-and-audit-coverage` onto current `origin/master` as `fix/build-audit-rebased`: excludes the standalone `website/` workspace from the app TypeScript program and preserves successful audit logging for 24 write-action files.
-- Dropped the branch's stale pilot-readiness handoff rather than overwriting current coordination state.
-- Verification: full Vitest 292/292; module-integration reports 42 remaining permission and 5 remaining audit allowlist exceptions; `git diff --check` clean. Full lint remains baseline-red at 107 errors and 423 warnings. The isolated-worktree build reached page prerendering but cannot create a Supabase client because `.env.local` is intentionally absent from worktrees.
-- Next: push and merge `fix/build-audit-rebased`, then rebase the monitor workflow onto the updated master baseline.
+- Merged the rebased build/audit coverage changes into `master` via PR #135. The app TypeScript program now excludes the standalone `website/` workspace, and 24 write actions gained audit logging.
+- Rebased the issue lifecycle helper and hourly monitor onto the updated `master`. Dispatch inputs are passed through environment variables rather than shell interpolation; `finish` now verifies the integration commit is published on `origin/master` before closing an issue or marking it Done.
+- Verification before the build/audit merge: full Vitest 292/292; `git diff --check` clean. Full lint remains baseline-red at 107 errors and 423 warnings. The isolated-worktree build requires the intentionally untracked `.env.local` for Supabase page prerendering.
+- Next: push and merge the rebased issue-monitor workflow, then begin the separately approved social-login approval-queue rebase and security review.
 
 ## Last session (OpenCode, 2026-08-24 — WhatsApp Pilot and Estate-Wide Controls #8)
 

@@ -44,11 +44,15 @@ jobs:
       - name: Run issue monitor
         id: monitor
         shell: bash
+        env:
+          ISSUE_INPUT: ${{ inputs.issue }}
+          EVENT_NAME: ${{ github.event_name }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
           args=()
-          if [[ -n "${{ inputs.issue }}" ]]; then args+=(--issue "${{ inputs.issue }}"); fi
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then args+=(--dry-run); fi
+          if [[ -n "$ISSUE_INPUT" ]]; then args+=(--issue "$ISSUE_INPUT"); fi
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$DRY_RUN" == "true" ]]; then args+=(--dry-run); fi
           node scripts/issue-monitor.mjs "${args[@]}" | tee monitor-report.txt
       - name: Publish monitor summary
         if: always()

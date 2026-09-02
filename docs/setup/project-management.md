@@ -71,9 +71,9 @@ npm run issue:workflow -- resume <issue>
 npm run issue:workflow -- finish <issue> [--check "issue-specific command"]
 ```
 
-Worktrees live at `.worktrees/issue-<number>` with branches named `codex/issue-<number>-<slug>`. `review` sets `In review` before running the configured lint, test, and build checks. `finish` reruns those checks, refuses dirty worktrees or integration branches, merges the issue branch into `master` with `--no-ff`, closes the completed child issue, sets Project status to `Done`, and removes the worktree and merged branch. A failed check or merge conflict leaves the issue in review and preserves its worktree. `resume` returns an issue to `In progress` for fixes.
+Worktrees live at `.worktrees/issue-<number>` with branches named `codex/issue-<number>-<slug>`. `review` sets `In review` before running the configured lint, test, and build checks. `finish` reruns those checks, refuses dirty worktrees or integration branches, merges the issue branch into `master` with `--no-ff`, then verifies that the integration commit has reached `origin/master` before it closes the child issue, sets Project status to `Done`, and removes the worktree and merged branch. A failed check, merge conflict, or unpublished integration leaves the issue in review and preserves its worktree. `resume` returns an issue to `In progress` for fixes.
 
-The helper resolves Project, field, item, and option IDs by name at runtime and fails closed if any required project data is missing. Pushing the resulting `master` commit is separate from the local integration step and requires explicit authorization.
+The helper resolves Project, field, item, and option IDs by name at runtime and fails closed if any required project data is missing. Pushing the resulting `master` commit requires explicit authorization; after it succeeds, rerun `finish` to complete the remote issue and Project status transition.
 
 ---
 
