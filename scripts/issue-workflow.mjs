@@ -317,7 +317,39 @@ function checksFromArgs(args) {
   return checks;
 }
 
+function loadEnvFile(cwd) {
+  const candidates = [
+    resolve(cwd, '.env.local'),
+    resolve(commonRoot(cwd), '.env.local'),
+    resolve(commonRoot(cwd), '.env'),
+  ];
+  for (const envPath of candidates) {
+    if (!existsSync(envPath)) continue;
+    try {
+      const content = readFileSync(envPath, 'utf8');
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eq = trimmed.indexOf('=');
+        if (eq === -1) continue;
+        const key = trimmed.slice(0, eq).trim();
+        let value = trimmed.slice(eq + 1).trim();
+        if (
+          (value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))
+        ) {
+          value = value.slice(1, -1);
+        }
+        if (!(key in process.env)) process.env[key] = value;
+      }
+      console.log(`Loaded env from ${envPath}`);
+      break;
+    } catch {}
+  }
+}
+
 function runChecks(config, cwd, extraChecks) {
+  loadEnvFile(cwd);
   for (const check of config.checks) {
     console.log(`\n==> ${check.label}`);
     runVisible(check.command, check.args ?? [], cwd);
