@@ -9,6 +9,41 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-02 — Settings audit + two nav fixes)
+
+Branch `fix/settings-nav-quick-fixes`, off `master` at `7271719`. Two commits, **not pushed, not merged.** No migrations. Audit of the Settings module requested; the IA half is deliberately unbuilt and heading into `/grill-with-docs`.
+
+### ⚠️ Something hard-reset this working tree mid-session and destroyed uncommitted work
+
+Reflog shows `reset: moving to origin/master` and a checkout from `fix/settings-nav-quick-fixes` back to `master` that neither I nor the user initiated, while `master` simultaneously gained commits `7271719`/`3b51998`. It wiped tracked edits **and untracked new files**. Recovered only because a `git stash -u` earlier in the session left a dangling commit (`842566d`, untracked files in its third parent `00568ef`).
+
+If you are working in this checkout: **commit early**, do not leave new files untracked, and expect a concurrent tool (another session, or a sync hook) to reset you to `origin/master`. This is more destructive than the auto-commit-and-push checkpoint behaviour previously recorded.
+
+### `/settings/system` is NOT broken — this was investigated and closed
+
+Reported as inaccessible. Reproduced in a real browser as `admin@residio.test`: `/settings`, `/settings/system`, `/settings/system/health` and `/settings/cron-status` all return **200, no redirect, full content, zero console errors**. `super_admin` holds `system.view_all_settings` in the live DB. Do not re-investigate as an access bug.
+
+The likely real complaint is **discoverability**: landing on `/settings`, only **12 of 34** links are visible, because five of six groups start collapsed and only the group holding the current page auto-opens. "System" sits inside a collapsed group labelled "System Health".
+
+Separately confirmed and intended: **chairman holds zero `settings.*` and zero `system.*` permissions** (migration `20260830100200`, which is on master but **absent from the applied-migrations list** — the DB matches its effect anyway, so it landed out of band). The wiki already documents this. User confirmed it is correct; do not "fix" it.
+
+### Fixed
+
+- **Settings sidebar lost expand/collapse state on every navigation**, not just on reload. Root cause is `src/app/template.tsx`: a Next.js `template` re-instantiates on every navigation, so every layout beneath it remounts. Proven by tagging the `<aside>` DOM node and watching it be replaced. State now lives in `src/hooks/use-settings-nav-state.ts` (external store + `sessionStorage`, read via `useSyncExternalStore`). 11 unit tests. **Note the wider implication: that template remounts the entire app tree on every navigation, so no client component below root keeps state.**
+- **Global search "View Security Log" pointed at `/security/log`; the page is `/security/logs`.** Every use hit a 404.
+
+### Pre-existing breakage found, NOT fixed (no issue filed yet)
+
+**`prettier` is imported by `@react-email/render` but is neither declared in `package.json` nor installed.** It fails 2 test suites (`billing-generation-history`, `billing-resident-filter`) on a clean tree, and takes down the **dev server** once a route pulling in `@react-email/render` recompiles — login stops working. I unblocked verification with `npm install --no-save prettier`, which leaves `package.json` and the lockfile untouched, so **a fresh `npm ci` will break again.**
+
+### Settings audit findings handed to the user, not acted on
+
+Integrations are scattered with no home: WhatsApp (General & Preferences), Gmail import (**Billing & Finance**), Resend email (Communications), and Paystack + SMS have **no settings page at all**. `/settings/cron-status` and `/settings/system/health` are near-duplicates in the same group. `/settings/data-management` and `/settings/system/data` are two data pages in two groups. Global search indexes residents, houses, streets, payments, contacts and documents — **not settings**, so "email import" finds nothing. Desktop sidebar allows many open groups; mobile is a strict single accordion.
+
+### Verification
+
+376 tests pass / 64 suites; the 2 failures are the pre-existing `prettier` issue, confirmed on a clean tree. Typecheck clean, ESLint clean on touched files. Browser-verified 8/8 against the committed code. `docs:drift` reports 19 drifted pages, all pre-existing — no page describes sidebar expand/collapse, so nothing was re-stamped.
+
 ## Last session (Claude Code, 2026-09-02 — WhatsApp admin-configurable credentials and Twilio support)
 
 Branch `feat/whatsapp-provider-config`, branched from `master` at `7f5e751`, rebased onto `51dbd19`. Eight commits, all pushed. **Not merged.** Issues #127-#134 plus #136 in `meggarmind/RESIDIO`.
