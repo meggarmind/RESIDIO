@@ -1,33 +1,14 @@
 -- ============================================================================
--- Migration: get_my_role() resolves roles outside the built-in five
+-- Migration: preserve legacy RLS boundaries for built-in roles
 -- ============================================================================
--- Purpose: Roles & Permissions can create a role, but the database could not
---          see it. get_my_role() maps app_roles.name onto the legacy user_role
---          enum with an explicit CASE and returned NULL for anything unmapped —
---          and ~85 RLS policies are written as
+-- Purpose: get_my_role() maps app_roles.name onto the legacy user_role enum.
+--          ~85 RLS policies are written as
 --          `get_my_role() IN ('admin','chairman','financial_secretary')`.
 --
---          So a role created through the UI passed authorizePermission() in the
---          server action and then got zero rows back from Postgres.
---
---          This is not only a custom-role problem: the SHIPPED `secretary` and
---          `project_manager` roles are absent from the CASE too, and have been
---          resolving to NULL — denied by those policies — since they were
---          seeded. This migration fixes them as well.
---
--- Approach: keep the explicit CASE for the five mapped built-ins so their
--- behaviour is bit-for-bit unchanged, and replace only the ELSE arm with a
--- fallback derived from the app_roles row already joined:
---
---   category = 'resident'  -> NULL   (residents must never gain admin RLS)
---   level = 0              -> admin  (a peer of super_admin)
---   otherwise              -> chairman
---
--- A custom role therefore inherits a legacy *bucket* for the old policies while
--- its real, fine-grained permissions continue to govern every check that goes
--- through authorizePermission(). Moving those policies onto has_permission() is
--- the durable fix and is tracked separately; this unblocks custom roles without
--- rewriting 85 policies in one step.
+-- Approach: preserve the explicit mapping for the five built-in roles and deny
+-- every other role at this legacy RLS boundary. A custom role must not inherit
+-- a legacy bucket based on its category or level: direct PostgREST calls bypass
+-- application-side authorizePermission() checks.
 --
 -- Preserved from 20260829100200 (do not drop either):
 --   * the approval_status = 'active' gate — pending, rejected and suspended
@@ -52,12 +33,10 @@ SET search_path = public, auth, extensions, pg_temp
 AS $fn$
 DECLARE
     v_role_name TEXT;
-    v_category  TEXT;
-    v_level     INT;
 BEGIN
     -- Only an approved account resolves a role at all.
-    SELECT ar.name, ar.category, ar.level
-      INTO v_role_name, v_category, v_level
+    SELECT ar.name
+      INTO v_role_name
     FROM profiles p
     JOIN app_roles ar ON ar.id = p.role_id
     WHERE p.id = auth.uid()
@@ -74,24 +53,12 @@ BEGIN
         WHEN 'vice_chairman'     THEN RETURN 'chairman'::user_role;
         WHEN 'financial_officer' THEN RETURN 'financial_secretary'::user_role;
         WHEN 'security_officer'  THEN RETURN 'security_officer'::user_role;
-        ELSE NULL; -- fall through to the derived fallback below
+        ELSE RETURN NULL;
     END CASE;
-
-    -- Resident-category roles get no administrative bucket, ever.
-    IF v_category = 'resident' THEN
-        RETURN NULL;
-    END IF;
-
-    -- Level 0 is the top of the hierarchy, alongside super_admin.
-    IF v_level = 0 THEN
-        RETURN 'admin'::user_role;
-    END IF;
-
-    RETURN 'chairman'::user_role;
 END;
 $fn$;
 
 COMMENT ON FUNCTION public.get_my_role() IS
-'Returns the legacy user_role enum for the current user, derived from profiles.role_id -> app_roles.name. Returns NULL unless approval_status is active. The five built-in admin roles map explicitly; any other non-resident role falls back to admin (level 0) or chairman, so roles created through Roles & Permissions are visible to the legacy RLS policies. Resident-category roles always return NULL. The legacy profiles.role fallback was removed deliberately: it allowed a client-supplied signup metadata role to become real RLS access.';
+'Returns the legacy user_role enum for the current user, derived from profiles.role_id -> app_roles.name. Returns NULL unless approval_status is active. Only the five built-in admin roles map to legacy RLS buckets; custom and resident-category roles return NULL until affected policies use explicit permission checks. The legacy profiles.role fallback was removed deliberately: it allowed a client-supplied signup metadata role to become real RLS access.';
 
 COMMIT;

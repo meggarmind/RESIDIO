@@ -4,6 +4,9 @@
 
 **Last Updated:** 2026-09-01 (docs site deploy investigation logged under Admin User Guide)
 
+### Security (2026-09-02)
+- [x] **#141 Custom role legacy-RLS escalation:** Removed the unmerged `get_my_role()` fallback that granted arbitrary custom roles the legacy `admin` or `chairman` bucket. Custom roles now fail closed at legacy RLS policies until those policies are converted to explicit permission checks.
+
 ### Admin User Guide (2026-08-22)
 - [x] Docusaurus admin guide created under `website/` with role-aware workflows across all admin areas.
 - [x] Playwright screenshot capture and browser-side sensitive-value masking added.
