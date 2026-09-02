@@ -99,3 +99,47 @@ and persisting the value also *sharpens* the rule rather than blurring it: a rel
 already inside the group keeps `previous === G`, so a deliberate collapse still survives,
 while an arrival from group H is correctly seen as a transition. The implementer's own
 test 4 conflated those two situations. **Reversible:** yes, localized to one hook.
+
+---
+
+**D9 — #163 | The issue's premise was false, so "fix it as written" and "close it" were both
+available and neither was obviously right.**
+Options: (a) add `prettier` as a devDependency anyway, as the issue asks, on the reasoning
+that an explicit declaration is harmless insurance; (b) close as not reproducible with
+evidence.
+**Taken: (b).** A cold `npm ci` in a throwaway clone of `epic/180` — no `node_modules` at
+all, 34 minutes, 1029 packages, exit 0 — installs `prettier@3.7.4` with both
+`prettier/standalone` and `prettier/plugins/html` present, and both named suites pass
+(66 files / 383 tests, zero failures). The cause: `@react-email/render@2.0.0` declares
+prettier in its own `dependencies`, and it has been in the committed lockfile since
+`4590ecd` (2025-12-21), before the issue was filed. The reported breakage was a locally
+drifted `node_modules`, which `npm ci` cures.
+Option (a) was rejected on substance, not effort: an uncapped grep shows this repo never
+imports prettier itself, in `src/`, `scripts/` or `e2e/`. Declaring it in
+`devDependencies` would describe a **production** transitive requirement as a development
+tool, and would mislead anyone later reasoning about `--omit=dev`. Restating what the
+lockfile already guarantees would make the manifest less accurate, not more.
+**Reversible:** the issue can be reopened; no code changed.
+
+---
+
+**D10 — baseline | `module-integration.test.ts` fails nondeterministically under load.**
+Three consecutive full-suite runs on an identical tree returned one failure, then two,
+then none; the file passes in isolation. Cause: it walks every file under `src/actions/**`,
+taking ~3.8s and ~1.1s against vitest's 5s default timeout, so contention tips it over —
+and the failure reads as "a write action is missing `authorizePermission`", which is
+exactly the kind of false alarm that would derail a QA agent.
+Options: (a) document it and let every QA agent hit it, (b) give the scan an explicit
+timeout.
+**Taken: (b),** as baseline repair in its own commit (`0948367`), same reasoning as D4: a
+gate that lies intermittently is worse than one that is simply slow. 60s budget, no
+assertion changed. QA agents on branches cut before that commit are briefed on the flake
+and told to re-run the file alone. **Reversible:** one constant.
+
+---
+
+**D11 — process | Coordination files were written to the wrong tree.** Three `.work` files
+landed in `.worktrees/issue-167/.work/` because the Bash tool's working directory persists
+between calls and I had left it inside a worktree. Recovered them, and cleaned the stray
+files out of #167's tree before its QA ran so they would not read as scope creep.
+**Standing correction: every shell command in this epic uses an absolute path.**
