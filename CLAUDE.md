@@ -44,6 +44,17 @@ A standing two-role split across two sessions, for when work runs as coordinator
 
 While the roles are active, Rex's sub-agent defaults are **`haiku`, max 5**, overriding the general tier guidance in `## Delegating to sub-agents` below. Everything else there still binds — set `model` explicitly on every call, and never use `fable`.
 
+### Migrations on merge
+
+Merging a branch that adds migrations obliges you to apply them, and to verify by name against the database's applied list — never against the migrations directory, which looks correct in every failure mode. See `docs/agents/migrations-on-merge.md`.
+
+Standing rule, not a suggestion:
+
+1. **Before merging**, diff `git ls-tree` on both refs to enumerate the migrations the branch adds.
+2. **After merging**, apply them. If you cannot, say so in the merge report and record it on the tracking issue — an unapplied migration nobody knows about is how six of them ended up orphaned on this project.
+3. **Check open issues before applying anything touching RBAC, auth or RLS.** A migration can be correct in intent and still be the direct cause of an open P0.
+4. **Record any deliberately withheld migration twice** — on its issue and in `SESSION_STATE.md` — so a later reader does not "fix" the gap by applying it.
+
 ### Commit hygiene
 
 If a task touches multiple concerns, prefer splitting into smaller sequential commits.

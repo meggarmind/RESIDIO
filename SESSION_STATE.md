@@ -18,6 +18,13 @@ Branch `feat/whatsapp-provider-config`, branched from `master` at `7f5e751`, reb
 - **Both providers ship.** Meta and Twilio, outbound and inbound. Twilio signature verification (HMAC-SHA1 over URL + sorted params) was validated against an independently computed expected value rather than a self-consistent test, and the proxy URL reconstruction is asserted with forwarded headers that disagree with the internal request URL.
 - **`whatsapp_enabled` now fails closed.** It was compared with `=== false`, and an absent row read as `null !== false`, so the documented master kill switch did nothing unless someone hand-inserted the row. A migration seeds it explicitly.
 
+### Migration state — read before applying anything
+
+- **Two WhatsApp migrations are applied**, recorded as `20260902102528` and `20260902102537`. The files were renamed to match, because the MCP `apply_migration` tool assigns its own version rather than using the filename.
+- **Six migrations are applied but have no file on `master`** — `20260829100000` through `20260830090000`. Their files live only on `feat/social-login-approval-queue`. Consequence: master's migrations misrepresent the live database. An audit of `get_my_role()` was misled by this today, quoting a definition production had already superseded.
+- **Five migrations on that branch are unapplied** and timestamped *earlier* than what is now applied, so ordinary tooling will skip them silently (#138). Four ride with the branch when it merges.
+- **`20260830100300_get_my_role_resolves_custom_roles.sql` is deliberately withheld, permanently.** It grants every unrecognised role a legacy `admin`/`chairman` bucket that ~100 RLS policies trust — the exact escalation in open P0 #141. The deployed `get_my_role()` currently ends in `ELSE NULL`; withholding preserves that. **Do not apply it to close the gap in the sequence.** #141's fix supersedes it.
+
 ### Security findings from this work, filed separately
 
 - **#139** — eight more files read settings through the RLS-bound client from cron/webhook contexts, so configured values are silently replaced by code defaults. Includes `apply-late-fees.ts`, which decides what residents are charged.
