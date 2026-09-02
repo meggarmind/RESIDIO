@@ -10,7 +10,7 @@
  */
 
 import { resend, emailConfig, isEmailConfigured } from '@/lib/email/resend';
-import { getSettingValue } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/actions/settings/get-settings';
 import { createAdminClient } from '@/lib/supabase/server';
 import type {
   NotificationChannel,
@@ -40,8 +40,13 @@ type ChannelSender = (
 async function sendViaEmail(
   item: NotificationQueueItem
 ): Promise<SendNotificationResult> {
-  // Check if email is globally enabled
-  const emailEnabled = await getSettingValue('email_enabled');
+  // Check if email is globally enabled. This runs from cron/queue processing
+  // with no authenticated user, so it must read via the service-role client
+  // (see #136) — the RLS-bound getSettingValue would silently return null
+  // here and this fail-open comparison would let cron email through anyway.
+  // NOTE: `=== false` fails OPEN on null/absent/error; making this fail
+  // closed is tracked separately in #134 and must not be bundled here.
+  const emailEnabled = await getSettingValueAsService('email_enabled');
   if (emailEnabled === false) {
     return {
       success: false,
@@ -67,7 +72,7 @@ async function sendViaEmail(
 
   try {
     // Get sender name from settings
-    const fromName = (await getSettingValue('email_from_name')) || 'Residio Estate';
+    const fromName = (await getSettingValueAsService('email_from_name')) || 'Residio Estate';
 
     // Send via Resend
     const { data, error } = await resend.emails.send({
@@ -121,7 +126,12 @@ async function sendViaSms(
 async function sendViaWhatsApp(
   item: NotificationQueueItem
 ): Promise<SendNotificationResult> {
-  const whatsappEnabled = await getSettingValue('whatsapp_enabled');
+  // Runs from cron/queue processing with no authenticated user — must use
+  // the service-role read (see #136), or this kill switch does nothing
+  // under cron regardless of what's configured.
+  // NOTE: `=== false` fails OPEN on null/absent/error; making this fail
+  // closed is tracked separately in #134 and must not be bundled here.
+  const whatsappEnabled = await getSettingValueAsService('whatsapp_enabled');
   if (whatsappEnabled === false) {
     return { success: false, error: 'WhatsApp notifications are disabled in system settings' };
   }
@@ -134,7 +144,10 @@ async function sendViaWhatsApp(
     return { success: false, error: 'WhatsApp recipient is outside the active rollout audience' };
   }
 
-  const configuredDailyCap = await getSettingValue('whatsapp_outbound_daily_cap');
+  // Service-role read (see #136) — under cron, the RLS-bound getSettingValue
+  // always returns null here, so the configured cap silently fell back to
+  // the compiled-in default of 100 in either direction (lower or higher).
+  const configuredDailyCap = await getSettingValueAsService('whatsapp_outbound_daily_cap');
   const dailyCap = typeof configuredDailyCap === 'number' && Number.isInteger(configuredDailyCap)
     ? configuredDailyCap
     : 100;
@@ -158,9 +171,11 @@ async function sendViaWhatsApp(
     return { success: false, error: 'WhatsApp daily outbound limit reached' };
   }
 
-  const configuredBurstCap = await getSettingValue('whatsapp_outbound_burst_cap');
+  // Service-role reads (see #136) — same cap fallback problem as the daily
+  // cap above.
+  const configuredBurstCap = await getSettingValueAsService('whatsapp_outbound_burst_cap');
   const burstCap = typeof configuredBurstCap === 'number' && Number.isInteger(configuredBurstCap) ? configuredBurstCap : 20;
-  const configuredBurstWindow = await getSettingValue('whatsapp_outbound_burst_window_minutes');
+  const configuredBurstWindow = await getSettingValueAsService('whatsapp_outbound_burst_window_minutes');
   const burstWindow = typeof configuredBurstWindow === 'number' && Number.isInteger(configuredBurstWindow) && configuredBurstWindow > 0 ? configuredBurstWindow : 10;
   if (burstCap <= 0) return { success: false, error: 'WhatsApp outbound burst limit reached' };
   const burstStart = new Date(Date.now() - burstWindow * 60 * 1000).toISOString();

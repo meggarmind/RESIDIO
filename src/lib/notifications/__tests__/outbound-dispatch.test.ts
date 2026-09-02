@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
 import { sendNotification } from '@/lib/notifications/send';
-import { getSettingValue } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/actions/settings/get-settings';
 import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 
 vi.mock('@/actions/settings/get-settings', () => ({
-  getSettingValue: vi.fn(),
+  getSettingValueAsService: vi.fn(),
 }));
 
 vi.mock('@/lib/whatsapp', () => ({
@@ -73,7 +73,7 @@ function mockSupabaseChain(overrides: Record<string, unknown> = {}) {
 describe('WhatsApp outbound dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getSettingValue).mockResolvedValue(true);
+    vi.mocked(getSettingValueAsService).mockResolvedValue(true);
     vi.mocked(createAdminClient).mockReturnValue(mockSupabaseChain());
   });
 
@@ -133,7 +133,7 @@ describe('WhatsApp outbound dispatch', () => {
   });
 
   it('rejects WhatsApp sends when the daily cap is reached', async () => {
-    vi.mocked(getSettingValue).mockImplementation(async (key) => {
+    vi.mocked(getSettingValueAsService).mockImplementation(async (key) => {
       if (key === 'whatsapp_outbound_daily_cap') return 1;
       return true;
     });
@@ -170,7 +170,7 @@ describe('WhatsApp outbound dispatch', () => {
   });
 
   it('rejects sends when the cap setting is zero', async () => {
-    vi.mocked(getSettingValue).mockImplementation(async (key) => {
+    vi.mocked(getSettingValueAsService).mockImplementation(async (key) => {
       if (key === 'whatsapp_outbound_daily_cap') return 0;
       return true;
     });
@@ -237,7 +237,7 @@ describe('WhatsApp outbound dispatch', () => {
   });
 
   it('rejects sends when WhatsApp is disabled in settings', async () => {
-    vi.mocked(getSettingValue).mockImplementation(async (key) => {
+    vi.mocked(getSettingValueAsService).mockImplementation(async (key) => {
       if (key === 'whatsapp_enabled') return false;
       return true;
     });
@@ -325,7 +325,7 @@ describe('WhatsApp outbound dispatch', () => {
   });
 
   it('rejects sends when cap lookup fails', async () => {
-    vi.mocked(getSettingValue).mockImplementation(async (key) => {
+    vi.mocked(getSettingValueAsService).mockImplementation(async (key) => {
       if (key === 'whatsapp_outbound_daily_cap') return 100;
       return true;
     });

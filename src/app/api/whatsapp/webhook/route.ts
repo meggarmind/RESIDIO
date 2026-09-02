@@ -14,6 +14,20 @@ import {
 
 export async function GET(request: NextRequest) {
   const resolved = await resolveWhatsAppConfig();
+
+  // Report unreadable credentials as such, rather than letting them fall
+  // through to the 403 below. Meta shows a failed verification to the admin,
+  // whose every instinct is then to suspect the verify token -- re-copying and
+  // re-pasting a token that was never the problem. A 403 naming the wrong
+  // cause is worse than a 503 naming none, because it sends someone somewhere
+  // specific and wrong. POST already distinguishes these; GET must match.
+  if (resolved.status === 'unusable') {
+    return NextResponse.json(
+      { error: `Webhook credentials are unusable: ${resolved.reason}` },
+      { status: 503 }
+    );
+  }
+
   const config = resolved.status === 'ok' ? resolved.config : null;
   const mode = request.nextUrl.searchParams.get('hub.mode');
   const token = request.nextUrl.searchParams.get('hub.verify_token');

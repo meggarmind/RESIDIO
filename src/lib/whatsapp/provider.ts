@@ -1,5 +1,6 @@
-import { resolveWhatsAppConfig, type MetaWhatsAppConfig, type WhatsAppConfig } from '@/lib/whatsapp/config';
+import { resolveWhatsAppConfig, type MetaWhatsAppConfig, type TwilioWhatsAppConfig, type WhatsAppConfig } from '@/lib/whatsapp/config';
 import { createMetaWhatsAppProvider } from '@/lib/whatsapp/providers/meta';
+import { createTwilioWhatsAppProvider } from '@/lib/whatsapp/providers/twilio';
 import type {
   WhatsAppSendResult,
   WhatsAppTemplateMessage,
@@ -20,13 +21,23 @@ export { createMetaWhatsAppProvider };
 type ProviderFactory = (config: WhatsAppConfig) => WhatsAppProvider;
 
 /**
- * One factory per supported `WhatsAppConfig['provider']` value. Adding a new
- * provider (e.g. Twilio) is meant to be additive: a new file under
- * `./providers/`, plus one entry here -- nothing below this map, in
- * `config.ts`, or in any caller should need to change.
+ * One factory per supported `WhatsAppConfig['provider']` value.
+ *
+ * Scope, stated precisely because an earlier version of this comment
+ * overclaimed: this registry governs the SEND path only. Registering an
+ * adapter here enables outbound automatically, because the entry points below
+ * gate on `isProviderSupported()` rather than on a hardcoded provider name.
+ *
+ * It does NOT govern inbound. `src/app/api/whatsapp/webhook/route.ts` still
+ * selects Meta explicitly, and must, because webhook signature verification
+ * and payload parsing are provider-specific in a way sending is not -- Meta
+ * uses HMAC-SHA256 over the raw body, Twilio HMAC-SHA1 over the URL plus
+ * sorted params. Until #130 lands, registering a provider here makes it able
+ * to send and unable to receive.
  */
 const PROVIDER_REGISTRY: Partial<Record<WhatsAppConfig['provider'], ProviderFactory>> = {
   meta: (config) => createMetaWhatsAppProvider(config as MetaWhatsAppConfig),
+  twilio: (config) => createTwilioWhatsAppProvider(config as TwilioWhatsAppConfig),
 };
 
 /**
@@ -37,7 +48,7 @@ const PROVIDER_REGISTRY: Partial<Record<WhatsAppConfig['provider'], ProviderFact
  * the check would mean adding a provider required editing the entry points
  * too, which is exactly the additivity this registry exists to provide.
  */
-function isProviderSupported(config: WhatsAppConfig): boolean {
+export function isProviderSupported(config: WhatsAppConfig): boolean {
   return PROVIDER_REGISTRY[config.provider] !== undefined;
 }
 

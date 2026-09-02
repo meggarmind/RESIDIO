@@ -373,6 +373,7 @@ export type AuditEntityType =
   | 'whatsapp_pending_contacts'    // Unrostered WhatsApp numbers
   | 'whatsapp_link_tokens'          // One-time WhatsApp linking tokens
   | 'whatsapp_sessions'             // WhatsApp conversation sessions
+  | 'whatsapp_provider_credentials' // WhatsApp provider connection (Meta/Twilio)
   | 'visitor_vehicles'             // Visitor Vehicle Registration
   // Unified Expenditure Engine
   | 'expenses'                     // Expense records
@@ -465,6 +466,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   whatsapp_pending_contacts: 'WhatsApp Pending Contact', // WhatsApp Assistant
   whatsapp_link_tokens: 'WhatsApp Link Token',           // WhatsApp Assistant
   whatsapp_sessions: 'WhatsApp Session',                // WhatsApp Assistant
+  whatsapp_provider_credentials: 'WhatsApp Connection', // WhatsApp Assistant
   visitor_vehicles: 'Visitor Vehicle',                  // Visitor Management Enhancement
   // Unified Expenditure Engine
   expenses: 'Expense',                                  // Expense Management
