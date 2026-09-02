@@ -1,7 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
-import { getSettingValue } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/actions/settings/get-settings';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -54,8 +54,13 @@ export async function applyLateFees(
       ? await createServerSupabaseClient()
       : createAdminClient();
 
-  // Get late fee settings
-  const lateFeeEnabled = await getSettingValue('late_fee_enabled');
+  // Get late fee settings. Reads via the service-role client (see #136/#139):
+  // this function runs from the unauthenticated cron route (as well as the
+  // authenticated manual trigger), and the RLS-bound `getSettingValue` always
+  // returns null with no authenticated user -- so grace period, rate, and
+  // cap would silently fall back to compiled-in defaults under cron
+  // regardless of what the estate configured.
+  const lateFeeEnabled = await getSettingValueAsService('late_fee_enabled');
   if (!lateFeeEnabled) {
     return {
       success: false,
@@ -68,9 +73,9 @@ export async function applyLateFees(
     };
   }
 
-  const lateFeeType = ((await getSettingValue('late_fee_type')) as string) || 'percentage';
-  const lateFeeAmount = Number(await getSettingValue('late_fee_amount')) || 5;
-  const gracePeriodDays = Number(await getSettingValue('grace_period_days')) || 7;
+  const lateFeeType = ((await getSettingValueAsService('late_fee_type')) as string) || 'percentage';
+  const lateFeeAmount = Number(await getSettingValueAsService('late_fee_amount')) || 5;
+  const gracePeriodDays = Number(await getSettingValueAsService('grace_period_days')) || 7;
 
   // Calculate the cutoff date (invoices due before this date are eligible for late fees)
   const cutoffDate = new Date();
@@ -326,12 +331,12 @@ export async function getLateFeeSettings(): Promise<{
   autoApply: boolean;
   applicationDay: number;
 }> {
-  const enabled = (await getSettingValue('late_fee_enabled')) === true;
-  const type = ((await getSettingValue('late_fee_type')) as string) || 'percentage';
-  const amount = Number(await getSettingValue('late_fee_amount')) || 5;
-  const gracePeriodDays = Number(await getSettingValue('grace_period_days')) || 7;
-  const autoApply = (await getSettingValue('late_fee_auto_apply')) === true;
-  const applicationDay = Number(await getSettingValue('late_fee_application_day')) || 5;
+  const enabled = (await getSettingValueAsService('late_fee_enabled')) === true;
+  const type = ((await getSettingValueAsService('late_fee_type')) as string) || 'percentage';
+  const amount = Number(await getSettingValueAsService('late_fee_amount')) || 5;
+  const gracePeriodDays = Number(await getSettingValueAsService('grace_period_days')) || 7;
+  const autoApply = (await getSettingValueAsService('late_fee_auto_apply')) === true;
+  const applicationDay = Number(await getSettingValueAsService('late_fee_application_day')) || 5;
 
   return {
     enabled,

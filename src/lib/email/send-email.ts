@@ -2,7 +2,7 @@
 
 import { resend, emailConfig, isEmailConfigured } from './resend';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getSettingValue, getSettings } from '@/actions/settings/get-settings';
+import { getSettingValueAsService, getSettings } from '@/actions/settings/get-settings';
 import type { SendEmailOptions, SendEmailResult, EmailLogEntry, EstateEmailSettings } from './types';
 
 /**
@@ -88,8 +88,12 @@ export async function getEstateEmailSettings(): Promise<EstateEmailSettings> {
  * Handles logging, settings checks, and error handling
  */
 export async function sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
+  // Service-role reads (see #136/#139): reached from the
+  // process-report-schedules cron path (`processDueSchedules`), an
+  // unauthenticated context where the RLS-bound `getSettingValue` always
+  // returns null.
   // Check if email is globally enabled
-  const emailEnabled = await getSettingValue('email_enabled');
+  const emailEnabled = await getSettingValueAsService('email_enabled');
   if (emailEnabled === false) {
     return { success: false, error: 'Email notifications are disabled' };
   }
@@ -97,7 +101,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
   const recipients = Array.isArray(options.to) ? options.to : [options.to];
 
   // Check if debug mode is enabled (log only, don't send)
-  const debugMode = await getSettingValue('email_debug_mode');
+  const debugMode = await getSettingValueAsService('email_debug_mode');
   if (debugMode === 'true' || debugMode === true) {
     // Log to email_logs with DEBUG_MODE status
     for (const recipient of recipients) {
@@ -127,7 +131,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
   }
 
   // Get sender name from settings
-  const fromName = (await getSettingValue('email_from_name')) || 'Residio Estate';
+  const fromName = (await getSettingValueAsService('email_from_name')) || 'Residio Estate';
 
   try {
     const { data, error } = await resend.emails.send({

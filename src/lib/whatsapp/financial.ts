@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
-import { getSettingValue } from '@/actions/settings/get-settings';
+import { getSettingResultAsService } from '@/actions/settings/get-settings';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
@@ -360,7 +360,21 @@ export interface WhatsAppFinancialHandlerOptions {
 }
 
 export async function canPerformWhatsAppFinancialLookup(): Promise<boolean> {
-  const configuredCap = await getSettingValue('whatsapp_daily_financial_lookup_cap');
+  // Runs from the inbound WhatsApp webhook -- unauthenticated -- so this
+  // must read via the service-role client (see #136), or the cap always
+  // reads null under the webhook regardless of what's configured.
+  //
+  // Fails CLOSED (#139): this setting gates how many financial disclosures
+  // may happen per day, so a query error must be treated as "not
+  // permitted" rather than silently falling back to the compiled-in
+  // default of 50 -- an unreadable cap is not evidence the estate's
+  // configured cap is 50, and financial data shouldn't be handed out on
+  // that assumption. `absent` (no row -- nobody has configured a cap)
+  // keeps the existing default of 50; that is a genuine unconfigured
+  // state, not a transient failure.
+  const capResult = await getSettingResultAsService('whatsapp_daily_financial_lookup_cap');
+  if (capResult.status === 'error') return false;
+  const configuredCap = capResult.status === 'ok' ? capResult.value : undefined;
   const dailyCap = typeof configuredCap === 'number' && Number.isInteger(configuredCap)
     ? configuredCap
     : 50;

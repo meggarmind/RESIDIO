@@ -1,5 +1,5 @@
 import { render } from '@react-email/render';
-import { getSettingValue } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/actions/settings/get-settings';
 import { InvoiceGeneratedEmail } from '@/emails';
 import { getEstateEmailSettings } from '@/lib/email';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -29,7 +29,10 @@ export async function queueInvoiceGeneratedEmail(
   invoiceId: string,
   candidateId: string
 ): Promise<InvoiceEmailQueueResult> {
-  const enabled = await getSettingValue('email_invoice_notifications_enabled');
+  // Service-role read (see #136/#139): reached from the generate-invoices
+  // cron path (invoice generation worker), an unauthenticated context where
+  // the RLS-bound `getSettingValue` always returns null.
+  const enabled = await getSettingValueAsService('email_invoice_notifications_enabled');
   if (enabled === false) return { status: 'skipped', error: 'Invoice notifications are disabled' };
 
   const supabase = createAdminClient();

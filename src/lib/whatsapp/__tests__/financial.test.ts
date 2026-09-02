@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { composeStatementAnswer, handleFinancialMessage } from '@/lib/whatsapp/financial';
+import { canPerformWhatsAppFinancialLookup, composeStatementAnswer, handleFinancialMessage } from '@/lib/whatsapp/financial';
 import type {
   FinancialAnswer,
   FinancialHouse,
@@ -7,9 +7,14 @@ import type {
 } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
+import { getSettingResultAsService } from '@/actions/settings/get-settings';
 
 vi.mock('@/lib/whatsapp/rollout', () => ({
   isWhatsAppRecipientAllowed: vi.fn().mockResolvedValue(true),
+}));
+
+vi.mock('@/actions/settings/get-settings', () => ({
+  getSettingResultAsService: vi.fn(),
 }));
 
 const identity: WhatsAppResidentIdentity = {
@@ -238,5 +243,17 @@ describe('WhatsApp financial menu', () => {
     expect(answer.body).toContain('Invoiced: ₦1,300.00 | Payments: ₦250.00');
     expect(answer.body).toContain('2 older row(s) omitted');
     expect(answer.metadata).toMatchObject({ house_id: null, row_count: 14, omitted: 2 });
+  });
+});
+
+describe('WhatsApp financial lookup cap', () => {
+  // #139: this setting gates how many financial disclosures may happen per
+  // day, so a query error must deny the lookup rather than silently falling
+  // back to the compiled-in default of 50 -- unlike a late-fee grace period,
+  // "we couldn't check" here must not be treated the same as "unconfigured".
+  it('denies a lookup when the daily cap read errors, rather than falling through to the default cap', async () => {
+    vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'error', message: 'connection reset' });
+
+    expect(await canPerformWhatsAppFinancialLookup()).toBe(false);
   });
 });

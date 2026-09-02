@@ -8,7 +8,10 @@
  */
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { getSettingValue } from '@/actions/settings/get-settings';
+// `getReminderSettings` below reads via the RLS-bound `getSettingValue`
+// deliberately: it is only reached from authenticated dashboard pages
+// (settings/notifications/reminders), never from the cron path -- see #139.
+import { getSettingValue, getSettingValueAsService } from '@/actions/settings/get-settings';
 import { updateSetting } from '@/actions/settings/update-setting';
 import { logAudit } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';
@@ -42,7 +45,10 @@ export async function getReminderSchedule(): Promise<{
   error: string | null;
 }> {
   try {
-    const scheduleJson = await getSettingValue(SETTINGS_KEYS.REMINDER_SCHEDULE);
+    // Service-role read (see #136/#139): reached from the payment-reminders
+    // cron path via `processInvoiceReminders`, an unauthenticated context
+    // where the RLS-bound `getSettingValue` always returns null.
+    const scheduleJson = await getSettingValueAsService(SETTINGS_KEYS.REMINDER_SCHEDULE);
 
     if (!scheduleJson) {
       // Return default schedule if none configured
@@ -367,7 +373,9 @@ export async function resetToDefaultSchedule(): Promise<{
  * Check if invoice reminders are enabled
  */
 export async function areRemindersEnabled(): Promise<boolean> {
-  const enabled = await getSettingValue(SETTINGS_KEYS.REMINDERS_ENABLED);
+  // Service-role read (see #136/#139): reached from the payment-reminders
+  // cron path via `processInvoiceReminders`, an unauthenticated context.
+  const enabled = await getSettingValueAsService(SETTINGS_KEYS.REMINDERS_ENABLED);
   return enabled !== false; // Default to true if not set
 }
 
@@ -408,6 +416,14 @@ export async function toggleRemindersEnabled(): Promise<{
 
 /**
  * Get reminder settings summary
+ *
+ * Only reached from authenticated dashboard pages (settings/notifications/
+ * reminders and its schedule sub-page) -- never from the payment-reminders
+ * cron path, which reads `areRemindersEnabled()`/`getReminderSchedule()`
+ * directly rather than through this function. The three reads below stay on
+ * the RLS-bound `getSettingValue` intentionally; swapping them to the
+ * service-role client would widen privilege with no reachable unauthenticated
+ * caller to justify it. See #139.
  */
 export async function getReminderSettings(): Promise<{
   enabled: boolean;

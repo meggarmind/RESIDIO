@@ -2,7 +2,7 @@
 
 import { termiiConfig, isSmsConfigured, formatPhoneForTermii } from './termii';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getSettingValue } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/actions/settings/get-settings';
 import type {
   SendSmsOptions,
   SendSmsResult,
@@ -51,8 +51,12 @@ async function logSms(entry: SmsLogEntry): Promise<void> {
  * Handles logging, settings checks, and error handling
  */
 export async function sendSms(options: SendSmsOptions): Promise<SendSmsResult> {
+  // Service-role read (see #136/#139): reached from the payment-reminders
+  // cron path (`processInvoiceReminders` -> `sendSmsReminder`), an
+  // unauthenticated context where the RLS-bound `getSettingValue` always
+  // returns null.
   // Check if SMS is globally enabled
-  const smsEnabled = await getSettingValue('sms_enabled');
+  const smsEnabled = await getSettingValueAsService('sms_enabled');
   if (smsEnabled === false) {
     return { success: false, error: 'SMS notifications are disabled' };
   }
