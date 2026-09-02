@@ -8,7 +8,7 @@
 - [x] **#144 Scope boundary:** ESLint excludes generated Docusaurus output (`website/.docusaurus/**`, `website/build/**`) and the unplanned resident self-service paths (`src/app/(resident)/**`, `src/components/resident-portal/**`). The Docusaurus source, admin dashboard, shared code, scripts, and tests remain in the global lint program. This is an explicit admin-dashboard-first scope decision, not a relaxation of the lint gate.
 - [x] **#145 Type/configuration cleanup:** Verified no active in-scope ESLint rule compatibility or TypeScript lint work remained after #144.
 - [x] **#146 Admin React Compiler cleanup:** Resolved in-scope effect, refs/purity, and memoization violations.
-- [x] **#147 Final unsafe-type/directive/JSX cleanup:** `npm run lint` passes with zero errors; Vitest passes 361/361; production build passes with the existing root `.env.local` loaded for Supabase prerendering. Lifecycle review passed; integration/finish remains pending.
+- [x] **#147 Final unsafe-type/directive/JSX cleanup:** `npm run lint` passes with zero errors; Vitest passes 371/371; production build passes with the existing root `.env.local` loaded for Supabase prerendering. Lifecycle review passed; integration/finish remains pending.
 
 ### Security (2026-09-02)
 - [x] **#141 Custom role legacy-RLS escalation:** Removed the unmerged `get_my_role()` fallback that granted arbitrary custom roles the legacy `admin` or `chairman` bucket. Custom roles now fail closed at legacy RLS policies until those policies are converted to explicit permission checks.
