@@ -1,4 +1,4 @@
-import { getWhatsAppConfig, type WhatsAppConfig } from '@/lib/whatsapp/config';
+import { getWhatsAppConfig, type MetaWhatsAppConfig } from '@/lib/whatsapp/config';
 import type {
   WhatsAppSendResult,
   WhatsAppTemplateMessage,
@@ -15,7 +15,7 @@ interface MetaSendResponse {
 }
 
 export function createMetaWhatsAppProvider(
-  config: WhatsAppConfig,
+  config: MetaWhatsAppConfig,
   fetchImpl: typeof fetch = fetch
 ): WhatsAppProvider {
   return {
@@ -108,7 +108,7 @@ export async function sendWhatsAppMessage(
   message: WhatsAppTextMessage,
   provider?: WhatsAppProvider
 ): Promise<WhatsAppSendResult> {
-  const config = getWhatsAppConfig();
+  const config = await getWhatsAppConfig();
 
   if (!provider && !config) {
     return {
@@ -117,8 +117,12 @@ export async function sendWhatsAppMessage(
     };
   }
 
+  if (!provider && config?.provider !== 'meta') {
+    return { success: false, error: 'WhatsApp service is not configured' };
+  }
+
   try {
-    return await (provider || createMetaWhatsAppProvider(config!)).sendText(message);
+    return await (provider || createMetaWhatsAppProvider(config as MetaWhatsAppConfig)).sendText(message);
   } catch {
     return {
       success: false,
@@ -131,13 +135,17 @@ export async function sendWhatsAppTemplate(
   message: WhatsAppTemplateMessage,
   provider?: WhatsAppProvider
 ): Promise<WhatsAppSendResult> {
-  const config = getWhatsAppConfig();
+  const config = await getWhatsAppConfig();
   if (!provider && !config) {
     return { success: false, error: 'WhatsApp service is not configured' };
   }
 
+  if (!provider && config?.provider !== 'meta') {
+    return { success: false, error: 'WhatsApp service is not configured' };
+  }
+
   try {
-    return await (provider || createMetaWhatsAppProvider(config!)).sendTemplate(message);
+    return await (provider || createMetaWhatsAppProvider(config as MetaWhatsAppConfig)).sendTemplate(message);
   } catch {
     return { success: false, error: 'WhatsApp provider request failed' };
   }

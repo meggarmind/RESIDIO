@@ -13,13 +13,14 @@ import {
 } from '@/lib/whatsapp';
 
 export async function GET(request: NextRequest) {
-  const config = getWhatsAppConfig();
+  const config = await getWhatsAppConfig();
   const mode = request.nextUrl.searchParams.get('hub.mode');
   const token = request.nextUrl.searchParams.get('hub.verify_token');
   const challenge = request.nextUrl.searchParams.get('hub.challenge');
 
   if (
     config &&
+    config.provider === 'meta' &&
     mode === 'subscribe' &&
     challenge &&
     verifyWhatsAppToken(token, config.verifyToken)
@@ -31,9 +32,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const config = getWhatsAppConfig();
+  const config = await getWhatsAppConfig();
 
-  if (!config) {
+  if (!config || config.provider !== 'meta') {
     return NextResponse.json({ error: 'Webhook is not configured' }, { status: 503 });
   }
 

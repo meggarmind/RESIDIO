@@ -3,6 +3,10 @@ import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET, POST } from '@/app/api/whatsapp/webhook/route';
 
+vi.mock('@/lib/whatsapp/config-db', () => ({
+  loadWhatsAppConfigFromDb: async () => null,
+}));
+
 const verifyToken = 'test-verify-token';
 const appSecret = 'test-app-secret';
 

@@ -10,6 +10,7 @@ import {
 import type { WhatsAppConfig } from '@/lib/whatsapp/config';
 
 const config: WhatsAppConfig = {
+  provider: 'meta',
   accessToken: 'test-access-token',
   phoneNumberId: 'phone-number-id',
   verifyToken: 'verify-token',
