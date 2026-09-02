@@ -169,7 +169,7 @@ The project is fast-tracked around financial operations, financial statements/im
 - [ ] **Outbound estate messaging:** [Issue #6](https://github.com/meggarmind/RESIDIO/issues/6), blocked by #2 and #3.
 - [ ] **Operations console:** [Issue #7](https://github.com/meggarmind/RESIDIO/issues/7), blocked by #3, #4, and #6.
 - [x] **Pilot and estate-wide controls:** [Issue #8](https://github.com/meggarmind/RESIDIO/issues/8), implementation complete; controlled provider exercise remains credential-dependent.
-- [ ] **SMS status:** Correct the stale implemented-channel claim; SMS is not currently operational.
+- [x] **SMS status:** No discrepancy existed. `IMPLEMENTED_CHANNELS` has never contained `'sms'` (verified with `git log -S` across all history); the code and its comments were already correct. The claim was wrong when written and was repeated in the PRD and here. SMS stays defined-but-dormant, out of scope.
 
 ### Recent Session Work (2026-01-24): Style Guide Compliance (Layout 2) - Part 2
 - [x] **Announcements Table Refactor**: Applied Complex Registry Standard (`docs/design/data-table-layout2.md`) to Announcements table.

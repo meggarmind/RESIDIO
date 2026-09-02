@@ -339,7 +339,7 @@ export async function sendMultiChannelEmergencyBroadcast(
     }
   }
 
-  // WhatsApp - placeholder for future implementation
+  // WhatsApp channel - send via approved templates to opted-in residents
   if (input.channels.whatsapp) {
     const recipientsWithWhatsApp = residents.filter(
       (resident) => resident.phone_primary && resident.phone_primary.length >= 10
