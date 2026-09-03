@@ -6,7 +6,7 @@ residio_sources:
   - src/app/(dashboard)/settings/billing/**
   - src/app/(dashboard)/settings/notifications/**
   - src/app/(dashboard)/settings/message-templates/**
-residio_verified_commit: 8b49d5d
+residio_verified_commit: 3113e72
 residio_verified_at: '2026-09-03'
 residio_app_version: '0.4.0'
 ---
@@ -27,7 +27,7 @@ Sent-notification history and the outgoing queue are system state rather than co
 
 ## Email and WhatsApp
 
-Email configuration and WhatsApp operations are separate controls. Confirm provider status and rollout mode before enabling an operational communication path.
+Email configuration and WhatsApp operations are separate controls, and live in different Settings groups. **Settings → Communications → Email Notifications** configures outbound email; **Settings → Integrations → WhatsApp** holds WhatsApp's provider credentials, rollout mode, consent, and pending contacts together — WhatsApp is grouped with the other external-service integrations rather than with Communications. Confirm provider status and rollout mode before enabling an operational communication path.
 
 :::warning[Production communication]
 Test recipient scope, template content, and daily caps before enabling automated outbound messages.

@@ -8,8 +8,8 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: 93ed5d0
-residio_verified_at: '2026-08-29'
+residio_verified_commit: 3113e72
+residio_verified_at: '2026-09-03'
 residio_app_version: '0.4.0'
 ---
 
@@ -23,7 +23,7 @@ For the day-to-day payment workflow, see [Payments and statement imports](../fin
 
 ## Connect a Gmail mailbox
 
-Open **Settings → Email Integration**.
+Open **Settings → Integrations → Gmail Import**.
 
 1. Select **Connect** and complete the Google consent screen.
 2. Grant access with the mailbox that actually receives the bank alerts, not a personal account.
