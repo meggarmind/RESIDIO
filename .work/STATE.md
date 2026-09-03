@@ -13,9 +13,9 @@
 
 | | |
 |---|---|
-| Phase | **Wave 1 COMPLETE.** Wave 2a running: #171 solo |
-| Last completed | #167/#169/#170 merged+closed. Epic gates: 68 files / 406 tests, lint 0/327, tsc clean, build 0 |
-| Epic HEAD | `e5f3def` Merge #170 (5 issues closed: 163,167,168,169,170) |
+| Phase | Wave 2a: #171 in QA. Wave 2b worktrees built and installed, waiting on #171 to merge |
+| Last completed | node_modules corruption repaired (D14); shared installs withdrawn (D15); #171 gates re-run green by me: 69 files / 410 tests |
+| Epic HEAD | `dd482d1`+ (5 closed: 163,167,168,169,170) |
 | Blocked issues | none |
 | Consecutive QA failures | 0 |
 
@@ -31,9 +31,9 @@ Legend: TODO / IN-PROGRESS / QA / MERGED / CLOSED / BLOCKED
 | 169 | main sidebar nav state | 1 | **CLOSED** | merged | |
 | 170 | settings sidebar reopen | 1 | **CLOSED** | merged | |
 | 171 | audit logs → /system | 2a | IN-PROGRESS | issue/171-audit-logs-to-system | template slice |
-| 172 | account admin → /system | 2b | TODO | — | |
-| 173 | notification queue | 2b | TODO | — | |
-| 175 | ownership backfill | 2b | TODO | — | |
+| 172 | account admin → /system | 2b | READY (worktree+install done) | issue/172-accounts-to-system | tabs: keep roles+rules, move assignments/pending/orphaned |
+| 173 | notification queue | 2b | READY (worktree+install done) | issue/173-notification-queue | QueueViewer queue-viewer.tsx:133, NotificationHistory notification-history.tsx:111 |
+| 175 | ownership backfill | 2b | READY (worktree+install done) | issue/175-ownership-backfill | |
 | 174 | cron page + public API | 2c | TODO | — | security fix |
 | 176 | rename /settings/system/* | 2d | TODO | — | after #174 |
 | 177 | /system dashboard | 3 | TODO | — | |
@@ -50,15 +50,14 @@ Await the five in-flight agents (see AGENTS-INFLIGHT.md), then per issue: review
 diff myself, run the four gates, spawn a QA agent on `git diff epic/180...<branch>`,
 and only on a clean PASS commit + merge + close + push.
 
-**Worktree setup checklist** (both steps, every time — see D13):
+**Worktree setup — all three steps, every time (D13, D15):**
 1. `git worktree add .worktrees/issue-<n> -b issue/<n>-<slug> epic/180`
-2. PowerShell: `New-Item -ItemType Junction -Path <wt>
-ode_modules -Target C:\projects\RESIDIO
-ode_modules`
-3. Copy `C:\projects\RESIDIO\.env.local` into the worktree, or its build gate is meaningless.
+2. Copy `C:/projects/RESIDIO/.env.local` in, or the build gate proves nothing.
+3. `npm ci` **inside the worktree** — its own real tree, ~3 min warm. Run these
+   sequentially, never concurrently (they contend over locked native modules).
 
-**Teardown:** `cmd //c rmdir <wt>
-ode_modules` to unlink the junction FIRST (so nothing
-recurses into the real node_modules), then `git worktree remove --force`.
+**NEVER** junction or otherwise share `node_modules` between worktrees — see D14 for what
+that cost. **NEVER** `git worktree remove` a worktree that ever had a junction.
+Teardown for the epic: leave the directories, `git worktree prune` at the very end.
 
 After 2a: wave 2b is #172, #173, #175 in parallel; then #174 solo; then #176 solo.
