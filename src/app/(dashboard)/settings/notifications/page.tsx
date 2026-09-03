@@ -261,7 +261,7 @@ export default function NotificationsSettingsPage() {
               </Badge>
             </div>
             <Button asChild variant="outline" className="w-full">
-              <Link href="/settings/notifications/history">
+              <Link href="/system/notification-history">
                 View History
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
