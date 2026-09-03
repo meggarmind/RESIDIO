@@ -434,7 +434,7 @@ Actor: super_admin. One case per page. **Expected result for every case:** the p
 | ID | Route | ID | Route |
 |---|---|---|---|
 | QAT-SMK-01 | `/announcements` | QAT-SMK-21 | `/system/audit-logs` |
-| QAT-SMK-02 | `/announcements/new` | QAT-SMK-22 | `/settings/data-management` |
+| QAT-SMK-02 | `/announcements/new` | QAT-SMK-22 | `/system/data-tools` |
 | QAT-SMK-03 | `/documents` | QAT-SMK-23 | `/settings/cron-status` |
 | QAT-SMK-04 | `/personnel` | QAT-SMK-24 | `/settings/roles` |
 | QAT-SMK-05 | `/projects` | QAT-SMK-25 | `/settings/user-roles` (expect redirect) |
@@ -448,8 +448,8 @@ Actor: super_admin. One case per page. **Expected result for every case:** the p
 | QAT-SMK-13 | `/settings/streets` | QAT-SMK-33 | `/settings/notifications` |
 | QAT-SMK-14 | `/settings/house-types` | QAT-SMK-34 | `/settings/notifications/templates` |
 | QAT-SMK-15 | `/settings/transaction-tags` | QAT-SMK-35 | `/settings/notifications/schedules` |
-| QAT-SMK-16 | `/settings/document-categories` | QAT-SMK-36 | `/settings/notifications/history` |
-| QAT-SMK-17 | `/settings/announcement-categories` | QAT-SMK-37 | `/settings/notification-queue` |
+| QAT-SMK-16 | `/settings/document-categories` | QAT-SMK-36 | `/system/notification-history` |
+| QAT-SMK-17 | `/settings/announcement-categories` | QAT-SMK-37 | `/system/notification-queue` |
 | QAT-SMK-18 | `/settings/message-templates` | QAT-SMK-38 | `/settings/email` |
 | QAT-SMK-19 | `/settings/system` | QAT-SMK-39 | `/settings/email-integration` |
 | QAT-SMK-20 | `/settings/system/health` | QAT-SMK-40 | `/settings/whatsapp` |

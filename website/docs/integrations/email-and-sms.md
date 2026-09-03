@@ -10,8 +10,8 @@ residio_sources:
   - src/actions/notifications/**
   - src/app/(dashboard)/settings/email/**
   - src/app/(dashboard)/settings/notifications/**
-residio_verified_commit: 93ed5d0
-residio_verified_at: '2026-08-29'
+residio_verified_commit: 7bc84a4
+residio_verified_at: '2026-09-03'
 residio_app_version: '0.4.0'
 ---
 
@@ -56,7 +56,7 @@ Before saving a template change:
 
 ## The notification queue
 
-**Settings → Notification Queue** shows messages that Residio has created but not yet delivered. A healthy queue drains on each scheduled run.
+**System → Notification Queue** shows messages that Residio has created but not yet delivered. A healthy queue drains on each scheduled run.
 
 | Queue state | Meaning |
 |---|---|
