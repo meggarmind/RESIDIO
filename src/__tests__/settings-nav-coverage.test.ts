@@ -70,6 +70,10 @@ describe('settings navigation coverage', () => {
       '/settings/system',
       '/settings/system/maintenance',
       '/settings/system/data',
+      // The Gmail import config sub-page merged into its parent (#178): both
+      // rendered the same Gmail connection card, and the child configured no
+      // rule despite the nav calling it "Email import rules".
+      '/settings/email-integration/config',
     ]);
 
     const unlisted = routesOnDisk()
