@@ -203,6 +203,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
 
   // System — fallback first, then the specific pages that override it.
   '/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
+  '/system/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
 
   // Settings — fallback first, then the specific pages that override it.
   '/settings': [PERMISSIONS.SETTINGS_VIEW],
@@ -228,6 +229,10 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/user-roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],
   '/settings/security': [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
   '/settings/security/categories': [PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
+  // Retained after the move to /system/audit-logs: the redirect stub at this
+  // path is a page component and runs after middleware, so this entry is what
+  // gates who reaches it — deleting it would widen access to the generic
+  // /settings fallback. See ADR-0004.
   '/settings/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
 
   // Billing & finance
