@@ -54,10 +54,11 @@ describe('settings navigation coverage', () => {
 
   it('lists every settings page that has one', () => {
     // /settings/user-roles is a permanent redirect into /settings/roles, and
-    // /settings/audit-logs is a permanent redirect into /system/audit-logs
-    // (see ADR-0004: Settings is configuration-only), so neither is
-    // intentionally a nav destination of its own.
-    const REDIRECTS = new Set(['/settings/user-roles', '/settings/audit-logs']);
+    // /settings/audit-logs is a permanent redirect into /system/audit-logs,
+    // and /settings/data-management is a permanent redirect into /system/data-tools
+    // (see ADR-0004: Settings is configuration-only), so none are
+    // intentionally nav destinations of their own.
+    const REDIRECTS = new Set(['/settings/user-roles', '/settings/audit-logs', '/settings/data-management']);
 
     const unlisted = routesOnDisk()
       .filter((route) => !navHrefs.has(route) && !REDIRECTS.has(route))
