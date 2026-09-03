@@ -143,3 +143,31 @@ landed in `.worktrees/issue-167/.work/` because the Bash tool's working director
 between calls and I had left it inside a worktree. Recovered them, and cleaned the stray
 files out of #167's tree before its QA ran so they would not read as scope creep.
 **Standing correction: every shell command in this epic uses an absolute path.**
+
+---
+
+**D12 — #171 | Where do System pages hang in `navigation.ts` before `/system` itself
+exists?** The issue says "add its pages as `children` of the existing `system` section,
+following the `NAV_BILLING` / `NAV_PAYMENTS` pattern" — but both of those are a parent
+`NavItem` with an `href` of its own plus `children`, and there is no `/system/page.tsx`
+until #177.
+Options: (a) create a `NAV_SYSTEM` parent at `href: '/system'` now, accepting a nav entry
+that points at a page which does not exist; (b) add the audit-logs item directly into the
+`system` section's `items` array beside `NAV_SETTINGS`, and let #177 restructure into
+parent-with-children when it creates the landing page.
+**Taken: (b).** (a) would put a dangling link in the sidebar for the whole of waves 2 and
+3, and — more to the point — #171's own new coverage test asserts that nav entries link
+only to pages that exist, so (a) would require weakening the very test that is this
+slice's most important deliverable. **Reversible:** #177 restructures it by design.
+
+---
+
+**D13 — process | Worktrees need `.env.local` or their build gate is meaningless.**
+#167's QA could not verify `npm run build` because the worktree had no `.env.local`
+(untracked, so `git worktree add` does not propagate it) and prerendering failed on an
+unrelated Supabase-client error. #169's implementer had hit the same wall and copied the
+file in unprompted; #170's QA did the same and cleaned up after itself.
+**Standing correction: provision the junction *and* `.env.local` when creating every
+worktree.** Done for #171 onward. #167's build was instead verified on the integrated
+epic branch, which has the file. **Reversible:** the file is gitignored and never enters a
+diff.

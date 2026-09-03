@@ -13,9 +13,9 @@
 
 | | |
 |---|---|
-| Phase | Wave 1 QA; 3 agents in flight (167-QA, 169-QA, 170-QA) |
-| Last completed | #168 MERGED+CLOSED+migration applied; #163 CLOSED not-reproducible |
-| Epic HEAD | `3a415f7` Merge #168 |
+| Phase | **Wave 1 COMPLETE.** Wave 2a running: #171 solo |
+| Last completed | #167/#169/#170 merged+closed. Epic gates: 68 files / 406 tests, lint 0/327, tsc clean, build 0 |
+| Epic HEAD | `e5f3def` Merge #170 (5 issues closed: 163,167,168,169,170) |
 | Blocked issues | none |
 | Consecutive QA failures | 0 |
 
@@ -26,11 +26,11 @@ Legend: TODO / IN-PROGRESS / QA / MERGED / CLOSED / BLOCKED
 | # | Slice | Wave | Status | Branch | Notes |
 |---|-------|------|--------|--------|-------|
 | 163 | prettier undeclared | 0 | CLOSED (not reproducible) | — | cold npm ci proved premise false |
-| 167 | middleware safety net | 1 | QA | issue/167-middleware-system-guard | blocks all of wave 2 |
+ blocks all of wave 2 |
 | 168 | chairman settings.view | 1 | **CLOSED** | merged 3a415f7 | migration APPLIED + verified by name |
-| 169 | main sidebar nav state | 1 | QA | issue/169-sidebar-nav-state | |
-| 170 | settings sidebar reopen | 1 | QA (after 1 remediation) | issue/170-settings-group-reopen | |
-| 171 | audit logs → /system | 2a | TODO | — | template slice |
+| 169 | main sidebar nav state | 1 | **CLOSED** | merged | |
+| 170 | settings sidebar reopen | 1 | **CLOSED** | merged | |
+| 171 | audit logs → /system | 2a | IN-PROGRESS | issue/171-audit-logs-to-system | template slice |
 | 172 | account admin → /system | 2b | TODO | — | |
 | 173 | notification queue | 2b | TODO | — | |
 | 175 | ownership backfill | 2b | TODO | — | |
@@ -50,6 +50,15 @@ Await the five in-flight agents (see AGENTS-INFLIGHT.md), then per issue: review
 diff myself, run the four gates, spawn a QA agent on `git diff epic/180...<branch>`,
 and only on a clean PASS commit + merge + close + push.
 
-**#163 is a reproduction run, not a fix.** Its premise looks stale — prettier is a
-committed transitive dependency. Decide the real fix from what the cold `npm ci`
-actually shows.
+**Worktree setup checklist** (both steps, every time — see D13):
+1. `git worktree add .worktrees/issue-<n> -b issue/<n>-<slug> epic/180`
+2. PowerShell: `New-Item -ItemType Junction -Path <wt>
+ode_modules -Target C:\projects\RESIDIO
+ode_modules`
+3. Copy `C:\projects\RESIDIO\.env.local` into the worktree, or its build gate is meaningless.
+
+**Teardown:** `cmd //c rmdir <wt>
+ode_modules` to unlink the junction FIRST (so nothing
+recurses into the real node_modules), then `git worktree remove --force`.
+
+After 2a: wave 2b is #172, #173, #175 in parallel; then #174 solo; then #176 solo.

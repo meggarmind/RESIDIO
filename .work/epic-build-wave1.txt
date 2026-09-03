@@ -1,0 +1,180 @@
+
+> residio@0.4.0 build
+> next build
+
+▲ Next.js 16.1.1 (Turbopack)
+- Environments: .env.local
+- Experiments (use with caution):
+  · serverActions
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+Turbopack build encountered 1 warnings:
+./src/app/api/payments/paystack/webhook/route.ts:70:14
+Next.js can't recognize the exported `config` field in route. Page config in `config` is deprecated and ignored, use individual exports instead.
+[0m [90m 68 |[39m
+ [90m 69 |[39m [90m// Disable body parsing - we need raw body for signature verification[39m
+[31m[1m>[22m[39m[90m 70 |[39m [36mexport[39m [36mconst[39m config [33m=[39m {
+ [90m    |[39m              [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+ [90m 71 |[39m   api[33m:[39m {
+ [90m 72 |[39m     bodyParser[33m:[39m [36mfalse[39m[33m,[39m
+ [90m 73 |[39m   }[33m,[39m[0m
+
+The exported configuration object in a source file needs to have a very specific format from which some properties can be statically parsed at compiled-time.
+
+https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config
+
+
+✓ Compiled successfully in 72s
+  Running TypeScript ...
+  Collecting page data using 7 workers ...
+⚠ Using edge runtime on a page currently disables static generation for that page
+  Generating static pages using 7 workers (0/111) ...
+(node:36300) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:19832) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:42124) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:40612) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+  Generating static pages using 7 workers (27/111) 
+(node:19720) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+  Generating static pages using 7 workers (55/111) 
+  Generating static pages using 7 workers (83/111) 
+✓ Generating static pages using 7 workers (111/111) in 4.1s
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /analytics
+├ ƒ /analytics/announcements
+├ ○ /announcements
+├ ƒ /announcements/[id]
+├ ƒ /announcements/[id]/edit
+├ ○ /announcements/new
+├ ƒ /api/admin/generate-invoices
+├ ƒ /api/auth/2fa/send-code
+├ ƒ /api/auth/2fa/verify
+├ ƒ /api/auth/2fa/verify-backup
+├ ƒ /api/auth/gmail-callback
+├ ƒ /api/cron/apply-late-fees
+├ ƒ /api/cron/fetch-emails
+├ ƒ /api/cron/generate-invoices
+├ ƒ /api/cron/generate-reports
+├ ƒ /api/cron/payment-reminders
+├ ƒ /api/cron/process-notifications
+├ ƒ /api/cron/process-report-schedules
+├ ƒ /api/cron/publish-announcements
+├ ƒ /api/cron/refresh-payment-cadence
+├ ƒ /api/cron/whatsapp-retention
+├ ƒ /api/health/cron-status
+├ ƒ /api/og/visitor-pass
+├ ƒ /api/payments/paystack/webhook
+├ ƒ /api/receipts/[id]
+├ ƒ /api/reports/download
+├ ƒ /api/search
+├ ƒ /api/settings/maintenance-mode
+├ ƒ /api/statements
+├ ƒ /api/whatsapp/webhook
+├ ƒ /api/whatsapp/webhook/twilio
+├ ○ /approvals
+├ ƒ /auth/callback
+├ ○ /auth/verify-2fa
+├ ○ /billing
+├ ƒ /billing/[id]
+├ ○ /billing/generate
+├ ○ /dashboard
+├ ○ /documents
+├ ƒ /documents/[id]
+├ ƒ /expenditure
+├ ○ /forgot-password
+├ ○ /houses
+├ ƒ /houses/[id]
+├ ○ /houses/new
+├ ○ /login
+├ ○ /maintenance
+├ ○ /notifications
+├ ○ /payments
+├ ƒ /payments/[id]
+├ ○ /payments/email-imports
+├ ƒ /payments/email-imports/[importId]
+├ ○ /payments/import
+├ ƒ /payments/new
+├ ƒ /pending-approval
+├ ○ /personnel
+├ ○ /portal
+├ ○ /portal/announcements
+├ ○ /portal/documents
+├ ○ /portal/invoices
+├ ○ /portal/notifications
+├ ○ /portal/onboarding
+├ ○ /portal/payments/callback
+├ ○ /portal/profile
+├ ○ /portal/properties
+├ ƒ /portal/properties/[id]
+├ ○ /portal/security-contacts
+├ ○ /portal/visitors
+├ ○ /portal/wallet
+├ ƒ /projects
+├ ○ /register
+├ ƒ /reports
+├ ƒ /reports/financial-overview
+├ ○ /reset-password
+├ ○ /residents
+├ ƒ /residents/[id]
+├ ○ /residents/new
+├ ○ /security
+├ ○ /security/contacts
+├ ƒ /security/contacts/[id]
+├ ○ /security/contacts/new
+├ ○ /security/logs
+├ ○ /security/verify
+├ ○ /settings
+├ ○ /settings/announcement-categories
+├ ○ /settings/appearance
+├ ○ /settings/audit-logs
+├ ○ /settings/bank-accounts
+├ ○ /settings/billing
+├ ○ /settings/billing/development-levies
+├ ○ /settings/billing/invoices
+├ ○ /settings/billing/late-fees
+├ ○ /settings/billing/profiles
+├ ○ /settings/branding
+├ ○ /settings/cron-status
+├ ○ /settings/data-management
+├ ○ /settings/document-categories
+├ ○ /settings/email
+├ ○ /settings/email-integration
+├ ○ /settings/email-integration/config
+├ ○ /settings/email/debug
+├ ○ /settings/estate-info
+├ ○ /settings/house-types
+├ ○ /settings/message-templates
+├ ○ /settings/notification-queue
+├ ○ /settings/notifications
+├ ○ /settings/notifications/history
+├ ○ /settings/notifications/reminders
+├ ○ /settings/notifications/reminders/schedule
+├ ○ /settings/notifications/schedules
+├ ○ /settings/notifications/templates
+├ ○ /settings/roles
+├ ○ /settings/security
+├ ○ /settings/security/categories
+├ ○ /settings/streets
+├ ○ /settings/system
+├ ○ /settings/system/data
+├ ○ /settings/system/health
+├ ○ /settings/system/maintenance
+├ ○ /settings/transaction-tags
+├ ○ /settings/user-roles
+└ ƒ /settings/whatsapp
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
