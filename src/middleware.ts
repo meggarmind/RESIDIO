@@ -24,9 +24,9 @@ const routePermissionConfig: Record<string, Permission[]> = {
 };
 
 // Admin routes that residents should NOT access
-const adminOnlyRoutes = [
+export const adminOnlyRoutes = [
     '/residents', '/houses', '/payments', '/billing', '/security',
-    '/reports', '/approvals', '/settings', '/dashboard'
+    '/reports', '/approvals', '/settings', '/system', '/dashboard'
 ];
 
 // Routes that should be accessible even during maintenance mode
