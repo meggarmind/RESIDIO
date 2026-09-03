@@ -4,22 +4,27 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { ROUTE_PERMISSIONS } from '@/lib/auth/action-roles';
-import { settingsConfig, type SettingsItem } from '@/config/settings-nav';
+import { ADMIN_NAV_SECTIONS, type NavItem } from '@/config/navigation';
 
 /**
- * Keeps three descriptions of "what Settings contains" in step: the pages on
- * disk, the sidebar config, and the middleware's route table.
+ * The /system sibling of settings-nav-coverage.test.ts.
  *
- * They had drifted in every direction. The sidebar omitted pages that existed,
- * carried a link to a page that had been deleted, and gated nothing — while the
- * middleware guarded four of roughly thirty settings routes, so the rest were
- * reachable by any authenticated admin whatever their role had been granted.
+ * Keeps three descriptions of "what System contains" in step: the pages on
+ * disk, the `system` nav section in navigation.ts, and ROUTE_PERMISSIONS.
+ *
+ * Unlike Settings, System has no dedicated sidebar config file — its pages
+ * are nav items directly inside the `system` NavSection in navigation.ts.
+ *
+ * This is the assertion that matters most: middleware skips the entire
+ * authorization block when no ROUTE_PERMISSIONS key matches a path, so a
+ * /system/* page shipped without its own guard is fully public, not merely
+ * under-permissioned. See ADR-0004.
  */
 
-const settingsDir = fileURLToPath(new URL('../app/(dashboard)/settings', import.meta.url));
+const systemDir = fileURLToPath(new URL('../app/(dashboard)/system', import.meta.url));
 
-/** Every /settings route with a page.tsx. */
-function routesOnDisk(dir = settingsDir, prefix = '/settings'): string[] {
+/** Every /system route with a page.tsx. */
+function routesOnDisk(dir = systemDir, prefix = '/system'): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(dir)) {
     const full = path.join(dir, entry);
@@ -29,10 +34,16 @@ function routesOnDisk(dir = settingsDir, prefix = '/settings'): string[] {
   return found.sort();
 }
 
-function navItems(): SettingsItem[] {
-  const flatten = (items: SettingsItem[]): SettingsItem[] =>
+function navItems(): NavItem[] {
+  const flatten = (items: NavItem[]): NavItem[] =>
     items.flatMap((item) => (item.children ? [item, ...flatten(item.children)] : [item]));
-  return settingsConfig.flatMap((group) => flatten(group.items));
+
+  const systemSection = ADMIN_NAV_SECTIONS.find((section) => section.id === 'system');
+  if (!systemSection) return [];
+
+  // Only items actually under /system — NAV_SETTINGS also lives in this
+  // section (href /settings) and is covered by the Settings test instead.
+  return flatten(systemSection.items).filter((item) => item.href.startsWith('/system'));
 }
 
 const navHrefs = new Set(navItems().map((i) => i.href));
@@ -44,7 +55,7 @@ function guardFor(href: string): string | undefined {
     .find((route) => href === route || href.startsWith(route + '/'));
 }
 
-describe('settings navigation coverage', () => {
+describe('system navigation coverage', () => {
   it('links only to pages that exist', () => {
     const onDisk = new Set(routesOnDisk());
     const dangling = [...navHrefs].filter((href) => !onDisk.has(href)).sort();
@@ -52,12 +63,12 @@ describe('settings navigation coverage', () => {
     expect(dangling).toEqual([]);
   });
 
-  it('lists every settings page that has one', () => {
-    // /settings/user-roles is a permanent redirect into /settings/roles, and
-    // /settings/audit-logs is a permanent redirect into /system/audit-logs
-    // (see ADR-0004: Settings is configuration-only), so neither is
-    // intentionally a nav destination of its own.
-    const REDIRECTS = new Set(['/settings/user-roles', '/settings/audit-logs']);
+  it('lists every system page that has one', () => {
+    // Exception list for pages intentionally not a nav destination of their
+    // own (e.g. permanent redirect stubs). Empty today — add here, following
+    // settings-nav-coverage.test.ts's REDIRECTS pattern, if a later slice
+    // under /system needs one.
+    const REDIRECTS = new Set<string>([]);
 
     const unlisted = routesOnDisk()
       .filter((route) => !navHrefs.has(route) && !REDIRECTS.has(route))
@@ -66,7 +77,11 @@ describe('settings navigation coverage', () => {
     expect(unlisted).toEqual([]);
   });
 
-  it('guards every settings route in middleware', () => {
+  it('guards every system route in middleware', () => {
+    // The whole reason this test exists: a /system/* page with a page.tsx on
+    // disk but no ROUTE_PERMISSIONS entry (direct or via prefix) is fully
+    // public once middleware resolves it, because an unmatched path skips
+    // the authorization block entirely rather than defaulting to deny.
     const unguarded = routesOnDisk()
       .filter((route) => guardFor(route) === undefined)
       .sort();

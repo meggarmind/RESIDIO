@@ -433,7 +433,7 @@ Actor: super_admin. One case per page. **Expected result for every case:** the p
 
 | ID | Route | ID | Route |
 |---|---|---|---|
-| QAT-SMK-01 | `/announcements` | QAT-SMK-21 | `/settings/audit-logs` |
+| QAT-SMK-01 | `/announcements` | QAT-SMK-21 | `/system/audit-logs` |
 | QAT-SMK-02 | `/announcements/new` | QAT-SMK-22 | `/settings/data-management` |
 | QAT-SMK-03 | `/documents` | QAT-SMK-23 | `/settings/cron-status` |
 | QAT-SMK-04 | `/personnel` | QAT-SMK-24 | `/settings/roles` |

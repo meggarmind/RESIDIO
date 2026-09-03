@@ -342,7 +342,7 @@ shadcn/ui components - button, card, form, table, dialog, sheet, tabs, badge, al
 - `/settings/security` - Security settings
 - `/settings/roles`, `/settings/user-roles` - Role management
 - `/settings/notifications/*` - Notification settings (templates, schedules, history, reminders)
-- `/settings/audit-logs` - Audit trail viewer
+- `/system/audit-logs` - Audit trail viewer
 - `/settings/system` - System settings (maintenance mode, etc.)
 - `/settings/streets`, `/settings/house-types` - Reference data
 - `/settings/bank-accounts`, `/settings/transaction-tags` - Financial reference

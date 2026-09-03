@@ -91,7 +91,6 @@ export const settingsConfig: SettingsGroup[] = [
                     { title: "Contact Categories", href: "/settings/security/categories", description: "Validity periods and requirements", permissions: [PERMISSIONS.SECURITY_MANAGE_CATEGORIES] },
                 ]
             },
-            { title: "Audit Logs", href: "/settings/audit-logs", description: "View system activity", permissions: [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS] },
         ]
     },
     {

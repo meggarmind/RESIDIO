@@ -4,11 +4,11 @@ title: Access and system health
 sidebar_label: Access and system health
 residio_sources:
   - src/app/(dashboard)/settings/system/**
-  - src/app/(dashboard)/settings/audit-logs/**
+  - src/app/(dashboard)/system/audit-logs/**
   - src/app/(dashboard)/settings/roles/**
   - src/actions/system/**
-residio_verified_commit: 5590715
-residio_verified_at: '2026-08-30'
+residio_verified_commit: e5f3def
+residio_verified_at: '2026-09-03'
 residio_app_version: '0.4.0'
 ---
 
@@ -34,7 +34,7 @@ Work the **Pending Accounts** queue as part of routine access review. A new sign
 
 ## Audit logs
 
-Open **Settings → Audit Logs** to trace creates, updates, approvals, and administrative changes. Filter by entity, actor, action, or date range.
+Open **System → Audit Logs** to trace creates, updates, approvals, and administrative changes. Filter by entity, actor, action, or date range. Audit logs are something you watch, not something you configure, so the page lives under System rather than Settings.
 
 ## System health
 

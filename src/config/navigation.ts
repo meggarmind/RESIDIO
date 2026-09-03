@@ -26,6 +26,7 @@ import {
   Megaphone,
   ClipboardCheck,
   Settings,
+  History,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 
@@ -226,6 +227,17 @@ const NAV_SETTINGS: NavItem = {
   permissions: [PERMISSIONS.SETTINGS_VIEW],
 };
 
+// No parent NavItem for /system itself yet — there is no /system/page.tsx
+// until #177 adds one. This item is added directly to the `system` section
+// alongside NAV_SETTINGS instead of nested as a child of a /system parent.
+const NAV_AUDIT_LOGS: NavItem = {
+  id: 'system-audit-logs',
+  title: 'Audit Logs',
+  href: '/system/audit-logs',
+  icon: History,
+  permissions: [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
+};
+
 const NAV_PROJECTS: NavItem = {
   id: 'projects',
   title: 'Capital Projects',
@@ -276,7 +288,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'system',
     label: 'System',
-    items: [NAV_SETTINGS],
+    items: [NAV_SETTINGS, NAV_AUDIT_LOGS],
   },
 ];
 
