@@ -171,3 +171,44 @@ file in unprompted; #170's QA did the same and cleaned up after itself.
 worktree.** Done for #171 onward. #167's build was instead verified on the integrated
 epic branch, which has the file. **Reversible:** the file is gitignored and never enters a
 diff.
+
+---
+
+**D14 — INCIDENT | I damaged the shared `node_modules` during worktree teardown, and the
+damage masqueraded as a code failure.**
+
+**What happened.** After merging wave 1 I unlinked each worktree's `node_modules` junction
+(`cmd /c rmdir`, which reported success for all four) and then ran
+`git worktree remove --force`. The epic's gates had been green immediately before that:
+68 files / 406 tests, typecheck exit 0, build exit 0. Afterwards, **16 of 935 package
+directories in `C:\projects\RESIDIO\node_modules` were empty shells** — the directory
+present, every file inside gone. Among them: `prettier`, `@react-pdf/renderer`,
+`pdfjs-dist`.
+
+**How it surfaced.** Not as an error, but as a *plausible* one. #171's agent reported 20
+"pre-existing" TypeScript errors, a failing build, and — precisely — the two billing
+suites named in #163 failing again. It had even checked its work by stashing onto the base
+commit and seeing the same failures, and concluded the environment was broken before it
+arrived. That reasoning was sound; the premise was not. Had I taken the report at face
+value I would have recorded a false "pre-existing breakage" against the baseline and
+possibly re-opened #163 on the strength of it. It was caught only by running the same
+typecheck in the main checkout and noticing it disagreed with the green run I had
+personally done an hour earlier.
+
+**Root cause.** Not established with certainty, which is itself the finding. The junctions
+were unlinked before removal and reported success, yet package contents in the *target*
+tree were emptied. Sharing one `node_modules` across git worktrees by directory junction
+has a failure mode that is silent, partial, and attributed to the wrong cause.
+
+**Repair.** `npm ci`. The first attempt failed EPERM on a locked native module
+(`lightningcss.win32-x64-msvc.node`) after deleting most of the tree, leaving it worse;
+no build or dev-server process was holding it, so the lock was OS-level and transient.
+Retried.
+
+**Consequence for the plan.** D5's junction strategy is withdrawn. Every gate result
+produced by #171's agent is void and must be re-run after repair — not because the agent
+was careless, but because its environment lied to it.
+
+**Standing correction:** never share `node_modules` between worktrees again, and never
+delete a worktree that has ever had one. Unlink and leave the directory; prune at the end
+of the epic.
