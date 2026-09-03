@@ -8,7 +8,7 @@ residio_sources:
   - src/app/(dashboard)/settings/roles/**
   - src/app/(dashboard)/system/accounts/**
   - src/actions/system/**
-residio_verified_commit: a71aaf9
+residio_verified_commit: 4c18817
 residio_verified_at: '2026-09-03'
 residio_app_version: '0.4.0'
 ---
@@ -46,7 +46,7 @@ Open **System → Audit Logs** to trace creates, updates, approvals, and adminis
 
 ## System health
 
-Use **Settings → System** for maintenance mode, data retention, cron health, and queued notifications. A health warning is a prompt to investigate, not a reason to delete data.
+Maintenance mode and data retention are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **System → Cron Status** for scheduled jobs, and **System → Notification Queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
 
 ## Safe maintenance sequence
 

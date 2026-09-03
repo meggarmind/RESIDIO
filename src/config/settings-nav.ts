@@ -150,10 +150,12 @@ export const settingsConfig: SettingsGroup[] = [
                     { title: "Overview", href: "/settings/system", description: "System health dashboard", permissions: [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS] },
                     { title: "Maintenance", href: "/settings/system/maintenance", description: "Maintenance mode and messages", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
                     { title: "Data & Retention", href: "/settings/system/data", description: "Retention policies and pruning", permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION] },
-                    { title: "Health", href: "/settings/system/health", description: "Cron jobs and background tasks", permissions: [PERMISSIONS.SYSTEM_MONITOR] },
                 ]
             },
-            { title: "Cron Status", href: "/settings/cron-status", description: "Scheduled job runs and failures", permissions: [PERMISSIONS.SYSTEM_MONITOR] },
+            // Cron Status moved to /system/cron-status (#174, ADR-0004): it shows live
+            // job status, not configuration. /settings/cron-status and
+            // /settings/system/health are now redirect stubs, not nav destinations.
+            //
             // Notification Queue moved to /system/notification-queue (ADR-0004): it shows
             // live queue state, not configuration.
         ]

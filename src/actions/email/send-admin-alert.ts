@@ -155,7 +155,7 @@ export async function sendCronFailureAlert(
             'Timestamp': new Date().toISOString(),
             ...details,
         },
-        actionUrl: '/settings/system',
-        actionLabel: 'View System Settings',
+        actionUrl: '/system/cron-status',
+        actionLabel: 'View Cron Status',
     });
 }

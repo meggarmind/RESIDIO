@@ -65,6 +65,8 @@ describe('settings navigation coverage', () => {
       '/settings/notification-queue',
       '/settings/notifications/history',
       '/settings/data-management',
+      '/settings/cron-status',
+      '/settings/system/health',
     ]);
 
     const unlisted = routesOnDisk()
