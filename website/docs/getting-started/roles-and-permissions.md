@@ -7,10 +7,11 @@ residio_sources:
   - src/actions/roles/**
   - src/app/(dashboard)/settings/roles/**
   - src/app/(dashboard)/settings/user-roles/**
+  - src/app/(dashboard)/system/accounts/**
   - src/components/admin/role-assignment-section.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 5590715
-residio_verified_at: '2026-08-30'
+residio_verified_commit: 8b49d5d
+residio_verified_at: '2026-09-03'
 residio_app_version: '0.4.0'
 ---
 
@@ -22,7 +23,7 @@ Residio uses granular role-based access control. A role determines which modules
 
 Signing up does not grant access. Anyone can create an account — with Google, or with an email address and password — but a new account starts as **pending**. It can sign in and sees a holding page explaining that it is waiting for approval, and nothing else. A pending account holds no permissions in the database either, so it cannot reach estate data by any route.
 
-Review sign-ups in **Settings → Roles & Permissions → Pending Accounts**. The queue shows each person's name, email, whether that email is verified, how they signed up, and when they requested access. An account already linked to a resident record is tagged **Resident**.
+Review sign-ups in **System → Accounts → Pending Accounts**. The queue shows each person's name, email, whether that email is verified, how they signed up, and when they requested access. An account already linked to a resident record is tagged **Resident**.
 
 - **Approve** opens a dialog where you choose the role the account will hold. Approval and role assignment are a single step; there is no approve-without-a-role.
 - **Reject** requires a reason. The account is marked rejected, the person is signed out, and they are told the account was not approved and to contact the estate office. The reason you give is recorded in the audit log.
@@ -45,7 +46,7 @@ Approval is the gate. Everyone in this queue is asking for access to resident na
 | Resident | Self-service portal only, no admin dashboard | — |
 
 :::info[Chairman and the Settings module]
-The Chairman is the Super Administrator without configuration. Every operational module is available — residents, houses, payments, billing, security, reports, documents, announcements, approvals — but the whole **Settings** section is not, and does not appear in the sidebar. That includes Roles & Permissions itself, so creating roles and assigning them is the Super Administrator's job.
+The Chairman is the Super Administrator without configuration. Every operational module is available — residents, houses, payments, billing, security, reports, documents, announcements, approvals — but the whole **Settings** section is not, and does not appear in the sidebar. That includes Role Definitions and Assignment Rules, so creating roles is the Super Administrator's job. Role *assignment* is a separate permission on **System → Accounts**, outside Settings, so it can be granted to a role such as Chairman independently of Settings access.
 :::
 
 Your deployment may contain additional custom roles, created under **Role Definitions**. A custom role behaves exactly like a built-in one: its holder signs in to the admin dashboard and sees the modules it was granted. Ask a super administrator to confirm the exact permission set before assigning responsibility.
@@ -72,7 +73,7 @@ Permission changes take effect when the affected user next signs in. Ask them to
 
 ## Assigning a role
 
-**Settings → Roles & Permissions → Role Assignments** lists everyone who currently holds an admin role, and lets you search for the person whose role you want to change.
+**System → Accounts → Role Assignments** lists everyone who currently holds an admin role, and lets you search for the person whose role you want to change.
 
 The search has two modes, chosen with the **Residents / Accounts** switch above the search box. They are two different populations, not one list with a filter, so pick the one that matches who you are looking for:
 
@@ -83,7 +84,7 @@ Select someone, choose a role, and confirm. If they already hold a role you are 
 
 ### Accounts that are not yet approved
 
-An account only holds permissions once it is approved, so the Accounts search will show you a pending, rejected, or suspended account but will not let you assign a role to it. Approve it under **Pending Accounts** instead — that step chooses the role and grants access in one go.
+An account only holds permissions once it is approved, so the Accounts search will show you a pending, rejected, or suspended account but will not let you assign a role to it. Approve it under **System → Accounts → Pending Accounts** instead — that step chooses the role and grants access in one go.
 
 ### Removing a role
 
@@ -92,9 +93,9 @@ An account only holds permissions once it is approved, so the Accounts search wi
 - Someone with a resident record drops back to the plain resident role. They lose every administrative permission and keep nothing but resident access.
 - An account with no resident record has no role to fall back on, so it returns to **pending** and loses access entirely until it is approved again. You are warned before this happens.
 
-Role assignment lives in the Settings module, so it sits with the **Super Administrator**. The Super Administrator role cannot be removed through the app at all.
+Assigning roles is day-to-day account work rather than configuration, so it lives under **System → Accounts** rather than Settings. The **Super Administrator** always has access, and the permission can also be granted on its own to another role. The Super Administrator role cannot be removed through the app at all.
 
-**Assignment Rules** controls which resident types are eligible for each executive role. Set that before assigning, not after.
+**Settings → Roles & Permissions → Assignment Rules** controls which resident types are eligible for each executive role. Set that before assigning, not after.
 
 ## Permission levels
 
@@ -110,7 +111,7 @@ Give a user the smallest role that lets them complete their job. Financial and s
 ## When access is denied
 
 1. Confirm the user is signed in with the expected account.
-2. Confirm the account has been approved. An unapproved account never reaches the dashboard — it is sent to the waiting-for-approval page instead. Check **Pending Accounts**.
-3. Confirm the correct role is assigned. Search for them under **Role Assignments** — switch to **Accounts** if they are staff without a resident record.
+2. Confirm the account has been approved. An unapproved account never reaches the dashboard — it is sent to the waiting-for-approval page instead. Check **System → Accounts → Pending Accounts**.
+3. Confirm the correct role is assigned. Search for them under **System → Accounts → Role Assignments** — switch to **Accounts** if they are staff without a resident record.
 4. Ask a super administrator to review the role's access under **Settings → Roles & Permissions → Role Definitions**, using the **Access** column to see exactly which modules and privileges it holds.
 5. Retry after the role or permission change has propagated.

@@ -27,6 +27,7 @@ import {
   ClipboardCheck,
   Settings,
   History,
+  UserCog,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 
@@ -238,6 +239,18 @@ const NAV_AUDIT_LOGS: NavItem = {
   permissions: [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
 };
 
+// Role Assignments, Pending Accounts and Orphaned Accounts moved here from
+// /settings/roles (#172, ADR-0004). Added alongside NAV_AUDIT_LOGS, directly
+// in the `system` section's items array for the same reason: no /system
+// parent NavItem exists yet (see #177).
+const NAV_ACCOUNTS: NavItem = {
+  id: 'system-accounts',
+  title: 'Accounts',
+  href: '/system/accounts',
+  icon: UserCog,
+  permissions: [PERMISSIONS.SYSTEM_ASSIGN_ROLES],
+};
+
 const NAV_PROJECTS: NavItem = {
   id: 'projects',
   title: 'Capital Projects',
@@ -288,7 +301,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'system',
     label: 'System',
-    items: [NAV_SETTINGS, NAV_AUDIT_LOGS],
+    items: [NAV_SETTINGS, NAV_AUDIT_LOGS, NAV_ACCOUNTS],
   },
 ];
 
