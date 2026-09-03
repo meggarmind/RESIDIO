@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, AlertTriangle } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useNotificationTemplates, useNotificationSchedules } from '@/hooks/use-notifications';
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
@@ -33,10 +33,6 @@ export default function SettingsPage() {
           item.children.filter((child) => !isIndexChild(item, child) || item.children!.length === 1)
         : [item]
     );
-
-  const dataManagementVisible = groups.some((g) =>
-    linksFor(g.items).some((i) => i.href === '/settings/data-management')
-  );
 
   return (
     <div className="space-y-6">
@@ -91,26 +87,6 @@ export default function SettingsPage() {
           </section>
         );
       })}
-
-      {dataManagementVisible && (
-        <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" />
-              <div>
-                <h4 className="font-medium text-amber-800 dark:text-amber-200">
-                  Data Management Note
-                </h4>
-                <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
-                  The data management section contains administrative tools that modify
-                  historical records. Use with caution and ensure you have backups before making
-                  changes.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

@@ -27,6 +27,7 @@ import {
   ClipboardCheck,
   Settings,
   History,
+  Archive,
   ListTodo,
   Send,
 } from 'lucide-react';
@@ -258,6 +259,14 @@ const NAV_NOTIFICATION_HISTORY: NavItem = {
   permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
 };
 
+const NAV_DATA_TOOLS: NavItem = {
+  id: 'system-data-tools',
+  title: 'Data Tools',
+  href: '/system/data-tools',
+  icon: Archive,
+  permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+};
+
 const NAV_PROJECTS: NavItem = {
   id: 'projects',
   title: 'Capital Projects',
@@ -308,7 +317,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'system',
     label: 'System',
-    items: [NAV_SETTINGS, NAV_AUDIT_LOGS, NAV_NOTIFICATION_QUEUE, NAV_NOTIFICATION_HISTORY],
+    items: [NAV_SETTINGS, NAV_AUDIT_LOGS, NAV_NOTIFICATION_QUEUE, NAV_NOTIFICATION_HISTORY, NAV_DATA_TOOLS],
   },
 ];
 

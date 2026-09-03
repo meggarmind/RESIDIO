@@ -206,6 +206,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/system/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
   '/system/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/system/notification-history': [PERMISSIONS.NOTIFICATIONS_MANAGE],
+  '/system/data-tools': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
 
   // Settings — fallback first, then the specific pages that override it.
   '/settings': [PERMISSIONS.SETTINGS_VIEW],
@@ -213,6 +214,10 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // General & Preferences
   '/settings/estate-info': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   '/settings/branding': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  // Retained after the move to /system/data-tools: the redirect stub at this
+  // path is a page component and runs after middleware, so this entry is what
+  // gates who reaches it — deleting it would widen access to the generic
+  // /settings fallback. See ADR-0004.
   '/settings/data-management': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   '/settings/appearance': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   '/settings/notifications': [PERMISSIONS.NOTIFICATIONS_MANAGE],

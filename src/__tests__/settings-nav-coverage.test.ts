@@ -54,15 +54,16 @@ describe('settings navigation coverage', () => {
 
   it('lists every settings page that has one', () => {
     // /settings/user-roles is a permanent redirect into /settings/roles, and
-    // /settings/audit-logs, /settings/notification-queue and
-    // /settings/notifications/history are permanent redirects into their
-    // /system/* equivalents (see ADR-0004: Settings is configuration-only),
-    // so none of these are intentionally a nav destination of their own.
+    // Every path here is a permanent redirect into its /system/* equivalent
+    // (see ADR-0004: Settings is configuration-only), or, for
+    // /settings/user-roles, a long-standing redirect within Settings. None is
+    // intentionally a nav destination of its own, so none should be listed.
     const REDIRECTS = new Set([
       '/settings/user-roles',
       '/settings/audit-logs',
       '/settings/notification-queue',
       '/settings/notifications/history',
+      '/settings/data-management',
     ]);
 
     const unlisted = routesOnDisk()

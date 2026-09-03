@@ -75,7 +75,7 @@ export async function pruneSystemData() {
         }
 
         results.success = true;
-        revalidatePath('/settings/system');
+        revalidatePath('/settings/system/data');
 
         await logAudit({
             action: 'DELETE',

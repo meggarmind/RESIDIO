@@ -45,7 +45,6 @@ export const settingsConfig: SettingsGroup[] = [
                     { title: "Overview", href: "/settings", description: "Estate information and basics", permissions: [PERMISSIONS.SETTINGS_VIEW] },
                     { title: "Estate Info", href: "/settings/estate-info", description: "Name, address, contact details", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
                     { title: "Branding", href: "/settings/branding", description: "Logo and visual identity", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
-                    { title: "Data Management", href: "/settings/data-management", description: "Administrative data tools", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
                 ]
             },
             { title: "Appearance", href: "/settings/appearance", description: "Theme and display settings", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
