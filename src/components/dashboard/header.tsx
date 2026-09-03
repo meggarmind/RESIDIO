@@ -91,7 +91,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Link
-                    href="/settings/system"
+                    href="/system"
                     className="flex items-center justify-center h-9 w-9 rounded-xl bg-emerald-500/5 border border-emerald-500/10 transition-all hover:bg-emerald-500/10 hover:border-emerald-500/20"
                   >
                     <div className="relative flex h-2.5 w-2.5">
