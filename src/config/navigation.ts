@@ -31,6 +31,7 @@ import {
   ListTodo,
   Send,
   UserCog,
+  Activity,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 
@@ -280,6 +281,20 @@ const NAV_DATA_TOOLS: NavItem = {
   permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
 };
 
+// Canonical home for cron job status, moved from /settings/cron-status and
+// /settings/system/health (#174, ADR-0004: live system state is not
+// configuration). Added alongside NAV_AUDIT_LOGS et al., directly in the
+// `system` section's items array for the same reason: no /system parent
+// NavItem exists yet (see #177). Permissions match the route's own guard at
+// ROUTE_PERMISSIONS['/system/cron-status'].
+const NAV_CRON_STATUS: NavItem = {
+  id: 'system-cron-status',
+  title: 'Cron Status',
+  href: '/system/cron-status',
+  icon: Activity,
+  permissions: [PERMISSIONS.SYSTEM_MONITOR],
+};
+
 const NAV_PROJECTS: NavItem = {
   id: 'projects',
   title: 'Capital Projects',
@@ -337,6 +352,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       NAV_NOTIFICATION_QUEUE,
       NAV_NOTIFICATION_HISTORY,
       NAV_DATA_TOOLS,
+      NAV_CRON_STATUS,
     ],
   },
 ];

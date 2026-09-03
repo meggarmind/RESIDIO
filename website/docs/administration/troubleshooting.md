@@ -5,10 +5,12 @@ sidebar_label: Troubleshooting
 description: A short recovery guide for common admin dashboard problems.
 residio_sources:
   - src/app/(dashboard)/settings/system/**
+  - src/app/(dashboard)/system/cron-status/**
   - src/app/api/health/**
   - src/actions/system/**
-residio_verified_commit: 93ed5d0
-residio_verified_at: '2026-08-29'
+  - src/lib/system/**
+residio_verified_commit: 424143a
+residio_verified_at: '2026-09-03'
 residio_app_version: '0.4.0'
 ---
 
@@ -32,4 +34,4 @@ Trace it from dashboard to module to source records. For finance, verify period,
 
 ## A page is stuck loading
 
-Refresh once, confirm network access, and check **Settings → System → Health** if you have permission. Do not repeatedly submit a write action while the first request may still be running.
+Refresh once, confirm network access, and check **System → Cron Status** if you have permission. Do not repeatedly submit a write action while the first request may still be running.

@@ -6,9 +6,11 @@ description: The automated jobs behind invoicing, reminders, reports, imports, a
 residio_sources:
   - vercel.json
   - src/app/api/cron/**
+  - src/app/api/health/cron-status/**
   - src/actions/system/cron-status.ts
-  - src/app/(dashboard)/settings/cron-status/**
-residio_verified_commit: 7bc84a4
+  - src/lib/system/cron-status.ts
+  - src/app/(dashboard)/system/cron-status/**
+residio_verified_commit: 424143a
 residio_verified_at: '2026-09-03'
 residio_app_version: '0.4.0'
 ---
@@ -17,7 +19,7 @@ residio_app_version: '0.4.0'
 
 Much of Residio's routine work runs on a schedule rather than when you press a button. Invoices generate, reminders send, reports deliver, and mailboxes sync without anyone signing in. When something "did not happen", a scheduled job is usually the answer.
 
-Monitor them from **Settings → Cron Status**.
+Monitor them from **System → Cron Status**. This moved out of Settings because job status is something you watch, not something you configure — see [Troubleshooting](../administration/troubleshooting.md).
 
 ![Residio cron job status page showing per-job health cards](../assets/admin/cron-status.png)
 
@@ -41,7 +43,7 @@ A late fee job also exists as an endpoint but is not on the platform schedule. I
 
 ## Reading the status page
 
-**Settings → Cron Status** reports each monitored job as healthy, warning, critical, or unknown, alongside an overall status. It refreshes on its own while open.
+**System → Cron Status** reports each monitored job as healthy, warning, critical, or unknown, alongside an overall status. It refreshes on its own while open.
 
 | Status | What it means |
 |---|---|
@@ -67,7 +69,7 @@ Treat this as a known reporting fault, not an outage. It is being tracked for re
 
 ## When a job has not run
 
-1. Confirm the status on **Settings → Cron Status**.
+1. Confirm the status on **System → Cron Status**.
 2. Check whether the estate is in maintenance mode, which suppresses scheduled work.
 3. Check the downstream surface — the notification queue, the import list, the invoice list — to see how much is outstanding.
 4. If the job is genuinely not running, escalate to an engineer. Job scheduling is a deployment concern, not a dashboard setting.

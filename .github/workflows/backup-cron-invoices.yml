@@ -41,7 +41,13 @@ jobs:
         run: |
           echo "Checking cron health at ${APP_URL}/api/health/cron-status"
 
-          RESPONSE=$(curl -s -w "\n%{http_code}" "${APP_URL}/api/health/cron-status" || echo "error")
+          # Authenticated with the same CRON_SECRET bearer this workflow already
+          # sends to /api/cron/generate-invoices below. This endpoint was
+          # unauthenticated until #174 closed it; without the header the check
+          # would get 403, fall into the "unknown" branch and exit 0, leaving
+          # this safety net silently inert.
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -H "Authorization: Bearer ${CRON_SECRET}" "${APP_URL}/api/health/cron-status" || echo "error")
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
 

@@ -212,6 +212,11 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/system/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/system/notification-history': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/system/data-tools': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  // Canonical home for cron job status, moved from /settings/cron-status and
+  // /settings/system/health (#174, ADR-0004: live system state is not
+  // configuration). Matches the route handler's own SYSTEM_MONITOR guard at
+  // src/app/api/health/cron-status/route.ts.
+  '/system/cron-status': [PERMISSIONS.SYSTEM_MONITOR],
 
   // Settings — fallback first, then the specific pages that override it.
   '/settings': [PERMISSIONS.SETTINGS_VIEW],
@@ -262,6 +267,11 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
   '/settings/system/maintenance': [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
   '/settings/system/data': [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
+  // Retained after the move to /system/cron-status (#174): both of these
+  // paths are now redirect stubs and each is a page component that runs
+  // after middleware, so these entries are what gate who reaches them —
+  // deleting either would widen access to the generic /settings(/system)
+  // fallback. See ADR-0004.
   '/settings/system/health': [PERMISSIONS.SYSTEM_MONITOR],
   '/settings/cron-status': [PERMISSIONS.SYSTEM_MONITOR],
 };

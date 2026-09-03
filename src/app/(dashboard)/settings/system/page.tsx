@@ -1,14 +1,10 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, ShieldAlert, Database, Activity } from 'lucide-react';
+import { ArrowRight, ShieldAlert, Database } from 'lucide-react';
 import Link from 'next/link';
 import { useSystemSettings } from '@/hooks/use-settings';
-import { CronHealthCard } from '@/components/dashboard/cron-health-card';
-
-const subscribeToMount = () => () => {};
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
   if (!settings) return {};
@@ -20,7 +16,6 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
 
 export default function SystemOverviewPage() {
   const { data: systemSettings } = useSystemSettings();
-  const mounted = useSyncExternalStore(subscribeToMount, () => true, () => false);
 
   const settingsObj = settingsToObject(systemSettings);
   const maintenanceMode = settingsObj.maintenance_mode === true;
@@ -90,29 +85,7 @@ export default function SystemOverviewPage() {
             </CardContent>
           </Card>
         </Link>
-
-        <Link href="/settings/system/health">
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Activity className="h-4 w-4" />
-                System Health
-              </CardTitle>
-              <CardDescription>
-                Monitor cron jobs and background task health.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Cron status and job health</span>
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
       </div>
-
-      {mounted && <CronHealthCard />}
     </div>
   );
 }
