@@ -212,3 +212,18 @@ was careless, but because its environment lied to it.
 **Standing correction:** never share `node_modules` between worktrees again, and never
 delete a worktree that has ever had one. Unlink and leave the directory; prune at the end
 of the epic.
+
+---
+
+**D15 — process | Replaces D5. Every worktree gets its own real `npm ci`.**
+D5 chose junction-shared `node_modules` because five concurrent cold installs looked
+impractical. D14 showed the true cost of that choice: silent partial corruption of the
+shared tree, surfacing as a false "pre-existing breakage" in an agent's report.
+Options: (a) keep junctions and be careful, (b) copy `node_modules` per worktree,
+(c) a real `npm ci` per worktree.
+**Taken: (c).** The measurement D5 was missing: with a warm npm cache a full `npm ci`
+completes in **about 3 minutes**, not the 34 the first cold clone took. Three worktrees is
+~9 minutes of wall clock, run sequentially so they cannot contend for the same locked
+native modules — a trivial price for removing an entire class of cross-tree failure, and
+it also gives each slice a lockfile-faithful tree to be judged against.
+**Reversible:** trivially; nothing depends on the layout.

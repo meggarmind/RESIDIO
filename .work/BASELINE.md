@@ -38,6 +38,31 @@ merge-base. Cause: `detectFindings({ branchNames = [] })` in
 caller passing real branch names is a type error. Fixed with an inline JSDoc
 type on the default. No runtime change. Post-fix: `npx tsc --noEmit` exit 0.
 
+## Baseline moved as wave 1 landed
+
+After #167, #169 and #170 merged, `epic/180` stands at **68 files / 406 tests**, lint
+**0 errors / 327 warnings** (one fewer than the original 328, from dead imports removed in
+#169), typecheck exit 0, build exit 0. Quote *these* numbers to QA agents from wave 2
+onward, not the originals.
+
+## Environment hazard — read before trusting any gate result
+
+On 2026-09-03 the shared `node_modules` was silently corrupted (16 package directories
+emptied, `prettier` and `@react-pdf/renderer` among them) during worktree teardown. It
+presented as 20 "pre-existing" TypeScript errors, a failing build, and the two billing
+suites from #163 failing again — and an agent reasonably concluded its environment had
+always been broken. Full account in DECISIONS.md D14.
+
+**If gate numbers ever disagree with a run you did yourself, suspect the tree before the
+code.** The check that settles it in seconds:
+
+```
+ls node_modules/prettier | wc -l      # 0 means an emptied shell, not a missing package
+```
+
+Repair is `npm ci` (about 3 minutes with a warm cache). Worktrees no longer share
+`node_modules` at all — see D15.
+
 ## Standing rules for every QA agent
 
 1. **328 lint warnings are baseline.** Only a rise in the warning count, or any
