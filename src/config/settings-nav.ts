@@ -4,7 +4,7 @@ import {
     CreditCard,
     Mail,
     Home,
-    Activity,
+    Wrench,
     LucideIcon
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
@@ -139,19 +139,16 @@ export const settingsConfig: SettingsGroup[] = [
         ]
     },
     {
-        title: "System Health",
-        icon: Activity,
+        title: "Maintenance & Data",
+        icon: Wrench,
         items: [
-            {
-                title: "System",
-                href: "/settings/system",
-                permissions: [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
-                children: [
-                    { title: "Overview", href: "/settings/system", description: "System health dashboard", permissions: [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS] },
-                    { title: "Maintenance", href: "/settings/system/maintenance", description: "Maintenance mode and messages", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
-                    { title: "Data & Retention", href: "/settings/system/data", description: "Retention policies and pruning", permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION] },
-                ]
-            },
+            // Named for what these two pages are — genuine configuration — rather
+            // than "System", which would read as the same thing as the new
+            // top-level /system dashboard (#176, ADR-0004). No "System" parent or
+            // Overview child: that overview had no single successor once its two
+            // links moved up a level, so it was retired rather than kept.
+            { title: "Maintenance", href: "/settings/maintenance", description: "Maintenance mode and messages", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
+            { title: "Data & Retention", href: "/settings/data-retention", description: "Retention policies and pruning", permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION] },
             // Cron Status moved to /system/cron-status (#174, ADR-0004): it shows live
             // job status, not configuration. /settings/cron-status and
             // /settings/system/health are now redirect stubs, not nav destinations.

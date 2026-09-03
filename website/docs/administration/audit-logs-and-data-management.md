@@ -6,8 +6,8 @@ residio_sources:
   - src/lib/audit/**
   - src/actions/audit/**
   - src/app/(dashboard)/system/data-tools/**
-  - src/app/(dashboard)/settings/system/data/**
-residio_verified_commit: 8b49d5d
+  - src/app/(dashboard)/settings/data-retention/**
+residio_verified_commit: 872584c
 residio_verified_at: '2026-09-03'
 residio_app_version: '0.4.0'
 ---
