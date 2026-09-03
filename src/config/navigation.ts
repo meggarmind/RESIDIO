@@ -27,6 +27,9 @@ import {
   ClipboardCheck,
   Settings,
   History,
+  Archive,
+  ListTodo,
+  Send,
   UserCog,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
@@ -251,6 +254,32 @@ const NAV_ACCOUNTS: NavItem = {
   permissions: [PERMISSIONS.SYSTEM_ASSIGN_ROLES],
 };
 
+// Relocated out of /settings per ADR-0004: these show live/historical system
+// state (the outgoing queue and what was actually sent), not configuration.
+const NAV_NOTIFICATION_QUEUE: NavItem = {
+  id: 'system-notification-queue',
+  title: 'Notification Queue',
+  href: '/system/notification-queue',
+  icon: ListTodo,
+  permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
+};
+
+const NAV_NOTIFICATION_HISTORY: NavItem = {
+  id: 'system-notification-history',
+  title: 'Notification History',
+  href: '/system/notification-history',
+  icon: Send,
+  permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
+};
+
+const NAV_DATA_TOOLS: NavItem = {
+  id: 'system-data-tools',
+  title: 'Data Tools',
+  href: '/system/data-tools',
+  icon: Archive,
+  permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+};
+
 const NAV_PROJECTS: NavItem = {
   id: 'projects',
   title: 'Capital Projects',
@@ -301,7 +330,14 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     id: 'system',
     label: 'System',
-    items: [NAV_SETTINGS, NAV_AUDIT_LOGS, NAV_ACCOUNTS],
+    items: [
+      NAV_SETTINGS,
+      NAV_AUDIT_LOGS,
+      NAV_ACCOUNTS,
+      NAV_NOTIFICATION_QUEUE,
+      NAV_NOTIFICATION_HISTORY,
+      NAV_DATA_TOOLS,
+    ],
   },
 ];
 

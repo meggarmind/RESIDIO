@@ -6,8 +6,9 @@ residio_sources:
   - src/app/(dashboard)/settings/system/**
   - src/app/(dashboard)/system/audit-logs/**
   - src/app/(dashboard)/settings/roles/**
+  - src/app/(dashboard)/system/accounts/**
   - src/actions/system/**
-residio_verified_commit: e5f3def
+residio_verified_commit: a71aaf9
 residio_verified_at: '2026-09-03'
 residio_app_version: '0.4.0'
 ---
@@ -16,21 +17,28 @@ residio_app_version: '0.4.0'
 
 ## Roles and permissions
 
-Open **Settings → Roles & Permissions** to review roles and who holds them. Make changes only with an approved access request and record the reason.
+This work is split across two places, because defining what a role *is* and
+working through who holds it are different jobs. Make changes only with an
+approved access request, and record the reason.
 
-The page has five tabs:
+Open **Settings → Roles & Permissions** to define roles:
 
 | Tab | Use it for |
 | --- | --- |
 | Role Definitions | Roles, and the modules and privileges each one carries |
+| Assignment Rules | Which resident types are eligible for each executive role |
+
+Open **System → Accounts** for the day-to-day account work:
+
+| Tab | Use it for |
+| --- | --- |
 | Role Assignments | Who currently holds an admin role |
 | Pending Accounts | Sign-ups waiting to be approved or rejected |
-| Assignment Rules | Which resident types are eligible for each executive role |
 | Orphaned Accounts | Logins that are not linked to any resident |
 
 The **Access** column on Role Definitions shows how many modules and privileges a role holds, and opens the picker where you grant or revoke them. [Roles and permissions](../getting-started/roles-and-permissions) covers creating a role.
 
-Work the **Pending Accounts** queue as part of routine access review. A new sign-up has no access to anything until it is approved there, so a queue left unattended is a person locked out rather than a person with access they should not have. [Roles and permissions](../getting-started/roles-and-permissions) covers the approval and rejection steps.
+Work the **Pending Accounts** queue, under System, as part of routine access review. A new sign-up has no access to anything until it is approved there, so a queue left unattended is a person locked out rather than a person with access they should not have. [Roles and permissions](../getting-started/roles-and-permissions) covers the approval and rejection steps.
 
 ## Audit logs
 

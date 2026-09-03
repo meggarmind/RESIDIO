@@ -227,3 +227,33 @@ completes in **about 3 minutes**, not the 34 the first cold clone took. Three wo
 native modules — a trivial price for removing an entire class of cross-tree failure, and
 it also gives each slice a lockfile-faithful tree to be judged against.
 **Reversible:** trivially; nothing depends on the layout.
+
+---
+
+**D16 — #175 → #176 handoff | `revalidatePath` now points at a path #176 will rename.**
+#175 re-pointed `revalidatePath('/settings/system')` in `src/actions/system/prune-data.ts`
+to `/settings/system/data`, reasoning that Prune Data lives on the retention-config page —
+correct today, and consistent with ADR-0004's rule that a trigger stays with the rule it
+runs. But #176 renames `/settings/system/data` to `/settings/data-retention`, so the value
+becomes stale one slice later.
+Options: (a) have #175 pre-empt the rename and write `/settings/data-retention` now,
+pointing at a path that does not yet exist; (b) accept the correct-today value and make
+#176 pick it up.
+**Taken: (b).** A `revalidatePath` naming a route that does not exist is silently useless,
+and it would also couple #175's correctness to #176 landing. **Recorded here and carried
+into #176's brief as an explicit required edit**, because this is exactly the kind of
+handoff that gets dropped between slices. **Reversible:** one string.
+
+---
+
+**D17 — process | Three slices each reported stale references they were forbidden to
+touch.** #171's QA found three, #173 flagged `docs/claude-ai-module-index.md`,
+`docs/qat/test-plan.md` and `website/docs/integrations/email-and-sms.md`; #175 flagged two
+QAT documents. The file-ownership boundaries that keep three parallel agents from
+conflicting also stop any of them fixing a shared document.
+**Decision: I sweep these myself at the wave boundary**, once all three branches are
+merged and the boundaries no longer apply. Doing it inside a slice would reintroduce the
+conflicts the boundaries exist to prevent; leaving it undone would recreate exactly the
+documentation drift this epic exists to eliminate. Dated QA reports
+(`docs/qat/reports/*-20260829*`) are point-in-time records and are deliberately **not**
+swept. **Reversible:** documentation only.
