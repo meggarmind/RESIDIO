@@ -13,9 +13,9 @@
 
 | | |
 |---|---|
-| Phase | Wave 2a: #171 in QA. Wave 2b worktrees built and installed, waiting on #171 to merge |
-| Last completed | node_modules corruption repaired (D14); shared installs withdrawn (D15); #171 gates re-run green by me: 69 files / 410 tests |
-| Epic HEAD | `dd482d1`+ (5 closed: 163,167,168,169,170) |
+| Phase | **Waves 0,1,2a,2b COMPLETE (9/17 closed).** Wave 2c running: #174 solo (security) |
+| Last completed | #172/#173/#175 merged+closed; 3-way conflicts in the convergence files resolved by hand; wave-boundary doc sweep done |
+| Epic HEAD | `424143a`+ (9 closed: 163,167,168,169,170,171,172,173,175) |
 | Blocked issues | none |
 | Consecutive QA failures | 0 |
 
@@ -26,15 +26,15 @@ Legend: TODO / IN-PROGRESS / QA / MERGED / CLOSED / BLOCKED
 | # | Slice | Wave | Status | Branch | Notes |
 |---|-------|------|--------|--------|-------|
 | 163 | prettier undeclared | 0 | CLOSED (not reproducible) | — | cold npm ci proved premise false |
- blocks all of wave 2 |
+| 167 | middleware safety net | 1 | **CLOSED** | merged | blocks all of wave 2; unblocked it |
 | 168 | chairman settings.view | 1 | **CLOSED** | merged 3a415f7 | migration APPLIED + verified by name |
 | 169 | main sidebar nav state | 1 | **CLOSED** | merged | |
 | 170 | settings sidebar reopen | 1 | **CLOSED** | merged | |
-| 171 | audit logs → /system | 2a | IN-PROGRESS | issue/171-audit-logs-to-system | template slice |
-| 172 | account admin → /system | 2b | READY (worktree+install done) | issue/172-accounts-to-system | tabs: keep roles+rules, move assignments/pending/orphaned |
-| 173 | notification queue | 2b | READY (worktree+install done) | issue/173-notification-queue | QueueViewer queue-viewer.tsx:133, NotificationHistory notification-history.tsx:111 |
-| 175 | ownership backfill | 2b | READY (worktree+install done) | issue/175-ownership-backfill | |
-| 174 | cron page + public API | 2c | TODO | — | security fix |
+| 171 | audit logs → /system | 2a | **CLOSED** | merged | template slice |
+| 172 | account admin → /system | 2b | **CLOSED** | merged | tabs: keep roles+rules, move assignments/pending/orphaned |
+| 173 | notification queue | 2b | **CLOSED** | merged | QueueViewer queue-viewer.tsx:133, NotificationHistory notification-history.tsx:111 |
+| 175 | ownership backfill | 2b | **CLOSED** | merged | |
+| 174 | cron page + public API | 2c | IN-PROGRESS | issue/174-cron-canonical | security fix; guard must be proven by a real request |
 | 176 | rename /settings/system/* | 2d | TODO | — | after #174 |
 | 177 | /system dashboard | 3 | TODO | — | |
 | 178 | regroup Settings | 3 | TODO | — | |
@@ -60,4 +60,8 @@ and only on a clean PASS commit + merge + close + push.
 that cost. **NEVER** `git worktree remove` a worktree that ever had a junction.
 Teardown for the epic: leave the directories, `git worktree prune` at the very end.
 
-After 2a: wave 2b is #172, #173, #175 in parallel; then #174 solo; then #176 solo.
+After #174: **#176 solo** (must follow #174). #176's brief MUST include D16 —
+re-point `revalidatePath('/settings/system/data')` in `src/actions/system/prune-data.ts`
+to `/settings/data-retention`, since #176 performs that rename.
+
+Then wave 3 (#177, #178 parallel), wave 4a (#165, #166), 4b (#164), 4c (#179).

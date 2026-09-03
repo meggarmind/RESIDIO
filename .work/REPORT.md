@@ -9,9 +9,14 @@ point is recorded here.
 |---|-------|-----------|-------|----|--------|--------|
 | 163 | prettier undeclared | **Nothing — premise disproved.** A cold `npm ci` in a clean clone installs prettier 3.7.4 and runs 383/383 green. Closed as not reproducible with evidence. | haiku (reproduction only) | n/a | 0 | ✅ |
 | 168 | Chairman regains `settings.view` | Migration granting `chairman` → `settings.view` and nothing else; two false documentation claims corrected. Migration **applied to the live database and verified by name**. | haiku + sonnet QA | **PASS** (9/9) | 0 (1 defect fixed by me) | ✅ |
-| 167 | middleware `/system` safety net | `ROUTE_PERMISSIONS['/system']` + `adminOnlyRoutes`, plus a structural test | haiku | in progress | 0 | — |
-| 169 | main sidebar nav state | `use-sidebar-nav-state.ts` store; sidebar reads through it | sonnet | in progress | 0 | — |
-| 170 | settings group reopen + mobile multi-open | reopen-on-entry rule, persisted across full page loads; mobile rewritten multi-open on the shared store | sonnet | in progress | 1 | — |
+| 167 | middleware `/system` safety net | Generic `/system` guard + `adminOnlyRoutes` + a structural test. Closed the hole before any page existed to fall through it. | haiku + sonnet QA | **PASS** | 0 (1 tautological test replaced by me) | ✅ |
+| 169 | main sidebar nav state | `use-sidebar-nav-state.ts` module store on `useSyncExternalStore`; the effect that clobbered the reader's choice is gone | sonnet + sonnet QA | **PASS** | 0 | ✅ |
+| 170 | settings group reopen + mobile multi-open | Reopen-on-entry rule persisted across full page loads; mobile rewritten multi-open on the shared store | sonnet + sonnet QA | **PASS** | 1 | ✅ |
+| 171 | audit logs → `/system/audit-logs` | The template slice: move, redirect, both route entries, `system/layout.tsx`, and the `/system` coverage test five later slices depend on | sonnet + sonnet QA | **PASS** | 0 (3 stale docs swept by me) | ✅ |
+| 172 | account admin → `/system/accounts` | Five tabs split two/three; components relocated unedited; permissions narrowed as specified | sonnet + sonnet QA | **FAIL → fixed → PASS** | 1 | ✅ |
+| 173 | one notification queue backend | `queue-management.ts` deleted; queue and history become two `/system` pages on the integrated backend | sonnet + sonnet QA | **PASS** | 0 | ✅ |
+| 175 | ownership backfill → `/system/data-tools` | Moved; dead `dataManagementVisible` branch removed; `revalidatePath` re-pointed | haiku + sonnet QA | **PASS** | 0 | ✅ |
+| 174 | cron page + close public API | in progress — solo | sonnet | — | 0 | — |
 
 ## 2. Decisions taken on the user's behalf
 
