@@ -257,3 +257,37 @@ conflicts the boundaries exist to prevent; leaving it undone would recreate exac
 documentation drift this epic exists to eliminate. Dated QA reports
 (`docs/qat/reports/*-20260829*`) are point-in-time records and are deliberately **not**
 swept. **Reversible:** documentation only.
+
+---
+
+**D18 — #165 | The issue states a genuine either/or and leaves it open:** "Either surface
+the analytics card or stop writing the rows — collecting user query text with no reader is
+hard to justify."
+
+Evidence gathered before deciding:
+- `search_logs` holds **33 rows, 2 distinct users, 2026-01-22 → 2026-08-29**. This is
+  dev/test-scale, not an accumulating store of admin keystrokes. The privacy argument for
+  stopping is real in principle but small in fact here.
+- The read side is complete and mounted nowhere: `getSearchAnalytics`,
+  `useSearchAnalytics`, `SearchAnalyticsCard`. The card already renders `null` when there
+  is no data, so mounting it cannot clutter anything.
+- `src/actions/system/prune-data.ts` already prunes this table, so retention is handled.
+- The card surfaces **zero-result searches** — what administrators looked for and did not
+  find.
+
+Options: (a) stop writing the rows and delete or leave three orphaned modules; (b) mount
+the card so the data has a reader.
+
+**Taken: (b), and the tiebreaker is this epic itself.** Epic #180 exists because settings
+were unfindable; #179 adds Settings and System to the command palette specifically so
+"email import" finds the page. A list of searches that returned nothing is the direct
+measure of whether that worked. Deleting the collection now would discard the instrument
+just as it becomes worth reading. Option (a) also throws away three working modules to fix
+a problem that mounting one component solves.
+
+Implementation for #165 will add a **Search** tab to the analytics page (`analytics-page-client.tsx`
+is already a tabbed dashboard) rendering `SearchAnalyticsCard` through `useSearchAnalytics`,
+using all three orphaned modules.
+
+**Reversible:** yes, in both directions — the tab can be removed, or the logging dropped
+later, without touching anything else.
