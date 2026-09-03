@@ -152,3 +152,29 @@ Billing & Finance, Communications, System Health. #176 collapses System Health i
 "Maintenance & Data"; #178 rewrites the rest to the six subject groups in the issue,
 targeting ~24 links. The two Gmail pages are 143 lines (base) and 159 (config); the issue
 says take the config page's richer markup as the base.
+
+## Two tensions #178 must resolve (found before dispatch)
+
+**1. The issue's six-group table is not an exhaustive inventory.** It lists 27 links across
+six groups, but `settings-nav.ts` currently carries **31** distinct `/settings` hrefs, and
+`settings-nav-coverage.test.ts` asserts *every* settings page on disk is listed in nav
+unless it is an explicit redirect stub. The clearest omission is
+**`/settings/email/debug`** ("Debug & Testing"), a real page currently under Communications
+that the table does not mention. Dropping it to match the table literally makes the
+coverage test fail with `unlisted: /settings/email/debug`. #178 must reconcile the table
+against what is actually on disk and report every page the table omits, rather than
+following the table into a red test.
+
+**2. Both e2e group-name regexes break, and would break silently.**
+`e2e/enhancements.spec.ts:96` matches `/billing.*finance/i` and `:113` matches
+`/estate configuration/i`. Under the new grouping those become **Financial** and **Estate**,
+so both selectors stop matching. The issue names this explicitly — a silently passing
+selector is worse than a failing one — and it is the failure mode this slice most invites.
+
+## Handoffs into #177
+
+- `src/components/dashboard/header.tsx:94` still points the health indicator at
+  `/settings/system`. #176 correctly left it (outside its boundary, still resolves via the
+  new stub); #177 names that exact line as its own work.
+- The retired `/settings/system` stub currently redirects to `/settings`. Once `/system`
+  exists, #177 may re-point it — its call, recorded in D19.
