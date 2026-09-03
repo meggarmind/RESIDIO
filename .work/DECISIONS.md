@@ -291,3 +291,28 @@ using all three orphaned modules.
 
 **Reversible:** yes, in both directions — the tab can be removed, or the logging dropped
 later, without touching anything else.
+
+---
+
+**D19 — #176 | The retired `/settings/system` overview has no natural successor.** Its two
+link-cards now point at two different pages, and #174 had already stripped its cron
+section, so nothing inherits it whole. The conceptual successor is the new `/system`
+dashboard — which **does not exist until #177**.
+Options: (a) redirect to `/system` in anticipation; (b) redirect to `/settings`.
+**Taken: (b).** A redirect to a route that does not yet exist is a 404 dressed up as a
+permanent redirect, and it would make #176's correctness depend on #177 landing. `/settings`
+is the only existing sensible target: someone who bookmarked the old overview was looking
+for settings, and lands on the settings landing page. **Handoff recorded for #177**, which
+may re-point it once `/system` exists — its choice, not a defect here.
+**Reversible:** one string.
+
+---
+
+**D20 — #176 → #177 handoff | `src/components/dashboard/header.tsx:94` still links to
+`/settings/system`.** #176's agent correctly left it alone: it is outside that slice's file
+boundary and still resolves, now via the new redirect to `/settings`. Issue #177 names this
+line explicitly as its own work ("Update the pulsing system-health quick-link at
+`src/components/dashboard/header.tsx:94`"), so it is a handoff rather than an omission —
+but until #177 lands, the header's health indicator points a user at the settings landing
+page rather than at anything health-related. **Carried into #177's brief as a required
+edit.** **Reversible:** one href.

@@ -132,3 +132,23 @@ and I resolve every conflict in them personally.
 7. **The baseline typecheck was red** on `master`. Repaired in its own commit before any
    epic work; see BASELINE.md.
 8. **#165 states a genuine either/or** rather than a decision. Resolved in DECISIONS.md.
+
+## Wave 3 recon (gathered before dispatch, so the briefs are concrete)
+
+**#177 `/system` dashboard is assembly, not new data plumbing.** Every card it needs
+already has a server action:
+
+| Card | Source |
+|------|--------|
+| cron health | `getCronStatus()` — `src/actions/system/cron-status.ts` (guarded, #174) |
+| notification queue depth | `getQueueStatistics()` — `src/actions/notifications/queue.ts:101` |
+| recent audit activity | `getAuditStats()` / `getAuditLogs()` — `src/actions/audit/get-audit-logs.ts` |
+| accounts awaiting approval | `src/actions/auth/account-approval.ts` |
+| data tools | link only — `/system/data-tools` |
+
+**#178 baseline as of post-#174:** `settings-nav.ts` has **6 groups and 32 distinct
+`/settings` hrefs** — General & Preferences, Estate Configuration, Access & Security,
+Billing & Finance, Communications, System Health. #176 collapses System Health into
+"Maintenance & Data"; #178 rewrites the rest to the six subject groups in the issue,
+targeting ~24 links. The two Gmail pages are 143 lines (base) and 159 (config); the issue
+says take the config page's richer markup as the base.
