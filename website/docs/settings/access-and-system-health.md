@@ -8,13 +8,19 @@ residio_sources:
   - src/app/(dashboard)/system/audit-logs/**
   - src/app/(dashboard)/settings/roles/**
   - src/app/(dashboard)/system/accounts/**
+  - src/app/(dashboard)/system/page.tsx
+  - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 872584c
+residio_verified_commit: 3113e72
 residio_verified_at: '2026-09-03'
 residio_app_version: '0.4.0'
 ---
 
 # Access and system health
+
+## System dashboard
+
+Open **System** in the sidebar — or the status indicator next to the menu button in the header — to land on the System dashboard at `/system`. It answers "is anything wrong?" at a glance: cards for cron health, notification queue depth, recent audit activity, accounts awaiting approval, and data tools, each showing enough to tell a healthy state from one that needs attention without opening it. A card only appears if your role can open the page it links to, so this page shows a different set of cards to different roles, same as the sections below. Use it as the entry point before working through the detail pages this guide covers next.
 
 ## Roles and permissions
 

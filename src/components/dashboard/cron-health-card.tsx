@@ -134,9 +134,17 @@ export function CronHealthCard() {
         );
     }
 
-    const overallStatus = data?.status || (data as { overall?: string }).overall || 'unknown';
+    // `data` is genuinely `undefined` here whenever the query hasn't fetched
+    // yet without being in the `isLoading`/`error` branches above — e.g. this
+    // card renders with `enabled: mounted` before hydration, so during SSR /
+    // static prerendering (mounted=false) the query stays disabled and
+    // `isLoading` is false (TanStack Query v5: disabled queries are
+    // `isPending` but not `isFetching`, so `isLoading` is false too). The
+    // previous `(data as {...}).overall` cast read a property off `undefined`
+    // in that case and crashed the /system dashboard's static build.
+    const overallStatus = data?.status || (data as { overall?: string } | undefined)?.overall || 'unknown';
     const jobs = data?.jobs || [];
-    const lastChecked = data?.lastChecked || (data as { timestamp?: string }).timestamp;
+    const lastChecked = data?.lastChecked || (data as { timestamp?: string } | undefined)?.timestamp;
 
     // Filter to show only critical jobs first, then by importance
     const prioritizedJobs = [...jobs].sort((a, b) => {

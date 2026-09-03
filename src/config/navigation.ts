@@ -32,6 +32,7 @@ import {
   Send,
   UserCog,
   Activity,
+  LayoutDashboard,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 
@@ -232,9 +233,28 @@ const NAV_SETTINGS: NavItem = {
   permissions: [PERMISSIONS.SETTINGS_VIEW],
 };
 
-// No parent NavItem for /system itself yet — there is no /system/page.tsx
-// until #177 adds one. This item is added directly to the `system` section
-// alongside NAV_SETTINGS instead of nested as a child of a /system parent.
+// The System landing page (#177). Added as a flat item alongside the six
+// pages below rather than as a parent with them nested as `children`
+// (the NAV_BILLING / NAV_PAYMENTS shape) deliberately: nesting would mean
+// `useNavigation`'s `filterItem` drops an item's entire subtree the moment
+// its *own* permissions check fails, before it even looks at the children.
+// NAV_SYSTEM's own permission (SYSTEM_VIEW_ALL_SETTINGS, matching this
+// route's ROUTE_PERMISSIONS entry) is disjoint from each child's permission
+// — e.g. NAV_AUDIT_LOGS only needs SETTINGS_VIEW_AUDIT_LOGS — so a role
+// holding a child's permission but not SYSTEM_VIEW_ALL_SETTINGS (a plausible
+// custom role; today only super_admin holds any `system` category
+// permission at all, per the RBAC seed) would lose that sidebar link if it
+// were nested under a gated parent, despite the middleware still letting
+// them open the page directly. Flat items keep each page's visibility tied
+// only to its own guard, matching how the other five already behave.
+const NAV_SYSTEM: NavItem = {
+  id: 'system',
+  title: 'System',
+  href: '/system',
+  icon: LayoutDashboard,
+  permissions: [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
+};
+
 const NAV_AUDIT_LOGS: NavItem = {
   id: 'system-audit-logs',
   title: 'Audit Logs',
@@ -244,9 +264,9 @@ const NAV_AUDIT_LOGS: NavItem = {
 };
 
 // Role Assignments, Pending Accounts and Orphaned Accounts moved here from
-// /settings/roles (#172, ADR-0004). Added alongside NAV_AUDIT_LOGS, directly
-// in the `system` section's items array for the same reason: no /system
-// parent NavItem exists yet (see #177).
+// /settings/roles (#172, ADR-0004). A flat item alongside NAV_AUDIT_LOGS and
+// NAV_SYSTEM, not nested under NAV_SYSTEM — see the comment on NAV_SYSTEM
+// for why.
 const NAV_ACCOUNTS: NavItem = {
   id: 'system-accounts',
   title: 'Accounts',
@@ -283,9 +303,8 @@ const NAV_DATA_TOOLS: NavItem = {
 
 // Canonical home for cron job status, moved from /settings/cron-status and
 // /settings/system/health (#174, ADR-0004: live system state is not
-// configuration). Added alongside NAV_AUDIT_LOGS et al., directly in the
-// `system` section's items array for the same reason: no /system parent
-// NavItem exists yet (see #177). Permissions match the route's own guard at
+// configuration). A flat item, not nested under NAV_SYSTEM — see the comment
+// on NAV_SYSTEM for why. Permissions match the route's own guard at
 // ROUTE_PERMISSIONS['/system/cron-status'].
 const NAV_CRON_STATUS: NavItem = {
   id: 'system-cron-status',
@@ -346,6 +365,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
     id: 'system',
     label: 'System',
     items: [
+      NAV_SYSTEM,
       NAV_SETTINGS,
       NAV_AUDIT_LOGS,
       NAV_ACCOUNTS,
