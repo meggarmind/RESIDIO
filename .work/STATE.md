@@ -13,9 +13,9 @@
 
 | | |
 |---|---|
-| Phase | **Waves 0,1,2a,2b,2c COMPLETE (10/17 closed).** Wave 2d running: #176 solo |
-| Last completed | #174 merged+closed: cron API guarded (verified by live request), CRON_SECRET path added so the daily backup workflow does not go silently inert |
-| Epic HEAD | post-#174 merge (10 closed: 163,167,168,169,170,171,172,173,174,175) |
+| Phase | **Waves 0-3 COMPLETE (13/17 closed).** Wave 4a running: #165, #166 |
+| Last completed | #177 + #178 merged+closed. Epic gates: 71 files / 426 tests, lint 0/326, tsc 0, build 0 |
+| Epic HEAD | post-#177 merge (13 closed: 163,167-178 except 179) |
 | Blocked issues | none |
 | Consecutive QA failures | 0 |
 
@@ -35,11 +35,11 @@ Legend: TODO / IN-PROGRESS / QA / MERGED / CLOSED / BLOCKED
 | 173 | notification queue | 2b | **CLOSED** | merged | QueueViewer queue-viewer.tsx:133, NotificationHistory notification-history.tsx:111 |
 | 175 | ownership backfill | 2b | **CLOSED** | merged | |
 | 174 | cron page + public API | 2c | **CLOSED** | merged | hole closed + CRON_SECRET path for the backup workflow |
-| 176 | rename /settings/system/* | 2d | IN-PROGRESS | issue/176-rename-settings-system | MUST re-point revalidatePath (D16) |
-| 177 | /system dashboard | 3 | TODO | — | |
-| 178 | regroup Settings | 3 | TODO | — | |
-| 165 | search_logs unread | 4a | TODO | — | judgement call pending |
-| 166 | Cmd+1-5 wrong result | 4a | TODO | — | |
+| 176 | rename /settings/system/* | 2d | **CLOSED** | merged | revalidatePath handoff landed |
+| 177 | /system dashboard | 3 | **CLOSED** | merged | flat nav item; surfaced #181 |
+| 178 | regroup Settings | 3 | **CLOSED** | merged | 6 groups, 30 links; Roles narrowing caught (D21) |
+| 165 | search_logs unread | 4a | IN-PROGRESS | issue/165-search-analytics-reader | D18: mount the card + GUARD the unauthorized action |
+| 166 | Cmd+1-5 wrong result | 4a | IN-PROGRESS | issue/166-search-hotkey-order | keep diff small, #164 merges on top |
 | 164 | search permission filter | 4b | TODO | — | |
 | 179 | palette indexes Settings | 4c | TODO | — | |
 | 180 | EPIC | — | OPEN | epic/180 | |

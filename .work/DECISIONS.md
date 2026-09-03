@@ -340,3 +340,32 @@ are defects; only one is tested.
 re-narrow it on the same misreading. Flagged to QA as something to verify rather than
 accept, and QA was additionally asked to diff *every* item's permissions against `epic/180`
 for other narrowings of the same shape. **Reversible:** one array.
+
+---
+
+**D22 — #165 | Mounting the analytics card required guarding the action first.**
+D18 decided to surface `SearchAnalyticsCard` so the collected query text has a reader.
+Investigating before dispatch turned up two facts that change the shape of that:
+`getSearchAnalytics()` has **no authorization check at all**, and **`/analytics` has no
+`ROUTE_PERMISSIONS` entry** — none of the 51 keys is a prefix of it, and it is absent from
+`adminOnlyRoutes` — so middleware skips its whole auth block and the page renders to
+unauthenticated visitors.
+Options: (a) mount the card as decided and leave both gaps to their own issues; (b) mount it
+and guard the action in the same slice; (c) reverse D18 and stop the logging instead.
+**Taken: (b).** Mounting a card that displays what administrators type into search, on an
+unauthenticated page, backed by an action that checks nothing, would convert a dormant
+privacy problem into a live one — strictly worse than the defect #165 reports. Guarding the
+action closes it independently of the routing gap, which belongs to **#104** and is not
+#165's to fix. (c) was rejected for the reasons in D18, which still hold.
+**Reversible:** the guard is one block; the tab is one component.
+
+---
+
+**D23 — verification | The middleware route table is consumed directly, not copied.**
+Issue #104 states that middleware "keeps a hand-maintained second copy" of the route table.
+Had that still been true, **every `/system` guard this epic added would have been
+decorative**, #167 included — the slice all of wave 2 was blocked on. Checked rather than
+assumed: `src/middleware.ts` now builds `routePermissionConfig` as `{ ...ROUTE_PERMISSIONS,
+'/portal': [] }`, with a comment recording that the old copy had silently dropped eight
+routes. **The guards are effective.** #104 was commented with this correction, since its
+list of seven affected routes may now be shorter than when it was filed.
