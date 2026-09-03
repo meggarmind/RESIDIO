@@ -25,6 +25,7 @@ import {
 
 import { useOS } from '@/hooks/use-os';
 import { useRecentSearches } from '@/hooks/use-recent-searches';
+import { buildOrderedSearchResults, buildSearchShortcutIndex } from '@/lib/search/global-search-order';
 
 interface SearchApiResponse {
   residents: Array<{ id: string; first_name: string; last_name: string; phone_primary: string; email: string }>;
@@ -64,6 +65,12 @@ const typeLabels = {
   document: 'Documents',
   action: 'Quick Actions',
 };
+
+// Custom order for groups. Module-level (not recreated per render) so it has
+// a stable identity for use as a dependency, and so it stays the single
+// definition both the render order and the keyboard shortcuts are built
+// from — see `buildOrderedSearchResults`.
+const groupOrder = ['action', 'resident', 'house', 'payment', 'security', 'document'];
 
 // Static Quick Actions Definition
 const QUICK_ACTIONS: SearchResult[] = [
@@ -124,13 +131,19 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
   // Debounce query for API calls
   const [debouncedQuery] = useDebounce(query, 300);
 
-  // Filter Quick Actions locally (immediate feedback)
-  const quickActionResults = query.length === 0
-    ? QUICK_ACTIONS
-    : QUICK_ACTIONS.filter(action =>
-      action.title.toLowerCase().includes(query.toLowerCase()) ||
-      (action.subtitle && action.subtitle.toLowerCase().includes(query.toLowerCase()))
-    );
+  // Filter Quick Actions locally (immediate feedback). Memoized so identity
+  // only changes when `query` actually changes, keeping `results` (and the
+  // ordering/hotkey state derived from it, below) stable across re-renders.
+  const quickActionResults = useMemo(
+    () =>
+      query.length === 0
+        ? QUICK_ACTIONS
+        : QUICK_ACTIONS.filter(action =>
+          action.title.toLowerCase().includes(query.toLowerCase()) ||
+          (action.subtitle && action.subtitle.toLowerCase().includes(query.toLowerCase()))
+        ),
+    [query]
+  );
 
   // Fetch from Unified Search API with Caching
   const { data: apiResults = [], isLoading: isApiLoading } = useQuery({
@@ -223,15 +236,23 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
     {}
   );
 
-  // Custom order for groups
-  const groupOrder = ['action', 'resident', 'house', 'payment', 'security', 'document'];
+  // The single rendered order: badges and the Cmd/Ctrl+1-5 hotkey both read
+  // from this (and the shortcut map built from it) instead of each
+  // re-deriving their own view of "order" — see src/lib/search/global-search-order.ts.
+  const orderedResults = useMemo(
+    () => buildOrderedSearchResults(results, groupOrder),
+    [results]
+  );
+  const shortcutIndex = useMemo(
+    () => buildSearchShortcutIndex(orderedResults),
+    [orderedResults]
+  );
 
   // Handle selection
   const handleSelect = useCallback(
     (href: string) => {
       // Find the item to save it to recent (search safely in results)
       const selectedItem = results.find(r => r.href === href);
-      console.log('Selected:', href, selectedItem);
 
       if (selectedItem) {
         addSearch({
@@ -258,19 +279,21 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
         onOpenChange(!open);
       }
 
-      // Quick select with ⌘1-5
+      // Quick select with ⌘1-5. Indexes `orderedResults` — the same
+      // rendered order the on-screen badges number from — so the shortcut
+      // always opens the item labelled with that number.
       if (open && (e.metaKey || e.ctrlKey) && /^[1-5]$/.test(e.key)) {
         e.preventDefault();
         const index = parseInt(e.key) - 1;
-        if (results[index]) {
-          handleSelect(results[index].href);
+        if (orderedResults[index]) {
+          handleSelect(orderedResults[index].href);
         }
       }
     };
 
     document.addEventListener('keydown', down);
     return () => document.removeEventListener('keydown', down);
-  }, [open, onOpenChange, results, handleSelect]);
+  }, [open, onOpenChange, orderedResults, handleSelect]);
 
   const shortcutKey = os === 'mac' ? '⌘' : 'Ctrl';
 
@@ -393,9 +416,10 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
           <div className="hidden" /> // Hide helper when showing recents
         )}
 
-        {/* Render groups in specific order */}
+        {/* Render groups in specific order. Badge numbers are looked up from
+            `shortcutIndex`, the map built off the same `orderedResults`
+            sequence the Cmd/Ctrl+1-5 handler indexes — not recomputed here. */}
         {(() => {
-          let globalIndex = 0;
           return groupOrder.map((type) => {
             const items = groupedResults[type];
             if (!items || items.length === 0) return null;
@@ -406,8 +430,7 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
             return (
               <CommandGroup key={type} heading={label}>
                 {items.map((item) => {
-                  globalIndex++;
-                  const shortcutIndex = globalIndex <= 5 ? globalIndex : null;
+                  const itemShortcut = shortcutIndex.get(item.href) ?? null;
 
                   return (
                     <CommandItem
@@ -428,10 +451,10 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
                         </div>
                       </div>
 
-                      {shortcutIndex && (
+                      {itemShortcut && (
                         <div className="flex items-center gap-1 opacity-0 group-aria-selected:opacity-100 transition-opacity">
                           <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-                            {shortcutKey}{shortcutIndex}
+                            {shortcutKey}{itemShortcut}
                           </kbd>
                         </div>
                       )}
