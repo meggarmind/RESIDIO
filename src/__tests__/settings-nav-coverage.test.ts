@@ -67,6 +67,9 @@ describe('settings navigation coverage', () => {
       '/settings/data-management',
       '/settings/cron-status',
       '/settings/system/health',
+      '/settings/system',
+      '/settings/system/maintenance',
+      '/settings/system/data',
     ]);
 
     const unlisted = routesOnDisk()

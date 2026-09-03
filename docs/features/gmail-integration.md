@@ -11,7 +11,7 @@ Instead of manually uploading PDF statements, Residio can securely fetch emails 
 ### Secure OAuth Connection
 - **Gmail API**: Uses Google OAuth 2.0 for secure access to the mailbox.
 - **Granular Scopes**: Requests only the minimum necessary permissions (`gmail.readonly`).
-- **Configuration**: Setup is performed via the `/settings/system` (or `/settings/billing`) page where admins can manage the client ID, secret, and refresh tokens.
+- **Configuration**: Setup is performed via the `/settings/email-integration/config` (or `/settings/billing`) page where admins can manage the client ID, secret, and refresh tokens.
 
 ### PDF Processing
 - **Decryption**: The system includes automatic decryption for password-protected bank statements using `qpdf`.

@@ -263,7 +263,18 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/message-templates': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES],
   '/settings/announcement-categories': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
 
-  // System health
+  // Maintenance & Data
+  // Maintenance mode and data retention are genuine configuration and stay in
+  // Settings (#176, ADR-0004) — moved up a level so they no longer sit beside
+  // the new top-level /system dashboard, which means something entirely
+  // different. "Prune Data" stays on /settings/data-retention beside the
+  // retention rule it runs, per ADR-0004.
+  '/settings/maintenance': [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+  '/settings/data-retention': [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
+  // Retained after the move (#176): all three of these paths are now
+  // redirect stubs and each is a page component that runs after
+  // middleware, so these entries are what gate who reaches them — deleting
+  // any would widen access to the generic /settings fallback. See ADR-0004.
   '/settings/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
   '/settings/system/maintenance': [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
   '/settings/system/data': [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
