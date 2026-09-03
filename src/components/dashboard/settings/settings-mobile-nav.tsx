@@ -7,6 +7,7 @@ import { Menu, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isIndexChild, type SettingsGroup, type SettingsItem } from '@/config/settings-nav';
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation';
+import { useSettingsNavState } from '@/hooks/use-settings-nav-state';
 import { Button } from '@/components/ui/button';
 import {
     Sheet,
@@ -36,16 +37,20 @@ export function SettingsMobileNav() {
     const pathname = usePathname();
     const [open, setOpen] = React.useState(false);
     const { groups } = useSettingsNavigation();
-
-    // Null means "whichever group holds the current page", resolved at render.
-    // The effect this replaces only opened the active group after mount, so the
-    // sheet opened collapsed and then jumped.
-    const [overrideGroup, setOverrideGroup] = React.useState<string | null>(null);
     const activeGroupTitle = groups.find((g) => isGroupActive(pathname, g))?.title ?? null;
-    const expandedGroup = overrideGroup ?? activeGroupTitle;
 
-    const toggleGroup = (title: string) => {
-        setOverrideGroup(expandedGroup === title ? '' : title);
+    // Same store as the desktop sidebar (`settings-sidebar.tsx`), so opening
+    // or collapsing a group on one surface is reflected on the other, and
+    // more than one group can be open at once here too — this used to be a
+    // strict single-open accordion driven by local `overrideGroup` state,
+    // which disagreed with desktop's "many groups open" model. See
+    // `use-settings-nav-state.ts` for why this lives outside React (the root
+    // `app/template.tsx` remounts this component on every navigation) and for
+    // the reopen-on-entry rule `activeGroupTitle` feeds.
+    const { userToggled, setGroupOpen } = useSettingsNavState(activeGroupTitle);
+
+    const toggleGroup = (title: string, isOpen: boolean) => {
+        setGroupOpen(title, !isOpen);
     };
 
     return (
@@ -69,13 +74,15 @@ export function SettingsMobileNav() {
                 <ScrollArea className="h-[calc(100vh-5rem)]">
                     <div className="flex flex-col p-4 space-y-4">
                         {groups.map((group) => {
-                            const isExpanded = expandedGroup === group.title;
                             const isActiveGroup = isGroupActive(pathname, group);
+                            // The active group stays open unless the reader closes it —
+                            // same fallback as desktop's `isOpen` in settings-sidebar.tsx.
+                            const isExpanded = userToggled[group.title] ?? isActiveGroup;
 
                             return (
                                 <div key={group.title} className="space-y-1">
                                     <button
-                                        onClick={() => toggleGroup(group.title)}
+                                        onClick={() => toggleGroup(group.title, isExpanded)}
                                         className={cn(
                                             "flex items-center justify-between w-full p-2 text-sm font-medium rounded-md transition-colors hover:bg-muted/50",
                                             isActiveGroup && !isExpanded && "bg-muted/30 text-primary"
