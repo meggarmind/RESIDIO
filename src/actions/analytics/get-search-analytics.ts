@@ -1,35 +1,41 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 interface SearchAnalyticsResult {
     topSearches: { query_text: string; count: number }[];
     zeroResultSearches: { query_text: string; count: number }[];
 }
 
+/**
+ * Returns the top searched queries and top zero-result queries within a date
+ * range, aggregated from `search_logs`.
+ *
+ * `search_logs` records what every admin typed into search (query_text),
+ * who searched (user_id), and whether it matched anything (results_count) —
+ * that's admin-behavioural log data, closest in kind to an audit trail, so
+ * reading it requires the same permission as the audit log
+ * (`settings.view_audit_logs`) rather than a general analytics permission
+ * that doesn't exist yet.
+ */
 export async function getSearchAnalytics(startDate: string, endDate: string): Promise<{ data: SearchAnalyticsResult | null; error: string | null }> {
+    const auth = await authorizePermission(PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS);
+    if (!auth.authorized) {
+        return { data: null, error: auth.error || 'Unauthorized' };
+    }
+
     try {
         const supabase = await createServerSupabaseClient();
 
-        // Top Searches
-        // Note: plain RPC or a view would be better for aggregation, but we can do simple grouping if rows are few, 
-        // or use .rpc() if we created a function. Since we didn't create an RPC, we have to raw SQL or fetch and aggregate.
-        // Fetching all logs might be heavy. Let's use a simple RPC call if we can, or raw SQL.
-        // Since we can't easily add RPC without migration in this step and I want to avoid complex migrations if not needed,
-        // I will try to use a raw query or just select and aggregate in memory (limit to last X rows? no, bad for analytics).
-        // Actually, Supabase client allows .rpc().
-
-        // Let's use a raw SQL query via rpc if possible, but I don't have a stored procedure.
-        // I can use `supabase.from('search_logs').select('query_text')` and aggregate, but that's bad.
-
-        // BETTER APPROACH: Use `rpc` for aggregation. I will add an RPC function via migration? 
-        // Wait, the user rules say: "When adding a Feature...".
-        // I'll stick to a simpler approach: create a view or function.
-        // Actually, I can use `count()` with grouping if I had view.
-
-        // For now, I'll fetch the last 1000 logs within date range and aggregated in JS. 
-        // It's not scalable for millions, but fine for "Residio" scale.
-
+        // There is no aggregation RPC/view for search_logs, so we fetch a
+        // bounded window of rows (capped at 2000) within the requested date
+        // range and group them client-side into topSearches / zeroResultSearches.
+        // At Residio's current volume (tens of rows total) this is exact. If
+        // search_logs ever grows large enough to approach the 2000-row cap,
+        // this would need to become a real SQL GROUP BY (view or RPC) instead
+        // of an in-memory aggregation — not needed at current scale.
         const { data: logs, error } = await supabase
             .from('search_logs')
             .select('query_text, results_count')
