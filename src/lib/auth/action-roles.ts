@@ -201,6 +201,9 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/approvals': [PERMISSIONS.APPROVALS_VIEW],
   '/dashboard': [], // All authenticated users
 
+  // System — fallback first, then the specific pages that override it.
+  '/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
+
   // Settings — fallback first, then the specific pages that override it.
   '/settings': [PERMISSIONS.SETTINGS_VIEW],
 
