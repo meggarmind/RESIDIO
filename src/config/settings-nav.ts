@@ -59,7 +59,8 @@ export const settingsConfig: SettingsGroup[] = [
                     { title: "Reminder Schedule", href: "/settings/notifications/reminders/schedule", description: "Configure reminder escalation", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
                     { title: "Templates", href: "/settings/notifications/templates", description: "Message templates", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
                     { title: "Schedules", href: "/settings/notifications/schedules", description: "Notification schedules", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
-                    { title: "History", href: "/settings/notifications/history", description: "Sent notifications log", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
+                    // History moved to /system/notification-history (ADR-0004): it shows
+                    // sent-notification state, not configuration.
                 ]
             },
             { title: "WhatsApp Operations", href: "/settings/whatsapp", description: "Review consent and pending contacts", permissions: [PERMISSIONS.WHATSAPP_VIEW] },
@@ -154,7 +155,8 @@ export const settingsConfig: SettingsGroup[] = [
                 ]
             },
             { title: "Cron Status", href: "/settings/cron-status", description: "Scheduled job runs and failures", permissions: [PERMISSIONS.SYSTEM_MONITOR] },
-            { title: "Notification Queue", href: "/settings/notification-queue", description: "Pending notifications", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
+            // Notification Queue moved to /system/notification-queue (ADR-0004): it shows
+            // live queue state, not configuration.
         ]
     }
 ];

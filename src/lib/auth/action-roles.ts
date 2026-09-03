@@ -204,6 +204,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // System — fallback first, then the specific pages that override it.
   '/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
   '/system/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
+  '/system/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
+  '/system/notification-history': [PERMISSIONS.NOTIFICATIONS_MANAGE],
 
   // Settings — fallback first, then the specific pages that override it.
   '/settings': [PERMISSIONS.SETTINGS_VIEW],
