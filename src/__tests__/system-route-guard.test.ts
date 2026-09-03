@@ -27,17 +27,30 @@ describe('system route guard', () => {
     expect(systemRoute).toContain(PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS);
   });
 
-  it('catches every /system/* path via the generic entry', () => {
+  it('leaves no /system/* path unmatched, including one nobody has built', () => {
     // Middleware's own resolution, reproduced: longest matching prefix wins.
     const resolve = (routes: string[], pathname: string) =>
       [...routes].sort((a, b) => b.length - a.length).find((route) => pathname.startsWith(route));
 
     const routes = Object.keys(ROUTE_PERMISSIONS);
 
-    // The point of this slice: no /system path may fall through unmatched,
-    // because an unmatched path skips the authorization block entirely.
-    for (const pathname of ['/system', '/system/audit-logs', '/system/accounts/pending']) {
-      expect(resolve(routes, pathname)).toBe('/system');
+    // The property, which must survive later slices adding their own entries:
+    // no /system path resolves to `undefined`, because an unmatched path skips
+    // the authorization block entirely and is served to anyone. Asserting
+    // *which* entry catches it would break the moment a slice adds a more
+    // specific one -- and that override is correct, not a regression.
+    //
+    // The invented path is the load-bearing case: it stands in for the next
+    // /system page someone adds without thinking about middleware.
+    for (const pathname of [
+      '/system',
+      '/system/audit-logs',
+      '/system/accounts/pending',
+      '/system/nobody-has-built-this-yet',
+    ]) {
+      const guard = resolve(routes, pathname);
+      expect(guard, `${pathname} falls through the route table unguarded`).toBeDefined();
+      expect(guard!.startsWith('/system')).toBe(true);
     }
   });
 
