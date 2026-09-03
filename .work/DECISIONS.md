@@ -316,3 +316,27 @@ line explicitly as its own work ("Update the pulsing system-health quick-link at
 but until #177 lands, the header's health indicator points a user at the settings landing
 page rather than at anything health-related. **Carried into #177's brief as a required
 edit.** **Reversible:** one href.
+
+---
+
+**D21 — #178 | A nav permission was narrowed in a way no test could catch.** The
+implementer changed the "Roles & Permissions" nav item from
+`[SYSTEM_MANAGE_ROLES, SYSTEM_ASSIGN_ROLES]` to `[SYSTEM_MANAGE_ROLES]`, reading the issue's
+"(definitions only)" as meaning only role-definers need the page.
+
+That reading is wrong on the facts. `/settings/roles` still carries the **Assignment Rules**
+tab, and #172 deliberately kept `SYSTEM_ASSIGN_ROLES` on that route for exactly this reason:
+*"someone who can only assign roles still needs to see the Assignment Rules governing what
+they assign."* The parenthetical means the *account-work* half moved to `/system/accounts`,
+not that the audience narrowed.
+
+**Why no gate caught it.** `settings-nav-coverage.test.ts` asserts
+`item.permissions ⊆ ROUTE_PERMISSIONS[guard]`. Narrowing keeps that true, so the test stays
+green. The assertion is built to catch a nav entry advertising a page a role *cannot* open;
+it is structurally blind to the inverse — a nav entry hiding a page a role *may* open. Both
+are defects; only one is tested.
+
+**Taken:** restored both permissions, with a comment naming #172 so a future reader does not
+re-narrow it on the same misreading. Flagged to QA as something to verify rather than
+accept, and QA was additionally asked to diff *every* item's permissions against `epic/180`
+for other narrowings of the same shape. **Reversible:** one array.
