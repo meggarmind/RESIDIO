@@ -204,6 +204,11 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // System — fallback first, then the specific pages that override it.
   '/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
   '/system/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
+  // Role Assignments, Pending Accounts and Orphaned Accounts moved here from
+  // /settings/roles (#172, ADR-0004: day-to-day account work is not
+  // configuration). Narrower than /settings/roles: this page only needs to
+  // assign roles, not define them, so it does not require SYSTEM_MANAGE_ROLES.
+  '/system/accounts': [PERMISSIONS.SYSTEM_ASSIGN_ROLES],
   '/system/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/system/notification-history': [PERMISSIONS.NOTIFICATIONS_MANAGE],
   '/system/data-tools': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],

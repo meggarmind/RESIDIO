@@ -54,10 +54,11 @@ describe('settings navigation coverage', () => {
 
   it('lists every settings page that has one', () => {
     // /settings/user-roles is a permanent redirect into /settings/roles, and
-    // Every path here is a permanent redirect into its /system/* equivalent
-    // (see ADR-0004: Settings is configuration-only), or, for
-    // /settings/user-roles, a long-standing redirect within Settings. None is
-    // intentionally a nav destination of its own, so none should be listed.
+    // Every path here is a permanent redirect rather than a page of its own,
+    // so none should appear in the nav. All but one point into /system/*
+    // (ADR-0004: Settings is configuration-only); /settings/user-roles is an
+    // older redirect that now lands on /system/accounts too, since that is
+    // where role assignments moved.
     const REDIRECTS = new Set([
       '/settings/user-roles',
       '/settings/audit-logs',
