@@ -42,6 +42,7 @@ function isGroupActive(pathname: string, group: SettingsGroup): boolean {
 export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
     const pathname = usePathname();
     const { groups } = useSettingsNavigation();
+    const activeGroupTitle = groups.find((group) => isGroupActive(pathname, group))?.title ?? null;
 
     // Only groups the reader has opened or closed by hand. The group containing
     // the current page is always open, derived below rather than pushed into
@@ -50,8 +51,11 @@ export function SettingsSidebar({ className, ...props }: SettingsSidebarProps) {
     //
     // Held outside React because the root `app/template.tsx` remounts this
     // component on every navigation; as component state the reader's choice
-    // did not survive a single click. See `use-settings-nav-state.ts`.
-    const { userToggled, setGroupOpen } = useSettingsNavState();
+    // did not survive a single click. See `use-settings-nav-state.ts`. Passing
+    // `activeGroupTitle` lets the hook reopen a group the reader collapsed
+    // once they navigate into it from outside, rather than hiding the page
+    // they are looking at.
+    const { userToggled, setGroupOpen } = useSettingsNavState(activeGroupTitle);
 
     const toggleGroup = (title: string, isOpen: boolean) => {
         setGroupOpen(title, !isOpen);
