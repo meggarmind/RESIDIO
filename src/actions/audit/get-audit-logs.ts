@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { sanitizeSearchInput } from '@/lib/utils';
 import type { AuditLogWithActor, AuditAction, AuditEntityType } from '@/types/database';
 
@@ -24,28 +26,18 @@ type GetAuditLogsResponse = {
 
 /**
  * Get audit logs with filtering and pagination.
- * Only accessible to admin and chairman roles.
+ * Only accessible to roles holding `settings.view_audit_logs` (super_admin,
+ * vice_chairman — per ADR-0006, chairman does not read audit logs).
  */
 export async function getAuditLogs(
   params: GetAuditLogsParams = {}
 ): Promise<GetAuditLogsResponse> {
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS);
+  if (!auth.authorized) {
+    return { data: null, total: 0, error: auth.error || 'Insufficient permissions' };
+  }
+
   const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { data: null, total: 0, error: 'Unauthorized' };
-  }
-
-  // Check role (only admin/chairman can view audit logs)
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || !['admin', 'chairman'].includes(profile.role)) {
-    return { data: null, total: 0, error: 'Insufficient permissions' };
-  }
 
   const {
     entityType,
@@ -124,23 +116,12 @@ export async function getAuditStats(): Promise<{
   data: { today: number; thisWeek: number; thisMonth: number } | null;
   error: string | null;
 }> {
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Insufficient permissions' };
+  }
+
   const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { data: null, error: 'Unauthorized' };
-  }
-
-  // Check role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || !['admin', 'chairman'].includes(profile.role)) {
-    return { data: null, error: 'Insufficient permissions' };
-  }
 
   const now = new Date();
 
@@ -178,23 +159,12 @@ export async function getAuditActors(): Promise<{
   data: Array<{ id: string; full_name: string; email: string }> | null;
   error: string | null;
 }> {
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Insufficient permissions' };
+  }
+
   const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { data: null, error: 'Unauthorized' };
-  }
-
-  // Check role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || !['admin', 'chairman'].includes(profile.role)) {
-    return { data: null, error: 'Insufficient permissions' };
-  }
 
   // Get distinct actor IDs from audit logs, then fetch their profiles
   const { data: actorIds, error: actorError } = await supabase
