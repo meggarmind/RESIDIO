@@ -47,7 +47,7 @@ export async function getApprovalRequests(params: {
   const supabase = await createServerSupabaseClient();
   const { status = 'pending', request_type, page = 1, limit = 20 } = params;
 
-  // Permission check (migrated from legacy authorizeAction)
+  // Permission check (migrated off the legacy role-list check)
   const auth = await authorizePermission(PERMISSIONS.APPROVALS_VIEW);
   if (!auth.authorized) {
     return { data: null, count: 0, error: auth.error || 'Unauthorized' };
@@ -185,7 +185,7 @@ export async function approveRequest(
 ): Promise<ApprovalActionResponse> {
   const supabase = await createServerSupabaseClient();
 
-  // Permission check (migrated from legacy authorizeAction)
+  // Permission check (migrated off the legacy role-list check)
   const auth = await authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT);
   if (!auth.authorized) {
     return { success: false, error: auth.error || 'Unauthorized' };
@@ -238,7 +238,7 @@ export async function rejectRequest(
 ): Promise<ApprovalActionResponse> {
   const supabase = await createServerSupabaseClient();
 
-  // Permission check (migrated from legacy authorizeAction)
+  // Permission check (migrated off the legacy role-list check)
   const auth = await authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT);
   if (!auth.authorized) {
     return { success: false, error: auth.error || 'Unauthorized' };

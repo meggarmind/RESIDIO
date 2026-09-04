@@ -33,7 +33,7 @@ type BackfillResult = {
 export async function backfillOwnershipHistory(): Promise<BackfillResult> {
   const adminClient = createAdminClient();
 
-  // Permission check (migrated from legacy authorizeAction)
+  // Permission check (migrated off the legacy role-list check)
   const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
   if (!auth.authorized) {
     return { success: false, error: auth.error || 'Unauthorized', summary: null };

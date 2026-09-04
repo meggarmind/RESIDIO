@@ -39,7 +39,7 @@ export async function getFinancialOverview(
 ): Promise<FinancialOverviewResult> {
   const supabase = await createServerSupabaseClient();
 
-  // Permission check (migrated from legacy authorizeAction)
+  // Permission check (migrated off the legacy role-list check)
   const auth = await authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
   if (!auth.authorized) {
     return {

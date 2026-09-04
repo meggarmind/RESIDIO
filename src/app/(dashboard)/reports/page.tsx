@@ -20,7 +20,7 @@ export default async function ReportsPage() {
         redirect('/login');
     }
 
-    // Permission check (migrated from legacy authorizeAction)
+    // Permission check (migrated off the legacy role-list check)
     const auth = await authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
     if (!auth.authorized) {
         redirect('/dashboard');

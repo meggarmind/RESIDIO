@@ -485,7 +485,7 @@ export async function rejectAsOccupier(
 export async function processExpiredApprovals(): Promise<ProcessExpiredResponse> {
   const supabase = await createServerSupabaseClient();
 
-  // Permission check (migrated from legacy authorizeAction)
+  // Permission check (migrated off the legacy role-list check)
   const auth = await authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT);
   if (!auth.authorized) {
     return { success: false, processedCount: 0, error: auth.error || 'Unauthorized' };
