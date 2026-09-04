@@ -65,10 +65,17 @@ Repair is `npm ci` (about 3 minutes with a warm cache). Worktrees no longer shar
 
 ## Standing rules for every QA agent
 
-1. **328 lint warnings are baseline.** Only a rise in the warning count, or any
-   lint *error*, is chargeable to a slice.
+1. **326 lint warnings are baseline** as of wave 4a (328 at the branch point; #169
+   removed one via dead imports, #174 one more). Only a rise in the warning count, or
+   any lint *error*, is chargeable to a slice.
 2. A failure listed above is never charged against a remediation budget.
-3. `prettier` is present in `node_modules` at 3.7.4 but absent from
-   `package.json` — the masked state described by #163. Tests are green *only
-   because of that stray install*; a clean `npm ci` reproduces the breakage.
-   Until #163 lands, do not read a green test run as proof of a clean install.
+3. ~~`prettier` is absent from `package.json`; a clean `npm ci` reproduces #163's
+   breakage.~~ **RETRACTED 2026-09-03 — do not brief this to anyone.** It was the
+   premise of #163 and it is false. `prettier@3.7.4` is a declared `dependencies`
+   entry of `@react-email/render@2.0.0` and has been in the committed
+   `package-lock.json` since `4590ecd` (2025-12-21). A cold `npm ci` in a throwaway
+   clone of `epic/180` — no `node_modules` at all — exits 0 and runs 383/383 green.
+   #163 is closed as not reproducible; full evidence in D9. **A green test run here
+   is ordinary evidence, not a masked state.** If tests fail on `prettier`, you have
+   the D14 corruption, not this — check `ls node_modules/prettier | wc -l` and
+   `npm ci`.

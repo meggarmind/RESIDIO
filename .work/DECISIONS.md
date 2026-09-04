@@ -369,3 +369,36 @@ assumed: `src/middleware.ts` now builds `routePermissionConfig` as `{ ...ROUTE_P
 '/portal': [] }`, with a comment recording that the old copy had silently dropped eight
 routes. **The guards are effective.** #104 was commented with this correction, since its
 list of seven affected routes may now be shorter than when it was filed.
+
+---
+
+**D24 — process | The coordination files disagreed with git, and the stale half was the
+one being briefed to agents.** A reconciliation on 2026-09-04 found `STATE.md` a full
+wave behind (wave 4a listed IN-PROGRESS with both issues merged), `REPORT.md`'s table
+stopping at "#174 in progress" with five closed slices missing, `AGENTS-INFLIGHT.md`
+still describing the wave 0+1 dispatch while `STATE.md`'s Next action pointed at it as a
+live roster, and — the one that could do damage — **`BASELINE.md` standing rule 3 still
+telling every QA agent that a clean `npm ci` reproduces #163's breakage**, five days
+after D9 disproved exactly that. A QA agent briefed on rule 3 would discount a green
+test run as "masked".
+**Taken:** all four corrected in place, retractions left visible with strikethrough
+rather than deleted, so a reader who remembers the old claim sees it withdrawn instead
+of silently absent. **Standing correction: a retraction is not done when the decision is
+logged — it is done when every file that briefs an agent has been swept.** D9 was
+recorded correctly and still leaked for five days.
+
+---
+
+**D25 — baseline | A second file shows the D10 load-contention flake.**
+`src/app/api/whatsapp/webhook/twilio/__tests__/route.test.ts` timed out at vitest's 15s
+limit in a full-suite run on 2026-09-04, and passed in **835ms** run alone. Same shape as
+D10's `module-integration.test.ts`: heavy import cost (the full-suite run spent 280s in
+import across workers) tipping a file over a timeout it clears easily in isolation.
+Options: (a) raise this file's timeout as D10 did for the integration scan, (b) record it
+and re-run on failure.
+**Taken: (b), for now.** D10's fix was justified because the failure *reads as a real
+defect* — "a write action is missing `authorizePermission`" — and would derail a QA
+agent. A timeout reads as what it is. But two files now means the cause is the suite's
+import cost, not either file, so a third is likely.
+**Standing rule for QA agents: a timeout in a full-suite run is not a failure until the
+file has been re-run alone.** **Reversible:** one constant, if it recurs.
