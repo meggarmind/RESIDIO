@@ -22,7 +22,9 @@
     "db:types": "npx supabase gen types typescript --local > src/types/database.generated.ts",
     "docs:drift": "node scripts/docs-drift.mjs",
     "docs:verify": "node scripts/docs-verify.mjs",
-    "supabase:status": "npx supabase status"
+    "supabase:status": "npx supabase status",
+    "rbac:matrix:build": "node scripts/build-role-access-matrix.mjs",
+    "rbac:matrix:diff": "node scripts/diff-role-access-matrix.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

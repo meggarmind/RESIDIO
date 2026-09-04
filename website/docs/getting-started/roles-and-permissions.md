@@ -10,8 +10,8 @@ residio_sources:
   - src/app/(dashboard)/system/accounts/**
   - src/components/admin/role-assignment-section.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 8b49d5d
-residio_verified_at: '2026-09-03'
+residio_verified_commit: 96e11f5
+residio_verified_at: '2026-09-04'
 residio_app_version: '0.4.0'
 ---
 
@@ -96,6 +96,22 @@ An account only holds permissions once it is approved, so the Accounts search wi
 Assigning roles is day-to-day account work rather than configuration, so it lives under **System → Accounts** rather than Settings. The **Super Administrator** always has access, and the permission can also be granted on its own to another role. The Super Administrator role cannot be removed through the app at all.
 
 **Settings → Roles & Permissions → Assignment Rules** controls which resident types are eligible for each executive role. Set that before assigning, not after.
+
+### The estate always keeps one Super Administrator
+
+At least one active account must hold **Super Administrator** at all times. If only one account holds it, Residio refuses to:
+
+- move that account to a different role,
+- reject that account, or
+- delete the Super Administrator role itself.
+
+You will see *"This is the last active Super Administrator. Grant the Super Administrator role to another active account first."*
+
+Handing the job over is fine — grant Super Administrator to the incoming person, then change the outgoing person's role. It is only leaving the estate with nobody that is refused.
+
+:::warning[This one is not just a screen message]
+The rule is enforced in the database, not only in the app, so it also holds for anything that changes accounts outside the dashboard. There is no override, and no support path that bypasses it: the only way through is to give someone else the role first.
+:::
 
 ## Permission levels
 
