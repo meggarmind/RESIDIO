@@ -10,8 +10,8 @@ residio_sources:
   - src/actions/notifications/**
   - src/app/(dashboard)/settings/email/**
   - src/app/(dashboard)/settings/notifications/**
-residio_verified_commit: 7bc84a4
-residio_verified_at: '2026-09-03'
+residio_verified_commit: 66ded86
+residio_verified_at: '2026-09-04'
 residio_app_version: '0.4.0'
 ---
 
