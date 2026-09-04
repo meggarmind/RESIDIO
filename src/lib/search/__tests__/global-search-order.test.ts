@@ -162,8 +162,88 @@ describe('badge number and Cmd+N agreement (acceptance criterion)', () => {
     // Cmd+6/7/8 are out of the supported 1-5 range (the handler's regex
     // already rejects those keys; here we just confirm they carry no
     // shortcut number).
-    expect(shortcuts.has('payment-pay1')).toBe(false);
-    expect(shortcuts.has('security-sec1')).toBe(false);
-    expect(shortcuts.has('document-doc1')).toBe(false);
+    // Keyed by href, as `buildSearchShortcutIndex` builds them. These read
+    // `/payment/pay1` rather than `payment-pay1`: the composite form was the
+    // pre-rekey key shape, and against an href-keyed map it is absent for
+    // every input, so asserting it would pass even if pay1 DID carry a badge.
+    expect(shortcuts.has('/payment/pay1')).toBe(false);
+    expect(shortcuts.has('/security/sec1')).toBe(false);
+    expect(shortcuts.has('/document/doc1')).toBe(false);
+    // Guard the guard: the 5th item does carry a badge, so the three
+    // assertions above are testing absence, not a key-format mismatch.
+    expect(shortcuts.get('/house/house1')).toBe(5);
+  });
+});
+
+describe('badge/Cmd+N agreement survives permission filtering (issue #164)', () => {
+  /**
+   * Issue #164 makes both the API response (server-side, per category) and
+   * the Quick Actions list (client-side) permission-filtered. Neither
+   * filtering step changes `buildOrderedSearchResults` or
+   * `buildSearchShortcutIndex` themselves -- a filtered-away category simply
+   * never appears in the `results` array these functions are given, the same
+   * as the "absent group" case above. This test pins that down concretely
+   * for the shape a real permission-filtered response takes: a role holding
+   * only `residents.view` and `security.view` sees two of the four Quick
+   * Actions (Add Resident, View Security Log -- not Create Invoice or Add
+   * House) and two of the five API categories (residents, security
+   * contacts); houses, payments and documents contribute nothing.
+   */
+  it('numbers correctly when Quick Actions and API categories are both permission-filtered', () => {
+    // What the caller actually receives once billing.view and houses.view
+    // are absent: only two Quick Actions survive `hasAnyPermission`
+    // filtering, and only two of the five API categories were queried at
+    // all (houses/payments/documents were skipped server-side, so they
+    // never contribute items here -- there is no empty-array placeholder to
+    // reason about, they are simply absent from `results`).
+    const permittedQuickActions = [item('action', 'add-resident'), item('action', 'security-log')];
+    const apiResults = [
+      item('resident', 'res1'),
+      item('resident', 'res2'),
+      item('security', 'sec1'),
+      item('security', 'sec2'),
+    ];
+    const results = [...permittedQuickActions, ...apiResults];
+
+    const ordered = buildOrderedSearchResults(results, GROUP_ORDER);
+    const shortcuts = buildSearchShortcutIndex(ordered);
+
+    // No gap for the filtered-out house/payment/document groups: action and
+    // resident sit adjacent, resident and security sit adjacent.
+    expect(ordered.map((r) => r.id)).toEqual([
+      'add-resident', 'security-log', 'res1', 'res2', 'sec1', 'sec2',
+    ]);
+
+    // 6 items total -> exactly 5 get a shortcut, the 6th (sec2) does not.
+    expect(shortcuts.size).toBe(5);
+    expect(shortcuts.get('/action/add-resident')).toBe(1);
+    expect(shortcuts.get('/action/security-log')).toBe(2);
+    expect(shortcuts.get('/resident/res1')).toBe(3);
+    expect(shortcuts.get('/resident/res2')).toBe(4);
+    expect(shortcuts.get('/security/sec1')).toBe(5);
+    expect(shortcuts.has('/security/sec2')).toBe(false);
+
+    // The acceptance criterion itself: every badge number N resolves, via
+    // Cmd+N (`ordered[N-1]`), to the exact item carrying that badge.
+    for (const [href, n] of shortcuts) {
+      expect(pressShortcut(ordered, n)?.href).toBe(href);
+    }
+  });
+
+  it('numbers correctly when every API category is filtered away and only Quick Actions remain', () => {
+    // A role with no view permission at all for residents/houses/payments/
+    // security/documents (e.g. a narrowly-scoped operational role): the API
+    // contributes nothing, but Quick Actions the role does hold a
+    // permission for still render and still get shortcuts starting at 1 --
+    // this is the "entire category filtered away" case called out for
+    // issue #164, taken to its limit of every API category at once.
+    const permittedQuickActions = [item('action', 'add-resident')];
+    const results = [...permittedQuickActions];
+
+    const ordered = buildOrderedSearchResults(results, GROUP_ORDER);
+    const shortcuts = buildSearchShortcutIndex(ordered);
+
+    expect(ordered.map((r) => r.id)).toEqual(['add-resident']);
+    expect(shortcuts.get('/action/add-resident')).toBe(1);
   });
 });

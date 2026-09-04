@@ -25,6 +25,8 @@ import {
 
 import { useOS } from '@/hooks/use-os';
 import { useRecentSearches } from '@/hooks/use-recent-searches';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { QUICK_ACTIONS } from '@/lib/search/quick-actions';
 import { buildOrderedSearchResults, buildSearchShortcutIndex } from '@/lib/search/global-search-order';
 
 interface SearchApiResponse {
@@ -72,39 +74,6 @@ const typeLabels = {
 // from — see `buildOrderedSearchResults`.
 const groupOrder = ['action', 'resident', 'house', 'payment', 'security', 'document'];
 
-// Static Quick Actions Definition
-const QUICK_ACTIONS: SearchResult[] = [
-  {
-    id: 'add-resident',
-    title: 'Add New Resident',
-    subtitle: 'Register a new resident to a property',
-    href: '/residents/new',
-    type: 'action',
-  },
-  {
-    id: 'create-invoice',
-    title: 'Create Invoice',
-    subtitle: 'Generate a new invoice for a resident',
-    href: '/billing',
-    type: 'action',
-  },
-  {
-    id: 'add-house',
-    title: 'Add House',
-    subtitle: 'Add a new property to the estate',
-    href: '/houses/new', // Assumes this route exists or modal trigger
-    type: 'action',
-  },
-  {
-    id: 'security-log',
-    // The page on disk is /security/logs; this pointed at the singular and so
-    // dropped the user on a 404 every time.
-    title: 'View Security Log',
-    subtitle: 'Check recent security activity',
-    href: '/security/logs',
-    type: 'action',
-  },
-];
 
 /**
  * Global Search Command Palette
@@ -131,18 +100,31 @@ export function GlobalSearchCommand({ open, onOpenChange }: GlobalSearchCommandP
   // Debounce query for API calls
   const [debouncedQuery] = useDebounce(query, 300);
 
+  // Quick Actions are filtered by permission before the query filter --
+  // mirrors `useNavigation`/`useSettingsNavigation`'s "show while loading"
+  // behaviour so the palette doesn't flash actions in and then remove them
+  // once permissions resolve.
+  const { hasAllPermissions, isLoading: isAuthLoading } = useAuth();
+  const permittedQuickActions = useMemo(
+    () =>
+      isAuthLoading
+        ? QUICK_ACTIONS
+        : QUICK_ACTIONS.filter(action => hasAllPermissions(action.permissions)),
+    [isAuthLoading, hasAllPermissions]
+  );
+
   // Filter Quick Actions locally (immediate feedback). Memoized so identity
   // only changes when `query` actually changes, keeping `results` (and the
   // ordering/hotkey state derived from it, below) stable across re-renders.
-  const quickActionResults = useMemo(
+  const quickActionResults = useMemo<SearchResult[]>(
     () =>
       query.length === 0
-        ? QUICK_ACTIONS
-        : QUICK_ACTIONS.filter(action =>
+        ? permittedQuickActions
+        : permittedQuickActions.filter(action =>
           action.title.toLowerCase().includes(query.toLowerCase()) ||
           (action.subtitle && action.subtitle.toLowerCase().includes(query.toLowerCase()))
         ),
-    [query]
+    [query, permittedQuickActions]
   );
 
   // Fetch from Unified Search API with Caching
