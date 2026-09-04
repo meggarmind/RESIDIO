@@ -43,7 +43,7 @@ epic #182.
 
 | | |
 |---|---|
-| Phase | **Waves 0-4b COMPLETE (16/17 closed).** #179 (4c) then **#181 (4d)** remain |
+| Phase | **Waves 0-4c COMPLETE (17/18 closed).** Only **#181** (4d) remains |
 | Last completed | #164 merged `575d284` and closed |
 | Gates (2026-09-04 on `968c68d`) | **75 files / 446 tests**, tsc exit 0, lint **0 errors / 326 warnings**, build exit 0. No flake this run; see **D25** for the two files that time out under load |
 | Epic HEAD | `968c68d`, post-#164 merge + doc re-stamp (16 closed: 163-178) |
@@ -73,32 +73,45 @@ Legend: TODO / IN-PROGRESS / QA / MERGED / CLOSED / BLOCKED
 | 165 | search_logs unread | 4a | **CLOSED** | merged `2e815c5` | D18 + D22: card mounted **and** the action guarded |
 | 166 | Cmd+1-5 wrong result | 4a | **CLOSED** | merged `b80c6c3` | divergence was latent, not live — see below |
 | 164 | search permission filter | 4b | **CLOSED** | merged `575d284` | route was fully unauthenticated, not just unfiltered; D26 |
-| 179 | palette indexes Settings | 4c | **TODO — the last slice** | — | makes #166's latent divergence live; reads `settings-nav.ts` + `navigation.ts` |
+| 179 | palette indexes Settings | 4c | **CLOSED** | merged `9d1c879` | cmdk was discarding the new matching before render (D27); first component-render test in the repo |
 | 180 | EPIC | — | OPEN, In progress | epic/180 | closes when #179 lands |
 | 181 | audit + queue RBAC bypass | 4d | **QUEUED** | — | re-scoped: 3 audit fns on legacy roles, queue module unguarded, **and an RLS migration** |
 
+## D27 — cmdk filters on top of your filter
+
+`CommandDialog` renders cmdk with filtering **on** by default. cmdk scores every
+`CommandItem` against its `value` prop and hides anything scoring 0 — so a local
+filter that matches on anything wider than `value` has its extra matches silently
+discarded before render. In #179 this hid the issue's own acceptance criterion:
+`"email import"` scored 0 and never appeared, while `"import email"` scored above
+zero and did, so the unit test asserting the two were equal passed against a UI in
+which they were opposites.
+
+`global-search-command.tsx` now passes `shouldFilter={false}`, which makes its local
+filters load-bearing: **any source added to that palette must filter itself.** The two
+resident-portal palettes deliberately still use cmdk's default.
+
+No unit test could see this, because none rendered the component. The repo's first
+component-rendering test (`src/components/dashboard/__tests__/`) covers it; it was
+verified load-bearing by reverting the fix and watching it fail. That brought in
+`jsdom`, `@testing-library/react` and `@testing-library/jest-dom` as devDependencies
+— **other worktrees and the other machine need `npm install`** before `npx vitest run`
+will pass.
+
 ## Next action
 
-**Dispatch #179, solo — the last slice.** Index Settings and System pages in the
-Cmd+K palette, generated from `settings-nav.ts` and the System section of
-`navigation.ts` so they cannot drift, permission-filtered with the same
-`hasAnyPermission` the sidebars use. "email import" must find the page.
+**Dispatch #181 — the last slice of the epic.** The issue as filed was wrong in
+both directions; **the correcting comment on #181 is the brief, not the body.** It
+covers three audit functions gated on legacy roles, the unguarded notification-queue
+module, an `audit_logs` RLS migration that contradicts ADR-0006, and the pre-epic
+cleanup absorbed into it (the unread `AuthorizationResult.role`, the dead
+`LEGACY_TO_NEW_ROLE_MAP`, middleware's unused `role` select, and the UI/server
+divergence at `role-assignment-section.tsx:169` / `pending-accounts-list.tsx:72`).
 
-Its brief must carry, or the work goes wrong:
-
-- **#179 is what makes #166's fix load-bearing.** Review proved the badge/hotkey
-  divergence does not reproduce today only because `/api/search` returns
-  type-keyed arrays that concatenate in `groupOrder` sequence. Settings entries
-  keyed on route slugs break that accident. The shortcut map is keyed by **href**
-  for exactly this reason — do not rekey it.
-- **`groupedResults` and `orderedResults`** in `global-search-command.tsx` are two
-  independent implementations of one bucket-by-type rule, agreeing by convention.
-  #179 is the last slice on this file; unify them rather than adding a third.
-- **Quick Actions moved** to `src/lib/search/quick-actions.ts` (#164), guarded by
-  `src/__tests__/quick-action-permissions.test.ts`. New palette entries need the
-  same treatment: permissions that match `ROUTE_PERMISSIONS`, and a test that
-  fails when they are narrowed — a subset assertion will not (D21).
-- #178 settled the final Settings shape: six groups, 30 links.
+It needs a migration, so it needs the database — which is now **available and
+verified** (see "Database facts, verified 2026-09-04" above). Check its RLS change
+against the 34 legacy policies recorded there before writing it; #181's migration and
+epic #182's slices #186/#187 touch the same surface.
 
 Per issue, unchanged: review the diff myself, run the four gates, spawn a QA
 agent on `git diff epic/180...<branch>`, and only on a clean PASS **commit +
