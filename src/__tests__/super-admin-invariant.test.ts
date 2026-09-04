@@ -23,7 +23,7 @@ const read = (relative: string) =>
   readFileSync(fileURLToPath(new URL(relative, import.meta.url)), 'utf8');
 
 const migration = read(
-  '../../supabase/migrations/20260904230000_require_active_super_admin.sql'
+  '../../supabase/migrations/20260904215745_require_active_super_admin.sql'
 );
 
 const assignRoleSource = read('../actions/roles/assign-role.ts');
