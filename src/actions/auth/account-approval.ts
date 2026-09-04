@@ -4,6 +4,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
 import { assignRoleToProfile } from '@/actions/roles/assign-role';
 
 /**
@@ -236,6 +237,13 @@ export async function rejectAccount(
 
   if (profileError || !profile) {
     return { success: false, error: 'Account not found' };
+  }
+
+  // Bootstrap invariant (#184). Rejection is not only a pending-queue action:
+  // it clears role_id and moves approval_status off 'active', so it can strand
+  // the estate if aimed at the last administrator.
+  if (await isLastActiveSuperAdmin(profileId)) {
+    return { success: false, error: LAST_SUPER_ADMIN_ERROR };
   }
 
   // Service role for the same reason as approveAccount above.

@@ -4,6 +4,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
 import { sanitizeSearchInput } from '@/lib/utils';
 import type { ProfileApprovalStatus } from '@/types/database';
 
@@ -313,6 +314,14 @@ export async function assignRoleToProfile(
 
   if (role.name === 'chairman' && auth.roleName !== 'super_admin') {
     return { success: false, error: 'Only Super Administrator can assign the Chairman role' };
+  }
+
+  // Bootstrap invariant (#184): moving the last active super_admin onto another
+  // role would leave the estate with no administrator. The database trigger
+  // refuses this write regardless; the check is here so the administrator sees
+  // why rather than a Postgres exception.
+  if (role.name !== 'super_admin' && (await isLastActiveSuperAdmin(profileId))) {
+    return { success: false, error: LAST_SUPER_ADMIN_ERROR };
   }
 
   const legacyRole = LEGACY_ROLE_MAP[role.name] ?? null;
