@@ -135,7 +135,9 @@ The workflow file is at `.github/workflows/backup-cron-invoices.yml`.
 ### How It Works
 
 1. Runs daily at 7 AM UTC (1 hour after Vercel cron)
-2. Checks `/api/health/cron-status` endpoint
+2. Checks the `/api/health/cron-status` endpoint, authenticated with the
+   `CRON_SECRET` bearer (the workflow sends it; without it the check returns
+   403, and the workflow would treat that as "unknown" and quietly do nothing)
 3. If invoice generation is "critical" (overdue), triggers backup generation
 4. Otherwise, does nothing (Vercel cron worked)
 
@@ -155,7 +157,16 @@ Check system health at:
 
 ```
 GET /api/health/cron-status
+Authorization: Bearer $CRON_SECRET
 ```
+
+**This endpoint requires authentication.** It was public until #174, which
+closed it: it reads through the service-role client and returns the estate's
+full cron status. It now accepts either a signed-in session holding
+`system.monitor`, or the same `CRON_SECRET` bearer every `/api/cron/*` route
+expects. An unauthenticated request gets `403` with a JSON body. If you are
+curling it by hand, send the bearer; if you want it in a browser, sign in and
+open **System → Cron Status** instead.
 
 Returns status of all cron jobs:
 - `healthy` - Job ran as expected

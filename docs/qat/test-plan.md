@@ -129,10 +129,10 @@ These operations are destructive against shared data. They are **scripted as Ski
 
 | Operation | Location | Why excluded |
 |---|---|---|
-| `pruneSystemData` | `/settings/system/data` | Hard-deletes audit logs older than 6 months, notifications, and search logs. Irreversible. |
+| `pruneSystemData` | `/settings/data-retention` | Hard-deletes audit logs older than 6 months, notifications, and search logs. Irreversible. |
 | `resetEmailImports` | `/payments/email-imports` | Hard-deletes **all** email imports, messages, transactions, and any payment records linked to them — globally when called without a `userId`. |
 | `promoteWhatsAppPilotToEstate` | `/settings/whatsapp` | One-way. Expands WhatsApp messaging from the pilot allowlist to the entire estate; cannot be reverted through the UI. |
-| Enable maintenance mode | `/settings/system/maintenance` | Redirects every non-`super_admin` user app-wide to `/maintenance` until manually disabled. |
+| Enable maintenance mode | `/settings/maintenance` | Redirects every non-`super_admin` user app-wide to `/maintenance` until manually disabled. |
 | Estate-wide `generateMonthlyInvoices` | `/billing/generate` | Would create hundreds of real invoices. The **preview** step is tested; execution stops before confirm. |
 | `deletePayment` / `bulkUpdatePayments` on pre-existing rows | `/payments` | Hard delete with no soft-delete fallback. Only QAT-created rows are touched, with the selection visually confirmed first. |
 | Cron endpoints (`/api/cron/*`) | direct HTTP | Trigger the same bulk operations outside the UI approval flow. `CRON_SECRET` is unset here in any case. |
@@ -180,7 +180,7 @@ Actor: unauthenticated, then super_admin. Routes: `/login`, `/register`, `/forgo
 | QAT-AUTH-07 | Session persists across reload | After login, hard-reload `/dashboard`. | Remains authenticated; no bounce to `/login`. | EXPLORATORY |
 | QAT-AUTH-08 | Authenticated user redirected away from `/login` | While logged in, navigate to `/login`. | Redirects to `/dashboard`. | `src/middleware.ts` |
 | QAT-AUTH-09 | Sign-out clears session | Open user menu, sign out, then navigate to `/dashboard`. | Lands on `/login`; protected content is not rendered. | `dashboard.spec.ts` |
-| QAT-AUTH-10 | Unauthenticated route protection sweep | With no session, request each of: `/dashboard`, `/residents`, `/houses`, `/payments`, `/billing`, `/security`, `/reports`, `/approvals`, `/documents`, `/announcements`, `/settings`, `/settings/roles`, `/settings/system`, `/approvals`, `/personnel`, `/projects`, `/expenditure`. | Every one redirects to `/login`. Any route that renders content is a **CRITICAL** authorization bypass. | `src/middleware.ts` |
+| QAT-AUTH-10 | Unauthenticated route protection sweep | With no session, request each of: `/dashboard`, `/residents`, `/houses`, `/payments`, `/billing`, `/security`, `/reports`, `/approvals`, `/documents`, `/announcements`, `/settings`, `/settings/roles`, `/settings/system`, `/system`, `/system/audit-logs`, `/approvals`, `/personnel`, `/projects`, `/expenditure`. | Every one redirects to `/login`. Any route that renders content is a **CRITICAL** authorization bypass. | `src/middleware.ts` |
 | QAT-AUTH-11 | Register page renders and validates | Navigate to `/register`; submit blank, then with mismatched or weak password. | Page renders; validation messages appear for each violation. | EXPLORATORY |
 | QAT-AUTH-12 | Forgot-password page behaviour | Navigate to `/forgot-password`; submit a malformed email, then a well-formed one. | Malformed is rejected inline. Well-formed shows a neutral confirmation that does not reveal whether the address is registered. | Security |
 | QAT-AUTH-13 | Reset-password page without token | Navigate to `/reset-password` with no token. | Renders an error or redirects; does not present a usable reset form. | Negative |
@@ -433,8 +433,8 @@ Actor: super_admin. One case per page. **Expected result for every case:** the p
 
 | ID | Route | ID | Route |
 |---|---|---|---|
-| QAT-SMK-01 | `/announcements` | QAT-SMK-21 | `/settings/audit-logs` |
-| QAT-SMK-02 | `/announcements/new` | QAT-SMK-22 | `/settings/data-management` |
+| QAT-SMK-01 | `/announcements` | QAT-SMK-21 | `/system/audit-logs` |
+| QAT-SMK-02 | `/announcements/new` | QAT-SMK-22 | `/system/data-tools` |
 | QAT-SMK-03 | `/documents` | QAT-SMK-23 | `/settings/cron-status` |
 | QAT-SMK-04 | `/personnel` | QAT-SMK-24 | `/settings/roles` |
 | QAT-SMK-05 | `/projects` | QAT-SMK-25 | `/settings/user-roles` (expect redirect) |
@@ -448,11 +448,11 @@ Actor: super_admin. One case per page. **Expected result for every case:** the p
 | QAT-SMK-13 | `/settings/streets` | QAT-SMK-33 | `/settings/notifications` |
 | QAT-SMK-14 | `/settings/house-types` | QAT-SMK-34 | `/settings/notifications/templates` |
 | QAT-SMK-15 | `/settings/transaction-tags` | QAT-SMK-35 | `/settings/notifications/schedules` |
-| QAT-SMK-16 | `/settings/document-categories` | QAT-SMK-36 | `/settings/notifications/history` |
-| QAT-SMK-17 | `/settings/announcement-categories` | QAT-SMK-37 | `/settings/notification-queue` |
+| QAT-SMK-16 | `/settings/document-categories` | QAT-SMK-36 | `/system/notification-history` |
+| QAT-SMK-17 | `/settings/announcement-categories` | QAT-SMK-37 | `/system/notification-queue` |
 | QAT-SMK-18 | `/settings/message-templates` | QAT-SMK-38 | `/settings/email` |
-| QAT-SMK-19 | `/settings/system` | QAT-SMK-39 | `/settings/email-integration` |
-| QAT-SMK-20 | `/settings/system/health` | QAT-SMK-40 | `/settings/whatsapp` |
+| QAT-SMK-19 | `/settings/maintenance` | QAT-SMK-39 | `/settings/email-integration` |
+| QAT-SMK-20 | `/system/cron-status` | QAT-SMK-40 | `/settings/whatsapp` |
 
 Additional targeted checks folded into the smoke pass:
 
@@ -460,7 +460,7 @@ Additional targeted checks folded into the smoke pass:
 |---|---|---|
 | QAT-SMK-41 | Middleware route-config gap | `src/middleware.ts` defines a local `routePermissionConfig` that omits prefixes present in `ROUTE_PERMISSIONS` (`/documents`, `/announcements`, `/settings/announcement-categories`, `/settings/document-categories`, `/settings/email-integration`, `/payments/email-imports`). Determine whether those pages self-gate. If an under-privileged role could reach them, this is an authorization gap. |
 | QAT-SMK-42 | `resetEmailImports` authorization | The action has `logAudit` but **no** `authorizePermission()` guard, while being globally destructive. Determine what actually gates it (RLS on the user-scoped client, or the UI control). Assess and record severity. **Do not invoke it.** |
-| QAT-SMK-43 | Maintenance mode is off | `/settings/system/maintenance` shows maintenance mode disabled at the end of the run — confirming the campaign did not enable it. |
+| QAT-SMK-43 | Maintenance mode is off | `/settings/maintenance` shows maintenance mode disabled at the end of the run — confirming the campaign did not enable it. |
 | QAT-SMK-44 | Unconfigured integrations degrade gracefully | `/settings/email`, `/settings/email-integration`, and `/settings/whatsapp` each report their provider as unconfigured rather than crashing or claiming readiness. |
 
 ---

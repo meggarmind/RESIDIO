@@ -53,9 +53,28 @@ describe('settings navigation coverage', () => {
   });
 
   it('lists every settings page that has one', () => {
-    // /settings/user-roles is a permanent redirect into /settings/roles, so it
-    // is intentionally not a nav destination of its own.
-    const REDIRECTS = new Set(['/settings/user-roles']);
+    // /settings/user-roles is a permanent redirect into /settings/roles, and
+    // Every path here is a permanent redirect rather than a page of its own,
+    // so none should appear in the nav. All but one point into /system/*
+    // (ADR-0004: Settings is configuration-only); /settings/user-roles is an
+    // older redirect that now lands on /system/accounts too, since that is
+    // where role assignments moved.
+    const REDIRECTS = new Set([
+      '/settings/user-roles',
+      '/settings/audit-logs',
+      '/settings/notification-queue',
+      '/settings/notifications/history',
+      '/settings/data-management',
+      '/settings/cron-status',
+      '/settings/system/health',
+      '/settings/system',
+      '/settings/system/maintenance',
+      '/settings/system/data',
+      // The Gmail import config sub-page merged into its parent (#178): both
+      // rendered the same Gmail connection card, and the child configured no
+      // rule despite the nav calling it "Email import rules".
+      '/settings/email-integration/config',
+    ]);
 
     const unlisted = routesOnDisk()
       .filter((route) => !navHrefs.has(route) && !REDIRECTS.has(route))

@@ -1,10 +1,10 @@
 import {
-    Settings,
-    Shield,
+    Home,
     CreditCard,
     Mail,
-    Home,
-    Activity,
+    Shield,
+    Plug,
+    Wrench,
     LucideIcon
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
@@ -33,69 +33,43 @@ export type SettingsGroup = {
     items: SettingsItem[];
 };
 
+/**
+ * Six groups by subject/module, matching the dimension the main dashboard
+ * sidebar already uses (ADR-0004, ADR-0005). Integrations is the one stated
+ * exception: WhatsApp and Gmail import sit together because they are external
+ * services, even though the subjects they touch (communications, billing
+ * imports) belong to other groups.
+ *
+ * Nesting (a parent item with `children`) is kept only where it already
+ * existed and where it does real work: several routes share a path prefix
+ * with a sibling (e.g. `/settings/billing` and `/settings/billing/late-fees`,
+ * or `/settings` and every other settings route), and `isItemActive` in
+ * `settings-sidebar.tsx` highlights on a prefix match when an item has no
+ * parent. Flattening those into plain siblings would make the shorter route
+ * light up on every page under it. See `isIndexChild` below.
+ */
 export const settingsConfig: SettingsGroup[] = [
     {
-        title: "General & Preferences",
-        icon: Settings,
+        title: "Estate",
+        icon: Home,
         items: [
             {
-                title: "General",
+                title: "Estate",
                 href: "/settings",
                 children: [
                     { title: "Overview", href: "/settings", description: "Estate information and basics", permissions: [PERMISSIONS.SETTINGS_VIEW] },
                     { title: "Estate Info", href: "/settings/estate-info", description: "Name, address, contact details", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
                     { title: "Branding", href: "/settings/branding", description: "Logo and visual identity", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
-                    { title: "Data Management", href: "/settings/data-management", description: "Administrative data tools", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
                 ]
             },
             { title: "Appearance", href: "/settings/appearance", description: "Theme and display settings", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
-            {
-                title: "Notifications",
-                href: "/settings/notifications",
-                permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
-                children: [
-                    { title: "Overview", href: "/settings/notifications", description: "Notification dashboard", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
-                    { title: "Reminders", href: "/settings/notifications/reminders", description: "Invoice payment reminders", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
-                    { title: "Reminder Schedule", href: "/settings/notifications/reminders/schedule", description: "Configure reminder escalation", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
-                    { title: "Templates", href: "/settings/notifications/templates", description: "Message templates", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
-                    { title: "Schedules", href: "/settings/notifications/schedules", description: "Notification schedules", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
-                    { title: "History", href: "/settings/notifications/history", description: "Sent notifications log", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
-                ]
-            },
-            { title: "WhatsApp Operations", href: "/settings/whatsapp", description: "Review consent and pending contacts", permissions: [PERMISSIONS.WHATSAPP_VIEW] },
-        ]
-    },
-    {
-        title: "Estate Configuration",
-        icon: Home,
-        items: [
             { title: "Streets", href: "/settings/streets", description: "Manage estate streets", permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE] },
             { title: "House Types", href: "/settings/house-types", description: "Define property types", permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE] },
             { title: "Document Categories", href: "/settings/document-categories", description: "Organize document types", permissions: [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES] },
-            { title: "Transaction Tags", href: "/settings/transaction-tags", description: "Financial categorization", permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE] },
         ]
     },
     {
-        title: "Access & Security",
-        icon: Shield,
-        items: [
-            { title: "Roles & Permissions", href: "/settings/roles", description: "Create roles and choose what each can do", permissions: [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES] },
-            {
-                title: "Security",
-                href: "/settings/security",
-                permissions: [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
-                children: [
-                    // Titled "Security Settings" rather than "General" so it does not
-                    // read as a second copy of the General & Preferences group.
-                    { title: "Security Settings", href: "/settings/security", description: "Security protocols and limits", permissions: [PERMISSIONS.SETTINGS_MANAGE_SECURITY] },
-                    { title: "Contact Categories", href: "/settings/security/categories", description: "Validity periods and requirements", permissions: [PERMISSIONS.SECURITY_MANAGE_CATEGORIES] },
-                ]
-            },
-            { title: "Audit Logs", href: "/settings/audit-logs", description: "View system activity", permissions: [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS] },
-        ]
-    },
-    {
-        title: "Billing & Finance",
+        title: "Financial",
         icon: CreditCard,
         items: [
             {
@@ -111,15 +85,7 @@ export const settingsConfig: SettingsGroup[] = [
                 ]
             },
             { title: "Bank Accounts", href: "/settings/bank-accounts", description: "Estate bank accounts", permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE] },
-            {
-                title: "Import Integration",
-                href: "/settings/email-integration",
-                permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW],
-                children: [
-                    { title: "Connection", href: "/settings/email-integration", description: "Gmail connection status", permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW] },
-                    { title: "Import Configuration", href: "/settings/email-integration/config", description: "Email import rules", permissions: [PERMISSIONS.EMAIL_IMPORTS_CONFIGURE] },
-                ]
-            },
+            { title: "Transaction Tags", href: "/settings/transaction-tags", description: "Financial categorization", permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE] },
         ]
     },
     {
@@ -127,7 +93,21 @@ export const settingsConfig: SettingsGroup[] = [
         icon: Mail,
         items: [
             {
-                title: "Email",
+                title: "Notifications",
+                href: "/settings/notifications",
+                permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE],
+                children: [
+                    { title: "Overview", href: "/settings/notifications", description: "Notification dashboard", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
+                    { title: "Reminders", href: "/settings/notifications/reminders", description: "Invoice payment reminders", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
+                    { title: "Reminder Schedule", href: "/settings/notifications/reminders/schedule", description: "Configure reminder escalation", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
+                    { title: "Notification Templates", href: "/settings/notifications/templates", description: "Message templates", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
+                    { title: "Notification Schedules", href: "/settings/notifications/schedules", description: "Notification schedules", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
+                    // History moved to /system/notification-history (ADR-0004): it shows
+                    // sent-notification state, not configuration.
+                ]
+            },
+            {
+                title: "Email Notifications",
                 href: "/settings/email",
                 permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
                 children: [
@@ -140,22 +120,66 @@ export const settingsConfig: SettingsGroup[] = [
         ]
     },
     {
-        title: "System Health",
-        icon: Activity,
+        title: "Access & Security",
+        icon: Shield,
         items: [
+            // Definitions only: assigning roles to people lives at
+            // /system/accounts (#172, ADR-0004), which only needs
+            // SYSTEM_ASSIGN_ROLES. This link is revealed by SYSTEM_MANAGE_ROLES
+            // alone so it does not advertise itself to someone who can assign
+            // roles but not define them.
+            // Both permissions, deliberately. The page is definitions-only in the sense
+            // that day-to-day account work moved to /system/accounts (#172) -- but it
+            // still carries the Assignment Rules tab, and #172 kept SYSTEM_ASSIGN_ROLES
+            // on this route precisely so someone who can only assign roles can read the
+            // rules governing what they may assign. Narrowing this to MANAGE_ROLES would
+            // hide from them a page they are still allowed to open.
+            { title: "Roles & Permissions", href: "/settings/roles", description: "Create roles and choose what each can do", permissions: [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES] },
             {
-                title: "System",
-                href: "/settings/system",
-                permissions: [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
+                title: "Security",
+                href: "/settings/security",
+                permissions: [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
                 children: [
-                    { title: "Overview", href: "/settings/system", description: "System health dashboard", permissions: [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS] },
-                    { title: "Maintenance", href: "/settings/system/maintenance", description: "Maintenance mode and messages", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
-                    { title: "Data & Retention", href: "/settings/system/data", description: "Retention policies and pruning", permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION] },
-                    { title: "Health", href: "/settings/system/health", description: "Cron jobs and background tasks", permissions: [PERMISSIONS.SYSTEM_MONITOR] },
+                    // Titled "Security Settings" rather than "General" so it does not
+                    // read as a second copy of another group's overview.
+                    { title: "Security Settings", href: "/settings/security", description: "Security protocols and limits", permissions: [PERMISSIONS.SETTINGS_MANAGE_SECURITY] },
+                    { title: "Contact Categories", href: "/settings/security/categories", description: "Validity periods and requirements", permissions: [PERMISSIONS.SECURITY_MANAGE_CATEGORIES] },
                 ]
             },
-            { title: "Cron Status", href: "/settings/cron-status", description: "Scheduled job runs and failures", permissions: [PERMISSIONS.SYSTEM_MONITOR] },
-            { title: "Notification Queue", href: "/settings/notification-queue", description: "Pending notifications", permissions: [PERMISSIONS.NOTIFICATIONS_MANAGE] },
+        ]
+    },
+    {
+        // The stated exception to grouping-by-subject (ADR-0005): WhatsApp and
+        // Gmail import sit together as external services even though the
+        // subjects they serve (communications, billing imports) live in other
+        // groups. Each keeps its full operational console alongside its
+        // credentials/config, unlike the configuration-only boundary the other
+        // groups hold to (ADR-0004).
+        title: "Integrations",
+        icon: Plug,
+        items: [
+            { title: "WhatsApp", href: "/settings/whatsapp", description: "Provider credentials, rollout, consent, and pending contacts", permissions: [PERMISSIONS.WHATSAPP_VIEW] },
+            { title: "Gmail Import", href: "/settings/email-integration", description: "Connect Gmail, manage the connection, and trigger a manual sync", permissions: [PERMISSIONS.EMAIL_IMPORTS_VIEW] },
+            // Paystack and SMS integrations are planned but not yet built.
+        ]
+    },
+    {
+        title: "Maintenance & Data",
+        icon: Wrench,
+        items: [
+            // Named for what these two pages are — genuine configuration — rather
+            // than "System", which would read as the same thing as the new
+            // top-level /system dashboard (#176, ADR-0004). No "System" parent or
+            // Overview child: that overview had no single successor once its two
+            // links moved up a level, so it was retired rather than kept.
+            { title: "Maintenance", href: "/settings/maintenance", description: "Maintenance mode and messages", permissions: [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE] },
+            { title: "Data & Retention", href: "/settings/data-retention", description: "Retention policies and pruning", permissions: [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION] },
+            // Cron Status moved to /system/cron-status (#174, ADR-0004): it shows live
+            // job status, not configuration. /settings/cron-status and
+            // /settings/system/health are now redirect stubs, not nav destinations.
+            //
+            // Notification Queue moved to /system/notification-queue (ADR-0004): it shows
+            // live queue state, not configuration.
         ]
     }
 ];

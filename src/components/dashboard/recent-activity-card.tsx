@@ -200,7 +200,7 @@ export function RecentActivityCard({ activities, isLoading }: RecentActivityCard
                             asChild
                             className="text-[11px] h-7 px-3 bg-white/40 dark:bg-white/5 hover:bg-white/80 dark:hover:bg-white/10 rounded-full transition-all duration-300 font-medium"
                         >
-                            <Link href="/settings/audit-logs">
+                            <Link href="/system/audit-logs">
                                 All Logs
                                 <ChevronRight className="h-3 w-3 ml-1.5 opacity-60" />
                             </Link>

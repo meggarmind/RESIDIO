@@ -163,6 +163,16 @@ function isAllowlisted(file: string, allowlist: string[]): boolean {
   return allowlist.some((allowed) => normalizedFile.includes(allowed));
 }
 
+/**
+ * These two tests walk every file under `src/actions/**` and read each one.
+ * On an idle machine that takes ~3.8s and ~1.1s against vitest's 5s default,
+ * so under any real CPU contention (a parallel suite, a concurrent worktree,
+ * CI running other jobs) they time out and report as failures of the code
+ * under test rather than of the clock. Give the scan explicit room; it is a
+ * filesystem walk, not a behavioural assertion with a latency budget.
+ */
+const SCAN_TIMEOUT_MS = 60_000;
+
 describe('Module Integration Compliance', () => {
   describe('Permission Checks', () => {
     it('all write actions should use authorizePermission', async () => {
@@ -192,7 +202,7 @@ describe('Module Integration Compliance', () => {
         violations,
         `Files missing permission checks:\n${violations.join('\n')}\n\nAdd permission checks or update PERMISSION_ALLOWLIST in test file.`
       ).toHaveLength(0);
-    });
+    }, SCAN_TIMEOUT_MS);
   });
 
   describe('Audit Logging', () => {
@@ -223,7 +233,7 @@ describe('Module Integration Compliance', () => {
         violations,
         `Files missing audit logging:\n${violations.join('\n')}\n\nAdd logAudit calls or update AUDIT_ALLOWLIST in test file.`
       ).toHaveLength(0);
-    });
+    }, SCAN_TIMEOUT_MS);
   });
 
   describe('Allowlist Tracking', () => {

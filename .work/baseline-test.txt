@@ -1,0 +1,162 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.16 [39m[90mC:/projects/RESIDIO[39m
+
+ [32m✓[39m src/lib/whatsapp/providers/__tests__/twilio.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 106[2mms[22m[39m
+ [32m✓[39m src/actions/billing/__tests__/wallet-settlement-actions.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 125[2mms[22m[39m
+ [32m✓[39m src/actions/email-imports/__tests__/process-email-import.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 96[2mms[22m[39m
+ [32m✓[39m src/lib/notifications/__tests__/invoice-generation-email.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 84[2mms[22m[39m
+ [32m✓[39m src/__tests__/dashboard-metrics.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[32m 224[2mms[22m[39m
+[90mstdout[2m | src/__tests__/integration/module-integration.test.ts[2m > [22m[2mModule Integration Compliance[2m > [22m[2mAllowlist Tracking[2m > [22m[2mshould report current gap counts for visibility
+[22m[39m
+📊 Integration Gap Summary:
+   Permission gaps: 42 files
+   Audit gaps: 5 files
+
+   Remove items from allowlists as they are fixed.
+
+
+ [32m✓[39m src/__tests__/integration/module-integration.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 123[2mms[22m[39m
+[90mstdout[2m | src/__tests__/dashboard-snapshot.test.ts[2m > [22m[2madmin dashboard snapshot contract[2m > [22m[2mfetches full snapshot when authorized
+[22m[39m[getEnhancedDashboardStats] Starting data fetch sequence...
+[getEnhancedDashboardStats] Executing sub-queries in parallel...
+
+[90mstdout[2m | src/__tests__/dashboard-snapshot.test.ts[2m > [22m[2madmin dashboard snapshot contract[2m > [22m[2mfetches full snapshot when authorized
+[22m[39m[getEnhancedDashboardStats] Sub-queries complete. Aggregating results...
+
+[90mstdout[2m | src/__tests__/dashboard-snapshot.test.ts[2m > [22m[2madmin dashboard snapshot contract[2m > [22m[2mgracefully handles partial subsystem query failures via fallback defaults
+[22m[39m[getEnhancedDashboardStats] Starting data fetch sequence...
+[getEnhancedDashboardStats] Executing sub-queries in parallel...
+
+[90mstderr[2m | src/__tests__/dashboard-snapshot.test.ts[2m > [22m[2madmin dashboard snapshot contract[2m > [22m[2mgracefully handles partial subsystem query failures via fallback defaults
+[22m[39m[withTimeout] fetchSecurityAlerts failed or timed out: Error: Security subsystem query failed
+    at Object.<anonymous> (C:/projects/RESIDIO/src/__tests__/dashboard-snapshot.test.ts:86:15)
+    at Object.Mock [90m(file:///C:/projects/RESIDIO/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at fetchSecurityAlerts (C:/projects/RESIDIO/src/actions/dashboard/get-enhanced-dashboard-stats.ts:483:14)
+    at getStatsWithTimeout (C:/projects/RESIDIO/src/actions/dashboard/get-enhanced-dashboard-stats.ts:206:13)
+    at Module.getAdminDashboardSnapshot (C:/projects/RESIDIO/src/actions/dashboard/get-enhanced-dashboard-stats.ts:160:22)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at C:/projects/RESIDIO/src/__tests__/dashboard-snapshot.test.ts:95:20
+    at [90mfile:///C:/projects/RESIDIO/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+[withTimeout] fetchQuickStats failed or timed out: Error: Security subsystem query failed
+    at Object.<anonymous> (C:/projects/RESIDIO/src/__tests__/dashboard-snapshot.test.ts:86:15)
+    at Object.Mock [90m(file:///C:/projects/RESIDIO/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at fetchQuickStats (C:/projects/RESIDIO/src/actions/dashboard/get-enhanced-dashboard-stats.ts:633:18)
+    at getStatsWithTimeout (C:/projects/RESIDIO/src/actions/dashboard/get-enhanced-dashboard-stats.ts:218:13)
+    at Module.getAdminDashboardSnapshot (C:/projects/RESIDIO/src/actions/dashboard/get-enhanced-dashboard-stats.ts:160:22)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at C:/projects/RESIDIO/src/__tests__/dashboard-snapshot.test.ts:95:20
+    at [90mfile:///C:/projects/RESIDIO/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+[withTimeout] fetchActionMetrics failed or timed out: Error: Security subsystem query failed
+    at Object.<anonymous> (C:/projects/RESIDIO/src/__tests__/dashboard-snapshot.test.ts:86:15)
+    at Object.Mock [90m(file:///C:/projects/RESIDIO/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at fetchActionMetrics (C:/projects/RESIDIO/src/actions/dashboard/get-enhanced-dashboard-stats.ts:781:14)
+    at getStatsWithTimeout (C:/projects/RESIDIO/src/actions/dashboard/get-enhanced-dashboard-stats.ts:236:13)
+    at Module.getAdminDashboardSnapshot (C:/projects/RESIDIO/src/actions/dashboard/get-enhanced-dashboard-stats.ts:160:22)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at C:/projects/RESIDIO/src/__tests__/dashboard-snapshot.test.ts:95:20
+    at [90mfile:///C:/projects/RESIDIO/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+
+[90mstdout[2m | src/__tests__/dashboard-snapshot.test.ts[2m > [22m[2madmin dashboard snapshot contract[2m > [22m[2mgracefully handles partial subsystem query failures via fallback defaults
+[22m[39m[getEnhancedDashboardStats] Sub-queries complete. Aggregating results...
+
+ [32m✓[39m src/__tests__/dashboard-snapshot.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 241[2mms[22m[39m
+ [32m✓[39m src/lib/whatsapp/__tests__/financial.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 153[2mms[22m[39m
+ [32m✓[39m src/app/api/whatsapp/webhook/twilio/__tests__/route.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 4394[2mms[22m[39m
+     [33m[2m✓[22m[39m accepts a valid signature, reconstructing the public URL from forwarded headers [33m 4326[2mms[22m[39m
+ [32m✓[39m src/lib/whatsapp/__tests__/outbound.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 127[2mms[22m[39m
+[90mstderr[2m | src/lib/notifications/__tests__/outbound-dispatch.test.ts[2m > [22m[2msettings read layer (issue #136)[2m > [22m[2mdistinguishes a query error from an absent row
+[22m[39mGet setting value "whatsapp_enabled" error: { message: [32m'db unavailable'[39m }
+
+ [32m✓[39m src/lib/notifications/__tests__/outbound-dispatch.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 56[2mms[22m[39m
+[90mstderr[2m | src/lib/whatsapp/__tests__/config.test.ts[2m > [22m[2mloadWhatsAppConfigFromDb failure handling[2m > [22m[2mreports unusable (never throws) when a stored credential fails to decrypt
+[22m[39mFailed to decrypt WhatsApp provider credentials: Error: Unsupported state or unable to authenticate data
+    at C:/projects/RESIDIO/src/lib/whatsapp/__tests__/config.test.ts:171:15
+    at Mock [90m(file:///C:/projects/RESIDIO/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at loadWhatsAppConfigFromDb (C:/projects/RESIDIO/src/lib/whatsapp/config-db.ts:88:55)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at C:/projects/RESIDIO/src/lib/whatsapp/__tests__/config.test.ts:177:20
+    at [90mfile:///C:/projects/RESIDIO/[39mnode_modules/[4m@vitest/runner[24m/dist/index.js:915:20
+
+[90mstderr[2m | src/lib/whatsapp/__tests__/config.test.ts[2m > [22m[2mloadWhatsAppConfigFromDb failure handling[2m > [22m[2mreports unusable (never throws) when a stored credential fails to decrypt
+[22m[39mFailed to decrypt WhatsApp provider credentials: Error: Unsupported state or unable to authenticate data
+    at C:/projects/RESIDIO/src/lib/whatsapp/__tests__/config.test.ts:171:15
+    at Mock [90m(file:///C:/projects/RESIDIO/[39mnode_modules/[4m@vitest/spy[24m/dist/index.js:285:34[90m)[39m
+    at loadWhatsAppConfigFromDb (C:/projects/RESIDIO/src/lib/whatsapp/config-db.ts:88:55)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:103:5)[39m
+    at resolveWhatsAppConfig (C:/projects/RESIDIO/src/lib/whatsapp/config.ts:89:18)
+    at getWhatsAppConfig (C:/projects/RESIDIO/src/lib/whatsapp/config.ts:113:18)
+
+[90mstderr[2m | src/lib/whatsapp/__tests__/config.test.ts[2m > [22m[2mloadWhatsAppConfigFromDb failure handling[2m > [22m[2mfails closed rather than choosing arbitrarily if multiple rows are active
+[22m[39mFailed to load WhatsApp provider credentials: { message: [32m'JSON object requested, multiple (or no) rows returned'[39m }
+
+[90mstderr[2m | src/lib/whatsapp/__tests__/config.test.ts[2m > [22m[2mloadWhatsAppConfigFromDb failure handling[2m > [22m[2mfails closed rather than choosing arbitrarily if multiple rows are active
+[22m[39mFailed to load WhatsApp provider credentials: { message: [32m'JSON object requested, multiple (or no) rows returned'[39m }
+
+[90mstderr[2m | src/lib/whatsapp/__tests__/config.test.ts[2m > [22m[2mloadWhatsAppConfigFromDb failure handling[2m > [22m[2mreports unusable when the credential lookup itself errors
+[22m[39mFailed to load WhatsApp provider credentials: { message: [32m'connection reset'[39m }
+
+ [32m✓[39m src/lib/whatsapp/__tests__/config.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 108[2mms[22m[39m
+ [32m✓[39m src/actions/billing/__tests__/apply-late-fees.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 119[2mms[22m[39m
+ [32m✓[39m src/lib/billing/__tests__/invoice-generation.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 135[2mms[22m[39m
+ [32m✓[39m src/app/api/whatsapp/webhook/__tests__/route.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 314[2mms[22m[39m
+ [32m✓[39m src/actions/personnel/__tests__/personnel-engagements-actions.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 127[2mms[22m[39m
+ [32m✓[39m src/actions/billing/__tests__/invoice-generation-runs-actions.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m src/__tests__/settings-nav-coverage.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 79[2mms[22m[39m
+ [32m✓[39m src/hooks/use-settings-nav-state.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 111[2mms[22m[39m
+ [32m✓[39m src/__tests__/resident-corporate-fields.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/performance/__tests__/telemetry.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/actions/announcements/__tests__/publish-announcement.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m src/__tests__/resident-archive-summary.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 71[2mms[22m[39m
+ [32m✓[39m src/__tests__/billing-resident-filter.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 84[2mms[22m[39m
+ [32m✓[39m src/actions/__tests__/admin-list-performance.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 47[2mms[22m[39m
+ [32m✓[39m src/actions/whatsapp/__tests__/pilot.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/lib/whatsapp/__tests__/foundation.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m src/actions/billing/__tests__/billing-aggregate-rpc.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m src/actions/whatsapp/__tests__/connection.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m src/lib/notifications/__tests__/whatsapp-dispatch.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m src/lib/whatsapp/__tests__/identity.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+[90mstderr[2m | src/actions/security/codes-renewal-reminders.test.ts[2m > [22m[2msecurity renewal reminder reads[2m > [22m[2mfails closed when the batched settings read fails
+[22m[39mGet renewal reminder settings error: { message: [32m'settings unavailable'[39m }
+
+ [32m✓[39m src/actions/security/codes-renewal-reminders.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/actions/whatsapp/__tests__/admin-console.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/lib/billing/__tests__/payment-period.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m src/__tests__/billing-generation-history.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/actions/houses/property-transition.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+ [32m✓[39m src/lib/billing/__tests__/invoice-generation-worker.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/__tests__/integration/issue-monitor.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+ [32m✓[39m src/lib/whatsapp/providers/__tests__/twilio-inbound.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m src/__tests__/dashboard-action-metrics.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m src/lib/billing/__tests__/invoice-generation-history.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/actions/billing/__tests__/billing-query-authorization.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/__tests__/integration/issue-workflow.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m src/lib/notifications/__tests__/admin-notifier.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+ [32m✓[39m src/actions/billing/__tests__/wallet-allocation-atomicity.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/lib/whatsapp/__tests__/templates.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/__tests__/personnel-engagements.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/billing/__tests__/invoice-generation-run-service.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m src/actions/billing/__tests__/invoice-generation-runs.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/matching/__tests__/duplicate-matcher.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/offline/admin-read-cache.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/whatsapp/__tests__/retention.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/__tests__/permission-catalog.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/whatsapp/__tests__/rollout.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m src/lib/audit/__tests__/audit-formatter.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/offline/network-status.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/whatsapp/__tests__/admin-import.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/lib/analytics/__tests__/classify-payment-cadence.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/__tests__/integration/transactional-admin-workflows.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/actions/billing/__tests__/pay-multiple-invoices.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/__tests__/dashboard-navigation-state.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m src/__tests__/database-hardening.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/lib/security/renewal-reminders.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m src/lib/billing/__tests__/wallet-summary.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/__tests__/legacy-role-rls-boundary.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/billing/__tests__/wallet-batch-reconciliation.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m66 passed[39m[22m[90m (66)[39m
+[2m      Tests [22m [1m[32m383 passed[39m[22m[90m (383)[39m
+[2m   Start at [22m 23:43:31
+[2m   Duration [22m 24.29s[2m (transform 15.67s, setup 0ms, import 80.70s, tests 8.10s, environment 41ms)[22m
+
+EXIT=0

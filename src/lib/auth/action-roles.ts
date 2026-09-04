@@ -201,12 +201,33 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/approvals': [PERMISSIONS.APPROVALS_VIEW],
   '/dashboard': [], // All authenticated users
 
+  // System — fallback first, then the specific pages that override it.
+  '/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
+  '/system/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
+  // Role Assignments, Pending Accounts and Orphaned Accounts moved here from
+  // /settings/roles (#172, ADR-0004: day-to-day account work is not
+  // configuration). Narrower than /settings/roles: this page only needs to
+  // assign roles, not define them, so it does not require SYSTEM_MANAGE_ROLES.
+  '/system/accounts': [PERMISSIONS.SYSTEM_ASSIGN_ROLES],
+  '/system/notification-queue': [PERMISSIONS.NOTIFICATIONS_MANAGE],
+  '/system/notification-history': [PERMISSIONS.NOTIFICATIONS_MANAGE],
+  '/system/data-tools': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  // Canonical home for cron job status, moved from /settings/cron-status and
+  // /settings/system/health (#174, ADR-0004: live system state is not
+  // configuration). Matches the route handler's own SYSTEM_MONITOR guard at
+  // src/app/api/health/cron-status/route.ts.
+  '/system/cron-status': [PERMISSIONS.SYSTEM_MONITOR],
+
   // Settings — fallback first, then the specific pages that override it.
   '/settings': [PERMISSIONS.SETTINGS_VIEW],
 
   // General & Preferences
   '/settings/estate-info': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   '/settings/branding': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  // Retained after the move to /system/data-tools: the redirect stub at this
+  // path is a page component and runs after middleware, so this entry is what
+  // gates who reaches it — deleting it would widen access to the generic
+  // /settings fallback. See ADR-0004.
   '/settings/data-management': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   '/settings/appearance': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   '/settings/notifications': [PERMISSIONS.NOTIFICATIONS_MANAGE],
@@ -225,6 +246,10 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/user-roles': [PERMISSIONS.SYSTEM_MANAGE_ROLES, PERMISSIONS.SYSTEM_ASSIGN_ROLES],
   '/settings/security': [PERMISSIONS.SETTINGS_MANAGE_SECURITY, PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
   '/settings/security/categories': [PERMISSIONS.SECURITY_MANAGE_CATEGORIES],
+  // Retained after the move to /system/audit-logs: the redirect stub at this
+  // path is a page component and runs after middleware, so this entry is what
+  // gates who reaches it — deleting it would widen access to the generic
+  // /settings fallback. See ADR-0004.
   '/settings/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
 
   // Billing & finance
@@ -238,10 +263,26 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/settings/message-templates': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES],
   '/settings/announcement-categories': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
 
-  // System health
+  // Maintenance & Data
+  // Maintenance mode and data retention are genuine configuration and stay in
+  // Settings (#176, ADR-0004) — moved up a level so they no longer sit beside
+  // the new top-level /system dashboard, which means something entirely
+  // different. "Prune Data" stays on /settings/data-retention beside the
+  // retention rule it runs, per ADR-0004.
+  '/settings/maintenance': [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
+  '/settings/data-retention': [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
+  // Retained after the move (#176): all three of these paths are now
+  // redirect stubs and each is a page component that runs after
+  // middleware, so these entries are what gate who reaches them — deleting
+  // any would widen access to the generic /settings fallback. See ADR-0004.
   '/settings/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
   '/settings/system/maintenance': [PERMISSIONS.SYSTEM_MANAGE_MAINTENANCE],
   '/settings/system/data': [PERMISSIONS.SYSTEM_MANAGE_DATA_RETENTION],
+  // Retained after the move to /system/cron-status (#174): both of these
+  // paths are now redirect stubs and each is a page component that runs
+  // after middleware, so these entries are what gate who reaches them —
+  // deleting either would widen access to the generic /settings(/system)
+  // fallback. See ADR-0004.
   '/settings/system/health': [PERMISSIONS.SYSTEM_MONITOR],
   '/settings/cron-status': [PERMISSIONS.SYSTEM_MONITOR],
 };

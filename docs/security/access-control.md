@@ -201,7 +201,7 @@ Immutable, append-only audit trail for all data modifications.
 
 - Location: `src/lib/audit/`
 - Documentation: `src/lib/audit/README.md`
-- Viewer: `/settings/audit-logs` (admin/chairman only)
+- Viewer: `/system/audit-logs` (requires `settings.view_audit_logs`, held by `super_admin` and `vice_chairman`; `chairman` does not hold it)
 
 ### logAudit() Utility
 

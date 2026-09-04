@@ -1,0 +1,24 @@
+npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+
+added 1029 packages, and audited 1030 packages in 3m
+
+279 packages are looking for funding
+  run `npm fund` for details
+
+31 vulnerabilities (4 low, 6 moderate, 20 high, 1 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+Some issues need review, and may require choosing
+a different dependency.
+
+Run `npm audit` for details.
+npm warn install-scripts 4 packages have install scripts not yet covered by allowScripts:
+npm warn install-scripts   esbuild@0.27.2 (postinstall: node install.js)
+npm warn install-scripts   msw@2.12.4 (postinstall: node -e "import('./config/scripts/postinstall.js').catch(() => void 0)")
+npm warn install-scripts   sharp@0.34.5 (install: node install/check.js || npm run build)
+npm warn install-scripts   unrs-resolver@1.11.1 (postinstall: napi-postinstall unrs-resolver 1.11.1 check)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+EXIT=0

@@ -31,5 +31,5 @@ The blocking threshold is configurable in **System Settings > Duplicate Matching
 
 ## Files
 - **Logic**: `src/lib/matching/duplicate-scoring.ts` (Pure logic), `src/lib/matching/duplicate-matcher.ts` (DB Service)
-- **Settings**: `src/lib/settings/hierarchical-settings-types.ts`, `src/app/(dashboard)/settings/system/page.tsx`
+- **Settings**: `src/lib/settings/hierarchical-settings-types.ts`, `src/app/(dashboard)/settings/maintenance/page.tsx`
 - **Tests**: `src/lib/matching/__tests__/duplicate-matcher.test.ts`

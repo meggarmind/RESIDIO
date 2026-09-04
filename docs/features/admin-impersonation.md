@@ -20,7 +20,7 @@ To prevent abuse, non-super admins require approval to impersonate residents:
 
 ## Configuration
 
-Settings for impersonation can be found in `/settings/system`:
+Settings for impersonation are stored as hierarchical settings (`src/lib/settings/hierarchical-settings-types.ts`); there is no dedicated admin UI page for them yet:
 - **Approval Mode**: `always_required`, `required_for_non_super_admins`, or `disabled`.
 - **Default Timeout**: Duration for sessions before automatic logout.
 - **Restricted Data**: Ability to hide highly sensitive fields (e.g., specific payment details) even during impersonation.

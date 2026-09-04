@@ -6,7 +6,9 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart3, Wallet, Users, Home, Landmark, Repeat } from 'lucide-react';
+import { BarChart3, Wallet, Users, Home, Landmark, Repeat, Search } from 'lucide-react';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const FinancialDashboard = dynamic(
   () => import('./financial-dashboard').then((m) => ({ default: m.FinancialDashboard })),
@@ -33,6 +35,11 @@ const PaymentBehaviorTab = dynamic(
   { loading: () => <TabSkeleton />, ssr: false }
 );
 
+const SearchTab = dynamic(
+  () => import('@/components/analytics/tabs/search-tab').then((m) => ({ default: m.SearchTab })),
+  { loading: () => <TabSkeleton />, ssr: false }
+);
+
 /**
  * Analytics Page Client Component
  *
@@ -45,6 +52,11 @@ export function AnalyticsPageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
+  const { hasPermission } = useAuth();
+  // search_logs is admin-behavioural log data (what admins typed into
+  // search); gate the tab with the same permission getSearchAnalytics
+  // enforces so the UI never advertises data the action will refuse.
+  const canViewSearchAnalytics = hasPermission(PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS);
 
   const handleTabChange = useCallback((value: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -91,6 +103,12 @@ export function AnalyticsPageClient() {
             <Repeat className="h-3.5 w-3.5 mr-1" />
             Payment Behavior
           </TabsTrigger>
+          {canViewSearchAnalytics && (
+            <TabsTrigger value="search" className="text-xs h-7">
+              <Search className="h-3.5 w-3.5 mr-1" />
+              Search
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="financial" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="financial">
@@ -112,6 +130,12 @@ export function AnalyticsPageClient() {
         <TabsContent value="payment-behavior" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="payment-behavior">
           <PaymentBehaviorTab />
         </TabsContent>
+
+        {canViewSearchAnalytics && (
+          <TabsContent value="search" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="search">
+            <SearchTab />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

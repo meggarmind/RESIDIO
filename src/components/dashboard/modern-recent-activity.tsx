@@ -151,7 +151,7 @@ export function ModernRecentActivity({ activities, isLoading }: ModernRecentActi
           <h3 className="text-xs font-bold tracking-tight">Recent activity</h3>
         </div>
         <Link
-          href="/settings/audit-logs"
+          href="/system/audit-logs"
           className="flex min-h-7 items-center gap-1 rounded-md px-1.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           View audit logs

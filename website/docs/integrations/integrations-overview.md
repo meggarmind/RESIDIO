@@ -10,8 +10,8 @@ residio_sources:
   - src/lib/sms/index.ts
   - src/lib/paystack/index.ts
   - src/lib/email-imports/gmail-client.ts
-residio_verified_commit: 93ed5d0
-residio_verified_at: '2026-08-29'
+residio_verified_commit: 7bc84a4
+residio_verified_at: '2026-09-03'
 residio_app_version: '0.4.0'
 ---
 
@@ -57,7 +57,7 @@ Follow the same sequence for email, SMS, and WhatsApp alike.
 
 | Symptom | First place to look |
 |---|---|
-| Residents report no messages | The channel's settings page, then **Settings → Notification Queue** |
+| Residents report no messages | The channel's settings page, then **System → Notification Queue** |
 | Messages queued but never sent | **Settings → Cron Status** for the notification job |
 | Bank alerts not appearing | **Settings → Email Integration** connection status and last sync time |
 | Online payments missing | **Approvals** for unverified transactions, then the payment gateway logs |

@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -13,6 +12,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { useSectionedNavigation } from '@/hooks/use-navigation';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
 import { useSidebarState } from '@/hooks/use-sidebar-state';
+import { useSidebarNavState } from '@/hooks/use-sidebar-nav-state';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface SidebarProps {
@@ -28,8 +28,12 @@ export function Sidebar({ className }: SidebarProps) {
   const { logoUrl } = useEstateLogo();
   const { isCollapsed, isExpanded, toggleCollapsed, setHoverExpanded } = useSidebarState();
 
-  // Expandable submenu state
-  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
+  // Expandable submenu state. Only menus the reader explicitly toggled are
+  // recorded here; a menu they never touched auto-expands while they are
+  // inside it via the `userToggled[item.id] ?? isParentOfActive` overlay
+  // below. Held outside React because `app/template.tsx` remounts this
+  // component on every navigation -- see `use-sidebar-nav-state.ts`.
+  const { userToggled, setMenuOpen } = useSidebarNavState();
 
   // Check if any child is active
   const hasActiveChild = (children?: { href: string }[]) => {
@@ -40,32 +44,9 @@ export function Sidebar({ className }: SidebarProps) {
   };
 
   // Toggle submenu expansion
-  const toggleSubmenu = (menuId: string) => {
-    setExpandedMenus((prev) => {
-      const next = new Set(prev);
-      if (next.has(menuId)) {
-        next.delete(menuId);
-      } else {
-        next.add(menuId);
-      }
-      return next;
-    });
+  const toggleSubmenu = (menuId: string, isOpen: boolean) => {
+    setMenuOpen(menuId, !isOpen);
   };
-
-  // Auto-expand sub-menus containing active children on load/pathname change
-  useEffect(() => {
-    sections.forEach(section => {
-      section.items.forEach(item => {
-        if (item.children && hasActiveChild(item.children)) {
-          setExpandedMenus(prev => {
-            const next = new Set(prev);
-            next.add(item.id);
-            return next;
-          });
-        }
-      });
-    });
-  }, [pathname, sections]);
 
   return (
     <aside
@@ -151,7 +132,7 @@ export function Sidebar({ className }: SidebarProps) {
                   const isActive = pathname === item.href;
                   const hasChildren = item.children && item.children.length > 0;
                   const isParentOfActive = hasActiveChild(item.children);
-                  const isMenuExpanded = expandedMenus.has(item.id) || isParentOfActive;
+                  const isMenuExpanded = userToggled[item.id] ?? isParentOfActive;
                   const showBadgeCount = item.showBadge && typeof pendingCount === 'number' && pendingCount > 0;
 
                   const navLink = (
@@ -217,7 +198,7 @@ export function Sidebar({ className }: SidebarProps) {
                         </Tooltip>
                       ) : hasChildren ? (
                         <button
-                          onClick={() => toggleSubmenu(item.id)}
+                          onClick={() => toggleSubmenu(item.id, isMenuExpanded)}
                           className="w-full text-left"
                         >
                           {navLink}

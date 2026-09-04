@@ -100,7 +100,7 @@ Community announcements, scheduling, read receipts
 Notification system - templates, schedules, queue, preferences
 - `templates` - CRUD for notification templates
 - `schedules` - Notification trigger schedules
-- `queue` / `queue-management` - Queue operations
+- `queue` - Queue operations (the former `queue-management` module was retired in #173; `queue.ts` is the single backend)
 - `history` - Notification history queries
 - `preferences` - Per-resident notification preferences
 - `send` - Send notifications
@@ -342,15 +342,16 @@ shadcn/ui components - button, card, form, table, dialog, sheet, tabs, badge, al
 - `/settings/security` - Security settings
 - `/settings/roles`, `/settings/user-roles` - Role management
 - `/settings/notifications/*` - Notification settings (templates, schedules, history, reminders)
-- `/settings/audit-logs` - Audit trail viewer
-- `/settings/system` - System settings (maintenance mode, etc.)
+- `/system/audit-logs` - Audit trail viewer
+- `/settings/maintenance` - Maintenance mode and messages
+- `/settings/data-retention` - Retention policies and pruning
 - `/settings/streets`, `/settings/house-types` - Reference data
 - `/settings/bank-accounts`, `/settings/transaction-tags` - Financial reference
 - `/settings/document-categories`, `/settings/announcement-categories` - Category management
 - `/settings/email-integration`, `/settings/email` - Email configuration
 - `/settings/message-templates` - Message template library
 - `/settings/cron-status` - Cron job monitoring
-- `/settings/notification-queue` - Queue management
+- `/system/notification-queue` - Outgoing notification queue
 
 ### Resident Portal (/(resident)/portal/)
 - `/portal` - Portal dashboard

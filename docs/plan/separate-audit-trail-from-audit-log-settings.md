@@ -1,5 +1,16 @@
 # Separate Audit Trail from Audit Log Settings
 
+> **SUPERSEDED — do not implement.** This plan proposed moving the audit-log
+> viewer to a top-level `/audit-trail` and repurposing `/settings/audit-logs`
+> as configuration. The problem it identifies is real and was accepted; the
+> remedy was decided differently. `docs/adr/0004-settings-is-configuration-only.md`
+> answers it as part of a general rule rather than a one-off, and issue #171
+> moved the viewer to **`/system/audit-logs`** alongside the other surfaces an
+> administrator watches. Retention and Prune Data stay together on the
+> retention page, per the ADR's same-page test for manual triggers.
+>
+> Kept for the reasoning it records. Following its steps now would undo #171.
+
 **Repo:** `C:\projects\RESIDIO` (Next.js 16 / React 19 / Supabase, branch `master`)
 
 ## Context

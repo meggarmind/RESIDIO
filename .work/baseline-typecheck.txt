@@ -1,0 +1,3 @@
+src/__tests__/integration/issue-monitor.test.ts(76,96): error TS2322: Type 'string' is not assignable to type 'never'.
+src/__tests__/integration/issue-monitor.test.ts(79,115): error TS2322: Type 'string' is not assignable to type 'never'.
+EXIT=2

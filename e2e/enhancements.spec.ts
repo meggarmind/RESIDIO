@@ -92,8 +92,8 @@ test.describe('Phase 4: Enhancements', () => {
             await page.waitForLoadState('networkidle');
             await expect(page.locator('main, [role="main"]')).toBeVisible({ timeout: 10000 });
 
-            // Settings nav groups are collapsible and start closed; open "Billing & Finance" first
-            const billingGroup = page.getByRole('button', { name: /billing.*finance/i });
+            // Settings nav groups are collapsible and start closed; open "Financial" first
+            const billingGroup = page.getByRole('button', { name: /financial/i });
             await billingGroup.first().waitFor({ timeout: 10000 });
             if (await billingGroup.first().getAttribute('aria-expanded') !== 'true') {
                 await billingGroup.first().click();
@@ -109,8 +109,8 @@ test.describe('Phase 4: Enhancements', () => {
             await page.goto('/settings');
             await page.waitForLoadState('networkidle');
 
-            // Settings nav groups are collapsible and start closed; open "Estate Configuration" first
-            const estateGroup = page.getByRole('button', { name: /estate configuration/i });
+            // Settings nav groups are collapsible and start closed; open "Estate" first
+            const estateGroup = page.getByRole('button', { name: /^estate$/i });
             await estateGroup.first().waitFor({ timeout: 10000 });
             if (await estateGroup.first().getAttribute('aria-expanded') !== 'true') {
                 await estateGroup.first().click();

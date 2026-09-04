@@ -18,39 +18,24 @@ import {
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { POLLING_INTERVALS } from '@/lib/config/polling';
+import { getCronStatus } from '@/actions/system/cron-status';
+import type { HealthResponse } from '@/lib/system/cron-status';
 
-interface CronJob {
-    name: string;
-    description: string;
-    schedule: string;
-    lastRun: string | null;
-    lastRunRelative: string;
-    expectedFrequency: 'daily' | 'hourly' | 'monthly' | 'every_5_minutes';
-    status: 'healthy' | 'warning' | 'critical' | 'unknown';
-    message: string;
-}
-
-interface CronHealthResponse {
-    status: 'healthy' | 'warning' | 'critical';
-    lastChecked: string;
-    jobs: CronJob[];
-}
+type CronHealthResponse = HealthResponse;
 
 async function fetchCronHealth(): Promise<CronHealthResponse> {
-    const response = await fetch('/api/health/cron-status');
-    const data = await response.json();
+    // Goes through the authorized server action rather than fetching
+    // `/api/health/cron-status` directly from the client: that route is
+    // guarded by SYSTEM_MONITOR and returns full cron job status (including
+    // Gmail connection state) via the service-role client, so it must not be
+    // reachable as a plain client-side fetch. See issue #174.
+    const result = await getCronStatus();
 
-    // If we have a valid JSON with health info, use it even if it's not a 2xx status
-    // (though the API should now be returning 200)
-    if (data && (data.status || data.overall) && Array.isArray(data.jobs)) {
-        return data;
+    if (result.error || !result.data) {
+        throw new Error(result.error || 'Failed to fetch cron health');
     }
 
-    if (!response.ok) {
-        throw new Error('Failed to fetch cron health');
-    }
-
-    return data;
+    return result.data;
 }
 
 function getStatusIcon(status: string) {
@@ -149,9 +134,17 @@ export function CronHealthCard() {
         );
     }
 
-    const overallStatus = data?.status || (data as { overall?: string }).overall || 'unknown';
+    // `data` is genuinely `undefined` here whenever the query hasn't fetched
+    // yet without being in the `isLoading`/`error` branches above — e.g. this
+    // card renders with `enabled: mounted` before hydration, so during SSR /
+    // static prerendering (mounted=false) the query stays disabled and
+    // `isLoading` is false (TanStack Query v5: disabled queries are
+    // `isPending` but not `isFetching`, so `isLoading` is false too). The
+    // previous `(data as {...}).overall` cast read a property off `undefined`
+    // in that case and crashed the /system dashboard's static build.
+    const overallStatus = data?.status || (data as { overall?: string } | undefined)?.overall || 'unknown';
     const jobs = data?.jobs || [];
-    const lastChecked = data?.lastChecked || (data as { timestamp?: string }).timestamp;
+    const lastChecked = data?.lastChecked || (data as { timestamp?: string } | undefined)?.timestamp;
 
     // Filter to show only critical jobs first, then by importance
     const prioritizedJobs = [...jobs].sort((a, b) => {
@@ -222,7 +215,7 @@ export function CronHealthCard() {
                 </div>
 
                 {jobs.length > 4 && (
-                    <Link href="/settings/system">
+                    <Link href="/system/cron-status">
                         <Button variant="ghost" size="sm" className="w-full mt-3">
                             View Detailed Status
                             <ExternalLink className="h-4 w-4 ml-2" />
