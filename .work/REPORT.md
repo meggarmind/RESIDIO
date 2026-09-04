@@ -22,10 +22,11 @@ point is recorded here.
 | 178 | regroup Settings | Six subject groups, 30 links, depth 2; the two Gmail pages merged on the config page's markup; both e2e group-name regexes updated. A nav permission narrowing caught and reverted by me — D21. | sonnet + sonnet QA | **PASS**, no defects | 0 | ✅ |
 | 165 | search_logs has a reader | Search tab on the analytics page using all three orphaned modules — **and** `getSearchAnalytics` guarded on `settings.view_audit_logs`, which it had never been (D22). Two limitations left noted in code, not hidden. | sonnet + sonnet QA | **PASS** | 0 | ✅ |
 | 166 | `Cmd+1-5` badge order | Badges and hotkeys now derive from one flattening. QA established the symptom does **not** reproduce today — the divergence is latent, and goes live when #179 adds palette entries. Shortcut map rekeyed to href before merge on QA's advice. | sonnet + sonnet QA | **PASS** | 0 | ✅ |
+| 164 | search permission filter | The route was **fully unauthenticated**, not merely unfiltered — nothing gated `/api/search`. Now 401s before any DB access, and skips each category at the query level. Quick Actions require view AND create where they open a form; mapping extracted and given a structural test proven by negative control. | sonnet + sonnet QA | **PASS**, 7/7 dimensions | 0 (1 gap closed by me) | ✅ |
 
 ## 2. Decisions taken on the user's behalf
 
-Full log with rationale and reversibility: `.work/DECISIONS.md` — **D1–D23**, all
+Full log with rationale and reversibility: `.work/DECISIONS.md` — **D1–D26**, all
 reversible.
 
 Setup (D1–D6): trunk is `master` not `main`; `epic/`+`issue/` branch prefixes adopted
@@ -44,6 +45,7 @@ The ones a reader should not miss:
   turned out to have no authorization at all.
 - **D21** — a nav permission narrowed in a way no gate could catch, because the coverage
   test is structurally blind to the inverse defect.
+- **D26** — #164 was titled "no permission filtering"; the route had no authentication at all. Also records why a permission table needs the *inverse* assertion, not just the subset one.
 - **D23** — verified, rather than assumed, that middleware consumes `ROUTE_PERMISSIONS`
   directly. Had #104's "hand-maintained second copy" claim still been true, every
   `/system` guard this epic added would have been decorative.
@@ -86,8 +88,11 @@ eight so far. The two that change how the work runs: `npm test` is bare `vitest`
 - **#181, spawned by #177**, is open and untriaged: two system-dashboard server actions
   authorize inconsistently with the rest of the RBAC surface.
 - **`groupedResults` and `orderedResults` are two implementations of one rule** after
-  #166. They agree today; nothing structurally keeps them agreeing. #164 edits that file
-  next and carries this in its brief.
+  #166, and #164 did not change that — it was kept deliberately small. They agree by
+  convention, not construction. **#179 is the last slice on that file: unify them there.**
+- **The Quick Action permission mapping had no automated guard** until #164 added one.
+  Worth remembering why it mattered: the negative control showed a route-coverage
+  assertion stays green when a permission is *narrowed*, which is D21 exactly.
 - ~~**Baseline caveat:** tests are green only because of a stray prettier install.~~
   **RETRACTED — see D9.** A cold `npm ci` in a clean clone runs green; prettier is a
   committed transitive dependency of `@react-email/render`. A green test run here means

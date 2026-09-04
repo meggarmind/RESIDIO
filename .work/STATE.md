@@ -13,10 +13,10 @@
 
 | | |
 |---|---|
-| Phase | **Waves 0-4a COMPLETE (15/17 closed).** Next: wave 4b (#164) solo, then 4c (#179) |
-| Last completed | #165 + #166 merged and closed |
-| Gates (re-run 2026-09-04 on `b80c6c3`) | **73 files / 435 tests**, tsc exit 0, lint **0 errors / 326 warnings**, build exit 0. One timeout — `whatsapp/webhook/twilio/route.test.ts`, passes alone in 835ms, the D10 flake in a second file. See **D25** |
-| Epic HEAD | `b80c6c3`, post-#166 merge (15 closed: 163, 165, 167-178) |
+| Phase | **Waves 0-4b COMPLETE (16/17 closed).** Only **#179** remains (wave 4c, solo) |
+| Last completed | #164 merged `575d284` and closed |
+| Gates (2026-09-04 on `968c68d`) | **75 files / 446 tests**, tsc exit 0, lint **0 errors / 326 warnings**, build exit 0. No flake this run; see **D25** for the two files that time out under load |
+| Epic HEAD | `968c68d`, post-#164 merge + doc re-stamp (16 closed: 163-178) |
 | Blocked issues | none |
 | Consecutive QA failures | 0 |
 | Spawned, not in the epic | **#181** (OPEN) — inconsistent RBAC in two #177 server actions |
@@ -42,38 +42,40 @@ Legend: TODO / IN-PROGRESS / QA / MERGED / CLOSED / BLOCKED
 | 178 | regroup Settings | 3 | **CLOSED** | merged | 6 groups, 30 links; Roles narrowing caught (D21) |
 | 165 | search_logs unread | 4a | **CLOSED** | merged `2e815c5` | D18 + D22: card mounted **and** the action guarded |
 | 166 | Cmd+1-5 wrong result | 4a | **CLOSED** | merged `b80c6c3` | divergence was latent, not live — see below |
-| 164 | search permission filter | 4b | TODO | — | merges on top of #166's `global-search-command.tsx` |
-| 179 | palette indexes Settings | 4c | TODO | — | this is what makes #166 live |
-| 180 | EPIC | — | OPEN | epic/180 | closes when #164 + #179 land |
+| 164 | search permission filter | 4b | **CLOSED** | merged `575d284` | route was fully unauthenticated, not just unfiltered; D26 |
+| 179 | palette indexes Settings | 4c | **TODO — the last slice** | — | makes #166's latent divergence live; reads `settings-nav.ts` + `navigation.ts` |
+| 180 | EPIC | — | OPEN, In progress | epic/180 | closes when #179 lands |
 | 181 | #177 RBAC inconsistency | — | OPEN, untriaged | — | spawned by #177; board Backlog, not an epic slice |
 
 ## Next action
 
-**Nothing is in flight.** (`AGENTS-INFLIGHT.md` describes the wave 0+1 dispatch of
-2026-09-02 and is historical — do not read it as a live roster.)
+**Dispatch #179, solo — the last slice.** Index Settings and System pages in the
+Cmd+K palette, generated from `settings-nav.ts` and the System section of
+`navigation.ts` so they cannot drift, permission-filtered with the same
+`hasAnyPermission` the sidebars use. "email import" must find the page.
 
-**Dispatch #164, solo.** It is wave 4b because it touches **both** search files that
-wave 4a just changed — `src/app/api/search/route.ts` (#165's guard) and
-`src/components/dashboard/global-search-command.tsx` (#166's rewrite) — so it could not
-run beside them. Its brief must carry:
+Its brief must carry, or the work goes wrong:
 
-- #166 rekeyed the shortcut map from `${type}-${id}` to **href**, and left
-  `groupedResults` and `orderedResults` as two independent implementations of the same
-  bucket-by-type rule. They agree today; nothing structurally keeps them agreeing. #164
-  edits this file next and should not widen that gap.
-- The route's only auth touch is `supabase.auth.getUser()` for logging
-  (`route.ts:185`); `QUICK_ACTIONS` at `:69` is filtered by query text alone at
-  `:129-130`. Verified on `epic/180` — see ISSUE-CLAIMS-VERIFIED.md.
+- **#179 is what makes #166's fix load-bearing.** Review proved the badge/hotkey
+  divergence does not reproduce today only because `/api/search` returns
+  type-keyed arrays that concatenate in `groupOrder` sequence. Settings entries
+  keyed on route slugs break that accident. The shortcut map is keyed by **href**
+  for exactly this reason — do not rekey it.
+- **`groupedResults` and `orderedResults`** in `global-search-command.tsx` are two
+  independent implementations of one bucket-by-type rule, agreeing by convention.
+  #179 is the last slice on this file; unify them rather than adding a third.
+- **Quick Actions moved** to `src/lib/search/quick-actions.ts` (#164), guarded by
+  `src/__tests__/quick-action-permissions.test.ts`. New palette entries need the
+  same treatment: permissions that match `ROUTE_PERMISSIONS`, and a test that
+  fails when they are narrowed — a subset assertion will not (D21).
+- #178 settled the final Settings shape: six groups, 30 links.
 
-Then **#179 solo** (wave 4c): blocked by #178 for the final Settings shape and by #164
-for the palette's permission filtering. #179 is also what turns #166's latent divergence
-live, so its brief must say so.
+Per issue, unchanged: review the diff myself, run the four gates, spawn a QA
+agent on `git diff epic/180...<branch>`, and only on a clean PASS **commit +
+merge + close + push** — all four steps.
 
-Per issue, unchanged: review the diff myself, run the four gates, spawn a QA agent on
-`git diff epic/180...<branch>`, and only on a clean PASS **commit + merge + close +
-push**. All four steps — #166 was merged and pushed on 2026-09-03 but not closed until
-2026-09-04, and its board Status sat at "In progress" for a day with the work already on
-the epic branch.
+**Then close the epic:** #180 itself, and decide what to do with #181 (open,
+untriaged, spawned by #177) before calling the epic finished.
 
 **Worktree setup — all three steps, every time (D13, D15):**
 1. `git worktree add .worktrees/issue-<n> -b issue/<n>-<slug> epic/180`

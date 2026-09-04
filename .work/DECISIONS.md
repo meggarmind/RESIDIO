@@ -402,3 +402,32 @@ agent. A timeout reads as what it is. But two files now means the cause is the s
 import cost, not either file, so a third is likely.
 **Standing rule for QA agents: a timeout in a full-suite run is not a failure until the
 file has been re-run alone.** **Reversible:** one constant, if it recurs.
+
+---
+
+**D26 — #164 | The issue understated its own severity, and the fix had to be larger than
+it asked.** #164 is titled "returns results with no permission filtering". Reading the
+route showed it had **no authentication requirement at all**: `getUser()` was called only
+to stamp `search_logs`, no `ROUTE_PERMISSIONS` key prefix-matches `/api/search`, and
+middleware skips `/api` outright. An anonymous caller could read every resident, house,
+payment, security contact and document.
+Options: (a) implement the filtering the issue asks for, (b) also add the authentication
+requirement the issue does not mention.
+**Taken: (b).** Filtering by permission is meaningless while the caller need not be
+anyone. The 401 is placed *before* the query-length short-circuit so an unauthenticated
+caller cannot distinguish a short query from a rejected one. **Reversible:** one guard.
+
+Two things settled inside this slice that are worth carrying:
+
+- **Quick Actions gate on completion, not just reachability** (user's call). `/residents/new`
+  and `/houses/new` have no `ROUTE_PERMISSIONS` entry, so middleware admits them on the
+  parent's `.view`; a view-only role could open the form and only then be refused. They now
+  require view AND create. This forced `hasAnyPermission` -> `hasAllPermissions`: with OR
+  semantics the view entry alone still matched, so adding the create permission would have
+  been a no-op. A permission change that looks applied and does nothing is worse than none.
+- **The mapping got a test because review is not a guard.** QA passed the mapping on
+  inspection and still recommended coverage. The negative control settled it: reverting the
+  create permissions leaves the route-coverage assertion **green** and fails only the two
+  intent-pinning assertions. That is D21 reproduced deliberately — a subset-style assertion
+  cannot see a narrowing. **Any future permission table in this repo needs the inverse
+  assertion, not just the subset one.**
