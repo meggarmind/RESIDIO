@@ -1,8 +1,8 @@
 # STATE — Epic #180
 
-> **2026-09-04 — restarting for Supabase MCP. Read `.work/RESUME.md` FIRST.** It carries
-> the cross-epic picture, the open PRs, and four database checks that were blocked all
-> session — the first of which may be a live P0.
+> **2026-09-04 — Supabase MCP restored; the four blocked checks are done.** `.work/RESUME.md`
+> has been consumed and deleted. Verified figures are recorded on epic #182
+> (issuecomment-5541896711); the short version is below under "Database facts, verified".
 
 **Read this before anything else on resume.** Then reconcile against
 `git branch -a`, `git log --oneline -20`, `git status`. Git wins on disagreement.
@@ -12,6 +12,32 @@
 - Per-issue worktrees: `.worktrees/issue-<n>` on `issue/<n>-<slug>`
 - Epic branch is pushed to `origin` after every merge (this checkout has a known
   destructive-reset hazard; the push is the durable copy)
+
+## Database facts, verified 2026-09-04
+
+Read from the live database, not from migration files. Full detail and the SQL are on
+epic #182.
+
+- **No live lockout.** Zero active accounts hold a `role_id` with a `NULL` legacy `role`.
+  All three active accounts carry both vocabularies, consistently mapped. The "probable
+  live bug" in #182 is latent, not live — **slice ordering is unchanged**.
+- **All 103 permission seeds are applied.** `app_permissions` matches the `PERMISSIONS`
+  constants exactly, both directions. Nothing denies for want of a row.
+- **Policy counts were under-read from files.** Direct `profiles.role` readers are
+  **34 across 29 tables** (not 32/25); `get_my_role()` callers are **97 across 36 tables**
+  (not 80/28). The two sets are disjoint. #186/#187 and #190 need rescoping.
+- **#184's invariant already holds** — exactly one active `super_admin`, so the trigger
+  will not fail on existing data.
+- **#191 is safe** — `has_security_permission()` has zero callers of any kind.
+- **A fifth legacy reader exists that no slice covers**: `create_generated_invoice()`
+  authorizes off `profiles.role`. Not a live break (its only caller uses
+  `createAdminClient()`, so `auth.uid()` is `NULL` and the guard short-circuits), but
+  plpgsql is late-bound, so #194 would drop the column and leave it silently broken.
+  Add it to #193/#194 or #188.
+- **The column drop is structurally clean** — `pg_depend` shows no view, index or
+  constraint on `profiles.role`. Function bodies are the only dependents.
+- **Bucket collapse is confirmed in deployed code**, not just in files: `get_my_role()`
+  maps `vice_chairman → chairman` and `financial_officer → financial_secretary`.
 
 ## Current position
 
