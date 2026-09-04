@@ -1,0 +1,105 @@
+-- Migration: drop the orphaned has_security_permission(text) function
+-- Issue:     #191 (epic #182 "Remove the legacy role vocabulary")
+--
+-- has_security_permission(text) is orphaned in production:
+--
+--   - Zero RLS policies call it (verified 2026-09-04 against live database).
+--   - Zero application code references it (the only src/ hit is generated type stubs).
+--   - Nothing reads or writes system_settings.security_role_permissions.
+--
+-- It is nonetheless a SECURITY DEFINER function containing a hardcoded
+-- `IF user_role = 'admin' THEN RETURN true` bypass, plus a default
+-- permission map keyed entirely in the legacy role vocabulary that epic #182
+-- is removing. It has been hardened twice—search_path pinned in 20260813150000,
+-- EXECUTE revoked from anon/PUBLIC in 20260824201000/202000—but never removed,
+-- which suggests nobody checked whether it was used.
+--
+-- Migrating it was considered and rejected: preserving the semantics of
+-- something nothing depends on is work with no beneficiary. This migration
+-- drops both the function and the system_settings row it depends on.
+--
+-- ROLLBACK:
+--   CREATE OR REPLACE FUNCTION public.has_security_permission(permission_name text)
+--    RETURNS boolean
+--    LANGUAGE plpgsql
+--    STABLE SECURITY DEFINER
+--    SET search_path TO 'public', 'auth', 'extensions', 'pg_temp'
+--   AS $function$
+--   DECLARE
+--     user_role TEXT;
+--     permissions JSONB;
+--     role_list JSONB;
+--   BEGIN
+--     -- Get current user's role
+--     user_role := get_my_role();
+--
+--     -- Admin always has all permissions
+--     IF user_role = 'admin' THEN
+--       RETURN true;
+--     END IF;
+--
+--     -- Get permissions from settings
+--     SELECT value INTO permissions
+--     FROM system_settings
+--     WHERE key = 'security_role_permissions';
+--
+--     -- If no permissions found, use defaults
+--     IF permissions IS NULL THEN
+--       permissions := '{
+--         "register_contacts": ["admin", "chairman", "financial_secretary"],
+--         "generate_codes": ["admin", "chairman", "financial_secretary"],
+--         "update_contacts": ["admin", "chairman", "financial_secretary"],
+--         "verify_codes": ["admin", "chairman", "financial_secretary", "security_officer"],
+--         "record_checkin": ["admin", "chairman", "financial_secretary", "security_officer"],
+--         "view_contacts": ["admin", "chairman", "financial_secretary", "security_officer"],
+--         "search_contacts": ["admin", "chairman", "financial_secretary", "security_officer"],
+--         "export_contacts": ["admin", "chairman", "financial_secretary", "security_officer"],
+--         "suspend_revoke_contacts": ["admin", "chairman"],
+--         "configure_categories": ["admin"],
+--         "view_access_logs": ["admin", "chairman"]
+--       }'::jsonb;
+--     END IF;
+--
+--     -- Get the role list for this permission
+--     role_list := permissions->permission_name;
+--
+--     -- Check if user's role is in the list
+--     IF role_list IS NOT NULL THEN
+--       RETURN role_list ? user_role;
+--     END IF;
+--
+--     RETURN false;
+--   END;
+--   $function$
+--
+--   -- Restore the hardened ACL from 20260824201000 and 20260824202000.
+--   REVOKE EXECUTE ON FUNCTION public.has_security_permission(text) FROM PUBLIC, anon;
+--   GRANT EXECUTE ON FUNCTION public.has_security_permission(text) TO authenticated, service_role;
+--
+--   INSERT INTO public.system_settings (key, value, description, category)
+--   VALUES (
+--     'security_role_permissions',
+--     '{
+--       "register_contacts": ["admin", "chairman", "financial_secretary"],
+--       "generate_codes": ["admin", "chairman", "financial_secretary"],
+--       "update_contacts": ["admin", "chairman", "financial_secretary"],
+--       "verify_codes": ["admin", "chairman", "financial_secretary", "security_officer"],
+--       "record_checkin": ["admin", "chairman", "financial_secretary", "security_officer"],
+--       "view_contacts": ["admin", "chairman", "financial_secretary", "security_officer"],
+--       "search_contacts": ["admin", "chairman", "financial_secretary", "security_officer"],
+--       "export_contacts": ["admin", "chairman", "financial_secretary", "security_officer"],
+--       "suspend_revoke_contacts": ["admin", "chairman"],
+--       "configure_categories": ["admin"],
+--       "view_access_logs": ["admin", "chairman"]
+--     }'::jsonb,
+--     'Role permissions for security module features',
+--     'security'
+--   ) ON CONFLICT (key) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Drop the function first, then the system_settings row.
+-- ---------------------------------------------------------------------------
+
+DROP FUNCTION IF EXISTS public.has_security_permission(text);
+
+DELETE FROM public.system_settings WHERE key = 'security_role_permissions';
