@@ -7,8 +7,8 @@ residio_sources:
   - src/app/api/search/**
   - src/lib/auth/action-roles.ts
   - src/config/navigation.ts
-residio_verified_commit: 3113e72
-residio_verified_at: '2026-09-03'
+residio_verified_commit: 575d284
+residio_verified_at: '2026-09-04'
 residio_app_version: '0.4.0'
 ---
 
@@ -30,7 +30,9 @@ On desktop, hover over the collapsed sidebar to reveal labels. On mobile, use **
 
 ## Search
 
-Select **Search** in the header to search the records available to your role. Use a resident code, name, house label, transaction reference, or announcement title. Search results remain permission-filtered.
+Select **Search** in the header to search the records available to your role. Use a resident code, name, house label, transaction reference, or announcement title. Search results are permission-filtered: a category you cannot view — residents, houses, payments, security contacts or documents — is not searched at all, so two admins searching the same term can see different results.
+
+Search also offers **Quick Actions**, and lists only those your role can both reach and complete. Add New Resident and Add House need the create permission for that record as well as the view permission, so an admin who can view houses but not add one is not offered **Add House**.
 
 ## Navigation rules
 
