@@ -25,9 +25,11 @@ Move an issue's Status at exactly these two points, without being asked:
 
 Don't set `In review` automatically, and don't move things back to Backlog/Ready on your own — those stay manual.
 
-### Planning work → GitHub issues (`to-issues`)
+### Planning work → GitHub issues
 
-The `to-issues` skill (`~/.claude/skills/to-issues`) has `disable-model-invocation: true`, so it will never trigger automatically off its description. This is a standing instruction that overrides that gate: whenever a plan, spec, or PRD for this project is finalized (e.g. after `superpowers:writing-plans`, `superpowers:brainstorming`, or any planning discussion converges on a concrete set of next steps), invoke the `to-issues` skill directly to break it into vertical-slice issues on the tracker described in `docs/agents/issue-tracker.md`. Do not just describe the plan back to the user and stop — file it.
+Whenever a plan, spec, or PRD for this project is finalized — or any planning discussion converges on a concrete set of next steps — break it into vertical-slice issues on the tracker described in `docs/agents/issue-tracker.md`, using the `gh` CLI. Do not just describe the plan back to me and stop: file it.
+
+An epic gets one umbrella issue carrying the design and the verified facts, plus one issue per slice. Brief each slice for an agent starting cold — the exact files and line numbers, what "done" means, and what *not* to do — because that is the only context the agent implementing it will have.
 
 ### Admin guide drift
 
