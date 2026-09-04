@@ -4,6 +4,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
 import type {
   AppRole,
   AppPermission,
@@ -482,6 +483,13 @@ export async function assignRoleToUser(
     .select('name')
     .eq('id', roleId)
     .single();
+
+  // Bootstrap invariant (#184). This is a second role-assignment path alongside
+  // assignRoleToProfile(), and it can demote the last administrator just as
+  // easily, so it carries the same check.
+  if (targetRole?.name !== 'super_admin' && (await isLastActiveSuperAdmin(userId))) {
+    return { success: false, error: LAST_SUPER_ADMIN_ERROR };
+  }
 
   // For the "resident" role, verify the user's linked resident is verified
   if (targetRole?.name === 'resident') {
