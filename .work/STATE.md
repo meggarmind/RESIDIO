@@ -15,7 +15,7 @@
 |---|---|
 | Phase | **Waves 0-4a COMPLETE (15/17 closed).** Next: wave 4b (#164) solo, then 4c (#179) |
 | Last completed | #165 + #166 merged and closed |
-| Gates (re-run 2026-09-04 on `b80c6c3`) | **73 files / 435 tests**, tsc exit 0, lint **0 errors / 326 warnings**. One timeout — `whatsapp/webhook/twilio/route.test.ts`, passes alone in 835ms, the D10 flake in a second file. See **D25** |
+| Gates (re-run 2026-09-04 on `b80c6c3`) | **73 files / 435 tests**, tsc exit 0, lint **0 errors / 326 warnings**, build exit 0. One timeout — `whatsapp/webhook/twilio/route.test.ts`, passes alone in 835ms, the D10 flake in a second file. See **D25** |
 | Epic HEAD | `b80c6c3`, post-#166 merge (15 closed: 163, 165, 167-178) |
 | Blocked issues | none |
 | Consecutive QA failures | 0 |

@@ -9,6 +9,28 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-03/04 — Epic #180, Settings information architecture)
+
+**Tool:** Claude Code. **Branch:** `epic/180`, cut from `origin/master` @ `0c69af2`, pushed to origin after every merge. **53 commits ahead of master, not merged, no PR yet.** 15 of 17 slices closed (#163, #165, #167–#178); #164 and #179 remain.
+
+> **The live record for this epic is `.work/STATE.md`, not this file.** `.work/` on `epic/180` holds STATE (position + per-issue table), PLAN (waves, dependency graph, per-issue definition of done), DECISIONS (D1–D25, with rationale and reversibility), REPORT (per-issue results), BASELINE (gate numbers + QA briefing rules) and ISSUE-CLAIMS-VERIFIED. Read STATE first and reconcile it against git; git wins.
+
+**What landed.** Settings is now configuration-only per ADR-0004: things you *watch* moved to a new `/system/*` area — audit logs, account administration, notification queue and history, ownership backfill, cron status — behind a new `/system` health dashboard (#177). Settings itself was regrouped into six subject groups, 30 links, and the two Gmail pages merged (#178). Three sidebar/nav state defects fixed (#169, #170), and `/settings/system/*` renamed so one word means one thing (#176).
+
+**Security work, and the one thing that made it non-decorative.** `/api/health/cron-status` was a **public unauthenticated endpoint using the service-role client**; closed in #174, verified by request rather than inspection, with a `CRON_SECRET` path for the backup workflow. #165 additionally found `getSearchAnalytics()` had **no authorization check of any kind** and guarded it before mounting its card — without that, surfacing admin query text on `/analytics` would have converted a dormant privacy problem into a live one.
+
+The epic's central risk was that `src/middleware.ts` skips its **entire** authorization block when no `ROUTE_PERMISSIONS` prefix matches, so any `/system/*` page shipped without an entry would be fully public rather than merely under-permissioned. #167 installed the generic guard and #171 the structural test, both before any `/system` page existed. **D23 then verified, rather than assumed, that middleware consumes `ROUTE_PERMISSIONS` directly** — issue #104 claims it keeps a hand-maintained second copy, and had that still been true every guard this epic added would have been decorative.
+
+**Migration applied to the live database:** #168's `chairman` → `settings.view` grant, applied and **verified by name in the ledger**, then re-verified by query — chairman's only permission in the `settings` or `system` categories is `settings.view`. Additive, rollback SQL in the file. This supersedes ADR-0006's predecessor and the two documents that asserted chairman held nothing; both corrected. No other migration on this branch.
+
+**Still open:** **#164** (global search returns results with no permission filtering — wave 4b, solo, because it touches both files wave 4a just changed) and **#179** (index Settings and System in the Cmd+K palette — wave 4c). **#181** was spawned by #177 and is open and untriaged: two system-dashboard server actions authorize inconsistently with the rest of the RBAC surface. `/analytics` also remains reachable without a session — that is **#104**, out of this epic's scope, and #165's server-side guard stands independently of it.
+
+**Gates on `b80c6c3` (re-run 2026-09-04):** 73 files / 435 tests, `npx tsc --noEmit` exit 0, lint **0 errors / 326 warnings**, `npm run build` exit 0. One full-suite timeout in `whatsapp/webhook/twilio/route.test.ts` which passes in **835ms** alone — the D10 load-contention flake now seen in a second file, recorded as D25. **A full-suite timeout is not a failure until the file is re-run in isolation.**
+
+**Two traps worth carrying forward.** `npm test` is bare `vitest`, i.e. watch mode — it never exits, and every issue body in this epic told agents to run it. Use **`npx vitest run`**. There is no root `typecheck` script; the app's typecheck is `npx tsc --noEmit`. And per D14/D15: **never share `node_modules` between git worktrees by junction** — teardown silently emptied 16 package directories in the *target* tree and the damage masqueraded as a code failure for an entire QA cycle.
+
+---
+
 ## Last session (Claude Code, 2026-09-02 — #138 RBAC migration reconciliation)
 
 **Tool:** Claude Code. **Branch:** `fix/rbac-migration-ledger-reconciliation`, off `master` at `2dd3ab6`. **Intent:** validate/apply the outstanding `20260830100*` RBAC migrations per #138. Cloud Supabase via MCP only.
@@ -56,9 +78,11 @@ Separately confirmed and intended: **chairman holds zero `settings.*` and zero `
 - **Settings sidebar lost expand/collapse state on every navigation**, not just on reload. Root cause is `src/app/template.tsx`: a Next.js `template` re-instantiates on every navigation, so every layout beneath it remounts. Proven by tagging the `<aside>` DOM node and watching it be replaced. State now lives in `src/hooks/use-settings-nav-state.ts` (external store + `sessionStorage`, read via `useSyncExternalStore`). 11 unit tests. **Note the wider implication: that template remounts the entire app tree on every navigation, so no client component below root keeps state.**
 - **Global search "View Security Log" pointed at `/security/log`; the page is `/security/logs`.** Every use hit a 404.
 
-### Pre-existing breakage found, NOT fixed (no issue filed yet)
+### ~~Pre-existing breakage found, NOT fixed~~ — RETRACTED 2026-09-03, the premise was false
 
-**`prettier` is imported by `@react-email/render` but is neither declared in `package.json` nor installed.** It fails 2 test suites (`billing-generation-history`, `billing-resident-filter`) on a clean tree, and takes down the **dev server** once a route pulling in `@react-email/render` recompiles — login stops working. I unblocked verification with `npm install --no-save prettier`, which leaves `package.json` and the lockfile untouched, so **a fresh `npm ci` will break again.**
+~~**`prettier` is imported by `@react-email/render` but is neither declared in `package.json` nor installed.** It fails 2 test suites (`billing-generation-history`, `billing-resident-filter`) on a clean tree, and takes down the **dev server** once a route pulling in `@react-email/render` recompiles. A fresh `npm ci` will break again.~~
+
+**This was wrong, and it cost a later session a false baseline.** `prettier@3.7.4` is a declared `dependencies` entry of `@react-email/render@2.0.0` and has been in the **committed** `package-lock.json` since `4590ecd` (2025-12-21) — before the observation above was written. A cold `npm ci` in a throwaway clone with no `node_modules` at all exits 0 and runs 383/383 green. What was actually observed was a locally drifted `node_modules`, which `npm ci` cures. Issue #163 is closed as not reproducible; evidence in `.work/DECISIONS.md` D9. Declaring prettier in `devDependencies` was rejected on substance — this repo never imports it, so the declaration would describe a *production* transitive requirement as a dev tool.
 
 ### Settings audit findings handed to the user, not acted on
 
@@ -78,9 +102,9 @@ Branch `feat/settings-ia-docs` (off `fix/settings-nav-quick-fixes`). **Not pushe
 
 **#167 blocks every `/system` slice and is not optional.** Middleware is the *only* auth gate for the dashboard — `DashboardProviders` is theming-only and `DashboardShell` has no guard. When no `ROUTE_PERMISSIONS` key matches, the auth block is **skipped entirely** rather than denying, so a `/system/*` page shipped without its own entry is fully public, not merely under-permissioned.
 
-**#174 carries a live security hole**: `/api/health/cron-status` has no authentication at all and uses the service-role client. Sibling of the `cron/process-report-schedules` hole found earlier today.
+**~~#174 carries a live security hole~~ — FIXED and merged 2026-09-03** (`872584c`, epic/180): `/api/health/cron-status` had no authentication at all and used the service-role client. Closed, verified by request rather than by inspection, with a `CRON_SECRET` path added for the backup workflow. Sibling of the `cron/process-report-schedules` hole found the same day.
 
-**#163 is active breakage**: `prettier` is imported by `@react-email/render` but is in neither `package.json` nor `node_modules`. It fails two test suites on a clean tree and takes the dev server down once an email route recompiles. Currently masked by `npm install --no-save prettier`, so **`npm ci` reproduces it**.
+**~~#163 is active breakage~~ — CLOSED not reproducible 2026-09-03.** See the retraction above; the premise was false when written.
 
 ### The concurrent tooling destroyed work twice, and committed a syntax error
 
@@ -104,7 +128,7 @@ Branch `feat/whatsapp-provider-config`, branched from `master` at `7f5e751`, reb
 - **Six migrations are applied but have no file on `master`** — `20260829100000` through `20260830090000`. Their files live only on `feat/social-login-approval-queue`. Consequence: master's migrations misrepresent the live database. An audit of `get_my_role()` was misled by this today, quoting a definition production had already superseded.
 - **~~Five migrations on that branch are unapplied~~ — RESOLVED 2026-09-02 (Claude Code).** All five files are now on `master`. Ledger verified directly: `20260830100000`, `100100`, `100200`, `100400` are **applied and recorded** at their original version strings. `100100` and `100400` were genuinely applied this session; `100000` and `100200` were already in effect and were reconciled into the ledger so a future `db push` cannot silently re-run them (100200 is a `DELETE` that would revoke chairman settings access re-granted via the UI). See #138 for the verdict table and evidence queries.
 - **~~`20260830100300_...sql` is deliberately withheld, permanently~~ — THIS NOTE IS STALE, RETIRED 2026-09-02 (Claude Code).** It described the file as it stood at `a0422ce`. The file was **rewritten in place by `ea96bc3` "fix(rbac): deny custom roles legacy RLS buckets"** — #141's own fix. Its current content denies custom roles (`ELSE RETURN NULL;`) and preserves the `approval_status = 'active'` gate and pinned `search_path`. **The file is the fix, not the vulnerability.** Verdict: **already in effect** — the deployed `get_my_role()` is semantically identical, which is *why* it ends in `ELSE NULL`. Do **not** delete it: besides being the fix, `src/__tests__/legacy-role-rls-boundary.test.ts` reads this exact path at import time and asserts `ELSE RETURN NULL;`, so removing it fails that suite on load. Anyone repeating "withheld, do not apply" is quoting a superseded file.
-  - ⚠️ **Open hazard:** the file is still in `supabase/migrations/` and still absent from the ledger, so **any future `supabase db push` or CI migration step will apply it and regress #141.** Deleting the file is the honest fix; recording it as applied would put a falsehood in the ledger. Not actioned unilaterally — needs a decision.
+  - ~~⚠️ **Open hazard:** the file is still absent from the ledger, so any future `supabase db push` will apply it and regress #141.~~ **RESOLVED the same day — do not act on this.** `20260830100300` was reconciled into the ledger at its original version after the deployed `get_my_role()` was verified against the file attribute-by-attribute. The ledger is contiguous `100000`–`100400` with no gap; see the #138 entry at the top of this file. No decision is outstanding and nothing needs deleting.
 
 ### Security findings from this work, filed separately
 
