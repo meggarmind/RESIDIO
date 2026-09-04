@@ -1,8 +1,16 @@
 # STATE — Epic #180
 
-> **2026-09-04 — Supabase MCP restored; the four blocked checks are done.** `.work/RESUME.md`
-> has been consumed and deleted. Verified figures are recorded on epic #182
-> (issuecomment-5541896711); the short version is below under "Database facts, verified".
+> **2026-09-04 — EPIC #180 IS COMPLETE.** All 18 slices (#163–#181) closed; `epic/180`
+> merged to `master` via PR #198. Both migrations it carried are applied and verified by
+> name against the database. **Next work starts from `origin/master`.**
+>
+> ⚠️ The local `master` branch in `C:/projects/RESIDIO` is **stale and divergent** — 6
+> unpushed commits, 81 behind origin at the time of writing, and `git pull` on it
+> conflicts. Those 6 are old `feat/admin-dashboard-settings` work. Branch from
+> `origin/master` explicitly; do not `git checkout master` and pull.
+>
+> The database is available again and the four previously-blocked checks are done —
+> see "Database facts, verified" below, and the verification comment on #182.
 
 **Read this before anything else on resume.** Then reconcile against
 `git branch -a`, `git log --oneline -20`, `git status`. Git wins on disagreement.
@@ -43,11 +51,11 @@ epic #182.
 
 | | |
 |---|---|
-| Phase | **Waves 0-4c COMPLETE (17/18 closed).** Only **#181** (4d) remains |
-| Last completed | #164 merged `575d284` and closed |
+| Phase | **COMPLETE — 18/18 closed, merged to `master` (PR #198).** |
+| Last completed | #181 merged `66ded86`; epic merged to master `ed8e76f` |
 | Gates (2026-09-04 on `968c68d`) | **75 files / 446 tests**, tsc exit 0, lint **0 errors / 326 warnings**, build exit 0. No flake this run; see **D25** for the two files that time out under load |
 | Epic HEAD | `968c68d`, post-#164 merge + doc re-stamp (16 closed: 163-178) |
-| Blocked issues | none |
+| Follow-ups left open | **#197** (Recent Activity blank for chairman — a consequence of #181, filed deliberately) |
 | Consecutive QA failures | 0 |
 | Spawned, taken into the epic | **#181** — re-scoped 2026-09-04 after verification; now wave 4d |
 
@@ -74,8 +82,8 @@ Legend: TODO / IN-PROGRESS / QA / MERGED / CLOSED / BLOCKED
 | 166 | Cmd+1-5 wrong result | 4a | **CLOSED** | merged `b80c6c3` | divergence was latent, not live — see below |
 | 164 | search permission filter | 4b | **CLOSED** | merged `575d284` | route was fully unauthenticated, not just unfiltered; D26 |
 | 179 | palette indexes Settings | 4c | **CLOSED** | merged `9d1c879` | cmdk was discarding the new matching before render (D27); first component-render test in the repo |
-| 180 | EPIC | — | OPEN, In progress | epic/180 | closes when #179 lands |
-| 181 | audit + queue RBAC bypass | 4d | **QUEUED** | — | re-scoped: 3 audit fns on legacy roles, queue module unguarded, **and an RLS migration** |
+| 180 | EPIC | — | **CLOSED** | merged to master `ed8e76f` | PR #198 |
+| 181 | audit + queue RBAC bypass | 4d | **CLOSED** | merged `66ded86` | migration applied + verified by name; a revoke AND a grant |
 
 ## D27 — cmdk filters on top of your filter
 
@@ -100,54 +108,24 @@ will pass.
 
 ## Next action
 
-**Dispatch #181 — the last slice of the epic.** The issue as filed was wrong in
-both directions; **the correcting comment on #181 is the brief, not the body.** It
-covers three audit functions gated on legacy roles, the unguarded notification-queue
-module, an `audit_logs` RLS migration that contradicts ADR-0006, and the pre-epic
-cleanup absorbed into it (the unread `AuthorizationResult.role`, the dead
-`LEGACY_TO_NEW_ROLE_MAP`, middleware's unused `role` select, and the UI/server
-divergence at `role-assignment-section.tsx:169` / `pending-accounts-list.tsx:72`).
+**Epic #180 is finished. Start epic #182, branching from `origin/master`.**
 
-It needs a migration, so it needs the database — which is now **available and
-verified** (see "Database facts, verified 2026-09-04" above). Check its RLS change
-against the 34 legacy policies recorded there before writing it; #181's migration and
-epic #182's slices #186/#187 touch the same surface.
+`docs/adr/0007-one-role-vocabulary.md` is on master and is the binding design — read it
+first. Its counts were corrected against the live database this session.
 
-Per issue, unchanged: review the diff myself, run the four gates, spawn a QA
-agent on `git diff epic/180...<branch>`, and only on a clean PASS **commit +
-merge + close + push** — all four steps.
+**#183** is the only slice marked `ready-for-agent`: the ratchet test stopping new
+migrations from referencing `profiles.role`. It needs no database. Two things recorded on
+it and on #186 that must not be lost:
 
-**Then #181, solo (wave 4d).** Verified and re-scoped on 2026-09-04 — the issue as
-filed was wrong in both directions; the correcting comment on the issue is the brief.
-The four things its brief must carry:
+- The ratchet must **ignore SQL comments**. This project's convention puts rollback SQL in
+  a comment block, so a migration that *removes* a legacy reference still contains the
+  string, and a naive grep would block the very work the test exists to encourage.
+- A role with no legacy equivalent (`vice_chairman`, `secretary`, `project_manager`) has
+  `profiles.role = NULL`, so it is currently **denied** by all 33 remaining direct-read
+  policies regardless of its RBAC grants. Rewriting them to `has_permission()` therefore
+  **widens** access. That is the opposite direction from #190's bucket-collapse hazard,
+  and the two populations are disjoint — they need opposite reasoning.
 
-- **`getQueueStatistics` is the priority.** It delegates to `getQueueStats()`
-  (`src/lib/notifications/queue.ts:371`), which uses **`createAdminClient()`** at `:379`
-  — service role, RLS bypassed, no auth check anywhere. Same shape as the
-  `/api/health/cron-status` hole #174 closed.
-- **The rest of `actions/notifications/queue.ts` is a defence-in-depth gap, not an
-  exposure.** Zero `authorizePermission` and zero `getUser()` in the whole module, but
-  those functions use the RLS-bound client and `notification_queue_select` holds.
-- **The legacy `['admin','chairman']` check is in three functions**, not the one the
-  issue names: `get-audit-logs.ts:46`, `:141`, `:195`.
-- **An action-only fix does not close the ADR-0006 breach.** The `audit_logs` SELECT
-  policy (`20251213200000_create_audit_logs.sql:75-83`) admits chairman *and* reads
-  `profiles.role` directly. So this slice needs a **migration**, which per `CLAUDE.md`
-  means checking open issues first — it touches RBAC/RLS — and applying + verifying by
-  name after merge.
+`audit_logs` already left #186's scope (done in #181): direct-`profiles.role` policies are
+now **33 across 28 tables**, `get_my_role()` callers **97 across 36**.
 
-**Then close the epic:** #180 itself.
-
-**Worktree setup — all three steps, every time (D13, D15):**
-1. `git worktree add .worktrees/issue-<n> -b issue/<n>-<slug> epic/180`
-2. Copy `C:/projects/RESIDIO/.env.local` in, or the build gate proves nothing.
-3. `npm ci` **inside the worktree** — its own real tree, ~3 min warm. Run these
-   sequentially, never concurrently (they contend over locked native modules).
-
-**NEVER** junction or otherwise share `node_modules` between worktrees — see D14 for what
-that cost. **NEVER** `git worktree remove` a worktree that ever had a junction.
-Teardown for the epic: leave the directories, `git worktree prune` at the very end.
-
-Wave plan, for reference: 0 (#163) → 1 (#167-#170) → 2a (#171) → 2b (#172, #173, #175)
-→ 2c (#174) → 2d (#176) → 3 (#177, #178) → **4a (#165, #166) ← done to here** →
-4b (#164) → 4c (#179).
