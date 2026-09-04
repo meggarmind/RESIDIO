@@ -8,7 +8,6 @@ import type {
   ApprovalStatus,
   ApprovalRequestType,
   ApprovalEntityType,
-  UserRole,
 } from '@/types/database';
 import {
   createBankAccountDirect,
@@ -18,6 +17,7 @@ import {
 import { allocateWalletToInvoices } from '@/actions/billing/wallet';
 import { logAudit } from '@/lib/audit/logger';
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
+import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 // Response types
@@ -47,22 +47,10 @@ export async function getApprovalRequests(params: {
   const supabase = await createServerSupabaseClient();
   const { status = 'pending', request_type, page = 1, limit = 20 } = params;
 
-  // Check user role - only admin and chairman can view all requests
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { data: null, count: 0, error: 'Unauthorized' };
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || !['admin', 'chairman'].includes(profile.role)) {
-    return { data: null, count: 0, error: 'Insufficient permissions' };
+  // Permission check (migrated from legacy authorizeAction)
+  const auth = await authorizePermission(PERMISSIONS.APPROVALS_VIEW);
+  if (!auth.authorized) {
+    return { data: null, count: 0, error: auth.error || 'Unauthorized' };
   }
 
   // Build query
@@ -168,22 +156,13 @@ export async function getApprovalRequests(params: {
 export async function getPendingApprovalsCount(): Promise<PendingCountResponse> {
   const supabase = await createServerSupabaseClient();
 
-  // Check user role
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { count: 0, error: 'Unauthorized' };
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  // Only admin and chairman see the count
-  if (!profile || !['admin', 'chairman'].includes(profile.role)) {
+  // Anyone without approvals.view sees no badge at all: this is a soft "nothing
+  // to show" for a sidebar count, not an authorization failure, so we return a
+  // clean 0/null here rather than surfacing auth.error, which would otherwise
+  // put usePendingApprovalsCount() into an error state for every non-privileged
+  // user (it throws on a truthy `error`).
+  const auth = await authorizePermission(PERMISSIONS.APPROVALS_VIEW);
+  if (!auth.authorized) {
     return { count: 0, error: null };
   }
 
@@ -206,22 +185,10 @@ export async function approveRequest(
 ): Promise<ApprovalActionResponse> {
   const supabase = await createServerSupabaseClient();
 
-  // Check user role
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: 'Unauthorized' };
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || !['admin', 'chairman'].includes(profile.role)) {
-    return { success: false, error: 'Only admin or chairman can approve requests' };
+  // Permission check (migrated from legacy authorizeAction)
+  const auth = await authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
   }
 
   // Get the request
@@ -250,7 +217,7 @@ export async function approveRequest(
     .from('approval_requests')
     .update({
       status: 'approved',
-      reviewed_by: user.id,
+      reviewed_by: auth.userId,
       reviewed_at: new Date().toISOString(),
       review_notes: notes || null,
       updated_at: new Date().toISOString(),
@@ -271,22 +238,10 @@ export async function rejectRequest(
 ): Promise<ApprovalActionResponse> {
   const supabase = await createServerSupabaseClient();
 
-  // Check user role
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: 'Unauthorized' };
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || !['admin', 'chairman'].includes(profile.role)) {
-    return { success: false, error: 'Only admin or chairman can reject requests' };
+  // Permission check (migrated from legacy authorizeAction)
+  const auth = await authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
   }
 
   // Get the request
@@ -309,7 +264,7 @@ export async function rejectRequest(
     .from('approval_requests')
     .update({
       status: 'rejected',
-      reviewed_by: user.id,
+      reviewed_by: auth.userId,
       reviewed_at: new Date().toISOString(),
       review_notes: notes || null,
       updated_at: new Date().toISOString(),
@@ -520,38 +475,8 @@ export async function createApprovalRequest(params: {
   return { success: true, request_id: data.id, error: null };
 }
 
-// Check if user can auto-approve (admin or chairman)
+// Check if user can auto-approve (holds approvals.approve_reject)
 export async function canAutoApprove(): Promise<boolean> {
-  const supabase = await createServerSupabaseClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return false;
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  return profile?.role === 'admin' || profile?.role === 'chairman';
-}
-
-// Get current user's role
-export async function getCurrentUserRole(): Promise<UserRole | null> {
-  const supabase = await createServerSupabaseClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  return profile?.role || null;
+  const auth = await authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT);
+  return auth.authorized;
 }

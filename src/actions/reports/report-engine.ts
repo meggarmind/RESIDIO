@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { ReportRequestFormData } from '@/lib/validators/reports';
 import { getDateRangeFromPreset } from '@/lib/validators/reports';
 
@@ -221,27 +223,14 @@ export interface GenerateReportResult {
 // Authorization Check
 // ============================================================
 
-async function checkReportAccess(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { authorized: false, error: 'Unauthorized' };
+async function checkReportAccess() {
+  // Permission check (migrated from legacy authorizeAction)
+  const auth = await authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
+  if (!auth.authorized) {
+    return { authorized: false as const, error: auth.error || 'Forbidden' };
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  const allowedRoles = ['admin', 'chairman', 'financial_secretary'];
-  if (!profile || !allowedRoles.includes(profile.role)) {
-    return { authorized: false, error: 'Forbidden' };
-  }
-
-  return { authorized: true, user, profile };
+  return { authorized: true as const };
 }
 
 // ============================================================
@@ -1380,7 +1369,7 @@ export async function generateReport(
   const supabase = await createServerSupabaseClient();
 
   // Check authorization
-  const authCheck = await checkReportAccess(supabase);
+  const authCheck = await checkReportAccess();
   if (!authCheck.authorized) {
     return { success: false, error: authCheck.error };
   }

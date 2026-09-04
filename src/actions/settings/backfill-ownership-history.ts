@@ -1,6 +1,8 @@
 'use server';
 
-import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import type { ResidentRole } from '@/types/database';
 
@@ -29,24 +31,12 @@ type BackfillResult = {
  * Admin-only action.
  */
 export async function backfillOwnershipHistory(): Promise<BackfillResult> {
-  const supabase = await createServerSupabaseClient();
   const adminClient = createAdminClient();
 
-  // Check authorization
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: 'Unauthorized', summary: null };
-  }
-
-  // Get user's role
-  const { data: profile } = await adminClient
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || profile.role !== 'admin') {
-    return { success: false, error: 'Admin access required', summary: null };
+  // Permission check (migrated from legacy authorizeAction)
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized', summary: null };
   }
 
   const summary = {
@@ -134,7 +124,7 @@ export async function backfillOwnershipHistory(): Promise<BackfillResult> {
             event_date: rh.move_out_date,
             notes: `${residentName} ${isOwnershipRole ? 'ownership ended' : 'moved out'} (backfilled)`,
             is_current: false,
-            created_by: user.id,
+            created_by: auth.userId,
           });
 
         if (insertError) {
