@@ -58,13 +58,11 @@ export function SystemDashboard() {
   // Fetched directly against the server actions (rather than through the
   // shared use-notifications/use-audit-logs/use-pending-accounts hooks) so
   // each query can be gated with `enabled` on the viewer's own permission.
-  // This matters most for notification queue stats: unlike the other four
-  // actions, `getQueueStatistics()` performs no `authorizePermission` check
-  // of its own — it is only ever reached today through the /system/
-  // notification-queue page, which the middleware guards. Calling it
-  // unconditionally from this dashboard would hand queue depth to any
-  // authenticated viewer regardless of role; gating the fetch itself closes
-  // that gap rather than merely hiding the resulting card.
+  // As of #181, `getQueueStatistics()` also checks `notifications.manage`
+  // itself, so this `enabled` gate is defence-in-depth rather than the only
+  // boundary — it still avoids firing (and toasting an error for) a request
+  // the viewer's role can't complete, and keeps this dashboard consistent
+  // with the other four cards.
   const queueQuery = useQuery({
     queryKey: notificationKeys.queueStats(),
     queryFn: async () => {
