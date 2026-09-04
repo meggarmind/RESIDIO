@@ -1,28 +1,59 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { getCurrentUserPermissions } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 interface ScoredResult {
     _score: number;
 }
 
+const EMPTY_RESULTS = {
+    residents: [],
+    houses: [],
+    payments: [],
+    contacts: [],
+    documents: [],
+};
+
+/** Placeholder for a query skipped because the caller lacks the permission
+ * that gates it -- shaped like a Supabase response so it can sit in the same
+ * `Promise.all` as the real queries below without a separate branch. */
+const SKIPPED = Promise.resolve({ data: [], error: null });
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
 
-    if (!query || query.length < 2) {
-        return NextResponse.json({
-            residents: [],
-            houses: [],
-            payments: [],
-            contacts: [],
-            documents: [],
-        });
+    // Global search is admin-only data (residents, houses, payments, security
+    // contacts, documents). Unlike page routes, /api/** is exempt from the
+    // middleware's login redirect, so this endpoint is reachable by anyone who
+    // can reach the app at all unless it checks for itself -- previously it
+    // only called getUser() to attach a user_id to the search_logs insert,
+    // never to gate access.
+    const { userId, permissions } = await getCurrentUserPermissions();
+    if (!userId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    if (!query || query.length < 2) {
+        return NextResponse.json(EMPTY_RESULTS);
+    }
+
+    // Each result category is scoped by the same permission that gates the
+    // page it lives on (see ROUTE_PERMISSIONS in action-roles.ts), so search
+    // never surfaces a record type the caller couldn't otherwise open.
+    const canViewResidents = permissions.includes(PERMISSIONS.RESIDENTS_VIEW);
+    const canViewHouses = permissions.includes(PERMISSIONS.HOUSES_VIEW);
+    const canViewPayments = permissions.includes(PERMISSIONS.PAYMENTS_VIEW);
+    const canViewContacts = permissions.includes(PERMISSIONS.SECURITY_VIEW);
+    const canViewDocuments = permissions.includes(PERMISSIONS.DOCUMENTS_VIEW);
 
     try {
         const supabase = await createServerSupabaseClient();
 
-        // Execute ALL database searches in parallel
+        // Execute ALL database searches in parallel. A category the caller
+        // lacks permission for is never queried -- it costs nothing rather
+        // than being queried and discarded.
         const [
             residentsResult,
             housesByNumberResult,
@@ -32,46 +63,58 @@ export async function GET(request: Request) {
             documentsResult,
         ] = await Promise.all([
             // Search Residents (by name, phone, email)
-            supabase
-                .from('residents')
-                .select('id, first_name, last_name, phone_primary, email')
-                .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,phone_primary.ilike.%${query}%,email.ilike.%${query}%`)
-                .limit(5),
+            canViewResidents
+                ? supabase
+                    .from('residents')
+                    .select('id, first_name, last_name, phone_primary, email')
+                    .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,phone_primary.ilike.%${query}%,email.ilike.%${query}%`)
+                    .limit(5)
+                : SKIPPED,
 
             // Search Houses by house_number
-            supabase
-                .from('houses')
-                .select('id, house_number, street_id, streets(name)')
-                .ilike('house_number', `%${query}%`)
-                .limit(5),
+            canViewHouses
+                ? supabase
+                    .from('houses')
+                    .select('id, house_number, street_id, streets(name)')
+                    .ilike('house_number', `%${query}%`)
+                    .limit(5)
+                : SKIPPED,
 
-            // Find streets matching the query
-            supabase
-                .from('streets')
-                .select('id')
-                .ilike('name', `%${query}%`)
-                .limit(10),
+            // Find streets matching the query (only needed to widen the house search)
+            canViewHouses
+                ? supabase
+                    .from('streets')
+                    .select('id')
+                    .ilike('name', `%${query}%`)
+                    .limit(10)
+                : SKIPPED,
 
             // Search Payments by reference (Table: payment_records, Column: reference_number)
-            supabase
-                .from('payment_records')
-                .select('id, reference_number, amount')
-                .or(`reference_number.ilike.%${query}%`)
-                .limit(5),
+            canViewPayments
+                ? supabase
+                    .from('payment_records')
+                    .select('id, reference_number, amount')
+                    .or(`reference_number.ilike.%${query}%`)
+                    .limit(5)
+                : SKIPPED,
 
             // Search Security Contacts by name (Column: full_name)
-            supabase
-                .from('security_contacts')
-                .select('id, full_name, phone_primary')
-                .ilike('full_name', `%${query}%`)
-                .limit(5),
+            canViewContacts
+                ? supabase
+                    .from('security_contacts')
+                    .select('id, full_name, phone_primary')
+                    .ilike('full_name', `%${query}%`)
+                    .limit(5)
+                : SKIPPED,
 
             // Search Documents by title (Join category for name)
-            supabase
-                .from('documents')
-                .select('id, title, category:document_categories(name)')
-                .ilike('title', `%${query}%`)
-                .limit(5),
+            canViewDocuments
+                ? supabase
+                    .from('documents')
+                    .select('id, title, category:document_categories(name)')
+                    .ilike('title', `%${query}%`)
+                    .limit(5)
+                : SKIPPED,
         ]);
 
         // Process Houses - need additional query if streets matched
@@ -79,7 +122,7 @@ export async function GET(request: Request) {
         const matchingStreetIds = (streetsResult.data || []).map((s) => s.id);
         let housesByStreet: typeof housesByNumber = [];
 
-        if (matchingStreetIds.length > 0) {
+        if (canViewHouses && matchingStreetIds.length > 0) {
             const { data, error } = await supabase
                 .from('houses')
                 .select('id, house_number, street_id, streets(name)')
@@ -180,17 +223,13 @@ export async function GET(request: Request) {
             contacts.length +
             formattedDocuments.length;
 
-        // Log search query
-        if (query.length >= 2) {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                await supabase.from('search_logs').insert({
-                    query_text: query,
-                    user_id: user.id,
-                    results_count: totalResults
-                });
-            }
-        }
+        // Log search query. `userId` was already resolved by the permission
+        // check above, so this doesn't need its own auth.getUser() call.
+        await supabase.from('search_logs').insert({
+            query_text: query,
+            user_id: userId,
+            results_count: totalResults
+        });
 
         // Return sorted results within each group (or keep grouped but scored)
         return NextResponse.json({

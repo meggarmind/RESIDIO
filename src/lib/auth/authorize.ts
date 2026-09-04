@@ -59,6 +59,36 @@ async function getUserPermissions(userId: string): Promise<{
 }
 
 /**
+ * Returns the current user's id and full permission set, without requiring
+ * any specific permission.
+ *
+ * For endpoints (e.g. global search) that must independently filter several
+ * result categories, each gated by a different permission -- calling
+ * `authorizePermission()` once per category would re-run the profile/role/
+ * permission lookup that many times. This fetches it once; callers check
+ * `permissions.includes(...)` per category themselves. `userId` is `null`
+ * when there is no authenticated user, which callers should treat as a hard
+ * "no access at all", not merely "no permissions".
+ */
+export async function getCurrentUserPermissions(): Promise<{
+  userId: string | null;
+  permissions: string[];
+}> {
+  const supabase = await createServerSupabaseClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { userId: null, permissions: [] };
+  }
+
+  const { permissions } = await getUserPermissions(user.id);
+  return { userId: user.id, permissions };
+}
+
+/**
  * Check if the current user has a specific permission.
  * Uses the new RBAC permission system.
  *
