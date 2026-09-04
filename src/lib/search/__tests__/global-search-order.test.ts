@@ -15,6 +15,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  buildGroupedSearchResults,
   buildOrderedSearchResults,
   buildSearchShortcutIndex,
   MAX_SEARCH_SHORTCUTS,
@@ -76,6 +77,70 @@ describe('buildOrderedSearchResults', () => {
     const ordered = buildOrderedSearchResults(input, GROUP_ORDER);
 
     expect(ordered.map((r) => r.id)).toEqual(['r1', 'd1']);
+  });
+});
+
+describe('buildGroupedSearchResults', () => {
+  it('groups in groupOrder order, not the order results arrived in', () => {
+    const apiOrderResults = [
+      item('document', 'd1'),
+      item('security', 's1'),
+      item('payment', 'p1'),
+      item('house', 'h1'),
+      item('resident', 'r1'),
+      item('action', 'a1'),
+    ];
+
+    const grouped = buildGroupedSearchResults(apiOrderResults, GROUP_ORDER);
+
+    expect(grouped.map((g) => g.type)).toEqual(['action', 'resident', 'house', 'payment', 'security', 'document']);
+    expect(grouped.map((g) => g.items.map((i) => i.id))).toEqual([
+      ['a1'], ['r1'], ['h1'], ['p1'], ['s1'], ['d1'],
+    ]);
+  });
+
+  it('omits a type absent from results entirely -- no empty-bucket entry', () => {
+    const input = [item('document', 'd1'), item('resident', 'r1')];
+
+    const grouped = buildGroupedSearchResults(input, GROUP_ORDER);
+
+    expect(grouped.map((g) => g.type)).toEqual(['resident', 'document']);
+  });
+
+  it('preserves each group\'s internal order', () => {
+    const input = [
+      item('resident', 'r2'),
+      item('action', 'a1'),
+      item('resident', 'r1'),
+      item('action', 'a2'),
+    ];
+
+    const grouped = buildGroupedSearchResults(input, GROUP_ORDER);
+
+    expect(grouped.find((g) => g.type === 'action')?.items.map((i) => i.id)).toEqual(['a1', 'a2']);
+    expect(grouped.find((g) => g.type === 'resident')?.items.map((i) => i.id)).toEqual(['r2', 'r1']);
+  });
+
+  it('agrees with buildOrderedSearchResults: flattening the grouped view reproduces the flat one exactly', () => {
+    // The render loop (grouped) and the badges/hotkey (flat) must be the
+    // same traversal, not two independent ones -- that divergence is
+    // exactly what caused issue #166.
+    const apiOrderResults = [
+      item('document', 'd1'),
+      item('payment', 'p1'),
+      item('resident', 'r1'),
+      item('house', 'h1'),
+      item('security', 's1'),
+      item('action', 'a1'),
+      item('action', 'a2'),
+      item('resident', 'r2'),
+    ];
+
+    const grouped = buildGroupedSearchResults(apiOrderResults, GROUP_ORDER);
+    const flattenedFromGrouped = grouped.flatMap((g) => g.items);
+    const ordered = buildOrderedSearchResults(apiOrderResults, GROUP_ORDER);
+
+    expect(flattenedFromGrouped).toEqual(ordered);
   });
 });
 
