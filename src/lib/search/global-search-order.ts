@@ -20,23 +20,35 @@ export interface OrderableSearchResult {
 /** Number of items that get a Cmd/Ctrl+N shortcut. */
 export const MAX_SEARCH_SHORTCUTS = 5;
 
+/** One render group: a type's label-worthy bucket plus its items, in
+ * `groupOrder`'s order. */
+export interface GroupedSearchResults<T extends OrderableSearchResult> {
+  type: string;
+  items: T[];
+}
+
 /**
- * Flattens `results` into the exact sequence the palette renders: grouped by
- * type, in `groupOrder`'s order, preserving each group's internal order.
+ * Groups `results` by type, in `groupOrder`'s order, preserving each group's
+ * internal order. This is THE single traversal of "rendered order" — the
+ * render loop, the badge numbers and the keyboard handler all derive from
+ * this function (directly, or via the flat view `buildOrderedSearchResults`
+ * returns) rather than each re-deriving their own view of "grouped by type".
  *
- * - A type absent from `results` contributes nothing (no gap in numbering).
+ * Before this, the component computed the same grouping twice independently
+ * (a `reduce` the render loop walked, and this module's flattened order the
+ * badges/hotkey read from) — agreeing only by convention. That divergence is
+ * exactly what let issue #166 happen: past five combined results, `Cmd+3`
+ * could navigate somewhere other than the item labelled "3".
+ *
+ * - A type absent from `results` contributes no entry (no empty group, no
+ *   gap in numbering).
  * - A result whose type is not listed in `groupOrder` is dropped, mirroring
  *   the palette's render loop, which only ever walks `groupOrder`.
- *
- * This is the single source of truth for "rendered order" — both the badge
- * numbers and the keyboard handler must index into this array (or the
- * shortcut map built from it via `buildSearchShortcutIndex`), never into the
- * raw `results` array in its original (e.g. API response) order.
  */
-export function buildOrderedSearchResults<T extends OrderableSearchResult>(
+export function buildGroupedSearchResults<T extends OrderableSearchResult>(
   results: readonly T[],
   groupOrder: readonly string[]
-): T[] {
+): GroupedSearchResults<T>[] {
   const byType = new Map<string, T[]>();
   for (const result of results) {
     const bucket = byType.get(result.type);
@@ -47,17 +59,37 @@ export function buildOrderedSearchResults<T extends OrderableSearchResult>(
     }
   }
 
-  const ordered: T[] = [];
+  const grouped: GroupedSearchResults<T>[] = [];
   for (const type of groupOrder) {
     const bucket = byType.get(type);
-    if (bucket) ordered.push(...bucket);
+    if (bucket) grouped.push({ type, items: bucket });
   }
-  return ordered;
+  return grouped;
 }
 
 /**
- * Maps each of the first `MAX_SEARCH_SHORTCUTS` items in `orderedResults`
- * (the array returned by `buildOrderedSearchResults`) to its 1-based
+ * Flattens `results` into the exact sequence the palette renders: grouped by
+ * type, in `groupOrder`'s order, preserving each group's internal order.
+ * Derived from `buildGroupedSearchResults`, which is now the actual single
+ * source of truth for "rendered order" -- `buildGroupedSearchResults` is
+ * what the component's render loop, badges and keyboard handler all consume
+ * directly (grouped, then flattened inline with `.flatMap`). This function
+ * is not itself called from the component; it is kept because it names and
+ * tests the "flatten the grouped view" step in isolation, and other callers
+ * (e.g. a future non-grouped consumer) can still reach for it instead of
+ * re-deriving the same flattening.
+ */
+export function buildOrderedSearchResults<T extends OrderableSearchResult>(
+  results: readonly T[],
+  groupOrder: readonly string[]
+): T[] {
+  return buildGroupedSearchResults(results, groupOrder).flatMap((group) => group.items);
+}
+
+/**
+ * Maps each of the first `MAX_SEARCH_SHORTCUTS` items in a flattened,
+ * grouped-by-type sequence (`buildGroupedSearchResults(...).flatMap(...)`,
+ * equivalently `buildOrderedSearchResults`'s return value) to its 1-based
  * shortcut number, so the render loop can look up a badge number without
  * re-walking or re-numbering anything itself.
  *
@@ -66,9 +98,9 @@ export function buildOrderedSearchResults<T extends OrderableSearchResult>(
  * href)` beside it -- and it is unique by construction across sources, since
  * two rows pointing at the same page are the same destination. A composite of
  * type and id would collapse silently if two sources ever shared a type label
- * or an id scheme, showing a wrong number rather than failing. #179 is about
- * to add settings and system entries keyed on route slugs, which is exactly
- * the shape that would collide.
+ * or an id scheme, showing a wrong number rather than failing. #179 added
+ * settings and system entries keyed on route slugs, which is exactly the
+ * shape that would have collided under a composite key.
  */
 export function buildSearchShortcutIndex<T extends OrderableSearchResult>(
   orderedResults: readonly T[]
