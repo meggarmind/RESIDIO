@@ -13,13 +13,13 @@
 
 | | |
 |---|---|
-| Phase | **Waves 0-4b COMPLETE (16/17 closed).** Only **#179** remains (wave 4c, solo) |
+| Phase | **Waves 0-4b COMPLETE (16/17 closed).** #179 (4c) then **#181 (4d)** remain |
 | Last completed | #164 merged `575d284` and closed |
 | Gates (2026-09-04 on `968c68d`) | **75 files / 446 tests**, tsc exit 0, lint **0 errors / 326 warnings**, build exit 0. No flake this run; see **D25** for the two files that time out under load |
 | Epic HEAD | `968c68d`, post-#164 merge + doc re-stamp (16 closed: 163-178) |
 | Blocked issues | none |
 | Consecutive QA failures | 0 |
-| Spawned, not in the epic | **#181** (OPEN) — inconsistent RBAC in two #177 server actions |
+| Spawned, taken into the epic | **#181** — re-scoped 2026-09-04 after verification; now wave 4d |
 
 ## Issue status
 
@@ -45,7 +45,7 @@ Legend: TODO / IN-PROGRESS / QA / MERGED / CLOSED / BLOCKED
 | 164 | search permission filter | 4b | **CLOSED** | merged `575d284` | route was fully unauthenticated, not just unfiltered; D26 |
 | 179 | palette indexes Settings | 4c | **TODO — the last slice** | — | makes #166's latent divergence live; reads `settings-nav.ts` + `navigation.ts` |
 | 180 | EPIC | — | OPEN, In progress | epic/180 | closes when #179 lands |
-| 181 | #177 RBAC inconsistency | — | OPEN, untriaged | — | spawned by #177; board Backlog, not an epic slice |
+| 181 | audit + queue RBAC bypass | 4d | **QUEUED** | — | re-scoped: 3 audit fns on legacy roles, queue module unguarded, **and an RLS migration** |
 
 ## Next action
 
@@ -74,8 +74,26 @@ Per issue, unchanged: review the diff myself, run the four gates, spawn a QA
 agent on `git diff epic/180...<branch>`, and only on a clean PASS **commit +
 merge + close + push** — all four steps.
 
-**Then close the epic:** #180 itself, and decide what to do with #181 (open,
-untriaged, spawned by #177) before calling the epic finished.
+**Then #181, solo (wave 4d).** Verified and re-scoped on 2026-09-04 — the issue as
+filed was wrong in both directions; the correcting comment on the issue is the brief.
+The four things its brief must carry:
+
+- **`getQueueStatistics` is the priority.** It delegates to `getQueueStats()`
+  (`src/lib/notifications/queue.ts:371`), which uses **`createAdminClient()`** at `:379`
+  — service role, RLS bypassed, no auth check anywhere. Same shape as the
+  `/api/health/cron-status` hole #174 closed.
+- **The rest of `actions/notifications/queue.ts` is a defence-in-depth gap, not an
+  exposure.** Zero `authorizePermission` and zero `getUser()` in the whole module, but
+  those functions use the RLS-bound client and `notification_queue_select` holds.
+- **The legacy `['admin','chairman']` check is in three functions**, not the one the
+  issue names: `get-audit-logs.ts:46`, `:141`, `:195`.
+- **An action-only fix does not close the ADR-0006 breach.** The `audit_logs` SELECT
+  policy (`20251213200000_create_audit_logs.sql:75-83`) admits chairman *and* reads
+  `profiles.role` directly. So this slice needs a **migration**, which per `CLAUDE.md`
+  means checking open issues first — it touches RBAC/RLS — and applying + verifying by
+  name after merge.
+
+**Then close the epic:** #180 itself.
 
 **Worktree setup — all three steps, every time (D13, D15):**
 1. `git worktree add .worktrees/issue-<n> -b issue/<n>-<slug> epic/180`
