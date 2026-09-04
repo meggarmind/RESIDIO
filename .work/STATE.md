@@ -1,5 +1,9 @@
 # STATE — Epic #180
 
+> **2026-09-04 — restarting for Supabase MCP. Read `.work/RESUME.md` FIRST.** It carries
+> the cross-epic picture, the open PRs, and four database checks that were blocked all
+> session — the first of which may be a live P0.
+
 **Read this before anything else on resume.** Then reconcile against
 `git branch -a`, `git log --oneline -20`, `git status`. Git wins on disagreement.
 
