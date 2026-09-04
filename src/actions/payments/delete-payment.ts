@@ -1,13 +1,13 @@
 'use server'
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { authorizeAction } from '@/lib/auth/authorize';
-import { ACTION_ROLES } from '@/lib/auth/action-roles';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 
 export async function deletePayment(id: string) {
     // Authorization check - only admin, chairman, financial_secretary can delete payments
-    const auth = await authorizeAction(ACTION_ROLES.payments);
+    const auth = await authorizePermission(PERMISSIONS.PAYMENTS_DELETE);
     if (!auth.authorized) {
         return { error: auth.error, success: false };
     }

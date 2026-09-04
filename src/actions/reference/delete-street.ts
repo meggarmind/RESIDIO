@@ -1,8 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { authorizeAction } from '@/lib/auth/authorize';
-import { ACTION_ROLES } from '@/lib/auth/action-roles';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 
 type DeleteStreetResponse = {
@@ -12,7 +12,7 @@ type DeleteStreetResponse = {
 
 export async function deleteStreet(id: string): Promise<DeleteStreetResponse> {
     // Authorization check - only admin, chairman can delete streets
-    const auth = await authorizeAction(ACTION_ROLES.reference);
+    const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
     if (!auth.authorized) {
         return { success: false, error: auth.error };
     }

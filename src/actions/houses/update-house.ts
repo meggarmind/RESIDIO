@@ -1,8 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { authorizeAction } from '@/lib/auth/authorize';
-import { ACTION_ROLES } from '@/lib/auth/action-roles';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
 import type { House } from '@/types/database';
 import type { HouseFormData } from '@/lib/validators/house';
@@ -40,7 +40,7 @@ async function hasExistingDevelopmentLevy(houseId: string): Promise<boolean> {
 
 export async function updateHouse(id: string, formData: HouseFormData): Promise<UpdateHouseResponse> {
   // Authorization check - only admin, chairman, financial_secretary can update houses
-  const auth = await authorizeAction(ACTION_ROLES.houses);
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_UPDATE);
   if (!auth.authorized) {
     return { data: null, error: auth.error };
   }
