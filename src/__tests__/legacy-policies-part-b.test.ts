@@ -269,8 +269,21 @@ describe('#187 part B: legacy profiles.role policies follow has_permission()', (
     const siblings = readdirSync(migrationsDir)
       .filter((f) => f.startsWith('20260905'))
       .sort();
-    expect(siblings).toHaveLength(3);
-    expect(siblings[siblings.length - 1]).toBe(MIGRATION_FILE);
+    // Not pinned to an exact count, and not pinned to "is the last element":
+    // both over-specify the criterion (this migration sorts after the
+    // 20260905* migrations that predate it) and would fail this test every
+    // time a *later*, unrelated 20260905* migration is added alongside it --
+    // which is exactly what happened when #212's
+    // close-anonymous-table-reads migration landed in this same directory.
+    // That migration correctly sorts after this one; this test is not about
+    // it and must not react to it.
+    //
+    // What actually needs proving: this file is not the earliest 20260905*
+    // migration -- i.e. there is at least one same-day sibling it depends on
+    // and correctly sorts after -- without claiming anything about what
+    // sorts after *it*.
+    const index = siblings.indexOf(MIGRATION_FILE);
+    expect(index).toBeGreaterThan(0);
   });
 
   it('wraps its work in a single transaction', () => {
