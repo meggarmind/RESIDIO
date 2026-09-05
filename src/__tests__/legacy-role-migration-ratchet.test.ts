@@ -17,12 +17,13 @@ import { describe, expect, it } from 'vitest';
  * Whatever else happens, the set must stop growing. Existing offenders are
  * allowlisted **by filename**, so the list can only shrink: a file that no longer
  * references the column must be dropped from the allowlist, and a file that is not
- * on it may not start referencing the column.
+ * on it may not start referencing the column. **One documented exception** to
+ * "only shrink" is recorded below, at the bottom of `ALLOWLIST` itself.
  *
  * Modelled on `settings-nav-coverage.test.ts` — this repo's pattern for a
  * structural test over configuration that has drifted before.
  *
- * Two deliberate non-targets:
+ * Two deliberate non-targets, plus one permanent addition:
  *
  * - `get_my_role()` is **not** flagged. It reads `role_id`, not this column, and is
  *   currently the correct thing for a policy to use. Flagging it now would fight the
@@ -31,6 +32,12 @@ import { describe, expect, it } from 'vitest';
  *   and `COMMENT ON COLUMN profiles.role` — is exempt. The ratchet forbids depending
  *   on the column, not retiring it, and #193/#194 must be able to land without
  *   growing this allowlist.
+ * - `20260905010000_reconcile_profile_role_ids.sql` (#192) is the one entry this
+ *   file expects to grow, permanently, rather than shrink. It is a migration whose
+ *   entire job is reading `profiles.role` one last time to prove no account still
+ *   needs it, immediately before #193 deletes the column. That is DML, not the DDL
+ *   the bullet above exempts, so it cannot qualify for that exemption — it earns
+ *   its place on the allowlist honestly instead. See the comment on that entry.
  */
 
 const migrationsDir = fileURLToPath(new URL('../../supabase/migrations', import.meta.url));
@@ -40,7 +47,11 @@ const migrationsDir = fileURLToPath(new URL('../../supabase/migrations', import.
  *
  * This list is the deliverable as much as the test: it is the authoritative set of
  * files that #186 and #187 must clear, and it reached this file by scanning the
- * directory, not by transcription from an issue. **Only ever remove entries.**
+ * directory, not by transcription from an issue. **Only ever remove entries** --
+ * with one documented exception, added deliberately rather than discovered as an
+ * offender: `20260905010000_reconcile_profile_role_ids.sql` (#192), the last
+ * legitimate reader of `profiles.role`, added permanently rather than pending
+ * removal. See its own comment below for why it cannot shrink away like the rest.
  *
  * Note that it is a list of *files*, not of live policies: several of these
  * migrations were later superseded, and some policies in the live database were
