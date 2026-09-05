@@ -15,7 +15,7 @@
 
 Residio has automated coverage — Vitest unit + integration suites and eight Playwright specs covering phases 1–5 (auth, dashboard shell, residents/houses, payments/billing) at happy-path depth. It has **no** manual, page-by-page functional QA pass, and no QA artifacts of any kind.
 
-This plan closes that gap for the **Admin Dashboard**, which `AGENTS.md` and `CLAUDE.md` name as the sole forward-work surface.
+This plan closes that gap for the **Admin Dashboard**, which `CORE.md` names as the sole forward-work surface.
 
 ### In scope
 

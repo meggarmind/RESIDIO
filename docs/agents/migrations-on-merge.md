@@ -83,12 +83,13 @@ it was withheld for.
 
 ## What this rule cannot do
 
-It binds sessions that read `CLAUDE.md`. It does not bind a human merging from
-the GitHub UI, and nothing here can. Treat it as a standing instruction for
+It binds sessions that read `CORE.md` — which is every harness. It does not bind
+a human merging from the GitHub UI, and nothing here can. Treat it as a standing instruction for
 agent-driven merges, not as an enforced gate.
 
 ## Related
 
-- `docs/agents/session-roles.md` — the two-session arrangement these merges run under
+- `CORE.md` — section 11 (this rule in the canonical set), section 5 (Supabase is cloud-only)
+- `docs/agents/session-roles.md` — the peer arrangement these merges may run under
 - `SESSION_STATE.md` — where deferred and withheld migrations are recorded
-- `CLAUDE.md` — `## Supabase MCP`, for the tools themselves
+- `CLAUDE.md` — `## Supabase MCP`, for the tool names themselves

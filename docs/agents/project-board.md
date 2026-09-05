@@ -33,12 +33,15 @@ manual step something an agent can do consistently).
 
 ## When to move an issue's Status
 
-Per `CLAUDE.md`'s `## Agent skills` section, Claude moves an issue automatically at exactly two points:
+Per `CORE.md` section 9, every agent — under any harness — moves an issue automatically at
+exactly three points:
 
 1. **Picking up a `ready-for-agent`/`ready-for-human` issue to start work** → set Status to `In progress`.
-2. **The issue (or its PR) is closed or merged** → set Status to `Done`.
+2. **Opening the PR for it** → set Status to `In review`.
+3. **The issue (or its PR) is closed or merged** → set Status to `Done`.
 
-`In review` is not set automatically — it's fine to leave manual for now. Any other transition (e.g. moving something back to Backlog) should be done only when explicitly asked.
+Do not move issues *backwards* (to `Backlog` or `Ready`) on your own; that stays manual, as does
+the initial `Backlog` → `Ready` triage transition.
 
 ## Commands
 

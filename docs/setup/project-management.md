@@ -102,8 +102,10 @@ When triggered by `pause_session` or `end_session`:
 - Mark completed work, add discovered follow-ups, and reprioritize the backlog as needed
 - Update active plan steps where the session changed them
 
-### Step 3: Update CLAUDE.md
+### Step 3: Update the instruction files
 - Only if new patterns or conventions were established
+- Route the change per `CORE.md` section 2: project policy goes in `CORE.md`, Claude Code
+  mechanics in `CLAUDE.md`, Codex/OpenCode mechanics in `AGENTS.md`
 
 ---
 
@@ -113,7 +115,7 @@ When triggered by `sync_up`:
 
 ### Step 1: Update Internal Documentation
 - Update `TODO.md` with current state
-- Update `CLAUDE.md` if new patterns established
+- Update `CORE.md` (or a harness file, per its section 2) if new patterns established
 - Run `date` to confirm timestamp
 
 ### Step 2: Git Commit & Push

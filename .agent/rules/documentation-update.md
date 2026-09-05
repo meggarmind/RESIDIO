@@ -2,4 +2,18 @@
 trigger: always_on
 ---
 
-Ensure the file TODO.md is updated after the success of every task.It should form the central task management for the tracker. When new features or enhancements are approved, a high-level to-do list abstracted from the applicable implementation plan should be saved/appended in TODO.md, n the right section or phase. This is updated as tasks are completed. Once a phase and/or section is completed, request to commit and push to remote should be presented to the User. Commit should be automatically done when a Bug is confirmed fixed
+# Tracking and documentation
+
+Superseded by `CORE.md` -- read `CORE.md` section 14 ("Progress tracking").
+
+Summary of what binds:
+
+- **GitHub issues are the tracker.** `TODO.md` is the product backlog, `ACTIONPLAN.md` the
+  active plan, `SESSION_STATE.md` the sole live handoff. Keep each in its own lane.
+- Update `TODO.md` as work completes: mark finished items, add discovered follow-ups.
+- Run `npm run docs:drift` before wrapping up any session that touched `src/**`
+  (`CORE.md` section 12).
+
+**Do not commit or push automatically.** An earlier version of this rule authorised committing
+without asking whenever a bug was confirmed fixed. That is withdrawn: implementing agents commit
+and stop, and the user does the merging (`CORE.md` sections 15 and 16).
