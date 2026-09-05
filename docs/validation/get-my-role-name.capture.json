@@ -1,0 +1,68 @@
+{
+  "$schema": "get-my-role-name/v1",
+  "capturedAt": "2026-09-05",
+  "capturedBy": "supabase/probes/get-my-role-name.sql, run inside BEGIN...ROLLBACK (via the Supabase MCP, or the Management API query endpoint when the MCP server is unavailable -- both execute the same SQL against the same cloud database). The role-loop measures get_my_role() and get_my_role_name() together on the same impersonated session, so legacyVsNew below is measured, not transcribed from the get_my_role() CASE statement in migration 20260830100300.",
+  "issue": 189,
+  "epic": 182,
+  "builtInRoles": [
+    "chairman",
+    "financial_officer",
+    "project_manager",
+    "resident",
+    "secretary",
+    "security_officer",
+    "super_admin",
+    "vice_chairman"
+  ],
+  "cases": [
+    { "ord": 1, "case": "role = chairman", "expected": "chairman", "actual": "chairman" },
+    { "ord": 2, "case": "role = financial_officer", "expected": "financial_officer", "actual": "financial_officer" },
+    { "ord": 3, "case": "role = project_manager", "expected": "project_manager", "actual": "project_manager" },
+    { "ord": 4, "case": "role = resident", "expected": "resident", "actual": "resident" },
+    { "ord": 5, "case": "role = secretary", "expected": "secretary", "actual": "secretary" },
+    { "ord": 6, "case": "role = security_officer", "expected": "security_officer", "actual": "security_officer" },
+    { "ord": 7, "case": "role = super_admin", "expected": "super_admin", "actual": "super_admin" },
+    { "ord": 8, "case": "role = vice_chairman", "expected": "vice_chairman", "actual": "vice_chairman" },
+    { "ord": 90, "case": "custom (non-built-in) role", "expected": "probe_custom_role", "actual": "probe_custom_role" },
+    { "ord": 91, "case": "approval_status = pending", "expected": "<NULL>", "actual": "<NULL>" },
+    { "ord": 92, "case": "approval_status = suspended", "expected": "<NULL>", "actual": "<NULL>" },
+    { "ord": 93, "case": "role_id IS NULL", "expected": "<NULL>", "actual": "<NULL>" },
+    { "ord": 94, "case": "no auth.uid() (anon)", "expected": "<NULL>", "actual": "<NULL>" }
+  ],
+  "hardening": {
+    "get_my_role": {
+      "prosecdef": true,
+      "provolatile": "s",
+      "proconfig": ["search_path=public, auth, extensions, pg_temp"],
+      "returnType": "user_role"
+    },
+    "get_my_role_name": {
+      "prosecdef": true,
+      "provolatile": "s",
+      "proconfig": ["search_path=public, auth, extensions, pg_temp"],
+      "returnType": "text"
+    }
+  },
+  "legacyVsNew": {
+    "super_admin": { "legacy": "admin", "new": "super_admin" },
+    "chairman": { "legacy": "chairman", "new": "chairman" },
+    "vice_chairman": { "legacy": "chairman", "new": "vice_chairman" },
+    "financial_officer": { "legacy": "financial_secretary", "new": "financial_officer" },
+    "security_officer": { "legacy": "security_officer", "new": "security_officer" },
+    "project_manager": { "legacy": null, "new": "project_manager" },
+    "secretary": { "legacy": null, "new": "secretary" },
+    "resident": { "legacy": null, "new": "resident" }
+  },
+  "policyShapes": {
+    "totalPoliciesCallingGetMyRole": 97,
+    "anyArray": 81,
+    "equalsLiteral": 16,
+    "isNullOrNotNull": 0,
+    "measuredAt": "2026-09-05",
+    "measuredAgainst": "pg_policies (predicate text), not role-access-matrix.sql -- that probe captures per-role access verdicts, not predicate shapes"
+  },
+  "notes": {
+    "bucketCollapse": "get_my_role() folds vice_chairman and financial_officer into shared legacy buckets (chairman, financial_secretary). get_my_role_name() returns each role's own name. This is the hazard #190's retarget exists to fix.",
+    "inverseWideningHazard": "project_manager, secretary and resident return NULL under get_my_role() (the legacy enum cannot express them) but their own name under get_my_role_name(). A policy shaped `get_my_role() IS NOT NULL` would widen access on retarget. See policyShapes for the measured predicate-shape counts backing the claim that no live policy is written that way today."
+  }
+}
