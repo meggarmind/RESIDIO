@@ -88,17 +88,18 @@ function rollbackStatement(policy: string): string {
 }
 
 /**
- * The fifteen policies, as `[table, policy name, command, permission,
- * hasWithCheck]`.
+ * The fifteen policies, as `[table, policy name, command, permission]`.
  *
  * The permission column is the decision this slice actually makes, and it was
  * verified against `role_permissions` before the migration was written. It is
  * restated here rather than derived from the migration so that changing the
  * migration alone cannot make this file agree with it.
  *
- * `hasWithCheck` distinguishes the two UPDATE policies and the three ALL
- * policies (both clauses) from the SELECT/DELETE policies (USING only) and
- * the two INSERT policies (WITH CHECK only).
+ * `cmd` distinguishes the two UPDATE policies and the three ALL policies
+ * (both clauses expected, per `expectedCreate`) from the SELECT/DELETE
+ * policies (USING only) and the two INSERT policies (WITH CHECK only). The
+ * legacy WITH CHECK shape each policy actually had is a separate concern,
+ * tracked below in `PRIOR_HAS_WITH_CHECK` for the rollback-only checks.
  */
 const POLICIES: ReadonlyArray<{
   table: string;
@@ -200,9 +201,9 @@ const POLICIES: ReadonlyArray<{
 
 /**
  * The prior (legacy) definition's USING/WITH CHECK shape, per policy, as
- * transcribed from `.187-prior-policies.txt` at authoring time. Used only to
- * pin the rollback block, which must restore exactly what was live -- not
- * what the new policy's shape convention would suggest. late_fee_waivers and
+ * transcribed from live `pg_policies` at authoring time. Used only to pin the
+ * rollback block, which must restore exactly what was live -- not what the
+ * new policy's shape convention would suggest. late_fee_waivers and
  * petty_cash_accounts are FOR ALL policies that, live, had WITH CHECK: none
  * (Postgres defaults it to USING), so the rollback restores them with no
  * WITH CHECK clause at all.
@@ -226,13 +227,14 @@ const PRIOR_HAS_WITH_CHECK: Record<string, boolean> = {
 };
 
 /**
- * Policies deliberately not part of this slice, kept here only as a guard
- * against accidental scope creep. Unlike part A, none of these fifteen tables
- * carry a resident-scoped sibling policy worth naming individually, so this
- * list stays empty; the "no others" count check below is what actually
- * enforces scope.
+ * Policies deliberately not part of this slice, kept here as a guard against
+ * accidental scope creep. `petty_cash_accounts` carries a real sibling read
+ * policy for non-admin authenticated users that this migration must leave
+ * alone -- dropping it would remove that access with no error anywhere,
+ * since `DROP POLICY IF EXISTS` on a name nobody meant to touch succeeds
+ * silently.
  */
-const MUST_NOT_TOUCH: string[] = [];
+const MUST_NOT_TOUCH = ['Authenticated users can view petty cash accounts'];
 
 /** The exact `CREATE POLICY` text the migration is pinned to, per command. */
 function expectedCreate(entry: (typeof POLICIES)[number]): string {
@@ -386,6 +388,23 @@ describe('#187 part B: legacy profiles.role policies follow has_permission()', (
     }
   });
 
+  it('restores every rollback policy with TO authenticated', () => {
+    // Unlike part A -- where 9 of 14 legacy policies were live as {public}
+    // and the rollback had to reproduce that split -- all fifteen policies
+    // here were verified live as {authenticated}, so the rollback is
+    // uniform. That uniformity is exactly what makes it easy to lose
+    // silently: mutating `TO authenticated` out of one rollback statement
+    // previously left this file's other assertions green, because none of
+    // them checked the rollback's TO clause at all.
+    for (const entry of POLICIES) {
+      const statement = rollbackStatement(entry.policy);
+      expect(statement, `${entry.policy}: rollback missing TO authenticated`).toContain(
+        'TO authenticated'
+      );
+    }
+    expect((rollback.match(/ TO authenticated\n/g) ?? []).length).toBe(15);
+  });
+
   it('has no executable SQL outside the transaction', () => {
     // Every content assertion in this file is anchored to the BEGIN;..COMMIT;
     // slice, so a statement parked above BEGIN; or below COMMIT; would be
@@ -401,6 +420,14 @@ describe('#187 part B: legacy profiles.role policies follow has_permission()', (
     // returns false for a name no role can hold. Also guards the specific
     // documented hazard for this slice: `finance.manage_expenditure` does not
     // exist, only the bare `manage_expenditure` does.
+    //
+    // Checked against the `PERMISSIONS` constants in
+    // src/lib/auth/action-roles.ts, not the live `app_permissions` table --
+    // this file has no database connection (see the top-of-file comment).
+    // `PERMISSIONS` is a proxy for that catalogue, not the catalogue itself,
+    // so this cannot catch a permission that exists in code but was never
+    // seeded, or vice versa; only role_permissions/app_permissions checked
+    // directly against the database can do that.
     const catalogue = new Set<string>(Object.values(PERMISSIONS));
     const unknown = [...new Set(POLICIES.map((p) => p.permission))].filter(
       (p) => !catalogue.has(p)

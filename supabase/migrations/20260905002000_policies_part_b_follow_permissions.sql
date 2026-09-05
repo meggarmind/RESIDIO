@@ -88,9 +88,10 @@
 --   resident read which announcement and when -- personal data, not merely
 --   announcement content. announcements.view (the seemingly natural fit) is
 --   also held by financial_officer and security_officer, which would widen who
---   sees that personal data. announcements.publish preserves the legacy
---   audience (admin + chairman, now super_admin + chairman + vice_chairman via
---   the has_permission() rewrite) exactly.
+--   sees that personal data. announcements.publish reproduces the same
+--   admin+chairman legacy pattern as the rest of this migration -- it is not
+--   one of the two zero-movement cases above, and still gains vice_chairman
+--   like every other policy here.
 --
 -- petty_cash_accounts uses the BARE permission name `manage_expenditure`, not
 -- `finance.manage_expenditure` -- that category-prefixed name does not exist
@@ -280,7 +281,9 @@ CREATE POLICY "announcement_categories_admin_all"
 -- announcement and when -- personal data, not just announcement content.
 -- announcements.view (the more obvious fit) is also held by financial_officer
 -- and security_officer, which would widen who sees that personal data.
--- announcements.publish preserves the legacy admin+chairman audience exactly.
+-- announcements.publish reuses the legacy admin+chairman pattern, gaining
+-- vice_chairman like the rest of this migration -- see the header for why
+-- this is not one of the two zero-movement cases.
 DROP POLICY IF EXISTS "read_receipts_admin_select" ON public.announcement_read_receipts;
 CREATE POLICY "read_receipts_admin_select"
   ON public.announcement_read_receipts FOR SELECT TO authenticated

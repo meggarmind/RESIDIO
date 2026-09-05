@@ -302,12 +302,12 @@ describe('audit_logs RLS policy (ADR-0006 boundary, expressed as a test)', () =>
   });
 
   it('no migration grants settings.view_audit_logs back to chairman', () => {
-    // `view_audit_logs` should appear in exactly two places in migration
-    // history: the seed that declares the app_permissions row, and this
-    // issue's own policy migration (which references the permission name in
-    // the RLS USING clause and its comment block, not in a role_permissions
-    // grant). Any other file naming it is a deliberate change this test
-    // should force a reviewer to update.
+    // `view_audit_logs` should appear in exactly these places in migration
+    // history: the seed that declares the app_permissions row, this issue's
+    // own policy migration, and #187's policy migration (both of which
+    // reference the permission name in an RLS USING clause and a comment
+    // block, not in a role_permissions grant). Any other file naming it is a
+    // deliberate change this test should force a reviewer to update.
     const expectedFiles = new Set([
       '20251222000000_create_rbac_system.sql',
       policyMigrationFile,
