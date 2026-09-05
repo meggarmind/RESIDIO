@@ -86,7 +86,6 @@ When the user types any of these keyphrases, execute the associated action:
 | `pause_session` | Execute session handoff procedure |
 | `end_session` | Execute session handoff procedure |
 | `resume_session` | Read `SESSION_STATE.md`, then continue from its current snapshot and next steps |
-| `sync_dev_inbox` | Run Notion sync, check prompts folder, process prompts |
 | `sync_up` | Execute sync-up procedure |
 
 ---
@@ -105,12 +104,6 @@ When triggered by `pause_session` or `end_session`:
 
 ### Step 3: Update CLAUDE.md
 - Only if new patterns or conventions were established
-
-### Step 4: Update Notion Project Review
-Use `mcp__notion__notion-update-page`:
-- Page ID: `2c92bfe3-ea0c-81df-b05f-ffcef90414fa`
-- URL: https://www.notion.so/2c92bfe3ea0c81dfb05fffcef90414fa
-- Update with current project status, completed phases, in-progress work
 
 ---
 
@@ -151,8 +144,8 @@ git push
 ```
 
 ### Step 3: Evaluate Pending Work
-1. Check `/prompts/` folder for pending tasks
-2. Check `/deferred/` folder for tasks now aligned
+1. Check open issues on the tracker (`gh issue list`), including any `ready-for-agent` items
+2. Check the remote branch list (`git ls-remote --heads origin`) for work already in flight
 3. Read current phase from `TODO.md`
 4. Identify next phase from roadmap
 
@@ -170,15 +163,15 @@ SYNC-UP COMPLETE
 
 PENDING WORK:
 ┌─────────────────────────────────────────────────────┐
-│ Prompts: X pending, Y deferred (Z now aligned)     │
+│ Open issues: X (Y ready-for-agent)                  │
 │ Backlog items: X                                    │
 └─────────────────────────────────────────────────────┘
 
 RECOMMENDED NEXT ACTIONS:
 (a) Continue current phase work [if incomplete]
 (b) Start next phase [if current complete]
-(c) Process aligned prompts [if any now aligned]
-(d) Review deferred items [if phase changed]
+(c) Pick up a ready-for-agent issue [if any]
+(d) Review in-flight branches [if any]
 (e) End session [if stopping work]
 
 What would you like to do?
@@ -213,83 +206,4 @@ feat: [Phase description]
 - [Key change 1]
 - [Key change 2]
 - [Key change 3]
-```
-
----
-
-## Folder Structure for Prompts
-
-```
-residio/
-├── prompts/          # Pending prompts (auto-populated from Notion)
-│   └── *.md          # Auto-generated prompt files
-├── processed/        # Successfully completed prompts
-│   └── *.md          # Moved here after task completion
-├── deferred/         # Prompts deferred to later phase
-│   └── *.md          # Moved here when user chooses "Defer"
-├── archived/         # Permanently skipped prompts
-│   └── *.md          # Moved here when user chooses "Archive"
-└── .claude/
-    ├── settings.json      # Hook configuration
-    └── hooks/
-        └── session-start.sh  # SessionStart hook script
-```
-
----
-
-## Prompt Processing Behavior
-
-### Auto-Execute (Phase-Aligned)
-- Matches current phase (as defined in TODO.md)
-- Type: Bug Fix, Documentation, Security Fix, or Technical Debt
-- Phase: Backlog
-
-Action: Add to task list and execute.
-
-### User Decision Required (Non-Aligned)
-- Different phase than current
-- Not a universally-executable type
-
-Action: Present user with THREE options:
-
-| Option | Description | File Action | Notion Status |
-|--------|-------------|-------------|---------------|
-| **Defer** | Save for later phase | `mv prompts/X deferred/X` | "Deferred" |
-| **Execute anyway** | Override phase restriction | Process normally | (per completion) |
-| **Archive** | Skip permanently | `mv prompts/X archived/X` | "Archived" |
-
----
-
-## Completing Prompts
-
-After successfully completing a prompt task:
-
-### 1. Extract Notion Page ID
-From YAML frontmatter:
-```yaml
----
-notion_page_id: 2ca2bfe3ea0c80c68727cbda365dfcd3
-notion_url: https://www.notion.so/...
----
-```
-
-### 2. Update Notion Status
-
-**Via MCP** (if available):
-```
-mcp__notion__notion-update-page
-data:
-  page_id: [notion_page_id from frontmatter]
-  command: update_properties
-  properties:
-    Status: Done
-    Processed Date: [today's date YYYY-MM-DD]
-    Analysis Notes: "Completed by Claude Code on [date]. [brief summary]"
-```
-
-**Via NSMA Dashboard**: http://localhost:3100
-
-### 3. Move File
-```bash
-mv prompts/pending/<filename> prompts/processed/<filename>
 ```

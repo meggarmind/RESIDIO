@@ -44,10 +44,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Development inbox prompts (auto-generated from Notion)
-prompts/
-processed/
-deferred/
 archived/
 
 # MCP configuration (contains secrets)
