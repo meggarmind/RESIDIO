@@ -9,6 +9,65 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-05 — #187 legacy policies part B, applied; three defects filed)
+
+**Tool:** Claude Code, coordinator/sub-agent split. **Branch:** `feat/legacy-policies-part-b`, off `master` @ `5ca1eec8`, **pushed**, **PR #216 open, not merged**. Epic #182 (remove the legacy role vocabulary) is the live thread; waves 0–5 and 8 were already closed on entry.
+
+> **The previous entry in this file was a full epic stale.** It described `epic/180` as unmerged with no PR; that epic is merged and its branch deleted. Treat the remote branch list as the live registry, not this file.
+
+### 🚨 A migration is APPLIED but NOT MERGED — do not misread this
+
+`supabase/migrations/20260905002000_policies_part_b_follow_permissions.sql` is **live on the cloud database**, applied 2026-09-05 **before** merge at Jimi's explicit instruction ("if QA verdict is positive, apply the migration before the cleanup"). This inverts `docs/agents/migrations-on-merge.md`, deliberately.
+
+- **The database is ahead of `master`.** Auditing `master`'s migrations directory against the database will show a discrepancy that is *expected*.
+- **Do not re-apply on merge.** Ledger row `20260905002000 / policies_part_b_follow_permissions` already exists, inserted in the same transaction as the policy changes.
+- **If PR #216 is closed unmerged, roll the database back** using the rollback block in the migration file. Deleting the branch is not sufficient. The rollback block was verified 15/15 exact against live `pg_policies` before anything was applied.
+
+### What shipped
+
+15 RLS policies across 10 tables rewritten from `profiles.role` predicates to `public.has_permission()`. Measured after apply: policies reading the legacy column directly went **19 → 4**, and the 4 remaining are exactly the tables deliberately deferred (`report_schedules`, `generated_reports` → #213; `ai_settings`, `ai_conversation_logs` → #214). Policy counts unchanged (29 → 29), RLS still enabled on all ten.
+
+Three commits (`675b3046`, `2ab33569`, `88a1a79c`). Gates: **611/611 tests, 85/85 files**, `npx tsc --noEmit` exit 0, lint **0 errors / 327 warnings**.
+
+### Scope corrections — the issue body was wrong, and the record is now on the issue
+
+#187 claimed 12 policies across 9 tables. The database had **19 across 14**. A `LIKE '%profiles.role%'` search finds only **4** — most policies alias `FROM profiles p` and render as `p.role`. Use a word-boundary regex on `qual || with_check` excluding `get_my_role|has_permission|role_id|app_roles`.
+
+**"The ratchet allowlist reaches empty" is impossible and has been retired as a criterion** on both #187 and the epic. The #183 allowlist lists historical migration *filenames* and the ratchet asserts each still names a real offender, so it can only shrink by editing applied migration history. #186 removed zero entries; the list is byte-identical to the commit that created it. The same unmet claim sat in #186's body and nothing tested it. The real criterion is "zero live policies read `profiles.role`".
+
+### Three defects filed rather than absorbed
+
+- **#212 — four tables are readable by anyone on the internet.** `system_settings` (62 rows), `billing_profiles`, `billing_items`, `expense_categories` return data to a request bearing only the publishable anon key. Confirmed **by unauthenticated HTTP request**, not by reading policies. No credentials among them (those are correctly locked by #186), which keeps it HIGH not CRITICAL; what leaks is the estate's whole billing and enforcement configuration. Caller inventory posted: **every one of the 43 callers is authenticated or uses the service-role key**, so the fix is to change the grantee from `public` to `authenticated` and keep `USING (true)` — zero behaviour change. **Constraint:** `system_settings` must stay readable by *all* authenticated users — `src/middleware.ts:92` reads `maintenance_mode` for every signed-in account, so gating it on a permission breaks maintenance mode for every non-admin.
+- **#213 — a third role vocabulary.** 25 policies across 18 tables authorize by joining `profiles.role_id → app_roles.name` and hardcoding role *names*. **None admits `vice_chairman`.** They read the modern column, so the #183 ratchet cannot see them, #190 does not cover them, and #193/#194 leave them working exactly as now. **Epic #182 can therefore complete in full and declare the legacy vocabulary gone while this population survives untouched.**
+- **#214 — `ai_settings` / `ai_conversation_logs`.** Legacy policies, but no `ai.*` permission exists and **no application code references either table**. Keep-or-drop decision needed. **Blocks #193.**
+
+### Traps confirmed against the live database
+
+- **`has_permission()` returns false for a permission name that does not exist**, rather than erroring. A wrong name yields a well-formed policy that silently denies everyone.
+- **Six permissions are stored without a category prefix**: `manage_expenditure`, `view_expenditure`, `manage_vendors`, `view_vendors`, `manage_projects`, `view_projects`. **`finance.manage_expenditure` does not exist.** Every other category uses `category.name`.
+- **`anon` holds no `EXECUTE` on `has_permission`** (`20260829100200:196`; confirmed live — only `authenticated`, `postgres`, `service_role`). A policy omitting `TO authenticated` applies to PUBLIC including `anon`, turning an unauthenticated query into a **500**, not an empty set. All 15 policies here were live as `{authenticated}` and were restored as such.
+- **Ledger version drift.** Part A and #191 are recorded at versions `20260905030200` / `20260905030210`, **not** their filename versions — the MCP `apply_migration` tool assigns its own. This slice was applied via the Management API and recorded at its filename version, so file and ledger agree. **The two earlier ones still disagree; not reconciled — needs a decision.** This is the drift that previously orphaned six migrations here.
+- **Supabase MCP timed out at spawn this session.** `SUPABASE_ACCESS_TOKEN` is in the OS environment and the **Management API** (`POST https://api.supabase.com/v1/projects/kzugmyjjqttardhfejzc/database/query`) works without a restart. It honours `BEGIN`/`ROLLBACK` including DDL, and returns the **last result-producing statement** — so `BEGIN; <ddl>; SELECT <probe>; ROLLBACK;` measures a change with nothing committed. That is how the 19 → 4 delta was known before committing.
+
+### Method notes worth keeping
+
+- QA ran at **Opus** against a **Sonnet** implementer (tiered up for authorization/migrations) with no access to the implementer's reasoning. Verdict **PASS WITH NOTES**, **16 of 17 mutations caught**, no defects in the shipped SQL. The two gaps it found were both real: a rollback `TO authenticated` could be deleted with the suite staying green, and `MUST_NOT_TOUCH` was an empty array so one test iterated zero times and passed unconditionally. Both fixed in `88a1a79c`; the mutation was re-run to confirm the fix bites.
+- **QA has no database access, and its five "unresolved" items were all closed by the coordinator.** One mattered: QA suspected the rollback assumed `TO authenticated` wrongly (as #186's had — nine of its fourteen were actually `{public}`). Measurement showed all 15 here *were* `{authenticated}`, so it was a test-coverage gap, not a wrong rollback. Without that check it would have read as a correctness defect.
+- **Harness worktrees ship an incomplete `node_modules`** (298 packages, no `.bin`). Every agent must run `npm ci` first. Do **not** link or junction another tree's `node_modules` — that is D14/D15 and it silently emptied 16 package directories.
+- `npm test` is bare `vitest` (watch mode, never exits). Use **`npx vitest run`**. There is no `typecheck` script; use `npx tsc --noEmit`. Full suite is ~27s.
+
+### Housekeeping done
+
+Orphaned worktree `agent-abb53143da7f7d65b` (unregistered, at master HEAD, nothing unique) deleted. Scratch file `.187-prior-policies.txt` removed from the repo root. **Two harness-managed worktrees remain by design** — `agent-a138fd5df52b44358` (holds `feat/legacy-policies-part-b`, locked) and `agent-a6794a859f471c3b6` (detached QA tree); left for the harness rather than force-removed.
+
+### Next, and what not to re-litigate
+
+**#212's anonymous half is the highest-value next slice** — it is live and public today, needs six policy changes and no design work, and its caller inventory is already posted on the issue. Then #213, then #214 (which blocks #193).
+
+Do not reopen: the `announcements.publish` choice for `announcement_read_receipts` (read receipts are personal data; the legacy audiences were deliberately different — four roles vs two — and `announcements.view` would hand a per-resident reading log to `financial_officer` and `security_officer`; QA independently endorsed it). The `search_logs` narrowing (owner-approved; aligns RLS with `getSearchAnalytics()`). The scope split of #187. And the retired ratchet-allowlist criterion.
+
+---
+
 ## Last session (Claude Code, 2026-09-03/04 — Epic #180, Settings information architecture)
 
 **Tool:** Claude Code. **Branch:** `epic/180`, cut from `origin/master` @ `0c69af2`, pushed to origin after every merge. **53 commits ahead of master, not merged, no PR yet.** 15 of 17 slices closed (#163, #165, #167–#178); #164 and #179 remain.
