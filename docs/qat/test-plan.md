@@ -15,7 +15,7 @@
 
 Residio has automated coverage — Vitest unit + integration suites and eight Playwright specs covering phases 1–5 (auth, dashboard shell, residents/houses, payments/billing) at happy-path depth. It has **no** manual, page-by-page functional QA pass, and no QA artifacts of any kind.
 
-This plan closes that gap for the **Admin Dashboard**, which `AGENTS.md` and `CLAUDE.md` name as the sole forward-work surface.
+This plan closes that gap for the **Admin Dashboard**, which `CORE.md` names as the sole forward-work surface.
 
 ### In scope
 
@@ -31,7 +31,7 @@ This plan closes that gap for the **Admin Dashboard**, which `AGENTS.md` and `CL
 | Cross-role RBAC boundary testing (chairman / financial_officer / security_officer) | Scoped out for this pass by agreement; only `super_admin` and unauthenticated actors are exercised. |
 | Third-party delivery paths (Paystack charges, Resend email, WhatsApp sends, Termii SMS, Gmail OAuth) | No provider keys are configured in this environment. Tests assert **graceful degradation**, not delivery. |
 | Load, stress, and performance benchmarking | Not a functional QA concern for this pass. |
-| Penetration testing / security scanning | Covered separately by the `/security-review` and `qa-director` tooling. |
+| Penetration testing / security scanning | Covered separately by the `/security-review` tooling. |
 
 ---
 

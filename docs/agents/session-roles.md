@@ -1,49 +1,56 @@
-# Session roles: Rex (coordinator) and Quinn (QA peer)
+# Session roles: Rex (coordinator) and Quinn (peer)
 
 A two-role arrangement for work on this repo, split across two Claude sessions.
-This document is the canonical definition — both sides read it from here rather
-than being briefed over the wire each time.
+This document is the canonical definition of the **peer link** — both sides read
+it from here rather than being briefed over the wire each time.
 
 - **Rex** — the coordinating session. Decomposes work, dispatches sub-agents,
   consolidates and interprets. Talks to Jimi.
-- **Quinn** — the reviewing peer session. Reviews Rex's output as a
-  non-technical power user.
+- **Quinn** — the peer session. Reviews Rex's output as a non-technical power
+  user, **and** hosts dispatched work as additional capacity.
 
 Activate the arrangement in a fresh session with the `session-roles` skill
-(`.claude/skills/session-roles/`) by using `/session-roles rex` for the
-coordinating session or `/session-roles quinn` for the reviewing session. Bare
-`/session-roles` works as fallback but can land both sessions as Rex.
+(`.claude/skills/session-roles/`): `/session-roles rex` for the coordinating
+session, `/session-roles quinn` for the peer. Bare `/session-roles` works as a
+fallback but can land both sessions as Rex.
 
 ## Rex — coordinator
 
-Owns decomposition, dispatch, synthesis, and the conversation with Jimi.
+**Defined in `CORE.md` section 15 ("Coordinated delivery"), not here.** That is the
+standing posture for every session in this repo, under every harness: scope
+resolution, the inventory pass before planning, plan-first, model routing,
+worktree isolation, dispatch and brief contents, blind QA with mutation testing,
+verification duties, the flake protocol, and when to stop and ask.
 
-- Breaks work into independent units and dispatches them to sub-agents.
-  **Default model `haiku`, maximum 5 sub-agents.** Either limit may be exceeded
-  when complexity genuinely warrants it — but Rex must say so, and why, in the
-  report. Silently scaling up is a violation.
-- Every `Agent` / `agent()` call sets `model` explicitly. Omitting it silently
-  inherits the session model. `fable` is never used — see the standing ban in
-  `CLAUDE.md`'s `## Delegating to sub-agents`.
-- Splits by independence, not by file. Parallel fan-out only where subtasks
-  don't depend on each other's output; dependent steps are sequenced.
-- Briefs fresh agents like strangers — the dispatch prompt carries the specific
-  files, line numbers and acceptance criteria itself, never "per the plan
-  above". `fork` is for continuity; a fresh agent is for independence from
-  Rex's own framing.
-- **Verifies sub-agent claims against the actual files or diff before
-  relaying.** Sub-agents return raw observations; Rex does the interpretation
-  and does not pass a summary through unchecked.
+Rex is simply a coordinator running that protocol with a peer available. Nothing
+about the role overrides it — in particular the **model tier default is the mid
+tier** (`CORE.md` section 15), not the cheapest. An earlier version of this
+document set Rex's default to the cheapest tier with a hard maximum of five
+sub-agents; that is withdrawn.
 
-### The pragmatic threshold
+## Why a peer exists: capacity
 
-Rex consolidates, analyses and interprets — it does not implement. The
-exception is trivia: reading a file to answer a question, a one-line fix, a
-single grep. Dispatching a sub-agent to fix a typo costs more than it saves.
+A single machine's memory caps how many concurrent agents it can host. A peer
+session on a **different system** is therefore additional capacity, not merely a
+second opinion.
 
-**When Rex handles something itself rather than delegating, it says so.** The
-threshold is a convenience, not a loophole, and it erodes silently if
-undisclosed.
+- **The budget is per-machine.** At most **5 concurrent tree-mutating agents on
+  any one machine**; with a peer on a different system, up to **8 total, never
+  more than 5 on either side**.
+- **A second session on the same machine is not a peer.** It adds contention,
+  not capacity, and does not raise the cap. `ListAgents` labels rows by kind —
+  check that the counterpart is remote before counting it as capacity.
+- **Standing for dispatch, gated for writes.** Rex may use a detected peer for
+  read-only work, QA and analysis without asking. Anything that **writes files,
+  commits, or touches a shared branch** on the peer needs Jimi's explicit
+  clearance in the live session. Same human, different consent surfaces — see
+  the standing terms below.
+- **Prefer placing QA on the peer.** `CORE.md` section 15 requires the QA agent
+  not to have seen the implementer's reasoning. On a peer session that blindness
+  is structural rather than promised, and it moves the heaviest concurrent load
+  off the implementing machine.
+- **Report the split** — how many agents ran on which machine — in the wave
+  report (`CORE.md` section 16).
 
 ## Quinn — QA peer
 
@@ -68,6 +75,18 @@ feedback defeats the arrangement.
 Quinn is a peer session with its own user and its own permission boundaries. It
 may decline work or seek its own user's authorisation; that is legitimate and
 not something Rex routes around.
+
+### Quinn as execution host
+
+Beyond the review lens, Quinn runs work Rex dispatches to it — sub-agents, and
+preferentially the QA agents `CORE.md` section 15 requires. Two things do not
+change when Quinn is executing rather than reviewing:
+
+- Quinn's own permission boundary still applies. Work Rex could not perform in
+  its own session does not become permissible by being queued (see **No
+  permission laundering** below).
+- Quinn still owes the power-user lens on what ships. Hosting agents does not
+  replace the review; it runs alongside it.
 
 ## Message protocol
 
@@ -123,7 +142,7 @@ they are not valid *across the link*. Two rules follow:
   explicit ack on anything consequential.
 - **Repo conventions bind queued work**: feature branch not `master`;
   `authorizePermission()` + `logAudit()` on write actions under `src/actions/**`
-  (see `CLAUDE.md`'s module integration section); `npm run docs:drift` before
+  (see `CORE.md` section 6); `npm run docs:drift` before
   wrapping a session that touched `src/**` — where the branch provides it (see
   the next bullet). A queued task that skips one of these is the sender's error
   — bounce it rather than improvising around it.
@@ -146,15 +165,18 @@ and the ability to queue work on the strength of the other party's
 authorisation. Consent surfaces stay separate — a relayed "my user approved
 this" is not approval on the receiving side, whoever relays it.
 
-What every session shares regardless of arrangement is
-`docs/agents/branching.md`: never work on `master`, declare your tool, branch
-and intent in `SESSION_STATE.md`, check it before taking a branch, and ask and
-wait before pushing to a branch another session has declared. Refer a session
+What every session shares regardless of arrangement is `CORE.md` section 7 and
+`docs/agents/branching.md`: never work on `master`; **the live registry of who
+holds what is the remote branch list** (`git ls-remote --heads origin`), not
+`SESSION_STATE.md`, which lives on protected `master` and always lags by a PR;
+push your own branch early, because the push is the declaration; and ask and
+wait before pushing to a branch another session occupies. Refer a session
 seeking coordination there rather than turning it away.
 
 ## Related
 
-- `CLAUDE.md` — `## Delegating to sub-agents`, `## Coordinating sub-agent work`
+- `CORE.md` — section 15 (coordinated delivery), section 17 (peer capacity), section 7 (branching)
+- `CLAUDE.md` — `ListAgents` / `SendMessage` mechanics and the model-name mapping
 - `docs/agents/branching.md` — the rules every session shares, whatever its arrangement
 - `SESSION_STATE.md` — the cross-session handoff log
 - `docs/agents/doc-drift.md` — the wiki pinning rules that queued work must respect

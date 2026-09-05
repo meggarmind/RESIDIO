@@ -120,8 +120,15 @@ export function isMonitorComment(comment, marker = DEFAULT_MONITOR_MARKER) {
   return String(comment?.body ?? '').includes(marker);
 }
 
+// Matches this issue's branch under ANY configured lane. Keying off a single
+// branchPrefix meant the monitor stopped seeing branches created by any lane
+// but codex, and silently reported those issues as having no work in flight.
 export function branchPattern(config, issueNumber) {
-  return new RegExp(`^${String(config.branchPrefix ?? 'codex/issue-').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${issueNumber}-`);
+  const prefixes = Object.keys(config.branchPrefixes ?? {}).length
+    ? Object.values(config.branchPrefixes)
+    : [config.branchPrefix ?? 'codex/issue-'];
+  const escaped = prefixes.map((prefix) => String(prefix).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`^(?:${escaped.join('|')})${issueNumber}-`);
 }
 
 export function matchingBranches(config, issueNumber, branchNames) {

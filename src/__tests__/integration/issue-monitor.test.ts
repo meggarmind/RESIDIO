@@ -15,6 +15,11 @@ import {
 const now = new Date('2026-08-13T12:00:00.000Z');
 const config = {
   branchPrefix: 'codex/issue-',
+  branchPrefixes: {
+    codex: 'codex/issue-',
+    claude: 'feat/issue-',
+    opencode: 'opencode/issue-',
+  },
   statuses: { inProgress: 'In progress', inReview: 'In review', done: 'Done' },
   monitor: {
     staleAfterHours: 24,
@@ -39,6 +44,24 @@ function issue(overrides = {}) {
 describe('issue monitor helpers', () => {
   it('matches only the issue branch naming pattern', () => {
     expect(matchingBranches(config, 64, ['codex/issue-64-monitor', 'codex/issue-640-other', 'feature/64'])).toEqual(['codex/issue-64-monitor']);
+  });
+
+  // Keying the pattern off a single branchPrefix made the monitor blind to
+  // branches from any lane but codex, so it reported those issues as having no
+  // work in flight.
+  it('matches the issue branch under every configured lane', () => {
+    expect(matchingBranches(config, 64, [
+      'codex/issue-64-a',
+      'feat/issue-64-b',
+      'opencode/issue-64-c',
+      'feat/issue-640-other',
+      'chore/unrelated',
+    ])).toEqual(['codex/issue-64-a', 'feat/issue-64-b', 'opencode/issue-64-c']);
+  });
+
+  it('still honours a legacy config that has only branchPrefix', () => {
+    const legacy = { branchPrefix: 'codex/issue-' };
+    expect(matchingBranches(legacy, 64, ['codex/issue-64-a', 'feat/issue-64-b'])).toEqual(['codex/issue-64-a']);
   });
 
   it('excludes monitor comments from qualifying activity', () => {

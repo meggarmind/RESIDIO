@@ -5,7 +5,62 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 > This is the sole live handoff and project-state record for cross-agent work.
 
-> **🎯 PRODUCT FOCUS — READ BEFORE ANY TASK (set 2026-08-06): ALL work targets the ADMIN DASHBOARD.** Resident Portal / self-service (`src/app/(resident)/**`, `src/components/resident-portal/**`) is **not planned for rollout** in the foreseeable future. Do not invest in portal/self-service work; keep it stable/local only. When a task touches portal code, ask: is this admin value? Ensure TODO.md/AGENTS.md/CLAUDE.md stay aligned with this direction.
+> **🎯 PRODUCT FOCUS — READ BEFORE ANY TASK (set 2026-08-06): ALL work targets the ADMIN DASHBOARD.** Resident Portal / self-service (`src/app/(resident)/**`, `src/components/resident-portal/**`) is **not planned for rollout** in the foreseeable future. Do not invest in portal/self-service work; keep it stable/local only. When a task touches portal code, ask: is this admin value? This direction is canonical in `CORE.md` section 3; keep TODO.md aligned with it.
+
+---
+
+## Last session (Claude Code, 2026-09-05 — instruction set unified into CORE.md; NSMA and qa-director purged)
+
+**Tool:** Claude Code, coordinator posture. **Branch:** `chore/unify-agent-instructions`, off `origin/master`, **pushed on creation**, **PR open, not merged**. No database changes, no migrations, no `src/**` behaviour changes.
+
+### What shipped
+
+**`CORE.md` is now the canonical instruction set for every harness.** `CLAUDE.md` went 525 -> 117 lines, `AGENTS.md` 120 -> 113; both now carry only tool and model mechanics. Claude Code inlines `CORE.md` with a bare `@CORE.md` line; `AGENTS.md` carries an imperative pointer **plus a deliberately duplicated copy of three non-negotiables**, because Codex has no import syntax and a pointer is only an instruction it may follow. That duplication is labelled in both files — **do not "deduplicate" it.**
+
+The driver: most of `CLAUDE.md` was project policy, not Claude mechanics — the `authorizePermission`/`logAudit` contract, migrations-on-merge, doc-drift, board movement. Codex and OpenCode were operating without any of it, and `AGENTS.md` pointed Codex at `CLAUDE.md` for the auth contract.
+
+Four commits: `1630ce34` (purge), `c11985fe` (split), `517b6038` (lane fix), `fa35afcf` (docs repoint).
+
+### Conflicts resolved — the losing version was deleted, not left to rot
+
+- **Coordination registry.** `CLAUDE.md:50` said declare your branch in `SESSION_STATE.md`; `AGENTS.md` and `branching.md:59` said the remote branch list. **The remote list wins.** The same stale line was also in `session-roles.md:152` and is fixed there too.
+- **Board movement.** Three files disagreed. Now **three automatic transitions** (In progress on pickup, In review on PR, Done on close/merge) across all five columns. `issue:doctor` confirms the board really has `Ready`.
+- **Integration-test status.** `AGENTS.md` claimed the suite "fails out of the box, 17 files short on permission checks, 4 on audit". **Measured: the suite passes, with 42 permission and 5 audit allowlist entries.** Stale *and* understated. `CORE.md` section 6 now says passing means "no *new* gaps", not "no gaps".
+- **`.agent/rules/` was a fourth instruction surface** — tracked, `trigger: always_on`, referenced by nothing, invisible to Claude Code. Two of its five contradicted the repo: one authorised **committing without asking** on any confirmed bugfix, another created a third tracking file at `docs/todo/<slug>.md` and ended by committing and pushing. **Both withdrawn.** Its genuinely useful content (PGRST201 join ambiguity, payload symmetry, state sync after `router.refresh()`) was promoted into `CORE.md` section 13, where every harness sees it.
+
+### New standing rules — these bind future sessions
+
+- **`CORE.md` section 15, coordinated delivery.** The posture Jimi had been re-pasting each session is now written down and standing for every harness: inventory pass before planning, worktree per writing agent, blind QA that **mutation-tests its own assertions**, measured deltas over predicted ones, the flake protocol, file-it-don't-absorb-it, applied != merged. **Mid tier (Sonnet) is the default**, replacing the old haiku default in `session-roles.md`.
+- **`CORE.md` section 17 + `session-roles.md`, peer capacity.** Rex/Quinn is **evolved, not deleted** — the arrangement exists because one machine's memory caps concurrent agents. Quinn keeps the power-user review lens **and** hosts dispatched work. Budget is **per-machine: 5 tree-mutating agents per host, 8 combined with a remote peer, never more than 5 either side.** A second session on the *same* machine is contention, not capacity. Peer use is **standing for read-only work and QA, gated on Jimi's live clearance for writes.** The standing safety terms (no permission laundering, consent surfaces, push disclosure, the git-sync checkpoint trap) survive untouched.
+- **`CORE.md` section 2, the routing rule.** Where a new directive goes: policy -> `CORE.md`, Claude mechanics -> `CLAUDE.md`, Codex/OpenCode mechanics -> `AGENTS.md`, ambiguous -> `CORE.md`. **State which file you put it in.**
+
+### `issue:workflow` now works from any lane
+
+The helper had **zero harness coupling** — it is `git worktree` + `gh` + `npm` — but `codex` was baked in as the scalar `branchPrefix`. Any session using it produced `codex/...` branches, which would have erased the lane signal the remote-branch registry depends on.
+
+`branchPrefixes` (`codex` / `claude` / `opencode`) plus `--lane` / `ISSUE_WORKFLOW_LANE`. **The lane is a creation-time choice only**: `matchingWorktree` now adopts an existing worktree's actual branch, so an issue started by Codex can be resumed, reviewed and finished from Claude. `issue-monitor`'s `branchPattern` matched one prefix and would have gone **blind to every non-codex lane**, reporting those issues as having no work in flight — fixed. Also added the missing `ready` status to the config.
+
+Verified by round-trip against a real worktree, plus 9 new tests and **8/8 mutations caught**.
+
+### Three defects filed — one is a live credential
+
+- **#218 — a Supabase personal access token was committed.** `.claude/settings.local.json` is **tracked and not gitignored** and held an `sbp_...` token inline in a permission rule. The line is removed, but **removal does not undo exposure — the token needs rotating.** This is the *second* credential committed here (a `service_role` key was rotated 2026-08-30), which suggests a procedural gap, not bad luck.
+- **#219 — `db:types` and `db:migrate` target `--local`**, contradicting the cloud-only rule both instruction files state. The worse failure is silent: if a local instance *is* running, types generate against the wrong schema and look fine. `CORE.md` section 5 documents it so agents are not misled; the scripts are untouched.
+- **#220 — `issue:workflow finish` cannot complete.** It merges into local `master` then requires that merge to have reached `origin/master`, which branch protection refuses, and it never opens a PR. It also merges with **no migrations check**, contradicting `CORE.md` section 11. `CORE.md` section 8 and `AGENTS.md` now both say `finish` is coordinator-only and must not be run by a sub-agent — that is documentation, not a guard.
+
+### Gates
+
+**620/620 tests, 85/85 files. Lint exit 0. `issue:doctor` passes.** `npm run docs:drift` reports **18 drifted pages — all pre-existing**, from earlier RBAC/security/system commits; this branch touched no `src/**` behaviour, only test files. Not cleared, because clearing a report you have not read is forbidden.
+
+### Left alone deliberately
+
+- **`.worktrees/issue-179` is a stale *unregistered* directory** — it exists on disk but is not in `git worktree list`. Pre-existing and not this session's to remove, but it is exactly the leftover `CORE.md` section 16 warns about: it reads to the next session as live work when it is not.
+- `.claude/worktrees/agent-*` belong to other agents and were not touched.
+- The `#187` migration below is **still applied-but-unmerged**. Nothing in this session changes that.
+
+### Method note
+
+Mutation-testing a change requires restoring from a backup you actually created. A `cp X /tmp/bak || cp X X.bak` fallback silently took the first branch here, leaving five mutations applied to the working tree; they were reversed by hand. Judge a mutation by the **test runner's exit code** — vitest's ANSI codes break naive grepping of its summary line.
 
 ---
 
