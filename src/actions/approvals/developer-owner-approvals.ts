@@ -6,6 +6,8 @@ import { sendImmediate } from '@/lib/notifications/send';
 import { getEffectiveSettingValue } from '@/actions/settings/hierarchical-settings';
 import type { ApprovalRequestType, ApprovalEntityType } from '@/types/database';
 import { logAudit } from '@/lib/audit/logger';
+import { authorizePermission, getCurrentUserPermissions } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 /**
  * Developer/Owner Approval Types
@@ -339,14 +341,19 @@ export async function approveAsOccupier(
     return { success: false, error: 'Request has already been processed' };
   }
 
-  // Verify user is the affected resident or admin
+  // Verify user is the affected resident or holds approvals.approve_reject.
+  // This stays an explicit either/or rather than a hard authorizePermission()
+  // guard at the top of the function: the resident branch is a legitimate,
+  // independent access path (the affected occupier acting on their own
+  // request), not a fallback to preserve for migration's sake.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, resident_id')
+    .select('resident_id')
     .eq('id', user.id)
     .single();
 
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'chairman';
+  const { permissions } = await getCurrentUserPermissions();
+  const isAdmin = permissions.includes(PERMISSIONS.APPROVALS_APPROVE_REJECT);
   const isAffectedResident = profile?.resident_id === request.affected_resident_id;
 
   if (!isAdmin && !isAffectedResident) {
@@ -418,14 +425,19 @@ export async function rejectAsOccupier(
     return { success: false, error: 'Request has already been processed' };
   }
 
-  // Verify user is the affected resident or admin
+  // Verify user is the affected resident or holds approvals.approve_reject.
+  // This stays an explicit either/or rather than a hard authorizePermission()
+  // guard at the top of the function: the resident branch is a legitimate,
+  // independent access path (the affected occupier acting on their own
+  // request), not a fallback to preserve for migration's sake.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, resident_id')
+    .select('resident_id')
     .eq('id', user.id)
     .single();
 
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'chairman';
+  const { permissions } = await getCurrentUserPermissions();
+  const isAdmin = permissions.includes(PERMISSIONS.APPROVALS_APPROVE_REJECT);
   const isAffectedResident = profile?.resident_id === request.affected_resident_id;
 
   if (!isAdmin && !isAffectedResident) {
@@ -473,20 +485,10 @@ export async function rejectAsOccupier(
 export async function processExpiredApprovals(): Promise<ProcessExpiredResponse> {
   const supabase = await createServerSupabaseClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, processedCount: 0, error: 'Unauthorized' };
-  }
-
-  // Check user role - only admin can process expired approvals
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || profile.role !== 'admin') {
-    return { success: false, processedCount: 0, error: 'Only admin can process expired approvals' };
+  // Permission check (migrated off the legacy role-list check)
+  const auth = await authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT);
+  if (!auth.authorized) {
+    return { success: false, processedCount: 0, error: auth.error || 'Unauthorized' };
   }
 
   // Use database function to process expired approvals

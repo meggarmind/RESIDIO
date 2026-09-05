@@ -1,8 +1,8 @@
 'use server'
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { authorizeAction } from '@/lib/auth/authorize';
-import { ACTION_ROLES } from '@/lib/auth/action-roles';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
 import { paymentFormSchema } from '@/lib/validators/payment';
 import { z } from 'zod';
@@ -11,7 +11,7 @@ const updatePaymentSchema = paymentFormSchema.partial();
 
 export async function updatePayment(id: string, data: z.infer<typeof updatePaymentSchema>) {
     // Authorization check - only admin, chairman, financial_secretary can update payments
-    const auth = await authorizeAction(ACTION_ROLES.payments);
+    const auth = await authorizePermission(PERMISSIONS.PAYMENTS_UPDATE);
     if (!auth.authorized) {
         return { error: auth.error, success: false };
     }

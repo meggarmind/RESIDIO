@@ -1,8 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { authorizeAction } from '@/lib/auth/authorize';
-import { ACTION_ROLES } from '@/lib/auth/action-roles';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { HouseType } from '@/types/database';
 import type { HouseTypeFormData } from '@/lib/validators/house';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
@@ -14,7 +14,7 @@ type UpdateHouseTypeResponse = {
 
 export async function updateHouseType(id: string, formData: HouseTypeFormData): Promise<UpdateHouseTypeResponse> {
     // Authorization check - only admin, chairman can update house types
-    const auth = await authorizeAction(ACTION_ROLES.reference);
+    const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
     if (!auth.authorized) {
         return { data: null, error: auth.error };
     }

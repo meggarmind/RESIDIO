@@ -313,8 +313,8 @@ log.actor?.email || 'N/A'
 - Server-side validation in server actions
 
 ### Authorization Checks
-- Every server action checks user role before mutation
-- Use `authorizeAction()` helper from `src/lib/auth/authorize.ts`
+- Every server action checks the caller's permissions before mutation
+- Use `authorizePermission(PERMISSIONS.X)` from `src/lib/auth/authorize.ts`, with the permission constant from `src/lib/auth/action-roles.ts`
 
 ### SQL Injection Prevention
 - Use Supabase query builder (parameterized queries)

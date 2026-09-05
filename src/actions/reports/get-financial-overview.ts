@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { TransactionTagType } from '@/types/database';
 
 type FinancialOverviewParams = {
@@ -37,32 +39,13 @@ export async function getFinancialOverview(
 ): Promise<FinancialOverviewResult> {
   const supabase = await createServerSupabaseClient();
 
-  // Get current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  // Permission check (migrated off the legacy role-list check)
+  const auth = await authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
+  if (!auth.authorized) {
     return {
       summary: { totalCredits: 0, totalDebits: 0, netBalance: 0, transactionCount: 0 },
       byTag: [],
-      error: 'Unauthorized',
-    };
-  }
-
-  // Check user role
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  const allowedRoles = ['admin', 'chairman', 'financial_secretary'];
-  if (!profile || !allowedRoles.includes(profile.role)) {
-    return {
-      summary: { totalCredits: 0, totalDebits: 0, netBalance: 0, transactionCount: 0 },
-      byTag: [],
-      error: 'Forbidden',
+      error: auth.error || 'Forbidden',
     };
   }
 

@@ -9,11 +9,11 @@ interface AdminNotificationParams {
     priority?: 'low' | 'normal' | 'high' | 'urgent';
     metadata?: Record<string, unknown>;
     requiredPermission?: Permission;
-    fallbackRoles?: string[];
 }
 
 /**
- * Notifies all administrative users who have the required permission or belong to fallback roles.
+ * Notifies all administrative users who have the required permission, or
+ * super_admin/chairman when no permission is specified.
  */
 export async function notifyAdmins(params: AdminNotificationParams): Promise<{ success: boolean; count: number; error?: string }> {
     try {
@@ -50,24 +50,12 @@ export async function notifyAdmins(params: AdminNotificationParams): Promise<{ s
             }
         }
 
-        // Fallback if no specific permission recipients found or if roles provided
-        if (recipientIds.length === 0 && params.fallbackRoles) {
+        // If no permission was specified, default to super_admin and chairman
+        if (recipientIds.length === 0 && !params.requiredPermission) {
             const { data: profiles } = await adminClient
                 .from('profiles')
-                .select('id')
-                .in('role', params.fallbackRoles);
-
-            if (profiles) {
-                recipientIds = profiles.map(p => p.id);
-            }
-        }
-
-        // If still no recipients, default to all 'admin' and 'chairman'
-        if (recipientIds.length === 0 && !params.requiredPermission && !params.fallbackRoles) {
-            const { data: profiles } = await adminClient
-                .from('profiles')
-                .select('id')
-                .in('role', ['admin', 'chairman']);
+                .select('id, app_roles!inner(name)')
+                .in('app_roles.name', ['super_admin', 'chairman']);
 
             if (profiles) {
                 recipientIds = profiles.map(p => p.id);
