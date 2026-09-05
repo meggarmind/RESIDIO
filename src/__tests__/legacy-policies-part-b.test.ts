@@ -269,8 +269,31 @@ describe('#187 part B: legacy profiles.role policies follow has_permission()', (
     const siblings = readdirSync(migrationsDir)
       .filter((f) => f.startsWith('20260905'))
       .sort();
-    expect(siblings).toHaveLength(3);
-    expect(siblings[siblings.length - 1]).toBe(MIGRATION_FILE);
+    // Not pinned to an exact count, and not pinned to "is the last element":
+    // both over-specify the criterion (this migration sorts after the
+    // 20260905* migrations it depends on) and would fail this test every time
+    // a *later*, unrelated 20260905* migration is added alongside it -- which
+    // is exactly what happened when #212's close-anonymous-table-reads
+    // migration landed in this same directory. That migration correctly
+    // sorts after this one; this test is not about it and must not react to
+    // it.
+    //
+    // An earlier version of this fix asserted only `indexOf(MIGRATION_FILE) >
+    // 0` -- "not the earliest 20260905* migration" -- but that is too weak:
+    // it does not catch this file being renamed to sort *before* the
+    // migration it actually depends on (part A), only before *something*.
+    // Naming part A directly closes that gap. The drop-orphaned migration
+    // (between part A and this one) is deliberately not named the same way:
+    // a sibling test scans every file under src/** for its dropped function
+    // name, and quoting that filename here would be a second, false match
+    // for that scan.
+    const partA = '20260905000000_policies_part_a_follow_permissions.sql';
+    expect(siblings).toContain(partA);
+    expect(siblings.indexOf(MIGRATION_FILE)).toBeGreaterThan(siblings.indexOf(partA));
+    // And it must actually come after both same-day predecessors (part A and
+    // the un-named drop-orphaned migration), not just after part A with the
+    // drop-orphaned migration sorted later than it should be.
+    expect(siblings.indexOf(MIGRATION_FILE)).toBeGreaterThanOrEqual(2);
   });
 
   it('wraps its work in a single transaction', () => {
