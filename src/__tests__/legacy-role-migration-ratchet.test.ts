@@ -69,6 +69,20 @@ const ALLOWLIST = new Set<string>([
   '20260829100300_relax_legacy_profile_role.sql',
   '20260829100400_harden_handle_new_user.sql',
   '20260902102528_create_whatsapp_provider_credentials.sql',
+
+  /**
+   * #192's reconciliation guard. Unlike every other entry above, this is not
+   * an offender the ratchet is waiting to see cleared -- it is a migration
+   * whose entire job is reading the legacy column one last time. It runs
+   * immediately before #193 drops `profiles.role`, and it exists to prove
+   * (by RAISE EXCEPTION, listing accounts by id and email) that no profile
+   * still depends on the auth-provider.tsx reverse lookup #193 removes. A
+   * migration that asserts a column is safe to delete cannot do that without
+   * reading the column. #193's rename/drop DDL needs no entry here (the
+   * ratchet already exempts RENAME/DROP COLUMN and COMMENT ON COLUMN), but
+   * this guard is DML, not DDL, so it does not qualify for that exemption.
+   */
+  '20260905010000_reconcile_profile_role_ids.sql',
 ]);
 
 /**
