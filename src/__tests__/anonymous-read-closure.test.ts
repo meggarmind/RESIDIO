@@ -196,12 +196,18 @@ describe('#212 (part 1): close anonymous reads on six finance/settings tables', 
     expect(readdirSync(migrationsDir)).toContain(MIGRATION_FILE);
   });
 
-  it('sorts after the other 20260905 migrations', () => {
+  it('sorts after the other 20260905 migrations that precede it', () => {
+    // The intent is ordering, not primacy: this migration must apply after the
+    // three same-day migrations it builds on (policies part A, the orphaned
+    // security-function drop, policies part B). Asserting it sorts *last*
+    // instead -- as this test originally did -- fails for any later same-day
+    // migration by anyone, which is a constraint on unrelated future work
+    // rather than a property of #212. See #225.
     const siblings = readdirSync(migrationsDir)
       .filter((f) => f.startsWith('20260905'))
       .sort();
     expect(siblings.length).toBeGreaterThanOrEqual(4);
-    expect(siblings[siblings.length - 1]).toBe(MIGRATION_FILE);
+    expect(siblings.indexOf(MIGRATION_FILE)).toBeGreaterThanOrEqual(3);
   });
 
   it('wraps its work in a single transaction', () => {
