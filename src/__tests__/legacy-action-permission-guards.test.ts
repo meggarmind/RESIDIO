@@ -202,6 +202,7 @@ describe('Part 1: the seven simple authorizeAction call sites', () => {
       deleteStreetSource,
       updateHouseTypeSource,
     ]) {
+      expect(src).not.toContain('profile.role');
       expect(src).not.toContain('authorizeAction');
       expect(src).not.toContain('ACTION_ROLES');
     }
@@ -421,6 +422,17 @@ describe('Part 5: legacy role queries migrated to RBAC vocabulary', () => {
     expect(adminNotifierSource).toContain("app_roles!inner(name)");
     expect(adminNotifierSource).toMatch(/\.in\(\s*'app_roles\.name',\s*\[\s*'super_admin',\s*'chairman'\s*\]\s*\)/);
     expect(adminNotifierSource).not.toContain('fallbackRoles');
+  });
+
+  it('the super_admin/chairman fallback only runs when no requiredPermission was given', () => {
+    // A permission-scoped notification that finds no holders must not fall
+    // through to super_admin/chairman -- that would notify people the
+    // caller never asked for. Pin the guard condition itself, not just the
+    // .in() filter it leads to, so widening it to `recipientIds.length === 0`
+    // alone (dropping the `!params.requiredPermission`) fails this test.
+    expect(adminNotifierSource).toContain(
+      'if (recipientIds.length === 0 && !params.requiredPermission) {'
+    );
   });
 });
 
