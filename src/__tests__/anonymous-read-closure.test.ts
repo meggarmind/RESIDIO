@@ -33,9 +33,7 @@ import { describe, expect, it } from 'vitest';
  * ones: nothing here connects to a database, the same approach as
  * `legacy-policies-part-b.test.ts`. What it can prove is that the migration
  * as written is the migration that was reviewed -- exact policy names, exact
- * commands, exact predicates, exact grantee -- which is what a later reader
- * diffing the live policy set against
- * docs/validation/role-access-matrix.baseline.json needs.
+ * commands, exact predicates, exact grantee -- and nothing more than that.
  */
 
 const migrationsDir = fileURLToPath(new URL('../../supabase/migrations', import.meta.url));
@@ -300,7 +298,19 @@ describe('#212 (part 1): close anonymous reads on six finance/settings tables', 
       expect(statement, `${entry.policy}: wrong predicate restored`).toContain(
         `USING (${entry.predicate});`
       );
+      // Every one of the 11 policy names exists after this migration applies,
+      // so a rollback missing its DROP -- or missing IF EXISTS -- aborts with
+      // 42710 (policy already exists) on the way back: exactly the failure
+      // mode the migration's own header says re-runnable DROPs guard
+      // against, on the rollback half of the file rather than the active
+      // body. rollbackStatement() slices from the CREATE line onward, so the
+      // preceding DROP line is checked directly against the rollback block.
+      expect(rollback, `${entry.policy}: rollback DROP missing`).toContain(
+        `-- DROP POLICY IF EXISTS "${entry.policy}" ON public.${entry.table};`
+      );
     }
+
+    expect((rollback.match(/-- DROP POLICY IF EXISTS /g) ?? []).length).toBe(11);
   });
 
   it('restores every rollback policy with TO public, matching what was live', () => {

@@ -61,11 +61,11 @@
 --          misleading about who they actually admit: "All authenticated can
 --          view billing profiles" was, before this migration, granted to
 --          `public`; "View Categories - Admins/Financial Secretary" restricts
---          to nobody (USING (true)). Renaming either changes policy identity
---          and breaks name-based diffing against
---          docs/validation/role-access-matrix.baseline.json, which is
---          keyed by name. This migration changes WHO each policy applies to,
---          not WHAT it is called or WHAT it checks.
+--          to nobody (USING (true)). Renaming either changes the policy's
+--          identity, and the naming problem is a separate concern from
+--          closing anonymous access -- it belongs in its own change, not
+--          buried inside a security fix. This migration changes WHO each
+--          policy applies to, not WHAT it is called or WHAT it checks.
 --
 -- Written to be safely re-runnable: every policy name is dropped with
 --          IF EXISTS immediately before its CREATE POLICY, and the names are
