@@ -8,8 +8,10 @@
 -- WHY THIS EXISTS
 --
 -- `get_my_role_name()` has zero callers today. #190 is about to retarget all 97
--- role-bucket policies (see `role-access-matrix.sql`) from `get_my_role()` onto
--- it at once. Its failure mode is silent denial: a policy that reads
+-- role-bucket policies (ADR-0007, epic #182 -- `role-access-matrix.sql` captures
+-- the per-role SELECT verdicts those policies currently produce, not the policy
+-- count itself) from `get_my_role()` onto it at once. Its failure mode is
+-- silent denial: a policy that reads
 -- `get_my_role_name() = ANY(ARRAY[...])` and gets NULL back simply denies,
 -- indistinguishable from a correctly-denied role unless someone already knows
 -- what NULL means for this function. This probe pins that meaning down —
@@ -49,11 +51,19 @@
 -- `-- PARAMETER`:
 --
 --   v_pid   the id of an existing, non-super_admin profile that can be driven
---           into `active` approval status. It must NOT be a super_admin: #184's
---           `assert_active_super_admin_exists` invariant trigger fires if the
---           only active super_admin's status or role is changed away from
---           super_admin mid-transaction, and this probe cycles the profile
---           through every built-in role including several non-super_admin ones.
+--           into `active` approval status. It must NOT be a super_admin.
+--           #184's `assert_active_super_admin_exists` invariant is a
+--           `CONSTRAINT TRIGGER ... DEFERRABLE INITIALLY DEFERRED`, so it
+--           evaluates at COMMIT against the transaction's *final* state, and
+--           this probe never commits -- under normal execution it would not
+--           fire even against a super_admin profile. It fires early only if
+--           something inside the transaction forces immediate checking (e.g.
+--           `SET CONSTRAINTS ALL IMMEDIATE`) while the profile is mid-cycle
+--           through a non-super_admin role:
+--             ERROR: 23001: At least one active account must hold the Super
+--             Administrator role
+--           Using a non-super_admin profile means this probe never depends on
+--           that COMMIT-time timing at all, regardless of how it is run.
 --
 -- WHY IT IS SAFE ON THE LIVE DATABASE
 --
@@ -70,7 +80,11 @@
 
 BEGIN;
 
-CREATE TEMP TABLE probe(ord int, case_name text, expected text, actual text);
+-- `legacy` and `is_builtin` exist only to produce the legacy-vs-new comparison
+-- below; they are populated only for the role-loop rows (1-8+), not for the
+-- edge-case rows (90-94), which have no legacy-function counterpart worth
+-- comparing.
+CREATE TEMP TABLE probe(ord int, case_name text, expected text, actual text, legacy text, is_builtin boolean);
 
 DO $$
 DECLARE
@@ -78,17 +92,29 @@ DECLARE
   v_role record;
   v_custom uuid;
   v_n int := 0;
+  v_builtin_roles text[] := ARRAY[
+    'super_admin', 'chairman', 'vice_chairman', 'financial_officer',
+    'security_officer', 'secretary', 'project_manager', 'resident'
+  ];
 BEGIN
   PERFORM set_config('request.jwt.claims', json_build_object('sub', v_pid)::text, true);
   UPDATE profiles SET approval_status = 'active' WHERE id = v_pid;
 
   -- 1-8: every built-in role, plus whatever custom roles already exist,
-  -- ordered by name for a stable, reviewable diff.
+  -- ordered by name for a stable, reviewable diff. get_my_role() is measured
+  -- in the same loop, on the same impersonated session, so the legacy-vs-new
+  -- comparison below is read off the database rather than transcribed from a
+  -- migration file.
   FOR v_role IN SELECT id, name FROM app_roles ORDER BY name LOOP
     v_n := v_n + 1;
     UPDATE profiles SET role_id = v_role.id WHERE id = v_pid;
     INSERT INTO probe
-    VALUES (v_n, 'role = ' || v_role.name, v_role.name, coalesce(public.get_my_role_name(), '<NULL>'));
+    VALUES (
+      v_n, 'role = ' || v_role.name, v_role.name,
+      coalesce(public.get_my_role_name(), '<NULL>'),
+      coalesce(public.get_my_role()::text, '<NULL>'),
+      v_role.name = ANY(v_builtin_roles)
+    );
   END LOOP;
 
   -- 90: a role name get_my_role_name() cannot have special-cased, because it
@@ -98,31 +124,43 @@ BEGIN
   RETURNING id INTO v_custom;
   UPDATE profiles SET role_id = v_custom WHERE id = v_pid;
   INSERT INTO probe
-  VALUES (90, 'custom (non-built-in) role', 'probe_custom_role', coalesce(public.get_my_role_name(), '<NULL>'));
+  VALUES (90, 'custom (non-built-in) role', 'probe_custom_role', coalesce(public.get_my_role_name(), '<NULL>'), NULL, NULL);
 
   -- 91-92: the two ways an account can hold a valid role_id and still be
   -- denied a role name, because approval_status gates the lookup.
   UPDATE profiles SET role_id = (SELECT id FROM app_roles WHERE name = 'chairman'), approval_status = 'pending' WHERE id = v_pid;
   INSERT INTO probe
-  VALUES (91, 'approval_status = pending', '<NULL>', coalesce(public.get_my_role_name(), '<NULL>'));
+  VALUES (91, 'approval_status = pending', '<NULL>', coalesce(public.get_my_role_name(), '<NULL>'), NULL, NULL);
 
   UPDATE profiles SET approval_status = 'suspended' WHERE id = v_pid;
   INSERT INTO probe
-  VALUES (92, 'approval_status = suspended', '<NULL>', coalesce(public.get_my_role_name(), '<NULL>'));
+  VALUES (92, 'approval_status = suspended', '<NULL>', coalesce(public.get_my_role_name(), '<NULL>'), NULL, NULL);
 
   -- 93: active, but nothing to join to app_roles.
   UPDATE profiles SET approval_status = 'active', role_id = NULL WHERE id = v_pid;
   INSERT INTO probe
-  VALUES (93, 'role_id IS NULL', '<NULL>', coalesce(public.get_my_role_name(), '<NULL>'));
+  VALUES (93, 'role_id IS NULL', '<NULL>', coalesce(public.get_my_role_name(), '<NULL>'), NULL, NULL);
 
   -- 94: no impersonation claim at all -- auth.uid() resolves to NULL, same as
   -- an anonymous request.
   PERFORM set_config('request.jwt.claims', '', true);
   INSERT INTO probe
-  VALUES (94, 'no auth.uid() (anon)', '<NULL>', coalesce(public.get_my_role_name(), '<NULL>'));
+  VALUES (94, 'no auth.uid() (anon)', '<NULL>', coalesce(public.get_my_role_name(), '<NULL>'), NULL, NULL);
 END $$;
 
 SELECT case_name, expected, actual, (expected = actual) AS pass FROM probe ORDER BY ord;
+
+-- The legacy-vs-new comparison, restricted to the 8 built-in roles and
+-- measured directly (not transcribed from `get_my_role()`'s CASE statement in
+-- migration 20260830100300). This is the table #190 reads as its
+-- bucket-expansion mapping.
+SELECT
+  substring(case_name from 8) AS role_name,
+  legacy,
+  actual AS new_name
+FROM probe
+WHERE is_builtin
+ORDER BY role_name;
 
 -- Hardening attributes for both functions, read directly from pg_proc so the
 -- comparison in ADR-0007/#189 ("byte-identical in hardening") is measured

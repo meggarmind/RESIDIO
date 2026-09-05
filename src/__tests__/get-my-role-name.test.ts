@@ -4,10 +4,12 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * `get_my_role_name()` (#189, epic #182) has zero callers today. #190 is about
- * to retarget all 97 role-bucket RLS policies onto it at once (see
- * `role-access-matrix.md`), and its failure mode is silent denial: a policy
- * that reads `get_my_role_name() = ANY(ARRAY[...])` and gets NULL back simply
- * denies, indistinguishable from a correctly-denied role.
+ * to retarget all 97 role-bucket RLS policies onto it at once (ADR-0007,
+ * epic #182 -- `role-access-matrix.md` documents the per-role access verdicts
+ * those policies currently produce, not the policy count itself), and its
+ * failure mode is silent denial: a policy that reads
+ * `get_my_role_name() = ANY(ARRAY[...])` and gets NULL back simply denies,
+ * indistinguishable from a correctly-denied role.
  *
  * These tests do not talk to the database — the capture was taken from it by
  * `supabase/probes/get-my-role-name.sql`, inside a transaction that ended in
@@ -45,17 +47,27 @@ describe('get_my_role_name() capture completeness', () => {
     expect(capture.builtInRoles).toHaveLength(8);
   });
 
-  it('has a role case for every built-in role', () => {
+  it('has a role case for every built-in role (a live re-run against a database that already has custom roles may add more)', () => {
     const roleCaseNames = capture.cases
       .filter((c: { case: string }) => c.case.startsWith('role = '))
       .map((c: { case: string }) => c.case.replace('role = ', ''));
 
-    expect([...roleCaseNames].sort()).toEqual([...BUILT_IN_ROLES].sort());
+    // The probe's role loop iterates every row in app_roles, built-in or
+    // custom (see supabase/probes/get-my-role-name.sql). All 8 built-ins must
+    // be present; a pre-existing custom role on the database the probe was
+    // re-run against is tolerated, not rejected.
+    expect(roleCaseNames).toEqual(expect.arrayContaining(BUILT_IN_ROLES));
+    expect(new Set(roleCaseNames).size, 'no role captured twice').toBe(roleCaseNames.length);
   });
 
-  it('captures all 13 behavioural cases', () => {
-    // 8 built-in roles + custom role + pending + suspended + null role_id + anon.
-    expect(capture.cases).toHaveLength(13);
+  it('captures at least the 13 behavioural cases (8 built-in roles + 5 fixed edge cases)', () => {
+    const roleCaseCount = capture.cases.filter((c: { case: string }) => c.case.startsWith('role = ')).length;
+    const nonRoleCaseCount = capture.cases.length - roleCaseCount;
+
+    // custom (non-built-in) role, pending, suspended, null role_id, anon -- this
+    // count is fixed regardless of how many role rows the loop found.
+    expect(nonRoleCaseCount).toBe(5);
+    expect(roleCaseCount).toBeGreaterThanOrEqual(8);
   });
 
   it('never loses a case to a silently-dropped ordinal', () => {
@@ -132,6 +144,47 @@ describe('get_my_role_name() hardening', () => {
   });
 });
 
+describe('legacyVsNew completeness and internal consistency', () => {
+  // The full, literal mapping #190 reads as its bucket-expansion table. Every
+  // one of the 8 built-in roles is pinned to an exact value here -- not just
+  // the 5 roles the earlier hazard tests below happen to exercise -- because
+  // `super_admin.legacy` is the single most consequential cell in the file:
+  // ADR-0007's expansion rule turns `get_my_role() IN ('admin','chairman')`
+  // into four RBAC roles, so a wrong `admin` mapping revokes super_admin
+  // across 36 tables.
+  const EXPECTED_LEGACY_VS_NEW: Record<string, { legacy: string | null; new: string }> = {
+    super_admin: { legacy: 'admin', new: 'super_admin' },
+    chairman: { legacy: 'chairman', new: 'chairman' },
+    vice_chairman: { legacy: 'chairman', new: 'vice_chairman' },
+    financial_officer: { legacy: 'financial_secretary', new: 'financial_officer' },
+    security_officer: { legacy: 'security_officer', new: 'security_officer' },
+    project_manager: { legacy: null, new: 'project_manager' },
+    secretary: { legacy: null, new: 'secretary' },
+    resident: { legacy: null, new: 'resident' },
+  };
+
+  it('has exactly the 8 built-in roles as keys -- no more, no fewer', () => {
+    expect(Object.keys(capture.legacyVsNew).sort()).toEqual([...BUILT_IN_ROLES].sort());
+  });
+
+  it.each(Object.keys(EXPECTED_LEGACY_VS_NEW))('pins %s to its exact literal legacy/new mapping', (role) => {
+    expect(capture.legacyVsNew[role], `missing legacyVsNew.${role}`).toEqual(EXPECTED_LEGACY_VS_NEW[role]);
+  });
+
+  it('agrees with the behavioural cases: legacyVsNew[role].new is what role = <role> actually returned', () => {
+    // A capture that is internally contradictory -- e.g. legacyVsNew claiming
+    // `super_admin.new = 'admin'` while the `role = super_admin` case recorded
+    // `actual: 'super_admin'` -- must fail here, the way
+    // role-access-matrix.test.ts's "never claims a role was denied a table it
+    // actually read rows from" catches the equivalent contradiction there.
+    for (const role of BUILT_IN_ROLES) {
+      const roleCase = capture.cases.find((c: { case: string }) => c.case === `role = ${role}`);
+      expect(roleCase, `missing case for ${role}`).toBeTruthy();
+      expect(capture.legacyVsNew[role].new, role).toBe(roleCase.actual);
+    }
+  });
+});
+
 describe('get_my_role_name() vs get_my_role(): the bucket-collapse hazard', () => {
   it('does not collapse vice_chairman into chairman the way get_my_role() does', () => {
     const cmp = capture.legacyVsNew.vice_chairman;
@@ -170,8 +223,15 @@ describe('get_my_role_name() vs get_my_role(): the inverse widening hazard', () 
   );
 
   it('records that no live policy is shaped to be hit by this (measured, not assumed)', () => {
-    expect(capture.notes.inverseWideningHazard).toMatch(/81 use/);
-    expect(capture.notes.inverseWideningHazard).toMatch(/16 use/);
-    expect(capture.notes.inverseWideningHazard).toMatch(/zero use/);
+    // Structured and numeric, not a regex over prose the note can be reworded
+    // out from under: the 97 policies calling get_my_role() split as 81
+    // `= ANY(ARRAY[...])`, 16 `= 'literal'`, and zero `IS NULL`/`IS NOT NULL` --
+    // the last figure is what makes the widening hazard latent rather than live.
+    expect(capture.policyShapes.anyArray).toBe(81);
+    expect(capture.policyShapes.equalsLiteral).toBe(16);
+    expect(capture.policyShapes.isNullOrNotNull).toBe(0);
+    expect(capture.policyShapes.anyArray + capture.policyShapes.equalsLiteral).toBe(
+      capture.policyShapes.totalPoliciesCallingGetMyRole
+    );
   });
 });

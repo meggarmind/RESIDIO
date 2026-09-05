@@ -1,7 +1,7 @@
 {
   "$schema": "get-my-role-name/v1",
   "capturedAt": "2026-09-05",
-  "capturedBy": "supabase/probes/get-my-role-name.sql, run via the Supabase MCP inside BEGIN...ROLLBACK",
+  "capturedBy": "supabase/probes/get-my-role-name.sql, run via the Supabase MCP inside BEGIN...ROLLBACK. The role-loop measures get_my_role() and get_my_role_name() together on the same impersonated session, so legacyVsNew below is measured, not transcribed from the get_my_role() CASE statement in migration 20260830100300.",
   "issue": 189,
   "epic": 182,
   "builtInRoles": [
@@ -53,8 +53,16 @@
     "secretary": { "legacy": null, "new": "secretary" },
     "resident": { "legacy": null, "new": "resident" }
   },
+  "policyShapes": {
+    "totalPoliciesCallingGetMyRole": 97,
+    "anyArray": 81,
+    "equalsLiteral": 16,
+    "isNullOrNotNull": 0,
+    "measuredAt": "2026-09-05",
+    "measuredAgainst": "pg_policies (predicate text), not role-access-matrix.sql -- that probe captures per-role access verdicts, not predicate shapes"
+  },
   "notes": {
     "bucketCollapse": "get_my_role() folds vice_chairman and financial_officer into shared legacy buckets (chairman, financial_secretary). get_my_role_name() returns each role's own name. This is the hazard #190's retarget exists to fix.",
-    "inverseWideningHazard": "project_manager, secretary and resident return NULL under get_my_role() (the legacy enum cannot express them) but their own name under get_my_role_name(). A policy shaped `get_my_role() IS NOT NULL` would widen access on retarget. Measured 2026-09-05 directly against pg_policies (not via role-access-matrix.sql, which captures access verdicts rather than predicate shapes): of the 97 policies calling get_my_role(), 81 use `= ANY(ARRAY[...])`, 16 use `= 'literal'`, zero use `IS NULL`/`IS NOT NULL` -- so no live policy hits this today, but nothing structural stops a future one from doing so."
+    "inverseWideningHazard": "project_manager, secretary and resident return NULL under get_my_role() (the legacy enum cannot express them) but their own name under get_my_role_name(). A policy shaped `get_my_role() IS NOT NULL` would widen access on retarget. See policyShapes for the measured predicate-shape counts backing the claim that no live policy is written that way today."
   }
 }
