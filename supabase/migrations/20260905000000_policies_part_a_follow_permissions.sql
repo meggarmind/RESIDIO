@@ -64,6 +64,24 @@
 --   collapsed into chairman. The two populations are disjoint; do not carry
 --   reasoning from one to the other.
 --
+-- Three further matrix cells move that are NOT access changes -- read this
+-- before adjudicating the post-apply diff:
+--
+--   In the #185 baseline, wallet_payment_batch_items reads `row-dependent` for
+--   EVERY role, because both of its policies reference `batch_id` and the probe
+--   resolves any column reference to `row-dependent` rather than deciding it.
+--   Once the admin policy here becomes an unconditional has_permission() call,
+--   that cell resolves to `allow` for super_admin, chairman AND
+--   financial_officer as well as vice_chairman. Only the vice_chairman move is
+--   a real grant; the other three are the probe finally able to prove what the
+--   old policy already did. Expect four moved rows on that table, not one.
+--
+-- Post-apply verification. financial_officer:estate_bank_account_passwords goes
+-- allow -> deny, and the diff tool exits non-zero on an undeclared narrowing,
+-- so that one narrowing must be declared explicitly:
+--
+--   npm run rbac:matrix:diff -- fresh.json --expect financial_officer:estate_bank_account_passwords=deny
+--
 -- has_permission() is SECURITY DEFINER (20251222000000_create_rbac_system.sql)
 -- and additionally requires profiles.approval_status = 'active'
 -- (20260829100200_gate_auth_helpers_on_approval_status.sql). That matters
@@ -107,13 +125,35 @@
 -- ============================================================================
 -- ROLLBACK: restores all fourteen previous policy definitions
 -- ============================================================================
--- Transcribed from the live pg_policies definitions as they stood before this
--- migration, NOT from the original CREATE TABLE migrations. Those files are
--- not a reliable rollback source: 20260107100000_create_email_import_schema.sql
--- spells the legacy financial role 'financial_officer', which is not a member
--- of the `user_role` enum ('chairman', 'financial_secretary',
--- 'security_officer', 'admin'), so what is live differs from what those files
--- say.
+-- Predicates transcribed from the live pg_policies definitions as they stood
+-- before this migration, NOT from the original CREATE TABLE migrations. Those
+-- files are not a reliable source for the predicate:
+-- 20260107100000_create_email_import_schema.sql spells the legacy financial
+-- role 'financial_officer', which is not a member of the `user_role` enum
+-- ('chairman', 'financial_secretary', 'security_officer', 'admin'), so what is
+-- live differs from what that file says.
+--
+-- The `TO` clauses below are NOT uniform, and the difference is faithful, not
+-- an oversight. Live `pg_policies.roles` splits exactly the way the checked-in
+-- source migrations imply:
+--
+--   {public} -- no TO clause at all -- on the nine FOR ALL policies:
+--     estate_bank_account_passwords, gmail_oauth_credentials,
+--     whatsapp_provider_credentials, email_imports, email_messages,
+--     email_transactions, payment_records, wallet_payment_batches,
+--     wallet_payment_batch_items.
+--   {authenticated} on the five billing/invoice SELECT policies, which
+--     20260812235852_invoice_generation_redesign.sql wrote with an explicit
+--     TO authenticated.
+--
+-- The nine are restored with no TO clause because that is what they had. None
+-- of them called has_permission(), so none needed a TO clause to avoid the
+-- anon EXECUTE-denied failure mode described in the header above; adding one
+-- on the way back would be a silent behaviour change dressed as a rollback.
+-- #181's migration (20260904175458) makes the same point about the policy it
+-- restores. That migration is referenced here by version rather than by
+-- filename on purpose: its own guard test asserts that no other migration
+-- names the permission its filename embeds.
 --
 -- These are SQL comments, not executable statements. The legacy-role migration
 -- ratchet (src/__tests__/legacy-role-migration-ratchet.test.ts) strips comments
@@ -125,50 +165,50 @@
 -- -- ---- secrets vaults -----------------------------------------------------
 -- DROP POLICY IF EXISTS "Admin access for bank account passwords" ON public.estate_bank_account_passwords;
 -- CREATE POLICY "Admin access for bank account passwords"
---   ON public.estate_bank_account_passwords FOR ALL TO authenticated
+--   ON public.estate_bank_account_passwords FOR ALL
 --   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ANY (ARRAY['admin','chairman','financial_secretary']::user_role[])));
 --
 -- DROP POLICY IF EXISTS "Admin access for gmail oauth credentials" ON public.gmail_oauth_credentials;
 -- CREATE POLICY "Admin access for gmail oauth credentials"
---   ON public.gmail_oauth_credentials FOR ALL TO authenticated
+--   ON public.gmail_oauth_credentials FOR ALL
 --   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ANY (ARRAY['admin','chairman']::user_role[])));
 --
 -- DROP POLICY IF EXISTS "Admin access for whatsapp provider credentials" ON public.whatsapp_provider_credentials;
 -- CREATE POLICY "Admin access for whatsapp provider credentials"
---   ON public.whatsapp_provider_credentials FOR ALL TO authenticated
+--   ON public.whatsapp_provider_credentials FOR ALL
 --   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ANY (ARRAY['admin','chairman']::user_role[])));
 --
 -- -- ---- email import pipeline ---------------------------------------------
 -- DROP POLICY IF EXISTS "Admin access for email imports" ON public.email_imports;
 -- CREATE POLICY "Admin access for email imports"
---   ON public.email_imports FOR ALL TO authenticated
+--   ON public.email_imports FOR ALL
 --   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ANY (ARRAY['admin','chairman','financial_secretary']::user_role[])));
 --
 -- DROP POLICY IF EXISTS "Admin access for email messages" ON public.email_messages;
 -- CREATE POLICY "Admin access for email messages"
---   ON public.email_messages FOR ALL TO authenticated
+--   ON public.email_messages FOR ALL
 --   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ANY (ARRAY['admin','chairman','financial_secretary']::user_role[])));
 --
 -- DROP POLICY IF EXISTS "Admin access for email transactions" ON public.email_transactions;
 -- CREATE POLICY "Admin access for email transactions"
---   ON public.email_transactions FOR ALL TO authenticated
+--   ON public.email_transactions FOR ALL
 --   USING (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ANY (ARRAY['admin','chairman','financial_secretary']::user_role[])));
 --
 -- -- ---- payments and wallet payment batches --------------------------------
 -- DROP POLICY IF EXISTS "Admins and FinSec can manage all payments" ON public.payment_records;
 -- CREATE POLICY "Admins and FinSec can manage all payments"
---   ON public.payment_records FOR ALL TO authenticated
+--   ON public.payment_records FOR ALL
 --   USING (auth.uid() IN (SELECT profiles.id FROM profiles WHERE profiles.role = ANY (ARRAY['admin','chairman','financial_secretary']::user_role[])));
 --
 -- DROP POLICY IF EXISTS "Admin finance can manage wallet payment batches" ON public.wallet_payment_batches;
 -- CREATE POLICY "Admin finance can manage wallet payment batches"
---   ON public.wallet_payment_batches FOR ALL TO authenticated
+--   ON public.wallet_payment_batches FOR ALL
 --   USING (auth.uid() IN (SELECT profiles.id FROM profiles WHERE profiles.role = ANY (ARRAY['admin','chairman','financial_secretary']::user_role[])))
 --   WITH CHECK (auth.uid() IN (SELECT profiles.id FROM profiles WHERE profiles.role = ANY (ARRAY['admin','chairman','financial_secretary']::user_role[])));
 --
 -- DROP POLICY IF EXISTS "Admin finance can manage wallet payment batch items" ON public.wallet_payment_batch_items;
 -- CREATE POLICY "Admin finance can manage wallet payment batch items"
---   ON public.wallet_payment_batch_items FOR ALL TO authenticated
+--   ON public.wallet_payment_batch_items FOR ALL
 --   USING (batch_id IN (SELECT wallet_payment_batches.id FROM wallet_payment_batches WHERE auth.uid() IN (SELECT profiles.id FROM profiles WHERE profiles.role = ANY (ARRAY['admin','chairman','financial_secretary']::user_role[]))))
 --   WITH CHECK (batch_id IN (SELECT wallet_payment_batches.id FROM wallet_payment_batches WHERE auth.uid() IN (SELECT profiles.id FROM profiles WHERE profiles.role = ANY (ARRAY['admin','chairman','financial_secretary']::user_role[]))));
 --

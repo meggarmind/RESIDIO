@@ -55,6 +55,38 @@ const activeSql = migration.match(/^BEGIN;[\s\S]*?^COMMIT;/m)?.[0] ?? '';
 const activeStatements = activeSql.replace(/--[^\n]*/g, '');
 
 /**
+ * The rollback block only, sliced from its own `-- ROLLBACK:` marker rather
+ * than from the top of the file.
+ *
+ * The distinction is load-bearing and was got wrong once: slicing from offset
+ * zero pulls in the ~120-line header, which names `profiles.role` in its third
+ * line, so every assertion about the rollback block's *contents* was satisfied
+ * by the header and passed no matter what the rollback block said. Mutating
+ * every legacy predicate in the block to `true` left this file green.
+ */
+const rollback = migration.slice(
+  migration.indexOf('-- ROLLBACK:'),
+  migration.indexOf('\nBEGIN;')
+);
+
+/**
+ * The rollback block's restoring statement for one policy: from its
+ * `-- CREATE POLICY "<name>"` line to the start of the next commented
+ * CREATE POLICY, or to the block's closing `-- COMMIT;`.
+ */
+function rollbackStatement(policy: string): string {
+  const start = rollback.indexOf(`-- CREATE POLICY "${policy}"`);
+  if (start === -1) return '';
+
+  const rest = rollback.slice(start + 1);
+  const nextCreate = rest.indexOf('-- CREATE POLICY "');
+  const commit = rest.indexOf('-- COMMIT;');
+  const ends = [nextCreate, commit].filter((n) => n !== -1);
+
+  return rest.slice(0, ends.length > 0 ? Math.min(...ends) : rest.length);
+}
+
+/**
  * The fourteen policies, as `[table, policy name, command, permission]`.
  *
  * The permission column is the decision this slice actually makes, and it was
@@ -271,19 +303,58 @@ describe('#186 part A: legacy profiles.role policies follow has_permission()', (
     expect(activeSql).not.toContain('storage.');
   });
 
-  it('carries a rollback block covering all fourteen policies', () => {
-    const rollback = migration.slice(0, migration.indexOf('\nBEGIN;'));
+  it('carries a rollback block with a restoring statement for all fourteen', () => {
+    expect(rollback.startsWith('-- ROLLBACK:')).toBe(true);
 
-    expect(rollback).toContain('-- ROLLBACK:');
     for (const entry of POLICIES) {
-      expect(rollback, `${entry.policy} missing from the rollback block`).toContain(
-        `-- CREATE POLICY "${entry.policy}"`
+      const statement = rollbackStatement(entry.policy);
+
+      expect(statement, `${entry.policy} missing from the rollback block`).not.toBe('');
+      // It has to restore the policy onto the same table under the same
+      // command, or "rollback" means putting something else there.
+      expect(statement, `${entry.policy}: wrong table or command`).toContain(
+        `ON public.${entry.table} FOR ${entry.cmd}`
+      );
+      // And it has to restore the legacy predicate it replaced. A rollback
+      // block that has drifted into restoring the *new* has_permission()
+      // policy is not a rollback -- and a `toContain('profiles.role')` over
+      // the whole file cannot tell the difference, because the header says
+      // those words too.
+      expect(statement, `${entry.policy}: no legacy predicate to restore`).toMatch(
+        /profiles\.role = ANY \(ARRAY\['[^)]+\]::user_role\[\]\)/
+      );
+      expect(statement, `${entry.policy}: restores a has_permission() call`).not.toContain(
+        'has_permission'
       );
     }
-    // The rollback is only useful if it restores the predicates it replaced,
-    // so it must still quote the legacy column -- inside comments, where the
-    // ratchet's comment-stripping leaves it harmless.
-    expect(rollback).toContain('profiles.role');
+  });
+
+  it('restores each policy to the TO clause it actually had, which is not uniform', () => {
+    // Live pg_policies.roles is {public} -- no TO clause -- for all nine FOR
+    // ALL policies, and {authenticated} for the five billing/invoice SELECT
+    // policies, which 20260812235852 wrote with an explicit TO authenticated.
+    // Adding `TO authenticated` to the nine on the way back would be a silent
+    // behaviour change dressed as a rollback: none of them called
+    // has_permission(), so none needed the clause.
+    for (const entry of POLICIES) {
+      const statement = rollbackStatement(entry.policy);
+      const hasToClause = statement.includes('TO authenticated');
+
+      expect(hasToClause, `${entry.policy}: wrong TO clause on the restored policy`).toBe(
+        entry.cmd === 'SELECT'
+      );
+    }
+  });
+
+  it('has no executable SQL outside the transaction', () => {
+    // Every content assertion in this file is anchored to the BEGIN;..COMMIT;
+    // slice, so a statement parked above BEGIN; or below COMMIT; would be
+    // applied by psql and seen by none of them -- a `DROP POLICY` on one of
+    // the resident-scoped policies would sail through the MUST_NOT_TOUCH
+    // check. Nothing is there today; this keeps it that way.
+    const outside = migration.replace(activeSql, '').replace(/--[^\n]*/g, '');
+
+    expect(outside).not.toContain(';');
   });
 
   it('every permission it names is a real entry in the permission catalogue', () => {
