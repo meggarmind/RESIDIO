@@ -142,9 +142,42 @@ function defaultWorktree(cwd, config) {
   return match?.path ?? root;
 }
 
-function issueWorktree(cwd, config, issue) {
+// Branch prefixes name the lane that created the work (see CORE.md "Branching
+// and isolation"), and the remote branch list is the live coordination registry
+// -- so a Claude session must not create `codex/...` branches just because it
+// used this helper. The lane is a *creation-time* choice only: the worktree path
+// is lane-independent, so any lane can resume work another lane started.
+export function lanePrefixes(config) {
+  const configured = config.branchPrefixes ?? {};
+  const fallback = config.branchPrefix ?? 'codex/issue-';
+  return Object.keys(configured).length ? configured : { default: fallback };
+}
+
+export function resolveLanePrefix(config, lane) {
+  const prefixes = lanePrefixes(config);
+  const requested = lane ?? process.env.ISSUE_WORKFLOW_LANE ?? config.defaultLane;
+  if (!requested) return config.branchPrefix ?? Object.values(prefixes)[0];
+  const prefix = prefixes[requested];
+  if (!prefix) {
+    throw new WorkflowError(
+      `Unknown lane "${requested}". Configured lanes: ${Object.keys(prefixes).join(', ')}.`
+    );
+  }
+  return prefix;
+}
+
+// True when `branch` is this issue's branch under *some* configured lane. Used
+// to adopt an existing worktree's branch rather than insisting it match the
+// prefix the current session happens to be running under.
+export function isIssueBranch(config, issueNumber, branch) {
+  if (!branch) return false;
+  return Object.values(lanePrefixes(config))
+    .some((prefix) => branch.startsWith(`${prefix}${issueNumber}-`));
+}
+
+function issueWorktree(cwd, config, issue, lane) {
   const root = commonRoot(cwd);
-  const branch = `${config.branchPrefix}${issue.number}-${slugify(issue.title)}`;
+  const branch = `${resolveLanePrefix(config, lane)}${issue.number}-${slugify(issue.title)}`;
   const path = resolve(root, config.worktreeDirectory, `issue-${issue.number}`);
   return { branch, path };
 }
@@ -278,12 +311,28 @@ function currentStatus(config, cwd, issueNumber) {
   return statusName(item, config.statusField);
 }
 
-function matchingWorktree(cwd, config, issue) {
-  const expected = issueWorktree(cwd, config, issue);
-  const listed = worktrees(cwd).find((item) => pathsMatch(item.path, expected.path) || item.branch === expected.branch);
+function matchingWorktree(cwd, config, issue, lane) {
+  const expected = issueWorktree(cwd, config, issue, lane);
+  const listed = worktrees(cwd).find((item) => pathsMatch(item.path, expected.path)
+    || item.branch === expected.branch
+    || isIssueBranch(config, issue.number, item.branch));
   if (listed && !pathsMatch(listed.path, expected.path)) {
-    throw new WorkflowError(`Issue #${issue.number} already uses branch ${expected.branch} at ${listed.path}, not ${expected.path}.`);
+    throw new WorkflowError(`Issue #${issue.number} already uses branch ${listed.branch} at ${listed.path}, not ${expected.path}.`);
   }
+
+  // Adopt the existing worktree's own branch. Without this, an issue started in
+  // one lane could not be resumed, reviewed or finished from another -- the
+  // ensureBranch check below would reject it for carrying the "wrong" prefix.
+  if (listed?.branch && listed.branch !== expected.branch) {
+    if (!isIssueBranch(config, issue.number, listed.branch)) {
+      throw new WorkflowError(
+        `${listed.path} is on ${listed.branch}, which is not a branch for issue #${issue.number} `
+        + `under any configured lane (${Object.keys(lanePrefixes(config)).join(', ')}).`
+      );
+    }
+    return { ...expected, branch: listed.branch, listed };
+  }
+
   return { ...expected, listed };
 }
 
@@ -299,8 +348,8 @@ function ensureBranch(cwd, expectedBranch, label) {
   }
 }
 
-function createOrReuseWorktree(cwd, config, issue) {
-  const target = matchingWorktree(cwd, config, issue);
+function createOrReuseWorktree(cwd, config, issue, lane) {
+  const target = matchingWorktree(cwd, config, issue, lane);
   if (target.listed) {
     ensureBranch(target.path, target.branch, `Issue #${issue.number} worktree`);
     return target;
@@ -314,6 +363,20 @@ function createOrReuseWorktree(cwd, config, issue) {
   const defaultPath = defaultWorktree(cwd, config);
   run('git', ['worktree', 'add', target.path, '-b', target.branch, config.defaultBranch], defaultPath);
   return { ...target, root };
+}
+
+// Pull `--lane <name>` out before checksFromArgs sees it -- that function
+// rejects every option except --check, by design.
+export function laneFromArgs(args) {
+  const rest = [];
+  let lane;
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] !== '--lane') { rest.push(args[index]); continue; }
+    lane = args[index + 1];
+    if (!lane || lane.startsWith('--')) throw new WorkflowError('--lane requires a lane name.');
+    index += 1;
+  }
+  return { lane, rest };
 }
 
 function checksFromArgs(args) {
@@ -371,10 +434,10 @@ function runChecks(config, cwd, extraChecks) {
   }
 }
 
-function start(config, cwd, issueNumber) {
+function start(config, cwd, issueNumber, lane) {
   const issue = issueDetails(config, cwd, issueNumber);
   if (issue.state !== 'OPEN') throw new WorkflowError(`Issue #${issue.number} is ${issue.state}; only open issues can start.`);
-  const target = createOrReuseWorktree(cwd, config, issue);
+  const target = createOrReuseWorktree(cwd, config, issue, lane);
   setStatus(config, cwd, issue.number, 'inProgress');
   commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.inProgress, {
     branch: target.branch,
@@ -384,10 +447,10 @@ function start(config, cwd, issueNumber) {
   console.log(`Issue #${issue.number} is In progress at ${target.path}`);
 }
 
-function review(config, cwd, issueNumber, args) {
+function review(config, cwd, issueNumber, args, lane) {
   const issue = issueDetails(config, cwd, issueNumber);
   if (issue.state !== 'OPEN') throw new WorkflowError(`Issue #${issue.number} is ${issue.state}; only open issues can enter review.`);
-  const target = matchingWorktree(cwd, config, issue);
+  const target = matchingWorktree(cwd, config, issue, lane);
   if (!target.listed) throw new WorkflowError(`Issue #${issue.number} has no registered worktree. Run start first.`);
   ensureClean(target.path, `Issue #${issue.number} worktree`);
   setStatus(config, cwd, issue.number, 'inReview');
@@ -414,10 +477,10 @@ function review(config, cwd, issueNumber, args) {
   console.log(`Issue #${issue.number} verification passed; it remains In review until finish.`);
 }
 
-function resume(config, cwd, issueNumber) {
+function resume(config, cwd, issueNumber, lane) {
   const issue = issueDetails(config, cwd, issueNumber);
   if (issue.state !== 'OPEN') throw new WorkflowError(`Issue #${issue.number} is ${issue.state}; only open issues can resume.`);
-  const target = matchingWorktree(cwd, config, issue);
+  const target = matchingWorktree(cwd, config, issue, lane);
   if (!target.listed) throw new WorkflowError(`Issue #${issue.number} has no registered worktree.`);
   setStatus(config, cwd, issue.number, 'inProgress');
   commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.inProgress, {
@@ -428,9 +491,9 @@ function resume(config, cwd, issueNumber) {
   console.log(`Issue #${issue.number} is back In progress at ${target.path}`);
 }
 
-function finish(config, cwd, issueNumber, args) {
+function finish(config, cwd, issueNumber, args, lane) {
   const issue = issueDetails(config, cwd, issueNumber);
-  const target = matchingWorktree(cwd, config, issue);
+  const target = matchingWorktree(cwd, config, issue, lane);
   if (!target.listed) throw new WorkflowError(`Issue #${issue.number} has no registered worktree.`);
   ensureClean(target.path, `Issue #${issue.number} worktree`);
 
@@ -526,23 +589,27 @@ function usage() {
     '',
     'Options:',
     '  --check "command"   Add an issue-specific shell check (repeatable).',
+    '  --lane <name>       Branch prefix lane for a NEW worktree (codex|claude|opencode).',
+    '                      Defaults to ISSUE_WORKFLOW_LANE, then defaultLane in config.',
+    '                      An existing worktree keeps its own branch regardless of lane.',
   ].join('\n'));
 }
 
-export { checksFromArgs, issueWorktree };
+export { checksFromArgs, issueWorktree, matchingWorktree };
 
 const isMain = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 if (isMain) {
-  const [command, issueNumber, ...args] = process.argv.slice(2);
+  const [command, issueNumber, ...rawArgs] = process.argv.slice(2);
   const config = loadConfig();
   const cwd = repoRoot();
 
   try {
+    const { lane, rest: args } = laneFromArgs(rawArgs);
     if (command === 'doctor') doctor(config, cwd);
-    else if (command === 'start') start(config, cwd, issueNumber);
-    else if (command === 'review') review(config, cwd, issueNumber, args);
-    else if (command === 'resume') resume(config, cwd, issueNumber);
-    else if (command === 'finish') finish(config, cwd, issueNumber, args);
+    else if (command === 'start') start(config, cwd, issueNumber, lane);
+    else if (command === 'review') review(config, cwd, issueNumber, args, lane);
+    else if (command === 'resume') resume(config, cwd, issueNumber, lane);
+    else if (command === 'finish') finish(config, cwd, issueNumber, args, lane);
     else usage();
   } catch (error) {
     console.error(`\nIssue workflow stopped: ${error.message}`);

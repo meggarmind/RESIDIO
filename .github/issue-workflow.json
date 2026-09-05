@@ -7,14 +7,21 @@
   "defaultBranch": "master",
   "worktreeDirectory": ".worktrees",
   "branchPrefix": "codex/issue-",
+  "defaultLane": "codex",
+  "branchPrefixes": {
+    "codex": "codex/issue-",
+    "claude": "feat/issue-",
+    "opencode": "opencode/issue-"
+  },
   "statusField": "Status",
   "statuses": {
     "backlog": "Backlog",
+    "ready": "Ready",
     "inProgress": "In progress",
     "inReview": "In review",
     "done": "Done"
   },
-  "issueBranchPattern": "codex/issue-<number>-<slug>",
+  "issueBranchPattern": "<lane-prefix><number>-<slug>",
   "lifecycleCommentMarker": "<!-- issue-workflow-lifecycle -->",
   "monitor": {
     "enabled": true,
