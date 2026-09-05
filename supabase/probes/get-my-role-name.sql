@@ -26,10 +26,21 @@
 -- `resident` return NULL under the legacy function (the legacy enum cannot
 -- express them) and their own name under the new one. A policy shaped
 -- `get_my_role() IS NOT NULL` would *widen* access the moment it is retargeted.
--- No live policy is shaped that way today (role-access-matrix.sql's capture
--- found 81 policies using `= ANY(ARRAY[...])` and 16 using `= 'literal'`, zero
--- using `IS NULL`/`IS NOT NULL`) — but this probe records the difference so a
--- future policy cannot introduce that hazard unnoticed.
+-- No live policy is shaped that way today: measured 2026-09-05 against
+-- pg_policies, 81 of the 97 use `= ANY(ARRAY[...])` and 16 use `= 'literal'`,
+-- zero use `IS NULL`/`IS NOT NULL`. Re-derive with:
+--
+--   SELECT count(*) FILTER (WHERE pred ~ 'get_my_role\(\)\s*=\s*ANY')      AS uses_in_any,
+--          count(*) FILTER (WHERE pred ~ 'get_my_role\(\)\s*=\s*''')        AS uses_equals_literal,
+--          count(*) FILTER (WHERE pred ~ 'get_my_role\(\)\s+IS\s+NOT\s+NULL') AS uses_is_not_null,
+--          count(*) FILTER (WHERE pred ~ 'get_my_role\(\)\s+IS\s+NULL')       AS uses_is_null
+--   FROM (SELECT coalesce(qual,'')||' '||coalesce(with_check,'') AS pred
+--           FROM pg_policies
+--          WHERE schemaname='public'
+--            AND (coalesce(qual,'')||' '||coalesce(with_check,'')) ~ 'get_my_role\(\)') p;
+--
+-- This probe records the difference so a future policy cannot introduce that
+-- hazard unnoticed.
 --
 -- HOW TO RUN IT
 --
