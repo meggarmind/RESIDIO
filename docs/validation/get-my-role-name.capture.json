@@ -1,7 +1,7 @@
 {
   "$schema": "get-my-role-name/v1",
   "capturedAt": "2026-09-05",
-  "capturedBy": "supabase/probes/get-my-role-name.sql, run via the Supabase MCP inside BEGIN...ROLLBACK. The role-loop measures get_my_role() and get_my_role_name() together on the same impersonated session, so legacyVsNew below is measured, not transcribed from the get_my_role() CASE statement in migration 20260830100300.",
+  "capturedBy": "supabase/probes/get-my-role-name.sql, run inside BEGIN...ROLLBACK (via the Supabase MCP, or the Management API query endpoint when the MCP server is unavailable -- both execute the same SQL against the same cloud database). The role-loop measures get_my_role() and get_my_role_name() together on the same impersonated session, so legacyVsNew below is measured, not transcribed from the get_my_role() CASE statement in migration 20260830100300.",
   "issue": 189,
   "epic": 182,
   "builtInRoles": [
