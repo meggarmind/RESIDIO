@@ -9,6 +9,134 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-06 — Epic #182 wrap-up: waves 1-3, interrupted for a Supabase MCP restart)
+
+**Tool:** Claude Code, coordinator posture, autorun authorised by Jimi ("All work must be completed tonight… continue until the EPIC is done"). **Supabase MCP failed to connect all session** (`CONNECT_TIMEOUT`); every database operation went through the Management API query endpoint, which works and honours `BEGIN`/`ROLLBACK`. The session was stopped deliberately, at a safe point, so Jimi can fix the MCP. **Autorun is to continue on resume.**
+
+### 🚦 RESUME HERE
+
+Three branches are pushed with work on them. Nothing is half-applied in the database. Read the "In flight" table below, then continue the wave sequence.
+
+### In flight — three branches pushed, none merged, none applied
+
+| Issue | Branch | Commit | State |
+|---|---|---|---|
+| **#190** | `feat/issue-190-legacy-role-slice-7-retarget-the-80-get-my-role-` | `14f442a5` | **complete, gates green** (897 tests / 89 files, tsc 0, lint 0 errors) |
+| **#214 + #213 blockers** | `feat/issue-214-legacy-role-decide-the-fate-of-ai-settings-and-a` | `720863d2` | **complete**, tsc 0, lint baseline; 2 component-test failures re-run green alone (flake under 3 concurrent agents) |
+| **#193** | `feat/issue-193-legacy-role-slice-10-rename-profiles-role-so-a-m` | `3914d01f` | **committed, gates NOT yet confirmed by me** — agent had not reported when the session was stopped |
+
+All three working trees are clean and all three commits are on `origin`. **No QA pass has been run on any of them.**
+
+#### #190 — verified by the coordinator, independently of the agent's report
+
+Re-derived every expansion from `docs/validation/get-my-role-policies.json`:
+
+```
+ALTER POLICY 97 | DROP 0 | CREATE 0 | " TO " 0
+get_my_role() 0 | ::user_role 0   (executable body, comments stripped)
+policies vs capture: 97 matched, 0 missing, 0 invented
+groups: 45 / 29 / 14 / 7 / 2   exactly as required
+vice_chairman required in 81, present in 81
+MISMATCHES: 0
+```
+
+The catastrophic failure this slice exists to prevent — a literal rename that silently revokes vice_chairman across 36 tables — is provably absent.
+
+#### #214 — verified by the coordinator
+
+Executable SQL is **exactly four `DROP POLICY IF EXISTS`, zero `ALTER POLICY`, zero `vice_chairman`**, matching the corrected approach. Six mutations, all caught.
+
+#### #193 — spot-verified only; NEEDS A FULL REVIEW ON RESUME
+
+Confirmed by me:
+- `auth-provider.tsx:242` `.select()` no longer contains `role` — this is the change that would otherwise have broken sign-in
+- the legacy reverse lookup at `auth-provider.tsx:288-301` is **deleted**
+- no `.select()` string anywhere under `src/**` still names the bare `role` column
+- remaining `profile.role` matches are test assertions that the string is *absent*, not readers
+
+**It touched six files beyond the brief, and two are authorization-critical. Both look like genuine discovery, not scope creep:**
+
+- **`src/middleware.ts:95`** — a second `.select('role_id, resident_id, role, …')`, in the middleware that runs on **every authenticated request**. My brief missed it. Without this fix the rename would have broken every request, not just sign-in. **This was the most valuable find of the wave.**
+- **`src/lib/auth/authorize.ts`** — `authorizePermission()` and `authorizeAnyPermission()` were each issuing an extra `SELECT role FROM profiles` purely to populate a legacy `role` field on `AuthorizationResult`. Removed; the field is now `null`. I checked for consumers and found none, so this is safe *and* removes a database round-trip from the authorization hot path. **Re-confirm the no-consumers finding during QA.**
+- Also changed beyond brief: `src/actions/auth/account-approval.ts`, `src/actions/auth/link-account.ts`, `scripts/seed-additional-data.mjs`, `scripts/verify-users.mjs`, plus `src/lib/auth/action-roles.ts` (+5) and `src/actions/roles/assign-role.ts` (+32/−). **The `assign-role.ts` change is the one to read first** — that file owns `LEGACY_ROLE_MAP`, and #194 is supposed to be what finally deletes it.
+
+### Next steps, in order
+
+1. **QA all three** (fresh agents, Opus, blind — they touch authorization and migrations). #193 needs the most scrutiny; it has had none.
+2. **PR → merge → apply, strictly in timestamp order**: `20260906010000` (#190), then `20260906020000` (#214), then `20260906030000` (#193). Verify each by name against `supabase_migrations.schema_migrations`, never against the directory.
+3. **Re-run the role-access matrix after applying** and diff against `docs/validation/role-access-matrix.before-wave2.json`. Expect **no change for any role** — #190 preserves access by construction and #214's drops are redundant. **Any vice_chairman regression means #190 got a bucket wrong.**
+4. **Then #194** — the final slice. Migration timestamp `20260906040000`. Drop the column, the `user_role` enum, `get_my_role()`, `UserRole`, `LEGACY_TO_NEW_ROLE_MAP`, `LEGACY_ROLE_MAP`; stop `assignRoleToProfile()` writing the legacy column; regenerate `src/types/database.generated.ts` **early**, so the compiler enumerates the remaining work. Gate the drop on **both** `pg_proc` and `pg_policies` returning zero rows for `role_deprecated_do_not_use`.
+5. Close #182.
+
+### New defect filed this session
+
+**#228 — RLS policies live in the database do not exist in `supabase/migrations/`.** Eight of nine policies checked appear in **zero** migration files. Consequences: the migrations directory is not a faithful description of production authorization, and it **weakens #214's own correctness argument** (that migration drops four legacy policies because modern siblings grant identical access — true live, but those siblings are not in the directory, so a rebuilt database would lose the access instead). Not a blocker while working against the live database.
+
+### Applied vs merged — the distinction that matters
+
+| Migration | Merged | Applied |
+|---|---|---|
+| `20260905010000_reconcile_profile_role_ids` (#192) | **yes**, PR #226 | **yes** — ledger row `20260905010000 / reconcile_profile_role_ids`, verified by name |
+| `20260906010000_policies_follow_get_my_role_name` (#190) | no | **no** |
+| `20260906020000_remove_last_legacy_role_policies` (#214) | no | **no** |
+| `20260906030000_rename_profiles_role_column` (#193) | no | **no** |
+
+**Nothing from waves 2-3 has been applied or merged.** The database is exactly as it was before those branches were written. The pre-existing ledger drift for part A and #191 (recorded at `20260905030200`/`20260905030210`, not their filename versions) is still unreconciled.
+
+### Shipped this session
+
+**#189 (PR #227) and #192 (PR #226), both merged, both closed, both Done on the board.**
+
+- **#189** — verified `get_my_role_name()` before 36 tables depend on it. Probe + committed capture + 16 tests. QA at Opus ran **30 mutations, caught 22**; the eight survivors were all in `legacyVsNew`, which #190 consumes as its bucket-expansion table. Fixed, and the probe now *measures* that table rather than transcribing it — I re-ran the committed probe and confirmed all 8 rows reproduce exactly.
+- **#192** — reconciliation guard. **Live data: 3 profiles, 0 stranded**, so the backfill writes nothing and this is a guard, not a data fix. I executed it against the live database in rolled-back transactions: forward run clean; seeding one `security_officer` with no `role_id` made the guard fire and name the account by id and email. QA verdict was **FAIL** on the first pass (two mutations slipped, three tests could never fail); fixed and independently re-verified.
+
+### Defects filed
+
+- **#224** — `issue:workflow start` creates branches from **local `master`** without fetching (`scripts/issue-workflow.mjs:364`). It produced both wave-1 worktrees 16 commits stale. **Worked around for now by pointing local `master` at `origin/master`** — do that again if it drifts, or fix the script.
+- **#225** — `anonymous-read-closure.test.ts` asserted #212's migration sorts *last* among same-day migrations; fires for any same-day migration by anyone. Fixed on #192's branch, merged.
+
+### ⚠️ Do not re-litigate: there are TWO legacy vice_chairman mappings
+
+This caused a false claim that is still sitting in **#193's issue body**, and I repeated it in an agent brief before catching it.
+
+| | Direction | vice_chairman |
+|---|---|---|
+| `get_my_role()` | reads `role_id → app_roles.name` | **`chairman`** |
+| `LEGACY_ROLE_MAP` (`src/actions/roles/assign-role.ts:258`) | writes `profiles.role` | **`NULL`** |
+
+A policy calling **`get_my_role()`** admits vice_chairman. A policy reading **`profiles.role`** denies it. Consequences, all verified:
+
+- **#190's expansion table is correct** — those 97 policies call the function, so `('admin','chairman')` really does admit four RBAC roles.
+- **#214/#213: the four legacy policies are redundant; drop them bare.** Adding `vice_chairman` to the modern report siblings would have *widened* access. An earlier version of the #214 brief said to do that; it was corrected mid-flight.
+- **#193's `has_permission('billing.create_invoice')` rewrite is a WIDENING**, not preservation: vice_chairman gains access, and non-`active` accounts lose it. Still correct to do — the guard is unreachable anyway (`invoice-generation-worker.ts:16` uses `createAdminClient()`, so `auth.uid()` is NULL) — but it must not be documented as "access preserved exactly".
+
+Recorded on #182, #193, #213 and #214.
+
+### Decisions Jimi made this session — in writing, do not reverse
+
+1. **#214: drop the two AI admin policies, do not replace them.** Accepted consequence: `ai_settings` gets no INSERT/UPDATE/DELETE policy for anyone (writes become service-role only) and admins lose read-all on conversation logs. No `ai.*` permission is to be invented. Justified because no application code references either table.
+2. **The #193 → #194 soak is waived.** #193's design says the rename should run in production before #194 drops the column. Jimi: *"i am the only reader so far, so there is not concern for #194."* Run them straight through.
+3. **Autorun**: complete the epic without stopping for approval.
+
+### Verification artefacts left for the next session
+
+- **`docs/validation/role-access-matrix.before-wave2.json`** (+ `.captures.json`) — the role-access matrix for all 7 roles × 97 tables, captured **2026-09-06 before any wave-2 migration was applied**. This is the baseline #190's verification diffs against. Re-capture is possible (`supabase/probes/role-access-matrix.sql`, 7 runs) but only while the wave-2 migrations remain unapplied.
+- **`docs/validation/get-my-role-policies.json`** (on #190's branch) — all 97 policies as they exist live, captured from `pg_policies`. Agents have no database access and cannot enumerate these; old migration files are superseded and must not be used instead.
+
+### Method notes
+
+- **The Management API is blocked for `urllib` (Cloudflare 1010, a client-signature ban) but works for `curl`.** Use curl.
+- **Native Windows Python cannot read MSYS `/c/...` paths.** Use `C:/...` form when handing paths from bash to python.
+- Migration timestamps for concurrent agents must be **assigned by the coordinator**, not chosen by each agent, or they collide.
+- Three concurrent agents each running `npx vitest run` saturates this machine and pushes runs past the 120s foreground tool timeout. Serialise gate runs, or raise the timeout.
+- Killing stale vitest processes is safe and sometimes necessary: 15 orphaned ones were holding worktree directories open and preventing cleanup.
+
+### Housekeeping done
+
+`.worktrees/` is **empty** — `issue-189`, `issue-192` and the long-stale `issue-179` were all removed (the last had been flagged as a trap by a previous session). Local `master` now tracks `origin/master`. Four `.claude/worktrees/agent-*` directories remain; they are harness-managed and two are locked, so they were left alone.
+
+---
+
 ## Last session (Claude Code, 2026-09-05 — instruction set unified into CORE.md; NSMA and qa-director purged)
 
 **Tool:** Claude Code, coordinator posture. **Branch:** `chore/unify-agent-instructions`, off `origin/master`, **pushed on creation**, **PR open, not merged**. No database changes, no migrations, no `src/**` behaviour changes.
