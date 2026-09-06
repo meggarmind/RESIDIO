@@ -16,7 +16,7 @@ async function verifyUsers() {
   // Check profiles table
   const { data: profiles, error: profilesError } = await supabase
     .from('profiles')
-    .select('id, email, role')
+    .select('id, email, role_id')
     .order('email');
 
   if (profilesError) {
@@ -26,7 +26,7 @@ async function verifyUsers() {
 
   console.log(`✅ Found ${profiles.length} profiles:\n`);
   profiles.forEach(p => {
-    console.log(`  • ${p.email} (${p.role}) - ID: ${p.id}`);
+    console.log(`  • ${p.email} (role_id: ${p.role_id ?? 'none'}) - ID: ${p.id}`);
   });
 
   console.log('\n✅ Verification complete!');

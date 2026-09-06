@@ -178,7 +178,7 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
                   isModern ? 'text-gray-400' : 'text-muted-foreground'
                 )}
               >
-                {profile?.role_display_name || profile?.role?.replace('_', ' ')}
+                {profile?.role_display_name}
               </p>
             </div>
           </div>

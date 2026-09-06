@@ -1,7 +1,6 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { UserRole } from '@/types/database';
 
 export async function getServerSession() {
     const supabase = await createServerSupabaseClient();
@@ -16,17 +15,14 @@ export async function getServerSession() {
         // Fetch profile data to help client-side hydration
         const { data: profile } = await supabase
             .from('profiles')
-            .select('id, email, full_name, role, role_id, resident_id')
+            .select('id, email, full_name, role_id, resident_id')
             .eq('id', user.id)
             .single();
 
         return {
             session: {
                 user,
-                profile: profile ? {
-                    ...profile,
-                    role: profile.role as UserRole
-                } : null
+                profile: profile ?? null
             },
             error: null
         };

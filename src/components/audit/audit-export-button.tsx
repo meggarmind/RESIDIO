@@ -13,6 +13,7 @@ import {
   type AuditEntityType,
   type AuditLogWithActor,
 } from '@/types/database';
+import { extractRoleName } from '@/lib/auth/action-roles';
 
 // Type for audit log params (defined inline since it's from 'use server' file)
 type GetAuditLogsParams = {
@@ -60,7 +61,7 @@ export function AuditExportButton({ filters }: AuditExportButtonProps) {
         format(timestamp, 'h:mm a'),
         log.actor?.full_name || 'Unknown',
         log.actor?.email || 'N/A',
-        log.actor?.role?.replace('_', ' ') || 'N/A',
+        extractRoleName(log.actor?.app_roles)?.replace('_', ' ') || 'N/A',
         AUDIT_ACTION_LABELS[log.action as keyof typeof AUDIT_ACTION_LABELS] || log.action,
         AUDIT_ENTITY_LABELS[log.entity_type as keyof typeof AUDIT_ENTITY_LABELS] || log.entity_type,
         log.entity_display || 'N/A',

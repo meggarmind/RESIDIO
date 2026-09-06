@@ -4,17 +4,18 @@ import { createContext, useContext, useEffect, useState, useMemo, useRef, useCal
 import { usePathname } from 'next/navigation';
 import { User, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
-import { UserRole, AppRoleName } from '@/types/database';
+import { AppRoleName } from '@/types/database';
 import { getServerSession } from '@/actions/auth/get-server-session';
 import { clearAdminReadCache } from '@/lib/offline/admin-read-cache';
 
-// Profile with both legacy and new RBAC fields
+// Profile as the app sees it. The legacy `role` column is gone (#193):
+// every role and permission decision reads role_id -> app_roles ->
+// role_permissions, surfaced here as role_name/role_display_name/permissions.
 interface Profile {
   id: string;
   email: string;
   full_name: string;
-  role: UserRole; // Legacy role
-  // New RBAC fields
+  // RBAC fields
   role_id: string | null;
   role_name: AppRoleName | null;
   role_display_name: string | null;
@@ -238,7 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Fetch profile including resident_id for portal access
     const { data: profileDataRaw, error: profileError } = await supabase
       .from('profiles')
-      .select('id, email, full_name, role, role_id, resident_id')
+      .select('id, email, full_name, role_id, resident_id')
       .eq('id', userId)
       .single();
     let profileData = profileDataRaw;
@@ -259,7 +260,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: user.id,
           email: user.email || '',
           full_name: metadata.full_name || metadata.name || user.email?.split('@')[0] || 'User',
-          role: (metadata.role as UserRole) || 'resident',
           role_id: null,
           role_name: null,
           role_display_name: null,
@@ -283,22 +283,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Fetch role details and permissions
     let appRole: { id: string; name: string; display_name: string } | null = null;
     let permissions: string[] = [];
-    let effectiveRoleId = profileData.role_id;
-
-    // Legacy fallback: If no role_id but has role string, try to find the role definition
-    if (!effectiveRoleId && profileData.role) {
-      console.log('[AuthProvider] Legacy profile detected (no role_id), looking up role:', profileData.role);
-      const { data: roleLookup } = await supabase
-        .from('app_roles')
-        .select('id')
-        .eq('name', profileData.role)
-        .single();
-
-      if (roleLookup) {
-        effectiveRoleId = roleLookup.id;
-        console.log('[AuthProvider] Resolved legacy role to ID:', effectiveRoleId);
-      }
-    }
+    // No legacy reverse lookup here any more (#193). It resolved a role by
+    // name from the deprecated profiles.role column when role_id was absent;
+    // #192 reconciled every profile and proved against live data that no row
+    // is in that state, and #193 renamed the column out from under it.
+    const effectiveRoleId = profileData.role_id;
 
     if (effectiveRoleId) {
       console.log('[AuthProvider] Fetching role/permissions for:', effectiveRoleId);
@@ -339,7 +328,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: profileData.id,
       email: profileData.email,
       full_name: profileData.full_name,
-      role: profileData.role as UserRole,
       role_id: profileData.role_id,
       role_name: appRole?.name as AppRoleName | null,
       role_display_name: appRole?.display_name || null,

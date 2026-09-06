@@ -144,7 +144,7 @@ export function PortalTopBar({ title }: { title?: string }) {
                         <DropdownMenuSeparator className="bg-border" />
 
                         {/* Admin Dashboard Link - Only show for admin users */}
-                        {(profile?.role_name === 'super_admin' || profile?.role_name === 'chairman' || profile?.role === 'chairman' || profile?.role === 'admin') && (
+                        {(profile?.role_name === 'super_admin' || profile?.role_name === 'chairman') && (
                             <>
                                 <DropdownMenuItem asChild>
                                     <Link href="/dashboard" className="cursor-pointer text-bill-text hover:bg-bill-secondary">

@@ -261,7 +261,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {residentId || ['super_admin', 'admin'].includes(profile?.role ?? '') ? (
+                  {residentId || profile?.role_name === 'super_admin' ? (
                     <DropdownMenuItem asChild>
                       <Link href="/portal" className="cursor-pointer font-medium flex items-center w-full">
                         <User className="mr-2 h-4 w-4" />
@@ -271,7 +271,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                   ) : (
                     <DropdownMenuItem className="capitalize font-medium opacity-70">
                       <User className="mr-2 h-4 w-4" />
-                      {profile?.role?.replace('_', ' ')}
+                      {profile?.role_display_name}
                     </DropdownMenuItem>
                   )}
                   {isDismissed && (

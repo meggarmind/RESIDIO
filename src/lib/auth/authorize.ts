@@ -1,7 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import type { UserRole, AppRoleName } from '@/types/database';
+import type { AppRoleName } from '@/types/database';
 import type { AuthorizationResult, Permission } from './action-roles';
 
 /**
@@ -120,21 +120,12 @@ export async function authorizePermission(
   // Get user's permissions
   const { permissions, roleName, roleId } = await getUserPermissions(user.id);
 
-  // Get legacy role for backwards compatibility
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  const legacyRole = profile?.role as UserRole | null;
-
   // Check if user has the required permission
   if (!permissions.includes(requiredPermission)) {
     return {
       authorized: false,
       userId: user.id,
-      role: legacyRole,
+      role: null,
       roleName,
       roleId,
       permissions,
@@ -145,7 +136,7 @@ export async function authorizePermission(
   return {
     authorized: true,
     userId: user.id,
-    role: legacyRole,
+    role: null,
     roleName,
     roleId,
     permissions,
@@ -183,14 +174,6 @@ export async function authorizeAnyPermission(
 
   const { permissions, roleName, roleId } = await getUserPermissions(user.id);
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  const legacyRole = profile?.role as UserRole | null;
-
   // Check if user has ANY of the required permissions
   const hasAnyPermission = requiredPermissions.some(p => permissions.includes(p));
 
@@ -198,7 +181,7 @@ export async function authorizeAnyPermission(
     return {
       authorized: false,
       userId: user.id,
-      role: legacyRole,
+      role: null,
       roleName,
       roleId,
       permissions,
@@ -209,7 +192,7 @@ export async function authorizeAnyPermission(
   return {
     authorized: true,
     userId: user.id,
-    role: legacyRole,
+    role: null,
     roleName,
     roleId,
     permissions,

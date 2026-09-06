@@ -107,7 +107,6 @@ async function main() {
     .from('profiles')
     .update({
       role_id: role.id,
-      role: 'admin', // legacy column, still read by some server actions
       approval_status: 'active',
       approved_at: new Date().toISOString(),
     })

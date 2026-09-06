@@ -386,7 +386,7 @@ export function Sidebar({ className }: SidebarProps) {
               <TooltipContent side="right">
                 <p className="font-medium">{profile?.full_name}</p>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {profile?.role_display_name || profile?.role?.replace('_', ' ')}
+                  {profile?.role_display_name}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -412,7 +412,7 @@ export function Sidebar({ className }: SidebarProps) {
                   {profile?.full_name}
                 </p>
                 <p className="text-xs truncate whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
-                  {profile?.role_display_name || profile?.role?.replace('_', ' ')}
+                  {profile?.role_display_name}
                 </p>
               </div>
             </Link>

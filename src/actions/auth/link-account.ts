@@ -353,7 +353,6 @@ export async function linkAuthAccountToResident(
         full_name: fullName,
         email: authUser.email,
         role_id: residentRole?.id ?? null,
-        role: null,
         approval_status: 'active',
         approved_at: new Date().toISOString(),
         approved_by: auth.userId,

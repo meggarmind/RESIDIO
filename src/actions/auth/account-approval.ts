@@ -253,7 +253,6 @@ export async function rejectAccount(
       approval_status: 'rejected',
       rejection_reason: trimmedReason,
       role_id: null,
-      role: null,
       approved_at: null,
       approved_by: null,
     })

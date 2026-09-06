@@ -1436,19 +1436,33 @@ export interface ApprovalRequest {
   updated_at: string;
 }
 
+/**
+ * An `app_roles!profiles_role_id_fkey(name)` embed hanging off a `profiles`
+ * join, as PostgREST returns it.
+ *
+ * Both shapes are modelled because PostgREST returns an object or a
+ * single-element array depending on how it infers the relation. Read it with
+ * `extractRole()` / `extractRoleName()` from `@/lib/auth/action-roles` rather
+ * than indexing it at the call site.
+ *
+ * This replaced the legacy `role: UserRole` field on the joins below when #193
+ * renamed `profiles.role` out of existence.
+ */
+export type JoinedProfileRole = { name: AppRoleName } | { name: AppRoleName }[] | null;
+
 // Approval Request with related data
 export interface ApprovalRequestWithDetails extends ApprovalRequest {
   requester: {
     id: string;
     full_name: string;
     email: string;
-    role: UserRole;
+    app_roles: JoinedProfileRole;
   };
   reviewer?: {
     id: string;
     full_name: string;
     email: string;
-    role: UserRole;
+    app_roles: JoinedProfileRole;
   } | null;
   entity_name: string; // House address, billing profile name, or payment reference/amount
 }
@@ -1463,7 +1477,7 @@ export interface AuditLogWithActor extends AuditLog {
     id: string;
     full_name: string;
     email: string;
-    role: UserRole;
+    app_roles: JoinedProfileRole;
   } | null; // Nullable to handle deleted profiles (ON DELETE SET NULL)
 }
 

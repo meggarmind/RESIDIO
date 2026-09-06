@@ -21,6 +21,7 @@ import {
   type AuditLogWithActor,
 } from '@/types/database';
 import { getActionBadgeVariant } from '@/lib/audit/helpers';
+import { extractRoleName } from '@/lib/auth/action-roles';
 import { AuditDetailDialog } from './audit-detail-dialog';
 
 // Memoized row component to prevent unnecessary re-renders
@@ -47,7 +48,7 @@ const AuditLogRow = memo(function AuditLogRow({
       <TableCell>
         <div className="text-sm">{log.actor?.full_name || 'Unknown'}</div>
         <div className="text-xs text-muted-foreground">
-          {log.actor?.role?.replace('_', ' ')}
+          {extractRoleName(log.actor?.app_roles)?.replace('_', ' ')}
         </div>
       </TableCell>
       <TableCell>

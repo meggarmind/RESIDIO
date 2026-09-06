@@ -33,10 +33,12 @@ async function seedAdditionalData() {
     if (housesError) throw new Error(`Error fetching houses: ${housesError.message}`);
     console.log(`  ✅ Found ${houses.length} houses`);
 
+    // Resolved through the RBAC join, not the deprecated profiles.role
+    // column that #193 renamed out of existence.
     const { data: adminUser, error: adminError } = await supabase
       .from('profiles')
-      .select('id')
-      .eq('role', 'admin')
+      .select('id, app_roles!profiles_role_id_fkey!inner(name)')
+      .eq('app_roles.name', 'super_admin')
       .single();
 
     if (adminError) throw new Error(`Error fetching admin user: ${adminError.message}`);

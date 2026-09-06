@@ -10,6 +10,11 @@ import type { UserRole, AppRoleName, BuiltInRoleName, RoleCategory } from '@/typ
 export interface AuthorizationResult {
   authorized: boolean;
   userId: string | null;
+  /**
+   * @deprecated Always null since #193 renamed the legacy `profiles.role`
+   * column out of existence. Nothing reads it; #194 removes the field along
+   * with the `UserRole` enum. Use `roleName` or `permissions`.
+   */
   role: UserRole | null;
   roleName: AppRoleName | null; // New RBAC role name
   roleId: string | null;        // New RBAC role ID
