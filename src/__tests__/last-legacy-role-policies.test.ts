@@ -104,6 +104,54 @@ function rollbackStatement(policy: string): string {
   return rest.slice(0, ends.length > 0 ? Math.min(...ends) : rest.length);
 }
 
+/** Whitespace-collapsed SQL. `pg_policies` wraps `qual` and `with_check`
+ * across lines and the rollback block does not, so both sides are flattened
+ * before any comparison rather than one being reformatted to suit the other. */
+function flatten(sql: string): string {
+  return sql.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * One clause's predicate, lifted out of a commented rollback statement:
+ * `--` prefixes stripped, whitespace collapsed, truncated at the statement
+ * terminator so the trailing comment lines cannot leak in.
+ *
+ * Returned as the WHOLE predicate on purpose. The corruptions that matter
+ * here append to a predicate rather than replace it, so every assertion that
+ * merely finds a fragment inside one is satisfied by the corrupted version.
+ */
+function clausePredicate(clauseText: string, keyword: 'USING' | 'WITH CHECK'): string {
+  const flat = flatten(clauseText.replace(/^[ \t]*--[ \t]?/gm, ''));
+  const at = flat.indexOf(`${keyword} (`);
+  if (at === -1) return '';
+
+  const body = flat.slice(at + keyword.length);
+  const terminator = body.indexOf(';');
+
+  return (terminator === -1 ? body : body.slice(0, terminator)).trim();
+}
+
+/**
+ * The exact shape a restored legacy predicate must have, end to end.
+ *
+ * Two spellings, because the live policies had two: the AI pair aliases the
+ * table (`FROM profiles p` ... `p.id = auth.uid()`) and the report pair does
+ * not (`FROM profiles` ... `profiles.id = auth.uid()`). Each alternative pins
+ * three things the role-list assertions cannot see -- the relation is
+ * `profiles`, the row is bound to `auth.uid()`, and the alias used in the
+ * WHERE is the one the FROM actually bound -- and both are anchored `^...$`
+ * so that nothing can be appended.
+ */
+const CALLER_BOUND_PREDICATE = new RegExp(
+  '^\\(EXISTS \\( SELECT 1 FROM profiles p WHERE ' +
+    '\\(\\(p\\.id = auth\\.uid\\(\\)\\) AND ' +
+    '\\(p\\.role = ANY \\(ARRAY\\[[^[\\]]+\\]\\)\\)\\)\\)\\)$' +
+    '|' +
+    '^\\(EXISTS \\( SELECT 1 FROM profiles WHERE ' +
+    '\\(\\(profiles\\.id = auth\\.uid\\(\\)\\) AND ' +
+    '\\(profiles\\.role = ANY \\(ARRAY\\[[^[\\]]+\\]\\)\\)\\)\\)\\)$'
+);
+
 /**
  * The four policies, as `[table, policy name, command]`.
  *
@@ -168,12 +216,19 @@ const MUST_SURVIVE: ReadonlyArray<{ table: string; policy: string }> = [
   { table: 'ai_conversation_logs', policy: 'Users can read their own conversation logs' },
   { table: 'ai_conversation_logs', policy: 'Users can insert their own conversation logs' },
   { table: 'report_schedules', policy: 'Authenticated users can view report schedules' },
+  // report_schedules carries its own "Approved accounts only can read" -- a
+  // distinct policy from the ai_settings one of the same name, and present in
+  // the capture. It was missing from this list (and from the migration
+  // header's) until #214's second QA pass.
+  { table: 'report_schedules', policy: 'Approved accounts only can read' },
   { table: 'report_schedules', policy: 'report_schedules_select' },
   { table: 'report_schedules', policy: 'report_schedules_insert' },
   { table: 'report_schedules', policy: 'report_schedules_update' },
   { table: 'report_schedules', policy: 'report_schedules_delete' },
   { table: 'generated_reports', policy: 'Authenticated users can view generated reports' },
   { table: 'generated_reports', policy: 'Authenticated users can insert generated reports' },
+  { table: 'generated_reports', policy: 'generated_reports_select' },
+  { table: 'generated_reports', policy: 'generated_reports_insert' },
   { table: 'generated_reports', policy: 'generated_reports_delete' },
 ];
 
@@ -335,7 +390,7 @@ describe('#214 + #213: the last legacy profiles.role policies are dropped', () =
         PRIOR_HAS_WITH_CHECK[entry.policy]
       );
 
-      const clauses: ReadonlyArray<{ name: string; text: string }> = hasWithCheck
+      const clauses: ReadonlyArray<{ name: 'USING' | 'WITH CHECK'; text: string }> = hasWithCheck
         ? [
             { name: 'USING', text: statement.slice(0, withCheckIndex) },
             { name: 'WITH CHECK', text: statement.slice(withCheckIndex) },
@@ -343,6 +398,45 @@ describe('#214 + #213: the last legacy profiles.role policies are dropped', () =
         : [{ name: 'USING', text: statement }];
 
       for (const clause of clauses) {
+        // ---- the caller binding ------------------------------------------
+        // Splitting the clauses closed the clause-MASKING class. It did not
+        // close this one: every assertion below talks about the role LIST,
+        // and a predicate can keep a perfect role list while it has stopped
+        // identifying the caller at all. `p.id = p.id`, `FROM app_roles p`
+        // and an appended `OR true` each leave the ARRAY[...] literal
+        // untouched and make the EXISTS true for every authenticated user --
+        // the last of those would have the documented recovery path restore a
+        // WRITE policy on ai_settings open to everyone who can log in.
+        const predicate = clausePredicate(clause.text, clause.name);
+
+        expect(
+          predicate,
+          `${entry.policy}: ${clause.name} clause has no predicate to check`
+        ).not.toBe('');
+        expect(
+          predicate,
+          `${entry.policy}: ${clause.name} clause does not bind the row to the caller`
+        ).toMatch(/\((?:p|profiles)\.id = auth\.uid\(\)\)/);
+        expect(
+          predicate,
+          `${entry.policy}: ${clause.name} clause does not select FROM profiles`
+        ).toMatch(/ SELECT 1 FROM profiles(?: p)? WHERE /);
+        expect(
+          (predicate.match(/EXISTS/g) ?? []).length,
+          `${entry.policy}: ${clause.name} clause is not a single EXISTS`
+        ).toBe(1);
+        expect(
+          predicate,
+          `${entry.policy}: ${clause.name} clause carries a disjunct`
+        ).not.toMatch(/\bOR\b/i);
+        // Anchored end to end. The three fragment checks above are each
+        // satisfied by `<good predicate> OR true`; only whole-shape equality
+        // rejects it.
+        expect(
+          predicate,
+          `${entry.policy}: ${clause.name} clause is not the exact caller-bound EXISTS shape`
+        ).toMatch(CALLER_BOUND_PREDICATE);
+
         // A toContain('profiles.role') over the whole file cannot tell a
         // faithful rollback from a drifted one, because the header says
         // those words too -- hence matching against this one clause only.
@@ -461,6 +555,7 @@ describe('#214 evidence: modern siblings cover what the legacy report policies d
     readFileSync(path.join(captureDir, CAPTURE_FILE), 'utf8')
   ) as {
     policies: CapturedPolicy[];
+    policyCount: number;
   };
 
   /**
@@ -484,9 +579,21 @@ describe('#214 evidence: modern siblings cover what the legacy report policies d
    * Extracts the literal role names an
    * `(ar.name)::text = ANY ((ARRAY[...])::text[])` predicate admits, sorted
    * so ordering differences in the capture cannot fail the comparison.
+   *
+   * Read out of that comparison ITSELF, not out of the predicate at large.
+   * Scanning the whole predicate for `'x'::character varying` literals cannot
+   * tell which column is being compared, so a predicate that keeps the join
+   * and the role list but tests the wrong column -- `(p.nickname)::text = ANY
+   * (...)` -- still reported the correct role set. Anchoring the extraction
+   * on `(ar.name)::text` makes such a predicate yield nothing and fail.
    */
   function rolesIn(predicate: string): string[] {
-    return [...predicate.matchAll(/'([a-z_]+)'::character varying/g)].map((m) => m[1]).sort();
+    const comparison = predicate.match(
+      /\(ar\.name\)::text = ANY \(\(ARRAY\[([^[\]]*)\]\)::text\[\]\)/
+    );
+    if (!comparison) return [];
+
+    return [...comparison[1].matchAll(/'([a-z_]+)'::character varying/g)].map((m) => m[1]).sort();
   }
 
   function findSibling(table: string, cmd: string, name: string): CapturedPolicy | undefined {
@@ -499,6 +606,12 @@ describe('#214 evidence: modern siblings cover what the legacy report policies d
     expect(readdirSync(captureDir)).toContain(CAPTURE_FILE);
     expect(Array.isArray(capture.policies)).toBe(true);
     expect(capture.policies.length).toBeGreaterThan(0);
+    // policyCount is the capture's own claim about how many rows it holds. Left
+    // unasserted it is decoration: a capture truncated on its way into the repo
+    // keeps the count of the complete one and reads as complete.
+    expect(capture.policies.length, 'policyCount disagrees with the rows captured').toBe(
+      capture.policyCount
+    );
   });
 
   it('the four policies the migration drops DO appear in the capture', () => {
@@ -509,6 +622,59 @@ describe('#214 evidence: modern siblings cover what the legacy report policies d
         (p) => p.tablename === entry.table && p.policyname === entry.policy
       );
       expect(row, `${entry.table}."${entry.policy}" is missing from the capture`).toBeDefined();
+    }
+  });
+
+  it('the capture and the rollback block agree on all four dropped policies', () => {
+    // The capture and the rollback block are two independent transcriptions of
+    // the same four live policies, and each was trusted on its own: the capture
+    // rows were checked for PRESENCE only, and the rollback block against
+    // constants restated at the top of this file. Comparing the two makes each
+    // the evidence for the other, so a transcription that drifts in EITHER
+    // direction fails -- which neither check could do alone.
+    for (const entry of DROPPED) {
+      const row = capture.policies.find(
+        (p) => p.tablename === entry.table && p.policyname === entry.policy
+      );
+      expect(row, `${entry.table}."${entry.policy}" is missing from the capture`).toBeDefined();
+
+      const statement = rollbackStatement(entry.policy);
+      expect(statement, `${entry.policy}: missing from the rollback block`).not.toBe('');
+
+      // Command and grantee, asserted on both sides rather than on one.
+      expect(row!.cmd, `${entry.policy}: capture cmd disagrees with DROPPED`).toBe(entry.cmd);
+      expect(statement, `${entry.policy}: rollback cmd disagrees with the capture`).toContain(
+        `ON public.${entry.table} FOR ${row!.cmd}`
+      );
+      expect(row!.roles, `${entry.policy}: capture grantee is not {authenticated}`).toBe(
+        '{authenticated}'
+      );
+      expect(statement, `${entry.policy}: rollback grantee disagrees with the capture`).toContain(
+        'TO authenticated'
+      );
+
+      // Predicates, clause by clause, as flattened text.
+      const withCheckIndex = statement.indexOf('WITH CHECK');
+      const usingText = withCheckIndex === -1 ? statement : statement.slice(0, withCheckIndex);
+
+      expect(
+        clausePredicate(usingText, 'USING'),
+        `${entry.policy}: rollback USING predicate differs from the live capture`
+      ).toBe(flatten(row!.qual));
+
+      const capturedWithCheck = flatten(row!.with_check ?? '');
+
+      expect(
+        capturedWithCheck !== '',
+        `${entry.policy}: capture WITH CHECK presence disagrees with PRIOR_HAS_WITH_CHECK`
+      ).toBe(PRIOR_HAS_WITH_CHECK[entry.policy]);
+
+      if (capturedWithCheck !== '') {
+        expect(
+          clausePredicate(statement.slice(withCheckIndex), 'WITH CHECK'),
+          `${entry.policy}: rollback WITH CHECK predicate differs from the live capture`
+        ).toBe(capturedWithCheck);
+      }
     }
   });
 
@@ -526,11 +692,25 @@ describe('#214 evidence: modern siblings cover what the legacy report policies d
 
       const predicate = governingPredicate(sibling!);
 
-      // "Resolves role_id through app_roles" -- not just "mentions the right
-      // names somewhere" -- so the join itself has to be present.
-      expect(predicate, `${table}.${name}: does not join app_roles`).toContain('app_roles');
-      expect(predicate, `${table}.${name}: does not resolve through role_id`).toContain(
-        'p.role_id = ar.id'
+      // "Resolves role_id through app_roles" as a join that actually executes,
+      // not as the word `app_roles` appearing somewhere in the text. Substring
+      // checks for 'app_roles' and 'p.role_id = ar.id' are BOTH satisfied by
+      // `JOIN not_app_roles_at_all ar /* app_roles */ ON ((p.role_id = ar.id))`,
+      // which binds `ar` to an entirely different relation.
+      expect(predicate, `${table}.${name}: does not JOIN app_roles on role_id`).toMatch(
+        /JOIN app_roles ar ON \(\(p\.role_id = ar\.id\)\)/
+      );
+      // And the column compared has to be the joined role's NAME. With the join
+      // intact and the role literals untouched, swapping `(ar.name)::text` for
+      // some other varchar column leaves every other check here green while the
+      // policy admits on the wrong thing.
+      expect(predicate, `${table}.${name}: does not compare (ar.name)::text`).toMatch(
+        /\(ar\.name\)::text = ANY \(\(ARRAY\[/
+      );
+      // And the row has to be bound to the caller, for the same reason the
+      // rollback clauses are checked for it above.
+      expect(predicate, `${table}.${name}: does not bind the row to the caller`).toContain(
+        '(p.id = auth.uid())'
       );
 
       expect(rolesIn(predicate), `${table}.${name}: wrong role set`).toEqual(MODERN_ROLE_SET);

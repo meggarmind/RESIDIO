@@ -55,13 +55,16 @@
 --     bypasses RLS (relforcerowsecurity is false on both tables).
 --   * Admins lose the ability to read OTHER users' AI conversation logs. Each
 --     user keeps read and insert on their own rows.
---   * Reads of AI settings are unaffected for everyone.
+--   * Reads of ACTIVE AI settings rows are unaffected for everyone; the three
+--     admin roles lose read on rows with `is_active = false`. The one row the
+--     table holds today has `is_active = true`, so that loss is latent -- but
+--     the access-matrix cell moves regardless. See the post-apply block below.
 --
 -- This is acceptable because no application code references either table and
 -- they hold one row each. If an admin UI for AI settings is ever built, it
 -- needs a fresh policy and a real `ai.*` permission designed at that point.
 --
--- One matrix cell moves that is NOT a regression -- read this before
+-- The matrix cells that move are NOT regressions -- read this before
 -- adjudicating the post-apply diff, in the vocabulary
 -- `supabase/migrations/20260905000000_policies_part_a_follow_permissions.sql`
 -- uses for the same situation:
@@ -76,15 +79,31 @@
 --   ability to read OTHER users' AI conversation logs"), not a narrowing
 --   nobody decided on.
 --
--- Post-apply verification. ai_conversation_logs goes allow -> row-dependent
--- for super_admin, chairman and financial_officer, and the diff tool exits
--- non-zero on an undeclared narrowing, so those three moves must be declared
--- explicitly:
+-- Post-apply verification. SIX cells move, not three. ai_conversation_logs
+-- goes allow -> row-dependent for super_admin, chairman and financial_officer
+-- (the conversation-log consequence named above), and so does ai_settings:
+-- "Admins can manage AI settings" is PERMISSIVE FOR ALL, and its USING clause
+-- applies to SELECT, which makes it the only UNCONDITIONAL permissive read on
+-- that table. Dropping it leaves those three roles with the conditional
+-- "All users can read active AI settings" (`is_active = true`) -- the
+-- RESTRICTIVE "Approved accounts only can read" (`is_approved()`) grants
+-- nothing on its own -- so the probe resolves the cell as row-dependent.
+--
+-- Both moves were measured live on 2026-09-06 by applying this migration
+-- inside a transaction ending in ROLLBACK and re-running
+-- supabase/probes/role-access-matrix.sql for each role. report_schedules and
+-- generated_reports stayed `allow` for all three; nothing else moved.
+--
+-- The diff tool exits non-zero on an undeclared narrowing and allow ->
+-- row-dependent is a narrowing, so all six moves must be declared explicitly:
 --
 --   npm run rbac:matrix:diff -- fresh.json \
 --     --expect super_admin:ai_conversation_logs=row-dependent \
 --     --expect chairman:ai_conversation_logs=row-dependent \
---     --expect financial_officer:ai_conversation_logs=row-dependent
+--     --expect financial_officer:ai_conversation_logs=row-dependent \
+--     --expect super_admin:ai_settings=row-dependent \
+--     --expect chairman:ai_settings=row-dependent \
+--     --expect financial_officer:ai_settings=row-dependent
 --
 -- === The two report policies: NO access change at all ======================
 --
@@ -157,10 +176,11 @@
 --   ai_conversation_logs  "Users can read their own conversation logs"
 --   ai_conversation_logs  "Users can insert their own conversation logs"
 --   report_schedules      "Authenticated users can view report schedules"
+--   report_schedules      "Approved accounts only can read"        (is_approved())
 --   report_schedules      report_schedules_select / _insert / _update / _delete
 --   generated_reports     "Authenticated users can view generated reports"
 --   generated_reports     "Authenticated users can insert generated reports"
---   generated_reports     generated_reports_delete
+--   generated_reports     generated_reports_select / _insert / _delete
 --
 -- Out of scope: the ~23 other policies in #213's population that hardcode
 -- app_roles.name. They read the MODERN column, so they do not block #194.
