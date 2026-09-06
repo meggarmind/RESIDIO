@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -3230,10 +3230,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "late_fee_waivers_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "late_fee_waivers_resident_id_fkey"
             columns: ["resident_id"]
             isOneToOne: false
             referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "late_fee_waivers_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -4016,6 +4030,9 @@ export type Database = {
       }
       profiles: {
         Row: {
+          approval_status: Database["public"]["Enums"]["profile_approval_status"]
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           dashboard_theme_override: string | null
           email: string
@@ -4023,8 +4040,8 @@ export type Database = {
           id: string
           impersonation_enabled: boolean | null
           portal_theme_override: string | null
+          rejection_reason: string | null
           resident_id: string | null
-          role: Database["public"]["Enums"]["user_role"]
           role_id: string | null
           two_factor_backup_codes_encrypted: string | null
           two_factor_enabled: boolean | null
@@ -4038,6 +4055,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approval_status?: Database["public"]["Enums"]["profile_approval_status"]
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           dashboard_theme_override?: string | null
           email: string
@@ -4045,8 +4065,8 @@ export type Database = {
           id: string
           impersonation_enabled?: boolean | null
           portal_theme_override?: string | null
+          rejection_reason?: string | null
           resident_id?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
           role_id?: string | null
           two_factor_backup_codes_encrypted?: string | null
           two_factor_enabled?: boolean | null
@@ -4060,6 +4080,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approval_status?: Database["public"]["Enums"]["profile_approval_status"]
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           dashboard_theme_override?: string | null
           email?: string
@@ -4067,8 +4090,8 @@ export type Database = {
           id?: string
           impersonation_enabled?: boolean | null
           portal_theme_override?: string | null
+          rejection_reason?: string | null
           resident_id?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
           role_id?: string | null
           two_factor_backup_codes_encrypted?: string | null
           two_factor_enabled?: boolean | null
@@ -4082,6 +4105,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_resident_id_fkey"
             columns: ["resident_id"]
@@ -4180,6 +4210,35 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      property_transition_requests: {
+        Row: {
+          created_at: string
+          house_id: string
+          request_key: string
+          result: Json
+        }
+        Insert: {
+          created_at?: string
+          house_id: string
+          request_key: string
+          result: Json
+        }
+        Update: {
+          created_at?: string
+          house_id?: string
+          request_key?: string
+          result?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_transition_requests_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       report_archive: {
         Row: {
@@ -5617,6 +5676,35 @@ export type Database = {
           },
         ]
       }
+      wallet_settlement_requests: {
+        Row: {
+          created_at: string
+          request_key: string
+          resident_id: string
+          result: Json
+        }
+        Insert: {
+          created_at?: string
+          request_key: string
+          resident_id: string
+          result: Json
+        }
+        Update: {
+          created_at?: string
+          request_key?: string
+          resident_id?: string
+          result?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_settlement_requests_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wallet_transactions: {
         Row: {
           amount: number
@@ -5859,6 +5947,81 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_provider_credentials: {
+        Row: {
+          access_token_encrypted: string | null
+          account_sid_encrypted: string | null
+          api_version: string | null
+          app_secret_encrypted: string | null
+          auth_token_encrypted: string | null
+          created_at: string
+          created_by: string | null
+          graph_base_url: string | null
+          id: string
+          is_active: boolean
+          phone_number_id: string | null
+          provider: string
+          template_content_sids: Json | null
+          updated_at: string
+          updated_by: string | null
+          verify_token_encrypted: string | null
+          whatsapp_from_number: string | null
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          account_sid_encrypted?: string | null
+          api_version?: string | null
+          app_secret_encrypted?: string | null
+          auth_token_encrypted?: string | null
+          created_at?: string
+          created_by?: string | null
+          graph_base_url?: string | null
+          id?: string
+          is_active?: boolean
+          phone_number_id?: string | null
+          provider: string
+          template_content_sids?: Json | null
+          updated_at?: string
+          updated_by?: string | null
+          verify_token_encrypted?: string | null
+          whatsapp_from_number?: string | null
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          account_sid_encrypted?: string | null
+          api_version?: string | null
+          app_secret_encrypted?: string | null
+          auth_token_encrypted?: string | null
+          created_at?: string
+          created_by?: string | null
+          graph_base_url?: string | null
+          id?: string
+          is_active?: boolean
+          phone_number_id?: string | null
+          provider?: string
+          template_content_sids?: Json | null
+          updated_at?: string
+          updated_by?: string | null
+          verify_token_encrypted?: string | null
+          whatsapp_from_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_provider_credentials_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_provider_credentials_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_sessions: {
         Row: {
           created_at: string
@@ -6009,6 +6172,20 @@ export type Database = {
         }
         Returns: string
       }
+      execute_property_transition: {
+        Args: {
+          p_created_by: string
+          p_house_id: string
+          p_notes: string
+          p_request_key: string
+          p_staff_actions: Json
+          p_target_resident_id: string
+          p_target_role: Database["public"]["Enums"]["resident_role"]
+          p_transition_date: string
+          p_transition_type: string
+        }
+        Returns: Json
+      }
       generate_access_code: { Args: never; Returns: string }
       generate_house_shortname: {
         Args: { p_house_number: string; p_street_id: string }
@@ -6056,10 +6233,6 @@ export type Database = {
         }[]
       }
       get_my_resident_id: { Args: never; Returns: string }
-      get_my_role: {
-        Args: never
-        Returns: Database["public"]["Enums"]["user_role"]
-      }
       get_my_role_name: { Args: never; Returns: string }
       get_primary_occupier: {
         Args: { p_house_id: string }
@@ -6104,11 +6277,8 @@ export type Database = {
         }[]
       }
       has_permission: { Args: { p_permission_name: string }; Returns: boolean }
-      has_security_permission: {
-        Args: { permission_name: string }
-        Returns: boolean
-      }
       import_legacy_financial_batch: { Args: { payload: Json }; Returns: Json }
+      is_approved: { Args: never; Returns: boolean }
       is_resident: { Args: never; Returns: boolean }
       is_role_assignment_allowed: {
         Args: { p_app_role_id: string; p_user_id: string }
@@ -6163,6 +6333,47 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      replace_whatsapp_credentials: {
+        Args: {
+          p_access_token_encrypted?: string
+          p_account_sid_encrypted?: string
+          p_actor_id?: string
+          p_api_version?: string
+          p_app_secret_encrypted?: string
+          p_auth_token_encrypted?: string
+          p_graph_base_url?: string
+          p_phone_number_id?: string
+          p_provider: string
+          p_template_content_sids?: Json
+          p_verify_token_encrypted?: string
+          p_whatsapp_from_number?: string
+        }
+        Returns: {
+          access_token_encrypted: string | null
+          account_sid_encrypted: string | null
+          api_version: string | null
+          app_secret_encrypted: string | null
+          auth_token_encrypted: string | null
+          created_at: string
+          created_by: string | null
+          graph_base_url: string | null
+          id: string
+          is_active: boolean
+          phone_number_id: string | null
+          provider: string
+          template_content_sids: Json | null
+          updated_at: string
+          updated_by: string | null
+          verify_token_encrypted: string | null
+          whatsapp_from_number: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "whatsapp_provider_credentials"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       requires_approval_for_action: {
         Args: {
           p_action_type: string
@@ -6184,6 +6395,21 @@ export type Database = {
           p_house_id?: string
           p_invoice_ids: string[]
           p_payment_date: string
+          p_resident_id: string
+          p_source_payment_id?: string
+        }
+        Returns: Json
+      }
+      settle_wallet_invoices_idempotent: {
+        Args: {
+          p_batch_amount?: number
+          p_batch_type: string
+          p_created_by?: string
+          p_credit_amount?: number
+          p_house_id?: string
+          p_invoice_ids: string[]
+          p_payment_date: string
+          p_request_key: string
           p_resident_id: string
           p_source_payment_id?: string
         }
@@ -6298,6 +6524,7 @@ export type Database = {
         | "projects"
         | "personnel"
       personnel_engagement_scope: "estate" | "resident_house"
+      profile_approval_status: "pending" | "active" | "rejected" | "suspended"
       project_status: "planning" | "active" | "completed" | "on_hold"
       property_status:
         | "occupied"
@@ -6324,11 +6551,6 @@ export type Database = {
         | "required_admin"
         | "required_all"
       two_factor_method: "sms" | "authenticator" | "email"
-      user_role:
-        | "chairman"
-        | "financial_secretary"
-        | "security_officer"
-        | "admin"
       vehicle_type:
         | "car"
         | "motorcycle"
@@ -6361,12 +6583,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -6390,11 +6612,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -6415,11 +6637,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -6440,11 +6662,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -6457,11 +6679,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -6587,6 +6809,7 @@ export const Constants = {
         "personnel",
       ],
       personnel_engagement_scope: ["estate", "resident_house"],
+      profile_approval_status: ["pending", "active", "rejected", "suspended"],
       project_status: ["planning", "active", "completed", "on_hold"],
       property_status: [
         "occupied",
@@ -6616,12 +6839,6 @@ export const Constants = {
         "required_all",
       ],
       two_factor_method: ["sms", "authenticator", "email"],
-      user_role: [
-        "chairman",
-        "financial_secretary",
-        "security_officer",
-        "admin",
-      ],
       vehicle_type: [
         "car",
         "motorcycle",
