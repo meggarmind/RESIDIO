@@ -317,22 +317,66 @@ describe('#214 + #213: the last legacy profiles.role policies are dropped', () =
       expect(statement, `${entry.policy}: wrong table or command`).toContain(
         `ON public.${entry.table} FOR ${entry.cmd}`
       );
-      // And it has to restore the legacy predicate it replaced. A rollback
-      // block that has drifted into restoring something else is not a
-      // rollback -- and a toContain('profiles.role') over the whole file cannot
-      // tell the difference, because the header says those words too.
-      expect(statement, `${entry.policy}: no legacy predicate to restore`).toMatch(
-        /role = ANY \(ARRAY\['[a-z_]+'::user_role(?:, '[a-z_]+'::user_role)*\]\)/
+
+      // And it has to restore the legacy predicate it replaced -- in EVERY
+      // clause the policy actually had, checked separately. "Admins can
+      // manage AI settings" is FOR ALL with both a USING and a WITH CHECK
+      // clause; asserting over the whole statement lets either clause's
+      // predicate mask a corruption of the other, because toContain and the
+      // shape regex are satisfied the moment ONE clause is intact. Splitting
+      // on the "WITH CHECK" marker (present only when PRIOR_HAS_WITH_CHECK
+      // says it should be) and running the same checks against each half
+      // closes that gap: a bad WITH CHECK predicate can no longer hide behind
+      // a good USING predicate, or vice versa.
+      const withCheckIndex = statement.indexOf('WITH CHECK');
+      const hasWithCheck = withCheckIndex !== -1;
+
+      expect(hasWithCheck, `${entry.policy}: WITH CHECK presence mismatch`).toBe(
+        PRIOR_HAS_WITH_CHECK[entry.policy]
       );
-      expect(statement, `${entry.policy}: restores all three legacy roles`).toContain(
-        "'admin'::user_role"
-      );
-      expect(statement, `${entry.policy}: restores all three legacy roles`).toContain(
-        "'chairman'::user_role"
-      );
-      expect(statement, `${entry.policy}: restores all three legacy roles`).toContain(
-        "'financial_secretary'::user_role"
-      );
+
+      const clauses: ReadonlyArray<{ name: string; text: string }> = hasWithCheck
+        ? [
+            { name: 'USING', text: statement.slice(0, withCheckIndex) },
+            { name: 'WITH CHECK', text: statement.slice(withCheckIndex) },
+          ]
+        : [{ name: 'USING', text: statement }];
+
+      for (const clause of clauses) {
+        // A toContain('profiles.role') over the whole file cannot tell a
+        // faithful rollback from a drifted one, because the header says
+        // those words too -- hence matching against this one clause only.
+        expect(
+          clause.text,
+          `${entry.policy}: ${clause.name} clause has no legacy predicate to restore`
+        ).toMatch(/role = ANY \(ARRAY\['[a-z_]+'::user_role(?:, '[a-z_]+'::user_role)*\]\)/);
+        expect(
+          clause.text,
+          `${entry.policy}: ${clause.name} clause must restore all three legacy roles`
+        ).toContain("'admin'::user_role");
+        expect(
+          clause.text,
+          `${entry.policy}: ${clause.name} clause must restore all three legacy roles`
+        ).toContain("'chairman'::user_role");
+        expect(
+          clause.text,
+          `${entry.policy}: ${clause.name} clause must restore all three legacy roles`
+        ).toContain("'financial_secretary'::user_role");
+        // The three toContain checks above pass just as well with a FOURTH
+        // role quietly added -- 'security_officer'::user_role was never
+        // admitted by these legacy policies, so restoring it would widen
+        // access on the way back. Extracting the literal role list out of
+        // the clause's own ARRAY[...] and comparing it for exact equality
+        // (order-independent) is what catches that a toContain-only check
+        // cannot.
+        const restoredRoles = [...clause.text.matchAll(/'([a-z_]+)'::user_role/g)]
+          .map((m) => m[1])
+          .sort();
+        expect(
+          restoredRoles,
+          `${entry.policy}: ${clause.name} clause restores the wrong exact role set`
+        ).toEqual(['admin', 'chairman', 'financial_secretary']);
+      }
     }
   });
 
@@ -382,5 +426,161 @@ describe('#214 + #213: the last legacy profiles.role policies are dropped', () =
     const outside = migration.replace(activeSql, '').replace(/--[^\n]*/g, '');
 
     expect(outside).not.toContain(';');
+  });
+});
+
+/**
+ * Evidence for the migration's "NO access change at all" claim about the two
+ * report-table drops: that report_schedules and generated_reports already
+ * carry modern, `role_id`-keyed sibling policies admitting exactly the same
+ * three roles the dropped legacy policies admitted.
+ *
+ * That claim cannot be checked against `supabase/migrations/` on its own --
+ * RLS policies that exist live are not reproduced there (already-filed
+ * defect #228), so the sibling policies' predicates and role lists live only
+ * in the database. `docs/validation/last-legacy-role-siblings.json` is a
+ * `pg_policies` capture of all 19 policies on the four affected tables, taken
+ * from the live cloud database on 2026-09-06 for exactly this reason. These
+ * tests assert the sibling-coverage claim against that capture, rather than
+ * trusting the migration header's prose.
+ */
+describe('#214 evidence: modern siblings cover what the legacy report policies dropped', () => {
+  const captureDir = fileURLToPath(new URL('../../docs/validation', import.meta.url));
+  const CAPTURE_FILE = 'last-legacy-role-siblings.json';
+
+  interface CapturedPolicy {
+    cmd: string;
+    policyname: string;
+    qual: string;
+    roles: string;
+    tablename: string;
+    with_check: string;
+  }
+
+  const capture = JSON.parse(
+    readFileSync(path.join(captureDir, CAPTURE_FILE), 'utf8')
+  ) as {
+    policies: CapturedPolicy[];
+  };
+
+  /**
+   * The role set the modern siblings are asserted to admit, per the migration
+   * header: `super_admin, chairman, financial_officer`, resolved through
+   * `profiles.role_id -> app_roles.name`. Order-independent on purpose --
+   * the comparison below sorts both sides -- so a capture whose ARRAY[...]
+   * literal is reordered does not fail this test for a reason that has
+   * nothing to do with coverage.
+   */
+  const MODERN_ROLE_SET = ['chairman', 'financial_officer', 'super_admin'];
+
+  /** The predicate that actually governs the command: Postgres has no USING
+   * clause on INSERT, so INSERT policies carry their role check in
+   * `with_check` while every other command here carries it in `qual`. */
+  function governingPredicate(policy: CapturedPolicy): string {
+    return policy.cmd === 'INSERT' ? policy.with_check : policy.qual;
+  }
+
+  /**
+   * Extracts the literal role names an
+   * `(ar.name)::text = ANY ((ARRAY[...])::text[])` predicate admits, sorted
+   * so ordering differences in the capture cannot fail the comparison.
+   */
+  function rolesIn(predicate: string): string[] {
+    return [...predicate.matchAll(/'([a-z_]+)'::character varying/g)].map((m) => m[1]).sort();
+  }
+
+  function findSibling(table: string, cmd: string, name: string): CapturedPolicy | undefined {
+    return capture.policies.find(
+      (p) => p.tablename === table && p.cmd === cmd && p.policyname === name
+    );
+  }
+
+  it('the capture is the live pg_policies evidence the migration header points to', () => {
+    expect(readdirSync(captureDir)).toContain(CAPTURE_FILE);
+    expect(Array.isArray(capture.policies)).toBe(true);
+    expect(capture.policies.length).toBeGreaterThan(0);
+  });
+
+  it('the four policies the migration drops DO appear in the capture', () => {
+    // If the capture were describing a different live state than the
+    // migration, the coverage claim it evidences below would be worthless.
+    for (const entry of DROPPED) {
+      const row = capture.policies.find(
+        (p) => p.tablename === entry.table && p.policyname === entry.policy
+      );
+      expect(row, `${entry.table}."${entry.policy}" is missing from the capture`).toBeDefined();
+    }
+  });
+
+  it.each([
+    ['report_schedules', 'SELECT', 'report_schedules_select'],
+    ['report_schedules', 'INSERT', 'report_schedules_insert'],
+    ['report_schedules', 'UPDATE', 'report_schedules_update'],
+    ['report_schedules', 'DELETE', 'report_schedules_delete'],
+    ['generated_reports', 'DELETE', 'generated_reports_delete'],
+  ] as const)(
+    'sibling %s.%s ("%s") resolves role_id through app_roles to exactly the modern role set',
+    (table, cmd, name) => {
+      const sibling = findSibling(table, cmd, name);
+      expect(sibling, `${table}.${name} (${cmd}) missing from the capture`).toBeDefined();
+
+      const predicate = governingPredicate(sibling!);
+
+      // "Resolves role_id through app_roles" -- not just "mentions the right
+      // names somewhere" -- so the join itself has to be present.
+      expect(predicate, `${table}.${name}: does not join app_roles`).toContain('app_roles');
+      expect(predicate, `${table}.${name}: does not resolve through role_id`).toContain(
+        'p.role_id = ar.id'
+      );
+
+      expect(rolesIn(predicate), `${table}.${name}: wrong role set`).toEqual(MODERN_ROLE_SET);
+    }
+  );
+
+  it('report_schedules siblings cover every command the dropped ALL policy carried', () => {
+    // "Admin and financial roles can manage report schedules" was FOR ALL --
+    // SELECT, INSERT, UPDATE and DELETE all have to be covered individually,
+    // or "redundant" is true for only part of what was dropped.
+    for (const cmd of ['SELECT', 'INSERT', 'UPDATE', 'DELETE'] as const) {
+      const found = capture.policies.some(
+        (p) => p.tablename === 'report_schedules' && p.cmd === cmd && p.policyname.startsWith('report_schedules_')
+      );
+      expect(found, `report_schedules: no modern sibling covers ${cmd}`).toBe(true);
+    }
+  });
+
+  it('generated_reports has a modern DELETE sibling covering the dropped DELETE policy', () => {
+    const sibling = findSibling('generated_reports', 'DELETE', 'generated_reports_delete');
+    expect(sibling).toBeDefined();
+  });
+
+  it('therefore each dropped policy is covered, per command, by a surviving sibling', () => {
+    // The conclusion the migration header draws, restated as one assertion
+    // over the same capture rather than left to be inferred from the four
+    // above: every (table, command) the legacy policies governed has at
+    // least one surviving modern sibling admitting the same role set.
+    const legacyCommands: ReadonlyArray<{ table: string; cmd: string }> = [
+      { table: 'report_schedules', cmd: 'SELECT' },
+      { table: 'report_schedules', cmd: 'INSERT' },
+      { table: 'report_schedules', cmd: 'UPDATE' },
+      { table: 'report_schedules', cmd: 'DELETE' },
+      { table: 'generated_reports', cmd: 'DELETE' },
+    ];
+
+    for (const { table, cmd } of legacyCommands) {
+      const covering = capture.policies.filter(
+        (p) =>
+          p.tablename === table &&
+          p.cmd === cmd &&
+          p.policyname !== 'Admin and financial roles can manage report schedules' &&
+          p.policyname !== 'Admin and financial roles can delete generated reports' &&
+          rolesIn(governingPredicate(p)).length === MODERN_ROLE_SET.length &&
+          rolesIn(governingPredicate(p)).every((r, i) => r === MODERN_ROLE_SET[i])
+      );
+
+      expect(covering.length, `${table}.${cmd}: no covering sibling with the modern role set`).toBeGreaterThan(
+        0
+      );
+    }
   });
 });

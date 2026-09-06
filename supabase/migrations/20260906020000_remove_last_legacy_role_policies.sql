@@ -61,6 +61,31 @@
 -- they hold one row each. If an admin UI for AI settings is ever built, it
 -- needs a fresh policy and a real `ai.*` permission designed at that point.
 --
+-- One matrix cell moves that is NOT a regression -- read this before
+-- adjudicating the post-apply diff, in the vocabulary
+-- `supabase/migrations/20260905000000_policies_part_a_follow_permissions.sql`
+-- uses for the same situation:
+--
+--   In the docs/validation/role-access-matrix.baseline.json baseline,
+--   ai_conversation_logs reads `allow` for super_admin, chairman and
+--   financial_officer, because "Admins can read all conversation logs" grants
+--   them an unconditional read. Once that policy is dropped, those three
+--   roles fall back to "Users can read their own conversation logs"
+--   (`user_id = auth.uid()`), so the cell resolves to `row-dependent` for all
+--   three. This is the accepted consequence named above ("Admins lose the
+--   ability to read OTHER users' AI conversation logs"), not a narrowing
+--   nobody decided on.
+--
+-- Post-apply verification. ai_conversation_logs goes allow -> row-dependent
+-- for super_admin, chairman and financial_officer, and the diff tool exits
+-- non-zero on an undeclared narrowing, so those three moves must be declared
+-- explicitly:
+--
+--   npm run rbac:matrix:diff -- fresh.json \
+--     --expect super_admin:ai_conversation_logs=row-dependent \
+--     --expect chairman:ai_conversation_logs=row-dependent \
+--     --expect financial_officer:ai_conversation_logs=row-dependent
+--
 -- === The two report policies: NO access change at all ======================
 --
 -- Read this before "restoring" them. These two drops look like they revoke
@@ -88,6 +113,18 @@
 --
 -- The sets are IDENTICAL. The legacy policies contribute nothing the modern
 -- siblings do not already grant, so dropping them changes nobody's access.
+--
+-- That "the sets are identical" claim is not evidenced by anything in this
+-- repository on its own: RLS policies that exist live are not reproduced
+-- under supabase/migrations/ (already-filed defect #228), so the modern
+-- siblings' predicates and role lists asserted above cannot be checked
+-- against the migrations directory -- only against the database itself.
+-- The evidence is `docs/validation/last-legacy-role-siblings.json`, a
+-- `pg_policies` capture of all 19 policies on these four tables taken from
+-- the live cloud database on 2026-09-06, committed alongside this migration
+-- specifically because #228 means the migrations directory cannot evidence
+-- this claim. `src/__tests__/last-legacy-role-policies.test.ts` asserts the
+-- sibling-coverage claim above against that capture rather than from prose.
 --
 -- vice_chairman in particular is NOT lost here, because it was never admitted:
 -- a role with no legacy equivalent carries `profiles.role = NULL` (the
