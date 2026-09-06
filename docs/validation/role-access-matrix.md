@@ -16,7 +16,7 @@ Issue #185, epic #182, ADR-0007.
 
 #186, #187 and #190 rewrite around 130 RLS policies. The way that work fails is silent.
 
-`get_my_role()` collapses distinct roles into shared buckets: `vice_chairman` returns `chairman`, and `financial_officer` returns `financial_secretary`. So `get_my_role() IN ('admin', 'chairman')` admits **four** RBAC roles, not two. Renaming those literals to `('super_admin', 'chairman')` revokes every vice_chairman across 36 tables — and leaves a perfectly well-formed policy behind. No structural test, type check, or reading of the diff catches it. The symptom arrives days later as scattered "permission denied" reports with no common cause.
+The legacy `get_my_role()` used to collapse distinct roles into shared buckets: `vice_chairman` returned `chairman`, and `financial_officer` returned `financial_secretary`. So `get_my_role() IN ('admin', 'chairman')` admitted **four** RBAC roles, not two. A rewrite that renamed those literals to `('super_admin', 'chairman')` instead of expanding the bucket would have revoked every vice_chairman across 36 tables — and left a perfectly well-formed policy behind. No structural test, type check, or reading of the diff would have caught it. The symptom would have arrived days later as scattered "permission denied" reports with no common cause. This was the hazard epic #182 had to navigate when it retargeted #190's 97 policies from `get_my_role()` to `get_my_role_name()`: the rewrite had to expand every bucketed literal, not just rename the function call, or it would have quietly narrowed access on the way out. `get_my_role()`, the `user_role` enum and `profiles.role` are gone as of #194 — this matrix is the record that the expansion, not a rename, is what actually shipped.
 
 A behavioural matrix is the only thing that sees it. Any cell that moves is either intended or a bug, and the diff makes someone say which.
 
@@ -47,7 +47,7 @@ SELECT count(*) FROM public.profiles WHERE email LIKE 'rbac-matrix-probe%';  -- 
 
 ## How a verdict is reached
 
-Counting rows is not enough on its own — roughly half these tables are empty, and an empty table returns nothing to everybody. So the probe evaluates each table's **deployed policy expressions** inside a real session impersonating a probe profile, with the real `get_my_role()`, `has_permission()` and `is_approved()` doing the work.
+Counting rows is not enough on its own — roughly half these tables are empty, and an empty table returns nothing to everybody. So the probe evaluates each table's **deployed policy expressions** inside a real session impersonating a probe profile, with the real `get_my_role_name()`, `has_permission()` and `is_approved()` doing the work.
 
 | Verdict | Meaning |
 | --- | --- |

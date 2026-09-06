@@ -21,10 +21,10 @@ Signing up does **not** grant access. `handle_new_user()` provisions every new
 `auth.users` row with `approval_status = 'pending'`, no role and no resident link.
 
 `profiles.approval_status` is the single chokepoint: the SECURITY DEFINER helpers that
-~85 RLS policies depend on — `get_my_role()`, `get_my_resident_id()`, `is_resident()`,
-`is_super_admin()`, `has_permission()` — all return NULL/false unless the status is
-`active`. A pending, rejected or suspended account is therefore denied at the database
-level, not merely redirected by middleware.
+`get_my_role_name()` (97 RLS policies across 36 tables), `get_my_resident_id()`,
+`is_resident()`, `is_super_admin()`, `has_permission()` — all return NULL/false unless the
+status is `active`. A pending, rejected or suspended account is therefore denied at the
+database level, not merely redirected by middleware.
 
 An administrator approves the account and assigns a role from
 **Settings → Roles → Pending Accounts**.
@@ -131,28 +131,41 @@ if (hasAnyPermission(['payments.view', 'payments.create'])) {
 
 All tables have RLS enabled with policies based on user roles.
 
-### get_my_role() Function
+### get_my_role_name() Function
 
-A `SECURITY DEFINER` function that avoids RLS recursion:
+A `SECURITY DEFINER` function that avoids RLS recursion. It resolves the RBAC role name via
+`role_id`, and gates on `approval_status` the same way the other auth helpers do:
 
 ```sql
-CREATE OR REPLACE FUNCTION get_my_role()
-RETURNS text
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE OR REPLACE FUNCTION public.get_my_role_name()
+RETURNS text AS $$
 DECLARE
-  user_role text;
+    v_role_name TEXT;
 BEGIN
-  SELECT role INTO user_role
-  FROM profiles
-  WHERE id = auth.uid();
+    SELECT ar.name INTO v_role_name
+    FROM profiles pr
+    JOIN app_roles ar ON ar.id = pr.role_id
+    WHERE pr.id = auth.uid()
+      AND pr.approval_status = 'active';
 
-  RETURN COALESCE(user_role, 'authenticated');
+    RETURN v_role_name;
 END;
-$$;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
+
+It returns **NULL** for an account that is not `active` or has no role assigned — unlike the
+legacy `get_my_role()` it replaced, it does not fall back to `'authenticated'`. 97 RLS policies
+across 36 tables call it.
+
+> **Epic #182 removed the legacy role vocabulary.** `profiles.role`, the `user_role` enum and
+> `get_my_role()` are gone as of slices #190, #214, #193 and #194. `get_my_role()` used to read
+> `profiles.role` directly and return one of a fixed five-value enum
+> (`admin`/`chairman`/`financial_secretary`/`security_officer`/`resident`); it was retargeted to
+> `get_my_role_name()` (#190), the last policies still reading `profiles.role` directly were
+> dropped (#214), the column was renamed to `profiles.role_deprecated_do_not_use` (#193), and
+> finally `get_my_role()`, the renamed column and the `user_role` enum were dropped outright
+> (#194). A reader who meets `get_my_role()` in git history or an old PR is looking at
+> pre-#182 code — it no longer exists in the database.
 
 ### is_super_admin() Function
 
@@ -177,12 +190,17 @@ $$;
 
 ### Example RLS Policy
 
+This is an expansion, not a rename. The legacy `get_my_role()` collapsed `vice_chairman` into
+`chairman` and `financial_officer` into `financial_secretary`, so
+`get_my_role() IN ('admin', 'chairman', 'financial_secretary')` actually admitted **four**
+distinct RBAC roles. The `get_my_role_name()` equivalent has to list them explicitly:
+
 ```sql
 -- Allow admins and chairmen to view all residents
 CREATE POLICY "Admins and chairmen can view residents"
 ON residents FOR SELECT
 USING (
-  get_my_role() IN ('admin', 'chairman', 'financial_secretary')
+  get_my_role_name() IN ('super_admin', 'chairman', 'vice_chairman', 'financial_officer')
 );
 
 -- Allow admins to modify residents
