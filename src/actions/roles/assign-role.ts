@@ -250,17 +250,14 @@ export async function searchProfilesForRoleAssignment(
  * LEGACY_ROLE_MAP used to live here, and both actions below used it to mirror
  * every role assignment into the legacy `profiles.role` column.
  *
- * #193 -- this slice, not #194, which is what the tracker says -- deleted it,
- * and with it the `role: legacyRole` / `role: null` writes and the `role` field
- * in the audit oldValues/newValues. #194's remaining scope on this file is
- * therefore smaller than its issue body describes.
+ * #193 deleted it -- earlier than the tracker said, which put it in #194 -- and
+ * with it the `role: legacyRole` / `role: null` writes and the `role` field in
+ * the audit oldValues/newValues. #194 then dropped the column itself, the
+ * `user_role` enum and `get_my_role()` (migration 20260906040000), so there is
+ * no second vocabulary left for anything here to mirror into.
  *
- * It is safe because nothing reads the column by the time #193's migration
- * applies: every application reader is retargeted in the same change, and the
- * last four policy readers (ai_settings, ai_conversation_logs,
- * report_schedules, generated_reports) are dropped by #214, whose migration is
- * timestamped 20260906020000 and so applies first. The column that remains is
- * literally named role_deprecated_do_not_use; writing to it would be absurd.
+ * `role_id` is the only role a profile has. Read its name through
+ * `app_roles!profiles_role_id_fkey(name)` and `extractRoleName()`.
  */
 
 /**

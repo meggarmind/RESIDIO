@@ -65,17 +65,11 @@ export const PROFILE_APPROVAL_STATUS_LABELS: Record<ProfileApprovalStatus, strin
   suspended: 'Suspended',
 };
 
-// Legacy: User roles for app access (profiles table) - DEPRECATED, use AppRoleName
-// Kept for backwards compatibility during migration
-export type UserRole = 'chairman' | 'financial_secretary' | 'security_officer' | 'admin';
-
-//// Mapping from old roles to new roles (for migration/backwards compat)
-export const LEGACY_TO_NEW_ROLE_MAP: Record<UserRole, BuiltInRoleName> = {
-  admin: 'super_admin',
-  chairman: 'chairman',
-  financial_secretary: 'financial_officer',
-  security_officer: 'security_officer',
-};
+// The legacy `UserRole` union and `LEGACY_TO_NEW_ROLE_MAP` used to sit here.
+// #194 (epic #182) dropped `profiles.role_deprecated_do_not_use` and the
+// `user_role` enum from the database, so there is no second vocabulary left to
+// map to or from. `AppRoleName` / `BuiltInRoleName` are now the only role names
+// in the app; read a profile's role from `role_id` -> `app_roles.name`.
 
 // Entity types (Individual or Corporate only)
 export type EntityType = 'individual' | 'corporate';
@@ -575,8 +569,6 @@ export interface Database {
           id: string;
           email: string;
           full_name: string;
-          /** @deprecated Legacy role. Not authoritative — `role_id` is the source of truth. */
-          role: UserRole | null;
           role_id: string | null; // FK to app_roles — authoritative role
           resident_id: string | null; // FK to residents — set for portal users
           approval_status: ProfileApprovalStatus; // Approval gate; only 'active' resolves permissions
@@ -1445,8 +1437,8 @@ export interface ApprovalRequest {
  * `extractRole()` / `extractRoleName()` from `@/lib/auth/action-roles` rather
  * than indexing it at the call site.
  *
- * This replaced the legacy `role: UserRole` field on the joins below when #193
- * renamed `profiles.role` out of existence.
+ * This replaced the legacy `role` field on the joins below when #193 renamed
+ * `profiles.role` out of existence; #194 dropped the column and its enum.
  */
 export type JoinedProfileRole = { name: AppRoleName } | { name: AppRoleName }[] | null;
 

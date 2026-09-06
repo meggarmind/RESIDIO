@@ -9,8 +9,9 @@
 -- WHY THIS EXISTS
 --
 -- #186, #187 and #190 rewrite ~130 RLS policies. The failure mode they risk is
--- silent: `get_my_role()` collapses `vice_chairman` into `chairman` and
--- `financial_officer` into `financial_secretary`, so a rewrite that renames
+-- silent: `get_my_role()`, the legacy function those policies read (dropped in
+-- #194), collapsed `vice_chairman` into `chairman` and `financial_officer` into
+-- `financial_secretary`, so a rewrite that renames
 -- literals instead of expanding buckets revokes an entire role across dozens of
 -- tables and leaves a perfectly well-formed policy behind. No structural test,
 -- type check or reading of the diff catches that. Only a behavioural matrix does.
@@ -19,26 +20,27 @@
 --
 -- Through the Supabase MCP (`mcp__supabase__execute_sql`), which is how this
 -- project does all database work — see CLAUDE.md. Paste the whole file, having
--- replaced the two placeholders on the two lines marked `-- PARAMETER`:
+-- replaced the placeholder on EACH of the TWO lines marked `-- PARAMETER`. There
+-- are exactly two, and BOTH must be set to the same role:
+--
+--   the first   picks the `role_id` the probe profile is actually given, i.e.
+--               the role whose access this run measures;
+--   the second  is the `role_name` literal stamped onto the result object, i.e.
+--               the label the capture is filed under.
+--
+-- SETTING ONLY ONE IS THE DANGEROUS MISTAKE. Nothing errors: you probe as one
+-- role and label the output as another, and `npm run rbac:matrix:diff` then
+-- compares that matrix against the wrong baseline. A silently wrong matrix, in
+-- the instrument this epic relies on to prove the drop was safe. Check both
+-- before running, and check the label on the result before filing it.
 --
 --   :role_name    one of super_admin, chairman, vice_chairman, financial_officer,
 --                 security_officer, secretary, project_manager
---   :legacy_role  what `assignRoleToProfile()`'s LEGACY_ROLE_MAP would write for
---                 that role, as a `user_role` literal or NULL:
 --
---                   super_admin        -> 'admin'::user_role
---                   chairman           -> 'chairman'::user_role
---                   financial_officer  -> 'financial_secretary'::user_role
---                   security_officer   -> 'security_officer'::user_role
---                   vice_chairman      -> NULL
---                   secretary          -> NULL
---                   project_manager    -> NULL
---
---                 The three NULLs are not an oversight. The legacy vocabulary
---                 cannot express those roles, so a real holder carries NULL, and
---                 every policy that reads `profiles.role` denies them. Recording
---                 that is the point: it is the latent bug ADR-0007 describes,
---                 measured rather than asserted.
+-- `:role_name` is the only parameter this probe takes (it just has two sites).
+-- There was a second one, `:legacy_role`, until #194: the legacy vocabulary
+-- (`profiles.role`, the `user_role` enum, `get_my_role()`) is gone from the
+-- database as of that slice, so there is nothing left to set.
 --
 -- WHY IT IS SAFE ON THE LIVE DATABASE
 --
@@ -60,7 +62,7 @@
 -- Counting rows cannot answer this on its own: roughly half these tables are
 -- empty, and an empty table returns zero rows to everyone. So each table's
 -- deployed policy expressions are evaluated directly, in a real session
--- impersonating the probe profile, with the real `get_my_role()`,
+-- impersonating the probe profile, with the real `get_my_role_name()`,
 -- `has_permission()` and `is_approved()` doing the work:
 --
 --   no-grant       `authenticated` has no SELECT privilege at all; RLS never runs
@@ -85,10 +87,9 @@ LEFT JOIN public.profiles p ON p.id = u.id
 WHERE p.id IS NULL
 ORDER BY u.id LIMIT 1;
 
-INSERT INTO public.profiles (id, email, full_name, approval_status, role_id, role)
+INSERT INTO public.profiles (id, email, full_name, approval_status, role_id)
 SELECT id, 'rbac-matrix-probe@residio.invalid', 'RBAC matrix probe', 'active',
-       (SELECT id FROM public.app_roles WHERE name = 'super_admin'),  -- PARAMETER :role_name
-       'admin'::user_role                                             -- PARAMETER :legacy_role
+       (SELECT id FROM public.app_roles WHERE name = 'super_admin')   -- PARAMETER :role_name
 FROM _probe;
 
 -- Evaluates one policy expression. Anything that will not evaluate standalone

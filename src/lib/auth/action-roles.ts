@@ -5,17 +5,14 @@
  * Next.js 15/16 only allows async function exports from 'use server' files.
  */
 
-import type { UserRole, AppRoleName, BuiltInRoleName, RoleCategory } from '@/types/database';
+import type { AppRoleName, BuiltInRoleName, RoleCategory } from '@/types/database';
 
 export interface AuthorizationResult {
   authorized: boolean;
   userId: string | null;
-  /**
-   * @deprecated Always null since #193 renamed the legacy `profiles.role`
-   * column out of existence. Nothing reads it; #194 removes the field along
-   * with the `UserRole` enum. Use `roleName` or `permissions`.
-   */
-  role: UserRole | null;
+  // The legacy `role: UserRole | null` field was removed by #194, together with
+  // the `profiles.role` column and the `user_role` enum it named. `roleName`
+  // (from `role_id` -> `app_roles.name`) and `permissions` are the role surface.
   roleName: AppRoleName | null; // New RBAC role name
   roleId: string | null;        // New RBAC role ID
   permissions: string[];        // User's permissions from new RBAC
