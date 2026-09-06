@@ -109,7 +109,6 @@ export async function authorizePermission(
     return {
       authorized: false,
       userId: null,
-      role: null,
       roleName: null,
       roleId: null,
       permissions: [],
@@ -125,7 +124,6 @@ export async function authorizePermission(
     return {
       authorized: false,
       userId: user.id,
-      role: null,
       roleName,
       roleId,
       permissions,
@@ -136,7 +134,6 @@ export async function authorizePermission(
   return {
     authorized: true,
     userId: user.id,
-    role: null,
     roleName,
     roleId,
     permissions,
@@ -164,7 +161,6 @@ export async function authorizeAnyPermission(
     return {
       authorized: false,
       userId: null,
-      role: null,
       roleName: null,
       roleId: null,
       permissions: [],
@@ -181,7 +177,6 @@ export async function authorizeAnyPermission(
     return {
       authorized: false,
       userId: user.id,
-      role: null,
       roleName,
       roleId,
       permissions,
@@ -192,7 +187,6 @@ export async function authorizeAnyPermission(
   return {
     authorized: true,
     userId: user.id,
-    role: null,
     roleName,
     roleId,
     permissions,
