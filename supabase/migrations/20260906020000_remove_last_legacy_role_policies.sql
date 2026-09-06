@@ -1,0 +1,266 @@
+-- ============================================================================
+-- Migration: drop the last four RLS policies that read the legacy
+--            profiles.role column
+-- ============================================================================
+-- Purpose: Issues #214 and #213 (epic #182). These four policies are the last
+--          hard dependents of `profiles.role`. While they exist, PostgreSQL
+--          refuses the column drop that #194 -- the final slice of epic #182 --
+--          must perform:
+--
+--            ERROR: 2BP01: cannot drop column role of table profiles because
+--            other objects depend on it
+--            DETAIL: policy "Admin and financial roles can manage report schedules"
+--                      on report_schedules
+--                    policy "Admin and financial roles can delete generated reports"
+--                      on generated_reports
+--                    policy "Admins can manage AI settings" on ai_settings
+--                    policy "Admins can read all conversation logs"
+--                      on ai_conversation_logs
+--
+--          `DROP COLUMN ... CASCADE` is NOT an acceptable way to clear them:
+--          it would delete live authorization policies with no record of what
+--          was removed. They go by name, here, with their definitions
+--          preserved in the rollback block below.
+--
+--          #193's `ALTER TABLE ... RENAME COLUMN` does not surface these.
+--          Policy expressions are stored parsed, so they follow a rename
+--          silently and would arrive at #194 looking healthy.
+--
+-- ----------------------------------------------------------------------------
+-- The four policies, and what each drop costs
+-- ----------------------------------------------------------------------------
+--
+--   ai_settings              ALL     "Admins can manage AI settings"
+--   ai_conversation_logs     SELECT  "Admins can read all conversation logs"
+--   report_schedules         ALL     "Admin and financial roles can manage report schedules"
+--   generated_reports        DELETE  "Admin and financial roles can delete generated reports"
+--
+-- All four are TO authenticated. The AI pair reads
+-- `p.role = ANY (ARRAY['chairman', 'financial_secretary', 'admin']::user_role[])`;
+-- the report pair reads the same three values in a different order.
+--
+-- === The two AI policies: a deliberate, owner-approved access change ========
+--
+-- Decision recorded on #214 by the repo owner on 2026-09-06: drop them, do not
+-- replace them. Creating an `ai.*` permission purely to preserve them was
+-- considered and rejected -- a permission invented to keep an unused policy
+-- alive is a permission designed without a caller.
+--
+-- The consequence is accepted, and is stated plainly here so that nobody later
+-- reads it as a regression:
+--
+--   * ai_settings becomes read-only to every authenticated user. After this
+--     migration NO policy grants INSERT, UPDATE or DELETE on that table to
+--     anyone. Writes are possible only through the service-role key, which
+--     bypasses RLS (relforcerowsecurity is false on both tables).
+--   * Admins lose the ability to read OTHER users' AI conversation logs. Each
+--     user keeps read and insert on their own rows.
+--   * Reads of ACTIVE AI settings rows are unaffected for everyone; the three
+--     admin roles lose read on rows with `is_active = false`. The one row the
+--     table holds today has `is_active = true`, so that loss is latent -- but
+--     the access-matrix cell moves regardless. See the post-apply block below.
+--
+-- This is acceptable because no application code references either table and
+-- they hold one row each. If an admin UI for AI settings is ever built, it
+-- needs a fresh policy and a real `ai.*` permission designed at that point.
+--
+-- The matrix cells that move are NOT regressions -- read this before
+-- adjudicating the post-apply diff, in the vocabulary
+-- `supabase/migrations/20260905000000_policies_part_a_follow_permissions.sql`
+-- uses for the same situation:
+--
+--   In the docs/validation/role-access-matrix.baseline.json baseline,
+--   ai_conversation_logs reads `allow` for super_admin, chairman and
+--   financial_officer, because "Admins can read all conversation logs" grants
+--   them an unconditional read. Once that policy is dropped, those three
+--   roles fall back to "Users can read their own conversation logs"
+--   (`user_id = auth.uid()`), so the cell resolves to `row-dependent` for all
+--   three. This is the accepted consequence named above ("Admins lose the
+--   ability to read OTHER users' AI conversation logs"), not a narrowing
+--   nobody decided on.
+--
+-- Post-apply verification. SIX cells move, not three. ai_conversation_logs
+-- goes allow -> row-dependent for super_admin, chairman and financial_officer
+-- (the conversation-log consequence named above), and so does ai_settings:
+-- "Admins can manage AI settings" is PERMISSIVE FOR ALL, and its USING clause
+-- applies to SELECT, which makes it the only UNCONDITIONAL permissive read on
+-- that table. Dropping it leaves those three roles with the conditional
+-- "All users can read active AI settings" (`is_active = true`) -- the
+-- RESTRICTIVE "Approved accounts only can read" (`is_approved()`) grants
+-- nothing on its own -- so the probe resolves the cell as row-dependent.
+--
+-- Both moves were measured live on 2026-09-06 by applying this migration
+-- inside a transaction ending in ROLLBACK and re-running
+-- supabase/probes/role-access-matrix.sql for each role. report_schedules and
+-- generated_reports stayed `allow` for all three; nothing else moved.
+--
+-- The diff tool exits non-zero on an undeclared narrowing and allow ->
+-- row-dependent is a narrowing, so all six moves must be declared explicitly:
+--
+--   npm run rbac:matrix:diff -- fresh.json \
+--     --expect super_admin:ai_conversation_logs=row-dependent \
+--     --expect chairman:ai_conversation_logs=row-dependent \
+--     --expect financial_officer:ai_conversation_logs=row-dependent \
+--     --expect super_admin:ai_settings=row-dependent \
+--     --expect chairman:ai_settings=row-dependent \
+--     --expect financial_officer:ai_settings=row-dependent
+--
+-- === The two report policies: NO access change at all ======================
+--
+-- Read this before "restoring" them. These two drops look like they revoke
+-- something and they do not.
+--
+-- Both tables already carry modern sibling policies that resolve the role
+-- through RBAC (`profiles.role_id -> app_roles.name`) rather than through the
+-- legacy column:
+--
+--   report_schedules   report_schedules_select / _insert / _update / _delete
+--   generated_reports  generated_reports_delete
+--
+-- Those siblings admit `super_admin, chairman, financial_officer`.
+--
+-- The legacy policies being dropped here admit
+-- `profiles.role IN ('admin', 'chairman', 'financial_secretary')`. That legacy
+-- column is written by LEGACY_ROLE_MAP in src/actions/roles/assign-role.ts,
+-- which has exactly four entries -- super_admin -> admin, chairman -> chairman,
+-- financial_officer -> financial_secretary, security_officer -> security_officer
+-- -- so those three legacy values are held by, and only by, super_admin,
+-- chairman and financial_officer.
+--
+--   legacy predicate admits:  super_admin, chairman, financial_officer
+--   modern siblings admit:    super_admin, chairman, financial_officer
+--
+-- The sets are IDENTICAL. The legacy policies contribute nothing the modern
+-- siblings do not already grant, so dropping them changes nobody's access.
+--
+-- That "the sets are identical" claim is not evidenced by anything in this
+-- repository on its own: RLS policies that exist live are not reproduced
+-- under supabase/migrations/ (already-filed defect #228), so the modern
+-- siblings' predicates and role lists asserted above cannot be checked
+-- against the migrations directory -- only against the database itself.
+-- The evidence is `docs/validation/last-legacy-role-siblings.json`, a
+-- `pg_policies` capture of all 19 policies on these four tables taken from
+-- the live cloud database on 2026-09-06, committed alongside this migration
+-- specifically because #228 means the migrations directory cannot evidence
+-- this claim. `src/__tests__/last-legacy-role-policies.test.ts` asserts the
+-- sibling-coverage claim above against that capture rather than from prose.
+--
+-- vice_chairman in particular is NOT lost here, because it was never admitted:
+-- a role with no legacy equivalent carries `profiles.role = NULL` (the
+-- LEGACY_ROLE_MAP docstring names vice_chairman, secretary, project_manager and
+-- resident as exactly those), and NULL satisfies no `= ANY (...)` test. Note
+-- that `get_my_role()` DOES map vice_chairman onto the legacy 'chairman'
+-- bucket -- but these policies read the COLUMN directly and never call that
+-- function, so that mapping is irrelevant to them. Conflating the two is the
+-- one way to reach the wrong conclusion here.
+--
+-- Consequently this migration adds vice_chairman to nothing. Widening the
+-- modern siblings to include it would GRANT a role access it does not have
+-- today, which is precisely the kind of silent authorization change epic #182
+-- exists to eliminate.
+--
+-- ----------------------------------------------------------------------------
+-- Shape of this migration
+-- ----------------------------------------------------------------------------
+--
+-- Four DROP POLICY statements and nothing else. In particular there is no
+-- ALTER POLICY here: no surviving policy has its expression, its command or
+-- its role list changed. The modern siblings are TO public, and recreating one
+-- as TO authenticated would silently change who it applies to -- a mistake
+-- already made once in this epic, so it is called out rather than assumed.
+--
+-- The policies that must SURVIVE untouched:
+--
+--   ai_settings           "All users can read active AI settings"  (is_active = true)
+--   ai_settings           "Approved accounts only can read"        (is_approved())
+--   ai_conversation_logs  "Users can read their own conversation logs"
+--   ai_conversation_logs  "Users can insert their own conversation logs"
+--   report_schedules      "Authenticated users can view report schedules"
+--   report_schedules      "Approved accounts only can read"        (is_approved())
+--   report_schedules      report_schedules_select / _insert / _update / _delete
+--   generated_reports     "Authenticated users can view generated reports"
+--   generated_reports     "Authenticated users can insert generated reports"
+--   generated_reports     generated_reports_select / _insert / _delete
+--
+-- Out of scope: the ~23 other policies in #213's population that hardcode
+-- app_roles.name. They read the MODERN column, so they do not block #194.
+-- #213 stays open for them.
+--
+-- Written to be re-runnable: every DROP uses IF EXISTS, so a second apply is a
+-- no-op rather than a 42704.
+--
+-- Verify after applying: pg_policies must return zero rows mentioning
+-- `user_role` for ai_settings, ai_conversation_logs, report_schedules and
+-- generated_reports.
+--
+-- This migration is NOT applied by the authoring session. Apply and verify
+-- manually, then check it into the applied-migrations record per
+-- docs/agents/migrations-on-merge.md.
+-- ============================================================================
+
+-- ============================================================================
+-- ROLLBACK: restores all four dropped policy definitions
+-- ============================================================================
+-- Predicates transcribed from the live pg_policies definitions as they stood
+-- before this migration. All four were live as TO authenticated; that is
+-- reproduced exactly below, because restoring one of these as TO public would
+-- widen it to anon without any error being raised.
+--
+-- "Admins can manage AI settings" is a FOR ALL policy that carried BOTH a
+-- USING and a WITH CHECK clause live, so both are restored. The other three
+-- carried USING only.
+--
+-- These are SQL comments, not executable statements. The legacy-role migration
+-- ratchet (src/__tests__/legacy-role-migration-ratchet.test.ts) strips comments
+-- before scanning, so preserving the old predicates here does not put this file
+-- on its allowlist.
+--
+-- BEGIN;
+--
+-- -- ---- ai_settings ---------------------------------------------------------
+-- CREATE POLICY "Admins can manage AI settings"
+--   ON public.ai_settings FOR ALL TO authenticated
+--   USING (EXISTS ( SELECT 1 FROM profiles p WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['chairman'::user_role, 'financial_secretary'::user_role, 'admin'::user_role])))))
+--   WITH CHECK (EXISTS ( SELECT 1 FROM profiles p WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['chairman'::user_role, 'financial_secretary'::user_role, 'admin'::user_role])))));
+--
+-- -- ---- ai_conversation_logs ------------------------------------------------
+-- CREATE POLICY "Admins can read all conversation logs"
+--   ON public.ai_conversation_logs FOR SELECT TO authenticated
+--   USING (EXISTS ( SELECT 1 FROM profiles p WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['chairman'::user_role, 'financial_secretary'::user_role, 'admin'::user_role])))));
+--
+-- -- ---- report_schedules ----------------------------------------------------
+-- CREATE POLICY "Admin and financial roles can manage report schedules"
+--   ON public.report_schedules FOR ALL TO authenticated
+--   USING (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role])))));
+--
+-- -- ---- generated_reports ---------------------------------------------------
+-- CREATE POLICY "Admin and financial roles can delete generated reports"
+--   ON public.generated_reports FOR DELETE TO authenticated
+--   USING (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role])))));
+--
+-- COMMIT;
+-- ============================================================================
+
+BEGIN;
+
+-- ---- ai_settings -----------------------------------------------------------
+-- Leaves the table readable via "All users can read active AI settings" and
+-- "Approved accounts only can read", and writable by no one but the service
+-- role. See the header for why that is the accepted outcome.
+DROP POLICY IF EXISTS "Admins can manage AI settings" ON public.ai_settings;
+
+-- ---- ai_conversation_logs --------------------------------------------------
+-- Leaves each user's own-row read and insert policies in place.
+DROP POLICY IF EXISTS "Admins can read all conversation logs" ON public.ai_conversation_logs;
+
+-- ---- report_schedules ------------------------------------------------------
+-- Redundant with report_schedules_select/_insert/_update/_delete, which admit
+-- the same three roles through RBAC. No access change.
+DROP POLICY IF EXISTS "Admin and financial roles can manage report schedules" ON public.report_schedules;
+
+-- ---- generated_reports -----------------------------------------------------
+-- Redundant with generated_reports_delete, which admits the same three roles
+-- through RBAC. No access change.
+DROP POLICY IF EXISTS "Admin and financial roles can delete generated reports" ON public.generated_reports;
+
+COMMIT;

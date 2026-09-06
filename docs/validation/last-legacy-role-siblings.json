@@ -1,0 +1,162 @@
+{
+  "capturedAt": "2026-09-06",
+  "epic": 182,
+  "issue": 214,
+  "policies": [
+    {
+      "cmd": "SELECT",
+      "policyname": "Admins can read all conversation logs",
+      "qual": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['chairman'::user_role, 'financial_secretary'::user_role, 'admin'::user_role])))))",
+      "roles": "{authenticated}",
+      "tablename": "ai_conversation_logs",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "policyname": "Users can insert their own conversation logs",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "ai_conversation_logs",
+      "with_check": "(user_id = auth.uid())"
+    },
+    {
+      "cmd": "SELECT",
+      "policyname": "Users can read their own conversation logs",
+      "qual": "(user_id = auth.uid())",
+      "roles": "{authenticated}",
+      "tablename": "ai_conversation_logs",
+      "with_check": ""
+    },
+    {
+      "cmd": "ALL",
+      "policyname": "Admins can manage AI settings",
+      "qual": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['chairman'::user_role, 'financial_secretary'::user_role, 'admin'::user_role])))))",
+      "roles": "{authenticated}",
+      "tablename": "ai_settings",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE ((p.id = auth.uid()) AND (p.role = ANY (ARRAY['chairman'::user_role, 'financial_secretary'::user_role, 'admin'::user_role])))))"
+    },
+    {
+      "cmd": "SELECT",
+      "policyname": "All users can read active AI settings",
+      "qual": "(is_active = true)",
+      "roles": "{authenticated}",
+      "tablename": "ai_settings",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "policyname": "Approved accounts only can read",
+      "qual": "is_approved()",
+      "roles": "{authenticated}",
+      "tablename": "ai_settings",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "policyname": "Admin and financial roles can delete generated reports",
+      "qual": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role])))))",
+      "roles": "{authenticated}",
+      "tablename": "generated_reports",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "policyname": "Authenticated users can insert generated reports",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "generated_reports",
+      "with_check": "true"
+    },
+    {
+      "cmd": "SELECT",
+      "policyname": "Authenticated users can view generated reports",
+      "qual": "true",
+      "roles": "{authenticated}",
+      "tablename": "generated_reports",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "policyname": "generated_reports_delete",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (profiles p\n     JOIN app_roles ar ON ((p.role_id = ar.id)))\n  WHERE ((p.id = auth.uid()) AND ((ar.name)::text = ANY ((ARRAY['super_admin'::character varying, 'chairman'::character varying, 'financial_officer'::character varying])::text[])))))",
+      "roles": "{public}",
+      "tablename": "generated_reports",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "policyname": "generated_reports_insert",
+      "qual": "",
+      "roles": "{public}",
+      "tablename": "generated_reports",
+      "with_check": "true"
+    },
+    {
+      "cmd": "SELECT",
+      "policyname": "generated_reports_select",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (profiles p\n     JOIN app_roles ar ON ((p.role_id = ar.id)))\n  WHERE ((p.id = auth.uid()) AND ((ar.name)::text = ANY ((ARRAY['super_admin'::character varying, 'chairman'::character varying, 'financial_officer'::character varying])::text[])))))",
+      "roles": "{public}",
+      "tablename": "generated_reports",
+      "with_check": ""
+    },
+    {
+      "cmd": "ALL",
+      "policyname": "Admin and financial roles can manage report schedules",
+      "qual": "(EXISTS ( SELECT 1\n   FROM profiles\n  WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role])))))",
+      "roles": "{authenticated}",
+      "tablename": "report_schedules",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "policyname": "Approved accounts only can read",
+      "qual": "is_approved()",
+      "roles": "{authenticated}",
+      "tablename": "report_schedules",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "policyname": "Authenticated users can view report schedules",
+      "qual": "true",
+      "roles": "{authenticated}",
+      "tablename": "report_schedules",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "policyname": "report_schedules_delete",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (profiles p\n     JOIN app_roles ar ON ((p.role_id = ar.id)))\n  WHERE ((p.id = auth.uid()) AND ((ar.name)::text = ANY ((ARRAY['super_admin'::character varying, 'chairman'::character varying, 'financial_officer'::character varying])::text[])))))",
+      "roles": "{public}",
+      "tablename": "report_schedules",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "policyname": "report_schedules_insert",
+      "qual": "",
+      "roles": "{public}",
+      "tablename": "report_schedules",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM (profiles p\n     JOIN app_roles ar ON ((p.role_id = ar.id)))\n  WHERE ((p.id = auth.uid()) AND ((ar.name)::text = ANY ((ARRAY['super_admin'::character varying, 'chairman'::character varying, 'financial_officer'::character varying])::text[])))))"
+    },
+    {
+      "cmd": "SELECT",
+      "policyname": "report_schedules_select",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (profiles p\n     JOIN app_roles ar ON ((p.role_id = ar.id)))\n  WHERE ((p.id = auth.uid()) AND ((ar.name)::text = ANY ((ARRAY['super_admin'::character varying, 'chairman'::character varying, 'financial_officer'::character varying])::text[])))))",
+      "roles": "{public}",
+      "tablename": "report_schedules",
+      "with_check": ""
+    },
+    {
+      "cmd": "UPDATE",
+      "policyname": "report_schedules_update",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (profiles p\n     JOIN app_roles ar ON ((p.role_id = ar.id)))\n  WHERE ((p.id = auth.uid()) AND ((ar.name)::text = ANY ((ARRAY['super_admin'::character varying, 'chairman'::character varying, 'financial_officer'::character varying])::text[])))))",
+      "roles": "{public}",
+      "tablename": "report_schedules",
+      "with_check": ""
+    }
+  ],
+  "policyCount": 19,
+  "purpose": "Evidence for the correctness argument in 20260906020000_remove_last_legacy_role_policies.sql: the four dropped legacy policies are redundant on report_schedules and generated_reports because modern role_id-keyed siblings grant the same access. Captured because RLS policies live in the database are not reproduced by supabase/migrations (defect #228), so the migration directory cannot evidence this.",
+  "source": "pg_policies, live cloud database"
+}
