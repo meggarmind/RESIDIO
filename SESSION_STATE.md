@@ -9,6 +9,125 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-06 — **pilot cutover**: stop-work on hardening, board re-sequenced for Wed 9 Sep)
+
+**Tool:** Claude Code, coordinator posture. Review-and-triage session — **no application code
+changed, no migration written, nothing applied.** All changes were to the issue tracker, the project
+board, and this file. Supabase MCP worked for the first half and dropped (`CONNECT_TIMEOUT`) on
+resume; every DB fact below was measured before it dropped.
+
+### Why this session happened
+
+The owner asked whether planned and ongoing work would actually deliver the **Wednesday 9 Sep pilot**
+(admin dashboard, billing, invoices, WhatsApp). Answer: no. ~90 commits over the preceding 14 days
+went into legacy-role epic #182, Settings IA epic #180, lint baseline #143-#147 and RLS hardening,
+with **zero feature commits** on billing, invoices or WhatsApp. The only billing-touching commit was
+#201 — FK hygiene generated *by* the role epic.
+
+The workstream reproduces itself: #182 closed and immediately spawned #213, #222, #225, #228, #233,
+#237, #238 — seven issues, six of them more RLS/RBAC.
+
+### Decision taken (issue #241) — do not re-litigate
+
+**All authorization-hardening work is frozen until after the pilot. Defects it spawns are filed, not
+worked.** The work fails closed, so pausing is low-risk.
+
+**Security defects were deliberately EXCLUDED from the freeze:** #218 (committed Supabase access
+token — rotate immediately, independent of the pilot), #206, #211, #108, #116, #104.
+
+### Board state after this session
+
+- `Ready` holds exactly the pilot set: **#238 #78 #82 #73 #104 #105 #106 #109 #110 #111 #113 #114 #149**
+- 21 issues moved `In review` → `Backlog` (22 sat there against one open PR). Owner-approved;
+  `CORE.md` §9 reserves backwards moves as manual.
+- **#88, #90, #91, #92 moved OUT of `Ready`** — the AI chatbot, live widgets, cinematic transitions
+  and digital passes were the only four things staged as ready to work.
+- 38 issues labelled `post-pilot` (new label).
+
+### Measured facts (live DB and files, not issue bodies)
+
+| | |
+|---|---|
+| Invoices | **589, for only 6 distinct residents** — against 179 active houses |
+| Nothing generated since | 2026-08-19; newest payment record 2026-08-11 |
+| `payment_records` | 2259 rows, 151 residents, periods **2015-01 .. 2026-01**, **no `invoice_id` column** |
+| `billing_profile_versions` | 5 rows, all `effective_from = 2026-08-01`, all approved and locked |
+| Houses | 179 active, 163 occupied, 1 with no billing profile, **0 missing `short_name`** |
+| WhatsApp | `whatsapp_enabled=false`, **0 provider credentials**, 0 opt-ins, 0 sessions |
+| `master` CI | **red** (#238) — confirmed by running the test, not by reading the issue |
+| Cron | **10 route dirs on disk, 9 in `vercel.json`** — `apply-late-fees` has never been scheduled |
+
+### #78 is very probably ALREADY FIXED — re-test before anyone "fixes" it
+
+`resolveProfileVersion` (`src/lib/billing/invoice-generation.ts:185-197`) does **not** fail when no
+version is effective for a period. It falls back to the earliest version of any date, and throws only
+when a profile has **zero** version rows; `resolveVersionForPeriod` then catches even that and turns
+it into a per-house skip rather than a run failure.
+
+That fallback landed in **42a5be3f (2026-08-23) — seven days after #78 was filed (2026-08-16)**. The
+diff replaces the exact `throw` that produced the reported message. #78's own house (`f866af4d…` =
+KOA-18A) has an approved, locked version with 1 item, so the fallback applies.
+
+**Re-test, don't fix:** `/billing/generate` → Historical backfill → House KOA-18A → `2025-01` to
+`2025-01` → *Preview exact request*. Full steps are on the issue.
+
+### Traps the next session must not walk into
+
+1. **The owner wants to test the app's backfill feature through the UI, not have data loaded from the
+   backend.** Do not bulk-insert invoices via SQL. `/billing/generate` already supports mode, month
+   range, scope, dry-run preview, side-effect flags (off by default in backfill mode) and a typed
+   confirmation code. Duplicate protection is DB-level, so re-running a period is safe.
+2. **`payment_records` has no `invoice_id`.** Backfilling over 2015-01 .. 2026-01 creates `unpaid`
+   invoices for **151 residents who have already paid**. Keep estate-wide runs to months after
+   2026-01; test deep ranges on a single house.
+3. **`billing_profile_versions` is read-only from the app** (2 SELECTs, 0 writes) — every historical
+   backfill is silently priced at today's rate and no admin action can correct it. Filed as **#242**.
+   The owner is supplying a historical rate schedule; it has nowhere to go until #242 lands, so load
+   it by migration for the pilot.
+4. **#82 is blocked on a migration conflict (#243).** `20260813051135` defines
+   `create_generated_invoice` with a 4-segment invoice number; the later `20260813092000` reverts it
+   to 3 segments. The live format is 4-segment, so the later migration may never have been applied —
+   **check the applied list before touching the RPC.** `houses.short_name` is also not in scope inside
+   the RPC; it does not join `public.houses`.
+5. **`invoice_generation_locks` exists in the DB with no migration** behind it (#244) — a small,
+   low-risk instance of #228.
+
+### Hosting decided: Hostinger KVM + Coolify, NOT Vercel
+
+`vercel.json` is read only by Vercel. On Coolify it is **inert** — all nine schedules silently cease
+to exist. Nothing errors; the app looks healthy and simply never generates invoices or sends
+reminders. `verifyCronAuth` is portable (plain `Authorization: Bearer`), so no code change is needed,
+but `CRON_SECRET` and `NODE_ENV=production` must be set, all nine schedules recreated, a tenth added
+for `apply-late-fees`, and the reverse-proxy timeout raised (the `maxDuration=300` exports become
+no-ops). #149 re-scoped and retitled for this.
+
+### WhatsApp is more built than the board implied
+
+#6/#7/#8 were open, but the code is largely present and wired: `buildInvoiceReminderWhatsApp` in
+`src/actions/notifications/invoice-reminders.ts`, `buildPaymentReceivedWhatsApp` in
+`src/actions/payments/create-payment.ts`, `buildAnnouncementWhatsApp` in
+`src/actions/announcements/publish-announcement.ts`, plus opt-in filtering, daily/burst caps, rollout
+gating, retention, and an ops console at `/settings/whatsapp`.
+
+Simulated Twilio number is ready now; production number and approved templates land **Friday 11 Sep**.
+WhatsApp is therefore out of Wednesday's pilot as a live channel — verify against
+`src/lib/whatsapp/simulator.ts` for Wednesday, activate Friday. **Template approval has external lead
+time; submit early.**
+
+### Issues created
+
+**#241** stop-work decision · **#242** billing profile versions have no admin write path ·
+**#243** `create_generated_invoice` migration ordering · **#244** `invoice_generation_locks` drift.
+
+### Note on injected tool output
+
+A sub-agent independently reported text in its tool output that did not come from the operator (a
+"relay wake contract" instructing it to arm a background monitor, and a spurious mode banner). Some
+hook on this machine is injecting into tool results. No action was taken on any of it; worth checking
+the hook configuration.
+
+---
+
 ## Last session (Claude Code, 2026-09-06 — **#213**: the third role vocabulary, 21 policies rewritten; PR open, **not applied**)
 
 **Tool:** Claude Code, coordinator posture. Two implementers in isolated worktrees (top tier for
