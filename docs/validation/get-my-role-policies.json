@@ -1,0 +1,883 @@
+{
+  "capturedAt": "2026-09-06",
+  "source": "pg_policies, live cloud database",
+  "issue": 190,
+  "epic": 182,
+  "policyCount": 97,
+  "tableCount": 36,
+  "policies": [
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "access_codes",
+      "policyname": "access_codes_delete_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "access_codes",
+      "policyname": "access_codes_insert_policy",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role, 'security_officer'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "access_codes",
+      "policyname": "access_codes_select_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role, 'security_officer'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "access_codes",
+      "policyname": "access_codes_update_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = 'admin'::user_role)",
+      "roles": "{authenticated}",
+      "tablename": "access_logs",
+      "policyname": "access_logs_delete_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "access_logs",
+      "policyname": "access_logs_insert_policy",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role, 'security_officer'::user_role]))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role, 'security_officer'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "access_logs",
+      "policyname": "access_logs_select_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role, 'security_officer'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "access_logs",
+      "policyname": "access_logs_update_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "approval_requests",
+      "policyname": "Admin and chairman can update approval requests",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "approval_requests",
+      "policyname": "Admin and chairman can view all approval requests",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{public}",
+      "tablename": "approval_requests",
+      "policyname": "Admins and chairmen can update approval requests",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{public}",
+      "tablename": "approval_requests",
+      "policyname": "Admins and chairmen can view all approval requests",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "approval_requests",
+      "policyname": "Financial secretary can create approval requests",
+      "schemaname": "public",
+      "with_check": "((get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role])) AND (requested_by = auth.uid()))"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "bank_statement_imports",
+      "policyname": "Admin, Chairman, Financial Secretary can manage imports",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "bank_statement_rows",
+      "policyname": "Admin, Chairman, Financial Secretary can manage import rows",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "billing_items",
+      "policyname": "Admins chairmen fin sec can manage billing items",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "billing_profiles",
+      "policyname": "Admins chairmen fin sec can manage billing profiles",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "email_logs",
+      "policyname": "Admins can view email logs",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "escalation_states",
+      "policyname": "escalation_states_delete",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "escalation_states",
+      "policyname": "escalation_states_insert",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "escalation_states",
+      "policyname": "escalation_states_select",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "escalation_states",
+      "policyname": "escalation_states_update",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(get_my_role() = 'admin'::user_role)",
+      "roles": "{public}",
+      "tablename": "estate_bank_accounts",
+      "policyname": "Admin can manage bank accounts",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "estate_bank_accounts",
+      "policyname": "Admins chairmen fin sec can manage bank accounts",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "((is_active = true) OR (get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role])))",
+      "roles": "{public}",
+      "tablename": "estate_bank_accounts",
+      "policyname": "All authenticated can view active bank accounts",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "hierarchical_settings",
+      "policyname": "hierarchical_settings_admin_all",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = 'admin'::user_role)",
+      "roles": "{authenticated}",
+      "tablename": "house_levy_history",
+      "policyname": "house_levy_history_delete_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "house_levy_history",
+      "policyname": "house_levy_history_insert_policy",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "house_levy_history",
+      "policyname": "house_levy_history_update_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "house_ownership_history",
+      "policyname": "Authorized users can insert ownership history",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = 'admin'::user_role)",
+      "roles": "{authenticated}",
+      "tablename": "house_ownership_history",
+      "policyname": "Only admins can update ownership history",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = 'admin'::user_role)"
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{public}",
+      "tablename": "house_types",
+      "policyname": "Admins and chairmen can delete house types",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{public}",
+      "tablename": "house_types",
+      "policyname": "Admins and chairmen can insert house types",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{public}",
+      "tablename": "house_types",
+      "policyname": "Admins and chairmen can update house types",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "((is_active = true) OR (get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role])))",
+      "roles": "{public}",
+      "tablename": "house_types",
+      "policyname": "All authenticated users can view active house types",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "houses",
+      "policyname": "Admins chairmen and fin sec can delete houses",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{public}",
+      "tablename": "houses",
+      "policyname": "Admins chairmen and fin sec can insert houses",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "houses",
+      "policyname": "Admins chairmen and fin sec can update houses",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "((is_active = true) OR (get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role])))",
+      "roles": "{public}",
+      "tablename": "houses",
+      "policyname": "All authenticated users can view active houses",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "invoice_items",
+      "policyname": "Admins chairmen fin sec can manage all invoice items",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "invoices",
+      "policyname": "Admins chairmen fin sec can manage all invoices",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "notification_history",
+      "policyname": "notification_history_select",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "notification_preferences",
+      "policyname": "notification_preferences_delete",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "notification_preferences",
+      "policyname": "notification_preferences_insert",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "notification_preferences",
+      "policyname": "notification_preferences_update",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "notification_queue",
+      "policyname": "notification_queue_delete",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "notification_queue",
+      "policyname": "notification_queue_insert",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "notification_queue",
+      "policyname": "notification_queue_select",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "notification_queue",
+      "policyname": "notification_queue_update",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))"
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "notification_schedules",
+      "policyname": "notification_schedules_delete",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "notification_schedules",
+      "policyname": "notification_schedules_insert",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "notification_schedules",
+      "policyname": "notification_schedules_update",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))"
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "((get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role])) AND (is_system = false))",
+      "roles": "{authenticated}",
+      "tablename": "notification_templates",
+      "policyname": "notification_templates_delete",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "notification_templates",
+      "policyname": "notification_templates_insert",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "notification_templates",
+      "policyname": "notification_templates_update",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{public}",
+      "tablename": "profiles",
+      "policyname": "Admins and chairmen can view all profiles",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = 'admin'::user_role)",
+      "roles": "{public}",
+      "tablename": "profiles",
+      "policyname": "Admins can delete profiles",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{public}",
+      "tablename": "profiles",
+      "policyname": "Admins can insert profiles",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = 'admin'::user_role)"
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "property_transition_requests",
+      "policyname": "House managers can create property transition requests",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "property_transition_requests",
+      "policyname": "House managers can view property transition requests",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "resident_houses",
+      "policyname": "Admins chairmen fin sec can delete resident houses",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{public}",
+      "tablename": "resident_houses",
+      "policyname": "Admins chairmen fin sec can insert resident houses",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "resident_houses",
+      "policyname": "Admins chairmen fin sec can update resident houses",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "resident_houses",
+      "policyname": "Admins chairmen fin sec can view all resident houses",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "((get_my_role() = 'security_officer'::user_role) AND (is_active = true))",
+      "roles": "{public}",
+      "tablename": "resident_houses",
+      "policyname": "Security officers can view active resident houses",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "resident_payment_aliases",
+      "policyname": "Admin, Chairman, Financial Secretary can manage aliases",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "resident_wallets",
+      "policyname": "Admins chairmen fin sec can manage wallets",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{public}",
+      "tablename": "residents",
+      "policyname": "Admins chairmen fin sec can insert residents",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "residents",
+      "policyname": "Admins chairmen fin sec can update residents",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "residents",
+      "policyname": "Admins chairmen fin sec can view all residents",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = 'admin'::user_role)",
+      "roles": "{public}",
+      "tablename": "residents",
+      "policyname": "Only admins can delete residents",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "((get_my_role() = 'security_officer'::user_role) AND (account_status = 'active'::account_status))",
+      "roles": "{public}",
+      "tablename": "residents",
+      "policyname": "Security officers can view active residents",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = 'admin'::user_role)",
+      "roles": "{authenticated}",
+      "tablename": "security_contact_categories",
+      "policyname": "security_contact_categories_delete_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "security_contact_categories",
+      "policyname": "security_contact_categories_insert_policy",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = 'admin'::user_role)"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = 'admin'::user_role)",
+      "roles": "{authenticated}",
+      "tablename": "security_contact_categories",
+      "policyname": "security_contact_categories_update_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "security_contacts",
+      "policyname": "security_contacts_delete_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "security_contacts",
+      "policyname": "security_contacts_insert_policy",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role, 'security_officer'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "security_contacts",
+      "policyname": "security_contacts_select_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "security_contacts",
+      "policyname": "security_contacts_update_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{public}",
+      "tablename": "streets",
+      "policyname": "Admins and chairmen can delete streets",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{public}",
+      "tablename": "streets",
+      "policyname": "Admins and chairmen can insert streets",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{public}",
+      "tablename": "streets",
+      "policyname": "Admins and chairmen can update streets",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "((is_active = true) OR (get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role])))",
+      "roles": "{public}",
+      "tablename": "streets",
+      "policyname": "All authenticated users can view active streets",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = 'admin'::user_role)",
+      "roles": "{authenticated}",
+      "tablename": "system_settings",
+      "policyname": "system_settings_delete_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "system_settings",
+      "policyname": "system_settings_insert_policy",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "system_settings",
+      "policyname": "system_settings_update_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "((is_active = true) OR (get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role])))",
+      "roles": "{authenticated}",
+      "tablename": "transaction_tags",
+      "policyname": "Authenticated users can view transaction tags",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "transaction_tags",
+      "policyname": "Only admin can create transaction tags",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = 'admin'::user_role)"
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = 'admin'::user_role)",
+      "roles": "{authenticated}",
+      "tablename": "transaction_tags",
+      "policyname": "Only admin can delete transaction tags",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = 'admin'::user_role)",
+      "roles": "{authenticated}",
+      "tablename": "transaction_tags",
+      "policyname": "Only admin can update transaction tags",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "visitor_vehicles",
+      "policyname": "visitor_vehicles_delete_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "visitor_vehicles",
+      "policyname": "visitor_vehicles_insert_policy",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role, 'security_officer'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "visitor_vehicles",
+      "policyname": "visitor_vehicles_select_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "visitor_vehicles",
+      "policyname": "visitor_vehicles_update_policy",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "INSERT",
+      "qual": "",
+      "roles": "{authenticated}",
+      "tablename": "wallet_settlement_requests",
+      "policyname": "Finance can create wallet settlement requests",
+      "schemaname": "public",
+      "with_check": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{authenticated}",
+      "tablename": "wallet_settlement_requests",
+      "policyname": "Finance can view wallet settlement requests",
+      "schemaname": "public",
+      "with_check": ""
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(get_my_role() = ANY (ARRAY['admin'::user_role, 'chairman'::user_role, 'financial_secretary'::user_role]))",
+      "roles": "{public}",
+      "tablename": "wallet_transactions",
+      "policyname": "Admins chairmen fin sec can view all transactions",
+      "schemaname": "public",
+      "with_check": ""
+    }
+  ]
+}
