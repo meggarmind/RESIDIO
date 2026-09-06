@@ -246,6 +246,23 @@ export async function searchProfilesForRoleAssignment(
 // Assign Role to a Profile (primitive)
 // =====================================================
 
+/*
+ * LEGACY_ROLE_MAP used to live here, and both actions below used it to mirror
+ * every role assignment into the legacy `profiles.role` column.
+ *
+ * #193 -- this slice, not #194, which is what the tracker says -- deleted it,
+ * and with it the `role: legacyRole` / `role: null` writes and the `role` field
+ * in the audit oldValues/newValues. #194's remaining scope on this file is
+ * therefore smaller than its issue body describes.
+ *
+ * It is safe because nothing reads the column by the time #193's migration
+ * applies: every application reader is retargeted in the same change, and the
+ * last four policy readers (ai_settings, ai_conversation_logs,
+ * report_schedules, generated_reports) are dropped by #214, whose migration is
+ * timestamped 20260906020000 and so applies first. The column that remains is
+ * literally named role_deprecated_do_not_use; writing to it would be absurd.
+ */
+
 /**
  * Assign a role directly to an account.
  *

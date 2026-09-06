@@ -39,7 +39,6 @@ async function seedAdditionalData() {
       .from('profiles')
       .select('id, app_roles!profiles_role_id_fkey!inner(name)')
       .eq('app_roles.name', 'super_admin')
-      .limit(1)
       .single();
 
     if (adminError) throw new Error(`Error fetching admin user: ${adminError.message}`);

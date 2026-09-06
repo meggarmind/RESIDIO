@@ -20,8 +20,10 @@ import { describe, expect, it } from 'vitest';
  * transaction: all four remaining legacy policies followed the rename and
  * reported healthy. Nothing in this file asserts anything about policies,
  * because the rename surfaces *string-based* readers only -- application code,
- * the seed/verify scripts, and late-bound plpgsql. The last policy readers are
- * #213 and #214's job.
+ * the seed/verify scripts, and late-bound plpgsql. The last four policy readers
+ * -- ai_settings, ai_conversation_logs, report_schedules, generated_reports --
+ * are #214's job. Not #213: its 25 policies read `role_id -> app_roles.name`
+ * and never touch the legacy column.
  *
  * These are structural assertions over the migration file and over the working
  * tree. Nothing here connects to a database -- the same approach as
@@ -190,9 +192,81 @@ function lineIndexer(code: string): (offset: number) => number {
 const BARE_ROLE = /(?<![\w$.])role(?![\w$.])/g;
 
 /**
+ * The opening of a `profiles(...)` embed inside a PostgREST select string --
+ * the shape a `profiles` join takes when `profiles` is *not* the query's own
+ * `.from()` table.
+ *
+ * Both optional parts matter: the alias (`actor:profiles(...)`) and the foreign
+ * key hint (`requester:profiles!requested_by(...)`), which is mandatory on
+ * `approval_requests` because it has two foreign keys to `profiles`. The `\s*`
+ * before the paren is there because several selects in this repo are written
+ * with a space -- `verifier:profiles!verified_by (`.
+ *
+ * `\b` is what keeps the near-misses out. In `billing_profiles(name)` and in
+ * `app_roles!profiles_role_id_fkey(name)` the character before `profiles` is a
+ * word character, so there is no boundary and neither matches.
+ */
+const PROFILES_EMBED = /\bprofiles(?:!\w+)?\s*\(/g;
+
+/**
+ * Each `profiles(...)` embed's own column list, as `{ start, columns }` where
+ * `start` is the offset in `code` that `columns[0]` came from -- so a hit's
+ * offset is still a real offset into the file and `lineIndexer` keeps working.
+ *
+ * Parentheses are balanced by hand rather than by regex because an embed can
+ * nest (`profiles(id, app_roles(name))`), and a `[^)]*` capture would stop at
+ * the inner close and miss anything written after it.
+ *
+ * Nested embeds are blanked rather than included, so a sibling table's own
+ * `role` column cannot be mistaken for this one. Nothing is lost by that: a
+ * nested embed that is itself a `profiles(...)` is matched on its own turn.
+ */
+function profilesEmbedColumnLists(code: string): Array<{ start: number; columns: string }> {
+  const found: Array<{ start: number; columns: string }> = [];
+
+  for (const match of code.matchAll(PROFILES_EMBED)) {
+    const open = (match.index ?? 0) + match[0].length - 1;
+    let depth = 0;
+    let columns = '';
+    let closed = false;
+
+    for (let i = open; i < code.length; i++) {
+      const ch = code[i];
+
+      if (ch === '(') {
+        depth++;
+        columns += ' ';
+        continue;
+      }
+
+      if (ch === ')') {
+        depth--;
+        columns += ' ';
+        if (depth === 0) {
+          closed = true;
+          break;
+        }
+        continue;
+      }
+
+      // Depth 1 is this embed's own column list; anything deeper belongs to a
+      // nested embed and is blanked. Blanks keep `columns` the same length as
+      // the slice it came from, so offsets stay aligned with `code`.
+      columns += depth === 1 ? ch : ch === '\n' ? '\n' : ' ';
+    }
+
+    // An unterminated match is not a select string. Skip it rather than
+    // scanning to end of file.
+    if (closed) found.push({ start: open, columns });
+  }
+
+  return found;
+}
+
+/**
  * Every reference to the legacy column in one source file, as `line: source`.
  *
- * Two shapes are detected, and between them they cover how the column can be
+ * Three shapes are detected, and between them they cover how the column can be
  * reached from TypeScript at all:
  *
  * 1. **A PostgREST query against `profiles` naming the column.** The window
@@ -208,6 +282,15 @@ const BARE_ROLE = /(?<![\w$.])role(?![\w$.])/g;
  *    select strings no longer return it, so `tsc --noEmit` is the primary
  *    guard. This exists because a `Record<string, unknown>` or an `any` on the
  *    path would let one through silently.
+ *
+ * 3. **A `profiles(...)` embed naming the column from another table's select.**
+ *    This shape is why the first version of this scanner reported clean while
+ *    three live queries still selected the legacy column:
+ *    `.from('audit_logs').select('*, actor:profiles(id, role)')` is anchored on
+ *    `audit_logs`, so shape 1 never opens a window over it, and there is no
+ *    `.role` property access for shape 2 to see. `tsc` cannot see it either --
+ *    a select string is just a string. Only the embed's own column list is
+ *    scanned; see `profilesEmbedColumnLists`.
  */
 export function legacyColumnReferences(code: string): string[] {
   const stripped = stripComments(code);
@@ -229,6 +312,13 @@ export function legacyColumnReferences(code: string): string[] {
   // 2. `.role` property reads off something profile-shaped
   for (const match of stripped.matchAll(/\bprofiles?(?:Data)?\??\.role(?![\w$])/g)) {
     hits.add(lineAt(match.index ?? 0));
+  }
+
+  // 3. embedded `profiles(...)` resources hanging off another table's select
+  for (const { start, columns } of profilesEmbedColumnLists(stripped)) {
+    for (const match of columns.matchAll(BARE_ROLE)) {
+      hits.add(lineAt(start + (match.index ?? 0)));
+    }
   }
 
   return [...hits].sort((a, b) => a - b).map((line) => `${line}: ${(lines[line - 1] ?? '').trim()}`);
@@ -428,6 +518,38 @@ describe('#193: profiles.role is renamed out of existence', () => {
 
     expect(legacyColumnReferences(`const legacy = profileData.role as UserRole;`)).toHaveLength(1);
 
+    // Shape 3: an embedded `profiles(...)` resource under some *other* table's
+    // select. All three of these were live in this codebase when the first
+    // version of this scanner reported clean, which is the whole reason the
+    // shape exists.
+    expect(
+      legacyColumnReferences(
+        `await supabase.from('audit_logs').select('*, actor:profiles(id, full_name, email, role)');`
+      )
+    ).toHaveLength(1);
+
+    expect(
+      legacyColumnReferences(
+        `await supabase.from('approval_requests').select('*, requester:profiles!requested_by(id, full_name, email, role)');`
+      )
+    ).toHaveLength(1);
+
+    // Written across lines, with a space before the paren, as several selects
+    // in this repo are.
+    expect(
+      legacyColumnReferences(
+        [
+          `await supabase.from('bank_row_verifications').select(\``,
+          `  *,`,
+          `  verifier:profiles!verified_by (`,
+          `    id,`,
+          `    role`,
+          `  )`,
+          '`);',
+        ].join('\n')
+      )
+    ).toHaveLength(1);
+
     // ...and does not fire on the RBAC vocabulary that replaced it, on
     // unrelated tables, or on prose.
     expect(
@@ -443,6 +565,32 @@ describe('#193: profiles.role is renamed out of existence', () => {
     ).toEqual([]);
     expect(legacyColumnReferences(`// the deprecated profiles.role column is gone`)).toEqual([]);
     expect(legacyColumnReferences(`/* profile.role was read here until #193 */`)).toEqual([]);
+
+    // Shape 3 negatives. The embed retargeted onto the RBAC join is the shape
+    // the three readers above were rewritten into, so a scanner that flagged it
+    // would be unusable.
+    expect(
+      legacyColumnReferences(
+        `await supabase.from('audit_logs').select('*, actor:profiles(id, full_name, email, app_roles!profiles_role_id_fkey(name))');`
+      )
+    ).toEqual([]);
+    expect(
+      legacyColumnReferences(
+        `await supabase.from('approval_requests').select('*, reviewer:profiles!reviewed_by(id, full_name, email, app_roles!profiles_role_id_fkey(name))');`
+      )
+    ).toEqual([]);
+    expect(
+      legacyColumnReferences(`await supabase.from('documents').select('*, uploader:profiles!uploaded_by(id, full_name)');`)
+    ).toEqual([]);
+    expect(
+      legacyColumnReferences(`await supabase.from('audit_logs').select('*, actor:profiles(id, role_id)');`)
+    ).toEqual([]);
+    // A different table whose name merely ends in `profiles`. `\b` is what
+    // keeps this out, and it is worth pinning: `billing_profiles` embeds appear
+    // a dozen times in src/actions/billing.
+    expect(
+      legacyColumnReferences(`await supabase.from('houses').select('*, billing_profile:billing_profiles(id, name, role)');`)
+    ).toEqual([]);
   });
 });
 

@@ -17,7 +17,12 @@
 -- remaining legacy policies followed the rename and reported healthy. The
 -- fail-loud property of this migration therefore applies to *string-based*
 -- readers only -- application code, the seed/verify scripts, and late-bound
--- plpgsql. Removing the last policy readers is #213 and #214, not this slice.
+-- plpgsql. Removing the last policy readers is #214, not this slice -- and not
+-- #213, whose 25 policies read `role_id -> app_roles.name` and never touch the
+-- legacy column at all. #214 removes exactly four: the policies on
+-- `ai_settings`, `ai_conversation_logs`, `report_schedules` and
+-- `generated_reports`, which after #190 are the only policies left in `public`
+-- carrying a `::user_role` cast.
 --
 -- THE TWO FUNCTIONS ARE REWRITTEN HERE, NOT LEFT TO FAIL
 -- plpgsql resolves column names at execution time, so neither function would
@@ -33,8 +38,9 @@
 --                                 public.has_permission('billing.create_invoice').
 --
 --     THE ACCESS DELTA -- this is NOT access-preserving, state it accurately.
---     Verified against LEGACY_ROLE_MAP (src/actions/roles/assign-role.ts:258)
---     and role_permissions:
+--     Verified against LEGACY_ROLE_MAP -- as it stood at
+--     src/actions/roles/assign-role.ts:258 *before* this slice deleted it, see
+--     SCOPE TAKEN FROM #194 below -- and role_permissions:
 --
 --       LEGACY_ROLE_MAP has four keys only -- super_admin -> 'admin',
 --       chairman -> 'chairman', financial_officer -> 'financial_secretary',
@@ -73,6 +79,22 @@
 -- Application and script readers of the legacy column are updated in the same
 -- change; src/__tests__/rename-profiles-role-column.test.ts scans src/** and
 -- scripts/** so a missed reader fails the suite rather than production.
+--
+-- SCOPE TAKEN FROM #194 -- a behaviour change this slice makes, stated plainly
+-- This slice, not #194, deleted LEGACY_ROLE_MAP from
+-- src/actions/roles/assign-role.ts, and stopped assignRoleToProfile() and
+-- removeRoleFromProfile() writing the legacy column (the `role: legacyRole`
+-- and `role: null` writes, and the `role` field in their audit oldValues /
+-- newValues, are all gone). #194's issue body still claims that removal as its
+-- own; its remaining scope on that file is therefore smaller than it says.
+--
+-- Why it is safe to stop maintaining the column here rather than in #194:
+-- nothing reads it by the time this migration applies. Every application
+-- reader is retargeted in this same change, and the last four policy readers
+-- (ai_settings, ai_conversation_logs, report_schedules, generated_reports) are
+-- dropped by #214, whose migration is timestamped 20260906020000 and so
+-- applies before this one. Keeping the writes alive would mean maintaining a
+-- column this migration is in the act of naming `do_not_use`, for no reader.
 
 -- ROLLBACK:
 -- BEGIN;

@@ -51,12 +51,17 @@ export async function getAuditLogs(
     limit = 50,
   } = params;
 
-  // Build query with actor profile join (LEFT JOIN to handle null actors)
+  // Build query with actor profile join (LEFT JOIN to handle null actors).
+  // The actor's role comes from the RBAC join, not the legacy `profiles.role`
+  // column that #193 renamed out of existence. `audit_logs` has a single
+  // foreign key to `profiles` (audit_logs_actor_id_fkey), so the outer embed
+  // needs no hint; `profiles` -> `app_roles` is hinted explicitly, matching
+  // src/middleware.ts.
   let query = supabase
     .from('audit_logs')
     .select(`
       *,
-      actor:profiles(id, full_name, email, role)
+      actor:profiles(id, full_name, email, app_roles!profiles_role_id_fkey(name))
     `, { count: 'exact' });
 
   // Apply filters

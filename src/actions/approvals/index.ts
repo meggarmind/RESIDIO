@@ -53,12 +53,17 @@ export async function getApprovalRequests(params: {
     return { data: null, count: 0, error: auth.error || 'Unauthorized' };
   }
 
-  // Build query
+  // Build query. `approval_requests` has two foreign keys to `profiles`
+  // (requested_by, reviewed_by), so both outer embeds keep their explicit hint
+  // or PostgREST answers PGRST201. The role itself now comes from the RBAC join
+  // rather than the legacy `profiles.role` column #193 renamed out of
+  // existence; `profiles` -> `app_roles` is hinted the same way middleware.ts
+  // hints it.
   let query = supabase.from('approval_requests').select(
     `
       *,
-      requester:profiles!requested_by(id, full_name, email, role),
-      reviewer:profiles!reviewed_by(id, full_name, email, role)
+      requester:profiles!requested_by(id, full_name, email, app_roles!profiles_role_id_fkey(name)),
+      reviewer:profiles!reviewed_by(id, full_name, email, app_roles!profiles_role_id_fkey(name))
     `,
     { count: 'exact' }
   );
