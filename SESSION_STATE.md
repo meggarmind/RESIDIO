@@ -9,7 +9,154 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Last session (Claude Code, 2026-09-06 — **Epic #182 COMPLETE**: waves 1-4 QA'd, merged, applied and verified)
+## Last session (Claude Code, 2026-09-06 — **#213**: the third role vocabulary, 21 policies rewritten; PR open, **not applied**)
+
+**Tool:** Claude Code, coordinator posture. Two implementers in isolated worktrees (top tier for
+the migration, mid for the ratchet), both sent back once with defects, both fixed. All on one
+machine; no peer session.
+
+**Supabase MCP failed to connect again** (`CONNECT_TIMEOUT`), second session running. Every
+database operation went through the Management API query endpoint via `curl`, which honours
+`BEGIN`/`ROLLBACK`. Still a workaround, still needs attention.
+
+### State: merged vs applied
+
+| | |
+|---|---|
+| PR **#239** | **OPEN, mergeable, awaiting Jimi's merge** |
+| `20260907000000_policies_follow_permissions_not_role_names.sql` | **written, NOT applied** |
+| Live database | still carries all 26 hardcoded-`app_roles.name` policies — verified by query |
+
+**The next session must apply this migration after #239 merges, and verify by name against the
+database's applied list** (`CORE.md` §11). Nothing else from this session is merged-but-unapplied.
+
+### #213's issue body was wrong in four load-bearing places
+
+All measured against the live database in transactions ending in `ROLLBACK`, all posted back to
+the issue. **Do not re-litigate these from the issue body, which still reads "25 policies".**
+
+| Issue said | Measured |
+|---|---|
+| 25 policies | **20** in `public`. 4 `entity_notes` + 1 `documents` already authorize on permission names; they match the regex only because they join `app_roles` as a bridge |
+| "not one of the 25 includes `vice_chairman`" | **8 of the 20 admit it**, via `OR r.category = 'exco'` — 7 of the 8 roles are category `exco` |
+| The population is too narrow | **Half of it is too wide.** `security_officer`, `project_manager` and `secretary` could manage budgets, expenditure, vendors, categories and personnel engagements. The fix is predominantly a **narrowing** |
+| The reproduce query finds them all | It filters `schemaname = 'public'` and **cannot see a 21st policy** on `storage.objects` (`Admins can view all payment proofs`), which is live and denies `vice_chairman` |
+
+The narrowing makes RLS agree with the app layer, which already gates these paths on the same
+permissions (`src/actions/expenses/create-expense.ts:29`, `update-expense.ts:11`,
+`src/actions/projects/create-project.ts:17`). RLS was the only layer still admitting those three roles.
+
+### Decisions Jimi took — in writing, with the evidence, so nobody reverses them
+
+1. **`vice_chairman` is granted the six unprefixed finance/projects permissions first.** It held
+   none of `manage_expenditure`, `view_expenditure`, `manage_vendors`, `view_vendors`,
+   `manage_projects`, `view_projects`, so a straight rewrite would have stripped it of `expenses`,
+   `vendors`, `projects` and `project_milestones` — the opposite of the issue's goal. It already
+   carries 77 permissions; the omission was a seeding gap.
+2. **`impersonation_sessions` widens to `chairman`.** `impersonation.view_sessions` is held by
+   chairman deliberately; the policy disagreed with the catalogue, not the grant.
+3. **`personnel_engagements` keeps its absent grants.** It has **no table privileges at all**, so
+   its policies are dead code whatever they say — table grants gate before RLS. Rewritten for
+   consistency only. **A future reader who sees a `has_permission()` policy here and concludes the
+   table is live will be wrong.**
+4. **The six overlapping `USING (true)` open reads are closed in this migration**, because
+   otherwise six of the SELECT rewrites move no access at all.
+
+### The defect the per-policy view hid
+
+Per-policy, dropping the open read on `vendors` looked clean. The **net** read matrix showed
+`financial_officer` losing vendor access entirely — it holds neither `view_vendors` nor
+`manage_vendors` and read vendors only through the open policy. Since
+`src/actions/expenses/get-expenses.ts:21` embeds `vendor:vendors(name)` and PostgREST applies the
+embedded table's RLS, **every vendor-paid expense would have rendered a blank payee for a finance
+role**.
+
+Fixed by restoring the read through the catalogue: `view_vendors` granted to `financial_officer`,
+plus `View Vendors` / `View Budgets` / `View Categories` SELECT policies keyed to the view
+permissions. **Lesson for the next policy slice: measure net access per role per table, not
+per-policy deltas.** A per-policy diff can be entirely correct and still take a page down.
+
+### Verification performed
+
+- **Delta probe**: migration applied in a transaction, 36 policies × 8 roles measured before and
+  after, rolled back. Every moved cell intended and declared.
+- **Rollback fidelity, behavioural not textual**: applying the migration then its own rollback
+  block gives **0 admission differences across 400 policy×role cells**, 0 policies missing, 0
+  extra, grants back to baseline 18, new `app_permissions` row removed. A naive string diff shows
+  differences — Postgres re-serialises `(ARRAY[…])::text[]` as per-element casts. Behaviour is the
+  claim that matters.
+- **Role-access matrix**: 7 roles × 97 tables, committed as
+  `docs/validation/role-access-matrix.after-213.json`. Diffed against
+  `role-access-matrix.after-epic-182.json`, **not** the committed 2026-09-04 baseline — that
+  baseline predates epic #182 and attributes 58 cells to this PR instead of the real 24.
+  Result: **3 widenings, 21 narrowings, 0 structural, 0 unmet.** Note the matrix measures
+  **SELECT only**, so `vice_chairman`'s gains on `report_schedules` INSERT/UPDATE/DELETE are not
+  in it.
+- **Ratchet interlock**: the new ratchet was mutation-tested *against* this migration. Neither
+  implementer could run this — each had only one half.
+
+### Corrections to my own work, recorded because they will recur
+
+- The delta probe first substituted `auth.uid()` textually, which cannot reach inside
+  `has_permission()`. Its first output said every rewritten policy denied everyone. **Drive
+  probes through `set_config('request.jwt.claims', …, true)` instead** so SECURITY DEFINER helpers
+  see the probe identity.
+- I reported a missing trailing newline as a defect; the implementer checked with `od -c` and was
+  right — my own regex had eaten it.
+- I quoted the `storage.objects` policy in its alias-qualified form. The file text is bare
+  `SELECT name`; Postgres had re-serialised it. **`pg_policies` output is not the file text.**
+
+### Gates on #239
+
+```
+npm run lint    0 errors, 327 pre-existing warnings
+npm run build   passed
+npm test        1 failed | 1014 passed (1015)
+```
+
+The single failure is **pre-existing on `origin/master`** — see #238 below.
+
+One test *is* changed on #239: `drop-legacy-role-column.test.ts` asserted #194's migration is the
+newest file in the directory, which the next migration always breaks. Replaced with the claim it
+was actually protecting (nothing sequenced *between* #193 and #194), mutation-tested both ways.
+
+### Filed this session, not absorbed
+
+| Issue | What |
+|---|---|
+| **#237** | 22 tables carry a `USING (true)` read. Measured as an active `resident`: **100% of rows** in `system_settings` (62), `role_assignment_rules` (72), `resident_payment_cadence_summary` (151), `generated_reports` (7). #239 closes 6; **15 remain open**. Biggest exposure found this session |
+| **#238** | **`master` is red.** `drop-has-security-permission.test.ts` asserts a symbol the #194 types regeneration (`8bf0a34b`) correctly removed. Fix branch `fix/issue-238-has-security-permission-end-state` |
+| **#108** (comment) | Its table maps `reports/report-schedules.ts` to `report_subscriptions.manage` — a *resident email-digest* table. Wrong. `reports.manage_schedules`, created by #239, is the right constant |
+| **#104** (comment) | After #239, its three ungated routes (`/expenditure`, `/personnel`, `/projects`) render **blank tables** rather than leaking data. Worth pulling forward |
+| **#225** (comment) | A second instance of its "asserts sorts last" flaw, so that issue undercounts. General form: assertions pinned to a *moment* rather than an *invariant* |
+
+### Open branches from this session
+
+| Branch | State |
+|---|---|
+| `fix/issue-213-policies-follow-permissions-integration` | pushed, **PR #239 open** |
+| `fix/issue-213-policies-follow-permissions` | merged into the above, local only |
+| `fix/issue-213-hardcoded-role-ratchet` | merged into the above, local only |
+| `chore/session-state-issue-213` | this handoff record |
+| `fix/issue-238-has-security-permission-end-state` | #238 fix |
+
+Worktrees: `.worktrees/issue-213` and `.worktrees/session-handoff` are live and intentional. Both
+agent worktrees were removed after verifying their branches were merged.
+
+### What the next session must not re-litigate
+
+- The four inventory corrections above. The issue body still says 25; the measured answer is 21.
+- The four decisions. They are Jimi's, made on measured evidence, and the resulting access changes
+  are **intended** — a later reader seeing `secretary` lose expenditure management is looking at
+  the fix, not a regression.
+- `personnel_engagements` is unreachable by design (decision 3).
+- The `TO authenticated` scoping on 14 policies closes a **pre-existing** 500-for-anon defect; it
+  does not introduce one. `anon` lacks `EXECUTE` on `has_permission()` and holds SELECT on all
+  seven tables; `service_role` and `postgres` have `rolbypassrls`, so service traffic is unaffected.
+
+---
+
+## Previous session (Claude Code, 2026-09-06 — **Epic #182 COMPLETE**: waves 1-4 QA'd, merged, applied and verified)
 
 **Tool:** Claude Code, coordinator posture, autorun standing from the recorded decision on #182.
 **Supabase MCP failed to connect for the whole session** (`CONNECT_TIMEOUT`); every database
@@ -173,7 +320,7 @@ rendered blank — now show a role. **Access is unchanged.** Flagged to Jimi dur
 
 ---
 
-## Last session (Claude Code, 2026-09-06 — Epic #182 wrap-up: waves 1-3, interrupted for a Supabase MCP restart)
+## Previous session (Claude Code, 2026-09-06 — Epic #182 wrap-up: waves 1-3, interrupted for a Supabase MCP restart)
 
 **Tool:** Claude Code, coordinator posture, autorun authorised by Jimi ("All work must be completed tonight… continue until the EPIC is done"). **Supabase MCP failed to connect all session** (`CONNECT_TIMEOUT`); every database operation went through the Management API query endpoint, which works and honours `BEGIN`/`ROLLBACK`. The session was stopped deliberately, at a safe point, so Jimi can fix the MCP. **Autorun is to continue on resume.**
 
@@ -301,7 +448,7 @@ Recorded on #182, #193, #213 and #214.
 
 ---
 
-## Last session (Claude Code, 2026-09-05 — instruction set unified into CORE.md; NSMA and qa-director purged)
+## Previous session (Claude Code, 2026-09-05 — instruction set unified into CORE.md; NSMA and qa-director purged)
 
 **Tool:** Claude Code, coordinator posture. **Branch:** `chore/unify-agent-instructions`, off `origin/master`, **pushed on creation**, **PR open, not merged**. No database changes, no migrations, no `src/**` behaviour changes.
 
@@ -356,7 +503,7 @@ Mutation-testing a change requires restoring from a backup you actually created.
 
 ---
 
-## Last session (Claude Code, 2026-09-05 — #187 legacy policies part B, applied; three defects filed)
+## Previous session (Claude Code, 2026-09-05 — #187 legacy policies part B, applied; three defects filed)
 
 **Tool:** Claude Code, coordinator/sub-agent split. **Branch:** `feat/legacy-policies-part-b`, off `master` @ `5ca1eec8`, **pushed**, **PR #216 open, not merged**. Epic #182 (remove the legacy role vocabulary) is the live thread; waves 0–5 and 8 were already closed on entry.
 
@@ -415,7 +562,7 @@ Do not reopen: the `announcements.publish` choice for `announcement_read_receipt
 
 ---
 
-## Last session (Claude Code, 2026-09-03/04 — Epic #180, Settings information architecture)
+## Previous session (Claude Code, 2026-09-03/04 — Epic #180, Settings information architecture)
 
 **Tool:** Claude Code. **Branch:** `epic/180`, cut from `origin/master` @ `0c69af2`, pushed to origin after every merge. **53 commits ahead of master, not merged, no PR yet.** 15 of 17 slices closed (#163, #165, #167–#178); #164 and #179 remain.
 
@@ -437,7 +584,7 @@ The epic's central risk was that `src/middleware.ts` skips its **entire** author
 
 ---
 
-## Last session (Claude Code, 2026-09-02 — #138 RBAC migration reconciliation)
+## Previous session (Claude Code, 2026-09-02 — #138 RBAC migration reconciliation)
 
 **Tool:** Claude Code. **Branch:** `fix/rbac-migration-ledger-reconciliation`, off `master` at `2dd3ab6`. **Intent:** validate/apply the outstanding `20260830100*` RBAC migrations per #138. Cloud Supabase via MCP only.
 
@@ -461,7 +608,7 @@ Nothing is blocked and nothing is left unapplied.
 
 ---
 
-## Last session (Claude Code, 2026-09-02 — Settings audit + two nav fixes)
+## Previous session (Claude Code, 2026-09-02 — Settings audit + two nav fixes)
 
 Branch `fix/settings-nav-quick-fixes`, off `master` at `7271719`. Two commits, **not pushed, not merged.** No migrations. Audit of the Settings module requested; the IA half is deliberately unbuilt and heading into `/grill-with-docs`.
 
@@ -519,7 +666,7 @@ Branch `feat/settings-ia-docs` (off `fix/settings-nav-quick-fixes`). **Not pushe
 
 **Commit early in this checkout, and do not leave new files untracked.**
 
-## Last session (Claude Code, 2026-09-02 — WhatsApp admin-configurable credentials and Twilio support)
+## Previous session (Claude Code, 2026-09-02 — WhatsApp admin-configurable credentials and Twilio support)
 
 Branch `feat/whatsapp-provider-config`, branched from `master` at `7f5e751`, rebased onto `51dbd19`. Eight commits, all pushed. **Not merged.** Issues #127-#134 plus #136 in `meggarmind/RESIDIO`.
 
@@ -563,7 +710,7 @@ Root cause: the `Stop` hook was moved to `SessionEnd` and gated behind a role-mo
 ### Outstanding
 
 Wiki documentation deferred: the `integrations/` section exists only on `feat/social-login-approval-queue` and is absent from master's `sidebars.ts`, so adding one page here would orphan it and guarantee a conflict. #133's integration-test half is still open. No migration on this branch has been applied to any database.
-## Last session (OpenCode, 2026-09-02 — custom role RLS P0 #141)
+## Previous session (OpenCode, 2026-09-02 — custom role RLS P0 #141)
 
 - Published [#141](https://github.com/meggarmind/RESIDIO/issues/141) and rebased its isolated worktree onto the preserved social-login approval-queue branch.
 - Removed the unmerged `get_my_role()` fallback that mapped arbitrary custom roles to `admin` or `chairman`. Only the five established built-in roles now map to legacy RLS buckets; custom and resident roles resolve to `NULL` until the affected policies are migrated to explicit permissions.
@@ -571,14 +718,14 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 - Verification: focused regression 2/2 and full Vitest 317/317 pass; `git diff --check` passes. Changed-file ESLint did not finish within the Windows runner timeout. Build compiled successfully with the existing Paystack route-config warning, then exceeded the runner timeout while TypeScript/prerendering.
 - Pushed `ea96bc3` and attached verification to #141. Moving the issue to In review is blocked: `issue-workflow review 141` compares the registered `C:/projects/...` worktree path with Windows' `C:\projects\...` path as unequal, from both the repository root and the worktree. Do not apply the migration to cloud until the dependent social-login branch is approved and merged.
 
-## Last session (OpenCode, 2026-09-02 — build/audit merge and workflow hardening)
+## Previous session (OpenCode, 2026-09-02 — build/audit merge and workflow hardening)
 
 - Merged the rebased build/audit coverage changes into `master` via PR #135. The app TypeScript program now excludes the standalone `website/` workspace, and 24 write actions gained audit logging.
 - Rebased the issue lifecycle helper and hourly monitor onto the updated `master`. Dispatch inputs are passed through environment variables rather than shell interpolation; `finish` now verifies the integration commit is published on `origin/master` before closing an issue or marking it Done.
 - Verification before the build/audit merge: full Vitest 292/292; `git diff --check` clean. Full lint remains baseline-red at 107 errors and 423 warnings. The isolated-worktree build requires the intentionally untracked `.env.local` for Supabase page prerendering.
 - Next: push and merge the rebased issue-monitor workflow, then begin the separately approved social-login approval-queue rebase and security review.
 
-## Last session (OpenCode, 2026-09-02 — lint baseline remediation #143) — Done (PR #155, 7271719)
+## Previous session (OpenCode, 2026-09-02 — lint baseline remediation #143) — Done (PR #155, 7271719)
 
 - Published parent #143 and dependency-ordered slices #144 -> #145 -> #146 -> #147, all `ready-for-agent`.
 - **#144 scope decision:** lint excludes generated Docusaurus output (`website/.docusaurus/**`, `website/build/**`) and the resident self-service paths (`src/app/(resident)/**`, `src/components/resident-portal/**`). This retains the global lint gate for Docusaurus source, every admin-dashboard/shared path, scripts, and tests, while avoiding investment in the explicitly unplanned portal rollout surface.
@@ -588,16 +735,16 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 - Workflow fixes landed with the lint baseline: normalized Windows worktree paths (`pathsMatch`), routed `npm` through `cmd.exe` on Windows (`commandInvocation`), auto-loads `.env.local` for `review`/`finish` checks (`loadEnvFile`), and widened the Twilio webhook integration test to 15s. Two Windows-specific helper failures were caught and fixed during the 147 review cycle.
 - All 5 issues closed via PR #155: #143 (parent) + #144 + #145 + #146 + #147, plus #142 (Windows worktree path) consolidated in the same PR. Branches `codex/issue-144`, `146`, `147`, `142` deleted locally and remotely. `npm run lint` is now green on `master`; `npm test -- --run` is 371 passing. Do not apply the deliberately withheld social-login migration.
 
-## Last session (OpenCode, 2026-08-24 — WhatsApp Pilot and Estate-Wide Controls #8)
+## Previous session (OpenCode, 2026-08-24 — WhatsApp Pilot and Estate-Wide Controls #8)
 
 - Completed the missing admin rollout controls: mounted pilot settings on `/settings/whatsapp`, added explicit pilot-to-estate promotion with permission-first authorization and an `ACTIVATE` audit record, and kept pilot targeting fail-closed for inbound financial access and proactive sends.
 - Added configurable rolling outbound burst caps alongside the existing daily cap, scheduled bounded retention for expired sessions and processed webhook IDs, and seeded safe disabled defaults through Supabase MCP. Consent and immutable disclosure-log boundaries remain unchanged.
 - Added focused promotion and burst-limit coverage. Verification: focused WhatsApp/notification suite **61/61**; module-integration **3/3**; TypeScript clean; scoped ESLint clean with one pre-existing unused-parameter warning in `send.ts`; `git diff --check` clean.
 - `npm run build` was attempted but the Windows runner terminated the Next child process (`ChildProcess.kill`). No commit created; all changes remain in the working tree.
 
-## Last session (OpenCode, 2026-08-24 — OpenCode review agent)
+## Previous session (OpenCode, 2026-08-24 — OpenCode review agent)
 
-## Last session (OpenCode, 2026-08-24 — WhatsApp Operations Console #7)
+## Previous session (OpenCode, 2026-08-24 — WhatsApp Operations Console #7)
 
 - Implemented the admin-only `/settings/whatsapp` operations console with searchable consent registry, consent-state filtering, masked numbers, timestamps, pending-contact review, active-session inspection/reset, disclosure-log filtering, and bot health counters.
 - Added permission-first read actions for sessions, disclosure logs, and health metrics. Existing identity writes remain permission-first and audit successful writes; bulk opt-in import, pending attach/ignore, force-PIN updates, and session resets are covered by the existing action boundary.
@@ -607,7 +754,7 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 
 - Added the project-local `meggar-review` OpenCode subagent at `.opencode/agent/meggar-review.md`. It verifies only `ready-for-agent` issues in the `In review` column of `meggarmind/projects/1`, moves unambiguous approvals to Done, and otherwise hands the issue back with `ready-for-human`.
 
-## Last session (OpenCode, 2026-08-23 — Full issue sweep)
+## Previous session (OpenCode, 2026-08-23 — Full issue sweep)
 
 - **Issues implemented this session:** #16 (archive safety), #78 (backfill profile error), #82 (invoice naming format), #84 (role terminology), #95 (generation workflow separation), #97 (billing date filter), #102 (mobile dashboard parity), #103 (shell variant cleanup). Combined with prior work, 18 issues are now at In review.
 - **Dashboard:** Mobile header shows page identity; mobile menu mirrors desktop IA; canonical shell identified (header.tsx + sidebar.tsx); modern-header.tsx and modern-sidebar.tsx removed (810 lines); all 9 Playwright dashboard specs pass at 390x844.
@@ -617,7 +764,7 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 - **Git:** Commits 42a5be3, bbfb7e6, 5abf147, 6a1c8dc, e677795 on master. No uncommitted changes.
 - **Remaining open issues not at In review:** #88 (Estate AI chatbot), #90 (Live Status Widgets), #91 (Cinematic Transitions), #92 (Premium Digital Passes) — all Ready with loose specs needing clarification. #73 (full-estate backfill) needs human decision. Performance chain (#58-63), WhatsApp chain (#1/6/7/8), and Financial Reports PRD (#24) are backlog epics.
 
-## Last session (OpenCode, 2026-08-23 — Billing issues #79, #80, #94)
+## Previous session (OpenCode, 2026-08-23 — Billing issues #79, #80, #94)
 
 - **Parallel implementation:** Secured billing/resident query actions (#94) while implementing resident invoice deep-link filtering and the enhanced billing resident selector (#79/#80).
 - **Security:** `getInvoices`, invoice detail, resident indebtedness, house payment status, cross-property payment summary, and the focused billing resident options query now fail closed on `BILLING_VIEW`; the general resident list uses `RESIDENTS_VIEW`.
@@ -626,7 +773,7 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 - **Git:** No commit created; all earlier dashboard and unrelated billing changes remain preserved in the working tree.
 - **Tracking:** Issues #79, #80, and #94 have implementation evidence and are ready to move from In progress to In review.
 
-## Last session (OpenCode, 2026-08-22 — Dashboard issues #98-#101)
+## Previous session (OpenCode, 2026-08-22 — Dashboard issues #98-#101)
 
 - **Parallel implementation:** Used four independent sub-agents for scannable audit activity (#98), mobile navigation accessibility (#99), dashboard hydration/loading hardening (#100), and trustworthy dashboard metrics/actions (#101), then integrated and reviewed their work.
 - **Dashboard behavior:** Activity labels and descriptions are human-readable while preserving transaction identifiers; mobile sheet controls have descriptions, names, visible focus, and 44px targets; debug rendering uses hydration-safe URL state; route/auth/error states are distinct; attention counts are queried from live resident/payment/security data; finance labels distinguish estate cash, wallet credits, verified payments, invoice counts, zero values, and unavailable data.
@@ -634,7 +781,7 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 - **Git:** No commit created. Existing unrelated dirty changes in `.claude`, billing, searchable-select, and coordination files were preserved.
 - **Next:** Close #98-#101 after user review, then start unblocked #102 (mobile orientation/navigation parity); #103 remains blocked by #102.
 
-## Last session (OpenCode, 2026-08-22 — Admin guide deployment)
+## Previous session (OpenCode, 2026-08-22 — Admin guide deployment)
 
 - **Docusaurus guide:** Added a TypeScript Docusaurus site under `website/` with a screenshot-led admin manual covering getting started, residents, properties, finance, security, operations, settings, and administration.
 - **Screenshot safety:** Captured desktop/mobile admin screenshots through Playwright with browser-side masking for names, contact values, financial amounts, resident codes, house labels, UUIDs, and legacy contact placeholders. Added a reusable `website/scripts/capture-admin-screenshots.mjs` script requiring local credentials through environment variables.
@@ -642,7 +789,7 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 - **Deployment:** Published commit `fa37650` to `master` and static commit `9a77050` to `gh-pages`. GitHub Pages is configured in legacy branch mode and is live at [meggarmind.github.io/RESIDIO](https://meggarmind.github.io/RESIDIO/). The Actions workflow is present but its first run was blocked by the GitHub account billing lock; direct Pages publishing completed successfully.
 - **Next:** Keep the guide synchronized with admin UI changes and resolve the existing mobile dialog accessibility warning tracked in TODO/dashboard follow-up issues.
 
-## Last session (OpenCode, 2026-08-22 — Dashboard review tickets)
+## Previous session (OpenCode, 2026-08-22 — Dashboard review tickets)
 
 - Published the approved dashboard review slices as GitHub issues #98–#103, all labeled `ready-for-agent`.
 - Independent issues: #98 Scannable audit activity, #99 Mobile navigation accessibility, #100 Dashboard hydration and loading hardening, and #101 Trustworthy dashboard metrics and actions.
@@ -651,9 +798,9 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 
 ---
 
-## Last session (OpenCode, 2026-08-20 — Settings page restructuring)
+## Previous session (OpenCode, 2026-08-20 — Settings page restructuring)
 
-## Last session (OpenCode, 2026-08-22 — Dashboard review via impeccable)
+## Previous session (OpenCode, 2026-08-22 — Dashboard review via impeccable)
 
 - **Scope:** UX critique + technical audit of `src/app/(dashboard)/dashboard` (admin focus). Parallel assessment sub-agents returned unusable output; review completed inline (degraded run) with direct code inspection + Impeccable detector.
 - **Detector:** `detect.mjs` over the dashboard route returned **0 findings** (no slop patterns).
@@ -663,7 +810,7 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 - **Browser findings:** P1 mobile navigation Radix dialog emits the missing `Description` / `aria-describedby` warning twice; P1 multiple mobile controls are below 44x44 (menu/notifications 36x36, profile/theme 40x40, dialog close 16x16); P1 header includes an unlabelled icon-only button; P2 mobile header loses page identity (no visible Dashboard/greeting heading); P2 content labels expose weak/ambiguous semantics (`3,100,000 of 3,285,000 Invoices`, `Portfolio Value ₦0` vs `Wallet Credits ₦2,800,964`, generic audit verbs); P2 mobile nav is a reduced five-link subset versus the full desktop IA.
 - **No product files changed. Next:** fix merged P1/P2 findings or extend review to billing surface.
 
-## Last session (OpenCode, 2026-08-22 — Admin Playwright smoke pass)
+## Previous session (OpenCode, 2026-08-22 — Admin Playwright smoke pass)
 
 - **Authenticated browser verification:** Used `playwright-cli` with the seeded super-admin account against the existing local server on port 3000. Dashboard, main admin modules, and the primary settings routes loaded without application error text or browser console errors.
 - **Responsive check:** At 390x844, the dashboard rendered and the mobile menu opened with Dashboard, Residents, Transactions, Security, and Settings links.
@@ -694,7 +841,7 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 
 ---
 
-## Last session (OpenCode, 2026-08-16 — Resident-House engagement coverage)
+## Previous session (OpenCode, 2026-08-16 — Resident-House engagement coverage)
 
 - **Closed the outstanding coverage gap for Personnel Accountability (#75/#76/#77):** added 21 tests (repo now 180/180 green).
   - **Lib** (`src/__tests__/personnel-engagements.test.ts`, 4 → 10 tests): resident-house scope label (`12A, Main St · Ada Okoro`), generic fallback when the house detail is null, concurrent count (`+1`), ended engagements not active, Estate precedence over Resident-House, and resident-house filter matching.
@@ -703,7 +850,7 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 
 ---
 
-## Last session (OpenCode, 2026-08-15 — Build unblock + module wiring)
+## Previous session (OpenCode, 2026-08-15 — Build unblock + module wiring)
 
 - **Build blocker fixed:** `src/actions/personnel/engagements.ts` failed Turbopack compile — the destructured `engagement` on read-back collided with the function param. Renamed to `createdEngagement`.
 - **Completed missing WhatsApp admin actions** (the `/settings/whatsapp` UI referenced actions that did not exist): added `importWhatsAppOptIns` (CSV `resident_code,phone_number`, resident lookup, in-batch dedupe, `admin_import` source), `updateWhatsAppPendingContact` (attach/ignore with resident validation), and `resetWhatsAppSession` (deletes the session row) to `src/actions/whatsapp/identity.ts`. Registered `whatsapp_sessions` as an `AuditEntityType` (+ label) in `src/types/database.ts`. All three are permission + audit compliant.
@@ -716,7 +863,7 @@ Wiki documentation deferred: the `integrations/` section exists only on `feat/so
 
 ---
 
-## Last session (OpenCode, 2026-08-15 — Personnel Accountability #75/#76/#77)
+## Previous session (OpenCode, 2026-08-15 — Personnel Accountability #75/#76/#77)
 
 - **Personnel Accountability (#75/#76/#77, uncommitted):** Added the RLS-enabled `personnel_engagements` schema, grants hardening, duplicate-active protection, Estate and Resident-House RPCs, admin-only server actions, audit logging, directory accountability badges/filters, engagement editing, history, and end actions. Existing Personnel remains unassigned unless an active engagement exists.
 - **Resident-House workflow:** Active Resident Houses are loaded into the Personnel dialog; creation validates the active target through the RPC, and editing an existing Resident-House engagement preserves its target and updates its dates/responsibility instead of creating a duplicate. Directory filtering now covers Estate, Resident House, and Unassigned.
@@ -790,7 +937,7 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 
 ---
 
-## Last session (OpenCode, 2026-08-11)
+## Previous session (OpenCode, 2026-08-11)
 
 - **WhatsApp pilot controls (#8):** Added disabled/pilot/estate modes, resident/street targeting, fail-closed outbound and financial access enforcement, admin rollout controls, configurable daily caps, retention purge for expired sessions and processed-message deduplication rows, and monitoring. Cloud verification confirmed service-role-only RLS for operational WhatsApp tables and no current WhatsApp data rows. Applied migration `seed_whatsapp_pilot_control_defaults`; production is explicitly disabled with empty pilot targeting, 100 outbound/day, and 50 financial lookups/day. Pilot/retention/dispatch tests pass; full Vitest currently has 6 unrelated failures in concurrent dashboard/billing work. Controlled provider exercise remains.
 - **Pilot exercise hardening:** Added explicit inbound financial pause enforcement and targeted tests proving out-of-pilot residents cannot reach financial readers. The targeted rollout/financial/dispatch suite passes **20 tests**; simulator/provider coverage already verifies duplicate webhooks, retries, STOP/START, approved templates, and safe provider failures.
@@ -892,7 +1039,7 @@ Then update `Current snapshot` + `Last session` below, commit, and push.
 - Committed (not yet pushed): `00d3ef9` (build fixes), `575220c` (low-risk lint), `7ff59f9` (session doc). Working tree now clean.
 - `npm run build` GREEN, `tsc` clean, `npm test` 5/16 green, `npm run lint` 351→323 errors.
 
-## Last session (OpenCode, 2026-08-07 — UI/UX Phase 3)
+## Previous session (OpenCode, 2026-08-07 — UI/UX Phase 3)
 
 - **Phase 3 (Payment Flow + PDF Import Polish) complete.** Merged PDF import final steps into UI/UX Review Phase 3 and completed it.
 - **3a — PDF upload visual polish** (`statement-upload.tsx`): AnimatePresence dropzone (spring-animated upload icon on drag, scale/opacity transitions for file-selected state), file-type-specific icons with colored icon tiles, `input-tactile` on password input, smooth height-reveal animation on password section, `btn-hover-lift` on continue button.
