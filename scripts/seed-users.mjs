@@ -53,13 +53,13 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   },
 });
 
-// roleName is the app_roles.name to assign; legacyRole keeps the deprecated
-// profiles.role column in sync for the server actions that still read it.
+// roleName is the app_roles.name to assign. The deprecated profiles.role
+// column is gone (#193); role_id is the only role a seeded account carries.
 const testUsers = [
-  { email: 'admin@residio.test', password: 'password123', roleName: 'super_admin', legacyRole: 'admin' },
-  { email: 'chairman@residio.test', password: 'password123', roleName: 'chairman', legacyRole: 'chairman' },
-  { email: 'finance@residio.test', password: 'password123', roleName: 'financial_officer', legacyRole: 'financial_secretary' },
-  { email: 'security@residio.test', password: 'password123', roleName: 'security_officer', legacyRole: 'security_officer' },
+  { email: 'admin@residio.test', password: 'password123', roleName: 'super_admin' },
+  { email: 'chairman@residio.test', password: 'password123', roleName: 'chairman' },
+  { email: 'finance@residio.test', password: 'password123', roleName: 'financial_officer' },
+  { email: 'security@residio.test', password: 'password123', roleName: 'security_officer' },
 ];
 
 async function seedUsers() {
@@ -127,7 +127,6 @@ async function seedUsers() {
       .from('profiles')
       .update({
         role_id: roleId,
-        role: user.legacyRole,
         approval_status: 'active',
         approved_at: new Date().toISOString(),
       })

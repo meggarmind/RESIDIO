@@ -67,7 +67,7 @@ function DashboardContent() {
             {navigationState.debug && (
                 <div className="mt-8 max-h-64 overflow-auto rounded-lg bg-muted p-4 font-mono text-xs" data-dashboard-debug="true">
                     <h4 className="mb-2 font-bold">Debug Info:</h4>
-                    <pre>{JSON.stringify({ profile: { id: profile?.id, role: profile?.role, name: profile?.full_name }, auth: { loading: authLoading } }, null, 2)}</pre>
+                    <pre>{JSON.stringify({ profile: { id: profile?.id, role_name: profile?.role_name, name: profile?.full_name }, auth: { loading: authLoading } }, null, 2)}</pre>
                 </div>
             )}
         </div>

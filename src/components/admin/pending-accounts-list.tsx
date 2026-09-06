@@ -68,8 +68,10 @@ export function PendingAccountsList() {
   const [rejectReason, setRejectReason] = useState('');
 
   // Mirrors the server guards in assignRoleToProfile: super_admin and chairman
-  // may only be granted by an existing super admin.
-  const isSuperAdmin = profile?.role === 'admin';
+  // may only be granted by an existing super admin. The server checks
+  // `auth.roleName !== 'super_admin'`, so this reads the RBAC role name too --
+  // it used to read the legacy `profiles.role` column, which #193 removed.
+  const isSuperAdmin = profile?.role_name === 'super_admin';
   const assignableRoles =
     roles?.filter((role) => {
       if (!role.is_active) return false;

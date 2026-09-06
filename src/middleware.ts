@@ -78,7 +78,6 @@ export async function middleware(request: NextRequest) {
     let profile: {
         role_id: string | null;
         resident_id: string | null;
-        role: string | null;
         approval_status: ProfileApprovalStatus | null;
         app_roles?: unknown;
     } | null = null;
@@ -93,7 +92,7 @@ export async function middleware(request: NextRequest) {
                 : Promise.resolve({ data: null, error: null }),
             supabase
                 .from('profiles')
-                .select('role_id, resident_id, role, approval_status, app_roles!profiles_role_id_fkey (name, category)')
+                .select('role_id, resident_id, approval_status, app_roles!profiles_role_id_fkey (name, category)')
                 .eq('id', user.id)
                 .single(),
         ]);

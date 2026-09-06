@@ -247,22 +247,6 @@ export async function searchProfilesForRoleAssignment(
 // =====================================================
 
 /**
- * Legacy profiles.role values, kept in sync for backwards compatibility.
- *
- * Roughly fifteen server actions still read profiles.role directly for their
- * own authorization checks, so this column cannot simply be abandoned. Roles
- * with no legacy equivalent (vice_chairman, secretary, project_manager,
- * resident) map to null — which is exactly why profiles.role had to become
- * nullable before those four roles could be assigned at all.
- */
-const LEGACY_ROLE_MAP: Record<string, string | null> = {
-  super_admin: 'admin',
-  chairman: 'chairman',
-  financial_officer: 'financial_secretary',
-  security_officer: 'security_officer',
-};
-
-/**
  * Assign a role directly to an account.
  *
  * This is the primitive; assignRoleToResident wraps it. Works for any profile,
@@ -284,7 +268,7 @@ export async function assignRoleToProfile(
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, email, full_name, role_id, role')
+    .select('id, email, full_name, role_id')
     .eq('id', profileId)
     .single();
 
@@ -324,8 +308,6 @@ export async function assignRoleToProfile(
     return { success: false, error: LAST_SUPER_ADMIN_ERROR };
   }
 
-  const legacyRole = LEGACY_ROLE_MAP[role.name] ?? null;
-
   // Written with the service role deliberately. profiles has no RLS policy
   // letting an administrator update anyone else's row, so this write through the
   // caller's own client matched zero rows and returned no error — the action
@@ -342,7 +324,6 @@ export async function assignRoleToProfile(
     .from('profiles')
     .update({
       role_id: roleId,
-      role: legacyRole,
     })
     .eq('id', profileId)
     .select('id');
@@ -362,8 +343,8 @@ export async function assignRoleToProfile(
     entityType: 'profiles',
     entityId: profileId,
     entityDisplay: profile.full_name || profile.email,
-    oldValues: { role_id: profile.role_id, role: profile.role },
-    newValues: { role_id: roleId, role: legacyRole, role_name: role.display_name },
+    oldValues: { role_id: profile.role_id },
+    newValues: { role_id: roleId, role_name: role.display_name },
   });
 
   return { success: true };
@@ -392,7 +373,7 @@ export async function removeRoleFromProfile(
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, email, full_name, role_id, role, resident_id, approval_status')
+    .select('id, email, full_name, role_id, resident_id, approval_status')
     .eq('id', profileId)
     .single();
 
@@ -441,7 +422,6 @@ export async function removeRoleFromProfile(
     .from('profiles')
     .update({
       role_id: newRoleId,
-      role: null,
       approval_status: newStatus,
     })
     .eq('id', profileId)
@@ -462,8 +442,8 @@ export async function removeRoleFromProfile(
     entityType: 'profiles',
     entityId: profileId,
     entityDisplay: profile.full_name || profile.email,
-    oldValues: { role_id: profile.role_id, role: profile.role, approval_status: profile.approval_status },
-    newValues: { role_id: newRoleId, role: null, role_name: newRoleLabel, approval_status: newStatus },
+    oldValues: { role_id: profile.role_id, approval_status: profile.approval_status },
+    newValues: { role_id: newRoleId, role_name: newRoleLabel, approval_status: newStatus },
   });
 
   return { success: true };

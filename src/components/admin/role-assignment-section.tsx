@@ -166,7 +166,10 @@ export function RoleAssignmentSection() {
   // Permission checks
   const canManageRoles = hasPermission('system.manage_roles');
   const canAssignRoles = hasPermission('system.assign_roles');
-  const isSuperAdmin = profile?.role === 'admin';
+  // Mirrors the server guard in assignRoleToProfile, which checks
+  // `auth.roleName !== 'super_admin'`. Previously read the legacy
+  // `profiles.role` column, removed by #193.
+  const isSuperAdmin = profile?.role_name === 'super_admin';
 
   // Filter roles based on what the current user can assign.
   // Mirrors the server-side guards in assignRoleToProfile — the server is the
