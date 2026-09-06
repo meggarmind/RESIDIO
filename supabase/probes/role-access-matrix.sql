@@ -19,26 +19,14 @@
 --
 -- Through the Supabase MCP (`mcp__supabase__execute_sql`), which is how this
 -- project does all database work — see CLAUDE.md. Paste the whole file, having
--- replaced the two placeholders on the two lines marked `-- PARAMETER`:
+-- replaced the placeholder on the line marked `-- PARAMETER`:
 --
 --   :role_name    one of super_admin, chairman, vice_chairman, financial_officer,
 --                 security_officer, secretary, project_manager
---   :legacy_role  what `assignRoleToProfile()`'s LEGACY_ROLE_MAP would write for
---                 that role, as a `user_role` literal or NULL:
 --
---                   super_admin        -> 'admin'::user_role
---                   chairman           -> 'chairman'::user_role
---                   financial_officer  -> 'financial_secretary'::user_role
---                   security_officer   -> 'security_officer'::user_role
---                   vice_chairman      -> NULL
---                   secretary          -> NULL
---                   project_manager    -> NULL
---
---                 The three NULLs are not an oversight. The legacy vocabulary
---                 cannot express those roles, so a real holder carries NULL, and
---                 every policy that reads `profiles.role` denies them. Recording
---                 that is the point: it is the latent bug ADR-0007 describes,
---                 measured rather than asserted.
+-- There was a second `:legacy_role` parameter until #194: the legacy vocabulary
+-- (`profiles.role`, the `user_role` enum, `get_my_role()`) is gone from the
+-- database as of that slice, so there is nothing left to set.
 --
 -- WHY IT IS SAFE ON THE LIVE DATABASE
 --
@@ -60,7 +48,7 @@
 -- Counting rows cannot answer this on its own: roughly half these tables are
 -- empty, and an empty table returns zero rows to everyone. So each table's
 -- deployed policy expressions are evaluated directly, in a real session
--- impersonating the probe profile, with the real `get_my_role()`,
+-- impersonating the probe profile, with the real `get_my_role_name()`,
 -- `has_permission()` and `is_approved()` doing the work:
 --
 --   no-grant       `authenticated` has no SELECT privilege at all; RLS never runs
@@ -85,10 +73,9 @@ LEFT JOIN public.profiles p ON p.id = u.id
 WHERE p.id IS NULL
 ORDER BY u.id LIMIT 1;
 
-INSERT INTO public.profiles (id, email, full_name, approval_status, role_id, role)
+INSERT INTO public.profiles (id, email, full_name, approval_status, role_id)
 SELECT id, 'rbac-matrix-probe@residio.invalid', 'RBAC matrix probe', 'active',
-       (SELECT id FROM public.app_roles WHERE name = 'super_admin'),  -- PARAMETER :role_name
-       'admin'::user_role                                             -- PARAMETER :legacy_role
+       (SELECT id FROM public.app_roles WHERE name = 'super_admin')   -- PARAMETER :role_name
 FROM _probe;
 
 -- Evaluates one policy expression. Anything that will not evaluate standalone
