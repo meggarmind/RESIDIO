@@ -90,12 +90,28 @@ describe('#194 migration: file identity and ordering', () => {
     expect(MIGRATION_FILE > RENAME_MIGRATION_FILE).toBe(true);
   });
 
-  it('is the last migration in the directory', () => {
-    const migrations = readdirSync(migrationsDir)
+  /**
+   * This assertion used to read `migrations[migrations.length - 1]` -- i.e. that
+   * #194 is the newest migration in the directory. That was true on the day it
+   * was written and cannot stay true: the next migration anyone adds breaks it,
+   * for no reason connected to what #194 does. #213 was the one that tripped it.
+   *
+   * The same flaw in `anonymous-read-closure.test.ts` is tracked as #225; this
+   * is the second instance of it, so #225 undercounts.
+   *
+   * What the original was actually protecting is kept, and it is the narrower
+   * claim: nothing may be inserted BETWEEN #193 (which renames the column) and
+   * #194 (which drops it). A migration landing in that window would run against
+   * a column that is renamed but not yet gone, which is exactly the half-migrated
+   * state the epic sequenced these two slices to avoid. Migrations after #194 are
+   * none of this test's business.
+   */
+  it('has no migration sequenced between #193 and #194', () => {
+    const between = readdirSync(migrationsDir)
       .filter((f) => f.endsWith('.sql'))
-      .sort();
+      .filter((f) => f > RENAME_MIGRATION_FILE && f < MIGRATION_FILE);
 
-    expect(migrations[migrations.length - 1]).toBe(MIGRATION_FILE);
+    expect(between).toEqual([]);
   });
 });
 
