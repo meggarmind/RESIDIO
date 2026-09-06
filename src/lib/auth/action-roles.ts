@@ -78,6 +78,7 @@ export const PERMISSIONS = {
   REPORTS_VIEW_OCCUPANCY: 'reports.view_occupancy',
   REPORTS_VIEW_SECURITY: 'reports.view_security',
   REPORTS_EXPORT: 'reports.export',
+  REPORTS_MANAGE_SCHEDULES: 'reports.manage_schedules',
 
   // Settings Module
   SETTINGS_VIEW: 'settings.view',
