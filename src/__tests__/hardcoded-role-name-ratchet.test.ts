@@ -5,9 +5,13 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * Ratchet: no *new* migration may authorize an RLS policy by comparing
- * `app_roles.name` (or an aliased equivalent) against a hardcoded string
- * literal or `ARRAY[...]` of string literals, instead of calling
- * `has_permission()`.
+ * `app_roles.name` against a hardcoded string literal or `ARRAY[...]` of
+ * string literals, instead of calling `has_permission()` -- however the
+ * column is reached: alias-qualified (`ar.name`, `r.name`), schema-qualified
+ * (`app_roles.name`, `public.app_roles.name`), bare inside a subquery rooted
+ * at `app_roles` (`SELECT id FROM app_roles WHERE name = '...'`), or as the
+ * output of a scalar subquery compared from outside
+ * (`(SELECT ar.name FROM app_roles ar JOIN ...) IN ('...', '...')`).
  *
  * Issue #213: 20 policies across 13 tables authorize with a shape like
  *
@@ -26,6 +30,23 @@ import { describe, expect, it } from 'vitest';
  * migration reaches for the pattern already used twenty times, rather than
  * for `has_permission()`.
  *
+ * #213's own description names the alias-qualified shape because that is
+ * the population that already exists -- it is not a spec for the shapes a
+ * future author might reach for instead. This detector does not stop at
+ * that one surface: `is_super_admin()` in
+ * `20251222000001_fix_rbac_rls_policies.sql` writes the identical defect as
+ * `p.role_id IN (SELECT id FROM app_roles WHERE name = 'super_admin')` --
+ * `name` unqualified, because the subquery's only table *is* `app_roles` --
+ * and a live `storage.objects` policy in
+ * `20260118090000_add_hybrid_payments.sql` writes it as a scalar subquery,
+ * `(SELECT name FROM app_roles ar JOIN profiles pr ON pr.role_id = ar.id
+ * WHERE pr.id = auth.uid()) IN ('super_admin', 'chairman',
+ * 'financial_officer')`, whose result is compared *outside* the subquery
+ * rather than inside it. A ratchet that only recognised the first shape
+ * would be walked around by the second and third without anyone intending
+ * to route around it -- both are simple rephrasings of the same idea, not
+ * exotic SQL.
+ *
  * Existing offenders are allowlisted **by filename**, so the list can only
  * shrink: a file that no longer contains the pattern must be dropped from
  * the allowlist, and a file that is not on it may not start containing it.
@@ -35,8 +56,8 @@ import { describe, expect, it } from 'vitest';
  * `anonymous-read-closure.test.ts` for the general approach of asserting
  * structurally over a migration file without touching a database.
  *
- * Four deliberate non-targets, each excluded on purpose rather than by
- * accident of the regex:
+ * Deliberate non-targets, each excluded on purpose rather than by accident
+ * of the regex:
  *
  * - `has_permission('...')` calls are not flagged. That call is the entire
  *   point of the #213 rewrite -- a migration full of them, replacing every
@@ -53,13 +74,25 @@ import { describe, expect, it } from 'vitest';
  *   bound to app_roles" apart from "the alias bound to app_permissions" and
  *   only ever look at `.name` comparisons on the former.
  * - Seed and catalogue DML is not flagged: `INSERT INTO app_roles` (the role
- *   catalogue itself) and the `INSERT INTO role_permissions ... SELECT ...
+ *   catalogue itself), the `INSERT INTO role_permissions ... SELECT ...
  *   FROM app_roles r ... WHERE r.name IN (...)` shape that `CORE.md` §6
- *   explicitly prescribes for granting permissions to roles. That statement
- *   also compares `r.name` (an app_roles alias) against string literals, so
- *   without this exclusion it would be indistinguishable from the policy
- *   pattern this file exists to catch -- and flagging it would fight a
- *   documented, required convention rather than an authorization defect.
+ *   explicitly prescribes for granting permissions to roles, and the same
+ *   convention written with the role/permission lookups pulled into CTEs
+ *   first (`WITH roles AS (SELECT id, name FROM app_roles WHERE name IN
+ *   (...)), perms AS (...) INSERT INTO role_permissions ...`, as
+ *   `20260119000101_add_personnel_perms.sql` does it). Both shapes compare
+ *   `name` against string literals, so without this exclusion they would be
+ *   indistinguishable from the policy pattern this file exists to catch --
+ *   and flagging them would fight a documented, required convention rather
+ *   than an authorization defect. The exclusion is statement-scoped (a
+ *   statement starting with `INSERT INTO app_roles`/`role_permissions`, or
+ *   starting with `WITH` and containing one of those `INSERT INTO`s further
+ *   in), not subquery-scoped, precisely so that the bare-`name`-in-a-
+ *   subquery-rooted-at-app_roles detector below does not have to tell a
+ *   seeding CTE apart from an authorizing one by shape alone -- they are the
+ *   same shape. If a future migration needs that distinction drawn more
+ *   finely, allowlisting it with a comment is the fallback; silently
+ *   flagging (or silently missing) it is not.
  * - SQL comments are stripped before scanning. The #213 migration itself
  *   carries a rollback block, in a comment, that restores the *old*
  *   hardcoded policies verbatim -- CORE.md's migration convention requires
@@ -80,17 +113,15 @@ import { describe, expect, it } from 'vitest';
  * same species and deserves its own ratchet if #213's sibling issue ever
  * takes it on -- it is out of scope for this one.
  *
- * One known detection gap, disclosed rather than silently accepted:
- * `20260118090000_add_hybrid_payments.sql` gates a `storage.objects` policy
- * with `(SELECT name FROM app_roles ar JOIN profiles pr ON pr.role_id =
- * ar.id WHERE pr.id = auth.uid()) IN ('super_admin', 'chairman',
- * 'financial_officer')` -- the same defect, but with the role's own name
- * selected bare inside a scalar subquery rather than compared through an
- * alias-qualified `ar.name`. #213's own description scopes the pattern to
- * the alias-qualified form (`ar.name`, `r.name`), and this file is not one
- * of the 20 policies across 13 tables it names, so it is left off this
- * ratchet's allowlist rather than stretched for. A migration that repeats
- * *this* exact unaliased shape would not be caught here.
+ * One deliberate scope limit on the bare-`name` detector: it only fires when
+ * the subquery's `FROM app_roles [alias]` is not followed by a `JOIN` --
+ * i.e. `app_roles` is the *only* table that subquery reaches. A bare `name`
+ * inside a subquery that joins app_roles to some other table could belong to
+ * that other table instead, and nothing here is positioned to tell whose
+ * column it is. The scalar-subquery-compared-outside detector does not need
+ * that restriction, because it requires the `name` to be the thing the
+ * subquery actually selects -- unambiguous regardless of what else the
+ * subquery joins.
  *
  * As with the legacy-role ratchet, this is a list of *files*, not of live
  * policies: some of these migrations were superseded by later ones in this
@@ -103,9 +134,9 @@ import { describe, expect, it } from 'vitest';
 const migrationsDir = fileURLToPath(new URL('../../supabase/migrations', import.meta.url));
 
 /**
- * Migrations that compared `app_roles.name` (or an aliased equivalent)
- * against a hardcoded string literal or array of literals, as of this
- * ratchet's introduction (#213).
+ * Migrations that compared `app_roles.name` against a hardcoded string
+ * literal or array of literals, in any of the four forms this detector
+ * recognizes, as of this ratchet's introduction (#213).
  *
  * Derived by running the detector below, `hardcodedRoleNameReferences()`,
  * against every file in `supabase/migrations/` on this branch and recording
@@ -115,14 +146,26 @@ const migrationsDir = fileURLToPath(new URL('../../supabase/migrations', import.
  * (`fix/issue-213-policies-follow-permissions`) and is therefore absent from
  * this scan; once that branch merges, this allowlist should shrink toward
  * empty and this comment's premise should be re-checked.
+ *
+ * `20260118090000_add_hybrid_payments.sql` is on this list even though a
+ * coarser independent scan (by a coordinator reviewing this file) predicted
+ * it would not need to be, on the theory that the sibling branch already
+ * covers it. That theory does not hold on *this* branch: the file's own
+ * text reads `SELECT name FROM app_roles ar JOIN profiles pr ...` -- `name`
+ * bare, not `ar.name` -- and this detector, run here, finds it and must
+ * report it as the real current offender it is. It stays allowlisted (not
+ * silently dropped) until whichever branch fixes it lands and this scan is
+ * re-run.
  */
 const ALLOWLIST = new Set<string>([
   '20251222000000_create_rbac_system.sql',
+  '20251222000001_fix_rbac_rls_policies.sql',
   '20251225100000_invoice_generation_automation.sql',
   '20251228100000_create_document_management.sql',
   '20260106100002_migrate_legacy_notes.sql',
   '20260114225000_create_expenditure_module.sql',
   '20260114225800_create_project_tracker_module.sql',
+  '20260118090000_add_hybrid_payments.sql',
   '20260119000102_fix_vendors_rls.sql',
   '20260815121518_create_personnel_engagements.sql',
   '20260829100100_backfill_profile_role_ids.sql',
@@ -248,10 +291,97 @@ function roleAliases(code: string): Set<string> {
 const NAME_COMPARES_TO_LITERAL =
   /^(?:\s*\)?\s*::\s*[a-z_]+(?:\s+varying)?)*\s*\)?\s*(?:=|<>|!=|IN)\s*(?:ANY\s*|ALL\s*)?\(*\s*(?:ARRAY\s*)?\[?\(*\s*'/i;
 
-/** Statements that seed or catalogue roles/permissions rather than authorize with them. */
+/**
+ * Statements that seed or catalogue roles/permissions rather than authorize
+ * with them: a direct `INSERT INTO app_roles`/`role_permissions`, or the
+ * same thing with the role/permission lookups pulled into CTEs first
+ * (`WITH roles AS (...) INSERT INTO role_permissions ...`). The CTE form is
+ * detected by statement shape (starts with `WITH`, contains a qualifying
+ * `INSERT INTO` later on) rather than by parsing which CTE feeds which
+ * clause -- see the docblock's note on why that coarser boundary is the
+ * right one here.
+ */
 function isSeedOrCatalogueStatement(statement: string): boolean {
-  return /^\s*INSERT\s+INTO\s+(?:public\.)?(app_roles|role_permissions)\b/i.test(statement);
+  const trimmed = statement.trimStart();
+
+  if (/^INSERT\s+INTO\s+(?:public\.)?(app_roles|role_permissions)\b/i.test(trimmed)) {
+    return true;
+  }
+
+  return (
+    /^WITH\b/i.test(trimmed) &&
+    /INSERT\s+INTO\s+(?:public\.)?(app_roles|role_permissions)\b/i.test(trimmed)
+  );
 }
+
+/**
+ * Every parenthesized `(SELECT ...)` subquery within a statement whose FROM
+ * clause's first table is `app_roles`, found by walking balanced parens from
+ * each `(SELECT` opener. Returns, per match, the subquery's own text (`body`,
+ * excluding the delimiting parens), what immediately follows its closing
+ * paren (`afterParen` -- for the scalar-subquery-compared-outside shape),
+ * and `bodyStart`/`afterStart`, the offsets of each within the statement, for
+ * line-number reporting.
+ *
+ * A nested subquery inside the SELECT list itself (rare enough that no
+ * migration scanned here does it) could in principle confuse "first FROM",
+ * but every live instance of this defect keeps the SELECT list to plain
+ * column references.
+ */
+function appRolesRootedSubqueries(
+  statement: string
+): Array<{ body: string; bodyStart: number; afterParen: string; afterStart: number }> {
+  const results: Array<{ body: string; bodyStart: number; afterParen: string; afterStart: number }> =
+    [];
+  const opener = /\(\s*SELECT\b/gi;
+
+  for (const match of statement.matchAll(opener)) {
+    const openIdx = match.index ?? 0;
+    const bodyStart = openIdx + match[0].length;
+
+    let depth = 1;
+    let closeIdx = -1;
+    for (let k = bodyStart; k < statement.length; k++) {
+      if (statement[k] === '(') depth++;
+      else if (statement[k] === ')') {
+        depth--;
+        if (depth === 0) {
+          closeIdx = k;
+          break;
+        }
+      }
+    }
+    if (closeIdx === -1) continue;
+
+    const body = statement.slice(bodyStart, closeIdx);
+    const firstFrom = /\bFROM\s+(?:public\.)?([a-z_][a-z0-9_]*)\b/i.exec(body);
+    if (!firstFrom || firstFrom[1].toLowerCase() !== 'app_roles') continue;
+
+    results.push({ body, bodyStart, afterParen: statement.slice(closeIdx + 1), afterStart: closeIdx + 1 });
+  }
+
+  return results;
+}
+
+/**
+ * The bare-`name` shape (Miss 1): the subquery's `FROM app_roles [alias]` is
+ * immediately followed by `WHERE` (or nothing) rather than a `JOIN` or a
+ * comma-joined second table, so `app_roles` is the *only* table that
+ * subquery reaches and an unqualified `name` inside it can only be
+ * `app_roles.name`. Relies on ordinary backtracking to reject the joined
+ * case correctly: for `FROM app_roles ar JOIN profiles ...`, the optional
+ * alias group first tries consuming `ar`, finds `JOIN` where it needs
+ * `WHERE`/end, backtracks to consuming no alias, finds `ar` where it again
+ * needs `WHERE`/end, and gives up -- it does not need to know the word
+ * `JOIN` to reject it. Deliberately does not match `<alias>.name`, which the
+ * caller's alias-based pass already covers; this only looks at `name` with
+ * no qualifier at all.
+ */
+const APP_ROLES_ONLY_NO_JOIN =
+  /\bFROM\s+(?:public\.)?app_roles\b(?:\s+(?:AS\s+)?[a-z_][a-z0-9_]*)?\s*(?:WHERE\b|$)/i;
+
+/** The subquery's SELECT list is (or starts with) `name`, bare or alias-qualified -- the Miss 2 shape. */
+const SELECTS_NAME_FIRST = /^\s*(?:DISTINCT\s+)?(?:[a-z_][a-z0-9_]*\.)?name\b\s*FROM\b/i;
 
 /**
  * Every hardcoded `app_roles.name` comparison in one migration, as
@@ -261,7 +391,9 @@ function isSeedOrCatalogueStatement(statement: string): boolean {
  * the shape being caught routinely spans several lines (a multi-line
  * `EXISTS (...)` predicate), so line-by-line matching would miss it, and a
  * comparison is only meaningful in the context of the statement that binds
- * its aliases.
+ * its aliases. Three independent passes run per statement -- alias-qualified,
+ * bare-in-an-app_roles-only-subquery, and scalar-subquery-compared-outside --
+ * because each catches a shape the others cannot.
  */
 export function hardcodedRoleNameReferences(sql: string): string[] {
   const code = stripSqlComments(sql);
@@ -278,6 +410,7 @@ export function hardcodedRoleNameReferences(sql: string): string[] {
 
     if (isSeedOrCatalogueStatement(statement)) continue;
 
+    // Pass 1: alias- or schema-qualified, e.g. `ar.name = ANY (...)`.
     for (const match of statement.matchAll(/\b([a-z_][a-z0-9_]*)\.name\b/gi)) {
       const qualifier = match[1].toLowerCase();
       if (!aliases.has(qualifier)) continue;
@@ -285,6 +418,24 @@ export function hardcodedRoleNameReferences(sql: string): string[] {
       const after = statement.slice((match.index ?? 0) + match[0].length);
       if (NAME_COMPARES_TO_LITERAL.test(after)) {
         hitLines.add(lineAt(base + (match.index ?? 0)));
+      }
+    }
+
+    // Passes 2 and 3 share the same app_roles-rooted subqueries.
+    for (const { body, bodyStart, afterParen, afterStart } of appRolesRootedSubqueries(statement)) {
+      // Pass 2: bare `name`, subquery reaches only app_roles.
+      if (APP_ROLES_ONLY_NO_JOIN.test(body)) {
+        for (const match of body.matchAll(/(?<!\.)\bname\b/gi)) {
+          const after = body.slice((match.index ?? 0) + match[0].length);
+          if (NAME_COMPARES_TO_LITERAL.test(after)) {
+            hitLines.add(lineAt(base + bodyStart + (match.index ?? 0)));
+          }
+        }
+      }
+
+      // Pass 3: the subquery's result (its selected name) compared outside.
+      if (SELECTS_NAME_FIRST.test(body) && NAME_COMPARES_TO_LITERAL.test(afterParen)) {
+        hitLines.add(lineAt(base + afterStart));
       }
     }
   }
@@ -365,6 +516,63 @@ describe('hardcoded role-name migration ratchet', () => {
         WHERE rp.role_id = ar.id AND rp.permission_id = ap.id
           AND ar.name = 'chairman' AND ap.category IN ('settings', 'system');`;
       expect(hardcodedRoleNameReferences(sql)).toHaveLength(1);
+    });
+
+    it('catches bare name in a subquery whose only table is app_roles (Miss 1)', () => {
+      // 20251222000001_fix_rbac_rls_policies.sql's is_super_admin(): `name`
+      // is unqualified because the subquery's sole FROM is app_roles.
+      const sql = `CREATE OR REPLACE FUNCTION is_super_admin()
+        RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
+          SELECT EXISTS (
+            SELECT 1 FROM profiles p
+            WHERE p.id = auth.uid()
+              AND p.role_id IN (
+                SELECT id FROM app_roles WHERE name = 'super_admin'
+              )
+          );
+        $$;`;
+      expect(hardcodedRoleNameReferences(sql)).toHaveLength(1);
+    });
+
+    it('catches a scalar subquery selecting the name, compared outside (Miss 2)', () => {
+      // 20260118090000_add_hybrid_payments.sql's storage.objects policy:
+      // the subquery's own result -- not a column inside it -- is what gets
+      // compared to the literal list, after the subquery's closing paren.
+      const sql = `CREATE POLICY "x" ON storage.objects FOR SELECT TO authenticated
+        USING (
+          bucket_id = 'payment-proofs' AND
+          (
+            SELECT ar.name FROM app_roles ar
+            JOIN profiles pr ON pr.role_id = ar.id
+            WHERE pr.id = auth.uid()
+          ) IN ('super_admin', 'chairman')
+        );`;
+      expect(hardcodedRoleNameReferences(sql)).toHaveLength(1);
+    });
+
+    it('ignores the same bare-name-in-app_roles-subquery shape when it feeds a role_permissions seed via CTE', () => {
+      // 20260119000101_add_personnel_perms.sql: structurally identical to
+      // Miss 1 (bare `name`, subquery rooted solely at app_roles), but this
+      // one feeds an INSERT INTO role_permissions rather than an
+      // authorization predicate -- the documented CORE.md §6 convention,
+      // just with the role/permission lookups pulled into CTEs first.
+      const sql = `WITH roles AS (
+          SELECT id, name FROM public.app_roles WHERE name IN ('admin', 'chairman')
+        ),
+        perms AS (
+          SELECT id, name FROM public.app_permissions WHERE name IN ('view_vendors')
+        )
+        INSERT INTO public.role_permissions (role_id, permission_id)
+        SELECT r.id, p.id FROM roles r CROSS JOIN perms p;`;
+      expect(hardcodedRoleNameReferences(sql)).toEqual([]);
+    });
+
+    it('ignores both new forms inside comments', () => {
+      const lineComment = `-- (SELECT id FROM app_roles WHERE name = 'super_admin')`;
+      const blockComment = `/* (SELECT ar.name FROM app_roles ar JOIN profiles pr ON pr.role_id = ar.id WHERE pr.id = auth.uid()) IN ('super_admin', 'chairman') */`;
+
+      expect(hardcodedRoleNameReferences(lineComment)).toEqual([]);
+      expect(hardcodedRoleNameReferences(blockComment)).toEqual([]);
     });
 
     it('ignores has_permission() calls -- the whole point of the #213 rewrite', () => {
