@@ -79,3 +79,7 @@ docs/features/Email-import/Email-import/FirstBank Alert on Your Account - Credit
 # Local tool state (ForgeStudio, skill observations)
 /.forgestudio/
 /skill-observations/
+
+# Machine-local agent/tooling state - never belongs on master
+.base/
+.claude/worktrees/
