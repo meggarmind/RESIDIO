@@ -145,37 +145,35 @@ function sourceFiles(): string[] {
  * Prose about a removed reader is not a reader.
  */
 function stripComments(code: string): string {
-  const out: string[] = [];
-  let i = 0;
+  return code.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (m) => m.replace(/[^\n]/g, ' '));
+}
 
-  const blank = (from: number, to: number) => {
-    for (let k = from; k < to; k++) out.push(code[k] === '\n' ? '\n' : ' ');
-  };
-
-  while (i < code.length) {
-    const two = code.slice(i, i + 2);
-
-    if (two === '//') {
-      const end = code.indexOf('\n', i);
-      const stop = end === -1 ? code.length : end;
-      blank(i, stop);
-      i = stop;
-      continue;
-    }
-
-    if (two === '/*') {
-      const end = code.indexOf('*/', i + 2);
-      const stop = end === -1 ? code.length : end + 2;
-      blank(i, stop);
-      i = stop;
-      continue;
-    }
-
-    out.push(code[i]);
-    i += 1;
+/**
+ * Offset -> 1-based line number, precomputed once per file.
+ *
+ * Built up front rather than by re-slicing the source at every hit: slicing is
+ * quadratic in file size, and across ~1,000 files it pushed this file's
+ * slowest test to 4.8s -- close enough to vitest's 5s default that it passed
+ * when run alone and timed out under the full suite's load. Which is its own
+ * small lesson: a test that is only just fast enough is a flake with a delay
+ * on it.
+ */
+function lineIndexer(code: string): (offset: number) => number {
+  const starts: number[] = [0];
+  for (let i = 0; i < code.length; i++) {
+    if (code[i] === '\n') starts.push(i + 1);
   }
 
-  return out.join('');
+  return (offset: number) => {
+    let lo = 0;
+    let hi = starts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (starts[mid] <= offset) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo + 1;
+  };
 }
 
 /**
@@ -215,7 +213,7 @@ export function legacyColumnReferences(code: string): string[] {
   const stripped = stripComments(code);
   const lines = code.split('\n');
   const hits = new Set<number>();
-  const lineAt = (offset: number) => stripped.slice(0, offset).split('\n').length;
+  const lineAt = lineIndexer(stripped);
 
   // 1. profiles queries
   for (const from of stripped.matchAll(/\.from\((['"`])profiles\1\)/g)) {
@@ -398,7 +396,11 @@ describe('#193: profiles.role is renamed out of existence', () => {
     }
 
     expect(Object.fromEntries(offenders)).toEqual({});
-  });
+    // Explicit timeout: this walks and reads every source file under two
+    // trees, so it is legitimately the slowest test here and must not sit
+    // near vitest's 5s default, where machine load rather than the
+    // codebase decides whether it passes.
+  }, 30000);
 
   it('the scanner detects the shapes it claims to detect', () => {
     // Without this the scan above is unfalsifiable: a detector that matched
