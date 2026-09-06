@@ -1,0 +1,22 @@
+# BASE — Workspace config overrides
+# Inherits ~/.base-gbl/base.toml; uncomment only what this workspace overrides.
+# Full per-section docs live in the global ~/.base-gbl/base.toml.
+
+# [devmode]            # 🔧 DEVMODE diagnostic block on each response
+# enabled = true
+
+# [signal]             # session-start injection (active set, handoffs, reminders)
+# enabled = true
+# max_chars = 2000     # injection budget per session-start
+
+# [flow]               # resurface scans: unblocked, deferred-due, recurring ideas
+# enabled = true
+# mentions = true
+
+# [memory]             # auto-memory target: "claude" | "both" | "base"
+# enabled = true
+# mode = "base"
+
+# [protocol]           # active⇄deferred reconcile from real folder last-touch
+# enabled = true
+# stale_days = 7       # working project untouched this many days → auto-deferred

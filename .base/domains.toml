@@ -1,0 +1,10 @@
+[[domain]]
+name = "RESIDIO"
+mode = "triggered"
+prompt_keywords = []
+file_keywords = []
+paths = ["."]
+exclude = []
+rules = []
+commands = []
+command_activation = "both"
