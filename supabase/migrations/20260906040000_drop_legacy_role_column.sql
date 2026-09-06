@@ -115,6 +115,9 @@ COMMIT;
 --     ADD COLUMN role_deprecated_do_not_use public.user_role;
 --   -- ^ every row is NULL here. The original values are NOT recoverable.
 --
+--   -- The body below is a functional equivalent of the live definition, not a
+--   -- byte-for-byte restoration: the deployed function was LANGUAGE plpgsql and
+--   -- this is LANGUAGE sql. The mapping and the NULL paths are identical.
 --   CREATE OR REPLACE FUNCTION public.get_my_role()
 --   RETURNS public.user_role
 --   LANGUAGE sql
@@ -135,5 +138,18 @@ COMMIT;
 --      WHERE p.id = auth.uid()
 --        AND p.approval_status = 'active';
 --   $fn$;
+--
+--   -- Privileges are NOT restored by CREATE FUNCTION. A fresh function defaults
+--   -- to EXECUTE TO PUBLIC, which would leave get_my_role() callable by `anon` --
+--   -- a privilege regression against the hardened baseline, and exactly the
+--   -- anon-exposure class src/__tests__/anonymous-read-closure.test.ts polices.
+--   -- These two statements reproduce the live proacl:
+--   --   {postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}
+--   REVOKE EXECUTE ON FUNCTION public.get_my_role() FROM PUBLIC, anon;
+--   GRANT  EXECUTE ON FUNCTION public.get_my_role() TO authenticated, service_role;
+--
+--   -- The live comment, restored verbatim.
+--   COMMENT ON FUNCTION public.get_my_role() IS
+--     'Returns the legacy user_role enum for the current user, derived from profiles.role_id -> app_roles.name. Returns NULL unless approval_status is active. Only the five built-in admin roles map to legacy RLS buckets; custom and resident-category roles return NULL until affected policies use explicit permission checks. The legacy profiles.role fallback was removed deliberately: it allowed a client-supplied signup metadata role to become real RLS access.';
 --
 --   COMMIT;

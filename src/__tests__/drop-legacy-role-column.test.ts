@@ -99,6 +99,40 @@ describe('#194 migration: file identity and ordering', () => {
   });
 });
 
+/**
+ * The gate as Postgres sees it: the DO block with `--` comments already gone.
+ *
+ * Naming the catalogues is not the same as querying them correctly. The
+ * assertions below exist because each of these mutations left every
+ * vocabulary check passing while gutting the gate:
+ *
+ *   - widening the regex literal to `'role_deprecated_do_not_use_XYZ'` — the
+ *     substring is still present, so a `toMatch(/role_deprecated_do_not_use/)`
+ *     is satisfied, but the query now matches nothing and the migration
+ *     proceeds unconditionally;
+ *   - inverting `IS NOT NULL` to `IS NULL` — the gate then aborts on a clean
+ *     database and waves offenders through;
+ *   - downgrading one branch's `RAISE EXCEPTION` to `RAISE NOTICE` — half the
+ *     gate becomes a log line while "at least one RAISE EXCEPTION" still holds;
+ *   - adding `CASCADE` to a drop (asserted further down, over the whole
+ *     executable file) — the absence of CASCADE is what makes a surviving
+ *     view, index, constraint or trigger dependency fail loudly instead of
+ *     being silently removed.
+ *
+ * So the assertions pin what the gate DOES: its polarity, that each branch
+ * aborts on its own, and the exact literal it matches on.
+ */
+const gate = executable.match(/DO\s+\$gate\$[\s\S]*?\$gate\$\s*;/)?.[0] ?? '';
+
+/**
+ * The two guarded branches, `IF <var> IS NOT NULL THEN ... END IF;`, captured
+ * one by one. Asserting over the block as a whole cannot tell one live branch
+ * and one downgraded branch apart from two live ones.
+ */
+const gateBranches = [
+  ...gate.matchAll(/IF\s+(offending_\w+)\s+IS\s+NOT\s+NULL\s+THEN([\s\S]*?)END\s+IF\s*;/gi),
+];
+
 describe('#194 migration: the late-binding gate', () => {
   it('wraps the gate in a DO block that raises, so the migration aborts rather than proceeding', () => {
     const doBlock = executable.match(/DO\s+\$gate\$[\s\S]*?\$gate\$\s*;/);
@@ -108,19 +142,55 @@ describe('#194 migration: the late-binding gate', () => {
   });
 
   it('gates on pg_proc: no function body may still reference the column', () => {
-    const doBlock = executable.match(/DO\s+\$gate\$[\s\S]*?\$gate\$\s*;/)?.[0] ?? '';
-
-    expect(doBlock).toMatch(/\bpg_proc\b/i);
-    expect(doBlock).toMatch(/\bprosrc\b/i);
-    expect(doBlock).toMatch(/role_deprecated_do_not_use/);
+    expect(gate).toMatch(/\bpg_proc\b/i);
+    expect(gate).toMatch(/\bprosrc\b/i);
+    expect(gate).toMatch(/role_deprecated_do_not_use/);
   });
 
   it('gates on pg_policies: no policy predicate may still reference the column', () => {
-    const doBlock = executable.match(/DO\s+\$gate\$[\s\S]*?\$gate\$\s*;/)?.[0] ?? '';
+    expect(gate).toMatch(/\bpg_policies\b/i);
+    expect(gate).toMatch(/\bqual\b/i);
+    expect(gate).toMatch(/\bwith_check\b/i);
+  });
 
-    expect(doBlock).toMatch(/\bpg_policies\b/i);
-    expect(doBlock).toMatch(/\bqual\b/i);
-    expect(doBlock).toMatch(/\bwith_check\b/i);
+  it('matches the column name as an exact quoted literal, not as a substring of a wider one', () => {
+    const operands = [...gate.matchAll(/~\s*('(?:[^']|'')*')/g)].map((m) => m[1]);
+
+    expect(
+      operands,
+      'both catalogue queries must match on exactly the dropped column name'
+    ).toEqual(["'role_deprecated_do_not_use'", "'role_deprecated_do_not_use'"]);
+  });
+
+  it('aborts when an offender is FOUND, not when the database is clean', () => {
+    const found = gate.match(/\bIS\s+NOT\s+NULL\b/gi) ?? [];
+
+    expect(found, 'one IS NOT NULL guard per catalogue query').toHaveLength(2);
+    expect(gate, 'an IS NULL guard inverts the gate: clean aborts, dirty passes').not.toMatch(
+      /\bIS\s+NULL\b/i
+    );
+  });
+
+  it('raises an EXCEPTION inside BOTH branches, so neither can be downgraded to a log line', () => {
+    expect(gateBranches, 'expected one guarded branch per catalogue query').toHaveLength(2);
+    expect(gateBranches.map((m) => m[1].toLowerCase())).toEqual([
+      'offending_functions',
+      'offending_policies',
+    ]);
+
+    for (const match of gateBranches) {
+      const variable = match[1];
+      const body = match[2];
+
+      expect(body, `the ${variable} branch must RAISE EXCEPTION`).toMatch(
+        /\bRAISE\s+EXCEPTION\b/i
+      );
+      expect(body, `the ${variable} branch must not merely log`).not.toMatch(
+        /\bRAISE\s+(?:NOTICE|WARNING|INFO|LOG|DEBUG)\b/i
+      );
+    }
+
+    expect(gate.match(/\bRAISE\s+EXCEPTION\b/gi) ?? []).toHaveLength(2);
   });
 
   it('runs the gate BEFORE any of the three drops', () => {
@@ -173,6 +243,19 @@ describe('#194 migration: the three drops, in dependency order', () => {
     expect(dropTypeAt).toBeGreaterThan(dropFunctionAt);
     expect(dropTypeAt).toBeGreaterThan(dropColumnAt);
   });
+
+  /**
+   * Second-order but load-bearing. The absence of CASCADE is what makes a
+   * surviving view, index, constraint or trigger dependency abort the
+   * migration instead of being silently dropped along with its target — the
+   * same "fail now, not weeks later" property the gate above buys. Asserted
+   * over the comment-stripped file so the rollback block cannot mask it.
+   */
+  it('drops nothing with CASCADE — a surviving dependent must fail the migration loudly', () => {
+    expect(executable, 'CASCADE turns a refusal into a silent collateral drop').not.toMatch(
+      /\bCASCADE\b/i
+    );
+  });
 });
 
 describe('#194 migration: the rollback block is present and honest', () => {
@@ -193,6 +276,30 @@ describe('#194 migration: the rollback block is present and honest', () => {
     expect(rollback).toMatch(/CREATE\s+TYPE\s+public\.user_role/i);
     expect(rollback).toMatch(/ADD\s+COLUMN\s+role_deprecated_do_not_use/i);
     expect(rollback).toMatch(/FUNCTION\s+public\.get_my_role/i);
+  });
+
+  /**
+   * `CREATE FUNCTION` does not restore privileges: a fresh function defaults to
+   * EXECUTE TO PUBLIC, so following a rollback that stops at the body would
+   * leave `get_my_role()` callable by `anon`. That is a privilege regression
+   * against the hardened baseline, and precisely the anon-exposure class
+   * `anonymous-read-closure.test.ts` exists to police. The live grants and the
+   * live comment are part of the object, so a faithful rollback restores them.
+   */
+  it('restores the live privileges and comment, not just the function body', () => {
+    expect(
+      rollback,
+      'without the REVOKE the rebuilt function is EXECUTE TO PUBLIC, i.e. callable by anon'
+    ).toMatch(
+      /REVOKE\s+EXECUTE\s+ON\s+FUNCTION\s+public\.get_my_role\s*\(\s*\)\s+FROM\s+PUBLIC\s*,\s*anon\s*;/i
+    );
+    expect(rollback).toMatch(
+      /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+public\.get_my_role\s*\(\s*\)\s+TO\s+authenticated\s*,\s*service_role\s*;/i
+    );
+    expect(rollback).toMatch(/COMMENT\s+ON\s+FUNCTION\s+public\.get_my_role\s*\(\s*\)\s+IS/i);
+    expect(rollback, 'the restored comment must be the live one').toMatch(
+      /derived from profiles\.role_id -> app_roles\.name/
+    );
   });
 
   it('is entirely commented out, so it cannot execute as part of the migration', () => {
@@ -329,11 +436,25 @@ describe('#194: the role-access-matrix probe survives the drop', () => {
     expect(probeExecutable).not.toMatch(/::\s*(?:public\.)?user_role\b/);
   });
 
-  it('takes exactly one kind of parameter, and it is :role_name', () => {
+  /**
+   * Both the SET of markers and their COUNT. The probe carries `:role_name`
+   * twice: once where the probe profile is given its `role_id`, and once where
+   * the result object is labelled. Setting only one produces no error — it
+   * silently probes as one role and files the matrix under another, in the very
+   * instrument this epic relies on to prove the drop was safe. A set-only
+   * assertion cannot see one of the two sites go missing.
+   */
+  it('takes exactly one kind of parameter, :role_name, at exactly two marked sites', () => {
     const markers = [...probe.matchAll(/PARAMETER\s+(:[a-z_]+)/gi)].map((m) => m[1]);
 
-    expect(markers.length).toBeGreaterThan(0);
     expect([...new Set(markers)]).toEqual([':role_name']);
+    expect(markers, 'one site selects the role, the other labels the output').toHaveLength(2);
+  });
+
+  it('tells the operator that BOTH marked sites must be replaced', () => {
+    const header = probe.slice(0, probe.search(/^BEGIN;/m));
+
+    expect(header).toMatch(/EACH of the TWO lines marked/i);
   });
 
   it('documents no :legacy_role parameter in its header', () => {

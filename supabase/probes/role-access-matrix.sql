@@ -9,8 +9,9 @@
 -- WHY THIS EXISTS
 --
 -- #186, #187 and #190 rewrite ~130 RLS policies. The failure mode they risk is
--- silent: `get_my_role()` collapses `vice_chairman` into `chairman` and
--- `financial_officer` into `financial_secretary`, so a rewrite that renames
+-- silent: `get_my_role()`, the legacy function those policies read (dropped in
+-- #194), collapsed `vice_chairman` into `chairman` and `financial_officer` into
+-- `financial_secretary`, so a rewrite that renames
 -- literals instead of expanding buckets revokes an entire role across dozens of
 -- tables and leaves a perfectly well-formed policy behind. No structural test,
 -- type check or reading of the diff catches that. Only a behavioural matrix does.
@@ -19,12 +20,25 @@
 --
 -- Through the Supabase MCP (`mcp__supabase__execute_sql`), which is how this
 -- project does all database work — see CLAUDE.md. Paste the whole file, having
--- replaced the placeholder on the line marked `-- PARAMETER`:
+-- replaced the placeholder on EACH of the TWO lines marked `-- PARAMETER`. There
+-- are exactly two, and BOTH must be set to the same role:
+--
+--   the first   picks the `role_id` the probe profile is actually given, i.e.
+--               the role whose access this run measures;
+--   the second  is the `role_name` literal stamped onto the result object, i.e.
+--               the label the capture is filed under.
+--
+-- SETTING ONLY ONE IS THE DANGEROUS MISTAKE. Nothing errors: you probe as one
+-- role and label the output as another, and `npm run rbac:matrix:diff` then
+-- compares that matrix against the wrong baseline. A silently wrong matrix, in
+-- the instrument this epic relies on to prove the drop was safe. Check both
+-- before running, and check the label on the result before filing it.
 --
 --   :role_name    one of super_admin, chairman, vice_chairman, financial_officer,
 --                 security_officer, secretary, project_manager
 --
--- There was a second `:legacy_role` parameter until #194: the legacy vocabulary
+-- `:role_name` is the only parameter this probe takes (it just has two sites).
+-- There was a second one, `:legacy_role`, until #194: the legacy vocabulary
 -- (`profiles.role`, the `user_role` enum, `get_my_role()`) is gone from the
 -- database as of that slice, so there is nothing left to set.
 --
