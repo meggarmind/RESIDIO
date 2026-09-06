@@ -9,6 +9,170 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-06 — **Epic #182 COMPLETE**: waves 1-4 QA'd, merged, applied and verified)
+
+**Tool:** Claude Code, coordinator posture, autorun standing from the recorded decision on #182.
+**Supabase MCP failed to connect for the whole session** (`CONNECT_TIMEOUT`); every database
+operation went through the Management API query endpoint via `curl`, which works and honours
+`BEGIN`/`ROLLBACK`. That is a workaround, not a fix — the MCP still needs attention.
+
+### 🏁 EPIC #182 IS DONE. The legacy role vocabulary no longer exists.
+
+Measured on the live database after the final migration:
+
+| | |
+|---|---|
+| `profiles.role_deprecated_do_not_use` | **gone** |
+| `user_role` enum | **gone** (`pg_type` returns 0) |
+| `get_my_role()` | **gone** |
+| `get_my_role_name()` | present, **97** policies call it |
+| policies in `public` | 270 |
+
+### Applied vs merged — all four applied, all verified BY NAME against the ledger
+
+| Migration | Issue | PR | Merged | Applied |
+|---|---|---|---|---|
+| `20260906010000_policies_follow_get_my_role_name` | #190 | #230 | yes | **yes** |
+| `20260906020000_remove_last_legacy_role_policies` | #214 | #232 | yes | **yes** |
+| `20260906030000_rename_profiles_role_column` | #193 | #231 | yes | **yes** |
+| `20260906040000_drop_legacy_role_column` | #194 | #234 | yes | **yes** |
+
+Also merged, no migrations: **#229** (baseline), **#235** (regenerated types).
+
+**Nothing is left merged-but-unapplied from this session.** The pre-existing ledger drift for
+part A and #191 (recorded at `20260905030200`/`20260905030210` rather than their filename
+versions) is still unreconciled and was not touched.
+
+### The verification that matters — access is unchanged except where declared
+
+Final role-access matrix, all 7 roles × 97 tables, diffed against
+`docs/validation/role-access-matrix.before-wave2.json`:
+
+```
+expected, as declared (6)
+  super_admin / chairman / financial_officer  ×  ai_settings, ai_conversation_logs
+                                                allow -> row-dependent
+exit 0
+```
+
+**Nothing else moved.** Those six cells are the accepted consequence of Jimi's #214 decision.
+Artefact committed as `docs/validation/role-access-matrix.after-epic-182.json`.
+
+⚠️ **Honest limit:** the matrix probe measures **SELECT only** (see its header). Non-SELECT
+commands are covered by the structural proofs instead — #190's independent 97/97 bucket
+re-derivation, `vice_chairman` required-81/present-81, `financial_officer` required-52/present-52,
+and byte-exact rollback checks.
+
+### QA found four things that would have shipped broken
+
+Every slice was QA'd blind at Opus, and QA earned its cost four times:
+
+1. **#193 FAILED first review.** Three embedded PostgREST selects still named the bare `role`
+   column, in files the branch never touched (`get-audit-logs.ts:59`, `approvals/index.ts:60,61`).
+   On apply, PostgREST 42703 would have taken down the **audit log page and approvals list**.
+   `tsc` could not catch it. The test scanner was blind to embedded resources — fixed, and the
+   fix independently re-verified.
+2. **#214, round 2.** Appending `OR true` to the `ai_settings` `WITH CHECK` left the suite green —
+   the documented recovery path would have restored a write policy open to every authenticated
+   user. The first fix closed the instance, not the class.
+3. **#214, the declaration.** The migration declared 3 moving matrix cells; **6** move. Following
+   its own verification command would have produced a red diff with three unexplained narrowings.
+   Measured by applying in a rolled-back transaction and re-probing.
+4. **#194's gate tests checked vocabulary, not semantics.** Changing the gate regex to
+   `role_deprecated_do_not_use_XYZ` left all 35 tests green while disabling half the gate — on the
+   one migration that destroys data irrecoverably. Also surviving: inverted `IS NOT NULL`,
+   `RAISE EXCEPTION` downgraded to `RAISE NOTICE`, and `CASCADE`. All four now die.
+
+**#194's gate was proven by making it fire**, not by reading it: a decoy function referencing the
+column was planted inside a transaction, the migration aborted naming the offender, and everything
+rolled back.
+
+### New defects filed
+
+- **#233 — `database.generated.ts` had drifted from the live schema.** Missing four `profiles`
+  columns including **`approval_status`**, which gates authorization inside `get_my_role_name()`
+  and `has_permission()` — the compiler had not been checking any read of it. Also missing 7 FK
+  relationships, including both of `late_fee_waivers`' FKs to `profiles`, which is the data
+  `CORE.md` §13's join-ambiguity rule depends on. **Root cause is #219** (`db:types` defined
+  `--local`, which `CORE.md` §5 forbids, so nobody could regenerate).
+  Corrected in PR #235; the script itself is still wrong.
+- **#228** (filed previous session) — RLS policies live in the database do not exist in
+  `supabase/migrations/`. Still open. This is why #214 needed a committed live capture
+  (`docs/validation/last-legacy-role-siblings.json`) to evidence its own correctness argument.
+
+### The working cloud command for types — use this, not `npm run db:types`
+
+```bash
+npx supabase gen types typescript --project-id kzugmyjjqttardhfejzc --schema public
+```
+
+Needs `SUPABASE_ACCESS_TOKEN` in the OS environment. `--schema public` suppresses the newer CLI's
+`graphql_public` block. **`npm run db:types` must not be run** — it targets `--local` (#219).
+
+### ⚠️ Do not re-litigate
+
+1. **`get_my_role() IN ('admin','chairman')` admitted THREE roles, not four.** `super_admin`,
+   `chairman`, `vice_chairman`. The four-role case is the *three*-literal set that also admits
+   `financial_officer`. The wrong number sat in #190's issue body and in
+   `docs/validation/role-access-matrix.md` — the document whose purpose is explaining bucket
+   expansion. Corrected there and recorded on #190. **The shipped migration is unaffected**: it
+   was built from the 97-policy re-derivation, not from that sentence.
+2. **There were TWO legacy vice_chairman mappings and they disagreed.** `get_my_role()` mapped
+   `vice_chairman` to `chairman`; `LEGACY_ROLE_MAP` wrote `NULL`. Both are now gone, but any old
+   document reasoning about "the" mapping is ambiguous.
+3. **#193's `create_generated_invoice()` rewrite WIDENED access** to `vice_chairman` and
+   NARROWED it for non-`active` accounts. It is not access-preserving. #193's issue body still
+   carries a false "access preserved exactly" claim; the migration header is correct.
+4. **#193 absorbed part of #194's scope** (deleting `LEGACY_ROLE_MAP`, stopping the legacy-column
+   writes). Disclosed in its migration header.
+5. **Jimi's #214 decision stands**: the two AI policies were dropped and NOT replaced.
+   `ai_settings` has no write policy for anyone; admins lost read-all on conversation logs; no
+   `ai.*` permission was invented.
+
+### Visible change to two admin surfaces — intended
+
+The audit log "Actor role" column and its CSV export now render RBAC names: `super_admin` where
+they read `admin`, `financial_officer` where they read `financial_secretary`. Rows for
+`vice_chairman`, `secretary` and `project_manager` — which `LEGACY_ROLE_MAP` sent to NULL and
+rendered blank — now show a role. **Access is unchanged.** Flagged to Jimi during the session.
+
+### Documentation
+
+- `docs/security/access-control.md` documented `get_my_role()` with a body reading
+  `SELECT role INTO user_role`. **That was already wrong before this epic** — the live function
+  read `role_id` and joined `app_roles`. Rewritten to document `get_my_role_name()`.
+- `docs/validation/role-access-matrix.md` reframed to past tense; role-count error corrected.
+- `supabase/probes/role-access-matrix.sql` was **broken** by #193's rename and is repaired. Its
+  header now states that **both** `-- PARAMETER :role_name` sites must be set — setting only one
+  produces a correctly-computed but **mislabelled** matrix with no error raised.
+- `npm run docs:drift` reports **19 drifted pages, all pre-existing and unrelated**. Verified by
+  checking: no page under `website/docs` mentions `get_my_role`, `user_role`, `profiles.role`,
+  `ai_settings`, or the audit actor-role column. **Not cleared** — clearing an unread report is
+  forbidden.
+
+### Method notes
+
+- **The Management API works for `curl` but is blocked for `urllib`** (Cloudflare 1010). Use curl.
+- **Apply every migration as a rolled-back dry run first**, then for real. Used on all four; it
+  caught nothing this time but is what makes "measure the delta" cheap.
+- **Prove a safety gate by making it fire.** Reading it is not verification.
+- Migration timestamps for concurrent agents must be **assigned by the coordinator**.
+- **Check `git rev-parse` before grepping the working tree.** I read stale files from a pre-merge
+  branch and briefly reported a false regression. `git show origin/master:<path>` is safer.
+- Native Windows Python cannot read MSYS `/c/...` paths — use `C:/...`.
+
+### Housekeeping left for the next session
+
+- `.worktrees/issue-190`, `issue-193`, `issue-214` still exist, and several
+  `.claude/worktrees/agent-*` remain. All work in them is merged; they can be removed.
+- Feature branches for #190/#193/#194/#214 were **not** deleted on merge.
+- `supabase/fixtures/04-resident-house-links.sql.bak` and `06-invoices.sql.backup` are **tracked**
+  `.bak` files committed in `b1878c3f`. Pre-existing; look like accidental check-ins.
+- `.claude/settings.local.json` shows persistently modified on this machine and `.base-ast/` is
+  untracked and ungitignored.
+
+---
+
 ## Last session (Claude Code, 2026-09-06 — Epic #182 wrap-up: waves 1-3, interrupted for a Supabase MCP restart)
 
 **Tool:** Claude Code, coordinator posture, autorun authorised by Jimi ("All work must be completed tonight… continue until the EPIC is done"). **Supabase MCP failed to connect all session** (`CONNECT_TIMEOUT`); every database operation went through the Management API query endpoint, which works and honours `BEGIN`/`ROLLBACK`. The session was stopped deliberately, at a safe point, so Jimi can fix the MCP. **Autorun is to continue on resume.**
