@@ -23,11 +23,58 @@ const routePermissionConfig: Record<string, Permission[]> = {
     '/portal': [],
 };
 
-// Admin routes that residents should NOT access
+// Admin routes that residents should NOT access.
+// Must cover every immediate subdirectory of src/app/(dashboard)/ —
+// dashboard-route-guard.test.ts enumerates that directory from disk and fails
+// if one is missing here.
 export const adminOnlyRoutes = [
     '/residents', '/houses', '/payments', '/billing', '/security',
-    '/reports', '/approvals', '/settings', '/system', '/dashboard'
+    '/reports', '/approvals', '/settings', '/system', '/dashboard',
+    // Added by #104 alongside their new ROUTE_PERMISSIONS entries.
+    '/personnel', '/projects', '/expenditure', '/analytics', '/notifications',
+    // Also (dashboard) segments, and also absent here before #104: both had
+    // ROUTE_PERMISSIONS entries, so a resident hitting them was bounced to
+    // /dashboard?error=unauthorized rather than to the portal. Listing them
+    // sends residents where they belong instead.
+    '/announcements', '/documents',
 ];
+
+/**
+ * Public route allowlist — the ONLY paths served without a session.
+ *
+ * Middleware is the sole authentication gate for the admin dashboard: no layout
+ * and no page guards anything. Before #104 the gate keyed off whether a path
+ * matched `routePermissionConfig`, so a route with no entry skipped the entire
+ * auth block and was served to anyone, unauthenticated. Five real routes were in
+ * exactly that state (/personnel, /projects, /expenditure, /analytics,
+ * /notifications).
+ *
+ * The default is therefore inverted: deny unless explicitly listed here. A route
+ * added tomorrow with no ROUTE_PERMISSIONS entry still requires a session.
+ *
+ * /api is deliberately public *at this layer* — those routes carry their own
+ * guards (CRON_SECRET, webhook signature verification, per-route permission
+ * checks) and some must be reachable pre-auth.
+ */
+export const publicRoutePrefixes = [
+    '/login',
+    '/register',
+    '/forgot-password',
+    '/reset-password',
+    '/pending-approval',
+    '/auth',
+    '/maintenance',
+    '/api',
+];
+
+/**
+ * `/` is public as an exact match only: src/app/page.tsx just redirects to
+ * /dashboard, and treating it as a prefix would make every path public.
+ */
+export function isPublicRoute(pathname: string): boolean {
+    if (pathname === '/') return true;
+    return publicRoutePrefixes.some((prefix) => pathname.startsWith(prefix));
+}
 
 // Routes that should be accessible even during maintenance mode
 const maintenanceExemptRoutes = ['/login', '/maintenance', '/pending-approval', '/api'];
@@ -135,13 +182,23 @@ export async function middleware(request: NextRequest) {
         }
     }
 
-    if (protectedRoute) {
-        if (!user) {
-            const redirectUrl = new URL('/login', request.url);
-            redirectUrl.searchParams.set('next', pathname);
-            return NextResponse.redirect(redirectUrl);
-        }
+    // Authentication gate — deny by default.
+    //
+    // This used to sit inside `if (protectedRoute)`, which meant a path with no
+    // routePermissionConfig entry was served to anyone. It is now keyed off the
+    // public allowlist instead, so an unrecognised path requires a session.
+    // Every routePermissionConfig key is non-public, so this is a superset of
+    // the old behaviour for the routes that were already guarded.
+    if (!isPublicRoute(pathname) && !user) {
+        const redirectUrl = new URL('/login', request.url);
+        redirectUrl.searchParams.set('next', pathname);
+        return NextResponse.redirect(redirectUrl);
+    }
 
+    // Authorization. Only runs when an entry matches: with no entry there is no
+    // permission to check, and inventing a default one would lock out routes
+    // nobody has classified yet. The session requirement above is the floor.
+    if (protectedRoute && user) {
         const isResidentUser = profile?.resident_id != null;
         const hasAdminRole = isAdminRole(role);
 

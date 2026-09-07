@@ -204,6 +204,25 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/approvals': [PERMISSIONS.APPROVALS_VIEW],
   '/dashboard': [], // All authenticated users
 
+  // Registered by #104. All five directories already existed under
+  // src/app/(dashboard)/ with no entry here, no entry in adminOnlyRoutes and no
+  // guard of their own — and an unmatched path used to skip middleware's whole
+  // auth block, so each was served to anyone, unauthenticated. The middleware
+  // default is now deny-unless-public, but these entries are what supplies the
+  // permission check on top of the session requirement.
+  //
+  // /personnel maps to VENDORS_VIEW rather than a personnel-specific permission
+  // because src/actions/personnel/actions.ts and .../engagements.ts already
+  // authorize every operation on VENDORS_VIEW/VENDORS_MANAGE. The route follows
+  // the actions it drives.
+  '/personnel': [PERMISSIONS.VENDORS_VIEW],
+  '/projects': [PERMISSIONS.PROJECTS_VIEW],
+  '/expenditure': [PERMISSIONS.EXPENDITURE_VIEW],
+  '/notifications': [PERMISSIONS.NOTIFICATIONS_VIEW],
+  // Mirrors /reports: the analytics dashboard composes the same three report
+  // families, and any one of them is enough to have something to look at.
+  '/analytics': [PERMISSIONS.REPORTS_VIEW_FINANCIAL, PERMISSIONS.REPORTS_VIEW_OCCUPANCY, PERMISSIONS.REPORTS_VIEW_SECURITY],
+
   // System — fallback first, then the specific pages that override it.
   '/system': [PERMISSIONS.SYSTEM_VIEW_ALL_SETTINGS],
   '/system/audit-logs': [PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS],
