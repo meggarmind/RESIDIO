@@ -206,8 +206,12 @@ export async function getInvoiceSummary(params: InvoiceFilterParams = {}): Promi
         return { data: null, error: error.message };
     }
 
-    const totalAmountDue = (amountResult.data ?? []).reduce(
-        (sum, row) => sum + (Number((row as { amount_due: number | string | null }).amount_due) || 0),
+    // `amountResult` flows out of applyInvoiceFilters, which is deliberately untyped (see the
+    // TS2589 note on that helper), so the reduce callback needs explicit parameter types --
+    // without them `noImplicitAny` fails the production build even though vitest and eslint pass.
+    const amountRows = (amountResult.data ?? []) as Array<{ amount_due: number | string | null }>;
+    const totalAmountDue = amountRows.reduce(
+        (sum: number, row: { amount_due: number | string | null }) => sum + (Number(row.amount_due) || 0),
         0
     );
 
