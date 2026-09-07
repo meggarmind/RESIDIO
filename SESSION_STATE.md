@@ -9,6 +9,65 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-06 — **#238 fixed, #78 verified-fixed and closed**)
+
+**Tool:** Claude Code. Two pilot-set items cleared. One test assertion changed; **no application
+code changed, no migration written, nothing applied.**
+
+### #238 — master is red (FIXED, PR open)
+
+`src/__tests__/drop-has-security-permission.test.ts` asserted `has_security_permission` survived
+**only** in `src/types/database.generated.ts`. `8bf0a34b` regenerated the types against cloud, where
+the function no longer exists, so the stub went away, `filesWithReference` became `[]`, and the
+assertion failed. **The test went red on the completion of the cleanup it was tracking** — it was
+pinned to an intermediate state, not the end state.
+
+Fixed on `fix/issue-238-red-master` (commit `affc51ad`, PR #246) by inverting to
+`expect(filesWithReference).toEqual([])` and renaming the test. **Mutation-verified**: reintroducing
+the string into `database.generated.ts` fails the test. Board → `In review`.
+
+### #78 — Backfill Error (VERIFIED FIXED, CLOSED)
+
+Driven in the running app rather than reasoned about. `/billing/generate` → Historical backfill →
+House `18A, Kayode Oni Animashaun` (`f866af4d-…`, the uuid from the issue) → `2025-01`–`2025-01` →
+Preview exact request. **No error.** `No billing profile version is effective for 2025-01-01` is gone.
+Fixed by `42a5be3f`. Closed, board → `Done`.
+
+**Do not re-verify with the 2025-01 case alone.** It returns `0 new / ₦0.00 / 1 existing` — the
+candidate is skipped because `LEGACY-KOA-18A-2025-01` exists, which could equally mean the skip
+short-circuits before pricing. That concern is live: 18A's billing profile
+(`31472df3-…`) has **exactly one version, `effective_from = 2026-08-01`**, over a year after the
+requested period — precisely the old error condition. The proof is the **2020-07** preview (18A has
+unbroken coverage 2020-08→2026-08, so 2020-07 is the nearest gap): `1 new / ₦10,000.00 / 0 existing`.
+The candidate is enumerated **and priced**, so the pricing path genuinely resolves.
+
+### Follow-up noticed, deliberately not absorbed (CORE.md §15)
+
+Backfilling 2020-07 prices at **₦10,000** — the current profile version's rate — while the legacy
+invoices for that era are **₦5,000** (the ₦10,000 rate starts at `LEGACY-KOA-18A-2025-01`). A
+historical backfill applies the *current* rate to a historical period. With one profile version there
+may be nothing else it could do, but decide it deliberately before running a real pre-2025 backfill.
+Recorded on #78; **not** filed as its own issue yet.
+
+### Local environment trap (not a repo defect — do not "fix" it in the repo)
+
+`node_modules/prettier` was an **empty directory** on this machine. `prettier@3.7.4` is correctly
+resolved in `package-lock.json` as a transitive dep of `@react-email/render`, so `npm ci` is fine and
+**CI is unaffected**. Locally it broke two test suites at *load* time
+(`billing-generation-history`, `billing-resident-filter`, `Cannot find module 'prettier/plugins/html'`)
+**and blocked the dev server from compiling any page that imports the email layer.** Repaired with
+`npm install prettier@3.7.4 --no-save`; `package.json` and `package-lock.json` untouched. If the
+symptom returns, repair node_modules — do not add prettier to `package.json`.
+
+`.claude/launch.json` was added (untracked, dev-server config for the browser preview).
+
+### Verification
+
+`npm test`: **1009 tests pass, 92/94 suites**. The 2 failing suites are the prettier load failure
+above — reproduced with the #238 change stashed, so pre-existing and unrelated.
+
+---
+
 ## Last session (Claude Code, 2026-09-06 — **pilot cutover**: stop-work on hardening, board re-sequenced for Wed 9 Sep)
 
 **Tool:** Claude Code, coordinator posture. Review-and-triage session — **no application code
