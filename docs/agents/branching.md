@@ -78,10 +78,13 @@ verified, what is left. That is a record, not a signal, and a PR is the right sp
 Never push to a branch another session has declared without asking that session and waiting
 for an explicit answer. A clear is true as of its timestamp, not indefinitely.
 
-If your host has a `Stop`/`SessionEnd` hook that checkpoints (this repo has seen
-`git-sync.ps1 -Mode Checkpoint`, which commits WIP and pushes the current branch), you
-cannot promise a commit stays local. Check before offering that guarantee, and say which
-case you are in.
+If your host has a `Stop`/`SessionEnd` hook that checkpoints, you cannot promise a commit
+stays local. Check before offering that guarantee, and say which case you are in.
+
+This repo has seen exactly that: `git-sync.ps1 -Mode Checkpoint`, which commits WIP and
+pushes the current branch. **It was removed from the owner's machine on 2026-09-07**, so
+that machine no longer auto-commits — but the check still applies, because a peer on a
+different system may still run one. Verify your own host rather than assuming.
 
 ## 6. The `stage` backup
 
