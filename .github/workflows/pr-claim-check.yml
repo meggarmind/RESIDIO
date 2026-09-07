@@ -1,0 +1,38 @@
+name: PR Claim Check
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited]
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  claim-check:
+    name: Verify linked issue is assigned to the PR author
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      # Blocking by design, same reasoning as migration-drift.yml: the claim discipline
+      # agreed for the dual-harness workflow (assign the issue before starting) was
+      # convention with nothing behind it (#297) — a non-blocking warning would just be
+      # that convention again, with extra steps.
+      #
+      # The default GITHUB_TOKEN is sufficient: this only reads pull request and issue
+      # data on a public repo, and a pull_request run from a fork still receives a
+      # read-only token with that access. The script itself fails loudly rather than
+      # passing silently if the token cannot read what it needs.
+      - name: Check PR claim
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/pr-claim-check.mjs --ci
