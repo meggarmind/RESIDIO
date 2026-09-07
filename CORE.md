@@ -131,6 +131,14 @@ migrations and run queries through the Supabase MCP tools; your harness's file n
 > Treat the cloud-only rule as authoritative and the scripts as wrong; the fix is tracked
 > separately.
 
+**Applying a migration and committing its file are two separate acts** — the first happens
+through the Supabase MCP tools, the second through git, and only the first was ever enforced.
+That gap is why the database accumulated 61 applied migrations with no corresponding file on
+disk (#283). `scripts/migration-drift.mjs`, run by `.github/workflows/migration-drift.yml` on
+every PR and on a daily schedule, compares the database's applied migration list against
+`supabase/migrations/` and fails the build on any divergence in either direction — enforcing
+the pairing so drift cannot silently reaccumulate after the #279 schema baseline.
+
 ---
 
 ## 6. Server actions — the mandatory contract
