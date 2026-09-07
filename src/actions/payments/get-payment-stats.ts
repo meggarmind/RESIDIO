@@ -16,6 +16,8 @@ export async function getPaymentStats() {
 
     const stats = {
         total_collected: 0,
+        total_count: 0,
+        paid_count: 0,
         pending_count: 0,
         overdue_count: 0,
         failed_count: 0
@@ -23,9 +25,11 @@ export async function getPaymentStats() {
 
     data?.forEach((r) => {
         const amt = Number(r.amount) || 0;
+        stats.total_count += 1;
 
         if (r.status === 'paid') {
             stats.total_collected += amt;
+            stats.paid_count += 1;
         } else if (r.status === 'pending') {
             stats.pending_count += 1;
         } else if (r.status === 'overdue') {
