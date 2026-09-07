@@ -12,7 +12,7 @@ import {
     duplicateBillingProfile,
     BillingProfileData,
 } from '@/actions/billing/profiles';
-import { getInvoices, getResidentIndebtedness, getHousePaymentStatus, getResidentCrossPropertyPaymentSummary } from '@/actions/billing/get-invoices';
+import { getInvoices, getInvoiceSummary, getResidentIndebtedness, getHousePaymentStatus, getResidentCrossPropertyPaymentSummary } from '@/actions/billing/get-invoices';
 import { generateMonthlyInvoices } from '@/actions/billing/generate-invoices';
 import {
     prepareInvoiceGenerationRun,
@@ -181,6 +181,20 @@ export function useAdminInvoices(params: GetInvoicesParams = {}) {
             return { data: result.data, total: result.total };
         },
         ttlMs: ADMIN_READ_CACHE_TTLS.list,
+    });
+}
+
+// Estate-wide (filter-aware) invoice aggregates for the /billing stat cards. Keyed on the
+// same filter params as useAdminInvoices (minus page/limit) so it refetches whenever the
+// filters change, but pagination alone never invalidates it.
+export function useInvoiceSummary(params: Omit<GetInvoicesParams, 'page' | 'limit'> = {}) {
+    return useQuery({
+        queryKey: ['invoices-summary', params],
+        queryFn: async () => {
+            const result = await getInvoiceSummary(params);
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
     });
 }
 
