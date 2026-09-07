@@ -761,7 +761,7 @@ export interface Database {
           payment_date: string;
           period_start: string;
           period_end: string;
-          status: 'paid' | 'pending' | 'failed';
+          status: 'paid' | 'pending' | 'overdue' | 'failed';
           reference: string | null;
           import_id: string | null;
           import_row_id: string | null;

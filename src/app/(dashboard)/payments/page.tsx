@@ -45,6 +45,8 @@ function PaymentsContent() {
 
   const stats = statsResult?.stats || {
     total_collected: 0,
+    total_count: 0,
+    paid_count: 0,
     pending_count: 0,
     overdue_count: 0,
     failed_count: 0,
@@ -84,7 +86,7 @@ function PaymentsContent() {
         />
         <EnhancedStatCard
           title="Completed"
-          value={stats.pending_count > 0 ? `${Math.max(0, (paymentsResult?.count || 0) - stats.pending_count)}` : '0'}
+          value={`${stats.paid_count}`}
           icon={CheckCircle}
           isLoading={statsLoading}
           description="Successful transactions"
