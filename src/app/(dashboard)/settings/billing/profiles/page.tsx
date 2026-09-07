@@ -2,12 +2,13 @@
 
 import { BillingProfileForm } from '@/components/billing/billing-profile-form';
 import { BillingProfileEditDialog } from '@/components/billing/billing-profile-edit-dialog';
+import { BillingProfileVersionsDialog } from '@/components/billing/billing-profile-versions-dialog';
 import { useBillingProfiles, useDeleteBillingProfile, useDuplicateBillingProfile } from '@/hooks/use-billing';
 import { useCurrentDevelopmentLevyProfileId } from '@/hooks/use-settings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Building, Users, Clock, Pencil, Landmark, CheckCircle, Copy } from 'lucide-react';
+import { Trash2, Building, Users, Clock, Pencil, Landmark, CheckCircle, Copy, History } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import {
     Dialog,
@@ -19,14 +20,22 @@ import {
 } from "@/components/ui/dialog";
 import { useState } from 'react';
 import { BILLABLE_ROLE_OPTIONS } from '@/types/database';
+import { useAuth } from '@/lib/auth/auth-provider';
 
 export default function BillingProfilesPage() {
+    const { hasPermission } = useAuth();
+    // Mirrors the server gate on `listBillingProfileVersions`, which reproduces
+    // the SELECT policy on billing_profile_versions. Without this a `secretary`
+    // -- who holds billing.view but not billing.manage_profiles -- would be
+    // offered a control that can only ever produce an error toast.
+    const canViewVersions = hasPermission('billing.manage_profiles');
     const { data: profiles, isLoading } = useBillingProfiles();
     const deleteMutation = useDeleteBillingProfile();
     const duplicateMutation = useDuplicateBillingProfile();
     const { data: currentDevLevyId } = useCurrentDevelopmentLevyProfileId();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editProfileId, setEditProfileId] = useState<string | null>(null);
+    const [versionsProfile, setVersionsProfile] = useState<{ id: string; name: string } | null>(null);
 
     const getRoleLabels = (roles: string[] | null) => {
         if (!roles || roles.length === 0) return null;
@@ -132,6 +141,18 @@ export default function BillingProfilesPage() {
                                             >
                                                 <Pencil className="h-4 w-4" />
                                             </Button>
+                                            {canViewVersions && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8"
+                                                    title="Rate versions"
+                                                    aria-label="Rate versions"
+                                                    onClick={() => setVersionsProfile({ id: profile.id, name: profile.name })}
+                                                >
+                                                    <History className="h-4 w-4" />
+                                                </Button>
+                                            )}
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
@@ -188,6 +209,13 @@ export default function BillingProfilesPage() {
                 profileId={editProfileId}
                 open={!!editProfileId}
                 onOpenChange={(open) => !open && setEditProfileId(null)}
+            />
+
+            <BillingProfileVersionsDialog
+                profileId={versionsProfile?.id ?? null}
+                profileName={versionsProfile?.name ?? ''}
+                open={!!versionsProfile}
+                onOpenChange={(open) => !open && setVersionsProfile(null)}
             />
         </div>
     );

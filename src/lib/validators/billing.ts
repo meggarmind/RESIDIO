@@ -100,3 +100,49 @@ export function isBillableRole(role: string): role is BillableRole {
 export function getBillingTargetLabel(targetType: BillingTargetType): string {
   return targetType === 'house' ? 'Property (House)' : 'Resident (Role-Based)';
 }
+
+// =====================================================
+// Billing profile versions (historical rate schedule)
+// =====================================================
+
+/**
+ * A billing profile version's `effective_from` is constrained in the database by
+ * `CHECK (effective_from = date_trunc('month', effective_from)::date)`. Validate
+ * it here rather than letting the insert fail: a raw CHECK violation surfaces to
+ * the admin as an opaque Postgres error, and the month is the one field a
+ * historical rate entry cannot get wrong.
+ */
+export const monthStartDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-01$/, 'Effective from must be the first day of a month (YYYY-MM-01)')
+  .refine((value) => {
+    const month = Number(value.slice(5, 7));
+    if (month < 1 || month > 12) return false;
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  }, 'Effective from must be a real calendar month');
+
+export const billingProfileVersionItemSchema = z.object({
+  name: z.string().trim().min(1, 'Item name is required'),
+  amount: z.coerce.number().min(0, 'Amount must be zero or greater'),
+  frequency: billingFrequencyEnum,
+  is_mandatory: z.boolean().default(true),
+});
+
+export type BillingProfileVersionItemData = z.infer<typeof billingProfileVersionItemSchema>;
+
+export const billingProfileVersionSchema = z.object({
+  billing_profile_id: z.string().uuid('A billing profile must be selected'),
+  effective_from: monthStartDateSchema,
+  items: z.array(billingProfileVersionItemSchema).min(1, 'At least one rate item is required'),
+});
+
+export type BillingProfileVersionData = z.infer<typeof billingProfileVersionSchema>;
+
+/** Item edits for an unlocked, unapproved version. The profile it belongs to never moves. */
+export const billingProfileVersionUpdateSchema = z.object({
+  effective_from: monthStartDateSchema.optional(),
+  items: z.array(billingProfileVersionItemSchema).min(1, 'At least one rate item is required').optional(),
+});
+
+export type BillingProfileVersionUpdateData = z.infer<typeof billingProfileVersionUpdateSchema>;

@@ -304,6 +304,7 @@ export type AuditEntityType =
   | 'invoices'
   | 'payments'
   | 'billing_profiles'
+  | 'billing_profile_versions'  // Historical rate schedule (#242)
   | 'wallets'
   | 'wallet_payment_batches'
   | 'approval_requests'
@@ -397,6 +398,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   invoices: 'Invoice',
   payments: 'Payment',
   billing_profiles: 'Billing Profile',
+  billing_profile_versions: 'Billing Profile Version',
   wallets: 'Wallet',
   wallet_payment_batches: 'Wallet Payment Batch',
   approval_requests: 'Approval Request',

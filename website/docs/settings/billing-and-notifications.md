@@ -6,8 +6,8 @@ residio_sources:
   - src/app/(dashboard)/settings/billing/**
   - src/app/(dashboard)/settings/notifications/**
   - src/app/(dashboard)/settings/message-templates/**
-residio_verified_commit: 3113e72
-residio_verified_at: '2026-09-03'
+residio_verified_commit: c65b6ca7
+residio_verified_at: '2026-09-07'
 residio_app_version: '0.4.0'
 ---
 
@@ -16,6 +16,10 @@ residio_app_version: '0.4.0'
 ## Billing
 
 Review billing settings before changing rates or periods. For a rate change, confirm the effective date, affected profile, and whether existing invoices should remain unchanged.
+
+Each billing profile carries a **rate schedule**: a list of versions, each with the month its rates started applying. A billing period is priced by the newest version effective on or before it, so a period earlier than every version is priced by the earliest one — invoice generation reports that as a warning in its preview rather than failing. Open **Rate versions** on a profile in **Settings → Billing → Profiles** to see the schedule, and to add a version for a past month when a historical rate needs recording. A version that is locked or approved cannot be edited; record a rate change by adding a new version with a later effective month.
+
+Two separate permissions govern this. **Manage Billing Profiles** shows the **Rate versions** control and the schedule inside it — a Secretary has neither. **Manage Billing Rate Versions** is what allows a version to be added or edited, and is held by the Super Admin, Chairman, Vice Chairman and Financial Officer only; a Project Manager can read the schedule but not write it, because a version with a past effective month decides what a backfilled invoice charges and those invoice numbers are permanent.
 
 Use **Late Fees** for grace periods, fee rules, and waivers. Use **Invoice Generation** for recurring generation controls and run history.
 
