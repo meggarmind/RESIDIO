@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { User, Session } from '@supabase/supabase-js';
+import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { AppRoleName } from '@/types/database';
 import { getServerSession } from '@/actions/auth/get-server-session';
@@ -78,6 +79,19 @@ function setCachedProfile(profile: Profile | null) {
   } catch {
     // Ignore storage errors (e.g., quota exceeded)
   }
+}
+
+// A profile resolved while the RBAC (role/permissions) fetch failed or timed
+// out is a known-degraded snapshot: permissions: [], role_name: null. It is
+// fine to render that profile so the app doesn't hang, but it must never be
+// written to the 5-minute session cache -- doing so turns one slow query
+// into a five-minute outage where every navigation/reload re-serves the
+// degraded profile instead of retrying. A legitimately zero-permission role
+// (rbacFailed === false) is a different condition and must still cache.
+// Exported so the decision can be unit tested without mounting the provider.
+export function cacheProfileIfHealthy(profile: Profile, rbacFailed: boolean): void {
+  if (rbacFailed) return;
+  setCachedProfile(profile);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -283,6 +297,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Fetch role details and permissions
     let appRole: { id: string; name: string; display_name: string } | null = null;
     let permissions: string[] = [];
+    // Tracks a failed/timed-out RBAC fetch explicitly, rather than inferring
+    // it from permissions.length === 0 -- a role legitimately granted zero
+    // permissions is a different condition and must not be treated as a
+    // failure (it should still cache normally).
+    let rbacFailed = false;
     // No legacy reverse lookup here any more (#193). It resolved a role by
     // name from the deprecated profiles.role column when role_id was absent;
     // #192 reconciled every profile and proved against live data that no row
@@ -321,6 +340,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .filter((name): name is string => name != null);
       } catch (err) {
         console.error('[AuthProvider] RBAC fetch failed or timed out:', err);
+        rbacFailed = true;
       }
     }
 
@@ -336,8 +356,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     setProfile(newProfile);
-    // PERFORMANCE: Cache profile for faster subsequent page loads
-    setCachedProfile(newProfile);
+    // PERFORMANCE: Cache profile for faster subsequent page loads -- but
+    // never cache a profile built from a failed/timed-out RBAC fetch (#113).
+    // A cached degraded profile survives for the full 5-minute TTL across
+    // every navigation and reload, turning a transient blip into an outage.
+    cacheProfileIfHealthy(newProfile, rbacFailed);
+
+    if (rbacFailed) {
+      toast.error('Could not load your permissions', {
+        description: 'Some controls may be hidden until this is retried. Your access has not changed.',
+        action: {
+          label: 'Retry',
+          onClick: () => {
+            void fetchProfile(userId);
+          },
+        },
+        duration: 15000,
+      });
+    }
   }, [supabase]);
 
   const signOut = async () => {
