@@ -123,13 +123,13 @@ describe('drop orphaned has_security_permission', () => {
     expect(migration).toContain('20260824202000');
   });
 
-  it('has_security_permission is only referenced in generated type stubs', () => {
+  it('has_security_permission is no longer referenced anywhere in src/', () => {
     const srcDir = fileURLToPath(new URL('../../src', import.meta.url));
     const thisTestFile = fileURLToPath(import.meta.url);
     const filesWithReference = findFilesContaining(srcDir, 'has_security_permission', thisTestFile);
 
-    // Should only be in database.generated.ts
-    const generatedTypeFile = path.join(srcDir, 'types', 'database.generated.ts');
-    expect(filesWithReference).toEqual([generatedTypeFile]);
+    // The function is dropped from the database and the generated types have been
+    // regenerated against cloud, so no stub remains. The end state is zero references.
+    expect(filesWithReference).toEqual([]);
   });
 });
