@@ -9,6 +9,101 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-07 — **pilot set #104 #105 #106 #113: four PRs open, none merged**)
+
+**Tool:** Claude Code, coordinator posture. Four issues taken as one wave. **No migration was
+written and none was applied — nothing is outstanding on that front.** Nothing merged to `master`;
+the user does the merging.
+
+### Open PRs — all CI green, all board items in `In review`
+
+| PR | Issue | Tip | QA |
+| --- | --- | --- | --- |
+| #257 | #104 ungated admin routes | `02309ba9` | opus, PASS WITH NOTES, defect closed |
+| #258 | #105 `/payments/new` RSC crash | `ba424df0` | sonnet, PASS WITH NOTES |
+| #259 | #106 CronHealthCard regression test | `2bb9129b` | coordinator-verified |
+| #260 | #113 RBAC timeout cache | `451ad729` | opus, PASS WITH NOTES, defect closed |
+
+**Merge #257 deliberately.** It inverts the middleware default for every route in the app and
+narrows resident access (below). The other three are contained.
+
+### Three issue bodies were wrong — brief from this, not from them
+
+1. **#104's stated root cause was already fixed.** The hand-maintained duplicate route table is
+   gone (`c17934a9`); `routePermissionConfig` spreads `ROUTE_PERMISSIONS`. `/documents` and
+   `/announcements` were already gated. **Five** routes remained open, not seven, and for a
+   different reason: middleware treated "no prefix matched" as *public*. Measured live,
+   unauthenticated: `/personnel` `/projects` `/expenditure` `/analytics` `/notifications` all
+   returned **HTTP 200**. Fixed by inverting the default, not by adding five entries.
+2. **#106 was already fixed** by unrelated `/system` work (`4c18817f`, `a464fc3b`) and protected by
+   nothing. PR #259 is the missing test only; `cron-health-card.tsx` is untouched.
+3. **The "deterministic" test failure was a flake** — see #255 below. Two agents called it
+   deterministic. Both were wrong.
+
+### Access change — decided by the owner, do not reverse it as a regression
+
+Gating the five routes narrows access: `secretary` loses `/personnel` + `/notifications`;
+`project_manager` loses `/personnel` + `/notifications` + `/expenditure`; `security_officer` loses
+`/projects` + `/expenditure`. The owner was shown this delta and chose to apply the mapping as-is
+rather than granting around it.
+
+**Incidental and confirmed against the live DB:** the seeded `resident` role holds `documents.view`,
+so a resident was previously served the **admin** `/documents` page. Adding `/documents` to
+`adminOnlyRoutes` now sends them to `/portal`. Correct, but a real behaviour change. Swept
+`app_roles` — no custom `category = 'resident'` role holds it.
+
+### The defect QA found twice, in both security items
+
+**Tests verified the helper, never the caller.** #113's tests exercised `cacheProfileIfHealthy` but
+never asserted the component called it — QA restored the original bug at the call site with the whole
+repo still green. #104's test asserted the config tables matched the filesystem but **never executed
+`middleware()`** — reverting the gate to the exact pre-fix condition `if (protectedRoute && !user)`
+left it green 6/6. Both closed: `451ad729` adds a source-scanning ratchet, `02309ba9` adds a test
+that drives the real `middleware()`. Both mutations re-verified by the coordinator, not just reported.
+
+**Expect this failure mode.** It is the highest-value thing QA does here.
+
+### #255 — master is red under load, and the answer is nondeterministic
+
+**Do not trust a single `npm test -- --run` result on this machine.** A pristine `origin/master`
+worktree fails **three** tests under full-suite load — `drop-has-security-permission`,
+`rename-profiles-role-column`, `global-search-command` — while the integration branch failed a
+*different* set (`legacy-role-migration-ratchet`, `global-search-command`). **All pass in isolation.**
+
+They are source-scanning ratchets that walk `src/**` with `node:fs`; under parallel workers they
+contend for I/O and blow their timeouts (`legacy-role-migration-ratchet`: 730ms alone vs 7037ms when
+failing). Each honest new test file makes the others likelier to fail. Filed and widened as **#255**.
+
+### Filed rather than absorbed
+
+- **#255** — the ratchet flake family (retitled and widened with pristine-master evidence).
+- **#256** — `auth-provider.tsx:286` caches an empty-permission fallback profile when the `profiles`
+  fetch errors. Same class as #113, one branch upstream, bypasses the new guard. **Not reachable via
+  the #113 path** (`fallbackProfile` hardcodes `role_id: null`, so `rbacFailed` can never be set
+  there) — a standing sibling defect, not a hole in #113.
+
+### Environment traps hit this session
+
+- **`node_modules/.bin` was missing entirely** — `next`, `vitest`, `eslint`, `tsc` all unresolvable,
+  same damage class as last session's empty `prettier`. Repaired with `npm ci`. Machine condition,
+  **not a repo defect** — do not "fix" it in the repo.
+- **`git stash` silently loses work in these worktrees.** Two independent agents hit it: one got
+  `No stash entries found` on `pop` and had to redo its implementation. Stash refs live in
+  `.git/refs/stash`, which is **shared across all worktrees**. Use `git checkout <ref> -- <paths>`
+  to A/B test, and commit early instead.
+- **Backgrounded gate commands deadlock sub-agents.** One agent stalled waiting for notifications it
+  could not receive; there is no `SendMessage` in this harness, so the only recovery is `TaskStop`.
+  Briefs must say *run gates in the FOREGROUND*, and must give the escape hatch — if a command
+  exceeds the timeout, re-run it **narrowed** (`npx vitest run <one-file>`), never backgrounded.
+- Port 3000 remains unusable (Windows excluded range 2995–3094); verification ran on **3200**.
+
+### Still open from the pilot set
+
+`#82 #73 #109 #110 #111 #114 #149` per the previous handoff, minus what has since merged. The four
+issues above are `In review`, not `Done` — move them only when their PRs merge.
+
+---
+
 ## Last session (Claude Code, 2026-09-07 — **metric-truth family: #109 #110 #111 merged, #114+#252 in review**)
 
 **Tool:** Claude Code, coordinator posture. Four pilot-set issues taken as one defect family —
