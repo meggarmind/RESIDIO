@@ -9,6 +9,88 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-07 — **metric-truth family: #109 #110 #111 merged, #114+#252 in review**)
+
+**Tool:** Claude Code, coordinator posture. Four pilot-set issues taken as one defect family —
+cards and charts reporting numbers that disagree with the underlying data. **No migration was
+written and none was applied; nothing is outstanding on that front.**
+
+### Shipped and merged into master
+
+| Issue | PR | Merge | Verified in the running app |
+| --- | --- | --- | --- |
+| #109 house Financial Status | #249 | `040b190e` | 18A reads **₦100,000 / Outstanding dues** |
+| #110 invoice status counts | #250 | `570cc9de` | Overdue 19 · Unpaid 0 · Paid 570 → **589**, not 608 |
+| #111 billing stat cards | #251 | `752ce99b` | 589 / 570 / 19 / **₦3,285,000**, unchanged on paging |
+
+**Open:** #114 + #252 in PR #253 (payments Completed card, and the 1000-row cap).
+
+### The decision the owner made — do not re-litigate
+
+Verifying #114 uncovered a **pre-existing ₦22.4M reporting error**. `getPaymentStats` did a bare
+`.select('status, amount')` with no range, so **PostgREST's 1000-row cap** truncated every derived
+figure. "Total Collected" — the headline "Lifetime revenue" figure — showed **₦17,034,053** against a
+true **₦39,436,963**.
+
+The owner was given the option to defer it and **explicitly chose to fix it inside #114**, knowing the
+headline revenue figure on `/payments` would visibly jump from ₦17M to ₦39.4M. **That jump is the
+correction, not a regression.** Filed as #252 first so the record survives.
+
+### Three facts that contradict the issue bodies — brief from these, not from the issues
+
+1. **#110 names a dead component.** `InvoiceDistributionCard` has zero importers outside its own file
+   (uncapped grep). The live component is **`ModernPendingPayments`**, mounted at
+   `dashboard/page.tsx:63`. It is a stacked bar, not a donut, and it is **not** on `/analytics` at all.
+   `invoice-distribution-card.tsx` remains dead code — deleting it is an open question.
+2. **#114's enum premise is backwards.** The Postgres enum `payment_status` is
+   `{pending, paid, overdue, failed}` — `overdue` **is** storable, confirmed against `pg_enum`, and
+   `database.generated.ts` agrees. The stale surface was the hand-written union in
+   `src/types/database.ts`. The Zod validator was always right. **Do not "fix" the validator.**
+3. **#110's correct outcome looks like a bug.** Every unpaid invoice is currently overdue, so a true
+   partition renders **Unpaid as 0** and Overdue as 19. Correct. Do not revert it.
+
+### Traps that cost time this session
+
+- **Port 3000 cannot be bound on this machine.** It sits inside a Windows excluded TCP range
+  (**2995–3094**, per `netsh interface ipv4 show excludedportrange protocol=tcp`), so `npm run dev`
+  and the Playwright `webServer` both die with `EACCES`. Verification ran on **port 3200**
+  (`npx next dev -p 3200`). This is a machine condition, not a repo defect — do not "fix" it in the repo.
+- **Worktrees have no `node_modules` and no `.env.local`.** `issue:workflow start` creates neither.
+  Junction `node_modules` from the main checkout (`New-Item -ItemType Junction`) and copy `.env.local`,
+  or every gate fails misleadingly — `npm run build` fails at *prerender* with a Supabase client error
+  that looks like a code defect.
+- **Sub-agents deadlock if they background their own gate commands.** Four did, two holding
+  concurrent Next builds at ~4GB. Brief implementers to run gates in the **foreground**.
+- The empty-`prettier` `node_modules` trap from the previous session recurred; repaired again with
+  `npm install prettier@3.7.4 --no-save`. `package.json` untouched.
+
+### Verification gaps worth knowing
+
+- **`npm test` and `npm run lint` cannot catch everything here.** #111 shipped an implicit-`any` that
+  only `next build` caught, and #114's 1000-row truncation was only caught by a Playwright assertion
+  pinning an exact expected count. **Run `tsc --noEmit` and the E2E sweep, not just vitest.**
+- **A passing test is not necessarily a real test.** #110's first pass asserted
+  `markup.toContain('589')` and passed for a spurious reason — the SVG circumference constant
+  `314.1592653589793` contains the substring `589`. Mutation testing is what found it.
+- `e2e/metric-truth.spec.ts` (in PR #253) pins these figures deliberately. **No CI workflow runs
+  Playwright**, so it only runs when someone runs it.
+
+### Left alone deliberately — filed, not absorbed
+
+Two more unbounded aggregating reads, recorded on #252: `analytics/get-indebtedness-rankings.ts:41`
+and `analytics/get-house-street-breakdown.ts:39` both read the whole `invoices` table with no range.
+At 589 invoices they are correct **only by accident of size** and will start under-reporting silently
+once invoices pass 1000 — roughly a year out at current generation rates.
+
+### Verification results
+
+`npm test` on the merged integration branch: **1044 tests, 101 suites, all passing** (up from
+1009/92). `tsc --noEmit` clean. Lint 0 errors. `npm run build` succeeds. Playwright metric-truth
+sweep **7/7**. Docs drift: 19 pages drifted, **none of them documents anything this session changed**
+— nothing re-stamped.
+
+---
+
 ## Last session (Claude Code, 2026-09-06 — **#238 fixed, #78 verified-fixed and closed**)
 
 **Tool:** Claude Code. Two pilot-set items cleared. One test assertion changed; **no application
