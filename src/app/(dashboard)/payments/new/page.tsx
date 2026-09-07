@@ -1,7 +1,6 @@
 import { PaymentForm } from '@/components/payments/payment-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
-import { CreditCard } from 'lucide-react';
+import { PaymentPageHeader } from './payment-page-header';
 
 export default async function NewPaymentPage({
     searchParams,
@@ -13,11 +12,7 @@ export default async function NewPaymentPage({
 
     return (
         <div className="space-y-6 max-w-2xl mx-auto">
-            <EnhancedPageHeader
-                title="Record Payment"
-                description="Enter payment details for a resident."
-                icon={CreditCard}
-            />
+            <PaymentPageHeader />
 
             <Card>
                 <CardHeader>
