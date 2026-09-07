@@ -1,0 +1,45 @@
+name: Migration Drift
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'scripts/migration-drift.mjs'
+      - '.github/workflows/migration-drift.yml'
+  # Drift is introduced outside a PR whenever a migration is applied through the
+  # Supabase MCP tools without its file ever being committed — the exact failure
+  # mode this check exists for (CORE.md §5). A schedule catches that even when no
+  # PR touches supabase/migrations/.
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: Check applied migrations against supabase/migrations/
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      # Unlike docs-drift.mjs, this check is BLOCKING (non-zero exit on drift). A
+      # non-blocking warning is exactly what let 61 applied migrations accumulate
+      # with no file on disk before anyone noticed — this is the check that would
+      # have caught them, so it fails the job rather than only reporting.
+      #
+      # Secrets are unavailable to pull_request runs triggered by a fork; the script
+      # itself fails loudly (rather than passing silently) when they are absent, so
+      # that case is distinguishable in the log and job summary from "checked, no drift".
+      - name: Check migration drift
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+        run: node scripts/migration-drift.mjs --ci

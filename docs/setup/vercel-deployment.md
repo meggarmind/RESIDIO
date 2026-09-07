@@ -132,6 +132,20 @@ In your GitHub repository, go to **Settings > Secrets and variables > Actions** 
 
 The workflow file is at `.github/workflows/backup-cron-invoices.yml`.
 
+## Migration Drift Check (Required)
+
+`.github/workflows/migration-drift.yml` compares migrations applied in the Supabase
+database against the files in `supabase/migrations/` and blocks on divergence (#283).
+It needs its own GitHub repository configuration:
+
+| Name | Kind | Description |
+|------|------|-------------|
+| `SUPABASE_ACCESS_TOKEN` | Secret | A Supabase personal access token, used to call the Management API (`Settings > Secrets and variables > Actions > Secrets`) |
+| `SUPABASE_PROJECT_REF` | Variable | The Supabase project ref (`Settings > Secrets and variables > Actions > Variables`) |
+
+Without these the check fails loudly rather than passing silently — see the script's
+own comments (`scripts/migration-drift.mjs`) for why that distinction matters.
+
 ### How It Works
 
 1. Runs daily at 7 AM UTC (1 hour after Vercel cron)
