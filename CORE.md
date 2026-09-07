@@ -335,6 +335,41 @@ An epic gets one umbrella issue carrying the design and the verified facts, plus
 slice. **Brief each slice for an agent starting cold**: the exact files and line numbers, what
 "done" means, and what *not* to do. That is the only context the implementing agent will have.
 
+### Guardrails on creating issues
+
+Filing is cheap; the backlog it produces is not. A tracker that grows faster than it is worked
+stops being a plan and becomes a second thing to manage. These five rules bind every session, and
+each exists because it was violated on 2026-09-07, when one session filed **24 issues and closed
+7**.
+
+1. **One issue per decision-and-owner — not per activity.** Before filing two issues, ask whether
+   one person would do both in one sitting, gated by the same unknown. If yes, they are one issue.
+   *Violated by #270, #271 and #272 — provisioning, container build, cron scheduling and DNS were
+   filed separately, then collapsed back into #269. They shared one decision (#264), one owner and
+   one sequence. Slicing by activity produced three tickets of ceremony and zero clarity.*
+
+2. **Verify a defect still exists before filing it.** Date the relevant commits against the report
+   and check for a later definition that supersedes the one you are looking at. *#243 described a
+   migration reverting an earlier one; a later migration had already restored it, committed the
+   same day the issue was filed. The issue was investigated, disproved and closed — after a session
+   had planned around it.*
+
+3. **Never ticket a decision the owner has not made.** An issue may pose a question. It must not
+   encode an answer inferred from a neighbouring one. *#265 was filed on an inferred "promote the
+   database in place", reversed within hours, and took four dependent tickets with it.*
+
+4. **Findings in passing are filed, not charted.** §15 requires filing a defect discovered
+   out-of-scope rather than absorbing it — that rule stands. But such issues are labelled and left
+   **out of the active plan**. They must not expand the frontier of the work in hand.
+
+5. **Report the net, and say it plainly.** Any session filing more than three issues reports
+   created versus closed and states the net movement. If the owner asked for the backlog to shrink
+   and it grew, say so in those words rather than describing the new issues as progress.
+
+**No issue without a stated consequence.** Every issue says what breaks, or stays broken, if it is
+never done. If that sentence cannot be written, it is a note or a comment on an existing issue —
+not a new one.
+
 ---
 
 ## 11. Migrations on merge
