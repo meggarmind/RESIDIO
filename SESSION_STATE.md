@@ -9,6 +9,97 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-08 — **three PRs open; one migration written, NOT applied**)
+
+**Tool:** Claude Code, coordinator posture. Follows the wayfinder-map reorganisation recorded below,
+which landed as PR #296. Three PRs are open and **none is merged — the user does the merging.**
+
+### Open PRs, and the order matters
+
+| Order | PR | Issue | Gates (run by the coordinator) |
+| --- | --- | --- | --- |
+| **1st** | #298 preview fallback warning | #242 (AC-4) | tsc 0, lint 0, **11/11** |
+| **2nd** | #303 rate-version write path | #242 | tsc 0, lint 0, **21/21**, 9 mutations caught |
+| any | #299 PR claim CI check | #297 | tsc 0, lint 0, **19/19**, 4/4 mutations caught |
+
+**#298 must merge before #303.** #303's wiki page documents the preview warning, which lives in
+#298's files; alone, that page overclaims.
+
+### ⚠️ Migration written and NOT applied
+
+`supabase/migrations/20260907010000_seed_billing_manage_profile_versions_permission.sql`, on PR
+**#303**. Recorded here and on #242 per `CORE.md` §11.
+
+Until it is applied, **no role holds `billing.manage_profile_versions`**: the add-version form stays
+hidden and the write action refuses every caller. That is correct fail-closed behaviour, not a bug.
+But **applying it is a required step before historical rates can be entered, and therefore before
+#73's full-estate backfill can run.** Do not apply it before #303 merges (`CORE.md` §11: a migration
+is applied only from the branch that introduces it, after that branch merges).
+
+### Where this work came from — an abandoned branch, now superseded
+
+`origin/claude/backlog-review-prioritize-046nqq` was found carrying **~2,300 lines across four
+concerns with no PR ever opened**, last touched 2026-09-07 21:52 UTC. Its salvageable half is now
+#298 + #303. The rest is **deliberately discarded**, and this is the record so nobody "restores" it:
+
+- Its `scripts/check-migration-drift.mjs` is **superseded** — #283 already merged as PR #288 with a
+  different implementation, `scripts/migration-drift.mjs`. The branch's claimed differentiator (an
+  8-digit version regex) is already handled by master's `/^(\d{8,})_/`. Verified, not assumed.
+- Its `CORE.md` and `SESSION_STATE.md` edits are stale; master moved past them. **These three files
+  are 100% of the branch's conflict surface** — dropping them makes everything else merge clean.
+- Its commit `7a95615c` is titled "merge: …" and its `SESSION_STATE.md` presents the work as landed.
+  **It never merged and no PR ever existed.** Any note citing that commit as a landing is wrong.
+
+**The branch can be deleted once #298 and #303 merge.** It was not deleted this session.
+
+### Two defects fixed in #303, both confirmed against the artefact before briefing
+
+- **D1**: the update path replaced rate items as delete-then-insert with no transaction, so an insert
+  failure left a version holding **zero items permanently**, and the early return preceded
+  `logAudit()`. Fixed by compensating re-insert; when both insert and restore fail, the `DELETE` is
+  audited carrying `oldValues: { items }`, making the audit row the only surviving copy of the rate
+  card. A transaction was rejected deliberately: it needs a new RPC, i.e. a *second* migration to
+  apply before #73 can run.
+- **D2**: `listBillingProfileVersions` gated on `billing.view` but read via `createAdminClient()`,
+  bypassing RLS. **Measured live**: both tables' SELECT policy is
+  `has_permission('billing.manage_profiles')`, and exactly one role holds `billing.view` without it
+  — **`secretary`**. Now gated on `billing.manage_profiles`, reproducing the bypassed policy exactly:
+  **net access change zero.**
+
+### Do not re-litigate
+
+- **#286 is NOT fixed** by any of this. `src/lib/billing/invoice-generation-run-service.ts` is in no
+  branch's diff. #298 builds its prerequisite (`versionFallbacks` plumbing); #286 then becomes a
+  small follow-up carrying that into the persisted `result_summary`. Corrected on the issue.
+- **#297's author-matching half is inert.** The repo has exactly one assignable login
+  (`meggarmind`) and both harnesses authenticate as it, so the check cannot tell Codex from Claude.
+  The **unassigned** case is what does the work — 1 of 86 open issues carried an assignee. Recorded
+  on #297; do not "fix" the check to compare harnesses.
+- **The git commit identity (`meggarmin`) differs from the GitHub login (`meggarmind`).** #299
+  resolves the PR author from `author.login` via the API for this reason. Do not switch it to commit
+  metadata.
+
+### Environment traps that cost this session real time
+
+- **`C:\projects\RESIDIO
+ode_modules` was empty** (0 packages — un-recovered fallout of the
+  junction-deletion incident). **Check it before dispatching anything.** All three agents
+  independently started their own `npm ci`, backgrounded it, and deadlocked; none reached a single
+  gate. `SendMessage` is disabled in this harness, so a stalled agent cannot be nudged — `TaskStop`
+  and take the gates over. Their uncommitted work was fine: all three shipped after being verified
+  by hand. Now reinstalled.
+- **A worktree `npm install` yields a broken `eslint` at exit 0** (`es-abstract` fails to resolve),
+  and leaves `node_modules/.bin` without vitest/eslint shims. Run eslint from the main checkout
+  against absolute worktree paths; invoke `node node_modules/vitest/vitest.mjs` directly.
+
+### Known gap accepted, not hidden
+
+In #298, changing the admin-facing warning text from "earliest" to "latest" leaves all 9 tests
+green — the behaviour is covered, the **sentence** is not. Left as-is so the salvaged code stays
+byte-identical to what passed review; documented in the PR.
+
+---
+
 ## Last session (Claude Code, 2026-09-07 — **backlog reorganised into eight wayfinder maps**)
 
 **Tool:** Claude Code. **No code changed, no migration written, none applied.** The work was on the
