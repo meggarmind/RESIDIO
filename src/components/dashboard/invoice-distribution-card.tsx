@@ -28,9 +28,21 @@ const statusConfig: StatusItem[] = [
     { key: 'overdue', label: 'Overdue', color: '#ef4444', bgColor: 'bg-red-500' },
 ];
 
+// `paid` + `partiallyPaid` + `unpaid` + `overdue` are a genuine partition of
+// every non-void invoice (the fetch action nets the overdue subset out of
+// `unpaid`/`partiallyPaid` before returning). `void` invoices are excluded
+// deliberately: they are not drawn as a ring segment (there is no `void`
+// entry in `statusConfig`), so counting them in the denominator would make
+// the visible wedges' percentages not add up to 100%. Both the donut and
+// the legend below must use this same total so the ring and the percentages
+// next to it always agree.
+function computeChartTotal(distribution: InvoiceStatusDistribution): number {
+    return distribution.paid + distribution.partiallyPaid + distribution.unpaid + distribution.overdue;
+}
+
 // SVG Donut Chart Component
 function DonutChart({ distribution }: { distribution: InvoiceStatusDistribution }) {
-    const total = Object.values(distribution).reduce((sum, val) => sum + val, 0);
+    const total = computeChartTotal(distribution);
     if (total === 0) {
         return (
             <div className="relative w-[120px] h-[120px] flex items-center justify-center">
@@ -176,7 +188,7 @@ export function InvoiceDistributionCard({ distribution, isLoading }: InvoiceDist
         return <InvoiceDistributionSkeleton />;
     }
 
-    const total = Object.values(distribution).reduce((sum, val) => sum + val, 0) - distribution.void;
+    const total = computeChartTotal(distribution);
 
     return (
         <Card className="animate-fade-in-up">
