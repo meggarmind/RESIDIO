@@ -26,6 +26,63 @@ type GetInvoicesResponse = {
     error: string | null;
 }
 
+type InvoiceFilterParams = Omit<GetInvoicesParams, 'page' | 'limit'>;
+
+// Shared by getInvoices and getInvoiceSummary so the two cannot drift apart:
+// whatever the table can be filtered by, the estate-wide summary must respect too.
+// Typed as `any` in/out deliberately: the real Supabase PostgrestFilterBuilder type is deep
+// enough (join projections, count/head overloads) that a generic constraint here blows up
+// TypeScript's instantiation depth (TS2589) despite every call site remaining well-typed.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyInvoiceFilters(query: any, params: InvoiceFilterParams): any {
+    const { status, invoiceType, residentId, houseId, search, periodFrom, periodTo } = params;
+
+    if (status) {
+        query = query.eq('status', status);
+    }
+    if (invoiceType) {
+        query = query.eq('invoice_type', invoiceType);
+    }
+    if (residentId) {
+        query = query.eq('resident_id', residentId);
+    }
+    if (houseId) {
+        query = query.eq('house_id', houseId);
+    }
+    if (search) {
+        const sanitized = sanitizeSearchInput(search);
+        query = query.or(`invoice_number.ilike.%${sanitized}%`);
+    }
+    if (periodFrom) {
+        query = query.gte('period_start', periodFrom);
+    }
+    if (periodTo) {
+        query = query.lte('period_start', periodTo);
+    }
+
+    return query;
+}
+
+export type InvoiceSummary = {
+    totalCount: number;
+    paidCount: number;
+    unpaidCount: number;
+    partiallyPaidCount: number;
+    voidCount: number;
+    totalAmountDue: number;
+}
+
+type GetInvoiceSummaryResponse = {
+    data: InvoiceSummary | null;
+    error: string | null;
+}
+
+// Row cap for the client-side amount_due sum below. There is no sum RPC for invoices today
+// (see CORE.md §5/§11 — no migration may be written here to add one), so we bound the read
+// instead of risking an unbounded table scan. 20,000 rows comfortably covers the estate's
+// invoice volume (589 invoices total as of 2026-09-07) with headroom for years of growth.
+const INVOICE_SUM_ROW_CAP = 20000;
+
 type BillingResidentFilterOption = {
     id: string;
     first_name: string;
@@ -89,28 +146,7 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
     `, { count: 'exact' })
         .order('created_at', { ascending: false });
 
-    if (status) {
-        query = query.eq('status', status);
-    }
-    if (invoiceType) {
-        query = query.eq('invoice_type', invoiceType);
-    }
-    if (residentId) {
-        query = query.eq('resident_id', residentId);
-    }
-    if (houseId) {
-        query = query.eq('house_id', houseId);
-    }
-    if (search) {
-        const sanitized = sanitizeSearchInput(search);
-        query = query.or(`invoice_number.ilike.%${sanitized}%`);
-    }
-    if (periodFrom) {
-        query = query.gte('period_start', periodFrom);
-    }
-    if (periodTo) {
-        query = query.lte('period_start', periodTo);
-    }
+    query = applyInvoiceFilters(query, { status, invoiceType, residentId, houseId, search, periodFrom, periodTo });
 
     // Pagination
     const from = (page - 1) * limit;
@@ -126,6 +162,64 @@ export async function getInvoices(params: GetInvoicesParams = {}): Promise<GetIn
     return {
         data: (data as unknown as InvoiceWithDetails[]) || [],
         total: count || 0,
+        error: null,
+    };
+}
+
+// Estate-wide (filter-aware) invoice aggregates — the counterpart to getInvoices' page of
+// rows. Backs the /billing stat cards, which previously derived Paid/Unpaid/Total Value from
+// only the current page of 20 invoices (issue #111).
+export async function getInvoiceSummary(params: InvoiceFilterParams = {}): Promise<GetInvoiceSummaryResponse> {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_VIEW);
+    if (!auth.authorized) {
+        return { data: null, error: auth.error || 'Unauthorized' };
+    }
+
+    const supabase = await createServerSupabaseClient();
+
+    const countQuery = (statusOverride?: InvoiceStatus) => {
+        let query = supabase.from('invoices').select('*', { count: 'exact', head: true });
+        query = applyInvoiceFilters(query, params);
+        if (statusOverride) {
+            query = query.eq('status', statusOverride);
+        }
+        return query;
+    };
+
+    const [totalResult, paidResult, unpaidResult, partiallyPaidResult, voidResult, amountResult] = await Promise.all([
+        countQuery(),
+        countQuery('paid'),
+        countQuery('unpaid'),
+        countQuery('partially_paid'),
+        countQuery('void'),
+        // Bounded amount_due read — see INVOICE_SUM_ROW_CAP above for why this can't be an
+        // unbounded scan, and why it isn't a database RPC (no migration may be written here).
+        applyInvoiceFilters(
+            supabase.from('invoices').select('amount_due'),
+            params
+        ).limit(INVOICE_SUM_ROW_CAP),
+    ]);
+
+    const error = [totalResult, paidResult, unpaidResult, partiallyPaidResult, voidResult, amountResult]
+        .find((result) => result.error)?.error;
+    if (error) {
+        return { data: null, error: error.message };
+    }
+
+    const totalAmountDue = (amountResult.data ?? []).reduce(
+        (sum, row) => sum + (Number((row as { amount_due: number | string | null }).amount_due) || 0),
+        0
+    );
+
+    return {
+        data: {
+            totalCount: totalResult.count ?? 0,
+            paidCount: paidResult.count ?? 0,
+            unpaidCount: unpaidResult.count ?? 0,
+            partiallyPaidCount: partiallyPaidResult.count ?? 0,
+            voidCount: voidResult.count ?? 0,
+            totalAmountDue,
+        },
         error: null,
     };
 }

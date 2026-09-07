@@ -1,6 +1,6 @@
 'use client';
 
-import { useAdminInvoices, useCheckOverdueInvoices, useOverdueStats } from '@/hooks/use-billing';
+import { useAdminInvoices, useCheckOverdueInvoices, useInvoiceSummary, useOverdueStats } from '@/hooks/use-billing';
 import { Button } from '@/components/ui/button';
 import {
     Table,
@@ -130,6 +130,18 @@ export default function BillingPage() {
     const totalCount = data?.total ?? 0;
     const totalPages = Math.ceil(totalCount / limit);
 
+    const isFiltered = status !== 'all' || invoiceType !== 'all' || residentId !== 'all' || Boolean(search) || datePreset !== 'all';
+
+    // Estate-wide (filter-aware) aggregates for the stat cards below -- NOT derived from the
+    // current page of `invoices`, which only ever holds up to `limit` rows.
+    const { data: summary, isLoading: isSummaryLoading } = useInvoiceSummary({
+        status: status === 'all' ? undefined : (status as InvoiceStatus),
+        invoiceType: invoiceType === 'all' ? undefined : (invoiceType as InvoiceType),
+        residentId: residentId === 'all' ? undefined : residentId,
+        search: search || undefined,
+        ...dateRange,
+    });
+
     useEffect(() => {
         async function fetchResidentOptions() {
             const result = await getBillingResidentFilterOptions();
@@ -159,11 +171,6 @@ export default function BillingPage() {
         setDatePreset('all');
         setPage(1);
     };
-
-    // Calculate stats from data
-    const paidCount = invoices.filter(inv => inv.status === 'paid').length;
-    const unpaidCount = invoices.filter(inv => inv.status === 'unpaid').length;
-    const totalAmount = invoices.reduce((sum, inv) => sum + (Number(inv.amount_due) || 0), 0);
 
     return (
         <div className="space-y-6">
@@ -223,28 +230,28 @@ export default function BillingPage() {
                 />
                 <EnhancedStatCard
                     title="Paid"
-                    value={paidCount}
+                    value={summary?.paidCount ?? 0}
                     icon={CheckCircle2}
-                    isLoading={isLoading}
+                    isLoading={isSummaryLoading}
                     description="Completed payments"
                     accentColor="success"
                     className="stagger-2"
                 />
                 <EnhancedStatCard
                     title="Unpaid"
-                    value={unpaidCount}
+                    value={summary?.unpaidCount ?? 0}
                     icon={Clock}
-                    isLoading={isLoading}
+                    isLoading={isSummaryLoading}
                     description="Pending invoices"
-                    accentColor={unpaidCount > 0 ? 'warning' : 'default'}
+                    accentColor={(summary?.unpaidCount ?? 0) > 0 ? 'warning' : 'default'}
                     className="stagger-3"
                 />
                 <EnhancedStatCard
                     title="Total Value"
-                    value={formatCurrency(totalAmount)}
+                    value={formatCurrency(summary?.totalAmountDue ?? 0)}
                     icon={TrendingUp}
-                    isLoading={isLoading}
-                    description="Current page total"
+                    isLoading={isSummaryLoading}
+                    description={isFiltered ? 'Filtered invoice value' : 'All time invoice value'}
                     accentColor="default"
                     className="stagger-4"
                 />
@@ -343,7 +350,7 @@ export default function BillingPage() {
                             </SelectContent>
                         </Select>
 
-                        {(status !== 'all' || invoiceType !== 'all' || residentId !== 'all' || search || datePreset !== 'all') && (
+                        {isFiltered && (
                             <Button
                                 variant="ghost"
                                 size="sm"
