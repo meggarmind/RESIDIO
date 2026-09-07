@@ -9,6 +9,60 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-07 — **backlog reorganised into eight wayfinder maps**)
+
+**Tool:** Claude Code. **No code changed, no migration written, none applied.** The work was on the
+issue tracker and the project board; the only repo change is `docs/agents/project-board.md`, open as
+PR #296. The coordinator handled this directly rather than dispatching sub-agents — ~90 sequential
+`gh` calls against a live tracker, where a mis-parented issue is tedious to unwind (`CORE.md` §15
+trivia threshold, disclosed).
+
+### What changed
+
+The backlog was 86 loose open issues with one map, #262. It is now **eight `wayfinder:map`
+umbrellas, and every open issue is a GitHub native sub-issue of exactly one of them** — zero
+orphans, verified by query. Grouping is **by outcome, not by domain**: a domain grouping produces
+maps that never complete.
+
+| Map | Children | Start → Target |
+| --- | --- | --- |
+| #289 core app readiness — **the gate** | 15 | 2026-09-08 → 09-19 |
+| #292 schema and migration integrity | 5 | 2026-09-15 → 09-26 |
+| #290 authorization and data-exposure floor | 11 | 2026-09-22 → 10-03 |
+| #291 billing and invoicing integrity | 11 | 2026-09-22 → 10-10 |
+| #262 admin-only go-live | 21 (8 closed) | 2026-10-06 → 10-17 |
+| #295 developer workflow and tooling | 4 | 2026-10-13 → 10-24 |
+| #293 WhatsApp and estate messaging | 5 | 2026-10-20 → 11-07 |
+| #294 dashboard experience and performance | 18 | 2026-11-03 → 12-05 |
+
+**#262 was retitled** — it advertised "9 Sep", a date now past. Its Destination body still says
+9 Sep and was left intact as the record of what was decided; a comment records the retitle and the
+gating. It gained #149 and #241, which had no parent.
+
+### Decisions taken on the user's behalf
+
+- **Grouping by outcome**, over domain grouping and over a coarser five-map set. The user asked for
+  the best method to be determined; the two rejected options are recorded in the plan.
+- **Dates on the eight maps only, not on the 83 children.** Eight bars read as a roadmap; ninety
+  overlapping ones do not. Children still group under their parent in swimlane mode.
+- **Every open issue gets a parent**, including awkward ones (#74 parked on #294) — the user chose
+  this over leaving one-offs loose, so the filtered backlog is exactly the maps.
+
+### Traps for the next session
+
+- **A new issue owes a map parent immediately.** An orphan is invisible on the roadmap and missing
+  from every completed/total count. The orphan-finding query is in `docs/agents/project-board.md`.
+- The sub-issues REST API takes an issue's **database id**, not its number, and an issue may have
+  **at most one parent**.
+- **The board is user-scoped** and carries a `wayfinder:map` from another repository entirely. Any
+  filter needs `repo:meggarmind/RESIDIO`.
+- These seven new maps carry **execution issues, not only decision tickets** — a deliberate override
+  of the wayfinder skill, stated in each map's `## Notes`. Do not "correct" it.
+- `post-pilot` on a child of #289 no longer means skippable: #289 is now the thing the pilot waits
+  on. Re-triage rather than assuming.
+
+---
+
 ## Last session (Claude Code, 2026-09-07 — **pilot set #104 #105 #106 #113: four PRs open, none merged**)
 
 **Tool:** Claude Code, coordinator posture. Four issues taken as one wave. **No migration was
