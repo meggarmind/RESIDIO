@@ -96,9 +96,26 @@ export interface CandidateSkip {
   reason: string;
 }
 
+/**
+ * A period that was priced by the earliest-version fallback in
+ * `resolveProfileVersion` rather than by a version genuinely effective for it.
+ * The fallback is deliberate (#78 depends on generation not throwing here), so
+ * this is reported alongside the candidates instead of blocking them.
+ */
+export interface VersionFallbackWarning {
+  houseId: string;
+  house: string;
+  billingProfileId: string;
+  billingProfileName: string;
+  periodStart: string;
+  versionId: string;
+  effectiveFrom: string;
+}
+
 export interface CandidateResolution {
   candidates: InvoiceGenerationCandidate[];
   skips: CandidateSkip[];
+  versionFallbacks: VersionFallbackWarning[];
 }
 
 export interface ResolveBillableCandidatesInput {
@@ -183,28 +200,45 @@ export function selectPeriods(request: Pick<InvoiceGenerationRequest, 'mode' | '
   return periods;
 }
 
-export function resolveProfileVersion(periodStart: string, versions: BillingProfileVersion[]): BillingProfileVersion {
+/**
+ * Resolves the version that prices `periodStart`, reporting whether the
+ * earliest-version fallback was used.
+ *
+ * When no version is effective on or before the period, the earliest version is
+ * returned rather than throwing -- generation must not fail on a period that
+ * predates the rate schedule. `usedFallback` marks that outcome so callers can
+ * warn that the period was priced at a rate which did not yet apply.
+ */
+export function resolveProfileVersionWithFallback(
+  periodStart: string,
+  versions: BillingProfileVersion[],
+): { version: BillingProfileVersion; usedFallback: boolean } {
   parseMonth(periodStart);
   for (const version of versions) parseMonth(version.effectiveFrom);
   const applicable = versions
     .filter((version) => version.effectiveFrom <= periodStart)
     .sort((left, right) => right.effectiveFrom.localeCompare(left.effectiveFrom));
-  if (applicable[0]) return applicable[0];
+  if (applicable[0]) return { version: applicable[0], usedFallback: false };
 
   const sorted = [...versions].sort((left, right) => left.effectiveFrom.localeCompare(right.effectiveFrom));
-  if (sorted[0]) return sorted[0];
+  if (sorted[0]) return { version: sorted[0], usedFallback: true };
 
   throw new Error(`No billing profile version is effective for ${periodStart}`);
+}
+
+export function resolveProfileVersion(periodStart: string, versions: BillingProfileVersion[]): BillingProfileVersion {
+  return resolveProfileVersionWithFallback(periodStart, versions).version;
 }
 
 function resolveVersionForPeriod(
   periodStart: string,
   versions: BillingProfileVersion[],
-): { version: BillingProfileVersion | null; skipReason: string | null } {
+): { version: BillingProfileVersion | null; usedFallback: boolean; skipReason: string | null } {
   try {
-    return { version: resolveProfileVersion(periodStart, versions), skipReason: null };
+    const resolved = resolveProfileVersionWithFallback(periodStart, versions);
+    return { version: resolved.version, usedFallback: resolved.usedFallback, skipReason: null };
   } catch {
-    return { version: null, skipReason: `No billing profile version effective for ${periodStart}` };
+    return { version: null, usedFallback: false, skipReason: `No billing profile version effective for ${periodStart}` };
   }
 }
 
@@ -275,6 +309,24 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
   const eligibility = resolveInvoiceGenerationEligibility(input.eligibility);
   const candidates: InvoiceGenerationCandidate[] = [];
   const skips: CandidateSkip[] = [];
+  const versionFallbacks: VersionFallbackWarning[] = [];
+  const seenFallbacks = new Set<string>();
+  const recordFallback = (house: GenerationHouse, profile: GenerationProfile, periodStart: string, version: BillingProfileVersion) => {
+    // One warning per house/profile/period: a resident-targeted profile resolves
+    // the same version once per resident, and the warning is about the period.
+    const key = `${house.id}|${profile.id}|${periodStart}`;
+    if (seenFallbacks.has(key)) return;
+    seenFallbacks.add(key);
+    versionFallbacks.push({
+      houseId: house.id,
+      house: house.label,
+      billingProfileId: profile.id,
+      billingProfileName: profile.name,
+      periodStart,
+      versionId: version.id,
+      effectiveFrom: version.effectiveFrom,
+    });
+  };
 
   for (const house of input.houses) {
     if (request.houseId && house.id !== request.houseId) continue;
@@ -318,6 +370,7 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
           skips.push({ houseId: house.id, house: house.label, reason: resolved.skipReason! });
           continue;
         }
+        if (resolved.usedFallback) recordFallback(house, profile, period, resolved.version);
         const evaluation = evaluateCandidate(billable, house, profile, resolved.version, period, eligibility.dueWindowDays);
         if (evaluation.candidate) candidates.push(evaluation.candidate);
         else if (evaluation.skipReason) skips.push({ houseId: house.id, house: house.label, reason: evaluation.skipReason });
@@ -336,11 +389,20 @@ export function resolveBillableCandidates(input: ResolveBillableCandidatesInput)
           skips.push({ houseId: house.id, house: house.label, reason: resolved.skipReason! });
           continue;
         }
+        if (resolved.usedFallback) recordFallback(house, profile, period, resolved.version);
         const evaluation = evaluateCandidate(resident, house, profile, resolved.version, period, eligibility.dueWindowDays);
         if (evaluation.candidate) candidates.push(evaluation.candidate);
         else if (evaluation.skipReason) skips.push({ houseId: house.id, house: house.label, reason: evaluation.skipReason });
       }
     }
   }
-  return { candidates, skips };
+  return { candidates, skips, versionFallbacks };
+}
+
+/**
+ * Renders a fallback warning for display. Kept beside the type so the preview
+ * and the generation run report the same sentence.
+ */
+export function describeVersionFallback(warning: VersionFallbackWarning): string {
+  return `${warning.house}: ${warning.periodStart.slice(0, 7)} was priced using the earliest "${warning.billingProfileName}" rate version (effective ${warning.effectiveFrom}) because no version was in effect for that period. Add a rate version effective from ${warning.periodStart} to bill the rate that actually applied.`;
 }
