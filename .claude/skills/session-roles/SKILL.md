@@ -61,24 +61,20 @@ Everything governing conduct from here — delegation limits, disclosure duties,
 review lens, standing cross-session terms — lives in
 `docs/agents/session-roles.md`. Follow it there.
 
-## 5. Suppress the end-of-session auto-checkpoint
+## 5. Commit deliberately — nothing auto-commits any more
 
-Jimi's `SessionEnd` hook runs `git-sync.ps1 -Mode Checkpoint`, which commits WIP
-and pushes the current branch. While these roles are active that must not fire —
-role sessions commit deliberately, and an auto-commit publishes half-finished
-work under a machine-generated message.
+Role sessions commit deliberately and push only when asked.
 
-On activation, create the flag the hook checks:
+This used to need active suppression: a `SessionEnd` hook ran
+`git-sync.ps1 -Mode Checkpoint`, which committed WIP and pushed the current
+branch, and activation had to `touch "$HOME/.claude/role-mode-active"` to skip
+it for one session end. **That hook was removed on 2026-09-07, so there is no
+flag to create and no checkpoint to suppress.** If you find an older instruction
+telling you to create `role-mode-active`, it is stale — the file has no reader.
 
-```bash
-touch "$HOME/.claude/role-mode-active"
-```
+The consequence runs the other way now: nothing rescues uncommitted work at
+session end, so commit before you stop rather than relying on a safety net that
+no longer exists.
 
-The hook skips the checkpoint when that file exists **and deletes it**, so the
-suppression covers exactly one session end and normal checkpointing resumes
-afterwards. That is deliberate: a crashed or abandoned role session must not
-leave Jimi's safety net switched off. If you want it suppressed again, the next
-activation re-creates it.
-
-Tell Jimi you have done this, and that commits in this session are yours alone —
-nothing is pushed unless he asks.
+Tell Jimi that commits in this session are yours alone — nothing is pushed
+unless he asks.

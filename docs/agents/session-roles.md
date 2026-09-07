@@ -119,16 +119,19 @@ they are not valid *across the link*. Two rules follow:
 - **Push disclosure up front**, naming the target branch. If both sides would
   commit to the same branch, sequence rather than race.
 - **Push disclosure is not symmetric — check your own machine before promising
-  anything.** A host with a `Stop` hook that checkpoints (this repo has seen
-  `git-sync.ps1 -Mode Checkpoint`, which by its own documentation "commits WIP
-  and pushes the current branch") cannot promise a commit stays local: work
-  reaches `origin` at session end, on whatever branch happens to be checked out,
-  including WIP neither side chose to publish. Check `~/.claude/settings.json`
-  and `.claude/settings*.json` for a `Stop` hook before offering "I have not
-  pushed" as a guarantee, and state which case you are in. Accept a
-  counterpart's local-only claim only once they have confirmed they have no such
-  hook — and scope any "no overlap" claim to the branch discipline it actually
-  depends on.
+  anything.** A host with a `Stop`/`SessionEnd` hook that checkpoints cannot
+  promise a commit stays local: work reaches `origin` at session end, on whatever
+  branch happens to be checked out, including WIP neither side chose to publish.
+  This repo has seen exactly that — `git-sync.ps1 -Mode Checkpoint`, which by its
+  own documentation "commits WIP and pushes the current branch". **It was removed
+  from the owner's machine on 2026-09-07**, so that machine can now honestly claim
+  local-only. The check itself still stands: a peer on a different system may
+  still run one, and this is precisely the asymmetry the rule exists for. Check
+  `~/.claude/settings.json` and `.claude/settings*.json` for a `Stop`/`SessionEnd`
+  hook before offering "I have not pushed" as a guarantee, and state which case
+  you are in. Accept a counterpart's local-only claim only once they have
+  confirmed they have no such hook — and scope any "no overlap" claim to the
+  branch discipline it actually depends on.
 - **Ask before pushing to a branch the counterpart is on, and wait.** On the one
   branch you know they occupy, disclosure after the fact is not enough: send a
   one-line "about to push to <branch> — are you clear?" and hold until they
