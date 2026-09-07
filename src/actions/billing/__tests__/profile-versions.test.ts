@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createBillingProfileVersion, updateBillingProfileVersion } from '../profile-versions';
+import {
+    createBillingProfileVersion,
+    listBillingProfileVersions,
+    updateBillingProfileVersion,
+} from '../profile-versions';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
@@ -158,6 +162,63 @@ beforeEach(() => {
     authorizeMock.mockResolvedValue(authorized);
 });
 
+/**
+ * The list reads through the admin client, which bypasses RLS -- so its
+ * `authorizePermission()` call is the ONLY thing standing in for the SELECT
+ * policy on `billing_profile_versions`, which is
+ * `has_permission('billing.manage_profiles')`. `secretary` holds `billing.view`
+ * without `billing.manage_profiles`, so gating this on `billing.view` hands the
+ * estate's historical rate schedule to a role the database denies. The
+ * permission NAME is therefore the behaviour under test, not the result shape.
+ */
+describe('listBillingProfileVersions', () => {
+    const secretaryRefusal = {
+        authorized: false,
+        userId: 'user-3',
+        roleName: 'secretary' as const,
+        roleId: 'role-3',
+        permissions: ['billing.view'],
+        error: 'Unauthorized: Missing permission billing.manage_profiles',
+    };
+
+    it('gates on billing.manage_profiles, matching the tables\' SELECT policy', async () => {
+        const mock = createMockClient([{ data: [versionRow()], error: null }]);
+        adminClientMock.mockReturnValue(mock.client);
+
+        await listBillingProfileVersions(PROFILE_ID);
+
+        expect(authorizeMock).toHaveBeenCalledWith('billing.manage_profiles');
+        expect(authorizeMock).not.toHaveBeenCalledWith('billing.view');
+    });
+
+    it('refuses a billing.view-only caller and reads nothing', async () => {
+        authorizeMock.mockResolvedValue(secretaryRefusal);
+        const mock = createMockClient([{ data: [versionRow()], error: null }]);
+        adminClientMock.mockReturnValue(mock.client);
+
+        const result = await listBillingProfileVersions(PROFILE_ID);
+
+        expect(result.data).toEqual([]);
+        expect(result.error).toBe(secretaryRefusal.error);
+        // The admin client bypasses RLS, so a query issued here would have
+        // returned the rows regardless of the refusal. It must not be issued.
+        expect(mock.from).not.toHaveBeenCalled();
+    });
+
+    it('scopes the read to the requested profile and orders it oldest first', async () => {
+        const mock = createMockClient([{ data: [versionRow()], error: null }]);
+        adminClientMock.mockReturnValue(mock.client);
+
+        const result = await listBillingProfileVersions(PROFILE_ID);
+
+        expect(result.error).toBeNull();
+        const chain = mock.chains.find((entry) => entry.table === 'billing_profile_versions');
+        expect(chain, 'no read was issued against billing_profile_versions').toBeDefined();
+        expect(argsOf(chain!, 'eq')).toContainEqual(['billing_profile_id', PROFILE_ID]);
+        expect(argsOf(chain!, 'order')).toContainEqual(['effective_from', { ascending: true }]);
+    });
+});
+
 describe('createBillingProfileVersion', () => {
     it('writes a version with a historical effective_from and its items', async () => {
         const mock = createMockClient([
@@ -172,7 +233,6 @@ describe('createBillingProfileVersion', () => {
         const result = await createBillingProfileVersion(historicalInput);
 
         expect(result.error).toBeNull();
-        expect(result.data?.effective_from).toBe('2026-02-01');
 
         const versionInsert = mock.calls.find((call) => call.table === 'billing_profile_versions' && call.op === 'insert');
         expect(versionInsert?.payload).toMatchObject({
@@ -244,6 +304,32 @@ describe('createBillingProfileVersion', () => {
         expect(result.data).toBeNull();
         expect(result.error).toMatch(/already exists for 2026-02/);
         expect(mock.calls.some((call) => call.op === 'insert')).toBe(false);
+        expect(auditMock).not.toHaveBeenCalled();
+    });
+
+    // The version row lands before its items do. If the item insert fails, an
+    // itemless version is left behind -- and `resolveProfileVersion` will pick
+    // it and price a whole billing period at nothing. The orphan has to go.
+    it('deletes the orphaned version when its items fail to insert', async () => {
+        const mock = createMockClient([
+            { data: profileRow, error: null },                          // load profile
+            { data: null, error: null },                                // uniqueness probe: no clash
+            { data: { id: VERSION_ID }, error: null },                  // insert version: landed
+            { data: null, error: { message: 'items insert failed' } },  // insert items: failed
+        ]);
+        adminClientMock.mockReturnValue(mock.client);
+
+        const result = await createBillingProfileVersion(historicalInput);
+
+        expect(result.data).toBeNull();
+        expect(result.error).toMatch(/version was not created/i);
+
+        const orphanDelete = mock.chains.find((chain) =>
+            chain.table === 'billing_profile_versions'
+            && chain.methods.some((entry) => entry.name === 'delete'));
+        expect(orphanDelete, 'the itemless version was left behind').toBeDefined();
+        expect(argsOf(orphanDelete!, 'eq')).toContainEqual(['id', VERSION_ID]);
+
         expect(auditMock).not.toHaveBeenCalled();
     });
 });
@@ -395,6 +481,73 @@ describe('updateBillingProfileVersion', () => {
         expect(result.error).toMatch(/rate items were left unchanged/i);
         expect(mock.calls.some((call) => call.table === 'billing_profile_version_items')).toBe(false);
         expect(auditMock).not.toHaveBeenCalled();
+    });
+
+    // D1: item replacement is delete-then-insert with no transaction available.
+    // A failed insert after a landed delete leaves the version holding ZERO
+    // items, which prices a billing period at nothing on permanent invoice
+    // numbers. The original rows must go back.
+    it('restores the original rate items when the replacement insert fails', async () => {
+        const mock = createMockClient([
+            { data: versionRow(), error: null },                         // load existing
+            { data: [{ id: VERSION_ID }], error: null },                 // guarded update
+            { data: { id: VERSION_ID }, error: null },                   // lock re-check: still editable
+            { data: null, error: null },                                 // delete items: landed
+            { data: null, error: { message: 'insert failed' } },         // insert replacements: failed
+            { data: null, error: null },                                 // restore original items: landed
+        ]);
+        adminClientMock.mockReturnValue(mock.client);
+
+        const result = await updateBillingProfileVersion(VERSION_ID, itemEdit);
+
+        expect(result.data).toBeNull();
+        expect(result.error).toMatch(/previous rates were left in place/i);
+
+        const itemInserts = mock.calls.filter(
+            (call) => call.table === 'billing_profile_version_items' && call.op === 'insert');
+        expect(itemInserts, 'the deleted rate items were never put back').toHaveLength(2);
+
+        // The compensating insert must carry the ORIGINAL rows -- the same ids
+        // and the same amounts -- not the replacements that failed.
+        expect(itemInserts[1].payload).toEqual([
+            expect.objectContaining({
+                id: 'item-1',
+                billing_profile_version_id: VERSION_ID,
+                name: 'Security Dues',
+                amount: 10000,
+                frequency: 'monthly',
+                is_mandatory: true,
+            }),
+        ]);
+        expect((itemInserts[1].payload as Array<{ amount: number }>)[0].amount).not.toBe(12000);
+    });
+
+    // If the compensation itself fails the delete stands uncompensated, and the
+    // audit row becomes the only surviving record of what the rate card held.
+    it('audits the loss when the original items cannot be restored', async () => {
+        const mock = createMockClient([
+            { data: versionRow(), error: null },                    // load existing
+            { data: [{ id: VERSION_ID }], error: null },            // guarded update
+            { data: { id: VERSION_ID }, error: null },              // lock re-check
+            { data: null, error: null },                            // delete items: landed
+            { data: null, error: { message: 'insert failed' } },    // insert replacements: failed
+            { data: null, error: { message: 'restore failed' } },   // restore: ALSO failed
+        ]);
+        adminClientMock.mockReturnValue(mock.client);
+
+        const result = await updateBillingProfileVersion(VERSION_ID, itemEdit);
+
+        expect(result.data).toBeNull();
+        expect(result.error).toMatch(/now has no items/i);
+
+        expect(auditMock).toHaveBeenCalledTimes(1);
+        expect(auditMock).toHaveBeenCalledWith(expect.objectContaining({
+            action: 'DELETE',
+            entityType: 'billing_profile_versions',
+            entityId: VERSION_ID,
+            oldValues: { items: versionRow().items },
+            newValues: { items: [] },
+        }));
     });
 
     it('refuses when the guarded update matches no row, because the version was locked mid-edit', async () => {

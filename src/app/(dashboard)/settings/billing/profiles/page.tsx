@@ -20,8 +20,15 @@ import {
 } from "@/components/ui/dialog";
 import { useState } from 'react';
 import { BILLABLE_ROLE_OPTIONS } from '@/types/database';
+import { useAuth } from '@/lib/auth/auth-provider';
 
 export default function BillingProfilesPage() {
+    const { hasPermission } = useAuth();
+    // Mirrors the server gate on `listBillingProfileVersions`, which reproduces
+    // the SELECT policy on billing_profile_versions. Without this a `secretary`
+    // -- who holds billing.view but not billing.manage_profiles -- would be
+    // offered a control that can only ever produce an error toast.
+    const canViewVersions = hasPermission('billing.manage_profiles');
     const { data: profiles, isLoading } = useBillingProfiles();
     const deleteMutation = useDeleteBillingProfile();
     const duplicateMutation = useDuplicateBillingProfile();
@@ -134,16 +141,18 @@ export default function BillingProfilesPage() {
                                             >
                                                 <Pencil className="h-4 w-4" />
                                             </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8"
-                                                title="Rate versions"
-                                                aria-label="Rate versions"
-                                                onClick={() => setVersionsProfile({ id: profile.id, name: profile.name })}
-                                            >
-                                                <History className="h-4 w-4" />
-                                            </Button>
+                                            {canViewVersions && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8"
+                                                    title="Rate versions"
+                                                    aria-label="Rate versions"
+                                                    onClick={() => setVersionsProfile({ id: profile.id, name: profile.name })}
+                                                >
+                                                    <History className="h-4 w-4" />
+                                                </Button>
+                                            )}
                                             <Button
                                                 variant="ghost"
                                                 size="icon"

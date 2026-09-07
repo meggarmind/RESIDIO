@@ -11,10 +11,20 @@
  * earliest-version fallback in `resolveProfileVersion`. Entering the rate that
  * actually applied is the fix; this file is how an authorized admin does it.
  *
- * `authenticated` holds only SELECT on these tables (see
- * `20260812235852_invoice_generation_redesign.sql`), so the writes go through
- * the admin client after `authorizePermission()` -- the same shape as
- * `invoice-generation-runs.ts`.
+ * `authenticated` holds only SELECT on these tables -- the REVOKE/GRANT pair in
+ * `20260812235852_invoice_generation_redesign.sql` is still in force -- so the
+ * writes go through the admin client after `authorizePermission()`, the same
+ * shape as `invoice-generation-runs.ts`.
+ *
+ * That admin client bypasses RLS, so every action here has to reproduce the
+ * policy it is stepping around. The SELECT policy on both tables is
+ * `USING (has_permission('billing.manage_profiles'))`, set by
+ * `20260905000000_policies_part_a_follow_permissions.sql` -- NOT the
+ * `20260812235852` policies, which it dropped. `listBillingProfileVersions`
+ * therefore gates on `billing.manage_profiles`, not `billing.view`: gating on
+ * the looser permission would hand the historical rate schedule to `secretary`,
+ * the one role holding `billing.view` without `billing.manage_profiles`, which
+ * the database itself denies.
  */
 
 import { revalidatePath } from 'next/cache';
@@ -75,11 +85,20 @@ function immutabilityRefusal(version: { is_locked: boolean; approved_by: string 
     return null;
 }
 
-/** Lists the rate schedule for one profile, oldest first. */
+/**
+ * Lists the rate schedule for one profile, oldest first.
+ *
+ * Gated on `billing.manage_profiles` -- deliberately NOT `billing.view`. The
+ * read goes through the admin client, which bypasses RLS, so this check is the
+ * only thing standing in for the table's SELECT policy; that policy is
+ * `has_permission('billing.manage_profiles')` on both tables. `billing.view` is
+ * held by `secretary` without `billing.manage_profiles`, so gating on it would
+ * widen read access to the estate's historical rate schedule as a side effect.
+ */
 export async function listBillingProfileVersions(
     billingProfileId: string,
 ): Promise<{ data: BillingProfileVersionRow[]; error: string | null }> {
-    const auth = await authorizePermission(PERMISSIONS.BILLING_VIEW);
+    const auth = await authorizePermission(PERMISSIONS.BILLING_MANAGE_PROFILES);
     if (!auth.authorized) return { data: [], error: auth.error || 'Unauthorized' };
 
     const supabase = createAdminClient();
@@ -296,11 +315,21 @@ export async function updateBillingProfileVersion(
             };
         }
 
+        // Replacement is delete-then-insert: two statements, and the Supabase
+        // JS client cannot wrap them in a transaction. If the insert fails
+        // after the delete has landed, the version is left holding ZERO items
+        // -- and `resolveProfileVersion` will happily select an empty version
+        // and price a whole billing period at nothing, on invoice numbers that
+        // #268 makes permanent. So capture the rows before destroying them and
+        // put them back, ids included, if the replacement does not land.
+        const originalItems = current.items ?? [];
+
         const { error: deleteError } = await supabase
             .from('billing_profile_version_items')
             .delete()
             .eq('billing_profile_version_id', id);
         if (deleteError) {
+            // Nothing was removed, so there is nothing to compensate.
             console.error('[billing] Replace version items failed on delete', { id, error: deleteError });
             return { data: null, error: 'Failed to replace the rate items' };
         }
@@ -316,7 +345,49 @@ export async function updateBillingProfileVersion(
             })));
         if (insertError) {
             console.error('[billing] Replace version items failed on insert', { id, error: insertError });
-            return { data: null, error: 'Failed to replace the rate items' };
+
+            const restore = originalItems.length === 0
+                ? { error: null }
+                : await supabase
+                    .from('billing_profile_version_items')
+                    .insert(originalItems.map((item) => ({
+                        id: item.id,
+                        billing_profile_version_id: id,
+                        name: item.name,
+                        amount: item.amount,
+                        frequency: item.frequency,
+                        is_mandatory: item.is_mandatory,
+                        item_snapshot: item.item_snapshot,
+                    })));
+
+            if (restore.error) {
+                console.error('[billing] Rate item restore failed; version left with no items', {
+                    id,
+                    error: restore.error,
+                    lostItemCount: originalItems.length,
+                });
+                // The delete stands uncompensated. It is a destructive write,
+                // so it does not get to go unrecorded just because the path
+                // returns an error -- this audit row is the only surviving
+                // copy of what the rate card held.
+                await logAudit({
+                    action: 'DELETE',
+                    entityType: 'billing_profile_versions',
+                    entityId: id,
+                    entityDisplay: `Rate effective ${current.effective_from}`,
+                    oldValues: { items: originalItems },
+                    newValues: { items: [] },
+                    description:
+                        'Rate items were deleted and could not be restored after the replacement insert failed. This version now holds no items and must not be used to price a billing period until it is corrected.',
+                    metadata: { lost_item_count: originalItems.length },
+                });
+                return {
+                    data: null,
+                    error: 'Failed to replace the rate items, and the previous rates could not be restored. This rate version now has no items — do not generate invoices against it until it is corrected.',
+                };
+            }
+
+            return { data: null, error: 'Failed to replace the rate items; the previous rates were left in place.' };
         }
     }
 

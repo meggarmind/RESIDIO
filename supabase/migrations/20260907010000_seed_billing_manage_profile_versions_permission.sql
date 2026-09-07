@@ -14,11 +14,25 @@
 -- No enum change is needed: category `billing` already exists in
 -- `permission_category` (seeded by 20251222000000_create_rbac_system.sql).
 --
--- No RLS policy is added either. `authenticated` holds only SELECT on these
--- tables (20260812235852_invoice_generation_redesign.sql), and the server
--- actions write through the service role after `authorizePermission()`, the
--- same shape as the invoice-generation runs. This migration therefore grants
--- nothing new at the table level.
+-- No RLS policy is added either, and none is needed. Two separate facts, both
+-- re-verified against the migration history on 2026-09-07:
+--
+--   * Table privileges. 20260812235852_invoice_generation_redesign.sql REVOKEs
+--     ALL on both tables from `anon` and `authenticated`, then GRANTs
+--     `authenticated` SELECT only; `service_role` keeps ALL. Nothing since has
+--     changed those grants, so `authenticated` still has no INSERT, UPDATE or
+--     DELETE privilege here at all.
+--   * The SELECT policy. The two policies created by 20260812235852 no longer
+--     exist: 20260905000000_policies_part_a_follow_permissions.sql dropped and
+--     recreated both as `USING (public.has_permission('billing.manage_profiles'))`.
+--     That is the policy in force today. No INSERT/UPDATE/DELETE policy was
+--     ever created on either table.
+--
+-- The server actions therefore write through the service role after
+-- `authorizePermission()`, the same shape as the invoice-generation runs, and
+-- this migration grants nothing new at the table level. Seeding
+-- `billing.manage_profile_versions` does not widen the SELECT policy, which
+-- keys off `billing.manage_profiles` and is untouched here.
 
 BEGIN;
 
