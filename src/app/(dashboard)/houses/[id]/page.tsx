@@ -43,6 +43,7 @@ import { YearlyPaymentTable } from '@/components/houses/yearly-payment-table';
 import { HouseStatsCards } from '@/components/houses/house-stats-cards';
 import { OccupancyBadge, AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { useHouse, useDeleteHouse, useOwnershipHistory } from '@/hooks/use-houses';
+import { useHousePaymentStatus } from '@/hooks/use-billing';
 import { useResidents, useAssignHouse, useUnassignHouse, useMoveOutLandlord, useUpdateResidentHouse, useSwapResidentRoles, useTransferOwnership, useRemoveOwnership, usePendingMoveOut, useConfirmRenterMoveOut } from '@/hooks/use-residents';
 import { MoveOutWizard } from '@/components/residents/move-out-wizard';
 import { OwnerMoveOutWizard } from '@/components/residents/owner-move-out-wizard';
@@ -163,6 +164,11 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
   const { data: ownershipHistory, isLoading: historyLoading } = useOwnershipHistory(id);
   const { data: pendingMoveOut } = usePendingMoveOut(id);
   const confirmMoveOutMutation = useConfirmRenterMoveOut();
+  const {
+    data: housePaymentStatus,
+    isLoading: isHousePaymentStatusLoading,
+    isError: isHousePaymentStatusError,
+  } = useHousePaymentStatus(id);
 
   // Compute derived values - MUST be before any conditional returns (React Rules of Hooks)
   const activeResidents = house?.resident_houses?.filter(rh => rh.is_active) ?? [];
@@ -596,8 +602,9 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
           <HouseStatsCards
             occupancyStatus={house.is_occupied ? 'occupied' : 'vacant'}
             totalResidents={activeResidents.length}
-            pendingDues={0} // Mocked for now, pending backend integration
-            lastInspectionDate="2025-12-01"
+            pendingDues={housePaymentStatus?.totalOutstanding}
+            isLoading={isHousePaymentStatusLoading}
+            isError={isHousePaymentStatusError}
           />
 
           <div className="grid gap-6 md:grid-cols-2">

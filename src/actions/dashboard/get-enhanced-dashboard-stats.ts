@@ -440,22 +440,39 @@ async function fetchFinancialHealth(
 async function fetchInvoiceDistribution(supabase: SupabaseClient): Promise<InvoiceStatusDistribution> {
     // Use parallel COUNT queries instead of fetching all invoices
     // This is ~100x faster for large invoice tables
+    //
+    // `overdue` is not its own status column value — it is derived as
+    // (unpaid OR partially_paid) AND due_date < today. That makes it a
+    // subset of the `unpaid` / `partially_paid` buckets, not a sibling of
+    // them. To keep the five returned buckets a genuine partition of the
+    // invoice table (no invoice counted twice), we query the overdue
+    // subset separately PER STATUS and subtract each slice out of its own
+    // bucket below, rather than lumping both statuses into one overdue
+    // count and subtracting it from just one bucket.
+    const today = new Date().toISOString().split('T')[0];
     const results = await Promise.all([
         supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'unpaid'),
         supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'paid'),
         supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'partially_paid'),
-        supabase.from('invoices').select('*', { count: 'exact', head: true }).in('status', ['unpaid', 'partially_paid']).lt('due_date', new Date().toISOString().split('T')[0]),
+        supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'unpaid').lt('due_date', today),
+        supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'partially_paid').lt('due_date', today),
         supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'void'),
     ]);
     const error = results.find((result) => result.error)?.error;
     if (error) throw error;
-    const [unpaid, paid, partiallyPaid, overdueData, voided] = results;
+    const [unpaid, paid, partiallyPaid, overdueUnpaid, overduePartiallyPaid, voided] = results;
 
+    const overdueUnpaidCount = overdueUnpaid.count ?? 0;
+    const overduePartiallyPaidCount = overduePartiallyPaid.count ?? 0;
+
+    // Net each bucket down to its non-overdue remainder so the five
+    // buckets returned here sum to the true invoice total instead of
+    // double-counting the overdue subset.
     return {
-        unpaid: unpaid.count ?? 0,
+        unpaid: Math.max(0, (unpaid.count ?? 0) - overdueUnpaidCount),
         paid: paid.count ?? 0,
-        partiallyPaid: partiallyPaid.count ?? 0,
-        overdue: overdueData.count ?? 0,
+        partiallyPaid: Math.max(0, (partiallyPaid.count ?? 0) - overduePartiallyPaidCount),
+        overdue: overdueUnpaidCount + overduePartiallyPaidCount,
         void: voided.count ?? 0
     };
 }
