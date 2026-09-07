@@ -330,11 +330,18 @@ export async function verifyAccessCode(data: VerifyAccessCodeData): Promise<Veri
 
   // Check if code is active
   if (!accessCode.is_active) {
+    const wasExplicitlyRevoked = Boolean(accessCode.revoked_at || accessCode.revoked_by);
+    const wasUsedOneTimeCode = accessCode.code_type === 'one_time'
+      && accessCode.max_uses !== null
+      && accessCode.current_uses >= accessCode.max_uses;
+
     return {
       data: accessCode as unknown as AccessCodeWithContact,
       valid: false,
       error: null,
-      reason: 'Access code has been revoked',
+      reason: !wasExplicitlyRevoked && wasUsedOneTimeCode
+        ? 'Access code has already been used'
+        : 'Access code has been revoked',
     };
   }
 
