@@ -9,13 +9,17 @@ CREATE OR REPLACE FUNCTION public.adjust_wallet_credit(
 )
 RETURNS JSONB
 LANGUAGE PLPGSQL
-SECURITY INVOKER
-SET search_path = public
+SECURITY DEFINER
+SET search_path = public, auth, extensions, pg_temp
 AS $$
 DECLARE
     v_wallet public.resident_wallets%ROWTYPE;
     v_new_balance DECIMAL(12, 2);
 BEGIN
+    IF NOT (public.has_permission('billing.manage_wallets') OR auth.role() = 'service_role') THEN
+        RAISE EXCEPTION 'Not authorized to adjust wallets';
+    END IF;
+
     IF p_amount IS NULL OR p_amount::TEXT IN ('NaN', 'Infinity', '-Infinity') OR p_amount <= 0 THEN
         RAISE EXCEPTION 'Wallet adjustment amount must be finite and greater than zero';
     END IF;
@@ -54,13 +58,17 @@ CREATE OR REPLACE FUNCTION public.adjust_wallet_debit(
 )
 RETURNS JSONB
 LANGUAGE PLPGSQL
-SECURITY INVOKER
-SET search_path = public
+SECURITY DEFINER
+SET search_path = public, auth, extensions, pg_temp
 AS $$
 DECLARE
     v_wallet public.resident_wallets%ROWTYPE;
     v_new_balance DECIMAL(12, 2);
 BEGIN
+    IF NOT (public.has_permission('billing.manage_wallets') OR auth.role() = 'service_role') THEN
+        RAISE EXCEPTION 'Not authorized to adjust wallets';
+    END IF;
+
     IF p_amount IS NULL OR p_amount::TEXT IN ('NaN', 'Infinity', '-Infinity') OR p_amount <= 0 THEN
         RAISE EXCEPTION 'Wallet adjustment amount must be finite and greater than zero';
     END IF;
