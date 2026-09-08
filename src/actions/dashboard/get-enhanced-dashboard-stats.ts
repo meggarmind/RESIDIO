@@ -1,7 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { authorizePermission } from '@/lib/auth/authorize';
+import { authorizePermission, getCurrentUserPermissions } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { formatAuditLog, type AuditLogEntry } from '@/lib/audit/audit-formatter';
@@ -87,6 +87,22 @@ export interface RecentActivityItem {
     amount?: number;
 }
 
+/**
+ * Recent activity plus the reason it may be empty.
+ *
+ * Issue #197: `audit_logs` is guarded by an RLS SELECT policy reading
+ * `has_permission('settings.view_audit_logs')`, which six of the eight roles
+ * do not hold. A denied read comes back as zero rows, so "you may not see
+ * activity" and "nothing has happened" were indistinguishable and the card
+ * rendered a misleading empty state. Callers get the distinction explicitly
+ * via `permissionDenied` rather than having to infer it from an empty list.
+ */
+export interface RecentActivityResult {
+    items: RecentActivityItem[];
+    /** True when the viewer's role lacks `settings.view_audit_logs`. */
+    permissionDenied: boolean;
+}
+
 export interface MonthlyTrend {
     month: string;
     revenue: number;
@@ -102,6 +118,11 @@ export interface EnhancedDashboardStats {
     developmentLevy: DevelopmentLevyStatus;
     quickStats: QuickStats;
     recentActivity: RecentActivityItem[];
+    /**
+     * True when `recentActivity` is empty because the viewer's role cannot read
+     * audit logs, rather than because nothing has happened (#197).
+     */
+    recentActivityUnavailable: boolean;
     monthlyTrends: MonthlyTrend[];
     actionMetrics: DashboardActionMetrics;
     lastUpdated: string;
@@ -275,7 +296,11 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
                 totalResidents: 0, activeResidents: 0, pendingVerification: 0,
                 totalSecurityContacts: 0, activeSecurityContacts: 0
             },
-            recentActivity: activityData || [],
+            recentActivity: activityData?.items ?? [],
+            // A timeout/throw leaves `activityData` null; that is a failure, not
+            // a permission denial, so the card falls back to its empty state
+            // rather than claiming the viewer's role is at fault.
+            recentActivityUnavailable: activityData?.permissionDenied ?? false,
             monthlyTrends: trendsData || [],
             actionMetrics: actionMetricsData || {
                 pendingResidentVerifications: 0,
@@ -672,9 +697,18 @@ async function fetchQuickStats(supabase: SupabaseClient): Promise<QuickStats> {
     };
 }
 
-async function fetchRecentActivity(supabase: SupabaseClient): Promise<RecentActivityItem[]> {
+async function fetchRecentActivity(supabase: SupabaseClient): Promise<RecentActivityResult> {
+    // #197: check the permission the `audit_logs` RLS SELECT policy enforces
+    // *before* querying. Without this the denial arrives as zero rows and is
+    // indistinguishable from a quiet estate, so the card renders "No recent
+    // activity" at six of the eight roles.
+    const { permissions } = await getCurrentUserPermissions();
+    if (!permissions.includes(PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS)) {
+        return { items: [], permissionDenied: true };
+    }
+
     // Get from audit logs (most comprehensive)
-    const { data: auditLogs } = await supabase
+    const { data: auditLogs, error } = await supabase
         .from('audit_logs')
         .select(`
             id,
@@ -689,8 +723,17 @@ async function fetchRecentActivity(supabase: SupabaseClient): Promise<RecentActi
         .order('created_at', { ascending: false })
         .limit(10);
 
+    if (error) {
+        // The permission check above already covers the expected RLS denial, so
+        // anything landing here is a real query failure worth the log line.
+        console.error('[fetchRecentActivity] audit_logs query failed:', error);
+    }
+
     const auditLogRows: AuditLogEntry[] = (auditLogs || []) as unknown as AuditLogEntry[];
-    return auditLogRows.slice(0, 8).map((log) => formatAuditLog(log));
+    return {
+        items: auditLogRows.slice(0, 8).map((log) => formatAuditLog(log)),
+        permissionDenied: false,
+    };
 }
 
 async function fetchMonthlyTrends(supabase: SupabaseClient, now: Date): Promise<MonthlyTrend[]> {
@@ -840,7 +883,7 @@ export async function getDashboardQuickStats(): Promise<{ data: QuickStats | nul
     }
 }
 
-export async function getDashboardRecentActivity(): Promise<{ data: RecentActivityItem[] | null; error: string | null }> {
+export async function getDashboardRecentActivity(): Promise<{ data: RecentActivityResult | null; error: string | null }> {
     try {
         const supabase = await requireAuthClient();
         const data = await fetchRecentActivity(supabase);

@@ -3,12 +3,17 @@ import { getAdminDashboardSnapshot } from '@/actions/dashboard/get-enhanced-dash
 import { ADMIN_DASHBOARD_SNAPSHOT_QUERY_KEY } from '@/hooks/use-dashboard';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
-const { authorizePermission, createServerSupabaseClient } = vi.hoisted(() => ({
+const { authorizePermission, getCurrentUserPermissions, createServerSupabaseClient } = vi.hoisted(() => ({
   authorizePermission: vi.fn(),
+  // #197: fetchRecentActivity now reads the caller's permission set before
+  // touching audit_logs. Without this in the mock the module export is
+  // undefined and the sub-fetch throws into its timeout fallback, quietly
+  // hollowing out the recentActivity assertion below.
+  getCurrentUserPermissions: vi.fn(),
   createServerSupabaseClient: vi.fn(),
 }));
 
-vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
+vi.mock('@/lib/auth/authorize', () => ({ authorizePermission, getCurrentUserPermissions }));
 vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient }));
 
 interface QueryResult {
@@ -31,6 +36,8 @@ function createChainableQuery(result: QueryResult = { data: [], error: null, cou
 describe('admin dashboard snapshot contract', () => {
   beforeEach(() => {
     authorizePermission.mockReset();
+    getCurrentUserPermissions.mockReset();
+    getCurrentUserPermissions.mockResolvedValue({ userId: 'user-1', permissions: [] });
     createServerSupabaseClient.mockReset();
   });
 

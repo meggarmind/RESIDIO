@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronRight, Receipt, UserPlus, FileText, Shield, Upload, CheckCircle, Activity } from 'lucide-react';
+import { ChevronRight, Receipt, UserPlus, FileText, Shield, Upload, CheckCircle, Activity, Lock } from 'lucide-react';
 import { ShimmerSkeleton } from '@/components/ui/shimmer-skeleton';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow, isToday, isYesterday, format } from 'date-fns';
@@ -12,6 +12,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 interface ModernRecentActivityProps {
   activities: RecentActivityItem[] | null;
   isLoading?: boolean;
+  /**
+   * True when the viewer's role cannot read audit logs (#197). Without it an
+   * RLS-denied read arrives as an empty list and the card claims the estate
+   * has had no activity, which is a different — and false — statement.
+   */
+  isUnavailable?: boolean;
 }
 
 const activityConfig: Record<RecentActivityItem['type'], {
@@ -115,8 +121,52 @@ function ActivitySkeleton() {
   );
 }
 
-export function ModernRecentActivity({ activities, isLoading }: ModernRecentActivityProps) {
-  if (isLoading || !activities) {
+/**
+ * Shown when the viewer's role lacks `settings.view_audit_logs` (#197).
+ *
+ * Deliberately carries no "View audit logs" link: mirroring
+ * `@/components/system/system-dashboard`, a viewer who cannot open a page is
+ * not shown a card teasing it either.
+ */
+function ActivityUnavailable() {
+  return (
+    <div
+      data-testid="recent-activity-unavailable"
+      className={cn(
+        'rounded-xl border bg-card p-4 transition-all duration-300 h-[205px] flex flex-col overflow-hidden',
+        'shadow-soft'
+      )}
+    >
+      <div className="mb-3 flex shrink-0 items-center gap-2">
+        <Activity className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+        <h3 className="text-xs font-bold tracking-tight">Recent activity</h3>
+      </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+        <Lock className="h-6 w-6 text-muted-foreground/40" aria-hidden="true" />
+        <p className="text-xs font-semibold text-foreground">
+          Recent activity isn&apos;t available for your role.
+        </p>
+        <p className="max-w-[32ch] text-[11px] leading-4 text-muted-foreground">
+          Viewing the audit trail needs the &ldquo;view audit logs&rdquo; permission. Ask an
+          administrator if you need it.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function ModernRecentActivity({ activities, isLoading, isUnavailable = false }: ModernRecentActivityProps) {
+  if (isLoading) {
+    return <ActivitySkeleton />;
+  }
+
+  // Checked before the null guard: a permission denial is a settled answer, not
+  // a still-loading one, so it must not sit under a skeleton forever.
+  if (isUnavailable) {
+    return <ActivityUnavailable />;
+  }
+
+  if (!activities) {
     return <ActivitySkeleton />;
   }
 
