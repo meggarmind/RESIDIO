@@ -110,14 +110,14 @@ describe('cacheProfileIfHealthy (RBAC fetch failure, #113)', () => {
     const collapsed = source.replace(/\s+/g, '');
 
     // The profile built after an RBAC fetch (possibly failed/timed-out, see
-    // `rbacFailed` above) must be committed to sessionStorage only via the
-    // guard, which refuses to cache it when rbacFailed is true. If this call
+    // `cacheUnsafe` above) must be committed to sessionStorage only via the
+    // guard, which refuses to cache it when cacheUnsafe is true. If this call
     // site stops going through cacheProfileIfHealthy, a degraded profile can
     // be cached again and the app can be stuck showing no permissions for a
     // full 5-minute TTL, exactly as in #113.
     // Trailing comma allowed: Prettier adds one when it wraps the call across
     // lines, and that reformat must not fail this test.
-    expect(collapsed).toMatch(/cacheProfileIfHealthy\(newProfile,rbacFailed,?\)/);
+    expect(collapsed).toMatch(/cacheProfileIfHealthy\(newProfile,cacheUnsafe,?\)/);
 
     // setCachedProfile(newProfile) is the exact bug signature: an
     // unconditional cache write of the RBAC-derived profile, bypassing the

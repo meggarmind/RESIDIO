@@ -87,10 +87,10 @@ function setCachedProfile(profile: Profile | null) {
 // written to the 5-minute session cache -- doing so turns one slow query
 // into a five-minute outage where every navigation/reload re-serves the
 // degraded profile instead of retrying. A legitimately zero-permission role
-// (rbacFailed === false) is a different condition and must still cache.
+// (cacheUnsafe === false) is a different condition and must still cache.
 // Exported so the decision can be unit tested without mounting the provider.
-export function cacheProfileIfHealthy(profile: Profile, rbacFailed: boolean): void {
-  if (rbacFailed) return;
+export function cacheProfileIfHealthy(profile: Profile, cacheUnsafe: boolean): void {
+  if (cacheUnsafe) return;
   setCachedProfile(profile);
 }
 
@@ -309,21 +309,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Fetch role details and permissions
     let appRole: { id: string; name: string; display_name: string } | null = null;
     let permissions: string[] = [];
-    // Tracks an unusable RBAC (role/permissions) resolution explicitly, rather
-    // than inferring it from permissions.length === 0 -- a role legitimately
-    // granted zero permissions is a different condition and must not be
-    // treated as a failure (it should still cache normally).
+    // Gates whether this profile snapshot is safe to write to the 5-minute
+    // session cache. Deliberately explicit rather than inferred from
+    // permissions.length === 0 -- a role legitimately granted zero
+    // permissions is a different condition and must not be treated as unsafe
+    // (it should still cache normally).
     //
     // Seeded from profileFetchFailed (#256): when the profiles row could not
     // be read, the metadata fallback carries role_id: null, so the block below
     // never runs and `permissions` stays [] for a reason that has nothing to do
     // with the user's real role. Without this seed the degraded profile would
     // simply be cached 60 lines further down instead of at the fallback site.
-    let rbacFailed = profileFetchFailed;
-    // Narrower flag for the user-facing half: only the #113 RBAC
-    // failure/timeout raises the toast. Surfacing the profiles-table failure
-    // to the user is a separate, deliberate decision and is out of scope here.
-    let rbacFetchFailed = false;
+    let cacheUnsafe = profileFetchFailed;
+    // Narrower flag for the user-facing half: gates the #113 "could not load
+    // your permissions" toast. Set only when the RBAC fetch itself
+    // failed/timed out -- surfacing the profiles-table failure to the user is
+    // a separate, deliberate decision and is out of scope here.
+    let showPermissionToast = false;
     // No legacy reverse lookup here any more (#193). It resolved a role by
     // name from the deprecated profiles.role column when role_id was absent;
     // #192 reconciled every profile and proved against live data that no row
@@ -362,8 +364,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .filter((name): name is string => name != null);
       } catch (err) {
         console.error('[AuthProvider] RBAC fetch failed or timed out:', err);
-        rbacFetchFailed = true;
-        rbacFailed = true;
+        showPermissionToast = true;
+        cacheUnsafe = true;
       }
     }
 
@@ -383,9 +385,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // never cache a profile built from a failed/timed-out RBAC fetch (#113).
     // A cached degraded profile survives for the full 5-minute TTL across
     // every navigation and reload, turning a transient blip into an outage.
-    cacheProfileIfHealthy(newProfile, rbacFailed);
+    cacheProfileIfHealthy(newProfile, cacheUnsafe);
 
-    if (rbacFetchFailed) {
+    if (showPermissionToast) {
       toast.error('Could not load your permissions', {
         description: 'Some controls may be hidden until this is retried. Your access has not changed.',
         action: {
