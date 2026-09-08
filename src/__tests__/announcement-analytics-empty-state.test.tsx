@@ -74,6 +74,17 @@ function renderDashboard(): string {
   return renderToStaticMarkup(<AnnouncementAnalyticsClient />);
 }
 
+function getCardMarkup(markup: string, title: string): string {
+  const titleIndex = markup.indexOf(`>${title}<`);
+  expect(titleIndex, `card title ${title} should render`).toBeGreaterThanOrEqual(0);
+
+  const cardStart = markup.lastIndexOf('<div data-slot="card"', titleIndex);
+  expect(cardStart, `card wrapper for ${title} should render`).toBeGreaterThanOrEqual(0);
+
+  const nextCardStart = markup.indexOf('<div data-slot="card"', titleIndex + title.length);
+  return markup.slice(cardStart, nextCardStart === -1 ? markup.length : nextCardStart);
+}
+
 describe('announcement analytics data states', () => {
   beforeEach(() => {
     analyticsState.current = { data: emptyAnalytics, isLoading: false, error: null };
@@ -82,10 +93,10 @@ describe('announcement analytics data states', () => {
   it('renders zero metrics and meaningful empty messages when no announcements exist', () => {
     const markup = renderDashboard();
 
-    expect(markup).toMatch(/Total Published[\s\S]*?>0</);
-    expect(markup).toMatch(/Total Reached[\s\S]*?>0</);
-    expect(markup).toMatch(/Avg Engagement[\s\S]*?>0\.0%?</);
-    expect(markup).toMatch(/Emergency Alerts[\s\S]*?>0</);
+    expect(getCardMarkup(markup, 'Total Published')).toContain('>0<');
+    expect(getCardMarkup(markup, 'Total Reached')).toContain('>0<');
+    expect(getCardMarkup(markup, 'Avg Engagement')).toContain('>0.0%<');
+    expect(getCardMarkup(markup, 'Emergency Alerts')).toContain('>0<');
     expect(markup.match(/No announcement data available/g)).toHaveLength(2);
     expect(markup).toContain('No category data available');
     expect(markup).toContain('No priority data available');
