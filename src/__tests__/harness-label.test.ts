@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 import {
   HARNESS_LANES,
@@ -100,5 +103,43 @@ describe('decideLabelAction — add only when absent', () => {
     expect(
       decideLabelAction({ number: 1, existingLabels: undefined, label: 'harness:claude' }).action,
     ).toBe('add');
+  });
+});
+
+/**
+ * The one rule with no runtime coverage: `addIssueLabel` is not exported and its HTTP call is
+ * never exercised by these fixture-driven tests, yet "additive, never replacing" is the whole
+ * design. `POST /issues/{n}/labels` appends; `PUT` (or `PATCH` on the issue with a `labels`
+ * array) *replaces*, and would silently drop a label another harness added between our read and
+ * our write — the exact failure the labels exist to prevent.
+ *
+ * This reads one small file, deliberately: it is not one of the ratchets that walk `src/**` with
+ * `node:fs` and blow their timeouts under parallel load (#255).
+ */
+describe('harness-label.mjs never replaces or removes labels', () => {
+  const source = readFileSync(
+    fileURLToPath(new URL('../../scripts/harness-label.mjs', import.meta.url)),
+    'utf8',
+  );
+
+  // Strip block and line comments: the file documents *why* there is no DELETE, and those
+  // sentences would otherwise trip the assertions below.
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  it('issues no DELETE request', () => {
+    expect(code).not.toMatch(/['"]DELETE['"]/);
+  });
+
+  it('writes to the labels endpoint with POST and never PUT or PATCH', () => {
+    const labelWrites = [...code.matchAll(/method:\s*'(\w+)'[\s\S]{0,300}?\/labels`/g)].map(
+      (match) => match[1],
+    );
+
+    expect(labelWrites.length).toBeGreaterThan(0);
+    expect(labelWrites.every((method) => method === 'POST')).toBe(true);
+  });
+
+  it('sends exactly one label per write, never a replacement array', () => {
+    expect(code).toMatch(/labels:\s*\[label\]/);
   });
 });
