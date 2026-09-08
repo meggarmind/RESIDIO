@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
 import {
@@ -70,6 +72,38 @@ describe('AdminAccessCodeGenerationMenu', () => {
     await waitFor(() => expect(onGenerate).toHaveBeenCalledWith('permanent'));
     expect(toast.success).toHaveBeenCalledWith('Multi-use code generated successfully');
   });
+
+  it('sends the one-time contract value and uses the one-time success toast', async () => {
+    const onGenerate = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AdminAccessCodeGenerationMenu
+        defaultValidityDays={7}
+        isPending={false}
+        onGenerate={onGenerate}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'One-Time Code' }));
+
+    await waitFor(() => expect(onGenerate).toHaveBeenCalledWith('one_time'));
+    expect(toast.success).toHaveBeenCalledWith('One-time code generated successfully');
+  });
+
+  it('shows an error and no success toast when generation fails', async () => {
+    const onGenerate = vi.fn().mockRejectedValue(new Error('Generation unavailable'));
+    render(
+      <AdminAccessCodeGenerationMenu
+        defaultValidityDays={7}
+        isPending={false}
+        onGenerate={onGenerate}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Multi-use Code/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Generation unavailable'));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
 });
 
 describe('AdminAccessCodeTypeBadge', () => {
@@ -79,5 +113,20 @@ describe('AdminAccessCodeTypeBadge', () => {
 
     rerender(<AdminAccessCodeTypeBadge type="one_time" />);
     expect(screen.getByText('One-Time')).toBeTruthy();
+  });
+});
+
+describe('admin access-code generator wiring', () => {
+  it.each([
+    'src/app/(dashboard)/security/contacts/[id]/page.tsx',
+    'src/components/residents/resident-security-contacts.tsx',
+  ])('%s passes category validity into the shared generator', (relativePath) => {
+    const source = readFileSync(resolve(process.cwd(), relativePath), 'utf8');
+    const generatorUsage = source.match(/<AdminAccessCodeGenerationMenu[\s\S]*?\/>/)?.[0];
+
+    expect(generatorUsage).toBeDefined();
+    expect(generatorUsage).toContain(
+      'defaultValidityDays={contact.category?.default_validity_days}'
+    );
   });
 });
