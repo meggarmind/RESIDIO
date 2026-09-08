@@ -9,6 +9,88 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-09 — **harness tagging: #324 shipped as PR #325, not merged**)
+
+**Tool:** Claude Code, coordinator posture. One issue taken end to end. **No application code
+changed, no migration written, none applied.** PR #325 is open; the user does the merging.
+
+### The question, and the answer
+
+Tickets carried no record of *which harness* worked them, and none of the obvious carriers works:
+the assignee cannot distinguish harnesses (#297 — one assignable login, all three authenticate as
+it), and a board single-select cannot hold two values, which is exactly the case that needed
+representing. **Repo labels** can. `harness:claude` / `harness:codex` / `harness:opencode` now
+exist, added at the moment an agent sets `In progress` (`CORE.md` §9, a fourth automatic move),
+with `.github/workflows/harness-label.yml` as a non-blocking backstop deriving the lane from the
+branch prefix.
+
+The labels are **additive and permanent** — they record that a harness *has worked* a ticket, not
+that it holds it. Nobody removes anyone's label, their own included, on merge. They are **not a
+lock**: `git ls-remote --heads origin` is still the live registry (§7).
+
+### Lane prefixes are now self-identifying
+
+`claude` was mapped to `feat/issue-`, which names no harness and collides with the generic `feat/`
+prefix; it is now `claude/issue-`. The missing `"fix": "fix/issue-"` lane recorded in the previous
+handoff is configured. `origin` carried only `master`, `stage` and `gh-pages` at the time, so
+nothing in flight was orphaned.
+
+### The finding that matters most — a derived label is not proof
+
+Backfilling produced a counter-example to the backstop's own premise. **#244 and #300 were
+OpenCode's work on `feat/issue-*` branches**: that session wanted `--lane fix`, the lane did not
+exist, and it fell back to `--lane claude`. A prefix-derived label would have credited Claude Code
+for both. Configuring the `fix` lane removes that cause; the general caveat is now in
+`docs/agents/project-board.md`. **When the branch prefix and a human record disagree, the human
+record wins.**
+
+### Backfill — labelled only where the evidence is solid
+
+`#107` claude (commit trailer), `#125` codex (branch prefix), `#244` and `#300` opencode (this file
+names the tool and explains the prefix), `#324` claude. **`#112 #123 #124 #197 #256` deliberately
+carry no harness label** — no branch, no trailer, no record names one. An invented attribution is
+worse than an absent one; label them if evidence turns up, do not guess.
+
+### Verification
+
+Gates in the worktree, foreground: **42/42 tests**, `tsc --noEmit` 0, eslint 0 on all four touched
+files. The full suite was **not** run — #255's ratchet flake family makes a single full-suite
+result untrustworthy on this machine.
+
+**Six mutations, six caught**, each re-verified by the coordinator against the artefact rather than
+taken from the implementing agent's report: `fix` leaking into `HARNESS_LANES`; first-match instead
+of longest-prefix in `laneFromBranch`; the idempotence skip removed; `POST` to `PUT`; a second
+element in the `labels` array; an introduced `DELETE`. The last three exist because `addIssueLabel`'s
+HTTP call is unexported — "additive, never replacing" lived only in a comment, and a `PUT` with a
+full array would have dropped another harness's label with everything still green.
+
+**Proven live on PR #325, not only in fixtures:** the workflow resolved lane `claude` from the
+branch, resolved #324, and logged `already present, skipping`. `harness:codex` was then added by
+hand and CI re-run on a `claude/` branch — **both labels survived**. The test label was removed
+afterwards; codex did not work this issue.
+
+### Do not re-litigate
+
+- Do not make `harness-label.yml` blocking. `pr-claim-check.yml` is the gate; this one records.
+- Do not "fix" `pr-claim-check.mjs` to compare harnesses by author — #297 settled that as inert.
+- Do not add a Harness field to the project board; single-select cannot hold two values.
+- Do not treat `harness:*` as a lock, and never remove another harness's label.
+
+### Two things left as found, not absorbed
+
+- **The previous session's cleanup record never landed.** PR #323 merged
+  `chore/session-state-migrations-applied`, but the worktree-cleanup and Stage-drift notes were
+  still an **uncommitted diff in the main checkout** on that same branch when this session started
+  (~23 lines). `origin/master` does not have them. They are still sitting there uncommitted —
+  recover them rather than rewriting them from memory.
+- **`node_modules` in the main checkout is incomplete again** (no `.bin`, no `@vitest`) — the third
+  recording of this damage class here. It needs `npm install` before anything runs there. Also:
+  an `npm install` run *from a worktree* **destroys the `node_modules` junction** and replaces it
+  with a real install (npm logs `reify Removing non-directory`). Survivable, but know it before
+  you junction one.
+
+---
+
 ## Last session (OpenCode, 2026-09-08 — **#244 PR open, #300 PR open, both awaiting review**)
 
 **Tool:** OpenCode. Two isolated worktrees (`issue-244`, `issue-300`), both branched from `origin/master`
