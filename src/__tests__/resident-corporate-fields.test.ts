@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { resolveSubmittedCorporateFields } from '@/lib/validators/resident';
 
@@ -43,5 +45,36 @@ describe('resolveSubmittedCorporateFields', () => {
 
     expect(result.first_name).toBe('Ada');
     expect(result.entity_type).toBe('individual');
+  });
+});
+
+describe('resident form corporate-field lifecycle', () => {
+  it('does not clear hidden corporate values before explicit submission', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/residents/resident-form.tsx'),
+      'utf8'
+    );
+    const beforeSubmit = source.split('async function onSubmit')[0];
+
+    for (const field of [
+      'company_name',
+      'rc_number',
+      'liaison_contact_name',
+      'liaison_contact_phone',
+    ]) {
+      expect(beforeSubmit).not.toMatch(new RegExp(`form\\.setValue\\(['"]${field}['"]`));
+    }
+  });
+
+  it('clears corporate values only through the explicit submit payload', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/residents/resident-form.tsx'),
+      'utf8'
+    );
+
+    expect(source).toContain('const submitted = resolveSubmittedCorporateFields(data);');
+    expect(source).toContain('company_name: submitted.company_name');
+    expect(source).toContain('liaison_contact_phone: submitted.liaison_contact_phone');
+    expect(source).toContain('await createMutation.mutateAsync(submitted);');
   });
 });
