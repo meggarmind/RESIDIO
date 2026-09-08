@@ -4,7 +4,23 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logAudit } from '@/lib/audit/logger';
 import type { EstateBankAccount } from '@/types/database';
 import { estateBankAccountFormSchema, type EstateBankAccountFormData } from '@/lib/validators/import';
-import { canAutoApprove, createApprovalRequest } from '@/actions/approvals';
+import { canAutoApprove } from '@/actions/approvals';
+
+// The maker-checker path for bank accounts was written against the approval
+// request types `bank_account_create` / `bank_account_update` /
+// `bank_account_delete`, none of which exist in the `approval_request_type`
+// Postgres enum -- every such insert was rejected at runtime (#107). Until the
+// enum is widened (owner decision, tracked as #306) there is no way to raise a
+// bank-account approval request, so these paths refuse explicitly rather than
+// pretending to file one.
+function approvalUnavailable(capability: string): string {
+  return (
+    `${capability} requires approval, but bank account approval requests are not ` +
+    `available: the approval request type does not exist in the database. ` +
+    `Ask someone with the approvals.approve_reject permission to make this change ` +
+    `directly. Tracked as issue #306.`
+  );
+}
 
 // ============================================================
 // Response Types
@@ -114,34 +130,9 @@ export async function createBankAccount(
   const autoApprove = await canAutoApprove();
 
   if (!autoApprove) {
-    // Create approval request instead of directly creating
-    const approvalResult = await createApprovalRequest({
-      request_type: 'bank_account_create',
-      entity_type: 'estate_bank_account',
-      entity_id: 'pending', // Placeholder - will be updated when approved
-      requested_changes: {
-        account_number,
-        account_name,
-        bank_name,
-        description: description || null,
-        is_active: is_active ?? true,
-      },
-      current_values: {},
-      reason: `New bank account: ${account_name} (${account_number})`,
-    });
-
-    if (!approvalResult.success) {
-      return {
-        data: null,
-        error: approvalResult.error ?? 'Failed to create approval request',
-      };
-    }
-
     return {
       data: null,
-      error: null,
-      requiresApproval: true,
-      approvalRequestId: approvalResult.request_id,
+      error: approvalUnavailable('Creating a bank account'),
     };
   }
 
@@ -225,40 +216,9 @@ export async function updateBankAccount(
   const autoApprove = await canAutoApprove();
 
   if (!autoApprove) {
-    // Create approval request instead of directly updating
-    const approvalResult = await createApprovalRequest({
-      request_type: 'bank_account_update',
-      entity_type: 'estate_bank_account',
-      entity_id: id,
-      requested_changes: {
-        account_number: formData.account_number ?? existing.account_number,
-        account_name: formData.account_name ?? existing.account_name,
-        bank_name: formData.bank_name ?? existing.bank_name,
-        description: formData.description !== undefined ? (formData.description || null) : existing.description,
-        is_active: formData.is_active ?? existing.is_active,
-      },
-      current_values: {
-        account_number: existing.account_number,
-        account_name: existing.account_name,
-        bank_name: existing.bank_name,
-        description: existing.description,
-        is_active: existing.is_active,
-      },
-      reason: `Update bank account: ${existing.account_name} (${existing.account_number})`,
-    });
-
-    if (!approvalResult.success) {
-      return {
-        data: null,
-        error: approvalResult.error ?? 'Failed to create approval request',
-      };
-    }
-
     return {
-      data: existing as EstateBankAccount,
-      error: null,
-      requiresApproval: true,
-      approvalRequestId: approvalResult.request_id,
+      data: null,
+      error: approvalUnavailable('Updating a bank account'),
     };
   }
 
@@ -326,28 +286,9 @@ export async function toggleBankAccountStatus(id: string): Promise<MutateBankAcc
   const autoApprove = await canAutoApprove();
 
   if (!autoApprove) {
-    // Create approval request
-    const approvalResult = await createApprovalRequest({
-      request_type: 'bank_account_update',
-      entity_type: 'estate_bank_account',
-      entity_id: id,
-      requested_changes: { is_active: newStatus },
-      current_values: { is_active: existing.is_active },
-      reason: `${newStatus ? 'Activate' : 'Deactivate'} bank account: ${existing.account_name}`,
-    });
-
-    if (!approvalResult.success) {
-      return {
-        data: null,
-        error: approvalResult.error ?? 'Failed to create approval request',
-      };
-    }
-
     return {
-      data: existing as EstateBankAccount,
-      error: null,
-      requiresApproval: true,
-      approvalRequestId: approvalResult.request_id,
+      data: null,
+      error: approvalUnavailable(`${newStatus ? 'Activating' : 'Deactivating'} a bank account`),
     };
   }
 
@@ -404,32 +345,8 @@ export async function deleteBankAccount(id: string): Promise<DeleteBankAccountRe
   const autoApprove = await canAutoApprove();
 
   if (!autoApprove) {
-    // Create approval request
-    const approvalResult = await createApprovalRequest({
-      request_type: 'bank_account_delete',
-      entity_type: 'estate_bank_account',
-      entity_id: id,
-      requested_changes: {},
-      current_values: {
-        account_number: existing.account_number,
-        account_name: existing.account_name,
-        bank_name: existing.bank_name,
-        description: existing.description,
-        is_active: existing.is_active,
-      },
-      reason: `Delete bank account: ${existing.account_name} (${existing.account_number})`,
-    });
-
-    if (!approvalResult.success) {
-      return {
-        error: approvalResult.error ?? 'Failed to create approval request',
-      };
-    }
-
     return {
-      error: null,
-      requiresApproval: true,
-      approvalRequestId: approvalResult.request_id,
+      error: approvalUnavailable('Deleting a bank account'),
     };
   }
 
