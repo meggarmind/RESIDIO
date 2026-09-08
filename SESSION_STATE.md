@@ -18,8 +18,8 @@ after rebasing off the stale local master (#224 bug — `issue:workflow start` b
 
 | Issue | PR | Branch | Gates | Notes |
 | --- | --- | --- | --- | --- |
-| **#244** | **#308** | `feat/issue-244-invoice-generation-locks-exists-in-the-live-data` | tsc 0, lint 0, **111 files / 1139 tests / 0 failures** | Migration written, not applied |
-| **#300** | **#322** | `feat/issue-300-manual-wallet-adjustments-are-non-atomic-and-can` | tsc 0, lint 0, **114 files / 1170 tests / 0 failures** | Migration written, not applied |
+| **#244** | **#308** | `feat/issue-244-invoice-generation-locks-exists-in-the-live-data` | tsc 0, lint 0, **111 files / 1139 tests / 0 failures** | Merged; migration **applied to Prod** `20260908225157` |
+| **#300** | **#322** | `feat/issue-300-manual-wallet-adjustments-are-non-atomic-and-can` | tsc 0, lint 0, **114 files / 1170 tests / 0 failures** | Merged; migration **applied to Prod** `20260908225209` |
 
 ### #244 — drop orphaned invoice_generation_locks
 
@@ -54,11 +54,35 @@ audit before RPC failure, remove amount validation).
 - `--lane fix` not configured in `.github/issue-workflow.json` (only codex/claude/opencode).
   Used `--lane claude` producing `feat/issue-*` prefix. Recommend adding `"fix": "fix/issue-"`.
 
-### Unapplied migrations (coordinator applies after merge)
+### ✅ Three migrations applied to Residio_Prod — 2026-09-08 (applied ≠ merged)
 
-1. `supabase/migrations/20260907010000_seed_billing_manage_profile_versions_permission.sql` (PR #303)
-2. `supabase/migrations/20260908000000_drop_invoice_generation_locks.sql` (PR #308, #244)
-3. `supabase/migrations/20260908010000_atomic_manual_wallet_adjustments.sql` (PR #322, #300)
+PRs #303, #308 and #322 are all merged to `origin/master`, so `CORE.md` §11's apply-after-merge
+condition was met. Applied to **Residio_Prod** (`miyeswqbwarvipdzwqnz`) through the Supabase MCP
+`apply_migration` tool only — `npm run db:migrate` was **not** run (#219).
+
+| File | Ledger version (MCP-assigned) | Verified effect on Prod |
+| --- | --- | --- |
+| `20260907010000_seed_billing_manage_profile_versions_permission.sql` | `20260908225151` | `billing.manage_profile_versions` present in `app_permissions` (1); role grants **0** — `app_roles` is empty in Prod (roster not moved, #280). The grant must accompany the #280 roster move. |
+| `20260908000000_drop_invoice_generation_locks.sql` | `20260908225157` | `public.invoice_generation_locks` no longer exists. |
+| `20260908010000_atomic_manual_wallet_adjustments.sql` | `20260908225209` | `adjust_wallet_credit` and `adjust_wallet_debit` both present. |
+
+Filename-versus-ledger version mismatch is the documented #305 `apply_migration` drift, not a
+second application. Recorded individually on #242, #244 and #300.
+
+Until the roster moves (#280), **no role holds `billing.manage_profile_versions`**: the add-version
+form stays hidden and the write action refuses every caller — correct fail-closed behaviour, not a
+bug. Carrying the grant over in #280 is the required step before historical rates can be entered,
+and therefore before #73's full-estate backfill can run.
+
+### ⚠️ Residio_Stage is two migrations behind Prod
+
+Verified 2026-09-09 against both applied lists. **Residio_Stage** (`kzugmyjjqttardhfejzc`) has
+`20260907010000_seed_billing_manage_profile_versions_permission` but **not**
+`drop_invoice_generation_locks` and **not** `atomic_manual_wallet_adjustments`. Stage therefore
+still has the orphaned locks table and still lacks the atomic wallet RPCs — `creditWallet` /
+`debitWallet` will fail there against the post-#300 server actions. Note that the default Supabase
+MCP connection in this repo points at **Stage, not Prod**; check the project ref before reading an
+applied list as proof of anything.
 
 ### Do not re-litigate
 
@@ -86,16 +110,12 @@ which landed as PR #296. Three PRs are open and **none is merged — the user do
 **#298 must merge before #303.** #303's wiki page documents the preview warning, which lives in
 #298's files; alone, that page overclaims.
 
-### ⚠️ Migration written and NOT applied
+### Migration written and NOT applied — **superseded, now applied**
 
 `supabase/migrations/20260907010000_seed_billing_manage_profile_versions_permission.sql`, on PR
-**#303**. Recorded here and on #242 per `CORE.md` §11.
-
-Until it is applied, **no role holds `billing.manage_profile_versions`**: the add-version form stays
-hidden and the write action refuses every caller. That is correct fail-closed behaviour, not a bug.
-But **applying it is a required step before historical rates can be entered, and therefore before
-#73's full-estate backfill can run.** Do not apply it before #303 merges (`CORE.md` §11: a migration
-is applied only from the branch that introduces it, after that branch merges).
+**#303**. **#303 merged 2026-09-07 and the migration was applied to Prod on 2026-09-08 as ledger
+version `20260908225151`** — see the applied-migrations table in the latest session above. Left
+here so the historical record reads correctly; do not act on it.
 
 ### Where this work came from — an abandoned branch, now superseded
 
