@@ -257,6 +257,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .eq('id', userId)
       .single();
     let profileData = profileDataRaw;
+    // #256: the profiles-table read failing is a second, independent way to
+    // end up with a degraded (zero-permission) snapshot -- the metadata
+    // fallback below has role_id: null, so no role or permission can be
+    // resolved for it at all. Tracked separately from the RBAC-fetch failure
+    // because only the latter should raise the #113 toast; see below.
+    let profileFetchFailed = false;
 
     if (profileError) {
       console.error('Error fetching profile:', profileError);
@@ -282,8 +288,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
 
         console.warn('[AuthProvider] Using fallback profile:', fallbackProfile);
+        profileFetchFailed = true;
+        // Render it -- the app must not go blank for a user in this state --
+        // but never persist it (#256). Writing this zero-permission snapshot
+        // to the 5-minute session cache turns one transient profiles-table
+        // error into five minutes of the user seeing none of their own
+        // permissions, on every navigation and reload.
         setProfile(fallbackProfile);
-        setCachedProfile(fallbackProfile);
+        cacheProfileIfHealthy(fallbackProfile, true);
         profileData = fallbackProfile;
       } else {
         return;
@@ -297,11 +309,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Fetch role details and permissions
     let appRole: { id: string; name: string; display_name: string } | null = null;
     let permissions: string[] = [];
-    // Tracks a failed/timed-out RBAC fetch explicitly, rather than inferring
-    // it from permissions.length === 0 -- a role legitimately granted zero
-    // permissions is a different condition and must not be treated as a
-    // failure (it should still cache normally).
-    let rbacFailed = false;
+    // Tracks an unusable RBAC (role/permissions) resolution explicitly, rather
+    // than inferring it from permissions.length === 0 -- a role legitimately
+    // granted zero permissions is a different condition and must not be
+    // treated as a failure (it should still cache normally).
+    //
+    // Seeded from profileFetchFailed (#256): when the profiles row could not
+    // be read, the metadata fallback carries role_id: null, so the block below
+    // never runs and `permissions` stays [] for a reason that has nothing to do
+    // with the user's real role. Without this seed the degraded profile would
+    // simply be cached 60 lines further down instead of at the fallback site.
+    let rbacFailed = profileFetchFailed;
+    // Narrower flag for the user-facing half: only the #113 RBAC
+    // failure/timeout raises the toast. Surfacing the profiles-table failure
+    // to the user is a separate, deliberate decision and is out of scope here.
+    let rbacFetchFailed = false;
     // No legacy reverse lookup here any more (#193). It resolved a role by
     // name from the deprecated profiles.role column when role_id was absent;
     // #192 reconciled every profile and proved against live data that no row
@@ -340,6 +362,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .filter((name): name is string => name != null);
       } catch (err) {
         console.error('[AuthProvider] RBAC fetch failed or timed out:', err);
+        rbacFetchFailed = true;
         rbacFailed = true;
       }
     }
@@ -362,7 +385,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // every navigation and reload, turning a transient blip into an outage.
     cacheProfileIfHealthy(newProfile, rbacFailed);
 
-    if (rbacFailed) {
+    if (rbacFetchFailed) {
       toast.error('Could not load your permissions', {
         description: 'Some controls may be hidden until this is retried. Your access has not changed.',
         action: {
