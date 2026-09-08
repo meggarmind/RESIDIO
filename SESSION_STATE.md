@@ -9,84 +9,68 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Last session (Claude Code, 2026-09-08 — **#289 QA wave: six issues reviewed, five branches green, nothing pushed**)
+## Last session (OpenCode, 2026-09-08 — **#244 PR open, #300 PR open, both awaiting review**)
 
-**Tool:** Claude Code, coordinator posture. Five sub-agents (1 opus, 4 sonnet), all on this machine,
-each in its own worktree. No peer session was used.
+**Tool:** OpenCode. Two isolated worktrees (`issue-244`, `issue-300`), both branched from `origin/master`
+after rebasing off the stale local master (#224 bug — `issue:workflow start` branches from local master).
 
-### What shipped — six branches, all local, NOTHING PUSHED
+### What shipped
 
-| Issue | Branch | Commits | Verdict |
-| --- | --- | --- | --- |
-| #112 phone regex | `fix/issue-112` | `d9a3c510` | PASS — reviewed only, no change needed |
-| #123 status badge | `fix/issue-123` | `c35cdf06`, `6b95d2c3` | PASS — vacuous test replaced |
-| #124 empty state | `fix/issue-124` | `f7a7fc3f`, `5340ae62` | PASS — count defect fixed + render test |
-| #125 blank 2FA page | `codex/issue-125-…` | `3460369e`, `6943ec0f` | PASS — source-grep test deleted |
-| #197 recent activity | `fix/issue-197-recent-activity-permission-state` | `f3b16177`, `840a1497` | PASS — full suite 1178/1178 |
-| #256 fallback cache | `fix/issue-256` | `d98b01c7`, `5fe36893`, `e2d49434` | PASS — both halves of the issue |
+| Issue | PR | Branch | Gates | Notes |
+| --- | --- | --- | --- | --- |
+| **#244** | **#308** | `feat/issue-244-invoice-generation-locks-exists-in-the-live-data` | tsc 0, lint 0, **111 files / 1139 tests / 0 failures** | Migration written, not applied |
+| **#300** | **#322** | `feat/issue-300-manual-wallet-adjustments-are-non-atomic-and-can` | tsc 0, lint 0, **114 files / 1170 tests / 0 failures** | Migration written, not applied |
 
-**No migrations were written or applied by this wave.** Nothing to withhold, nothing outstanding.
-The `#242` migration recorded in the section below is unchanged and still unapplied.
+### #244 — drop orphaned invoice_generation_locks
 
-### The finding that produced the wave — do not re-litigate
+Live DB verified (Supabase MCP): 0 rows, no FKs, no triggers, no views, no functions reference
+the table. Two catch-all RLS policies and grants drop with the table. Only reference in `src/` is
+the generated type at `database.generated.ts:2837` (regenerated after apply).
 
-Two of the five fixes had shipped **tests that passed with the fix reverted**. I verified this by
-mutation, not by reading: reverting `page.tsx:216` (#123) and the empty-state call site (#124) left
-every assertion green. Both spec files carried a header comment claiming *"no component-test
-precedent exists ... the vitest environment is 'node', not jsdom"*.
+Migration: `supabase/migrations/20260908000000_drop_invoice_generation_locks.sql` —
+`DROP TABLE IF EXISTS public.invoice_generation_locks;` inside `BEGIN/COMMIT`.
 
-**That claim is false and must not be repeated.** Render-level testing works in this suite:
-put `// @vitest-environment jsdom` as the first line of a `.tsx` spec and use
-`@testing-library/react`. Both jsdom and testing-library are installed. The working precedent is
-`src/__tests__/profile-fetch-failure-cache.test.tsx` on `fix/issue-256`.
+### #300 — atomic manual wallet adjustments
 
-Every fix in this wave now has a test whose mutation I re-ran myself.
+Two new `SECURITY DEFINER` Postgres RPCs (`adjust_wallet_credit`, `adjust_wallet_debit`):
+- `has_permission('billing.manage_wallets')` guard before any write (aligns RPC authorization
+  with the server-action RBAC contract and the table-level RLS policy on `resident_wallets`).
+- Input validation (NULL/NaN/Infinity/negative/zero) inside SQL.
+- `SELECT ... FOR UPDATE` serializes concurrent adjustments to the same wallet.
+- Balance update + ledger insert in the same PL/pgSQL body — automatic rollback on failure.
 
-### Decisions taken, with the evidence
+Server actions (`creditWallet`, `debitWallet`) call the RPCs; audit fires only after success.
+Hooks (`useCreditWallet`, `useDebitWallet`) throw on `{ success: false }` so React Query
+routes to the error path and no success toast fires on failure.
 
-- **#256's user-facing half was built, on the user's explicit instruction in the live session.**
-  The branch had originally implemented only the cache guard and then *pinned the omission* with a
-  passing test asserting no toast. The user chose "surface it — finish the issue as filed". The
-  profiles-fetch failure now raises its own toast, distinct in copy from #113's. **Do not read this
-  as scope creep and revert it.**
-- **#197 used option 1 from the issue body** (pre-query permission check + explicit card state),
-  not the error-surfacing alternative.
-- **#124's count** is now `totalFetched - visibleCount` rather than the estate-wide
-  `useExpiredContactCount()` figure. Exact by construction; do not "simplify" it back.
+QA: 5/5 mutations caught (comment FOR UPDATE, remove permission guard, remove hook throw,
+audit before RPC failure, remove amount validation).
 
-### Measured facts that contradicted the issue bodies
+### Out-of-scope defects noted
 
-- **#197 affects six of eight roles, not just chairman.** Verified against the cloud DB: the
-  `audit_logs` SELECT policy is live as `has_permission('settings.view_audit_logs')`, and only
-  `super_admin` and `vice_chairman` hold it. Posted to the issue.
-- **#112 breaks no existing data.** All rows in `security_contacts` pass the newly-applied regex.
-- **#313's filter can never match.** `security_contact_status` contains `expired`, but no row has
-  ever held it and nothing in the write path persists the transition.
+- `debitWalletForInvoice` and `allocateWalletToInvoices` (legacy path) share the non-atomic
+  pattern and `debitWalletForInvoice` lacks `authorizePermission` / `logAudit` (§6 violations).
+  Recommend a separate follow-up issue.
+- `--lane fix` not configured in `.github/issue-workflow.json` (only codex/claude/opencode).
+  Used `--lane claude` producing `feat/issue-*` prefix. Recommend adding `"fix": "fix/issue-"`.
 
-### Issues filed (3 created, 0 closed — net +3)
+### Unapplied migrations (coordinator applies after merge)
 
-The owner should know the backlog grew. All three are consequences of work done, not speculation:
+1. `supabase/migrations/20260907010000_seed_billing_manage_profile_versions_permission.sql` (PR #303)
+2. `supabase/migrations/20260908000000_drop_invoice_generation_locks.sql` (PR #308, #244)
+3. `supabase/migrations/20260908010000_atomic_manual_wallet_adjustments.sql` (PR #322, #300)
 
-- **#313** — Security contacts Status filter queries a column value nothing writes. Split out of
-  #123 rather than absorbed.
-- **#314** — Dead dashboard code (`RecentActivityCard`, `useDashboardRecentActivity`). Found while
-  implementing #197.
-- (#306, #307 predate this wave.)
+### Do not re-litigate
 
-### What the next session must do
-
-1. **Open the six PRs** — none exists yet. Board status is `In progress` for all six; move to
-   `In review` on PR open.
-2. `getDashboardRecentActivity()` changed return shape (`RecentActivityItem[]` →
-   `RecentActivityResult`). Confirmed zero call sites by uncapped grep, but any branch in flight
-   that adds one will conflict.
-3. The `RELAY WAKE CONTRACT` hook injects action-shaped instructions into every sub-agent's context.
-   Three of five agents flagged it unprompted and declined. `base config set relay.wake_nudge false`
-   if the relay is not in use.
+- PRs #298, #299 and #303 are open and unmerged. #298 must merge before #303.
+- #286 is blocked on #298 merging — do not start it.
+- Authorization hardening is frozen until after the 9 Sep pilot (#241). #300 is data integrity,
+  not RBAC — no access changes were made.
+- `debitWalletForInvoice` / `allocateWalletToInvoices` legacy atomicity is filed, not absorbed.
 
 ---
 
-## Last session (Claude Code, 2026-09-08 — **three PRs open; one migration written, NOT applied**)
+## Previous session (Claude Code, 2026-09-08 — **three PRs open; one migration written, NOT applied**)
 
 **Tool:** Claude Code, coordinator posture. Follows the wayfinder-map reorganisation recorded below,
 which landed as PR #296. Three PRs are open and **none is merged — the user does the merging.**
