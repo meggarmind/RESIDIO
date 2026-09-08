@@ -34,7 +34,6 @@ const updateStreetSource = read('actions/reference/update-street.ts');
 const deleteStreetSource = read('actions/reference/delete-street.ts');
 const updateHouseTypeSource = read('actions/reference/update-house-type.ts');
 const approvalsIndexSource = read('actions/approvals/index.ts');
-const developerOwnerApprovalsSource = read('actions/approvals/developer-owner-approvals.ts');
 const reportEngineSource = read('actions/reports/report-engine.ts');
 const financialOverviewActionSource = read('actions/reports/get-financial-overview.ts');
 const backfillOwnershipHistorySource = read('actions/settings/backfill-ownership-history.ts');
@@ -256,51 +255,6 @@ describe('Part 2: approvals/index.ts hand-rolled legacy checks', () => {
   it('the pinned constants resolve to the expected permission strings', () => {
     expect(PERMISSIONS.APPROVALS_VIEW).toBe('approvals.view');
     expect(PERMISSIONS.APPROVALS_APPROVE_REJECT).toBe('approvals.approve_reject');
-  });
-});
-
-describe('Part 3: developer-owner-approvals.ts dual-path and cron checks', () => {
-  it('pins which permission every top-level declaration requires', () => {
-    expect(extractPermissionGuards(developerOwnerApprovalsSource)).toEqual({
-      checkRequiresApproval: null,
-      createDeveloperOwnerApproval: null,
-      // Dual-path admin-OR-affected-resident checks -- pinned separately
-      // below, since a hard authorizePermission() early return here would
-      // wrongly reject the legitimate resident branch.
-      approveAsOccupier: null,
-      rejectAsOccupier: null,
-      processExpiredApprovals: 'APPROVALS_APPROVE_REJECT',
-      getMyPendingApprovals: null,
-      sendApprovalReminders: null,
-      getActionLabel: null,
-      formatRole: null,
-    });
-  });
-
-  it.each(['approveAsOccupier', 'rejectAsOccupier'] as const)(
-    '%s keeps the admin-OR-affected-resident dual path via getCurrentUserPermissions, not a hard guard',
-    (fnName) => {
-      const start = developerOwnerApprovalsSource.indexOf(`export async function ${fnName}`);
-      const nextExport = developerOwnerApprovalsSource.indexOf('\nexport async function', start + 1);
-      const body = developerOwnerApprovalsSource.slice(start, nextExport === -1 ? undefined : nextExport);
-
-      // The permission check and the resident check are both present and
-      // combined with OR, not gated behind an early-returning hard guard.
-      expect(body).toContain('getCurrentUserPermissions()');
-      expect(body).toContain('permissions.includes(PERMISSIONS.APPROVALS_APPROVE_REJECT)');
-      expect(body).toContain('isAffectedResident');
-      expect(body).toMatch(/if\s*\(\s*!isAdmin\s*&&\s*!isAffectedResident\s*\)/);
-      expect(body).not.toContain('await authorizePermission(');
-      // The resident half no longer needs the legacy role column.
-      expect(body).not.toContain("select('role, resident_id')");
-    }
-  );
-
-  it('no longer reads the legacy profiles.role column for authorization', () => {
-    expect(developerOwnerApprovalsSource).not.toContain('profile?.role');
-    expect(developerOwnerApprovalsSource).not.toContain("profile.role !== 'admin'");
-    expect(developerOwnerApprovalsSource).not.toContain('authorizeAction');
-    expect(developerOwnerApprovalsSource).not.toContain('ACTION_ROLES');
   });
 });
 

@@ -48,7 +48,6 @@ const PERMISSION_ALLOWLIST = [
   // ---- Admin-facing writes that authenticate (auth.getUser) but do not check
   // an RBAC role/permission. RLS on the underlying tables is currently the only
   // authorization boundary for these. Genuine gaps; close them per module.
-  'approvals/developer-owner-approvals.ts',
   'billing/profiles.ts',
   'documents/categories.ts',
   'imports/bank-accounts.ts',
