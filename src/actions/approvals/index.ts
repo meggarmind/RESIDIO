@@ -409,6 +409,11 @@ async function applyRequestedChanges(request: ApprovalRequest): Promise<Approval
       entityDisplay: `Manual Payment Approved: ₦${payment.amount.toLocaleString()}`,
       newValues: { status: 'paid', verified: true },
     });
+  } else {
+    return {
+      success: false,
+      error: `Unhandled approval request type: ${request.request_type}`,
+    };
   }
 
   return { success: true, error: null };
