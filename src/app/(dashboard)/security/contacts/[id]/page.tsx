@@ -37,8 +37,6 @@ import {
   CheckCircle,
   Loader2,
   AlertTriangle,
-  Clock,
-  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -53,8 +51,11 @@ import {
   SecurityContactStatusBadge,
   CategoryBadge,
   ValidityBadge,
-  AccessCodeTypeBadge,
 } from '@/components/security/security-badges';
+import {
+  AdminAccessCodeGenerationMenu,
+  AdminAccessCodeTypeBadge,
+} from '@/components/security/admin-access-code-generation';
 import { AccessCodeDisplay } from '@/components/security/access-code-display';
 import { SecurityContactForm } from '@/components/security/security-contact-form';
 import { toast } from 'sonner';
@@ -143,16 +144,11 @@ export default function SecurityContactDetailPage() {
   };
 
   const handleGenerateCode = async (codeType: 'permanent' | 'one_time') => {
-    try {
-      await generateCodeMutation.mutateAsync({
-        contact_id: contact.id,
-        code_type: codeType,
-      });
-      toast.success(`${codeType === 'permanent' ? 'Permanent' : 'One-time'} code generated successfully`);
-      refetch();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to generate code');
-    }
+    await generateCodeMutation.mutateAsync({
+      contact_id: contact.id,
+      code_type: codeType,
+    });
+    refetch();
   };
 
   const handleRevokeCode = async (codeId: string) => {
@@ -419,28 +415,11 @@ export default function SecurityContactDetailPage() {
                 </CardDescription>
               </div>
               {canGenerateCodes && contact.status === 'active' && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button disabled={generateCodeMutation.isPending}>
-                      {generateCodeMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Key className="mr-2 h-4 w-4" />
-                      )}
-                      Generate Code
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleGenerateCode('permanent')}>
-                      <Clock className="h-4 w-4 mr-2" />
-                      Permanent Code
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleGenerateCode('one_time')}>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      One-Time Code
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <AdminAccessCodeGenerationMenu
+                  defaultValidityDays={contact.category?.default_validity_days}
+                  isPending={generateCodeMutation.isPending}
+                  onGenerate={handleGenerateCode}
+                />
               )}
             </div>
           </CardHeader>
@@ -457,7 +436,7 @@ export default function SecurityContactDetailPage() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <AccessCodeDisplay code={code.code} size="lg" />
-                        <AccessCodeTypeBadge type={code.code_type} />
+                        <AdminAccessCodeTypeBadge type={code.code_type} />
                         <ValidityBadge validUntil={code.valid_until} isActive={code.is_active} />
                       </div>
                       <div className="text-xs text-muted-foreground">

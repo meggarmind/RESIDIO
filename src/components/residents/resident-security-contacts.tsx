@@ -28,11 +28,8 @@ import {
   Eye,
   Ban,
   Trash,
-  Key,
   CheckCircle,
   Phone,
-  Clock,
-  RefreshCw,
 } from 'lucide-react';
 import {
   useResidentSecurityContacts,
@@ -45,8 +42,11 @@ import {
   SecurityContactStatusBadge,
   CategoryBadge,
   ValidityBadge,
-  AccessCodeTypeBadge,
 } from '@/components/security/security-badges';
+import {
+  AdminAccessCodeGenerationMenu,
+  AdminAccessCodeTypeBadge,
+} from '@/components/security/admin-access-code-generation';
 import { AccessCodeDisplay } from '@/components/security/access-code-display';
 import { toast } from 'sonner';
 import type { SecurityContactWithDetails, AccessCode } from '@/types/database';
@@ -114,16 +114,11 @@ export function ResidentSecurityContacts({ residentId }: ResidentSecurityContact
   };
 
   const handleGenerateCode = async (contactId: string, codeType: 'permanent' | 'one_time') => {
-    try {
-      await generateCodeMutation.mutateAsync({
-        contact_id: contactId,
-        code_type: codeType,
-      });
-      toast.success(`${codeType === 'permanent' ? 'Permanent' : 'One-time'} code generated`);
-      refetch();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to generate code');
-    }
+    await generateCodeMutation.mutateAsync({
+      contact_id: contactId,
+      code_type: codeType,
+    });
+    refetch();
   };
 
   const openDeleteDialog = (contactId: string) => {
@@ -201,7 +196,7 @@ export function ResidentSecurityContacts({ residentId }: ResidentSecurityContact
                     {activeCode && (
                       <div className="flex items-center gap-2 mt-2">
                         <AccessCodeDisplay code={activeCode.code} size="sm" />
-                        <AccessCodeTypeBadge type={activeCode.code_type} />
+                        <AdminAccessCodeTypeBadge type={activeCode.code_type} />
                         <ValidityBadge validFrom={activeCode.valid_from} validUntil={activeCode.valid_until} isActive={activeCode.is_active} />
                       </div>
                     )}
@@ -212,30 +207,13 @@ export function ResidentSecurityContacts({ residentId }: ResidentSecurityContact
 
                   <div className="flex items-center gap-2">
                     {canGenerateCodes && contact.status === 'active' && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm" disabled={generateCodeMutation.isPending}>
-                            {generateCodeMutation.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <>
-                                <Key className="h-4 w-4 mr-1" />
-                                Code
-                              </>
-                            )}
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleGenerateCode(contact.id, 'permanent')}>
-                            <Clock className="h-4 w-4 mr-2" />
-                            Permanent Code
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleGenerateCode(contact.id, 'one_time')}>
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            One-Time Code
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <AdminAccessCodeGenerationMenu
+                        defaultValidityDays={contact.category?.default_validity_days}
+                        isPending={generateCodeMutation.isPending}
+                        onGenerate={(codeType) => handleGenerateCode(contact.id, codeType)}
+                        triggerLabel="Code"
+                        triggerSize="sm"
+                      />
                     )}
 
                     <DropdownMenu>
