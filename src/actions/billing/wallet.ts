@@ -25,6 +25,37 @@ type WalletWithBalance = {
     balance: number;
 }
 
+type WalletAdjustmentResult = {
+    success?: boolean;
+    new_balance?: number;
+    wallet_id?: string;
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function validateWalletAdjustment(
+    residentId: string,
+    amount: number,
+    referenceType?: string,
+    referenceId?: string,
+    description?: string,
+): string | null {
+    if (typeof residentId !== 'string' || !UUID_PATTERN.test(residentId)) return 'Invalid resident';
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) return 'Amount must be a finite number greater than zero';
+    if (referenceType !== undefined && (typeof referenceType !== 'string' || referenceType.trim().length === 0)) return 'Invalid reference type';
+    if (referenceId !== undefined && (typeof referenceId !== 'string' || !UUID_PATTERN.test(referenceId))) return 'Invalid reference ID';
+    if (description !== undefined && (typeof description !== 'string' || description.trim().length === 0)) return 'Invalid description';
+    if (referenceType?.trim() === 'adjustment' && !description?.trim()) return 'Adjustment description is required';
+    return null;
+}
+
+type WalletAdjustmentRpcClient = {
+    rpc: (name: 'adjust_wallet_credit' | 'adjust_wallet_debit', args: Record<string, unknown>) => Promise<{
+        data: WalletAdjustmentResult | null;
+        error: { message: string } | null;
+    }>;
+};
+
 /**
  * Get or create a wallet for a resident
  */
@@ -73,56 +104,33 @@ export async function creditWallet(
         return { success: false, newBalance: 0, error: auth.error || 'Unauthorized' };
     }
 
+    const validationError = validateWalletAdjustment(residentId, amount, referenceType, referenceId, description);
+    if (validationError) return { success: false, newBalance: 0, error: validationError };
+
     const supabase = await createServerSupabaseClient();
+    const { data, error } = await (supabase as unknown as WalletAdjustmentRpcClient).rpc('adjust_wallet_credit', {
+        p_resident_id: residentId,
+        p_amount: amount,
+        p_reference_type: referenceType?.trim() || null,
+        p_reference_id: referenceId || null,
+        p_description: description?.trim() || `Credit of ₦${amount.toLocaleString()}`,
+    });
 
-    // Get or create wallet
-    const { data: wallet, error: walletError } = await getOrCreateWallet(residentId);
-    if (walletError || !wallet) {
-        return { success: false, newBalance: 0, error: walletError || 'Failed to get wallet' };
+    if (error || !data || data.success !== true || typeof data.new_balance !== 'number' || !data.wallet_id) {
+        return { success: false, newBalance: 0, error: error?.message || 'Wallet credit failed' };
     }
 
-    const oldBalance = wallet.balance;
-    const newBalance = wallet.balance + amount;
-
-    // Update wallet balance
-    const { error: updateError } = await supabase
-        .from('resident_wallets')
-        .update({ balance: newBalance })
-        .eq('id', wallet.id);
-
-    if (updateError) {
-        return { success: false, newBalance: 0, error: updateError.message };
-    }
-
-    // Log transaction
-    const { error: txError } = await supabase
-        .from('wallet_transactions')
-        .insert({
-            wallet_id: wallet.id,
-            type: 'credit',
-            amount,
-            balance_after: newBalance,
-            reference_type: referenceType,
-            reference_id: referenceId,
-            description: description || `Credit of ₦${amount.toLocaleString()}`,
-        });
-
-    if (txError) {
-        console.error('[Wallet] Failed to log transaction:', txError);
-    }
-
-    // Audit log
     await logAudit({
         action: 'UPDATE',
         entityType: 'wallets',
-        entityId: wallet.id,
+        entityId: data.wallet_id,
         entityDisplay: `Wallet credit for resident ${residentId}`,
-        oldValues: { balance: oldBalance },
-        newValues: { balance: newBalance, amount_credited: amount, reference_type: referenceType },
+        oldValues: { balance: data.new_balance - amount },
+        newValues: { balance: data.new_balance, amount_credited: amount, reference_type: referenceType },
     });
 
     revalidatePath('/residents');
-    return { success: true, newBalance, error: null };
+    return { success: true, newBalance: data.new_balance, error: null };
 }
 
 /**
@@ -141,61 +149,33 @@ export async function debitWallet(
         return { success: false, newBalance: 0, error: auth.error || 'Unauthorized' };
     }
 
+    const validationError = validateWalletAdjustment(residentId, amount, referenceType, referenceId, description);
+    if (validationError) return { success: false, newBalance: 0, error: validationError };
+
     const supabase = await createServerSupabaseClient();
+    const { data, error } = await (supabase as unknown as WalletAdjustmentRpcClient).rpc('adjust_wallet_debit', {
+        p_resident_id: residentId,
+        p_amount: amount,
+        p_reference_type: referenceType?.trim() || null,
+        p_reference_id: referenceId || null,
+        p_description: description?.trim() || `Debit of ₦${amount.toLocaleString()}`,
+    });
 
-    // Get or create wallet
-    const { data: wallet, error: walletError } = await getOrCreateWallet(residentId);
-    if (walletError || !wallet) {
-        return { success: false, newBalance: 0, error: walletError || 'Failed to get wallet' };
+    if (error || !data || data.success !== true || typeof data.new_balance !== 'number' || !data.wallet_id) {
+        return { success: false, newBalance: 0, error: error?.message || 'Wallet debit failed' };
     }
 
-    // Check sufficient balance
-    if (wallet.balance < amount) {
-        return { success: false, newBalance: wallet.balance, error: 'Insufficient wallet balance' };
-    }
-
-    const oldBalance = wallet.balance;
-    const newBalance = wallet.balance - amount;
-
-    // Update wallet balance
-    const { error: updateError } = await supabase
-        .from('resident_wallets')
-        .update({ balance: newBalance })
-        .eq('id', wallet.id);
-
-    if (updateError) {
-        return { success: false, newBalance: 0, error: updateError.message };
-    }
-
-    // Log transaction
-    const { error: txError } = await supabase
-        .from('wallet_transactions')
-        .insert({
-            wallet_id: wallet.id,
-            type: 'debit',
-            amount,
-            balance_after: newBalance,
-            reference_type: referenceType,
-            reference_id: referenceId,
-            description: description || `Debit of ₦${amount.toLocaleString()}`,
-        });
-
-    if (txError) {
-        console.error('[Wallet] Failed to log transaction:', txError);
-    }
-
-    // Audit log
     await logAudit({
         action: 'UPDATE',
         entityType: 'wallets',
-        entityId: wallet.id,
+        entityId: data.wallet_id,
         entityDisplay: `Wallet debit for resident ${residentId}`,
-        oldValues: { balance: oldBalance },
-        newValues: { balance: newBalance, amount_debited: amount, reference_type: referenceType },
+        oldValues: { balance: data.new_balance + amount },
+        newValues: { balance: data.new_balance, amount_debited: amount, reference_type: referenceType },
     });
 
     revalidatePath('/residents');
-    return { success: true, newBalance, error: null };
+    return { success: true, newBalance: data.new_balance, error: null };
 }
 
 /**
