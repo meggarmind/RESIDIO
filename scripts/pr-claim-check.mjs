@@ -56,11 +56,17 @@ const issueWorkflowConfigPath = path.join(repoRoot, '.github', 'issue-workflow.j
 const ci = process.argv.includes('--ci');
 
 /**
- * Reads the lane branch prefixes from `.github/issue-workflow.json` (`branchPrefixes`,
- * e.g. `{ codex: "codex/issue-", claude: "feat/issue-", opencode: "opencode/issue-" }`).
- * Read from the file rather than hardcoded so a new lane cannot silently bypass the check.
+ * Reads the lane -> branch prefix map from `.github/issue-workflow.json` (`branchPrefixes`,
+ * e.g. `{ codex: "codex/issue-", claude: "claude/issue-", opencode: "opencode/issue-",
+ * fix: "fix/issue-" }`). Read from the file rather than hardcoded so a new lane cannot
+ * silently bypass the check.
+ *
+ * Callers that only need to match a branch (this script's own claim check) use
+ * `readBranchPrefixes` below; callers that need to know *which* lane matched
+ * (`scripts/harness-label.mjs`) need the map, so this is the single reader and the single
+ * set of error messages for both.
  */
-export function readBranchPrefixes(configPath) {
+export function readBranchPrefixMap(configPath) {
   let raw;
   try {
     raw = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -73,7 +79,16 @@ export function readBranchPrefixes(configPath) {
     throw new Error(`No "branchPrefixes" object found in ${configPath}`);
   }
 
-  return Object.values(prefixes);
+  return prefixes;
+}
+
+/**
+ * The lane branch prefixes as a flat array, e.g.
+ * `['codex/issue-', 'claude/issue-', 'opencode/issue-', 'fix/issue-']`.
+ * Thin wrapper over `readBranchPrefixMap` — the lane names are not needed to match a branch.
+ */
+export function readBranchPrefixes(configPath) {
+  return Object.values(readBranchPrefixMap(configPath));
 }
 
 /**
@@ -91,6 +106,32 @@ export function issueNumberFromBranch(branchName, prefixes) {
   }
 
   return null;
+}
+
+/**
+ * Resolves the lane name from a branch name given the lane -> prefix map, e.g.
+ * `claude/issue-324-harness-labels` -> `'claude'`. Returns null for a missing branch name
+ * or one matching no prefix.
+ *
+ * The **longest matching prefix wins**, so a config carrying both `fix/` and `fix/issue-`
+ * cannot mis-resolve to whichever happened to be enumerated first. Pure — no I/O.
+ */
+export function laneFromBranch(branchName, prefixMap) {
+  if (!branchName) return null;
+
+  let bestLane = null;
+  let bestLength = -1;
+
+  for (const [lane, prefix] of Object.entries(prefixMap ?? {})) {
+    if (typeof prefix !== 'string' || prefix.length === 0) continue;
+    if (!branchName.startsWith(prefix)) continue;
+    if (prefix.length > bestLength) {
+      bestLane = lane;
+      bestLength = prefix.length;
+    }
+  }
+
+  return bestLane;
 }
 
 /**
@@ -206,7 +247,12 @@ async function graphql({ token, query, variables }) {
   return payload.data;
 }
 
-async function fetchPullRequestData({ token, owner, repo, prNumber }) {
+/**
+ * Reads the PR's author, head branch and closing issue references in one GraphQL call.
+ * Exported so `scripts/harness-label.mjs` reuses this query rather than keeping a second
+ * copy of it in step with this one.
+ */
+export async function fetchPullRequestData({ token, owner, repo, prNumber }) {
   const query = `
     query($owner: String!, $repo: String!, $number: Int!) {
       repository(owner: $owner, name: $repo) {

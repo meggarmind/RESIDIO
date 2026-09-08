@@ -4,6 +4,7 @@ import {
   evaluateClaims,
   evaluateIssueClaim,
   issueNumberFromBranch,
+  laneFromBranch,
   resolveIssueNumbers,
 } from '../../scripts/pr-claim-check.mjs';
 
@@ -15,22 +16,35 @@ import {
  * the comparison logic rather than the I/O.
  */
 
-// The three lane prefixes from .github/issue-workflow.json's `branchPrefixes`, inlined
-// here as a fixture rather than read from disk — the point of the test is the matching
-// logic, not the config file (that wiring is a one-line call in the script itself).
-const PREFIXES = ['codex/issue-', 'feat/issue-', 'opencode/issue-'];
+// The lane -> prefix map from .github/issue-workflow.json's `branchPrefixes`, inlined here
+// as a fixture rather than read from disk — the point of the test is the matching logic, not
+// the config file (that wiring is a one-line call in the script itself).
+const PREFIX_MAP = {
+  codex: 'codex/issue-',
+  claude: 'claude/issue-',
+  opencode: 'opencode/issue-',
+  fix: 'fix/issue-',
+};
+
+// The same prefixes flattened, which is the shape `readBranchPrefixes` returns and the shape
+// `issueNumberFromBranch` / `resolveIssueNumbers` take.
+const PREFIXES = Object.values(PREFIX_MAP);
 
 describe('issueNumberFromBranch', () => {
   it('resolves an issue number from the codex/ lane prefix', () => {
     expect(issueNumberFromBranch('codex/issue-107-fix-thing', PREFIXES)).toBe(107);
   });
 
-  it('resolves an issue number from the feat/ lane prefix', () => {
-    expect(issueNumberFromBranch('feat/issue-297-pr-claim-check', PREFIXES)).toBe(297);
+  it('resolves an issue number from the claude/ lane prefix', () => {
+    expect(issueNumberFromBranch('claude/issue-297-pr-claim-check', PREFIXES)).toBe(297);
   });
 
   it('resolves an issue number from the opencode/ lane prefix', () => {
     expect(issueNumberFromBranch('opencode/issue-42-something', PREFIXES)).toBe(42);
+  });
+
+  it('resolves an issue number from the fix/ lane prefix', () => {
+    expect(issueNumberFromBranch('fix/issue-88-hotfix', PREFIXES)).toBe(88);
   });
 
   it('returns null when the branch matches no prefix', () => {
@@ -42,7 +56,49 @@ describe('issueNumberFromBranch', () => {
   });
 
   it('returns null when nothing follows the matched prefix', () => {
-    expect(issueNumberFromBranch('feat/issue-not-a-number', PREFIXES)).toBeNull();
+    expect(issueNumberFromBranch('claude/issue-not-a-number', PREFIXES)).toBeNull();
+  });
+});
+
+describe('laneFromBranch', () => {
+  // Unlike issueNumberFromBranch, this takes the lane -> prefix *map*: the caller
+  // (scripts/harness-label.mjs) needs to know which lane matched, not just that one did.
+  it('resolves the claude lane', () => {
+    expect(laneFromBranch('claude/issue-324-harness-labels', PREFIX_MAP)).toBe('claude');
+  });
+
+  it('resolves the codex lane', () => {
+    expect(laneFromBranch('codex/issue-107-fix-thing', PREFIX_MAP)).toBe('codex');
+  });
+
+  it('resolves the opencode lane', () => {
+    expect(laneFromBranch('opencode/issue-42-something', PREFIX_MAP)).toBe('opencode');
+  });
+
+  it('resolves the fix lane', () => {
+    // `fix` is a lane like any other here. That it names no *harness* is harness-label.mjs's
+    // rule (labelForLane), not this function's.
+    expect(laneFromBranch('fix/issue-88-hotfix', PREFIX_MAP)).toBe('fix');
+  });
+
+  it('returns null when the branch matches no prefix', () => {
+    expect(laneFromBranch('chore/board-wayfinder-map-structure', PREFIX_MAP)).toBeNull();
+  });
+
+  it('returns null when the branch name is missing', () => {
+    expect(laneFromBranch(null, PREFIX_MAP)).toBeNull();
+  });
+
+  it('picks the longest matching prefix when one prefix is a prefix of another', () => {
+    // A config carrying both `fix/` and `fix/issue-` must not resolve by enumeration order.
+    // Both orderings are asserted so the rule cannot pass by accident of key order.
+    const overlapping = { hotfix: 'fix/', fix: 'fix/issue-' };
+    const reversed = { fix: 'fix/issue-', hotfix: 'fix/' };
+
+    expect(laneFromBranch('fix/issue-88-hotfix', overlapping)).toBe('fix');
+    expect(laneFromBranch('fix/issue-88-hotfix', reversed)).toBe('fix');
+    // The shorter prefix still wins the branches only it matches.
+    expect(laneFromBranch('fix/something-else', overlapping)).toBe('hotfix');
   });
 });
 
@@ -72,7 +128,7 @@ describe('resolveIssueNumbers', () => {
 
   it('merges the branch-derived issue with multiple closing references, deduplicated and sorted', () => {
     const result = resolveIssueNumbers({
-      branchName: 'feat/issue-107-fix-thing',
+      branchName: 'claude/issue-107-fix-thing',
       prefixes: PREFIXES,
       // 107 also appears via a body reference; 88 and 3 are additional issues closed by the PR.
       closingIssueNumbers: [107, 88, 3],
