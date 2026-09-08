@@ -9,6 +9,83 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Last session (Claude Code, 2026-09-08 — **#289 QA wave: six issues reviewed, five branches green, nothing pushed**)
+
+**Tool:** Claude Code, coordinator posture. Five sub-agents (1 opus, 4 sonnet), all on this machine,
+each in its own worktree. No peer session was used.
+
+### What shipped — six branches, all local, NOTHING PUSHED
+
+| Issue | Branch | Commits | Verdict |
+| --- | --- | --- | --- |
+| #112 phone regex | `fix/issue-112` | `d9a3c510` | PASS — reviewed only, no change needed |
+| #123 status badge | `fix/issue-123` | `c35cdf06`, `6b95d2c3` | PASS — vacuous test replaced |
+| #124 empty state | `fix/issue-124` | `f7a7fc3f`, `5340ae62` | PASS — count defect fixed + render test |
+| #125 blank 2FA page | `codex/issue-125-…` | `3460369e`, `6943ec0f` | PASS — source-grep test deleted |
+| #197 recent activity | `fix/issue-197-recent-activity-permission-state` | `f3b16177`, `840a1497` | PASS — full suite 1178/1178 |
+| #256 fallback cache | `fix/issue-256` | `d98b01c7`, `5fe36893`, `e2d49434` | PASS — both halves of the issue |
+
+**No migrations were written or applied by this wave.** Nothing to withhold, nothing outstanding.
+The `#242` migration recorded in the section below is unchanged and still unapplied.
+
+### The finding that produced the wave — do not re-litigate
+
+Two of the five fixes had shipped **tests that passed with the fix reverted**. I verified this by
+mutation, not by reading: reverting `page.tsx:216` (#123) and the empty-state call site (#124) left
+every assertion green. Both spec files carried a header comment claiming *"no component-test
+precedent exists ... the vitest environment is 'node', not jsdom"*.
+
+**That claim is false and must not be repeated.** Render-level testing works in this suite:
+put `// @vitest-environment jsdom` as the first line of a `.tsx` spec and use
+`@testing-library/react`. Both jsdom and testing-library are installed. The working precedent is
+`src/__tests__/profile-fetch-failure-cache.test.tsx` on `fix/issue-256`.
+
+Every fix in this wave now has a test whose mutation I re-ran myself.
+
+### Decisions taken, with the evidence
+
+- **#256's user-facing half was built, on the user's explicit instruction in the live session.**
+  The branch had originally implemented only the cache guard and then *pinned the omission* with a
+  passing test asserting no toast. The user chose "surface it — finish the issue as filed". The
+  profiles-fetch failure now raises its own toast, distinct in copy from #113's. **Do not read this
+  as scope creep and revert it.**
+- **#197 used option 1 from the issue body** (pre-query permission check + explicit card state),
+  not the error-surfacing alternative.
+- **#124's count** is now `totalFetched - visibleCount` rather than the estate-wide
+  `useExpiredContactCount()` figure. Exact by construction; do not "simplify" it back.
+
+### Measured facts that contradicted the issue bodies
+
+- **#197 affects six of eight roles, not just chairman.** Verified against the cloud DB: the
+  `audit_logs` SELECT policy is live as `has_permission('settings.view_audit_logs')`, and only
+  `super_admin` and `vice_chairman` hold it. Posted to the issue.
+- **#112 breaks no existing data.** All rows in `security_contacts` pass the newly-applied regex.
+- **#313's filter can never match.** `security_contact_status` contains `expired`, but no row has
+  ever held it and nothing in the write path persists the transition.
+
+### Issues filed (3 created, 0 closed — net +3)
+
+The owner should know the backlog grew. All three are consequences of work done, not speculation:
+
+- **#313** — Security contacts Status filter queries a column value nothing writes. Split out of
+  #123 rather than absorbed.
+- **#314** — Dead dashboard code (`RecentActivityCard`, `useDashboardRecentActivity`). Found while
+  implementing #197.
+- (#306, #307 predate this wave.)
+
+### What the next session must do
+
+1. **Open the six PRs** — none exists yet. Board status is `In progress` for all six; move to
+   `In review` on PR open.
+2. `getDashboardRecentActivity()` changed return shape (`RecentActivityItem[]` →
+   `RecentActivityResult`). Confirmed zero call sites by uncapped grep, but any branch in flight
+   that adds one will conflict.
+3. The `RELAY WAKE CONTRACT` hook injects action-shaped instructions into every sub-agent's context.
+   Three of five agents flagged it unprompted and declined. `base config set relay.wake_nudge false`
+   if the relay is not in use.
+
+---
+
 ## Last session (Claude Code, 2026-09-08 — **three PRs open; one migration written, NOT applied**)
 
 **Tool:** Claude Code, coordinator posture. Follows the wayfinder-map reorganisation recorded below,
