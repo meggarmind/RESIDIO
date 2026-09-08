@@ -37,9 +37,10 @@ export function SecurityContactStatusBadge({ status }: SecurityContactStatusBadg
 
 interface AccessCodeTypeBadgeProps {
   type: AccessCodeType;
+  label?: string;
 }
 
-export function AccessCodeTypeBadge({ type }: AccessCodeTypeBadgeProps) {
+export function AccessCodeTypeBadge({ type, label }: AccessCodeTypeBadgeProps) {
   const variants: Record<
     AccessCodeType,
     {
@@ -56,7 +57,7 @@ export function AccessCodeTypeBadge({ type }: AccessCodeTypeBadgeProps) {
   return (
     <Badge variant={variant} className="flex items-center">
       {icon}
-      {ACCESS_CODE_TYPE_LABELS[type]}
+      {label ?? ACCESS_CODE_TYPE_LABELS[type]}
     </Badge>
   );
 }

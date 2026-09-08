@@ -87,10 +87,10 @@ function setCachedProfile(profile: Profile | null) {
 // written to the 5-minute session cache -- doing so turns one slow query
 // into a five-minute outage where every navigation/reload re-serves the
 // degraded profile instead of retrying. A legitimately zero-permission role
-// (rbacFailed === false) is a different condition and must still cache.
+// (cacheUnsafe === false) is a different condition and must still cache.
 // Exported so the decision can be unit tested without mounting the provider.
-export function cacheProfileIfHealthy(profile: Profile, rbacFailed: boolean): void {
-  if (rbacFailed) return;
+export function cacheProfileIfHealthy(profile: Profile, cacheUnsafe: boolean): void {
+  if (cacheUnsafe) return;
   setCachedProfile(profile);
 }
 
@@ -257,6 +257,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .eq('id', userId)
       .single();
     let profileData = profileDataRaw;
+    // #256: the profiles-table read failing is a second, independent way to
+    // end up with a degraded (zero-permission) snapshot -- the metadata
+    // fallback below has role_id: null, so no role or permission can be
+    // resolved for it at all. Tracked separately from the RBAC-fetch failure
+    // because only the latter should raise the #113 toast; see below.
+    let profileFetchFailed = false;
+    // #256 part 2: which failure (if any) should raise a user-facing toast,
+    // and with what copy. Kept as a single reason rather than two booleans
+    // so the two causes can never both fire a toast for one fetchProfile()
+    // call -- there is only ever one thing to tell the admin about here.
+    let toastReason: 'profile' | 'rbac' | null = null;
 
     if (profileError) {
       console.error('Error fetching profile:', profileError);
@@ -282,8 +293,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
 
         console.warn('[AuthProvider] Using fallback profile:', fallbackProfile);
+        profileFetchFailed = true;
+        // #256 part 2: this used to be a console.warn only -- no administrator
+        // would ever see it. Surface it the same way #113 surfaces an RBAC
+        // failure below: a dismissible toast with a retry action. The fallback
+        // profile carries permissions: [], so controls genuinely will be
+        // hidden; server-side authorizePermission() re-checks independently,
+        // so real access has not changed, only what this session can see.
+        toastReason = 'profile';
+        // Render it -- the app must not go blank for a user in this state --
+        // but never persist it (#256). Writing this zero-permission snapshot
+        // to the 5-minute session cache turns one transient profiles-table
+        // error into five minutes of the user seeing none of their own
+        // permissions, on every navigation and reload.
         setProfile(fallbackProfile);
-        setCachedProfile(fallbackProfile);
+        cacheProfileIfHealthy(fallbackProfile, true);
         profileData = fallbackProfile;
       } else {
         return;
@@ -297,11 +321,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Fetch role details and permissions
     let appRole: { id: string; name: string; display_name: string } | null = null;
     let permissions: string[] = [];
-    // Tracks a failed/timed-out RBAC fetch explicitly, rather than inferring
-    // it from permissions.length === 0 -- a role legitimately granted zero
-    // permissions is a different condition and must not be treated as a
-    // failure (it should still cache normally).
-    let rbacFailed = false;
+    // Gates whether this profile snapshot is safe to write to the 5-minute
+    // session cache. Deliberately explicit rather than inferred from
+    // permissions.length === 0 -- a role legitimately granted zero
+    // permissions is a different condition and must not be treated as unsafe
+    // (it should still cache normally).
+    //
+    // Seeded from profileFetchFailed (#256): when the profiles row could not
+    // be read, the metadata fallback carries role_id: null, so the block below
+    // never runs and `permissions` stays [] for a reason that has nothing to do
+    // with the user's real role. Without this seed the degraded profile would
+    // simply be cached 60 lines further down instead of at the fallback site.
+    let cacheUnsafe = profileFetchFailed;
     // No legacy reverse lookup here any more (#193). It resolved a role by
     // name from the deprecated profiles.role column when role_id was absent;
     // #192 reconciled every profile and proved against live data that no row
@@ -340,7 +371,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .filter((name): name is string => name != null);
       } catch (err) {
         console.error('[AuthProvider] RBAC fetch failed or timed out:', err);
-        rbacFailed = true;
+        toastReason = 'rbac';
+        cacheUnsafe = true;
       }
     }
 
@@ -360,11 +392,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // never cache a profile built from a failed/timed-out RBAC fetch (#113).
     // A cached degraded profile survives for the full 5-minute TTL across
     // every navigation and reload, turning a transient blip into an outage.
-    cacheProfileIfHealthy(newProfile, rbacFailed);
+    cacheProfileIfHealthy(newProfile, cacheUnsafe);
 
-    if (rbacFailed) {
-      toast.error('Could not load your permissions', {
-        description: 'Some controls may be hidden until this is retried. Your access has not changed.',
+    if (toastReason) {
+      // #256 part 2: two distinct causes land here -- the profiles row could
+      // not be read at all, or it was read fine but the RBAC (#113) fetch
+      // failed/timed out. Distinct copy lets an admin debugging this tell
+      // which one happened; both stay honest that only visibility, not real
+      // server-side access (re-checked independently by authorizePermission()),
+      // is affected.
+      const { title, description } =
+        toastReason === 'profile'
+          ? {
+              title: 'Could not load your profile',
+              description: 'Showing a limited view until this is retried. Your access has not changed.',
+            }
+          : {
+              title: 'Could not load your permissions',
+              description: 'Some controls may be hidden until this is retried. Your access has not changed.',
+            };
+
+      toast.error(title, {
+        description,
         action: {
           label: 'Retry',
           onClick: () => {

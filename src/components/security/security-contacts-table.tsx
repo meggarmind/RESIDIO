@@ -68,6 +68,65 @@ interface SecurityContactsTableProps {
   showResidentColumn?: boolean;
 }
 
+type ContactForVisibility = {
+  status: SecurityContactStatus;
+  access_codes?: Parameters<typeof getEffectiveContactStatus>[1];
+};
+
+/**
+ * Applies the same expired/non-expired split the table renders by, so the
+ * empty-state check and the row list can never disagree about what is showing.
+ * Exported for testing — do not change the predicate without checking both branches.
+ */
+export function filterVisibleContacts<T extends ContactForVisibility>(
+  contacts: T[],
+  showExpired: boolean
+): T[] {
+  return contacts.filter((contact) => {
+    const effectiveStatus = getEffectiveContactStatus(contact.status, contact.access_codes);
+    if (showExpired) {
+      // When showExpired is active, only show expired contacts
+      return effectiveStatus === 'expired';
+    }
+    // By default, hide expired contacts
+    return effectiveStatus !== 'expired';
+  });
+}
+
+/**
+ * Decides which empty-state copy to show, given what was actually fetched vs.
+ * what the client-side expired filter left visible. Kept pure so it can be
+ * unit-tested without rendering the table.
+ */
+export function getEmptyStateMessage(params: {
+  totalFetched: number;
+  visibleCount: number;
+  showExpired: boolean;
+}): string {
+  const { totalFetched, visibleCount, showExpired } = params;
+
+  if (totalFetched === 0) {
+    return 'No security contacts found';
+  }
+
+  if (visibleCount === 0) {
+    if (showExpired) {
+      return 'No expired contacts found';
+    }
+    // Count the rows actually hidden on this fetch (totalFetched - visibleCount,
+    // which is totalFetched here since visibleCount is 0). This is exact by
+    // construction, unlike the estate-wide useExpiredContactCount() figure,
+    // which can disagree with what is on screen when the table is paginated
+    // or scoped to a single resident (#124).
+    const hiddenCount = totalFetched - visibleCount;
+    return `All ${hiddenCount} contact${hiddenCount === 1 ? '' : 's'} on this page ${
+      hiddenCount === 1 ? 'is' : 'are'
+    } expired and hidden. Click "Show Expired" to view them.`;
+  }
+
+  return 'No security contacts found';
+}
+
 export function SecurityContactsTable({
   residentId,
   showResidentColumn = true,
@@ -121,6 +180,12 @@ export function SecurityContactsTable({
   const contacts = data?.data || [];
   const totalCount = data?.count || 0;
   const totalPages = Math.ceil(totalCount / pageSize);
+  const visibleContacts = filterVisibleContacts(contacts, showExpired);
+  const emptyStateMessage = getEmptyStateMessage({
+    totalFetched: contacts.length,
+    visibleCount: visibleContacts.length,
+    showExpired,
+  });
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -311,26 +376,15 @@ export function SecurityContactsTable({
                     <TableCell><Skeleton className="h-8 w-8" /></TableCell>
                   </TableRow>
                 ))
-              ) : contacts.length === 0 ? (
+              ) : visibleContacts.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={showResidentColumn ? 8 : 7} className="text-center py-8">
                     <Users className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                    <p className="text-muted-foreground">No security contacts found</p>
+                    <p className="text-muted-foreground">{emptyStateMessage}</p>
                   </TableCell>
                 </TableRow>
               ) : (
-                contacts
-                  // Filter: hide expired contacts by default unless showExpired is true
-                  .filter((contact) => {
-                    const effectiveStatus = getEffectiveContactStatus(contact.status, contact.access_codes);
-                    if (showExpired) {
-                      // When showExpired is active, only show expired contacts
-                      return effectiveStatus === 'expired';
-                    }
-                    // By default, hide expired contacts
-                    return effectiveStatus !== 'expired';
-                  })
-                  .map((contact) => {
+                visibleContacts.map((contact) => {
                     // Use helper to find valid (non-expired) active code
                     const activeCode = findValidAccessCode(contact.access_codes);
                     // Compute effective status based on code expiration

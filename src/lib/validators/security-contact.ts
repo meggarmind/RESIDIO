@@ -33,7 +33,10 @@ const baseSecurityContactSchema = z.object({
 
   // Basic info (required)
   full_name: z.string().min(2, 'Full name must be at least 2 characters'),
-  phone_primary: z.string().min(10, 'Phone number must be at least 10 digits'),
+  phone_primary: z
+    .string()
+    .min(10, 'Phone number must be at least 10 digits')
+    .regex(phoneRegex, 'Enter a valid Nigerian phone number (e.g. 0803… or +234803…)'),
   phone_secondary: z.string().optional().or(z.literal('')),
 
   // Identification (optional for MVP)
