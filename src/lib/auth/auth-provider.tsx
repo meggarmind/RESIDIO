@@ -263,6 +263,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // resolved for it at all. Tracked separately from the RBAC-fetch failure
     // because only the latter should raise the #113 toast; see below.
     let profileFetchFailed = false;
+    // #256 part 2: which failure (if any) should raise a user-facing toast,
+    // and with what copy. Kept as a single reason rather than two booleans
+    // so the two causes can never both fire a toast for one fetchProfile()
+    // call -- there is only ever one thing to tell the admin about here.
+    let toastReason: 'profile' | 'rbac' | null = null;
 
     if (profileError) {
       console.error('Error fetching profile:', profileError);
@@ -289,6 +294,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         console.warn('[AuthProvider] Using fallback profile:', fallbackProfile);
         profileFetchFailed = true;
+        // #256 part 2: this used to be a console.warn only -- no administrator
+        // would ever see it. Surface it the same way #113 surfaces an RBAC
+        // failure below: a dismissible toast with a retry action. The fallback
+        // profile carries permissions: [], so controls genuinely will be
+        // hidden; server-side authorizePermission() re-checks independently,
+        // so real access has not changed, only what this session can see.
+        toastReason = 'profile';
         // Render it -- the app must not go blank for a user in this state --
         // but never persist it (#256). Writing this zero-permission snapshot
         // to the 5-minute session cache turns one transient profiles-table
@@ -321,11 +333,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // with the user's real role. Without this seed the degraded profile would
     // simply be cached 60 lines further down instead of at the fallback site.
     let cacheUnsafe = profileFetchFailed;
-    // Narrower flag for the user-facing half: gates the #113 "could not load
-    // your permissions" toast. Set only when the RBAC fetch itself
-    // failed/timed out -- surfacing the profiles-table failure to the user is
-    // a separate, deliberate decision and is out of scope here.
-    let showPermissionToast = false;
     // No legacy reverse lookup here any more (#193). It resolved a role by
     // name from the deprecated profiles.role column when role_id was absent;
     // #192 reconciled every profile and proved against live data that no row
@@ -364,7 +371,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .filter((name): name is string => name != null);
       } catch (err) {
         console.error('[AuthProvider] RBAC fetch failed or timed out:', err);
-        showPermissionToast = true;
+        toastReason = 'rbac';
         cacheUnsafe = true;
       }
     }
@@ -387,9 +394,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // every navigation and reload, turning a transient blip into an outage.
     cacheProfileIfHealthy(newProfile, cacheUnsafe);
 
-    if (showPermissionToast) {
-      toast.error('Could not load your permissions', {
-        description: 'Some controls may be hidden until this is retried. Your access has not changed.',
+    if (toastReason) {
+      // #256 part 2: two distinct causes land here -- the profiles row could
+      // not be read at all, or it was read fine but the RBAC (#113) fetch
+      // failed/timed out. Distinct copy lets an admin debugging this tell
+      // which one happened; both stay honest that only visibility, not real
+      // server-side access (re-checked independently by authorizePermission()),
+      // is affected.
+      const { title, description } =
+        toastReason === 'profile'
+          ? {
+              title: 'Could not load your profile',
+              description: 'Showing a limited view until this is retried. Your access has not changed.',
+            }
+          : {
+              title: 'Could not load your permissions',
+              description: 'Some controls may be hidden until this is retried. Your access has not changed.',
+            };
+
+      toast.error(title, {
+        description,
         action: {
           label: 'Retry',
           onClick: () => {

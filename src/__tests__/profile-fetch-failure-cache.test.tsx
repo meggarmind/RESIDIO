@@ -157,6 +157,10 @@ describe('profiles-table fetch failure must not poison the profile cache (#256)'
     expect(cached).not.toBeNull();
     expect(cached.permissions).toEqual(['residents.view']);
     expect(cached.role_name).toBe('super_admin');
+    // A healthy fetch is the common case -- every page load, for every user.
+    // It must stay silent; a toast here would be the #256 fix annoying every
+    // user instead of only the ones hitting a real failure.
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it('does NOT cache the zero-permission fallback profile when the profiles read fails', async () => {
@@ -202,11 +206,12 @@ describe('profiles-table fetch failure must not poison the profile cache (#256)'
     expect(screen.getByTestId('perms').textContent).toBe('');
   });
 
-  it('does not raise the #113 permissions toast on this path (user-facing half deferred)', async () => {
-    // #256 also asks for the failure to be surfaced to the user, matching
-    // #113's toast. That half is deliberately out of scope for this change;
-    // this pins today's behaviour so the decision is made explicitly rather
-    // than drifting in as a side effect of the cache fix.
+  it('raises a visible, honest toast on this path, distinct from the #113 RBAC toast', async () => {
+    // #256 part 2: the profiles-table failure used to die in a console.warn
+    // no administrator would ever see. It must now surface the same way
+    // #113 surfaces an RBAC failure -- a dismissible toast with a retry
+    // action -- with its own copy so an admin can tell which of the two
+    // independent failure paths they hit.
     supabaseClient = makeSupabase({ profilesFail: true });
 
     render(
@@ -218,6 +223,19 @@ describe('profiles-table fetch failure must not poison the profile cache (#256)'
     await waitFor(() => {
       expect(screen.getByTestId('name').textContent).toBe('Admin User');
     });
-    expect(toastError).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledTimes(1);
+    });
+    const [title, options] = toastError.mock.calls[0] as [string, { description: string }];
+    expect(title).toBe('Could not load your profile');
+    // Must stay honest: visibility is degraded, but server-side
+    // authorizePermission() re-checks independently, so real access has not
+    // changed. Also must not reuse the #113 RBAC copy verbatim -- that would
+    // mislead an admin about which fetch actually failed.
+    expect(options.description).toMatch(/access has not changed/i);
+    expect(options.description).not.toBe(
+      'Some controls may be hidden until this is retried. Your access has not changed.'
+    );
   });
 });
