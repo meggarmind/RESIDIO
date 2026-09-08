@@ -1,4 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { ArchiveImpactSummary } from '@/components/residents/resident-archive-dialog';
 import { usePayments } from '@/hooks/use-payments';
@@ -75,6 +77,45 @@ describe('ArchiveImpactSummary', () => {
     ]);
     expect(mockedUseNotes).toHaveBeenCalledWith(
       expect.objectContaining({ entity_type: 'resident', entity_id: 'r1' })
+    );
+  });
+});
+
+describe('resident archive wiring', () => {
+  it('keeps the archive trigger and dialog behind RESIDENTS_DELETE', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/app/(dashboard)/residents/[id]/page.tsx'),
+      'utf8'
+    );
+    const trigger = source.match(
+      /\{canDeleteResident && \(\s*<Button[\s\S]*?>[\s\S]*?Archive[\s\S]*?<\/Button>\s*\)\}/
+    )?.[0];
+    const dialog = source.match(
+      /\{canDeleteResident && \(\s*<ResidentArchiveDialog[\s\S]*?\/>\s*\)\}/
+    )?.[0];
+
+    expect(source).toContain(
+      'const canDeleteResident = hasPermission(PERMISSIONS.RESIDENTS_DELETE);'
+    );
+    expect(trigger).toBeDefined();
+    expect(trigger).toContain('onClick={() => setIsArchiveDialogOpen(true)}');
+    expect(trigger).not.toContain('confirm(');
+    expect(dialog).toBeDefined();
+    expect(dialog).toContain('onConfirm={handleDelete}');
+  });
+
+  it('keeps explicit cancel and destructive archive actions in the impact dialog', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/residents/resident-archive-dialog.tsx'),
+      'utf8'
+    );
+
+    expect(source).toContain('<AlertDialogCancel>Cancel</AlertDialogCancel>');
+    expect(source).toMatch(
+      /<AlertDialogAction[\s\S]*?className="bg-destructive[\s\S]*?>\s*Archive Resident\s*<\/AlertDialogAction>/
+    );
+    expect(source).toContain(
+      '<ArchiveImpactSummary residentId={residentId} activeHouseCount={activeHouseCount} />'
     );
   });
 });
