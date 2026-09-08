@@ -89,6 +89,27 @@ stands — **pass the lane that names your harness**, and if you cross lanes del
 (`CORE.md` §7) and add the right label by hand. When the branch prefix and a human record
 disagree, the human record wins.
 
+**Attributing an issue after the fact.** Three evidence sources, strongest first:
+
+1. **Commit trailers on the branch.** Claude Code signs its commits
+   `Co-Authored-By: Claude Opus 5`; OpenCode and Codex commits are bare. So a trailer proves
+   Claude touched it, and a bare commit means "not Claude" rather than naming which of the other
+   two. Read them per commit, not per branch — that is how a two-harness ticket shows up:
+
+   ```bash
+   MERGE=$(git log origin/master --format=%H --grep="Merge pull request #<PR> " -1)
+   git log --format='%h %s%n%b' "$MERGE^1..$MERGE^2" | grep -iE "^[0-9a-f]{8} |co-authored-by"
+   ```
+
+   Worktrees get cleaned up; the merged commits on `master` are the same commits and outlive them.
+2. **An explicit record in `SESSION_STATE.md`**, which names the tool per session.
+3. **The branch prefix** — weakest, for the reason above.
+
+**#125 is the worked example.** Its branch is `codex/issue-125-*`, so the prefix says Codex and
+nothing else. Per commit, the fix (`3460369e`) is bare and the follow-up test (`6943ec0f`) carries
+the Claude trailer: **Codex wrote the fix, Claude Code added the test.** It carries both labels.
+Attributing it from the prefix alone would have erased half of what happened.
+
 Who worked which issue, at a glance:
 
 ```bash

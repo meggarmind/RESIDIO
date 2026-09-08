@@ -46,10 +46,27 @@ record wins.**
 
 ### Backfill — labelled only where the evidence is solid
 
-`#107` claude (commit trailer), `#125` codex (branch prefix), `#244` and `#300` opencode (this file
-names the tool and explains the prefix), `#324` claude. **`#112 #123 #124 #197 #256` deliberately
-carry no harness label** — no branch, no trailer, no record names one. An invented attribution is
-worse than an absent one; label them if evidence turns up, do not guess.
+Three evidence sources, in descending strength: a **commit trailer** on the branch, an explicit
+**record in this file**, and the **branch prefix** (weakest — see the caveat above).
+
+Every issue in flight is now labelled. `#107 #112 #123 #124 #197 #256` claude, `#244 #300`
+opencode, `#324` claude, and **`#125` carries both `harness:codex` and `harness:claude`**.
+
+The trailer turned out to discriminate cleanly on the evidence available: across the merged
+branches for these issues, every commit attributed to Claude Code carries
+`Co-Authored-By: Claude Opus 5` and **no OpenCode or Codex commit carries any trailer at all**
+(#244, #300 and #125's fix commit are all bare). It is a positive signal for Claude and silence
+for the other two — so a bare commit says "not Claude", not "which one". Confirm before leaning on
+it harder; the sample is four non-Claude commits.
+
+**#125 is the case the whole design exists for, and the branch prefix would have got it wrong
+on its own.** On a `codex/issue-125-*` branch, the fix commit `3460369e` is bare — Codex's work —
+while the follow-up test commit `6943ec0f` carries the Claude trailer. Two harnesses, one ticket,
+now two labels. An earlier pass in this session had labelled it `harness:codex` only, on the
+branch prefix; the trailers corrected it.
+
+The worktrees for these issues were already removed, so the trailers were read from the merged
+branch commits on `master` (`git log <merge>^1..<merge>^2`), which are the same commits.
 
 ### Verification
 
