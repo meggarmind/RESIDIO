@@ -52,6 +52,7 @@ import {
   CategoryBadge,
   ValidityBadge,
 } from '@/components/security/security-badges';
+import { getEffectiveContactStatus } from '@/lib/security/utils';
 import {
   AdminAccessCodeGenerationMenu,
   AdminAccessCodeTypeBadge,
@@ -118,6 +119,8 @@ export default function SecurityContactDetailPage() {
   const activeCode = contact.access_codes?.find(
     (code: AccessCode) => code.is_active && new Date(code.valid_until || '') > new Date()
   );
+
+  const effectiveStatus = getEffectiveContactStatus(contact.status, contact.access_codes);
 
   const handleStatusChange = async () => {
     try {
@@ -210,7 +213,7 @@ export default function SecurityContactDetailPage() {
             {contact.full_name}
           </h1>
           <div className="flex items-center gap-2">
-            <SecurityContactStatusBadge status={contact.status} />
+            <SecurityContactStatusBadge status={effectiveStatus} />
             {contact.category && <CategoryBadge name={contact.category.name} />}
           </div>
         </div>
