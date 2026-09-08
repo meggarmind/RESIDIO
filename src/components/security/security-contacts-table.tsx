@@ -102,9 +102,8 @@ export function getEmptyStateMessage(params: {
   totalFetched: number;
   visibleCount: number;
   showExpired: boolean;
-  expiredCount: number | undefined;
 }): string {
-  const { totalFetched, visibleCount, showExpired, expiredCount } = params;
+  const { totalFetched, visibleCount, showExpired } = params;
 
   if (totalFetched === 0) {
     return 'No security contacts found';
@@ -114,7 +113,12 @@ export function getEmptyStateMessage(params: {
     if (showExpired) {
       return 'No expired contacts found';
     }
-    const hiddenCount = expiredCount ?? totalFetched;
+    // Count the rows actually hidden on this fetch (totalFetched - visibleCount,
+    // which is totalFetched here since visibleCount is 0). This is exact by
+    // construction, unlike the estate-wide useExpiredContactCount() figure,
+    // which can disagree with what is on screen when the table is paginated
+    // or scoped to a single resident (#124).
+    const hiddenCount = totalFetched - visibleCount;
     return `All ${hiddenCount} contact${hiddenCount === 1 ? '' : 's'} on this page ${
       hiddenCount === 1 ? 'is' : 'are'
     } expired and hidden. Click "Show Expired" to view them.`;
@@ -181,7 +185,6 @@ export function SecurityContactsTable({
     totalFetched: contacts.length,
     visibleCount: visibleContacts.length,
     showExpired,
-    expiredCount,
   });
 
   const handleSearch = (e: React.FormEvent) => {

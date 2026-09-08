@@ -5,10 +5,12 @@ import {
 } from '@/components/security/security-contacts-table';
 import type { AccessCode, SecurityContactStatus } from '@/types/database';
 
-// No component-test precedent exists for this file (or elsewhere in
-// src/__tests__ — the vitest environment is 'node', not jsdom, and no
-// spec here renders React). So per the issue's fallback, this tests the
-// extracted filter/decision logic directly rather than rendering the table.
+// These cover the two exported pure functions in isolation. The render-level
+// regression coverage for #124 (proving the empty-state message shown by the
+// actual component agrees with the rows actually hidden) lives in
+// security-contacts-table-empty-state.render.test.tsx, which mounts the real
+// component with `@vitest-environment jsdom` — see that file for precedent
+// and rationale.
 
 function expiredCode(overrides: Partial<AccessCode> = {}): AccessCode {
   return {
@@ -64,7 +66,6 @@ describe('getEmptyStateMessage', () => {
       totalFetched: 0,
       visibleCount: 0,
       showExpired: false,
-      expiredCount: 0,
     });
 
     expect(message).toBe('No security contacts found');
@@ -78,7 +79,6 @@ describe('getEmptyStateMessage', () => {
       totalFetched: 3,
       visibleCount: 0,
       showExpired: false,
-      expiredCount: 3,
     });
 
     expect(message).not.toBe('No security contacts found');
@@ -91,7 +91,6 @@ describe('getEmptyStateMessage', () => {
       totalFetched: 5,
       visibleCount: 0,
       showExpired: true,
-      expiredCount: 0,
     });
 
     expect(message).toBe('No expired contacts found');
@@ -102,9 +101,22 @@ describe('getEmptyStateMessage', () => {
       totalFetched: 5,
       visibleCount: 2,
       showExpired: false,
-      expiredCount: 3,
     });
 
     expect(message).toBe('No security contacts found');
+  });
+
+  it('uses the exact number of hidden rows, not an unrelated estate-wide count (#124)', () => {
+    // Regression for the specific defect: the message must be driven by
+    // totalFetched - visibleCount (rows actually hidden on this fetch), never
+    // by a separate estate-wide figure that can diverge from what's on screen
+    // (a later page, or a resident-scoped table).
+    const message = getEmptyStateMessage({
+      totalFetched: 7,
+      visibleCount: 0,
+      showExpired: false,
+    });
+
+    expect(message).toContain('7');
   });
 });
