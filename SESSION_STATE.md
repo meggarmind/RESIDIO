@@ -9,7 +9,68 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Last session (Claude Code, 2026-09-08 — **three PRs open; one migration written, NOT applied**)
+## Last session (OpenCode, 2026-09-08 — **#244 PR open, #300 PR open, both awaiting review**)
+
+**Tool:** OpenCode. Two isolated worktrees (`issue-244`, `issue-300`), both branched from `origin/master`
+after rebasing off the stale local master (#224 bug — `issue:workflow start` branches from local master).
+
+### What shipped
+
+| Issue | PR | Branch | Gates | Notes |
+| --- | --- | --- | --- | --- |
+| **#244** | **#308** | `feat/issue-244-invoice-generation-locks-exists-in-the-live-data` | tsc 0, lint 0, **111 files / 1139 tests / 0 failures** | Migration written, not applied |
+| **#300** | **#322** | `feat/issue-300-manual-wallet-adjustments-are-non-atomic-and-can` | tsc 0, lint 0, **114 files / 1170 tests / 0 failures** | Migration written, not applied |
+
+### #244 — drop orphaned invoice_generation_locks
+
+Live DB verified (Supabase MCP): 0 rows, no FKs, no triggers, no views, no functions reference
+the table. Two catch-all RLS policies and grants drop with the table. Only reference in `src/` is
+the generated type at `database.generated.ts:2837` (regenerated after apply).
+
+Migration: `supabase/migrations/20260908000000_drop_invoice_generation_locks.sql` —
+`DROP TABLE IF EXISTS public.invoice_generation_locks;` inside `BEGIN/COMMIT`.
+
+### #300 — atomic manual wallet adjustments
+
+Two new `SECURITY DEFINER` Postgres RPCs (`adjust_wallet_credit`, `adjust_wallet_debit`):
+- `has_permission('billing.manage_wallets')` guard before any write (aligns RPC authorization
+  with the server-action RBAC contract and the table-level RLS policy on `resident_wallets`).
+- Input validation (NULL/NaN/Infinity/negative/zero) inside SQL.
+- `SELECT ... FOR UPDATE` serializes concurrent adjustments to the same wallet.
+- Balance update + ledger insert in the same PL/pgSQL body — automatic rollback on failure.
+
+Server actions (`creditWallet`, `debitWallet`) call the RPCs; audit fires only after success.
+Hooks (`useCreditWallet`, `useDebitWallet`) throw on `{ success: false }` so React Query
+routes to the error path and no success toast fires on failure.
+
+QA: 5/5 mutations caught (comment FOR UPDATE, remove permission guard, remove hook throw,
+audit before RPC failure, remove amount validation).
+
+### Out-of-scope defects noted
+
+- `debitWalletForInvoice` and `allocateWalletToInvoices` (legacy path) share the non-atomic
+  pattern and `debitWalletForInvoice` lacks `authorizePermission` / `logAudit` (§6 violations).
+  Recommend a separate follow-up issue.
+- `--lane fix` not configured in `.github/issue-workflow.json` (only codex/claude/opencode).
+  Used `--lane claude` producing `feat/issue-*` prefix. Recommend adding `"fix": "fix/issue-"`.
+
+### Unapplied migrations (coordinator applies after merge)
+
+1. `supabase/migrations/20260907010000_seed_billing_manage_profile_versions_permission.sql` (PR #303)
+2. `supabase/migrations/20260908000000_drop_invoice_generation_locks.sql` (PR #308, #244)
+3. `supabase/migrations/20260908010000_atomic_manual_wallet_adjustments.sql` (PR #322, #300)
+
+### Do not re-litigate
+
+- PRs #298, #299 and #303 are open and unmerged. #298 must merge before #303.
+- #286 is blocked on #298 merging — do not start it.
+- Authorization hardening is frozen until after the 9 Sep pilot (#241). #300 is data integrity,
+  not RBAC — no access changes were made.
+- `debitWalletForInvoice` / `allocateWalletToInvoices` legacy atomicity is filed, not absorbed.
+
+---
+
+## Previous session (Claude Code, 2026-09-08 — **three PRs open; one migration written, NOT applied**)
 
 **Tool:** Claude Code, coordinator posture. Follows the wayfinder-map reorganisation recorded below,
 which landed as PR #296. Three PRs are open and **none is merged — the user does the merging.**
