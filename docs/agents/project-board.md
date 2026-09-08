@@ -81,6 +81,14 @@ window between an agent starting work and its first push. That window is what th
 step above is for. A branch whose prefix names no harness (`feat/`, `chore/`, bare `fix/`) is
 deliberately left unlabelled rather than guessed at.
 
+**The backstop trusts the lane, and the lane can be wrong.** #244 and #300 were worked by
+**OpenCode** on `feat/issue-*` branches: the session wanted `--lane fix`, that lane was not
+configured, and it fell back to `--lane claude`. A prefix-derived label would have credited Claude
+Code for both. Configuring the `fix` lane removes that specific cause, but the general point
+stands — **pass the lane that names your harness**, and if you cross lanes deliberately, say so
+(`CORE.md` §7) and add the right label by hand. When the branch prefix and a human record
+disagree, the human record wins.
+
 Who worked which issue, at a glance:
 
 ```bash
