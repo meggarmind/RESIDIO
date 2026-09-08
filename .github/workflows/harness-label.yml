@@ -1,0 +1,47 @@
+name: Harness Label
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  harness-label:
+    name: Record the harness that worked the linked issue
+    runs-on: ubuntu-latest
+    # Non-blocking by design — the opposite of pr-claim-check.yml, deliberately.
+    #
+    # pr-claim-check.yml enforces a discipline: the linked issue must be claimed before a PR
+    # opens, so a failure there is the point and the job blocks. This job only *records* which
+    # harness worked the ticket (docs/agents/project-board.md, "Harness labels"). A label that
+    # failed to apply is a missing note in the log, not a defect in the PR, so it must never
+    # gate a merge. continue-on-error keeps a red step here off the PR's required checks; the
+    # script itself also exits 0 on every non-catastrophic path and reports problems on stderr.
+    continue-on-error: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      # A pull_request run from a fork receives a read-only GITHUB_TOKEN, so `issues: write`
+      # is not actually granted there and the label POST returns 403. The script logs that and
+      # still exits 0 — labelling is simply skipped for fork PRs, and the label is added on a
+      # maintainer-side run or by hand.
+      #
+      # The script only ever ADDS a label, via POST /issues/{n}/labels. It never removes one:
+      # harness labels are additive and permanent, and removing one would erase another
+      # harness's record of having worked the issue.
+      - name: Apply harness label
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/harness-label.mjs --ci

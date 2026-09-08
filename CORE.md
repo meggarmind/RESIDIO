@@ -259,8 +259,10 @@ Branch prefixes declare the lane:
 | Prefix | Used for |
 | --- | --- |
 | `codex/issue-<n>-<slug>` | issue work from Codex |
-| `feat/<slug>`, `feat/issue-<n>-<slug>` | features |
-| `fix/<slug>` | fixes |
+| `claude/issue-<n>-<slug>` | issue work from Claude Code |
+| `opencode/issue-<n>-<slug>` | issue work from OpenCode |
+| `feat/<slug>` | features not tied to an issue |
+| `fix/<slug>`, `fix/issue-<n>-<slug>` | fixes |
 | `chore/<slug>` | tooling, docs, instruction changes |
 | `qa/<date>` | QA campaigns |
 | `merge/<slug>` | integration branches |
@@ -330,6 +332,26 @@ Move an issue's Status at these three points, without being asked:
 3. The issue or its PR is closed or merged → **Done**
 
 Do not move issues *backwards* (to Backlog or Ready) on your own; that stays manual.
+
+**Harness labels.** At point 1, also add your own harness label if it is not already there:
+
+```bash
+gh issue edit <N> --add-label harness:claude   # or harness:codex / harness:opencode
+```
+
+This repo is worked by three harnesses (§7) that all authenticate as the same GitHub login, so
+the assignee cannot tell them apart (#297) and a board single-select cannot hold two values. The
+label is the only carrier that can.
+
+The labels are **additive and permanent**: they record that a harness *has worked* the ticket,
+not that it currently holds it. Two harnesses on one ticket is two labels. **Never remove another
+harness's label**, and do not remove your own when the PR merges — together they are the record of
+who worked what. `.github/workflows/harness-label.yml` adds the label from the branch prefix when
+a PR opens, as a backstop for sessions that forget; it does not replace this step, which covers the
+window before the first push.
+
+**These labels are not a lock.** Who holds a branch *right now* is still `git ls-remote --heads
+origin` (§7), and nothing here changes that.
 
 ---
 
