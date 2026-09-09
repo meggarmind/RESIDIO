@@ -9,7 +9,102 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Current session (Claude Code, 2026-09-09 — **#285 RLS cleanup: merged AND applied to Stage and Prod; a live anonymous write hole closed**)
+## Current session (Claude Code, 2026-09-09 — **#262 resumed; Prod/Stage divergence found, half closed, half deliberately withheld**)
+
+**Tool:** Claude Code, coordinator posture. **No sub-agents dispatched** — the session was a
+read-only inventory pass, tracker writes and one production DDL apply, all of which `CORE.md` §15
+puts on the coordinator. **No application code changed.**
+
+Started as "continue with #262".
+
+### The owner lifted the suspension
+
+**#289 is closed.** `blocked-on-app-readiness` removed from #269, #280, #282, #273 and #274 —
+**zero open issues carry the label**, re-verified by query rather than trusted from exit codes.
+
+#289 closed at **14/15**, with #121 (orphaned security-vehicle / visitor-analytics / unflag UI)
+still open on its own merits. It never defined what "confirmed working" meant, so it closed by
+ruling, not by a satisfied criterion. **Do not read #289 as a passed acceptance test.**
+
+**The 9 Sep date is today and the destination is not met.** Nothing is stood up. Recorded on #262.
+
+### The finding: Prod and Stage had diverged by two migrations
+
+Measured **structurally against each database**, never by ledger name (`CORE.md` §11):
+
+| Probe | Stage | Prod (before) |
+| --- | --- | --- |
+| `houses.identifier_unverified` + `identifier_note` | 2 | **0** |
+| index `idx_houses_identifier_unverified` | 1 | **0** |
+| `create_generated_invoice` contains `v_house_short_name` | 1 | **0** |
+
+Both files are on `master`. Neither had ever been applied to Prod. **Filed as #354.** The two
+halves are opposite in sign, and must never be actioned together.
+
+### ✅ Applied to Prod — `20260909000000_house_identifier_unverified_flag`
+
+Owner cleared it in the live session. **Rehearsed first inside a transaction ending in `ROLLBACK`**
+— 2 columns, 1 index, `total_houses = 0` (roster not moved; #280 open), so the backfill was a
+confirmed no-op rather than an assumed one. Then applied and verified: 2 columns, 1 index, 2
+column comments, name present in `supabase_migrations.schema_migrations`.
+
+**Ledger version `20260909111938`** against disk `20260909000000_…` and Stage's `20260909081614`
+— three versions for one file across two projects. That is **#305**, unchanged and not caused here.
+
+This cleared **#282**'s houses-list blocker: `identifier_unverified` has 48 references across 15
+files on `master`, including `src/actions/houses/get-houses.ts`, so the houses page would have
+failed outright against Prod.
+
+### ⛔ Deliberately WITHHELD from Prod — `20260909010000_generated_invoice_short_name_numbers`
+
+Recorded here **and** on #354, per `CORE.md` §11.4. Confirmed still absent after the apply above
+(`v_house_short_name` probe returns 0 on Prod, 1 on Stage).
+
+**Release condition: #345 closes.** It interpolates `houses.short_name` into `invoice_number` with
+only `btrim`/`NULLIF`; the live register has 14 spaces and 5 `?` characters, and the obvious
+sanitisation collides `GLB-19`/`GLB-19?` and `IBB-32`/`IBB-32?` against the
+`invoices_invoice_number_key` UNIQUE constraint. **#268 makes production's first backfill numbers
+permanent.** Its absence from Prod was accidental until now; it is deliberate from this entry on.
+
+**Do not "fix" the Stage/Prod gap by applying it.**
+
+### The #279 baseline landed and is already stale
+
+PR #348 merged 2026-09-09T10:15:44Z (`3ea7fb73`). But the baseline was introspected at `484548be`
+on 2026-09-07, and **five migrations have been applied to Stage since**:
+`drop_invoice_generation_locks`, `atomic_manual_wallet_adjustments`,
+`generated_invoice_short_name_numbers`, `house_identifier_unverified_flag`,
+`285_policy_cleanup`. All five have a file on disk, so this is not new file drift.
+
+**Concretely**: `supabase/baseline/00000000000000_baseline.sql:5269` still carries
+`generated_reports_insert ... WITH CHECK (true)` — the anonymous write hole #285 closed today.
+**A rebuild from `supabase/baseline/` alone reproduces it**, along with 8 pre-#285 policies on
+`approval_requests`, 5 on `estate_bank_accounts` and 4 on `generated_reports`. Neither live
+database is affected; the exposure is in the rebuild artefact. Detail posted to #279.
+
+#279 still owes: a stated rule for post-cut migrations (baseline **plus** an ordered post-cut set
+looks cheaper than re-introspecting, which would discard the 452/452 string-match verification);
+disposition of `supabase/migrations/` (154 files); and #233's type regeneration.
+
+### Do not re-litigate
+
+- **#289 is closed by ruling.** Reopening it to define "confirmed working" re-suspends #262.
+- **The withheld invoice migration is a decision, not an oversight.** #354, gated on #345.
+- **The baseline's stale policies are not a live exposure.** Prod and Stage both have #285 applied.
+- **Three different ledger versions for one migration file is #305**, not a new problem.
+
+### Issues: 1 closed, 1 filed, net 0
+
+**#289 closed**, **#354 filed**. Board: #289 → Done.
+
+### Next
+
+**#282's remaining blockers are now #269 (no host exists) and #280 (no roster in Prod)** — not the
+schema. #354's withheld half stays withheld until #345.
+
+---
+
+## Last session (Claude Code, 2026-09-09 — **#285 RLS cleanup: merged AND applied to Stage and Prod; a live anonymous write hole closed**)
 
 **Tool:** Claude Code, coordinator posture. Two sub-agents (one implementer, one QA), both `opus`
 — `CORE.md` §15 routes RLS and permissions to the top tier — both in isolated worktrees, one
