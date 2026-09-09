@@ -6,6 +6,7 @@ import { getHouse } from '@/actions/houses/get-house';
 import { createHouse } from '@/actions/houses/create-house';
 import { updateHouse } from '@/actions/houses/update-house';
 import { deleteHouse } from '@/actions/houses/delete-house';
+import { clearIdentifierFlag } from '@/actions/houses/clear-identifier-flag';
 import { getOwnershipHistory } from '@/actions/houses/get-ownership-history';
 import { getHouseResidents, getHouseResidentsBatch } from '@/actions/houses/get-house-residents';
 import { getHouseStats } from '@/actions/houses/get-house-stats';
@@ -93,6 +94,31 @@ export function useUpdateHouse() {
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to update house');
+    },
+  });
+}
+
+/**
+ * Issue #119 -- confirm a doubted house identifier, clearing it out of the
+ * remediation queue. The server action holds the `houses.update` guard; the
+ * UI control that calls this must be gated on the same permission.
+ */
+export function useClearIdentifierFlag() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, note }: { id: string; note?: string | null }) => {
+      const result = await clearIdentifierFlag(id, note);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: (_data, variables) => {
+      toast.success('Identifier confirmed');
+      queryClient.invalidateQueries({ queryKey: ['houses'] });
+      queryClient.invalidateQueries({ queryKey: ['house', variables.id] });
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to confirm identifier');
     },
   });
 }

@@ -4,13 +4,13 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
-import type { House } from '@/types/database';
+import type { HouseWithStreet } from '@/types/database';
 import type { HouseFormData } from '@/lib/validators/house';
 import { createApprovalRequest, canAutoApprove } from '@/actions/approvals';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
 
 type UpdateHouseResponse = {
-  data: House | null;
+  data: HouseWithStreet | null;
   error: string | null;
   approval_required?: boolean;
   request_id?: string;
@@ -93,10 +93,16 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
           short_name: formData.short_name || null,
           notes: formData.notes || null,
           billing_profile_id: formData.billing_profile_id || null,
+          identifier_unverified: formData.identifier_unverified ?? false,
+          identifier_note: formData.identifier_note || null,
           // Don't update number_of_plots - pending approval
         })
         .eq('id', id)
-        .select()
+        .select(`
+      *,
+      street:streets(*),
+      house_type:house_types(*)
+    `)
         .single();
 
       if (error) {
@@ -119,7 +125,7 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
       revalidatePath(`/houses/${id}`);
 
       return {
-        data,
+        data: data as HouseWithStreet,
         error: null,
         approval_required: true,
         request_id: result.request_id,
@@ -139,9 +145,15 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
       notes: formData.notes || null,
       billing_profile_id: formData.billing_profile_id || null,
       number_of_plots: newPlots,
+      identifier_unverified: formData.identifier_unverified ?? false,
+      identifier_note: formData.identifier_note || null,
     })
     .eq('id', id)
-    .select()
+    .select(`
+      *,
+      street:streets(*),
+      house_type:house_types(*)
+    `)
     .single();
 
   if (error) {
@@ -163,5 +175,5 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
 
   revalidatePath('/houses');
   revalidatePath(`/houses/${id}`);
-  return { data, error: null };
+  return { data: data as HouseWithStreet, error: null };
 }

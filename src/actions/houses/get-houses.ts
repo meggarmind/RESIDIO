@@ -28,7 +28,7 @@ const naturalSortCollator = new Intl.Collator('en', {
 
 export async function getHouses(params: Partial<HouseSearchParams> = {}): Promise<GetHousesResponse> {
   const supabase = await createServerSupabaseClient();
-  const { search, street_id, house_type_id, is_occupied, sort_by, sort_order, page = 1, limit = 20 } = params;
+  const { search, street_id, house_type_id, is_occupied, identifier_unverified, sort_by, sort_order, page = 1, limit = 20 } = params;
 
   let query = supabase
     .from('houses')
@@ -52,6 +52,11 @@ export async function getHouses(params: Partial<HouseSearchParams> = {}): Promis
   }
   if (typeof is_occupied === 'boolean') {
     query = query.eq('is_occupied', is_occupied);
+  }
+  // Issue #119: "Needs confirmation" filter. The flag is a real column, never
+  // derived from the presence of `?` in the identifier.
+  if (typeof identifier_unverified === 'boolean') {
+    query = query.eq('identifier_unverified', identifier_unverified);
   }
 
   // Numeric-aware sorting must happen before pagination so every registry page

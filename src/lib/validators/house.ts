@@ -11,6 +11,10 @@ export const houseFormSchema = z.object({
   date_added_to_portal: z.string().optional(), // Date house was added to Residio (defaults to today)
   billing_profile_id: z.string().uuid().optional().nullable().or(z.literal('')), // Override billing profile from house type
   number_of_plots: z.number().int().min(1, 'Must have at least 1 plot'), // Number of plots (for Development Levy)
+  // Issue #119: the recorded identifier is never rewritten; the doubt about it
+  // is carried alongside so it can be queried, filtered and cleared.
+  identifier_unverified: z.boolean().optional(),
+  identifier_note: z.string().max(500, 'Note must be 500 characters or less').optional().or(z.literal('')),
   property_status: z.enum(['occupied', 'vacant', 'under_renovation', 'under_construction']).optional(),
 });
 
@@ -42,6 +46,7 @@ export const houseSearchSchema = z.object({
   street_id: z.string().uuid().optional(),
   house_type_id: z.string().uuid().optional(),
   is_occupied: z.boolean().optional(),
+  identifier_unverified: z.boolean().optional(), // Issue #119: "Needs confirmation" filter
   property_status: z.enum(['occupied', 'vacant', 'under_renovation', 'under_construction']).optional(),
   sort_by: z.enum(['short_name', 'house_number', 'street', 'house_type']).optional(),
   sort_order: z.enum(['asc', 'desc']).optional(),
