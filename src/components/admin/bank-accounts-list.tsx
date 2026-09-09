@@ -51,11 +51,12 @@ type StatusFilter = 'all' | 'active' | 'inactive';
 export function BankAccountsList() {
   // Filter state
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const includeInactive = statusFilter === 'all' || statusFilter === 'inactive';
+
+  const { data: canAutoApprove, isLoading: isLoadingPermission } = useCanAutoApprove();
+  const includeInactive = Boolean(canAutoApprove) && (statusFilter === 'all' || statusFilter === 'inactive');
 
   // Data queries
   const { data: accountsData, isLoading, refetch } = useBankAccounts(includeInactive);
-  const { data: canAutoApprove, isLoading: isLoadingPermission } = useCanAutoApprove();
 
   // Mutations
   const createMutation = useCreateBankAccount();
@@ -178,11 +179,14 @@ export function BankAccountsList() {
         <div className="flex items-center gap-4">
           <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
             <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="all">{canAutoApprove ? 'All' : 'Active'}</TabsTrigger>
               <TabsTrigger value="active">Active</TabsTrigger>
-              <TabsTrigger value="inactive">Inactive</TabsTrigger>
+              {canAutoApprove && <TabsTrigger value="inactive">Inactive</TabsTrigger>}
             </TabsList>
           </Tabs>
+          {!isLoadingPermission && !canAutoApprove && (
+            <span className="text-sm text-muted-foreground">Inactive accounts require finance approval permission.</span>
+          )}
         </div>
         <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
