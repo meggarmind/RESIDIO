@@ -9,6 +9,19 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## OpenCode update (2026-09-09 — **#346 issue authoring rule; PR #369 open**)
+
+User feedback established a standing rule for every issue OpenCode creates: use the evidence-led
+body format from #345 (`Summary`, `Root Cause`, `What Breaks If This Is Never Done`, `Required
+Change`, `Scope`, `Provenance`, and related links where applicable), and create then verify the
+native GitHub map-parent relation before saying the issue is filed. A textual issue reference is
+not a parent relation.
+
+The rule is recorded in `CORE.md` §10 and `docs/agents/issue-tracker.md`, committed as `1e6a3b82`
+on `opencode/issue-346-standardize-issue-parent-markers-and-body-format`. PR **#369** is open,
+clean, and its Harness Label check passed. #346 is a verified native child of #295, carries
+`harness:opencode`, and is in **In review**. No application code or migration changed.
+
 ## Current session (Claude Code, 2026-09-09 — **#262 resumed; Prod/Stage divergence found, half closed, half deliberately withheld**)
 
 **Tool:** Claude Code, coordinator posture. **No sub-agents dispatched** — the session was a
