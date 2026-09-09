@@ -634,15 +634,28 @@ export interface Database {
           notes: string | null;
           billing_profile_id: string | null; // Override for house type default
           number_of_plots: number; // Number of plots the house is built on (for Development Levy calculation)
+          // Issue #119: the manual register writes `?` for a character the
+          // recorder was unsure of (e.g. `IBB-3?F?`). The identifier itself is
+          // never rewritten; the doubt is carried here instead so it can be
+          // queried, filtered and cleared. Added by
+          // supabase/migrations/20260909000000_house_identifier_unverified_flag.sql.
+          // These two fields are declared here, in the hand-written companion,
+          // because the migration is written but not yet applied --
+          // src/types/database.generated.ts is regenerated (npm run db:types)
+          // only after the coordinator applies it, and is never hand-edited.
+          identifier_unverified: boolean;
+          identifier_note: string | null;
           created_at: string;
           updated_at: string;
           created_by: string | null;
         };
-        Insert: Omit<Database['public']['Tables']['houses']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_occupied' | 'number_of_plots' | 'short_name'> & {
+        Insert: Omit<Database['public']['Tables']['houses']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_occupied' | 'number_of_plots' | 'short_name' | 'identifier_unverified' | 'identifier_note'> & {
           id?: string;
           is_occupied?: boolean;
           number_of_plots?: number;
           short_name?: string | null;
+          identifier_unverified?: boolean;
+          identifier_note?: string | null;
         };
         Update: Partial<Database['public']['Tables']['houses']['Insert']>;
       };

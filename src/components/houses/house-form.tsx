@@ -29,7 +29,9 @@ import { useBillingProfiles } from '@/hooks/use-billing';
 import { houseFormSchema, type HouseFormData } from '@/lib/validators/house';
 import { toast } from 'sonner';
 import type { House } from '@/types/database';
-import { Sparkles } from 'lucide-react';
+import { HelpCircle, Sparkles } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { IconBox } from '@/components/ui/icon-box';
 
 const NONE_VALUE = '_none';
 
@@ -67,8 +69,14 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
       date_added_to_portal: '', // Set on client side to avoid hydration mismatch
       billing_profile_id: house?.billing_profile_id ?? '',
       number_of_plots: house?.number_of_plots ?? 1,
+      // Issue #119: the recorded identifier is never rewritten; the doubt
+      // about it is captured here instead.
+      identifier_unverified: house?.identifier_unverified ?? false,
+      identifier_note: house?.identifier_note ?? '',
     },
   });
+
+  const watchedIdentifierUnverified = useWatch({ control: form.control, name: 'identifier_unverified' });
 
   // Watch for changes to street and house number to auto-generate shortname
   const watchedStreetId = useWatch({ control: form.control, name: 'street_id' });
@@ -336,6 +344,67 @@ export function HouseForm({ house, onSuccess }: HouseFormProps) {
               </FormItem>
             )}
           />
+        </div>
+
+        {/* Issue #119: houses transcribed from the manual register sometimes
+            carry a `?` where the recorder was unsure. The identifier stays as
+            recorded; the doubt is flagged here so it can be found and cleared. */}
+        <div className="rounded-xl border bg-muted/30 p-4 space-y-4">
+          <div className="flex items-start gap-3">
+            <IconBox color="orange" size="sm">
+              <HelpCircle className="h-5 w-5" />
+            </IconBox>
+            <div className="space-y-1">
+              <p className="font-medium leading-none">Identifier confirmation</p>
+              <p className="text-sm text-muted-foreground">
+                Flag this property if the house number as recorded is not certain. The identifier is
+                stored exactly as entered either way.
+              </p>
+            </div>
+          </div>
+
+          <FormField
+            control={form.control}
+            name="identifier_unverified"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center gap-3 space-y-0">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value ?? false}
+                    onCheckedChange={(checked) => field.onChange(checked === true)}
+                    aria-label="Identifier needs confirmation"
+                  />
+                </FormControl>
+                <FormLabel className="font-normal cursor-pointer">
+                  Identifier needs confirmation
+                </FormLabel>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {watchedIdentifierUnverified && (
+            <FormField
+              control={form.control}
+              name="identifier_note"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>What is uncertain?</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="e.g. Register reads 3?F? -- the second character is illegible. Needs a site visit."
+                      className="min-h-[80px]"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Shown to anyone working the unconfirmed identifiers queue.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
 
         <FormField
