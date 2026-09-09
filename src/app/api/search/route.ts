@@ -58,7 +58,8 @@ export async function GET(request: Request) {
             residentsResult,
             housesByNumberResult,
             streetsResult,
-            paymentsResult,
+            paymentsByReferenceResult,
+            residentsForPaymentsResult,
             contactsResult,
             documentsResult,
         ] = await Promise.all([
@@ -71,12 +72,14 @@ export async function GET(request: Request) {
                     .limit(5)
                 : SKIPPED,
 
-            // Search Houses by house_number
+            // Search Houses by house_number or short_name (the "House ID" shown
+            // on /houses -- previously missing entirely, so a value like
+            // "IBB-1" never matched anything).
             canViewHouses
                 ? supabase
                     .from('houses')
-                    .select('id, house_number, street_id, streets(name)')
-                    .ilike('house_number', `%${query}%`)
+                    .select('id, house_number, short_name, street_id, streets(name)')
+                    .or(`house_number.ilike.%${query}%,short_name.ilike.%${query}%`)
                     .limit(5)
                 : SKIPPED,
 
@@ -93,9 +96,27 @@ export async function GET(request: Request) {
             canViewPayments
                 ? supabase
                     .from('payment_records')
-                    .select('id, reference_number, amount')
+                    .select('id, reference_number, amount, resident_id')
                     .or(`reference_number.ilike.%${query}%`)
                     .limit(5)
+                : SKIPPED,
+
+            // Find residents matching the query (only needed to widen the payment
+            // search to resident name -- mirrors the streets-widen-houses pattern
+            // above). Gated by canViewPayments, NOT canViewResidents: a caller
+            // holding payments.view already sees resident first/last name on the
+            // payment detail page today (src/actions/payments/get-payment.ts
+            // joins `residents` unconditionally, and `/payments` is gated by
+            // payments.view alone in ROUTE_PERMISSIONS) -- so this widening query
+            // requires no new permission and grants no new visibility. It selects
+            // only `id` + the two name fields needed for scoring, never returned
+            // to the client.
+            canViewPayments
+                ? supabase
+                    .from('residents')
+                    .select('id, first_name, last_name')
+                    .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
+                    .limit(10)
                 : SKIPPED,
 
             // Search Security Contacts by name (Column: full_name)
@@ -125,7 +146,7 @@ export async function GET(request: Request) {
         if (canViewHouses && matchingStreetIds.length > 0) {
             const { data, error } = await supabase
                 .from('houses')
-                .select('id, house_number, street_id, streets(name)')
+                .select('id, house_number, short_name, street_id, streets(name)')
                 .in('street_id', matchingStreetIds)
                 .limit(5);
 
@@ -141,6 +162,34 @@ export async function GET(request: Request) {
             if (!houseMap.has(h.id)) houseMap.set(h.id, h);
         });
         const houses = Array.from(houseMap.values()).slice(0, 5);
+
+        // Process Payments - widen the reference-number match with a second
+        // pass keyed on resident_id, using the resident-name matches found
+        // above. Mirrors the streets-widen-houses pattern.
+        const paymentsByReference = paymentsByReferenceResult.data || [];
+        const matchingResidentsForPayments = residentsForPaymentsResult.data || [];
+        const matchingResidentIdsForPayments = matchingResidentsForPayments.map((r: { id: string }) => r.id);
+        let paymentsByResident: typeof paymentsByReference = [];
+
+        if (canViewPayments && matchingResidentIdsForPayments.length > 0) {
+            const { data, error } = await supabase
+                .from('payment_records')
+                .select('id, reference_number, amount, resident_id')
+                .in('resident_id', matchingResidentIdsForPayments)
+                .limit(5);
+
+            if (error) {
+                console.error('Payments by resident search error:', error);
+            }
+            paymentsByResident = data || [];
+        }
+
+        // Merge and deduplicate payment results
+        const paymentMap = new Map<string, (typeof paymentsByReference)[number]>();
+        [...paymentsByReference, ...paymentsByResident].forEach((p) => {
+            if (!paymentMap.has(p.id)) paymentMap.set(p.id, p);
+        });
+        const mergedPayments = Array.from(paymentMap.values()).slice(0, 5);
 
 
         // Helper to calculate relevance score
@@ -178,11 +227,28 @@ export async function GET(request: Request) {
             };
         });
 
-        // Search Payments by reference scoring
-        const payments = (paymentsResult.data || []).map(p => ({
-            ...p,
-            _score: calculateScore(p.reference_number || '', query)
-        }));
+        // Search Payments scoring. A payment can match on reference_number,
+        // on its resident's name (via the widening query above), or both --
+        // score it by the best of whichever matched. `residentNameById` maps
+        // the resident-widening query's results back onto the merged payment
+        // rows so a resident-name match gets a real score instead of a flat
+        // constant; resident_id itself is stripped from the response below
+        // (the client only ever consumed id/reference_number/amount/_score).
+        const residentNameById = new Map<string, string>(
+            matchingResidentsForPayments.map((r: { id: string; first_name: string; last_name: string }) => [r.id, `${r.first_name} ${r.last_name}`])
+        );
+        const payments = mergedPayments.map(p => {
+            const residentName = p.resident_id ? residentNameById.get(p.resident_id) : undefined;
+            return {
+                id: p.id,
+                reference_number: p.reference_number,
+                amount: p.amount,
+                _score: Math.max(
+                    calculateScore(p.reference_number || '', query),
+                    residentName ? calculateScore(residentName, query) : 0
+                ),
+            };
+        });
 
         // Search Security Contacts scoring
         const contacts = (contactsResult.data || []).map(c => ({
@@ -203,6 +269,7 @@ export async function GET(request: Request) {
                 street_name: streetName || null,
                 _score: Math.max(
                     calculateScore(h.house_number, query),
+                    calculateScore(h.short_name || '', query),
                     calculateScore(streetName || '', query)
                 )
             };
@@ -211,7 +278,8 @@ export async function GET(request: Request) {
         // Log errors if any (but return partial results)
         if (residentsResult.error) console.error('API Resident search error:', residentsResult.error);
         if (housesByNumberResult.error) console.error('API House search error:', housesByNumberResult.error);
-        if (paymentsResult.error) console.error('API Payment search error:', paymentsResult.error);
+        if (paymentsByReferenceResult.error) console.error('API Payment search error:', paymentsByReferenceResult.error);
+        if (residentsForPaymentsResult.error) console.error('API Payment-by-resident search error:', residentsForPaymentsResult.error);
         if (contactsResult.error) console.error('API Security Contact search error:', contactsResult.error);
         if (documentsResult.error) console.error('API Document search error:', documentsResult.error);
 
