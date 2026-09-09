@@ -161,7 +161,7 @@ of their own name. A second apply cannot abort with `42710`. The whole file is o
 
 ## 4. Not fixed, and why
 
-### 4.1 Anonymous read of active bank accounts — NOT fixed, needs verification
+### 4.1 Anonymous read of active bank accounts — MEASURED, latent not live, NOT fixed
 
 Noticed while reasoning about `anon` for requirement 3. It is a pre-existing condition this
 migration neither creates nor closes, and it is **out of scope**, so per `CORE.md` §15 it is
@@ -175,16 +175,24 @@ policies do not bite. The RESTRICTIVE gate `"Approved accounts only can read"` i
 apply to `anon` at all. On that reading, an anonymous caller holding only the publishable key can
 read every *active* row of a table that holds bank account numbers.
 
-Two things must be checked against the live database before acting, neither of which this session
-could do:
+**Both open questions were measured by the coordinator on `Residio_Prod` (2026-09-09), in a
+transaction that ended in `ROLLBACK`. The reasoning above is sound; the conclusion is not.**
 
-1. Whether `anon` still holds the default `SELECT` grant on `public.estate_bank_accounts`.
-   `20260905003000` closed six tables this way; `estate_bank_accounts` was **not** among them.
-2. Whether the two `TO public` `ALL` policies raise `42501` first and mask the read behind a 500.
+1. `anon` **does** still hold the `SELECT` grant —
+   `has_table_privilege('anon','public.estate_bank_accounts','SELECT')` is `true`.
+   `estate_bank_accounts` was indeed not among the six tables `20260905003000` closed.
+2. But the read **does not succeed**. Probing `set local role anon; select count(*) from
+   public.estate_bank_accounts;` returns `42501: permission denied for function
+   get_my_role_name`. Postgres evaluates the second disjunct rather than short-circuiting on
+   `is_active = true`, so the `EXECUTE` revocation bites after all and `anon` receives an error
+   rather than rows.
 
-If (1) holds, this is a live anonymous data exposure and warrants its own issue and its own fix —
-scoping that policy and the two `ALL` policies to `authenticated`, exactly as `20260905003000` did
-for its six tables. It is deliberately not bundled here.
+**Verdict: latent, not live.** No anonymous caller can read this table today. It stays worth
+scoping to `authenticated` eventually — the protection is an error path rather than a policy
+decision, which is a fragile place to leave bank account numbers — but it is not an active
+exposure and it is unchanged by this migration, which leaves that policy untouched.
+
+Contrast `generated_reports`, where the same style of reasoning **did** find a live hole: see §6.
 
 ### 4.2 Grantee migration `TO public` → `TO authenticated`
 
@@ -226,6 +234,63 @@ its "show inactive" toggle silently returning only active accounts — RLS filte
 so nothing is raised anywhere.
 
 This is the intended effect per the brief (deactivated accounts become finance-role-only), and it
-is recorded here rather than discovered later. **Which roles hold `settings.manage_reference` could
-not be checked from this session** — no database access. If any role outside those four holds it,
-that mismatch should be settled before applying.
+is recorded here rather than discovered later.
+
+**Measured by the coordinator on `Residio_Stage` (2026-09-09): `settings.manage_reference` is held
+by three roles — `super_admin`, `vice_chairman` and `secretary`.**
+
+`secretary` is the predicted gap, and it is real. A secretary reaches `/settings/bank-accounts`
+through the route permission, but is not in the four-role finance array, so after this migration
+their "show inactive" toggle returns only active accounts and nothing is raised. The other two
+holders are both in the array and are unaffected.
+
+That narrowing is the intended effect of closing the `is_active` bypass — a secretary losing sight
+of deactivated bank accounts is the point, not a regression. What is **not** intended is that it
+happens silently: the toggle appears to work and under-reports. Filed separately rather than
+absorbed here; the fix belongs in the UI layer, not in this migration.
+
+For comparison, `reports.view_financial` is held by five roles — `super_admin`, `chairman`,
+`vice_chairman`, `financial_officer` and `project_manager` — all of which retain insert on
+`generated_reports` under the new policy.
+
+---
+
+## 6. The live anonymous write hole this migration closes
+
+Measured by the coordinator on `Residio_Prod` (2026-09-09), in a transaction that ended in
+`ROLLBACK`. Nothing was committed.
+
+`generated_reports_insert` was `PERMISSIVE FOR INSERT TO public WITH CHECK (true)`. Unlike the
+`SELECT` twins elsewhere in this cleanup, `true` calls no revoked function, so nothing made it fail
+for `anon` — and `has_table_privilege('anon','public.generated_reports','INSERT')` is `true`.
+
+| Probe as `anon` | Result |
+| --- | --- |
+| `insert into public.generated_reports default values;` **before** | `23502` null value in column "name" violates not-null constraint |
+| the same insert with valid columns, **after** this migration is applied in the same transaction | `42501` new row violates row-level security policy |
+
+A **not-null** failure is downstream of the policy check, so RLS *permitted* the anonymous insert.
+**Any holder of the publishable anon key could write arbitrary rows into `generated_reports`
+today**, and this migration is what stops it.
+
+The original framing of finding 3 — "any authenticated caller" — understated this. It is the one
+drop in this file whose `anon` dimension is load-bearing.
+
+---
+
+## 7. Noted, not changed: a stale test list
+
+`src/__tests__/last-legacy-role-policies.test.ts:205-212` describes its `MUST_SURVIVE` entries as
+policies "that must survive this migration intact". Two of them are touched by #285:
+
+- `:229` `'Authenticated users can insert generated reports'` — **dropped here**
+- `:231` `'generated_reports_insert'` — **redefined here**
+
+A third, `:227` `'Authenticated users can view generated reports'`, is not in the #279 baseline at
+all — `generated_reports` carries exactly four policies (baseline:5265–5272) and this is not one of
+them. That staleness pre-dates #285.
+
+**The test does not fail**: its assertion is a textual check over `20260906020000`'s own SQL only
+(`MIGRATION_FILE`, `:48`), so this migration cannot trip it. But a reader landing there will
+conclude those policies are protected invariants. `src/**` is out of scope for this change, so it
+is filed separately rather than edited here.

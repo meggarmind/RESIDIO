@@ -16,9 +16,13 @@
 --     BEFORE: any approved authenticated user reads EVERY row, active or not,
 --             because `auth.role() = 'authenticated'` ORs the `is_active`
 --             filter away; ALL is finance-role, stated twice.
---     AFTER:  SELECT requires (is_active = true OR finance role) AND
---             is_approved(); ALL is finance-role, stated once. Deactivated
---             bank accounts become finance-role-only.
+--     AFTER:  for `authenticated`, SELECT requires (is_active = true OR
+--             finance role) AND is_approved(); ALL is finance-role, stated
+--             once. Deactivated bank accounts become finance-role-only.
+--             NOTE the AND does not hold for `anon`: the RESTRICTIVE
+--             "Approved accounts only can read" is `TO authenticated`, and a
+--             RESTRICTIVE policy constrains only the roles it names. See the
+--             anon paragraph below, which measures what `anon` actually gets.
 --
 --   approval_requests
 --     BEFORE: SELECT/UPDATE each stated twice under two names; INSERT open to
@@ -28,9 +32,13 @@
 --
 --   generated_reports
 --     BEFORE: INSERT is `WITH CHECK (true)`, twice, on a table whose SELECT
---             and DELETE are permission-gated.
+--             and DELETE are permission-gated -- and one of the two is
+--             `TO public`, so this is open to ANONYMOUS callers, not merely
+--             to any authenticated one. Measured, not inferred: see the
+--             anon paragraph below.
 --     AFTER:  INSERT requires has_permission('reports.view_financial'), the
---             same permission the table's existing SELECT policy requires.
+--             same permission the table's existing SELECT policy requires,
+--             and is `TO authenticated` so `anon` is excluded outright.
 --
 -- ----------------------------------------------------------------------------
 -- Why the pure-duplicate drops are net-zero, reasoned rather than assumed
@@ -121,33 +129,95 @@
 --   createReportVersion (line 469) is always user-scoped.
 --
 --   has_permission('reports.view_financial') is the correct predicate for both
---   user-scoped paths, and is non-breaking rather than merely plausible: each
---   insert ends in `.select().single()` (lines 400-401, and the same shape in
---   createReportVersion), and that RETURNING read is filtered by the table's
---   existing generated_reports_select policy, which already requires
---   has_permission('reports.view_financial'). A caller lacking that permission
---   therefore cannot complete a manual save TODAY -- the row inserts and the
---   returning select finds nothing. createReportVersion additionally reads its
---   parent row through the same SELECT policy before inserting. Every caller
---   that succeeds today already holds the permission this policy now requires.
+--   user-scoped paths, and is non-breaking because of an ACTION-LAYER gate that
+--   every caller must clear first. generateReport() calls checkReportAccess(),
+--   which is authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL)
+--   (src/actions/reports/report-engine.ts:227-228), and useGenerateReport
+--   THROWS on its failure (src/hooks/use-reports.ts:118-119) before
+--   saveGeneratedReport is ever reached at :139. No caller can arrive at the
+--   user-scoped insert without already holding this permission.
+--
+--   An earlier draft of this note argued instead that each insert ends in
+--   `.select().single()` and that the RETURNING read is itself gated by
+--   generated_reports_select. That argument is REFUTED and is recorded here so
+--   it is not reconstructed: src/hooks/use-reports.ts:139 discards
+--   saveGeneratedReport's return value entirely -- no check, no throw -- so a
+--   filtered RETURNING read surfaces only as a server-side console.error
+--   (report-schedules.ts:407-409) while the mutation fabricates a synthetic
+--   report and reports success. The conclusion survives; the reason does not.
+--
+--   This matters because /reports is an ANY-OF route
+--   (src/lib/auth/action-roles.ts:205 lists REPORTS_VIEW_FINANCIAL,
+--   REPORTS_VIEW_OCCUPANCY and REPORTS_VIEW_SECURITY), so an occupancy-only
+--   holder can reach the page and is stopped by the action-layer gate rather
+--   than by RLS. Had that gate been weaker, the refuted argument would have
+--   been all that stood behind this change.
+--
+--   createReportVersion additionally reads its parent row through the SELECT
+--   policy and bails (report-schedules.ts:483-490), and its caller does check
+--   the result (use-reports.ts:367-368).
+--
+--   Note GenerationTrigger includes 'api' (report-schedules.ts:11), which
+--   routes to the user-scoped client. No 'api' caller exists today; a future
+--   one will need reports.view_financial.
 --
 --   'reports.view_financial' is not a newly invented name: it is declared at
 --   src/lib/auth/action-roles.ts:81 and is already called by the live
 --   generated_reports_select and (as reports.manage_schedules' sibling)
---   generated_reports_delete policies, so it demonstrably exists in
---   app_permissions.
+--   generated_reports_delete policies. Confirmed as a seeded row rather than
+--   inferred -- on Residio_Stage it exists in app_permissions and is held by
+--   FIVE roles: super_admin, chairman, vice_chairman, financial_officer and
+--   project_manager. project_manager therefore retains insert on this table.
+--
+-- ----------------------------------------------------------------------------
+-- What `anon` could do before this migration, measured on the live database
+-- ----------------------------------------------------------------------------
+-- Both probes below were run on Residio_Prod (miyeswqbwarvipdzwqnz) inside a
+-- transaction that ended in ROLLBACK. Nothing was committed.
+--
+--   generated_reports -- A LIVE ANONYMOUS WRITE HOLE, closed by this migration.
+--   has_table_privilege('anon','public.generated_reports','INSERT') is true,
+--   and generated_reports_insert was `FOR INSERT TO public WITH CHECK (true)`.
+--   Unlike the SELECT twins, `true` calls no revoked function, so nothing made
+--   it fail for `anon`. Probe as `anon` BEFORE:
+--     insert into public.generated_reports default values;
+--       -> 23502 null value in column "name" violates not-null constraint
+--   A NOT-NULL failure is downstream of the policy check: RLS PERMITTED the
+--   anonymous insert. The same probe with valid columns, AFTER this migration
+--   is applied in the same transaction:
+--       -> 42501 new row violates row-level security policy
+--   So any holder of the publishable anon key could write arbitrary rows into
+--   generated_reports, and this migration is what stops it.
+--
+--   estate_bank_accounts -- LATENT, NOT LIVE, and NOT changed here.
+--   has_table_privilege('anon','public.estate_bank_accounts','SELECT') is true,
+--   and the surviving "All authenticated can view active bank accounts" is
+--   `TO public` with `is_active = true` as a plain column read. But probing
+--   `select count(*) from public.estate_bank_accounts` as `anon` returns
+--     42501 permission denied for function get_my_role_name
+--   Postgres evaluates the second disjunct rather than short-circuiting, so
+--   `anon` receives an error, not rows. This holds identically before and
+--   after: that policy is untouched by this migration.
 --
 -- ----------------------------------------------------------------------------
 -- Deliberately NOT changed
 -- ----------------------------------------------------------------------------
 -- residents, resident_houses and hierarchical_settings carry genuine
 -- multi-audience policies and are out of scope (issue #285 section 4). No
--- table other than the three named above is touched. Policy grantees are not
--- migrated from `public` to `authenticated` here either: that is the separate
--- concern 20260905003000 owns, and doing it inside a de-duplication change
--- would hide a real access change inside a cleanup. See the accompanying note
--- docs/migrations/285-policy-cleanup.md for one anonymous-read finding on
--- estate_bank_accounts that this migration deliberately leaves open.
+-- table other than the three named above is touched.
+--
+-- A WHOLESALE `public` -> `authenticated` grantee migration is not attempted
+-- here: that is the separate concern 20260905003000 owns, and doing it inside a
+-- de-duplication change would hide a real access change inside a cleanup. Note
+-- however that BOTH replacement policies created below ARE `TO authenticated`
+-- where the policies they replace were `TO public` (baseline:5113 and 5269).
+-- That is deliberate and is the point of the generated_reports change -- see
+-- the anon paragraph above. An earlier draft of this header claimed no grantee
+-- moved at all, which was simply false.
+--
+-- One `anon` finding on estate_bank_accounts is deliberately left open rather
+-- than fixed here; it is measured above and reasoned in
+-- docs/migrations/285-policy-cleanup.md section 4.1.
 --
 -- Written to be safely re-runnable: every statement is DROP POLICY IF EXISTS,
 -- and each policy that is replaced rather than removed is dropped immediately
@@ -201,10 +271,12 @@
 --   USING (get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]));
 --
 -- DROP POLICY IF EXISTS "Users can create their own approval requests" ON public.approval_requests;
+-- DROP POLICY IF EXISTS "Authenticated users can create approval requests" ON public.approval_requests;
 -- CREATE POLICY "Authenticated users can create approval requests"
 --   ON public.approval_requests FOR INSERT TO public
 --   WITH CHECK (auth.uid() IS NOT NULL);
 --
+-- DROP POLICY IF EXISTS "Financial secretary can create approval requests" ON public.approval_requests;
 -- CREATE POLICY "Financial secretary can create approval requests"
 --   ON public.approval_requests FOR INSERT TO authenticated
 --   WITH CHECK ((get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text])) AND (requested_by = auth.uid()));
