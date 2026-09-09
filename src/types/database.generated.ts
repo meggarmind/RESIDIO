@@ -2455,6 +2455,8 @@ export type Database = {
           house_number: string
           house_type_id: string | null
           id: string
+          identifier_note: string | null
+          identifier_unverified: boolean
           is_active: boolean
           is_occupied: boolean
           notes: string | null
@@ -2472,6 +2474,8 @@ export type Database = {
           house_number: string
           house_type_id?: string | null
           id?: string
+          identifier_note?: string | null
+          identifier_unverified?: boolean
           is_active?: boolean
           is_occupied?: boolean
           notes?: string | null
@@ -2489,6 +2493,8 @@ export type Database = {
           house_number?: string
           house_type_id?: string | null
           id?: string
+          identifier_note?: string | null
+          identifier_unverified?: boolean
           is_active?: boolean
           is_occupied?: boolean
           notes?: string | null
@@ -2833,24 +2839,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      invoice_generation_locks: {
-        Row: {
-          period: string
-          started_at: string
-          started_by: string | null
-        }
-        Insert: {
-          period: string
-          started_at?: string
-          started_by?: string | null
-        }
-        Update: {
-          period?: string
-          started_at?: string
-          started_by?: string | null
-        }
-        Relationships: []
       }
       invoice_generation_log: {
         Row: {
@@ -6135,6 +6123,26 @@ export type Database = {
       }
     }
     Functions: {
+      adjust_wallet_credit: {
+        Args: {
+          p_amount: number
+          p_description?: string
+          p_reference_id?: string
+          p_reference_type?: string
+          p_resident_id: string
+        }
+        Returns: Json
+      }
+      adjust_wallet_debit: {
+        Args: {
+          p_amount: number
+          p_description?: string
+          p_reference_id?: string
+          p_reference_type?: string
+          p_resident_id: string
+        }
+        Returns: Json
+      }
       approve_invoice_generation_run: {
         Args: {
           p_approver_id: string

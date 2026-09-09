@@ -9,6 +9,121 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Current session (Claude Code, 2026-09-09 — **#289 readiness wave: 5 PRs merged, 1 migration applied**)
+
+**Tool:** Claude Code, coordinator posture. Eight sub-agents across five issues, all in isolated
+worktrees, one machine. Started as "continue with #262"; #262 is suspended behind **#289**, so the
+work is #289's.
+
+### The finding that set the session's shape
+
+**#289 read as 4/16 done and was actually 10/16.** PRs #315–#320 (issues #112, #123, #124, #125,
+#197, #256) merged 2026-09-08 and their merge commits are reachable from `origin/master` — verified
+per branch, not by search. The issues stayed open only because the PR bodies carried no closing
+keyword. All six closed; the board auto-moved them to Done.
+
+### What shipped — five PRs, all merged
+
+| Issue | PR | Branch | Gates (coordinator re-ran post-merge-of-master) |
+| --- | --- | --- | --- |
+| #263 | #332 | `chore/issue-263-untrack-claude-settings-local` | tsc 0, 127 files / 1268 tests |
+| #115 | #333 | `fix/issue-115-search-payments-and-house-short-name` | tsc 0, 127 files / 1272 tests |
+| #107 | #334 | `fix/issue-107-occupier-approvals-apply-fail-closed` | tsc 0, 130 files / 1273 tests |
+| #120 | #335 | `fix/issue-120-wallet-adjustment-ui` | tsc 0, 129 files / 1281 tests |
+| #119 | #336 | `feat/issue-119-house-identifier-unverified-flag` | tsc 0, 131 files / 1292 tests |
+
+Each PR head already contained its QA follow-up: every follow-up branch was cut from its
+predecessor's tip, so no consolidation merge was needed. They were pushed under names describing
+the whole change rather than `...-qa-followup`.
+
+### ✅ Applied to Residio_Stage — three migrations (applied ≠ merged)
+
+| File | Ledger version (MCP-assigned) | Verified effect |
+| --- | --- | --- |
+| `20260908000000_drop_invoice_generation_locks.sql` | `20260909044030` | table gone; 0 rows before the drop |
+| `20260908010000_atomic_manual_wallet_adjustments.sql` | `20260909044048` | both RPCs present, `SECURITY DEFINER`, `has_permission('billing.manage_wallets')` guard intact |
+| `20260909000000_house_identifier_unverified_flag.sql` | `20260909081614` | 2 columns added, **exactly 4 of 179 houses flagged**, all 4 with notes, partial index present |
+
+The first two were **merged to master and applied to Prod on 2026-09-08 but never applied to
+Stage** — found while wiring #120, whose wallet control would otherwise have errored on Stage.
+`generated_invoice_short_name_numbers` was applied by another session at `20260909063313`.
+
+`src/types/database.generated.ts` regenerated **through the Supabase MCP, not `npm run db:types`**
+(that script is `--local`, which `CORE.md` §5 forbids). The diff is exactly the three applied
+migrations — two `houses` columns, two wallet RPC signatures, the dropped locks table — and no
+unrelated drift. tsc 0, 136 files / 1315 tests on merged master.
+
+### ⚠️ Unsanitised `short_name` in invoice numbers — live, and #73 must not run yet
+
+#82 (PR #331) makes generated invoice numbers interpolate `houses.short_name` with only
+`btrim`/`NULLIF` applied. Four houses carry a literal `?` — `IBB-3?F?`, `KOA-10F-?`, `GLB-19?`,
+`IBB-32?` — so they would produce `INV-IBB-3?F?-2026-01`. **`?` is a query-string delimiter**, and
+#268 establishes that generated invoice numbers are permanent.
+
+That migration was applied by another session **after** this was flagged. Nothing has broken yet:
+those four houses have **0 invoices**. But **#73's full-estate backfill must not run** until either
+the generator sanitises the short name or the four identifiers are corrected. #119's flag marks the
+doubt; it does not remove the `?`. Recorded on #82, #73 and #119.
+
+### Issues filed, not absorbed
+
+- **#327** — `CRON_SECRET` literal committed in `.claude/settings.local.json` on a public repo.
+  Gates all ten cron routes and fails **open**. Untracking does not redact history. *Closed by owner.*
+- **#328** — `approveRequest`/`rejectRequest` write approval status with no audit record.
+  Pre-existing, hidden by a blanket `GENERAL_EXCEPTIONS` entry. `post-pilot`.
+- **#329** — `migration-drift` CI **has never run**: `SUPABASE_PROJECT_REF` repository variable is
+  unset, 7 runs 7 failures since 2026-09-07. *Closed by owner.*
+- **#305** — four more instances of MCP-assigned version drift recorded; the same file now carries
+  **different ledger versions on Stage and Prod**.
+
+### Owner decisions recorded this session
+
+- **#263** stop tracking `.claude/settings.local.json`. **#275** closed — Twilio provisioning is now
+  an in-app setting. **#269** post-pilot. **#95** post-pilot. **#115** and **#120** before go-live.
+- **#119 reframed**: the `?` is the manual register's convention for a doubted identifier, not
+  corruption. Explicit `identifier_unverified` + `identifier_note` columns; the recorded identifier
+  is **never rewritten**; badge, filter and a remediation queue at `/houses/unverified`.
+
+### Do not re-litigate
+
+- **The ratchet specs are a pre-existing parallelism flake.** `src/__tests__/legacy-role-migration-ratchet.test.ts`
+  and `hardcoded-role-name-ratchet.test.ts` fail intermittently in full-suite runs **on
+  `origin/master` too**, and pass in isolation and on re-run. Not caused by any branch in this wave.
+  Comparing isolation-on-master against full-suite-on-branch proves nothing — run both the same way.
+- **`imports/bank-accounts.ts` keeps its `PERMISSION_ALLOWLIST` entry deliberately.** Its four write
+  actions gate via `canAutoApprove()`, which is `authorizePermission(APPROVALS_APPROVE_REJECT)` one
+  call deep; the compliance scan matches textually and cannot see through the indirection. A comment
+  in the test now records this. It is a scanner limitation, not a gap.
+- **`approval_requests.request_type` IS the Postgres enum** `approval_request_type` with three
+  members, verified live — not `TEXT`, which is all the migrations directory would suggest. The
+  table holds 0 rows.
+- **`website/docs/properties/houses-and-occupancy.md` is deliberately not re-stamped.** It carries
+  drift from three earlier commits nobody has reviewed; stamping would clear that unread (§12).
+
+### Environment hazard that cost this session real time
+
+**A Windows junction inside a worktree is followed by directory deletion.** `git worktree remove
+--force` on a worktree whose `node_modules` is a junction to `C:/projects/RESIDIO/node_modules`
+**destroys the real install**. The coordinator did this once (the `failed to delete: Directory not
+empty` error is the deletion having already walked the link); a sub-agent had done the same earlier.
+Source files were never at risk; `npm ci` restores it.
+
+Before removing any worktree: `cmd //c dir /AL <path>`, then `cmd //c rmdir <link>` on every
+`<JUNCTION>` — that unlinks without touching the target. Prefer running gates from the main checkout
+against absolute worktree paths over junctioning at all.
+
+A sub-agent junctioning to *another worktree's* `node_modules` also manufactures false failures: on
+#115 it produced 18 failures across 5 render-test files that were green against the main checkout's
+modules.
+
+### Board and tracker
+
+**8 issues closed, 4 opened** (#327, #328, #329, plus #119 reframed rather than newly filed).
+Net **−4**. #289 moved from a tracker-apparent 4/15 to **14/15**; only **#121** (orphaned security
+vehicles / visitor analytics / unflag UI, `post-pilot`) remains open on it.
+
+---
+
 ## Last session (Claude Code, 2026-09-09 — **harness tagging: #324 shipped as PR #325, not merged**)
 
 **Tool:** Claude Code, coordinator posture. One issue taken end to end. **No application code
