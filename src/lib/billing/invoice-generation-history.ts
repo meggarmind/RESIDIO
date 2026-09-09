@@ -7,6 +7,8 @@
  * timeline without double counting (new code no longer writes legacy rows).
  */
 
+import type { VersionFallbackWarning } from '@/lib/billing/invoice-generation';
+
 export type InvoiceGenerationTrigger = 'manual' | 'cron' | 'api';
 
 export interface GenerationHistoryEntry {
@@ -19,6 +21,7 @@ export interface GenerationHistoryEntry {
     skipped_count: number;
     error_count: number;
     skip_reasons: Array<{ house: string; reason: string }> | null;
+    version_fallbacks?: VersionFallbackWarning[] | null;
     errors: string[] | null;
     duration_ms: number | null;
     created_at: string;
@@ -79,6 +82,18 @@ const asSkipReasons = (value: unknown): Array<{ house: string; reason: string }>
     );
 };
 
+const asVersionFallbacks = (value: unknown): VersionFallbackWarning[] | null => {
+    if (!Array.isArray(value)) return null;
+    const fallbacks = value.flatMap((item) => {
+        if (!item || typeof item !== 'object') return [];
+        const candidate = item as Record<string, unknown>;
+        const keys = ['houseId', 'house', 'billingProfileId', 'billingProfileName', 'periodStart', 'versionId', 'effectiveFrom'];
+        if (!keys.every((key) => typeof candidate[key] === 'string')) return [];
+        return [candidate as unknown as VersionFallbackWarning];
+    });
+    return fallbacks.length ? fallbacks : null;
+};
+
 /** Map a durable generation run row into the shared history-entry shape. */
 export function mapInvoiceGenerationRunToHistoryEntry(run: InvoiceGenerationRunHistoryRow): GenerationHistoryEntry {
     const scope = run.scope ?? {};
@@ -94,6 +109,7 @@ export function mapInvoiceGenerationRunToHistoryEntry(run: InvoiceGenerationRunH
         skipped_count: run.skipped_count ?? 0,
         error_count: run.failed_count ?? 0,
         skip_reasons: asSkipReasons(summary.skips),
+        version_fallbacks: asVersionFallbacks(summary.versionFallbacks),
         errors: null,
         duration_ms:
             run.started_at && run.completed_at

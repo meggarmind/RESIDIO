@@ -50,9 +50,12 @@ export function useCreditWallet() {
       description: string;
       reason: string;
     }) => {
-      return creditWallet(residentId, amount, 'adjustment', undefined, `${reason}: ${description}`);
+      return creditWallet(residentId, amount, 'adjustment', undefined, `${reason}: ${description}`).then((result) => {
+        if (!result.success) throw new Error(result.error || 'Failed to credit wallet');
+        return result;
+      });
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['wallet', variables.residentId] });
       queryClient.invalidateQueries({ queryKey: ['wallet-transactions', variables.residentId] });
       toast.success('Wallet credited successfully');
@@ -79,9 +82,12 @@ export function useDebitWallet() {
       description: string;
       reason: string;
     }) => {
-      return debitWallet(residentId, amount, 'adjustment', undefined, `${reason}: ${description}`);
+      return debitWallet(residentId, amount, 'adjustment', undefined, `${reason}: ${description}`).then((result) => {
+        if (!result.success) throw new Error(result.error || 'Failed to debit wallet');
+        return result;
+      });
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['wallet', variables.residentId] });
       queryClient.invalidateQueries({ queryKey: ['wallet-transactions', variables.residentId] });
       toast.success('Wallet debited successfully');

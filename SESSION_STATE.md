@@ -9,7 +9,191 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Last session (Claude Code, 2026-09-08 — **three PRs open; one migration written, NOT applied**)
+## Last session (Claude Code, 2026-09-09 — **harness tagging: #324 shipped as PR #325, not merged**)
+
+**Tool:** Claude Code, coordinator posture. One issue taken end to end. **No application code
+changed, no migration written, none applied.** PR #325 is open; the user does the merging.
+
+### The question, and the answer
+
+Tickets carried no record of *which harness* worked them, and none of the obvious carriers works:
+the assignee cannot distinguish harnesses (#297 — one assignable login, all three authenticate as
+it), and a board single-select cannot hold two values, which is exactly the case that needed
+representing. **Repo labels** can. `harness:claude` / `harness:codex` / `harness:opencode` now
+exist, added at the moment an agent sets `In progress` (`CORE.md` §9, a fourth automatic move),
+with `.github/workflows/harness-label.yml` as a non-blocking backstop deriving the lane from the
+branch prefix.
+
+The labels are **additive and permanent** — they record that a harness *has worked* a ticket, not
+that it holds it. Nobody removes anyone's label, their own included, on merge. They are **not a
+lock**: `git ls-remote --heads origin` is still the live registry (§7).
+
+### Lane prefixes are now self-identifying
+
+`claude` was mapped to `feat/issue-`, which names no harness and collides with the generic `feat/`
+prefix; it is now `claude/issue-`. The missing `"fix": "fix/issue-"` lane recorded in the previous
+handoff is configured. `origin` carried only `master`, `stage` and `gh-pages` at the time, so
+nothing in flight was orphaned.
+
+### The finding that matters most — a derived label is not proof
+
+Backfilling produced a counter-example to the backstop's own premise. **#244 and #300 were
+OpenCode's work on `feat/issue-*` branches**: that session wanted `--lane fix`, the lane did not
+exist, and it fell back to `--lane claude`. A prefix-derived label would have credited Claude Code
+for both. Configuring the `fix` lane removes that cause; the general caveat is now in
+`docs/agents/project-board.md`. **When the branch prefix and a human record disagree, the human
+record wins.**
+
+### Backfill — labelled only where the evidence is solid
+
+Three evidence sources, in descending strength: a **commit trailer** on the branch, an explicit
+**record in this file**, and the **branch prefix** (weakest — see the caveat above).
+
+Every issue in flight is now labelled. `#107 #112 #123 #124 #197 #256` claude, `#244 #300`
+opencode, `#324` claude, and **`#125` carries both `harness:codex` and `harness:claude`**.
+
+The trailer turned out to discriminate cleanly on the evidence available: across the merged
+branches for these issues, every commit attributed to Claude Code carries
+`Co-Authored-By: Claude Opus 5` and **no OpenCode or Codex commit carries any trailer at all**
+(#244, #300 and #125's fix commit are all bare). It is a positive signal for Claude and silence
+for the other two — so a bare commit says "not Claude", not "which one". Confirm before leaning on
+it harder; the sample is four non-Claude commits.
+
+**#125 is the case the whole design exists for, and the branch prefix would have got it wrong
+on its own.** On a `codex/issue-125-*` branch, the fix commit `3460369e` is bare — Codex's work —
+while the follow-up test commit `6943ec0f` carries the Claude trailer. Two harnesses, one ticket,
+now two labels. An earlier pass in this session had labelled it `harness:codex` only, on the
+branch prefix; the trailers corrected it.
+
+The worktrees for these issues were already removed, so the trailers were read from the merged
+branch commits on `master` (`git log <merge>^1..<merge>^2`), which are the same commits.
+
+### Verification
+
+Gates in the worktree, foreground: **42/42 tests**, `tsc --noEmit` 0, eslint 0 on all four touched
+files. The full suite was **not** run — #255's ratchet flake family makes a single full-suite
+result untrustworthy on this machine.
+
+**Six mutations, six caught**, each re-verified by the coordinator against the artefact rather than
+taken from the implementing agent's report: `fix` leaking into `HARNESS_LANES`; first-match instead
+of longest-prefix in `laneFromBranch`; the idempotence skip removed; `POST` to `PUT`; a second
+element in the `labels` array; an introduced `DELETE`. The last three exist because `addIssueLabel`'s
+HTTP call is unexported — "additive, never replacing" lived only in a comment, and a `PUT` with a
+full array would have dropped another harness's label with everything still green.
+
+**Proven live on PR #325, not only in fixtures:** the workflow resolved lane `claude` from the
+branch, resolved #324, and logged `already present, skipping`. `harness:codex` was then added by
+hand and CI re-run on a `claude/` branch — **both labels survived**. The test label was removed
+afterwards; codex did not work this issue.
+
+### Do not re-litigate
+
+- Do not make `harness-label.yml` blocking. `pr-claim-check.yml` is the gate; this one records.
+- Do not "fix" `pr-claim-check.mjs` to compare harnesses by author — #297 settled that as inert.
+- Do not add a Harness field to the project board; single-select cannot hold two values.
+- Do not treat `harness:*` as a lock, and never remove another harness's label.
+
+### Two things left as found, not absorbed
+
+- **The previous session's cleanup record never landed.** PR #323 merged
+  `chore/session-state-migrations-applied`, but the worktree-cleanup and Stage-drift notes were
+  still an **uncommitted diff in the main checkout** on that same branch when this session started
+  (~23 lines). `origin/master` does not have them. They are still sitting there uncommitted —
+  recover them rather than rewriting them from memory.
+- **`node_modules` in the main checkout is incomplete again** (no `.bin`, no `@vitest`) — the third
+  recording of this damage class here. It needs `npm install` before anything runs there. Also:
+  an `npm install` run *from a worktree* **destroys the `node_modules` junction** and replaces it
+  with a real install (npm logs `reify Removing non-directory`). Survivable, but know it before
+  you junction one.
+
+---
+
+## Last session (OpenCode, 2026-09-08 — **#244 PR open, #300 PR open, both awaiting review**)
+
+**Tool:** OpenCode. Two isolated worktrees (`issue-244`, `issue-300`), both branched from `origin/master`
+after rebasing off the stale local master (#224 bug — `issue:workflow start` branches from local master).
+
+### What shipped
+
+| Issue | PR | Branch | Gates | Notes |
+| --- | --- | --- | --- | --- |
+| **#244** | **#308** | `feat/issue-244-invoice-generation-locks-exists-in-the-live-data` | tsc 0, lint 0, **111 files / 1139 tests / 0 failures** | Merged; migration **applied to Prod** `20260908225157` |
+| **#300** | **#322** | `feat/issue-300-manual-wallet-adjustments-are-non-atomic-and-can` | tsc 0, lint 0, **114 files / 1170 tests / 0 failures** | Merged; migration **applied to Prod** `20260908225209` |
+
+### #244 — drop orphaned invoice_generation_locks
+
+Live DB verified (Supabase MCP): 0 rows, no FKs, no triggers, no views, no functions reference
+the table. Two catch-all RLS policies and grants drop with the table. Only reference in `src/` is
+the generated type at `database.generated.ts:2837` (regenerated after apply).
+
+Migration: `supabase/migrations/20260908000000_drop_invoice_generation_locks.sql` —
+`DROP TABLE IF EXISTS public.invoice_generation_locks;` inside `BEGIN/COMMIT`.
+
+### #300 — atomic manual wallet adjustments
+
+Two new `SECURITY DEFINER` Postgres RPCs (`adjust_wallet_credit`, `adjust_wallet_debit`):
+- `has_permission('billing.manage_wallets')` guard before any write (aligns RPC authorization
+  with the server-action RBAC contract and the table-level RLS policy on `resident_wallets`).
+- Input validation (NULL/NaN/Infinity/negative/zero) inside SQL.
+- `SELECT ... FOR UPDATE` serializes concurrent adjustments to the same wallet.
+- Balance update + ledger insert in the same PL/pgSQL body — automatic rollback on failure.
+
+Server actions (`creditWallet`, `debitWallet`) call the RPCs; audit fires only after success.
+Hooks (`useCreditWallet`, `useDebitWallet`) throw on `{ success: false }` so React Query
+routes to the error path and no success toast fires on failure.
+
+QA: 5/5 mutations caught (comment FOR UPDATE, remove permission guard, remove hook throw,
+audit before RPC failure, remove amount validation).
+
+### Out-of-scope defects noted
+
+- `debitWalletForInvoice` and `allocateWalletToInvoices` (legacy path) share the non-atomic
+  pattern and `debitWalletForInvoice` lacks `authorizePermission` / `logAudit` (§6 violations).
+  Recommend a separate follow-up issue.
+- `--lane fix` not configured in `.github/issue-workflow.json` (only codex/claude/opencode).
+  Used `--lane claude` producing `feat/issue-*` prefix. Recommend adding `"fix": "fix/issue-"`.
+
+### ✅ Three migrations applied to Residio_Prod — 2026-09-08 (applied ≠ merged)
+
+PRs #303, #308 and #322 are all merged to `origin/master`, so `CORE.md` §11's apply-after-merge
+condition was met. Applied to **Residio_Prod** (`miyeswqbwarvipdzwqnz`) through the Supabase MCP
+`apply_migration` tool only — `npm run db:migrate` was **not** run (#219).
+
+| File | Ledger version (MCP-assigned) | Verified effect on Prod |
+| --- | --- | --- |
+| `20260907010000_seed_billing_manage_profile_versions_permission.sql` | `20260908225151` | `billing.manage_profile_versions` present in `app_permissions` (1); role grants **0** — `app_roles` is empty in Prod (roster not moved, #280). The grant must accompany the #280 roster move. |
+| `20260908000000_drop_invoice_generation_locks.sql` | `20260908225157` | `public.invoice_generation_locks` no longer exists. |
+| `20260908010000_atomic_manual_wallet_adjustments.sql` | `20260908225209` | `adjust_wallet_credit` and `adjust_wallet_debit` both present. |
+
+Filename-versus-ledger version mismatch is the documented #305 `apply_migration` drift, not a
+second application. Recorded individually on #242, #244 and #300.
+
+Until the roster moves (#280), **no role holds `billing.manage_profile_versions`**: the add-version
+form stays hidden and the write action refuses every caller — correct fail-closed behaviour, not a
+bug. Carrying the grant over in #280 is the required step before historical rates can be entered,
+and therefore before #73's full-estate backfill can run.
+
+### ⚠️ Residio_Stage is two migrations behind Prod
+
+Verified 2026-09-09 against both applied lists. **Residio_Stage** (`kzugmyjjqttardhfejzc`) has
+`20260907010000_seed_billing_manage_profile_versions_permission` but **not**
+`drop_invoice_generation_locks` and **not** `atomic_manual_wallet_adjustments`. Stage therefore
+still has the orphaned locks table and still lacks the atomic wallet RPCs — `creditWallet` /
+`debitWallet` will fail there against the post-#300 server actions. Note that the default Supabase
+MCP connection in this repo points at **Stage, not Prod**; check the project ref before reading an
+applied list as proof of anything.
+
+### Do not re-litigate
+
+- PRs #298, #299 and #303 are open and unmerged. #298 must merge before #303.
+- #286 is blocked on #298 merging — do not start it.
+- Authorization hardening is frozen until after the 9 Sep pilot (#241). #300 is data integrity,
+  not RBAC — no access changes were made.
+- `debitWalletForInvoice` / `allocateWalletToInvoices` legacy atomicity is filed, not absorbed.
+
+---
+
+## Previous session (Claude Code, 2026-09-08 — **three PRs open; one migration written, NOT applied**)
 
 **Tool:** Claude Code, coordinator posture. Follows the wayfinder-map reorganisation recorded below,
 which landed as PR #296. Three PRs are open and **none is merged — the user does the merging.**
@@ -25,16 +209,12 @@ which landed as PR #296. Three PRs are open and **none is merged — the user do
 **#298 must merge before #303.** #303's wiki page documents the preview warning, which lives in
 #298's files; alone, that page overclaims.
 
-### ⚠️ Migration written and NOT applied
+### Migration written and NOT applied — **superseded, now applied**
 
 `supabase/migrations/20260907010000_seed_billing_manage_profile_versions_permission.sql`, on PR
-**#303**. Recorded here and on #242 per `CORE.md` §11.
-
-Until it is applied, **no role holds `billing.manage_profile_versions`**: the add-version form stays
-hidden and the write action refuses every caller. That is correct fail-closed behaviour, not a bug.
-But **applying it is a required step before historical rates can be entered, and therefore before
-#73's full-estate backfill can run.** Do not apply it before #303 merges (`CORE.md` §11: a migration
-is applied only from the branch that introduces it, after that branch merges).
+**#303**. **#303 merged 2026-09-07 and the migration was applied to Prod on 2026-09-08 as ledger
+version `20260908225151`** — see the applied-migrations table in the latest session above. Left
+here so the historical record reads correctly; do not act on it.
 
 ### Where this work came from — an abandoned branch, now superseded
 

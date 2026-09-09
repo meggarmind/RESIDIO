@@ -61,7 +61,11 @@ function DashboardContent() {
 
             <div className="grid gap-6 lg:grid-cols-2">
                 <ModernPendingPayments distribution={snapshot?.invoiceDistribution ?? null} isLoading={isLoading} />
-                <ModernRecentActivity activities={snapshot?.recentActivity ?? null} isLoading={isLoading} />
+                <ModernRecentActivity
+                  activities={snapshot?.recentActivity ?? null}
+                  isLoading={isLoading}
+                  isUnavailable={snapshot?.recentActivityUnavailable ?? false}
+                />
             </div>
 
             {navigationState.debug && (
