@@ -9,6 +9,8 @@ export async function processInvoiceGenerationRunChunk(runId: string, actorId: s
   const rpc = supabase as unknown as RpcClient;
   const { data: run } = await supabase.from('invoice_generation_runs').select('options').eq('id', runId).single();
   const sendEmails = Boolean((run?.options as { sendEmails?: unknown } | null)?.sendEmails);
+  const validation = await rpc.rpc('validate_invoice_generation_run_short_names', { p_run_id: runId });
+  if (validation.error) throw new Error(validation.error.message);
   const claimed = await rpc.rpc('claim_invoice_generation_candidates', { p_run_id: runId, p_limit: CHUNK_LIMIT });
   if (claimed.error) throw new Error(claimed.error.message);
   const candidateIds = (claimed.data as Array<{ candidate_id: string }> | null || []).map(({ candidate_id }) => candidate_id);

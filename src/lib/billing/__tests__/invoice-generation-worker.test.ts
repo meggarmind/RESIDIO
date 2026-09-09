@@ -32,8 +32,20 @@ beforeEach(() => {
 });
 
 describe('invoice generation worker email side effect', () => {
+  it('does not claim candidates when short-name preflight rejects the run', async () => {
+    const client = createClient(false, [
+      { data: null, error: { message: 'Invoice generation blocked: GLB-19?' } },
+    ]);
+    adminClientMock.mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
+
+    await expect(processInvoiceGenerationRunChunk('run-1', null)).rejects.toThrow('Invoice generation blocked: GLB-19?');
+    expect(client.rpc).toHaveBeenCalledWith('validate_invoice_generation_run_short_names', { p_run_id: 'run-1' });
+    expect(client.rpc).not.toHaveBeenCalledWith('claim_invoice_generation_candidates', expect.anything());
+  });
+
   it('queues email only after a created invoice RPC result', async () => {
     const client = createClient(true, [
+      { data: null, error: null },
       { data: [{ candidate_id: 'candidate-1' }], error: null },
       { data: { status: 'created', invoice_id: 'invoice-1' }, error: null },
       { data: { status: 'completed' }, error: null },
@@ -47,6 +59,7 @@ describe('invoice generation worker email side effect', () => {
 
   it('does not queue an email for skipped or failed invoice outcomes', async () => {
     const client = createClient(true, [
+      { data: null, error: null },
       { data: [{ candidate_id: 'candidate-1' }, { candidate_id: 'candidate-2' }], error: null },
       { data: { status: 'skipped', invoice_id: 'invoice-existing' }, error: null },
       { data: { status: 'failed', error: 'bad item' }, error: null },
@@ -59,6 +72,7 @@ describe('invoice generation worker email side effect', () => {
 
   it('does not queue emails when the run option is disabled', async () => {
     const client = createClient(false, [
+      { data: null, error: null },
       { data: [{ candidate_id: 'candidate-1' }], error: null },
       { data: { status: 'created', invoice_id: 'invoice-1' }, error: null },
       { data: { status: 'completed' }, error: null },
