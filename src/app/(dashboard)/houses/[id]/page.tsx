@@ -38,6 +38,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { HouseForm } from '@/components/houses/house-form';
+import { IdentifierUnverifiedBadge } from '@/components/houses/identifier-unverified-badge';
 import { HousePaymentStatus } from '@/components/houses/house-payment-status';
 import { YearlyPaymentTable } from '@/components/houses/yearly-payment-table';
 import { HouseStatsCards } from '@/components/houses/house-stats-cards';
@@ -564,8 +565,13 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
             </Link>
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">
-              {house.house_number} {house.street?.name}
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <span>{house.house_number} {house.street?.name}</span>
+              {/* Issue #119: the recorded identifier is doubted. */}
+              <IdentifierUnverifiedBadge
+                unverified={house.identifier_unverified}
+                note={house.identifier_note}
+              />
             </h1>
             <p className="text-muted-foreground">
               {house.house_type?.name ?? 'No type specified'}

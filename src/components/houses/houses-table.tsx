@@ -40,7 +40,9 @@ import {
   ChevronDown,
   ChevronsUpDown,
   Eye,
+  HelpCircle,
 } from 'lucide-react';
+import { IdentifierUnverifiedBadge } from '@/components/houses/identifier-unverified-badge';
 import type { HouseSearchParams } from '@/lib/validators/house';
 import { getPropertyShortname } from '@/lib/utils';
 
@@ -54,6 +56,11 @@ interface HouseData {
   street?: { name: string } | null;
   house_type?: { name: string } | null;
   street_id?: string;
+  short_name?: string | null;
+  // Issue #119: explicit doubt about the recorded identifier. Read from the
+  // column -- never inferred from a `?` in the identifier string.
+  identifier_unverified?: boolean | null;
+  identifier_note?: string | null;
 }
 
 // Memoized row component
@@ -74,6 +81,10 @@ const HouseRow = memo(function HouseRow({ house, onNavigate, onPreview }: { hous
             <Home className="h-4 w-4" />
           </div>
           <span className="font-medium">{house.house_number}</span>
+          <IdentifierUnverifiedBadge
+            unverified={house.identifier_unverified}
+            note={house.identifier_note}
+          />
         </div>
       </TableCell>
       <TableCell className="text-muted-foreground">{house.street?.name}</TableCell>
@@ -119,6 +130,7 @@ export function HousesTable() {
   const [streetId, setStreetId] = usePersistedState<string>('houses-registry:street', ALL_VALUE);
   const [houseTypeId, setHouseTypeId] = usePersistedState<string>('houses-registry:type', ALL_VALUE);
   const [isOccupied, setIsOccupied] = usePersistedState<string>('houses-registry:occupied', ALL_VALUE);
+  const [identifierState, setIdentifierState] = usePersistedState<string>('houses-registry:identifier', ALL_VALUE);
   const [limit, setLimit] = usePersistedState('houses-registry:limit', 20);
   const [page, setPage] = usePersistedState('houses-registry:page', 1);
   const [sortBy, setSortBy] = usePersistedState<'short_name' | 'house_number' | 'street' | 'house_type' | undefined>('houses-registry:sortBy', undefined);
@@ -147,6 +159,7 @@ export function HousesTable() {
     street_id: streetId === ALL_VALUE ? undefined : streetId,
     house_type_id: houseTypeId === ALL_VALUE ? undefined : houseTypeId,
     is_occupied: isOccupied === ALL_VALUE ? undefined : isOccupied === 'true',
+    identifier_unverified: identifierState === ALL_VALUE ? undefined : identifierState === 'unverified',
     sort_by: sortBy,
     sort_order: sortBy ? sortOrder : undefined,
     page,
@@ -172,6 +185,10 @@ export function HousesTable() {
       const label = isOccupied === 'true' ? 'Occupied' : 'Vacant';
       filters.push({ id: 'status', label: `Status: ${label}`, onRemove: () => setIsOccupied(ALL_VALUE) });
     }
+    if (identifierState !== ALL_VALUE) {
+      const label = identifierState === 'unverified' ? 'Needs confirmation' : 'Confirmed';
+      filters.push({ id: 'identifier', label: `Identifier: ${label}`, onRemove: () => setIdentifierState(ALL_VALUE) });
+    }
     if (debouncedSearch) {
       filters.push({ id: 'search', label: `Search: "${debouncedSearch}"`, onRemove: () => setSearch('') });
     }
@@ -180,8 +197,10 @@ export function HousesTable() {
     debouncedSearch,
     houseTypeId,
     houseTypes,
+    identifierState,
     isOccupied,
     setHouseTypeId,
+    setIdentifierState,
     setIsOccupied,
     setSearch,
     setStreetId,
@@ -200,12 +219,14 @@ export function HousesTable() {
   const handleStreetChange = (val: string) => { setStreetId(val); setPage(1); };
   const handleTypeChange = (val: string) => { setHouseTypeId(val); setPage(1); };
   const handleStatusChange = (val: string) => { setIsOccupied(val); setPage(1); };
+  const handleIdentifierChange = (val: string) => { setIdentifierState(val); setPage(1); };
   const handleSearchChange = (val: string) => { setSearch(val); setPage(1); };
 
   const clearAllFilters = () => {
     setStreetId(ALL_VALUE);
     setHouseTypeId(ALL_VALUE);
     setIsOccupied(ALL_VALUE);
+    setIdentifierState(ALL_VALUE);
     setSearch('');
     setPage(1);
   };
@@ -279,6 +300,26 @@ export function HousesTable() {
                 <SelectItem value="false">Vacant</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Issue #119: "Needs confirmation" filter over the explicit
+                identifier_unverified column. */}
+            <Select value={identifierState} onValueChange={handleIdentifierChange}>
+              <SelectTrigger className="w-[170px] flex-1 sm:flex-none" aria-label="Identifier confirmation">
+                <SelectValue placeholder="Identifier" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>All identifiers</SelectItem>
+                <SelectItem value="unverified">Needs confirmation</SelectItem>
+                <SelectItem value="verified">Confirmed</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button asChild variant="outline" className="hidden lg:flex">
+              <Link href="/houses/unverified">
+                <HelpCircle className="h-4 w-4 mr-2" />
+                Unconfirmed
+              </Link>
+            </Button>
 
             <Button onClick={() => router.push('/houses/new')} className="hidden sm:flex">
               <Plus className="h-4 w-4 mr-2" />
