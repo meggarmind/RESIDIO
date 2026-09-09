@@ -16,7 +16,6 @@ const ACTIONS_DIR = path.join(process.cwd(), 'src/actions');
 
 // Files that are known exceptions (read-only, exports, type definitions, etc.)
 const GENERAL_EXCEPTIONS = [
-  'index.ts',
   'types.ts',
   'helpers.ts',
 ];

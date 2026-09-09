@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { approveRequest } from '@/actions/approvals';
 
-const { createServerSupabaseClient, authorizePermission } = vi.hoisted(() => ({
+const { createServerSupabaseClient, authorizePermission, logAudit } = vi.hoisted(() => ({
   createServerSupabaseClient: vi.fn(),
   authorizePermission: vi.fn(),
+  logAudit: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient }));
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
 
 vi.mock('@/lib/audit/logger', () => ({
-  logAudit: vi.fn(),
+  logAudit,
 }));
 vi.mock('@/lib/notifications/admin-notifier', () => ({
   notifyAdmins: vi.fn(),
@@ -38,6 +39,7 @@ describe('applyRequestedChanges fails closed on an unhandled request_type', () =
   beforeEach(() => {
     createServerSupabaseClient.mockReset();
     authorizePermission.mockReset();
+    logAudit.mockReset();
     authorizePermission.mockResolvedValue({ authorized: true, userId: 'admin-1', error: null });
   });
 
@@ -100,5 +102,11 @@ describe('applyRequestedChanges fails closed on an unhandled request_type', () =
     expect(updateQuery.update).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'approved' }),
     );
+    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'APPROVE',
+      entityType: 'approval_requests',
+      entityId: 'req-2',
+      newValues: expect.objectContaining({ status: 'approved' }),
+    }));
   });
 });
