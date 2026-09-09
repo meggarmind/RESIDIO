@@ -9,7 +9,128 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Current session (Claude Code, 2026-09-09 — **#262 tracker close-out: 3 issues closed, 1 PR opened, 0 code changed**)
+## Current session (Claude Code, 2026-09-09 — **#285 RLS cleanup: merged AND applied to Stage and Prod; a live anonymous write hole closed**)
+
+**Tool:** Claude Code, coordinator posture. Two sub-agents (one implementer, one QA), both `opus`
+— `CORE.md` §15 routes RLS and permissions to the top tier — both in isolated worktrees, one
+machine. QA verdict **PASS WITH NOTES**.
+
+Continues the same session as the #262 tracker close-out recorded below.
+
+### The finding the issue did not have
+
+**`generated_reports` accepted anonymous writes, and #285 never said so.** `generated_reports_insert`
+was `PERMISSIVE FOR INSERT TO public WITH CHECK (true)`. Unlike the SELECT twins elsewhere in this
+cleanup, `true` calls no revoked function, so nothing made it fail for `anon` — and
+`has_table_privilege('anon','public.generated_reports','INSERT')` is `true`.
+
+Measured, not inferred, in rolled-back transactions:
+
+| Probe as `anon` | Result |
+| --- | --- |
+| `insert into public.generated_reports default values;` **before** | `23502` not-null on `name` |
+| same insert with valid columns **after**, both projects | `42501` violates row-level security policy |
+
+**A not-null failure is downstream of the policy check** — RLS *permitted* the anonymous insert.
+Any holder of the publishable anon key could write arbitrary rows. QA spotted the shape from the
+grantee; the coordinator measured it. It is now closed on both projects.
+
+### ✅ Applied — and this time applied, not merely merged
+
+| Project | Ref | MCP-assigned version |
+| --- | --- | --- |
+| `Residio_Stage` | `kzugmyjjqttardhfejzc` | `20260909110026` |
+| `Residio_Prod` | `miyeswqbwarvipdzwqnz` | `20260909110049` |
+
+Both under the name `20260909020000_285_policy_cleanup`, verified **by name against
+`supabase_migrations.schema_migrations`**, never against the migrations directory. The two projects
+carry **different ledger versions for the same file** — the drift already tracked on #305.
+
+Policy counts measured before and after on each project independently, identical on both:
+`approval_requests` 4 SELECT → 2, 2 UPDATE → 1, 2 INSERT → 1; `estate_bank_accounts` 3 SELECT → 2,
+2 ALL → 1; `generated_reports` 2 INSERT → 1. This matched the pre-merge rehearsal exactly.
+
+### The rehearsal technique that made this safe
+
+Before the PR was opened, the **whole migration was applied to `Residio_Prod` inside a transaction
+that ended in `ROLLBACK`**, and the resulting policy shape measured. That is what turned "the
+header claims X" into a number. Same technique closed both anon questions. Prod was verified back
+at 265 policies afterwards. **Use this instead of predicting an access delta** (`CORE.md` §15).
+
+### Two findings the issue body missed, found by inventory before implementation
+
+- **(E)** `approval_requests` had the same open-write defect as `generated_reports`:
+  `"Authenticated users can create approval requests"` was `WITH CHECK (auth.uid() IS NOT NULL)`,
+  entirely subsuming the finance-scoped policy beside it. **Any authenticated user could file a
+  request under any `requested_by`.** Both role scoping and ownership were inert.
+- **(D)** `"Admin can manage bank accounts"` (`super_admin`) is a strict subset of
+  `"Admins chairmen fin sec can manage bank accounts"`, whose array already contains `super_admin`.
+
+### The implementer's deviation, and why it was right
+
+It did **not** promote the existing finance-scoped INSERT policy to sole survivor on
+`approval_requests`. That policy requires membership of
+`['super_admin','chairman','vice_chairman','financial_officer']`, but `createApprovalRequest`'s two
+callers (`houses/update-house.ts:72`, `billing/profiles.ts:260`) are gated at the action layer by
+*houses* and *billing* permissions. A role holding `houses.update` outside those four would have
+been denied by RLS. It used `WITH CHECK (requested_by = auth.uid())` instead — ownership is what
+RLS can express here; **who** may raise a request stays an action-layer decision.
+
+### QA's most valuable catch: a non-breaking argument that was refuted
+
+The implementer justified tightening `generated_reports_insert` on the grounds that each insert ends
+`.select().single()` and that RETURNING read is already permission-gated. **That is false at the
+caller**: `src/hooks/use-reports.ts:139` discards `saveGeneratedReport`'s return value entirely — no
+check, no throw — so a filtered read surfaces only as a server-side `console.error` while the
+mutation fabricates a synthetic report and reports success.
+
+The conclusion survived on a stronger gate the implementer had not cited: `generateReport` calls
+`checkReportAccess()` = `authorizePermission(REPORTS_VIEW_FINANCIAL)`
+(`report-engine.ts:227-228`), and `useGenerateReport` **throws** at `use-reports.ts:118-119` before
+line 139 is reached. `/reports` is an **any-of** route (`action-roles.ts:205`), so an occupancy-only
+holder reaches the page and is stopped there rather than by RLS. Had that gate been weaker, the
+refuted argument was all that stood behind the change. Both are recorded in the migration header.
+
+### Measured permission facts (Stage)
+
+- `reports.view_financial` — 5 roles: `super_admin`, `chairman`, `vice_chairman`,
+  `financial_officer`, `project_manager`.
+- `settings.manage_reference` — 3 roles: `super_admin`, `vice_chairman`, **`secretary`**.
+
+### Issues: 3 closed, 1 filed, net −2 across the whole session
+
+**#350 filed** — `secretary` holds `settings.manage_reference` so reaches `/settings/bank-accounts`,
+but is outside the finance array, so its "show inactive" toggle now silently returns only active
+rows. **The narrowing is intended; the silence is not.** Filed rather than absorbed (`CORE.md` §15).
+
+Also closed this session: **#266**, **#277**, **#281** on answers already given, and **#285** here.
+**PRs #348, #349, #351 all merged by the owner.**
+
+### Do not re-litigate
+
+- **The `estate_bank_accounts` anonymous read is latent, not live, and was left open deliberately.**
+  `anon` holds the SELECT grant, but the read raises `42501 permission denied for function
+  get_my_role_name` — Postgres evaluates the second disjunct rather than short-circuiting on
+  `is_active = true`. Measured. Reasoned in §4.1 of `docs/migrations/285-policy-cleanup.md`. Worth
+  scoping to `authenticated` one day, since an error path is a fragile place to leave bank account
+  numbers, but **it is not an exposure and this migration does not touch that policy.**
+- **`src/__tests__/last-legacy-role-policies.test.ts:205-212`'s `MUST_SURVIVE` list is stale**, not
+  broken. It names two policies #285 drops or redefines, plus one
+  (`'Authenticated users can view generated reports'`) that is not in the #279 baseline at all. The
+  assertion is textual over `20260906020000`'s own SQL, so nothing fails. Do not "fix" #285 to
+  satisfy it.
+- **`migration-drift` CI fails on every branch** and has done since before this work — the #329
+  cause (`SUPABASE_PROJECT_REF` unset). Not caused by this migration.
+
+### Environment note
+
+`apply_migration` was refused once by the tool-permission classifier. **No attempt was made to
+route around it via `execute_sql`**; the block was reported and the owner cleared it explicitly.
+Worth knowing that DDL against a live project may need that clearance in a fresh session.
+
+---
+
+## Last session (Claude Code, 2026-09-09 — **#262 tracker close-out: 3 issues closed, 1 PR opened, 0 code changed**)
 
 **Tool:** Claude Code, coordinator posture. **No sub-agents dispatched** — the whole session was a
 read-only inventory pass plus tracker writes, which `CORE.md` §15 puts on the coordinator. **No
