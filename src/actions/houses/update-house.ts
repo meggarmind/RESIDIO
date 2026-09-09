@@ -93,7 +93,11 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
           short_name: formData.short_name || null,
           notes: formData.notes || null,
           billing_profile_id: formData.billing_profile_id || null,
-          identifier_unverified: formData.identifier_unverified ?? false,
+          // Issue #119 QA follow-up: preserve the existing flag when a caller
+      // omits it, rather than defaulting to false. The form always supplies
+      // this field today, so there is no live bug, but a future caller that
+      // omits it should not silently clear a recorded doubt.
+      identifier_unverified: formData.identifier_unverified ?? currentHouse.identifier_unverified,
           identifier_note: formData.identifier_note || null,
           // Don't update number_of_plots - pending approval
         })
@@ -145,7 +149,11 @@ export async function updateHouse(id: string, formData: HouseFormData): Promise<
       notes: formData.notes || null,
       billing_profile_id: formData.billing_profile_id || null,
       number_of_plots: newPlots,
-      identifier_unverified: formData.identifier_unverified ?? false,
+      // Issue #119 QA follow-up: preserve the existing flag when a caller
+      // omits it, rather than defaulting to false. The form always supplies
+      // this field today, so there is no live bug, but a future caller that
+      // omits it should not silently clear a recorded doubt.
+      identifier_unverified: formData.identifier_unverified ?? currentHouse.identifier_unverified,
       identifier_note: formData.identifier_note || null,
     })
     .eq('id', id)
