@@ -14,10 +14,10 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 - Created and started #372 for the `/expenditure` failure: PostgREST `PGRST201` found both the
   profile role and app-role creator relationships. `getStaff()` now explicitly embeds
   `app_roles!profiles_role_id_fkey!inner(name)`, preserving the existing role-name filter.
-- The focused regression test was observed failing without that selector and passing after it;
-  scoped ESLint also passed. `next build` could not complete on this shared host: its build
-  processes stalled while holding `.next/lock`, so they were stopped and the generated stale lock
-  was removed. No database change or migration was made.
+- The focused regression test was observed failing without that selector and passing after it.
+  Scoped ESLint, TypeScript, and `next build` could not complete on this shared host: their
+  processes stalled, and the build processes also held `.next/lock`, so only those processes were
+  stopped and the generated stale lock was removed. No database change or migration was made.
 
 ## Last session (Claude Code, 2026-09-07 — **pilot set #104 #105 #106 #113: four PRs open, none merged**)
 
