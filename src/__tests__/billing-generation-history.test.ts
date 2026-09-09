@@ -20,6 +20,15 @@ const baseEntry: GenerationHistoryEntry = {
     { house: 'H-02', reason: 'No billable residents' },
     { house: 'H-03', reason: 'Invoice already exists' },
   ],
+  version_fallbacks: [{
+    houseId: 'house-1',
+    house: 'H-01',
+    billingProfileId: 'profile-1',
+    billingProfileName: 'Standard levy',
+    periodStart: '2025-07-01',
+    versionId: 'version-1',
+    effectiveFrom: '2026-08-01',
+  }],
   errors: ['Failed to create invoice for H-07', 'Wallet allocation failed for H-09'],
   duration_ms: 1500,
   created_at: '2026-08-01T10:00:00.000Z',
@@ -46,9 +55,12 @@ describe('generation history results export', () => {
   });
 
   it('includes quoted skip reasons and errors sections', () => {
-    const lines = buildGenerationResultsCsv(baseEntry).split('\n');
+    const csv = buildGenerationResultsCsv(baseEntry);
+    const lines = csv.split('\n');
 
-    expect(lines.filter((line) => line.startsWith('"H-')).length).toBe(3);
+    expect(lines.filter((line) => line.startsWith('"H-')).length).toBe(4);
+    expect(lines).toContain('Rate Version Warnings');
+    expect(csv).toContain('2025-07 was priced using the earliest "Standard levy" rate version');
     expect(lines.filter((line) => line.startsWith('"Failed to') || line.startsWith('"Wallet')).length).toBe(2);
   });
 
