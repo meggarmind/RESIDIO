@@ -1,3 +1,7 @@
+// Aliased: this file declares its own hand-written `Database` interface below,
+// so the generated one has to come in under a distinct name.
+import type { Database as GeneratedDatabase } from '@/types/database.generated';
+
 // =====================================================
 // Phase 10: New Flexible RBAC System
 // =====================================================
@@ -237,44 +241,19 @@ export type InvoiceStatus = 'unpaid' | 'paid' | 'void' | 'partially_paid' | 'ove
 
 // Approval request types (maker-checker workflow)
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
-export type ApprovalRequestType =
-  | 'billing_profile_effective_date'
-  | 'house_plots_change'
-  | 'bank_account_create'
-  | 'bank_account_update'
-  | 'bank_account_delete'
-  // Developer/Owner actions requiring tenant/owner-occupier approval (Phase 15)
-  | 'developer_property_access'
-  | 'developer_resident_removal'
-  | 'owner_property_access'
-  | 'owner_resident_modification'
-  | 'owner_security_code_change'
-  // Admin impersonation system
-  | 'impersonation_request'
-  // Late fee waiver system
-  | 'late_fee_waiver'
-  // Hybrid Payments
-  | 'manual_payment_verification';
+
+// Derived from the generated types rather than hand-written, so it cannot drift
+// from the `approval_request_type` Postgres enum again. This union previously
+// declared thirteen members, ten of which never existed in any migration --
+// every insert carrying one was rejected by Postgres at runtime (#107).
+// Widening it is a database change, tracked as #306; do not add literals here.
+export type ApprovalRequestType = GeneratedDatabase['public']['Enums']['approval_request_type'];
 
 // Labels for approval request types
 export const APPROVAL_REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
   billing_profile_effective_date: 'Billing Profile Effective Date Change',
   house_plots_change: 'House Plots Change',
-  bank_account_create: 'Bank Account Creation',
-  bank_account_update: 'Bank Account Update',
-  bank_account_delete: 'Bank Account Deletion',
-  // Developer/Owner actions
-  developer_property_access: 'Developer Property Access Request',
-  developer_resident_removal: 'Developer Resident Removal Request',
-  owner_property_access: 'Owner Property Access Request',
-  owner_resident_modification: 'Owner Resident Modification Request',
-  owner_security_code_change: 'Owner Security Code Change Request',
-  // Admin impersonation
-  impersonation_request: 'Resident Impersonation Request',
-  // Late fee waiver
   late_fee_waiver: 'Late Fee Waiver Request',
-  // Hybrid Payments
-  manual_payment_verification: 'Manual Payment Verification',
 };
 
 // Phase 8: Audit Logging Types

@@ -125,7 +125,7 @@ export function WalletTopUpDialog({
       const result = await submitPaymentProof(formData);
 
       if (result.success) {
-        toast.success(result.warning || "Payment proof submitted! Admin will verify it shortly.", { id: toastId });
+        toast.success("Payment proof submitted! Admin will verify it shortly.", { id: toastId });
 
         // Trigger background email check as well for immediate match if possible
         checkPaymentEmails().catch(console.error);

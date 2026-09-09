@@ -1,7 +1,6 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createApprovalRequest } from '@/actions/approvals';
 import { logAudit } from '@/lib/audit/logger';
 import { revalidatePath } from 'next/cache';
 
@@ -80,40 +79,10 @@ export async function submitPaymentProof(formData: FormData) {
         return { error: `Failed to record payment: ${paymentError.message}` };
     }
 
-    // 5. Create Approval Request
-    // This triggers the maker-checker workflow
-    const approvalResult = await createApprovalRequest({
-        request_type: 'manual_payment_verification',
-        entity_type: 'payment_record',
-        entity_id: payment.id,
-        requested_changes: {
-            status: 'paid',
-            reason: 'manual_verification'
-        },
-        current_values: {
-            status: 'pending'
-        },
-        reason: `Verification of ₦${amount.toLocaleString()} manual transfer. Reference: ${resident.first_name} ${resident.last_name}`,
-    });
-
-    if (!approvalResult.success) {
-        console.error('Approval request error:', approvalResult.error);
-        // Note: We don't rollback the payment record here. 
-        // The payment is still 'pending' and admins can see it in payment history.
-        return {
-            success: true,
-            payment_id: payment.id,
-            warning: 'Payment recorded, but admin notification (approval request) failed. Please contact management.'
-        };
-    }
-
-    // 6. Link Approval Request to Payment Record for easier navigation
-    await supabase
-        .from('payment_records')
-        .update({ approval_request_id: approvalResult.request_id })
-        .eq('id', payment.id);
-
-    // 7. Audit Log
+    // 5. Audit the record we did write.
+    // The payment row is deliberately retained (see below): it is the estate's
+    // only record that the resident uploaded proof of a real transfer, so it is
+    // logged even though the submission does not complete.
     await logAudit({
         action: 'CREATE',
         entityType: 'payments',
@@ -122,12 +91,37 @@ export async function submitPaymentProof(formData: FormData) {
         newValues: {
             amount,
             proof_url: filePath,
-            approval_request_id: approvalResult.request_id,
+            approval_request_id: null,
         },
     });
 
     revalidatePath('/portal');
-    return { success: true, payment_id: payment.id };
+
+    // 6. Fail closed: the maker-checker step cannot be filed.
+    //
+    // This used to call createApprovalRequest({ request_type:
+    // 'manual_payment_verification', ... }). That value has never existed in the
+    // `approval_request_type` Postgres enum, so the insert was rejected on every
+    // single submission -- and the handler returned `{ success: true, warning }`,
+    // which the portal rendered as a success toast. The resident was told their
+    // proof was submitted while no admin was ever notified (#107).
+    //
+    // The payment row and the uploaded proof are NOT rolled back: they are the
+    // only evidence the estate holds that the resident paid, and destroying that
+    // is a worse failure than retaining a record nobody has actioned yet. The
+    // result, however, is unambiguously not a success, so the caller can no
+    // longer report it as one.
+    //
+    // Restoring verification requires the enum value to exist; that is an owner
+    // decision, tracked as #306.
+    return {
+        success: false,
+        payment_id: payment.id,
+        error:
+            'Your proof was uploaded and recorded, but it could not be submitted for ' +
+            'verification: manual payment verification approvals are unavailable. ' +
+            'Please contact management with your payment reference. (Issue #306)',
+    };
 }
 
 /**

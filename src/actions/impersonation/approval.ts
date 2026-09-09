@@ -9,36 +9,6 @@ import type {
   ImpersonationApprovalData,
   ImpersonationSessionWithDetails,
 } from '@/types/database';
-import { startImpersonationSession } from './index';
-
-/**
- * Send an in-app notification to an admin profile
- * Uses admin client to bypass RLS since notifications are for profiles, not residents
- */
-async function sendAdminNotification(params: {
-  recipientProfileId: string;
-  title: string;
-  message: string;
-  category: string;
-  actionUrl?: string;
-}): Promise<void> {
-  try {
-    const supabase = createAdminClient();
-    await supabase.from('in_app_notifications').insert({
-      recipient_id: params.recipientProfileId,
-      title: params.title,
-      body: params.message,
-      category: params.category,
-      action_url: params.actionUrl || null,
-      priority: 'high',
-      is_read: false,
-      metadata: { type: 'admin_notification' },
-    });
-  } catch (error) {
-    // Log error but don't fail the main operation
-    console.error('Failed to send admin notification:', error);
-  }
-}
 
 // =====================================================
 // Impersonation Approval Workflow Actions (DEV-75)
@@ -54,12 +24,31 @@ type ImpersonationApprovalRequest = Omit<ApprovalRequest, 'requested_changes'> &
 };
 
 /**
+ * The impersonation maker-checker workflow was built on the approval request
+ * type `impersonation_request`, which has never existed in the
+ * `approval_request_type` Postgres enum. Every insert was rejected at runtime,
+ * so no `approval_requests` row of this type has ever been written, and every
+ * query filtering on it can only return nothing (#107).
+ *
+ * These actions therefore say so explicitly instead of issuing inserts that
+ * always fail and reads that always come back empty. Restoring the workflow
+ * requires the enum value to exist, which is an owner decision tracked as #306.
+ *
+ * Note: none of the authorization checks below were changed. Who may call each
+ * action, and what an unauthorized caller is told, is exactly as before.
+ */
+const IMPERSONATION_APPROVALS_UNAVAILABLE =
+  'Impersonation approval requests are unavailable: the request type does not ' +
+  'exist in the database, so no such request can be created or found. ' +
+  'Tracked as issue #306.';
+
+/**
  * Create an impersonation approval request
  * Used by non-super admins who need approval to impersonate
  */
 export async function createImpersonationApprovalRequest(
-  residentId: string,
-  reason?: string
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature preserved: callers are unchanged, but no request of this type can exist (#306)
+  _residentId: string, _reason?: string
 ): Promise<{
   success: boolean;
   data?: ImpersonationApprovalRequest;
@@ -87,94 +76,8 @@ export async function createImpersonationApprovalRequest(
     return { success: false, error: 'Impersonation is not enabled for your account' };
   }
 
-  // Check for existing pending request for this resident
-  const { data: existingRequest } = await supabase
-    .from('approval_requests')
-    .select('id')
-    .eq('requested_by', user.id)
-    .eq('request_type', 'impersonation_request')
-    .eq('status', 'pending')
-    .single();
-
-  if (existingRequest) {
-    return { success: false, error: 'You already have a pending impersonation request' };
-  }
-
-  // Get resident details
-  const { data: resident, error: residentError } = await supabase
-    .from('residents')
-    .select(`
-      id,
-      first_name,
-      last_name,
-      resident_code,
-      resident_houses!resident_houses_resident_id_fkey (
-        house:houses (
-          address
-        )
-      )
-    `)
-    .eq('id', residentId)
-    .single();
-
-  if (residentError || !resident) {
-    return { success: false, error: 'Resident not found' };
-  }
-
-  const houseAddress = (resident.resident_houses as unknown as Array<{ house: { address: string } }>)?.[0]?.house?.address || null;
-
-  // Create approval request
-  const requestData: ImpersonationApprovalData = {
-    resident_id: residentId,
-    resident_name: `${resident.first_name} ${resident.last_name}`,
-    resident_code: resident.resident_code,
-    house_address: houseAddress,
-    reason,
-  };
-
-  const { data: request, error: requestError } = await supabase
-    .from('approval_requests')
-    .insert({
-      request_type: 'impersonation_request',
-      entity_type: 'impersonation_session',
-      entity_id: residentId, // Using resident ID as entity
-      requested_changes: requestData,
-      current_values: {},
-      reason: reason || null,
-      status: 'pending',
-      requested_by: user.id,
-    })
-    .select()
-    .single();
-
-  if (requestError) {
-    return { success: false, error: requestError.message };
-  }
-
-  // Log audit event
-  await logAudit({
-    action: 'CREATE',
-    entityType: 'approval_requests',
-    entityId: request.id,
-    entityDisplay: `Impersonation request: ${resident.first_name} ${resident.last_name}`,
-    newValues: requestData,
-  });
-
-  // Notify approvers
-  await notifyImpersonationApprovers(request.id, profile.full_name, requestData);
-
-  return {
-    success: true,
-    data: {
-      ...request,
-      requested_changes: requestData,
-      requester: {
-        id: profile.id,
-        full_name: profile.full_name,
-        email: profile.email,
-      },
-    },
-  };
+  // Fail closed: no `impersonation_request` row can be inserted.
+  return { success: false, error: IMPERSONATION_APPROVALS_UNAVAILABLE };
 }
 
 /**
@@ -190,49 +93,16 @@ export async function getPendingImpersonationApprovals(): Promise<{
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
-  // Get pending requests (excluding own requests)
-  const { data: requests, error } = await supabase
-    .from('approval_requests')
-    .select(`
-      *,
-      requester:profiles!requested_by (
-        id,
-        full_name,
-        email
-      )
-    `)
-    .eq('request_type', 'impersonation_request')
-    .eq('status', 'pending')
-    .neq('requested_by', user.id) // Cannot approve own requests
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  return {
-    success: true,
-    data: (requests || []).map((r) => ({
-      ...r,
-      requested_changes: r.requested_changes as ImpersonationApprovalData,
-      requester: r.requester as { id: string; full_name: string; email: string },
-    })),
-  };
+  // No row of this type can exist, so the list is empty by construction.
+  return { success: true, data: [] };
 }
 
 /**
  * Approve an impersonation request
  */
 export async function approveImpersonationRequest(
-  requestId: string,
-  note?: string
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature preserved: callers are unchanged, but no request of this type can exist (#306)
+  _requestId: string, _note?: string
 ): Promise<{
   success: boolean;
   error?: string;
@@ -242,85 +112,15 @@ export async function approveImpersonationRequest(
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
-  // Get the request
-  const { data: request, error: requestError } = await supabase
-    .from('approval_requests')
-    .select(`
-      *,
-      requester:profiles!requested_by (
-        id,
-        full_name,
-        email
-      )
-    `)
-    .eq('id', requestId)
-    .eq('request_type', 'impersonation_request')
-    .single();
-
-  if (requestError || !request) {
-    return { success: false, error: 'Request not found' };
-  }
-
-  if (request.status !== 'pending') {
-    return { success: false, error: 'Request has already been processed' };
-  }
-
-  if (request.requested_by === user.id) {
-    return { success: false, error: 'You cannot approve your own request' };
-  }
-
-  // Update the request
-  const { error: updateError } = await supabase
-    .from('approval_requests')
-    .update({
-      status: 'approved',
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
-      review_notes: note || null,
-    })
-    .eq('id', requestId);
-
-  if (updateError) {
-    return { success: false, error: updateError.message };
-  }
-
-  // Log audit event
-  const requestData = request.requested_changes as ImpersonationApprovalData;
-  await logAudit({
-    action: 'APPROVE',
-    entityType: 'approval_requests',
-    entityId: requestId,
-    entityDisplay: `Impersonation request: ${requestData.resident_name}`,
-    oldValues: { status: 'pending' },
-    newValues: { status: 'approved', review_notes: note },
-  });
-
-  // Notify requester
-  const requester = request.requester as { id: string; full_name: string; email: string };
-  await sendAdminNotification({
-    recipientProfileId: requester.id,
-    title: 'Impersonation Request Approved',
-    message: `Your request to view the portal as ${requestData.resident_name} has been approved.`,
-    category: 'system',
-    actionUrl: '/portal',
-  });
-
-  return { success: true };
+  // Nothing to approve: no request of this type can exist.
+  return { success: false, error: IMPERSONATION_APPROVALS_UNAVAILABLE };
 }
 
 /**
  * Deny an impersonation request
  */
 export async function denyImpersonationRequest(
-  requestId: string,
-  reason: string
+  _requestId: string, reason: string
 ): Promise<{
   success: boolean;
   error?: string;
@@ -334,82 +134,17 @@ export async function denyImpersonationRequest(
     return { success: false, error: 'A reason is required when denying a request' };
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
-  // Get the request
-  const { data: request, error: requestError } = await supabase
-    .from('approval_requests')
-    .select(`
-      *,
-      requester:profiles!requested_by (
-        id,
-        full_name,
-        email
-      )
-    `)
-    .eq('id', requestId)
-    .eq('request_type', 'impersonation_request')
-    .single();
-
-  if (requestError || !request) {
-    return { success: false, error: 'Request not found' };
-  }
-
-  if (request.status !== 'pending') {
-    return { success: false, error: 'Request has already been processed' };
-  }
-
-  if (request.requested_by === user.id) {
-    return { success: false, error: 'You cannot deny your own request' };
-  }
-
-  // Update the request
-  const { error: updateError } = await supabase
-    .from('approval_requests')
-    .update({
-      status: 'rejected',
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
-      review_notes: reason,
-    })
-    .eq('id', requestId);
-
-  if (updateError) {
-    return { success: false, error: updateError.message };
-  }
-
-  // Log audit event
-  const requestData = request.requested_changes as ImpersonationApprovalData;
-  await logAudit({
-    action: 'REJECT',
-    entityType: 'approval_requests',
-    entityId: requestId,
-    entityDisplay: `Impersonation request: ${requestData.resident_name}`,
-    oldValues: { status: 'pending' },
-    newValues: { status: 'rejected', review_notes: reason },
-  });
-
-  // Notify requester
-  const requester = request.requester as { id: string; full_name: string; email: string };
-  await sendAdminNotification({
-    recipientProfileId: requester.id,
-    title: 'Impersonation Request Denied',
-    message: `Your request to view the portal as ${requestData.resident_name} has been denied. Reason: ${reason}`,
-    category: 'system',
-  });
-
-  return { success: true };
+  // Nothing to deny: no request of this type can exist.
+  return { success: false, error: IMPERSONATION_APPROVALS_UNAVAILABLE };
 }
 
 /**
  * Cancel a pending impersonation request (by requester)
  */
-export async function cancelImpersonationRequest(requestId: string): Promise<{
+export async function cancelImpersonationRequest(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature preserved: callers are unchanged, but no request of this type can exist (#306)
+  _requestId: string
+): Promise<{
   success: boolean;
   error?: string;
 }> {
@@ -420,88 +155,24 @@ export async function cancelImpersonationRequest(requestId: string): Promise<{
     return { success: false, error: 'Not authenticated' };
   }
 
-  // Get the request
-  const { data: request, error: requestError } = await supabase
-    .from('approval_requests')
-    .select('*')
-    .eq('id', requestId)
-    .eq('request_type', 'impersonation_request')
-    .eq('requested_by', user.id) // Must be own request
-    .single();
-
-  if (requestError || !request) {
-    return { success: false, error: 'Request not found' };
-  }
-
-  if (request.status !== 'pending') {
-    return { success: false, error: 'Request has already been processed' };
-  }
-
-  // Delete the request (or mark as cancelled)
-  const { error: deleteError } = await supabase
-    .from('approval_requests')
-    .delete()
-    .eq('id', requestId);
-
-  if (deleteError) {
-    return { success: false, error: deleteError.message };
-  }
-
-  // Log audit event
-  const requestData = request.requested_changes as ImpersonationApprovalData;
-  await logAudit({
-    action: 'DELETE',
-    entityType: 'approval_requests',
-    entityId: requestId,
-    entityDisplay: `Impersonation request: ${requestData.resident_name}`,
-    oldValues: { status: 'pending' },
-  });
-
-  return { success: true };
+  // Nothing to cancel: no request of this type can exist.
+  return { success: false, error: IMPERSONATION_APPROVALS_UNAVAILABLE };
 }
 
 /**
  * Check if user has an approved impersonation request for a specific resident
  */
-export async function checkApprovedImpersonation(residentId: string): Promise<{
+export async function checkApprovedImpersonation(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- signature preserved: callers are unchanged, but no request of this type can exist (#306)
+  _residentId: string
+): Promise<{
   hasApproval: boolean;
   requestId?: string;
   expiresAt?: string;
 }> {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { hasApproval: false };
-  }
-
-  // Check for approved request within last 4 hours (default expiry)
-  const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
-
-  const { data: request } = await supabase
-    .from('approval_requests')
-    .select('id, reviewed_at')
-    .eq('requested_by', user.id)
-    .eq('request_type', 'impersonation_request')
-    .eq('entity_id', residentId)
-    .eq('status', 'approved')
-    .gte('reviewed_at', fourHoursAgo)
-    .order('reviewed_at', { ascending: false })
-    .limit(1)
-    .single();
-
-  if (!request) {
-    return { hasApproval: false };
-  }
-
-  // Calculate expiry (4 hours from approval)
-  const expiresAt = new Date(new Date(request.reviewed_at).getTime() + 4 * 60 * 60 * 1000).toISOString();
-
-  return {
-    hasApproval: true,
-    requestId: request.id,
-    expiresAt,
-  };
+  // No approved request of this type can exist, so approval is never granted.
+  // This keeps startApprovedImpersonationSession() failing closed.
+  return { hasApproval: false };
 }
 
 /**
@@ -619,50 +290,6 @@ export async function startApprovedImpersonationSession(
 }
 
 /**
- * Notify approvers of a new impersonation request
- */
-async function notifyImpersonationApprovers(
-  requestId: string,
-  requesterName: string,
-  requestData: ImpersonationApprovalData
-): Promise<void> {
-  const supabase = await createServerSupabaseClient();
-
-  // Get all profiles with impersonation.approve_requests permission
-  // This is done by finding roles with that permission, then finding profiles with those roles
-  const { data: roleIds } = await supabase
-    .from('role_permissions')
-    .select('role_id')
-    .eq('permission_id', (
-      await supabase
-        .from('app_permissions')
-        .select('id')
-        .eq('name', 'impersonation.approve_requests')
-        .single()
-    ).data?.id || '');
-
-  if (!roleIds || roleIds.length === 0) return;
-
-  const { data: approvers } = await supabase
-    .from('profiles')
-    .select('id, full_name, email')
-    .in('role_id', roleIds.map((r) => r.role_id));
-
-  if (!approvers || approvers.length === 0) return;
-
-  // Send notification to each approver
-  for (const approver of approvers) {
-    await sendAdminNotification({
-      recipientProfileId: approver.id,
-      title: 'Impersonation Request',
-      message: `${requesterName} is requesting to view the portal as ${requestData.resident_name}`,
-      category: 'system',
-      actionUrl: `/approvals?type=impersonation`,
-    });
-  }
-}
-
-/**
  * Get the current user's pending impersonation request (if any)
  */
 export async function getMyPendingImpersonationRequest(): Promise<{
@@ -670,34 +297,8 @@ export async function getMyPendingImpersonationRequest(): Promise<{
   data?: ImpersonationApprovalRequest | null;
   error?: string;
 }> {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
-  const { data: request, error } = await supabase
-    .from('approval_requests')
-    .select('*')
-    .eq('requested_by', user.id)
-    .eq('request_type', 'impersonation_request')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  return {
-    success: true,
-    data: request ? {
-      ...request,
-      requested_changes: request.requested_changes as ImpersonationApprovalData,
-    } : null,
-  };
+  // No pending request of this type can exist.
+  return { success: true, data: null };
 }
 
 /**
