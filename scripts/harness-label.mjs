@@ -41,6 +41,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   fetchPullRequestData,
+  labelForLane,
   laneFromBranch,
   readBranchPrefixMap,
   resolveIssueNumbers,
@@ -51,22 +52,13 @@ const issueWorkflowConfigPath = path.join(repoRoot, '.github', 'issue-workflow.j
 
 const ci = process.argv.includes('--ci');
 
-/**
- * The three harness lanes that own a `harness:*` label, per `docs/agents/project-board.md`.
- * `fix` is deliberately absent: it is a lane in `branchPrefixes`, but it is not a harness.
- */
-export const HARNESS_LANES = ['claude', 'codex', 'opencode'];
-
-/**
- * Maps a lane name to its repo label, or null when the lane names no harness. Pure.
- *
- * Only `claude`, `codex` and `opencode` map to a label. `fix` — and any future non-harness
- * lane, and null itself — return null so the caller stops rather than inventing a harness.
- */
-export function labelForLane(lane) {
-  if (!lane) return null;
-  return HARNESS_LANES.includes(lane) ? `harness:${lane}` : null;
-}
+// The harness vocabulary lives in pr-claim-check.mjs and is re-exported here.
+//
+// It reads more naturally in this file — this is the script that writes the labels — but both
+// scripts need it and this one already imports from that module. Defining it here and importing
+// it there would make the two files import each other. Re-exporting keeps the single definition
+// and this file's public surface unchanged.
+export { HARNESS_LANES, labelForLane } from './pr-claim-check.mjs';
 
 /**
  * Decides what to do for one issue given the labels it already carries. Pure — the network

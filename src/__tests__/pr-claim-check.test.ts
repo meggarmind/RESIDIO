@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   decideOutcome,
-  evaluateClaims,
-  evaluateIssueClaim,
+  evaluateIssueOverlap,
+  evaluateOverlaps,
+  foreignHarnessLabels,
+  formatWarningAnnotation,
   issueNumberFromBranch,
   laneFromBranch,
   resolveIssueNumbers,
 } from '../../scripts/pr-claim-check.mjs';
 
 /**
- * Unit tests for the PR claim check (#297). Fixture-driven, no filesystem or network
+ * Unit tests for the PR claim check (#297, rescoped to harness labels by #344). Fixture-driven, no filesystem or network
  * access — every exported function here is pure. `readBranchPrefixes` (the one function
  * that touches the filesystem) is exercised indirectly by passing its output shape
  * directly into these functions, mirroring migration-drift.test.ts's approach of testing
@@ -148,88 +150,173 @@ describe('resolveIssueNumbers', () => {
   });
 });
 
-describe('evaluateIssueClaim — the rule table', () => {
-  it('passes when the issue is assigned to the PR author', () => {
-    const result = evaluateIssueClaim({ number: 107, assignees: ['meggarmind'] }, 'meggarmind');
-    expect(result.ok).toBe(true);
+
+describe('foreignHarnessLabels', () => {
+  it('ignores the PR\'s own harness label', () => {
+    // The branch prefix already implies this label, so it carries no information — and
+    // ignoring it is what makes the check independent of whether harness-label.yml has
+    // finished writing it on this same PR event.
+    expect(foreignHarnessLabels(['harness:claude'], 'claude')).toEqual([]);
   });
 
-  it('fails with a claim instruction when the issue has no assignee', () => {
-    const result = evaluateIssueClaim({ number: 107, assignees: [] }, 'meggarmind');
-
-    expect(result.ok).toBe(false);
-    expect(result.reason).toBe('unassigned');
-    expect(result.message).toContain('#107');
-    expect(result.message).toContain('gh issue edit 107 --add-assignee @me');
+  it('reports another harness that has also worked the issue', () => {
+    expect(foreignHarnessLabels(['harness:claude', 'harness:codex'], 'claude')).toEqual([
+      'harness:codex',
+    ]);
   });
 
-  it('fails and names the assignee when the issue is claimed by someone else', () => {
-    const result = evaluateIssueClaim({ number: 107, assignees: ['someone-else'] }, 'meggarmind');
-
-    expect(result.ok).toBe(false);
-    expect(result.reason).toBe('assigned-to-other');
-    expect(result.message).toContain('someone-else');
-    expect(result.message).toContain('#107');
-  });
-});
-
-describe('evaluateClaims', () => {
-  it('passes overall only when every resolved issue passes', () => {
-    const evaluation = evaluateClaims(
-      [
-        { number: 1, assignees: ['meggarmind'] },
-        { number: 2, assignees: ['meggarmind'] },
-      ],
-      'meggarmind',
-    );
-
-    expect(evaluation.ok).toBe(true);
-    expect(evaluation.failures).toEqual([]);
+  it('reports a foreign harness even when our own label is absent', () => {
+    // harness-label.yml adds our label on this same event and may not have run yet.
+    expect(foreignHarnessLabels(['harness:codex'], 'claude')).toEqual(['harness:codex']);
   });
 
-  it('fails overall and reports every failing issue when one of several is unclaimed', () => {
-    const evaluation = evaluateClaims(
-      [
-        { number: 1, assignees: ['meggarmind'] },
-        { number: 2, assignees: [] },
-      ],
-      'meggarmind',
-    );
+  it('reports every foreign harness, sorted, when more than one has worked the issue', () => {
+    const labels = ['harness:opencode', 'bug', 'harness:codex', 'harness:claude'];
+    expect(foreignHarnessLabels(labels, 'claude')).toEqual(['harness:codex', 'harness:opencode']);
+  });
 
-    expect(evaluation.ok).toBe(false);
-    expect(evaluation.failures).toHaveLength(1);
-    expect(evaluation.failures[0].number).toBe(2);
+  it('ignores non-harness labels entirely', () => {
+    expect(foreignHarnessLabels(['bug', 'ready-for-agent', 'P0'], 'claude')).toEqual([]);
+  });
+
+  it('ignores a harness:-prefixed label naming no known harness', () => {
+    // Never invent a harness from a label someone typed by hand.
+    expect(foreignHarnessLabels(['harness:cursor'], 'claude')).toEqual([]);
+  });
+
+  it('returns nothing when the issue carries no labels at all', () => {
+    expect(foreignHarnessLabels([], 'claude')).toEqual([]);
+    expect(foreignHarnessLabels(undefined, 'claude')).toEqual([]);
   });
 });
 
-describe('decideOutcome — no-issue-resolved passes', () => {
-  it('passes with a note when no issue could be resolved at all', () => {
-    const outcome = decideOutcome([], { ok: true, results: [], failures: [] });
+describe('evaluateIssueOverlap — the rule table', () => {
+  it('is clean when the issue carries only our own harness label', () => {
+    const result = evaluateIssueOverlap({ number: 107, labels: ['harness:claude'] }, 'claude');
 
-    expect(outcome.ok).toBe(true);
+    expect(result.overlap).toBe(false);
+    expect(result.foreignHarnesses).toEqual([]);
+  });
+
+  it('is clean when the issue carries no harness label yet', () => {
+    const result = evaluateIssueOverlap({ number: 107, labels: ['ready-for-agent'] }, 'claude');
+    expect(result.overlap).toBe(false);
+  });
+
+  it('flags an overlap naming the other harness and the issue', () => {
+    const result = evaluateIssueOverlap(
+      { number: 107, labels: ['harness:claude', 'harness:codex'] },
+      'claude',
+    );
+
+    expect(result.overlap).toBe(true);
+    expect(result.foreignHarnesses).toEqual(['harness:codex']);
+    expect(result.message).toContain('#107');
+    expect(result.message).toContain('harness:codex');
+  });
+
+  it('names every other harness when two have worked the issue', () => {
+    const result = evaluateIssueOverlap(
+      { number: 107, labels: ['harness:codex', 'harness:opencode'] },
+      'claude',
+    );
+
+    expect(result.message).toContain('harness:codex');
+    expect(result.message).toContain('harness:opencode');
+  });
+});
+
+describe('evaluateOverlaps', () => {
+  it('is clean only when every resolved issue is clean', () => {
+    const evaluation = evaluateOverlaps(
+      [
+        { number: 1, labels: ['harness:claude'] },
+        { number: 2, labels: [] },
+      ],
+      'claude',
+    );
+
+    expect(evaluation.clean).toBe(true);
+    expect(evaluation.overlaps).toEqual([]);
+  });
+
+  it('reports every overlapping issue when one of several overlaps', () => {
+    const evaluation = evaluateOverlaps(
+      [
+        { number: 1, labels: ['harness:claude'] },
+        { number: 2, labels: ['harness:codex'] },
+      ],
+      'claude',
+    );
+
+    expect(evaluation.clean).toBe(false);
+    expect(evaluation.overlaps).toHaveLength(1);
+    expect(evaluation.overlaps[0].number).toBe(2);
+  });
+});
+
+describe('decideOutcome — advisory by design', () => {
+  // Every row below returns warnings or none; none of them can fail the job. The only
+  // non-zero exits left in this script are the loud ones (missing env, API failure), which
+  // live in main() rather than here.
+  it('skips with a note when the branch matches no lane', () => {
+    const outcome = decideOutcome({ lane: null, issueNumbers: [107], evaluation: null });
+
+    expect(outcome.warnings).toEqual([]);
+    expect(outcome.summary).toContain('no lane');
+  });
+
+  it('skips with a note when the lane names no harness', () => {
+    // `fix` is a lane in branchPrefixes but not a harness — the same "never guess" rule
+    // harness-label.mjs applies when deciding what to label.
+    const outcome = decideOutcome({ lane: 'fix', issueNumbers: [107], evaluation: null });
+
+    expect(outcome.warnings).toEqual([]);
+    expect(outcome.summary).toContain('names no harness');
+  });
+
+  it('skips with a note when no issue could be resolved', () => {
+    const outcome = decideOutcome({ lane: 'claude', issueNumbers: [], evaluation: null });
+
+    expect(outcome.warnings).toEqual([]);
     expect(outcome.summary).toContain('No linked issue');
   });
 
-  it('passes when every resolved issue is assigned to the author', () => {
-    const evaluation = evaluateClaims([{ number: 107, assignees: ['meggarmind'] }], 'meggarmind');
-    const outcome = decideOutcome([107], evaluation);
+  it('reports a clean result when no other harness has worked the linked issues', () => {
+    const evaluation = evaluateOverlaps([{ number: 107, labels: ['harness:claude'] }], 'claude');
+    const outcome = decideOutcome({ lane: 'claude', issueNumbers: [107], evaluation });
 
-    expect(outcome.ok).toBe(true);
-  });
-
-  it('fails and surfaces the failure message when a resolved issue is unassigned', () => {
-    const evaluation = evaluateClaims([{ number: 107, assignees: [] }], 'meggarmind');
-    const outcome = decideOutcome([107], evaluation);
-
-    expect(outcome.ok).toBe(false);
+    expect(outcome.warnings).toEqual([]);
     expect(outcome.summary).toContain('#107');
   });
 
-  it('fails and surfaces the failure message when a resolved issue is assigned to someone else', () => {
-    const evaluation = evaluateClaims([{ number: 107, assignees: ['someone-else'] }], 'meggarmind');
-    const outcome = decideOutcome([107], evaluation);
+  it('surfaces one warning per overlapping issue', () => {
+    const evaluation = evaluateOverlaps(
+      [
+        { number: 107, labels: ['harness:codex'] },
+        { number: 88, labels: ['harness:claude'] },
+      ],
+      'claude',
+    );
+    const outcome = decideOutcome({ lane: 'claude', issueNumbers: [88, 107], evaluation });
 
-    expect(outcome.ok).toBe(false);
-    expect(outcome.summary).toContain('someone-else');
+    expect(outcome.warnings).toHaveLength(1);
+    expect(outcome.warnings[0]).toContain('#107');
+    expect(outcome.warnings[0]).toContain('harness:codex');
+  });
+});
+
+describe('formatWarningAnnotation', () => {
+  it('emits a GitHub warning annotation', () => {
+    expect(formatWarningAnnotation('Issue #107 also worked by harness:codex.')).toBe(
+      '::warning title=PR claim check::Issue #107 also worked by harness:codex.',
+    );
+  });
+
+  it('escapes the characters that would truncate or break the annotation', () => {
+    // A raw newline ends the workflow command, silently dropping the rest of the message.
+    expect(formatWarningAnnotation('one\ntwo')).toContain('one%0Atwo');
+    expect(formatWarningAnnotation('50%')).toContain('50%25');
+    expect(formatWarningAnnotation('a\rb')).toContain('a%0Db');
   });
 });

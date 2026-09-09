@@ -88,8 +88,11 @@ afterwards; codex did not work this issue.
 
 ### Do not re-litigate
 
-- Do not make `harness-label.yml` blocking. `pr-claim-check.yml` is the gate; this one records.
-- Do not "fix" `pr-claim-check.mjs` to compare harnesses by author — #297 settled that as inert.
+- Do not make `harness-label.yml` blocking. Neither workflow gates any more: `harness-label.yml`
+  records the harness, and since #344 `pr-claim-check.yml` reads those labels back and *warns*
+  when a second harness has worked the linked issue. Both exit 0 on every rule path.
+- Do not "fix" `pr-claim-check.mjs` to compare harnesses by author or assignee — #297 settled
+  the author as inert, and #344 removed the assignee for the same reason: one login, one human.
 - Do not add a Harness field to the project board; single-select cannot hold two values.
 - Do not treat `harness:*` as a lock, and never remove another harness's label.
 

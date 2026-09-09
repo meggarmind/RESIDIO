@@ -81,6 +81,15 @@ window between an agent starting work and its first push. That window is what th
 step above is for. A branch whose prefix names no harness (`feat/`, `chore/`, bare `fix/`) is
 deliberately left unlabelled rather than guessed at.
 
+`.github/workflows/pr-claim-check.yml` reads the same labels from the other side. It resolves the
+PR's own lane from the branch prefix, then looks at the linked issues for a `harness:*` label
+belonging to a **different** harness, and warns when it finds one — the two-harness case above,
+surfaced at the moment it matters rather than discovered later. It ignores the PR's own label
+(the branch prefix already implies it, and `harness-label.yml` is writing it on the same event),
+and it is **advisory**: an overlap annotation on a passing job, never a block. It gated on the
+assignee until #344, which could only ever report "unassigned" for the reason this section opens
+with.
+
 **The backstop trusts the lane, and the lane can be wrong.** #244 and #300 were worked by
 **OpenCode** on `feat/issue-*` branches: the session wanted `--lane fix`, that lane was not
 configured, and it fell back to `--lane claude`. A prefix-derived label would have credited Claude
