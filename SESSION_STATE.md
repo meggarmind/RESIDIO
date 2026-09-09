@@ -744,6 +744,25 @@ gating. It gained #149 and #241, which had no parent.
   of the wayfinder skill, stated in each map's `## Notes`. Do not "correct" it.
 - `post-pilot` on a child of #289 no longer means skippable: #289 is now the thing the pilot waits
   on. Re-triage rather than assuming.
+## Deployment update (OpenCode, 2026-09-09 — **#345 invoice-number validation deployed**)
+
+The merged #345 fail-closed invoice-number validation is deployed and verified in both cloud environments:
+
+| Environment | Applied migration | Verified behavior |
+| --- | --- | --- |
+| Residio_Stage | `20260909204818_validate_generated_invoice_short_names` | `validate_invoice_generation_run_short_names(uuid)` rejects unsafe or non-unique canonical short names. |
+| Residio_Prod | `20260909204912_validate_generated_invoice_short_names` | The same function and character policy are present. |
+
+The policy accepts only canonical `upper(btrim(short_name))` values matching
+`^[A-Z0-9][A-Z0-9.-]*$`; unsafe or duplicate non-blank labels block invoice generation and are
+marked `identifier_unverified`. Missing or blank short names retain the existing UUID fallback.
+
+### Remaining billing-integrity gate
+
+**#73 remains parked.** Before a full-estate historical backfill can run, the owner must provide
+the approved historical-rate dataset and explicitly authorize creation of permanent invoices. Do
+not infer rates or run a backfill from this record. #24 and #345 are closed; #44 and #291 remain
+open only for this backfill dependency.
 
 ---
 
