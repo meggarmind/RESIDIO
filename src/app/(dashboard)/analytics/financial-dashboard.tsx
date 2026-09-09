@@ -9,6 +9,7 @@ import {
   useDashboardQuickStats,
 } from '@/hooks/use-dashboard';
 import { useAnalytics } from '@/hooks/use-analytics';
+import { useOverdueInvoiceAging } from '@/hooks/use-billing';
 import { formatCurrency } from '@/lib/utils';
 import {
   TrendingUp,
@@ -52,6 +53,7 @@ function FinancialDashboardContent() {
   const { data: financialHealth, isLoading: fhLoading } = useDashboardFinancialHealth();
   const { data: invoiceDist } = useDashboardInvoiceDistribution();
   const { data: quickStats } = useDashboardQuickStats();
+  const { data: invoiceAging } = useOverdueInvoiceAging();
 
   // Trailing 12-month range for the Revenue vs Expenses trend chart
   const { startDate, endDate } = useMemo(() => {
@@ -116,6 +118,22 @@ function FinancialDashboardContent() {
       <Suspense fallback={<Skeleton className="h-80 w-full" />}>
         <RevenueTrendChart data={trendData?.revenueTrend ?? null} isLoading={trendLoading} />
       </Suspense>
+
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" />Invoice Aging</CardTitle></CardHeader>
+        <CardContent>
+          {invoiceAging?.length ? (
+            <div className="flex h-36 items-end gap-1" aria-label="Exact days overdue histogram">
+              {invoiceAging.map(({ daysOverdue, count }) => (
+                <div key={daysOverdue} className="flex min-w-6 flex-1 flex-col items-center gap-1">
+                  <div className="w-full rounded-t bg-amber-500" style={{ height: `${Math.max(8, (count / Math.max(...invoiceAging.map((item) => item.count))) * 100)}%` }} title={`${daysOverdue} days overdue: ${count} invoice(s)`} />
+                  <span className="text-[10px] text-muted-foreground">{daysOverdue}d</span>
+                </div>
+              ))}
+            </div>
+          ) : <p className="text-sm text-muted-foreground">No overdue invoices.</p>}
+        </CardContent>
+      </Card>
 
       {/* Bottom Row: Invoice Distribution + Quick Stats */}
       <div className="grid gap-6 lg:grid-cols-2">

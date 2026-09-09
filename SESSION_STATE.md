@@ -9,6 +9,419 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Current session (Claude Code, 2026-09-09 — **#262 resumed; Prod/Stage divergence found, half closed, half deliberately withheld**)
+
+**Tool:** Claude Code, coordinator posture. **No sub-agents dispatched** — the session was a
+read-only inventory pass, tracker writes and one production DDL apply, all of which `CORE.md` §15
+puts on the coordinator. **No application code changed.**
+
+Started as "continue with #262".
+
+### The owner lifted the suspension
+
+**#289 is closed.** `blocked-on-app-readiness` removed from #269, #280, #282, #273 and #274 —
+**zero open issues carry the label**, re-verified by query rather than trusted from exit codes.
+
+#289 closed at **14/15**, with #121 (orphaned security-vehicle / visitor-analytics / unflag UI)
+still open on its own merits. It never defined what "confirmed working" meant, so it closed by
+ruling, not by a satisfied criterion. **Do not read #289 as a passed acceptance test.**
+
+**The 9 Sep date is today and the destination is not met.** Nothing is stood up. Recorded on #262.
+
+### The finding: Prod and Stage had diverged by two migrations
+
+Measured **structurally against each database**, never by ledger name (`CORE.md` §11):
+
+| Probe | Stage | Prod (before) |
+| --- | --- | --- |
+| `houses.identifier_unverified` + `identifier_note` | 2 | **0** |
+| index `idx_houses_identifier_unverified` | 1 | **0** |
+| `create_generated_invoice` contains `v_house_short_name` | 1 | **0** |
+
+Both files are on `master`. Neither had ever been applied to Prod. **Filed as #354.** The two
+halves are opposite in sign, and must never be actioned together.
+
+### ✅ Applied to Prod — `20260909000000_house_identifier_unverified_flag`
+
+Owner cleared it in the live session. **Rehearsed first inside a transaction ending in `ROLLBACK`**
+— 2 columns, 1 index, `total_houses = 0` (roster not moved; #280 open), so the backfill was a
+confirmed no-op rather than an assumed one. Then applied and verified: 2 columns, 1 index, 2
+column comments, name present in `supabase_migrations.schema_migrations`.
+
+**Ledger version `20260909111938`** against disk `20260909000000_…` and Stage's `20260909081614`
+— three versions for one file across two projects. That is **#305**, unchanged and not caused here.
+
+This cleared **#282**'s houses-list blocker: `identifier_unverified` has 48 references across 15
+files on `master`, including `src/actions/houses/get-houses.ts`, so the houses page would have
+failed outright against Prod.
+
+### ⛔ Deliberately WITHHELD from Prod — `20260909010000_generated_invoice_short_name_numbers`
+
+Recorded here **and** on #354, per `CORE.md` §11.4. Confirmed still absent after the apply above
+(`v_house_short_name` probe returns 0 on Prod, 1 on Stage).
+
+**Release condition: #345 closes.** It interpolates `houses.short_name` into `invoice_number` with
+only `btrim`/`NULLIF`; the live register has 14 spaces and 5 `?` characters, and the obvious
+sanitisation collides `GLB-19`/`GLB-19?` and `IBB-32`/`IBB-32?` against the
+`invoices_invoice_number_key` UNIQUE constraint. **#268 makes production's first backfill numbers
+permanent.** Its absence from Prod was accidental until now; it is deliberate from this entry on.
+
+**Do not "fix" the Stage/Prod gap by applying it.**
+
+### The #279 baseline landed and is already stale
+
+PR #348 merged 2026-09-09T10:15:44Z (`3ea7fb73`). But the baseline was introspected at `484548be`
+on 2026-09-07, and **five migrations have been applied to Stage since**:
+`drop_invoice_generation_locks`, `atomic_manual_wallet_adjustments`,
+`generated_invoice_short_name_numbers`, `house_identifier_unverified_flag`,
+`285_policy_cleanup`. All five have a file on disk, so this is not new file drift.
+
+**Concretely**: `supabase/baseline/00000000000000_baseline.sql:5269` still carries
+`generated_reports_insert ... WITH CHECK (true)` — the anonymous write hole #285 closed today.
+**A rebuild from `supabase/baseline/` alone reproduces it**, along with 8 pre-#285 policies on
+`approval_requests`, 5 on `estate_bank_accounts` and 4 on `generated_reports`. Neither live
+database is affected; the exposure is in the rebuild artefact. Detail posted to #279.
+
+#279 still owes: a stated rule for post-cut migrations (baseline **plus** an ordered post-cut set
+looks cheaper than re-introspecting, which would discard the 452/452 string-match verification);
+disposition of `supabase/migrations/` (154 files); and #233's type regeneration.
+
+### Do not re-litigate
+
+- **#289 is closed by ruling.** Reopening it to define "confirmed working" re-suspends #262.
+- **The withheld invoice migration is a decision, not an oversight.** #354, gated on #345.
+- **The baseline's stale policies are not a live exposure.** Prod and Stage both have #285 applied.
+- **Three different ledger versions for one migration file is #305**, not a new problem.
+
+### Issues: 1 closed, 1 filed, net 0
+
+**#289 closed**, **#354 filed**. Board: #289 → Done.
+
+### Next
+
+**#282's remaining blockers are now #269 (no host exists) and #280 (no roster in Prod)** — not the
+schema. #354's withheld half stays withheld until #345.
+
+---
+
+## Last session (Claude Code, 2026-09-09 — **#285 RLS cleanup: merged AND applied to Stage and Prod; a live anonymous write hole closed**)
+
+**Tool:** Claude Code, coordinator posture. Two sub-agents (one implementer, one QA), both `opus`
+— `CORE.md` §15 routes RLS and permissions to the top tier — both in isolated worktrees, one
+machine. QA verdict **PASS WITH NOTES**.
+
+Continues the same session as the #262 tracker close-out recorded below.
+
+### The finding the issue did not have
+
+**`generated_reports` accepted anonymous writes, and #285 never said so.** `generated_reports_insert`
+was `PERMISSIVE FOR INSERT TO public WITH CHECK (true)`. Unlike the SELECT twins elsewhere in this
+cleanup, `true` calls no revoked function, so nothing made it fail for `anon` — and
+`has_table_privilege('anon','public.generated_reports','INSERT')` is `true`.
+
+Measured, not inferred, in rolled-back transactions:
+
+| Probe as `anon` | Result |
+| --- | --- |
+| `insert into public.generated_reports default values;` **before** | `23502` not-null on `name` |
+| same insert with valid columns **after**, both projects | `42501` violates row-level security policy |
+
+**A not-null failure is downstream of the policy check** — RLS *permitted* the anonymous insert.
+Any holder of the publishable anon key could write arbitrary rows. QA spotted the shape from the
+grantee; the coordinator measured it. It is now closed on both projects.
+
+### ✅ Applied — and this time applied, not merely merged
+
+| Project | Ref | MCP-assigned version |
+| --- | --- | --- |
+| `Residio_Stage` | `kzugmyjjqttardhfejzc` | `20260909110026` |
+| `Residio_Prod` | `miyeswqbwarvipdzwqnz` | `20260909110049` |
+
+Both under the name `20260909020000_285_policy_cleanup`, verified **by name against
+`supabase_migrations.schema_migrations`**, never against the migrations directory. The two projects
+carry **different ledger versions for the same file** — the drift already tracked on #305.
+
+Policy counts measured before and after on each project independently, identical on both:
+`approval_requests` 4 SELECT → 2, 2 UPDATE → 1, 2 INSERT → 1; `estate_bank_accounts` 3 SELECT → 2,
+2 ALL → 1; `generated_reports` 2 INSERT → 1. This matched the pre-merge rehearsal exactly.
+
+### The rehearsal technique that made this safe
+
+Before the PR was opened, the **whole migration was applied to `Residio_Prod` inside a transaction
+that ended in `ROLLBACK`**, and the resulting policy shape measured. That is what turned "the
+header claims X" into a number. Same technique closed both anon questions. Prod was verified back
+at 265 policies afterwards. **Use this instead of predicting an access delta** (`CORE.md` §15).
+
+### Two findings the issue body missed, found by inventory before implementation
+
+- **(E)** `approval_requests` had the same open-write defect as `generated_reports`:
+  `"Authenticated users can create approval requests"` was `WITH CHECK (auth.uid() IS NOT NULL)`,
+  entirely subsuming the finance-scoped policy beside it. **Any authenticated user could file a
+  request under any `requested_by`.** Both role scoping and ownership were inert.
+- **(D)** `"Admin can manage bank accounts"` (`super_admin`) is a strict subset of
+  `"Admins chairmen fin sec can manage bank accounts"`, whose array already contains `super_admin`.
+
+### The implementer's deviation, and why it was right
+
+It did **not** promote the existing finance-scoped INSERT policy to sole survivor on
+`approval_requests`. That policy requires membership of
+`['super_admin','chairman','vice_chairman','financial_officer']`, but `createApprovalRequest`'s two
+callers (`houses/update-house.ts:72`, `billing/profiles.ts:260`) are gated at the action layer by
+*houses* and *billing* permissions. A role holding `houses.update` outside those four would have
+been denied by RLS. It used `WITH CHECK (requested_by = auth.uid())` instead — ownership is what
+RLS can express here; **who** may raise a request stays an action-layer decision.
+
+### QA's most valuable catch: a non-breaking argument that was refuted
+
+The implementer justified tightening `generated_reports_insert` on the grounds that each insert ends
+`.select().single()` and that RETURNING read is already permission-gated. **That is false at the
+caller**: `src/hooks/use-reports.ts:139` discards `saveGeneratedReport`'s return value entirely — no
+check, no throw — so a filtered read surfaces only as a server-side `console.error` while the
+mutation fabricates a synthetic report and reports success.
+
+The conclusion survived on a stronger gate the implementer had not cited: `generateReport` calls
+`checkReportAccess()` = `authorizePermission(REPORTS_VIEW_FINANCIAL)`
+(`report-engine.ts:227-228`), and `useGenerateReport` **throws** at `use-reports.ts:118-119` before
+line 139 is reached. `/reports` is an **any-of** route (`action-roles.ts:205`), so an occupancy-only
+holder reaches the page and is stopped there rather than by RLS. Had that gate been weaker, the
+refuted argument was all that stood behind the change. Both are recorded in the migration header.
+
+### Measured permission facts (Stage)
+
+- `reports.view_financial` — 5 roles: `super_admin`, `chairman`, `vice_chairman`,
+  `financial_officer`, `project_manager`.
+- `settings.manage_reference` — 3 roles: `super_admin`, `vice_chairman`, **`secretary`**.
+
+### Issues: 3 closed, 1 filed, net −2 across the whole session
+
+**#350 filed** — `secretary` holds `settings.manage_reference` so reaches `/settings/bank-accounts`,
+but is outside the finance array, so its "show inactive" toggle now silently returns only active
+rows. **The narrowing is intended; the silence is not.** Filed rather than absorbed (`CORE.md` §15).
+
+Also closed this session: **#266**, **#277**, **#281** on answers already given, and **#285** here.
+**PRs #348, #349, #351 all merged by the owner.**
+
+### Do not re-litigate
+
+- **The `estate_bank_accounts` anonymous read is latent, not live, and was left open deliberately.**
+  `anon` holds the SELECT grant, but the read raises `42501 permission denied for function
+  get_my_role_name` — Postgres evaluates the second disjunct rather than short-circuiting on
+  `is_active = true`. Measured. Reasoned in §4.1 of `docs/migrations/285-policy-cleanup.md`. Worth
+  scoping to `authenticated` one day, since an error path is a fragile place to leave bank account
+  numbers, but **it is not an exposure and this migration does not touch that policy.**
+- **`src/__tests__/last-legacy-role-policies.test.ts:205-212`'s `MUST_SURVIVE` list is stale**, not
+  broken. It names two policies #285 drops or redefines, plus one
+  (`'Authenticated users can view generated reports'`) that is not in the #279 baseline at all. The
+  assertion is textual over `20260906020000`'s own SQL, so nothing fails. Do not "fix" #285 to
+  satisfy it.
+- **`migration-drift` CI fails on every branch** and has done since before this work — the #329
+  cause (`SUPABASE_PROJECT_REF` unset). Not caused by this migration.
+
+### Environment note
+
+`apply_migration` was refused once by the tool-permission classifier. **No attempt was made to
+route around it via `execute_sql`**; the block was reported and the owner cleared it explicitly.
+Worth knowing that DDL against a live project may need that clearance in a fresh session.
+
+---
+
+## Last session (Claude Code, 2026-09-09 — **#262 tracker close-out: 3 issues closed, 1 PR opened, 0 code changed**)
+
+**Tool:** Claude Code, coordinator posture. **No sub-agents dispatched** — the whole session was a
+read-only inventory pass plus tracker writes, which `CORE.md` §15 puts on the coordinator. **No
+application code changed, no migration written, none applied.**
+
+Started as "continue with #262". #262 is suspended behind #289, the owner chose "close the tracker
+debt only", and the suspension stands.
+
+### The finding that mattered — a verified artefact on one machine only
+
+`chore/issue-279-schema-baseline` was created 2026-09-07, verified three ways, and **never pushed**.
+The proven schema baseline — `supabase/baseline/00000000000000_baseline.sql` at 6,209 lines plus
+three verification documents, 6,926 lines across 4 files — existed in a **single local clone**. A
+disk failure would have destroyed the entire output of #279.
+
+Pushed to origin. **PR #348** is open against `master`, deliberately `Refs #279` rather than
+`Closes` — #285 (policy duplicates and an `is_active` bypass carried *by that baseline*) is cheapest
+to act on while the file is still under review, and whether `supabase/baseline/` alone satisfies
+"start a new migrations folder" is the owner's call.
+
+**The general lesson: a branch that is not on `origin` does not exist.** `CORE.md` §7 already says
+push early because the push is the declaration; this is the second thing that rule buys — the
+declaration is also the backup.
+
+### Closed on their recorded answers — three issues, none opened
+
+| Issue | Why it could close |
+| --- | --- |
+| **#266** | All eleven QA bugs are closed except #121. Both escalated judgement calls were answered: #122 ruled, #120 ruled **and built** (PR #335). |
+| **#277** | All three settled — #256 (PR #320) and #107 (PR #334) merged before go-live, #95 `post-pilot`. |
+| **#281** | `Residio_Prod` re-verified live today. |
+
+**Net −3.** Board: #266, #277, #281 → Done; #279 → In review. Verified by re-reading the board
+after the writes, not from the command's exit code.
+
+### #281 carried a factually wrong label
+
+It was labelled `blocked-on-app-readiness`, but the work it describes was **completed before the
+suspension was applied**. Label removed. Worth checking the other five before acting on them —
+`blocked-on-app-readiness` was applied to a set, and at least one member did not belong in it.
+
+### Verified live via the Supabase Management API, 2026-09-09
+
+The project-scoped `supabase` MCP server **timed out** this session (`CONNECT_TIMEOUT`, 30s). The
+account-level Supabase MCP still worked and answered:
+
+| Project | Ref | Region | Status | Postgres |
+| --- | --- | --- | --- | --- |
+| **Residio_Prod** | `miyeswqbwarvipdzwqnz` | eu-west-1 | ACTIVE_HEALTHY | 17.6.1.166 |
+| Residio_Stage | `kzugmyjjqttardhfejzc` | eu-west-1 | ACTIVE_HEALTHY | 17.6.1.054 |
+| OperaWatson | `ffttbvuccljpvoumfnhl` | eu-west-2 | INACTIVE (paused, reversible) | — |
+
+The patch drift between Prod and Stage is unchanged and remains the first thing to check before
+blaming the baseline for any schema-comparison difference.
+
+### Where the gate stands, stated plainly
+
+**#289 is 14/15.** Its only open child is **#121** (orphaned security vehicles, visitor analytics
+and unflag UI), labelled `post-pilot`. **Whether one post-pilot ticket still holds #262 suspended
+has not been decided** — it needs the owner, and this session did not ask for it.
+
+**The 9 Sep destination date is today and the destination is not met.** #269, #280, #282, #273 and
+#274 all still carry `blocked-on-app-readiness`; nothing has been stood up. Recorded on #262 so the
+date is not later mistaken for a milestone that quietly passed.
+
+### Do not re-litigate
+
+- **#266, #277 and #281 are answered.** Their answers are on the issues with evidence. Do not
+  reopen them to "check" — read the closing comment.
+- **#279 stays open on purpose.** PR #348 landing does not close it; #285 does.
+- **#121 is the only thing between #289 and closed.** Everything else on that map shipped.
+
+### Housekeeping left undone
+
+Twenty-one local branches and twenty worktrees remain from earlier waves, including nine
+`worktree-agent-*` branches. Several branches are merged and unpushed-or-stale. **Not cleaned up
+this session** — `CORE.md`'s junction hazard makes worktree removal a deliberate act, not a tidy-up,
+and it deserves its own pass rather than being tacked onto a tracker session.
+
+---
+
+## Last session (Claude Code, 2026-09-09 — **#289 readiness wave: 5 PRs merged, 1 migration applied**)
+
+**Tool:** Claude Code, coordinator posture. Eight sub-agents across five issues, all in isolated
+worktrees, one machine. Started as "continue with #262"; #262 is suspended behind **#289**, so the
+work is #289's.
+
+### The finding that set the session's shape
+
+**#289 read as 4/16 done and was actually 10/16.** PRs #315–#320 (issues #112, #123, #124, #125,
+#197, #256) merged 2026-09-08 and their merge commits are reachable from `origin/master` — verified
+per branch, not by search. The issues stayed open only because the PR bodies carried no closing
+keyword. All six closed; the board auto-moved them to Done.
+
+### What shipped — five PRs, all merged
+
+| Issue | PR | Branch | Gates (coordinator re-ran post-merge-of-master) |
+| --- | --- | --- | --- |
+| #263 | #332 | `chore/issue-263-untrack-claude-settings-local` | tsc 0, 127 files / 1268 tests |
+| #115 | #333 | `fix/issue-115-search-payments-and-house-short-name` | tsc 0, 127 files / 1272 tests |
+| #107 | #334 | `fix/issue-107-occupier-approvals-apply-fail-closed` | tsc 0, 130 files / 1273 tests |
+| #120 | #335 | `fix/issue-120-wallet-adjustment-ui` | tsc 0, 129 files / 1281 tests |
+| #119 | #336 | `feat/issue-119-house-identifier-unverified-flag` | tsc 0, 131 files / 1292 tests |
+
+Each PR head already contained its QA follow-up: every follow-up branch was cut from its
+predecessor's tip, so no consolidation merge was needed. They were pushed under names describing
+the whole change rather than `...-qa-followup`.
+
+### ✅ Applied to Residio_Stage — three migrations (applied ≠ merged)
+
+| File | Ledger version (MCP-assigned) | Verified effect |
+| --- | --- | --- |
+| `20260908000000_drop_invoice_generation_locks.sql` | `20260909044030` | table gone; 0 rows before the drop |
+| `20260908010000_atomic_manual_wallet_adjustments.sql` | `20260909044048` | both RPCs present, `SECURITY DEFINER`, `has_permission('billing.manage_wallets')` guard intact |
+| `20260909000000_house_identifier_unverified_flag.sql` | `20260909081614` | 2 columns added, **exactly 4 of 179 houses flagged**, all 4 with notes, partial index present |
+
+The first two were **merged to master and applied to Prod on 2026-09-08 but never applied to
+Stage** — found while wiring #120, whose wallet control would otherwise have errored on Stage.
+`generated_invoice_short_name_numbers` was applied by another session at `20260909063313`.
+
+`src/types/database.generated.ts` regenerated **through the Supabase MCP, not `npm run db:types`**
+(that script is `--local`, which `CORE.md` §5 forbids). The diff is exactly the three applied
+migrations — two `houses` columns, two wallet RPC signatures, the dropped locks table — and no
+unrelated drift. tsc 0, 136 files / 1315 tests on merged master.
+
+### ⚠️ Unsanitised `short_name` in invoice numbers — live, and #73 must not run yet
+
+#82 (PR #331) makes generated invoice numbers interpolate `houses.short_name` with only
+`btrim`/`NULLIF` applied. Four houses carry a literal `?` — `IBB-3?F?`, `KOA-10F-?`, `GLB-19?`,
+`IBB-32?` — so they would produce `INV-IBB-3?F?-2026-01`. **`?` is a query-string delimiter**, and
+#268 establishes that generated invoice numbers are permanent.
+
+That migration was applied by another session **after** this was flagged. Nothing has broken yet:
+those four houses have **0 invoices**. But **#73's full-estate backfill must not run** until either
+the generator sanitises the short name or the four identifiers are corrected. #119's flag marks the
+doubt; it does not remove the `?`. Recorded on #82, #73 and #119.
+
+### Issues filed, not absorbed
+
+- **#327** — `CRON_SECRET` literal committed in `.claude/settings.local.json` on a public repo.
+  Gates all ten cron routes and fails **open**. Untracking does not redact history. *Closed by owner.*
+- **#328** — `approveRequest`/`rejectRequest` write approval status with no audit record.
+  Pre-existing, hidden by a blanket `GENERAL_EXCEPTIONS` entry. `post-pilot`.
+- **#329** — `migration-drift` CI **has never run**: `SUPABASE_PROJECT_REF` repository variable is
+  unset, 7 runs 7 failures since 2026-09-07. *Closed by owner.*
+- **#305** — four more instances of MCP-assigned version drift recorded; the same file now carries
+  **different ledger versions on Stage and Prod**.
+
+### Owner decisions recorded this session
+
+- **#263** stop tracking `.claude/settings.local.json`. **#275** closed — Twilio provisioning is now
+  an in-app setting. **#269** post-pilot. **#95** post-pilot. **#115** and **#120** before go-live.
+- **#119 reframed**: the `?` is the manual register's convention for a doubted identifier, not
+  corruption. Explicit `identifier_unverified` + `identifier_note` columns; the recorded identifier
+  is **never rewritten**; badge, filter and a remediation queue at `/houses/unverified`.
+
+### Do not re-litigate
+
+- **The ratchet specs are a pre-existing parallelism flake.** `src/__tests__/legacy-role-migration-ratchet.test.ts`
+  and `hardcoded-role-name-ratchet.test.ts` fail intermittently in full-suite runs **on
+  `origin/master` too**, and pass in isolation and on re-run. Not caused by any branch in this wave.
+  Comparing isolation-on-master against full-suite-on-branch proves nothing — run both the same way.
+- **`imports/bank-accounts.ts` keeps its `PERMISSION_ALLOWLIST` entry deliberately.** Its four write
+  actions gate via `canAutoApprove()`, which is `authorizePermission(APPROVALS_APPROVE_REJECT)` one
+  call deep; the compliance scan matches textually and cannot see through the indirection. A comment
+  in the test now records this. It is a scanner limitation, not a gap.
+- **`approval_requests.request_type` IS the Postgres enum** `approval_request_type` with three
+  members, verified live — not `TEXT`, which is all the migrations directory would suggest. The
+  table holds 0 rows.
+- **`website/docs/properties/houses-and-occupancy.md` is deliberately not re-stamped.** It carries
+  drift from three earlier commits nobody has reviewed; stamping would clear that unread (§12).
+
+### Environment hazard that cost this session real time
+
+**A Windows junction inside a worktree is followed by directory deletion.** `git worktree remove
+--force` on a worktree whose `node_modules` is a junction to `C:/projects/RESIDIO/node_modules`
+**destroys the real install**. The coordinator did this once (the `failed to delete: Directory not
+empty` error is the deletion having already walked the link); a sub-agent had done the same earlier.
+Source files were never at risk; `npm ci` restores it.
+
+Before removing any worktree: `cmd //c dir /AL <path>`, then `cmd //c rmdir <link>` on every
+`<JUNCTION>` — that unlinks without touching the target. Prefer running gates from the main checkout
+against absolute worktree paths over junctioning at all.
+
+A sub-agent junctioning to *another worktree's* `node_modules` also manufactures false failures: on
+#115 it produced 18 failures across 5 render-test files that were green against the main checkout's
+modules.
+
+### Board and tracker
+
+**8 issues closed, 4 opened** (#327, #328, #329, plus #119 reframed rather than newly filed).
+Net **−4**. #289 moved from a tracker-apparent 4/15 to **14/15**; only **#121** (orphaned security
+vehicles / visitor analytics / unflag UI, `post-pilot`) remains open on it.
+
+---
+
 ## Last session (Claude Code, 2026-09-09 — **harness tagging: #324 shipped as PR #325, not merged**)
 
 **Tool:** Claude Code, coordinator posture. One issue taken end to end. **No application code

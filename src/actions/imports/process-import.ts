@@ -540,9 +540,6 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     }
   }
 
-  return result; // Early return handled by surrounding code, but here we just exit loop and return result
-
-
   // Update import final status
   const finalStatus = result.success ? 'completed' : 'failed';
   await updateImportStatus({
@@ -597,23 +594,6 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
       // above, unchanged since 567b5cd) but still type-checked; assertions
       // keep it compiling without altering runtime behavior.
       const rows = allRows!;
-      const bankCreditsTotal = rows.filter((r) => r.transaction_type === 'credit').reduce((s, r) => s + (Number(r.amount) || 0), 0);
-      const bankDebitsTotal = rows.filter((r) => r.transaction_type === 'debit').reduce((s, r) => s + (Number(r.amount) || 0), 0);
-      const unmatched = rows.filter((r) => r.status === 'unmatched' || r.status === 'skipped');
-      const unmatchedCredits = unmatched.filter((r) => r.transaction_type === 'credit').length;
-      const unmatchedDebits = unmatched.filter((r) => r.transaction_type === 'debit').length;
-
-      result.reconciliation = {
-        bankCreditsTotal,
-        bankDebitsTotal,
-        paymentsCreatedTotal: 0,
-        expensesCreatedTotal: 0,
-        creditsDifference: 0,
-        debitsDifference: 0,
-        unmatchedRows: unmatched.length,
-        unmatchedCredits,
-        unmatchedDebits,
-      };
 
       const { data: payments } = await supabase
         .from('payment_records')
@@ -629,16 +609,37 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 
       const expensesTotal = expenses?.reduce((s, e) => s + (Number(e.amount) || 0), 0) ?? 0;
 
-      result.reconciliation!.paymentsCreatedTotal = paymentsTotal;
-      result.reconciliation!.expensesCreatedTotal = expensesTotal;
-      result.reconciliation!.creditsDifference = bankCreditsTotal - paymentsTotal;
-      result.reconciliation!.debitsDifference = bankDebitsTotal - expensesTotal;
+      result.reconciliation = calculateImportReconciliation(rows, paymentsTotal, expensesTotal);
     }
   } catch (e) {
     console.error('[processImport] Reconciliation computing error:', e);
   }
 
   return result;
+}
+
+export function calculateImportReconciliation(
+  rows: Array<{ amount: number | string | null; transaction_type: string; status: string }>,
+  paymentsCreatedTotal: number,
+  expensesCreatedTotal: number
+) {
+  const bankCreditsTotal = rows.filter((row) => row.transaction_type === 'credit').reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const bankDebitsTotal = rows.filter((row) => row.transaction_type === 'debit').reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const unmatched = rows.filter((row) => row.status === 'unmatched' || row.status === 'skipped');
+  const unmatchedCredits = unmatched.filter((row) => row.transaction_type === 'credit').length;
+  const unmatchedDebits = unmatched.filter((row) => row.transaction_type === 'debit').length;
+
+  return {
+    bankCreditsTotal,
+    bankDebitsTotal,
+    paymentsCreatedTotal,
+    expensesCreatedTotal,
+    creditsDifference: bankCreditsTotal - paymentsCreatedTotal,
+    debitsDifference: bankDebitsTotal - expensesCreatedTotal,
+    unmatchedRows: unmatched.length,
+    unmatchedCredits,
+    unmatchedDebits,
+  };
 }
 
 // ============================================================
