@@ -9,7 +9,89 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Current session (Claude Code, 2026-09-09 — **#289 readiness wave: 5 PRs merged, 1 migration applied**)
+## Current session (Claude Code, 2026-09-09 — **#262 tracker close-out: 3 issues closed, 1 PR opened, 0 code changed**)
+
+**Tool:** Claude Code, coordinator posture. **No sub-agents dispatched** — the whole session was a
+read-only inventory pass plus tracker writes, which `CORE.md` §15 puts on the coordinator. **No
+application code changed, no migration written, none applied.**
+
+Started as "continue with #262". #262 is suspended behind #289, the owner chose "close the tracker
+debt only", and the suspension stands.
+
+### The finding that mattered — a verified artefact on one machine only
+
+`chore/issue-279-schema-baseline` was created 2026-09-07, verified three ways, and **never pushed**.
+The proven schema baseline — `supabase/baseline/00000000000000_baseline.sql` at 6,209 lines plus
+three verification documents, 6,926 lines across 4 files — existed in a **single local clone**. A
+disk failure would have destroyed the entire output of #279.
+
+Pushed to origin. **PR #348** is open against `master`, deliberately `Refs #279` rather than
+`Closes` — #285 (policy duplicates and an `is_active` bypass carried *by that baseline*) is cheapest
+to act on while the file is still under review, and whether `supabase/baseline/` alone satisfies
+"start a new migrations folder" is the owner's call.
+
+**The general lesson: a branch that is not on `origin` does not exist.** `CORE.md` §7 already says
+push early because the push is the declaration; this is the second thing that rule buys — the
+declaration is also the backup.
+
+### Closed on their recorded answers — three issues, none opened
+
+| Issue | Why it could close |
+| --- | --- |
+| **#266** | All eleven QA bugs are closed except #121. Both escalated judgement calls were answered: #122 ruled, #120 ruled **and built** (PR #335). |
+| **#277** | All three settled — #256 (PR #320) and #107 (PR #334) merged before go-live, #95 `post-pilot`. |
+| **#281** | `Residio_Prod` re-verified live today. |
+
+**Net −3.** Board: #266, #277, #281 → Done; #279 → In review. Verified by re-reading the board
+after the writes, not from the command's exit code.
+
+### #281 carried a factually wrong label
+
+It was labelled `blocked-on-app-readiness`, but the work it describes was **completed before the
+suspension was applied**. Label removed. Worth checking the other five before acting on them —
+`blocked-on-app-readiness` was applied to a set, and at least one member did not belong in it.
+
+### Verified live via the Supabase Management API, 2026-09-09
+
+The project-scoped `supabase` MCP server **timed out** this session (`CONNECT_TIMEOUT`, 30s). The
+account-level Supabase MCP still worked and answered:
+
+| Project | Ref | Region | Status | Postgres |
+| --- | --- | --- | --- | --- |
+| **Residio_Prod** | `miyeswqbwarvipdzwqnz` | eu-west-1 | ACTIVE_HEALTHY | 17.6.1.166 |
+| Residio_Stage | `kzugmyjjqttardhfejzc` | eu-west-1 | ACTIVE_HEALTHY | 17.6.1.054 |
+| OperaWatson | `ffttbvuccljpvoumfnhl` | eu-west-2 | INACTIVE (paused, reversible) | — |
+
+The patch drift between Prod and Stage is unchanged and remains the first thing to check before
+blaming the baseline for any schema-comparison difference.
+
+### Where the gate stands, stated plainly
+
+**#289 is 14/15.** Its only open child is **#121** (orphaned security vehicles, visitor analytics
+and unflag UI), labelled `post-pilot`. **Whether one post-pilot ticket still holds #262 suspended
+has not been decided** — it needs the owner, and this session did not ask for it.
+
+**The 9 Sep destination date is today and the destination is not met.** #269, #280, #282, #273 and
+#274 all still carry `blocked-on-app-readiness`; nothing has been stood up. Recorded on #262 so the
+date is not later mistaken for a milestone that quietly passed.
+
+### Do not re-litigate
+
+- **#266, #277 and #281 are answered.** Their answers are on the issues with evidence. Do not
+  reopen them to "check" — read the closing comment.
+- **#279 stays open on purpose.** PR #348 landing does not close it; #285 does.
+- **#121 is the only thing between #289 and closed.** Everything else on that map shipped.
+
+### Housekeeping left undone
+
+Twenty-one local branches and twenty worktrees remain from earlier waves, including nine
+`worktree-agent-*` branches. Several branches are merged and unpushed-or-stale. **Not cleaned up
+this session** — `CORE.md`'s junction hazard makes worktree removal a deliberate act, not a tidy-up,
+and it deserves its own pass rather than being tacked onto a tracker session.
+
+---
+
+## Last session (Claude Code, 2026-09-09 — **#289 readiness wave: 5 PRs merged, 1 migration applied**)
 
 **Tool:** Claude Code, coordinator posture. Eight sub-agents across five issues, all in isolated
 worktrees, one machine. Started as "continue with #262"; #262 is suspended behind **#289**, so the
