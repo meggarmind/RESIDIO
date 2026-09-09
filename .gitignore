@@ -36,6 +36,9 @@ yarn-error.log*
 # deployer can discover what the app needs. It was previously force-added on a
 # feature branch, which meant edits to it silently failed to commit.
 !.env.example
+# Same reasoning for the container template. Placeholders only; the developer's
+# filled-in copy is .env.docker, which stays ignored by the rule above.
+!.env.docker.example
 
 # vercel
 .vercel

@@ -1,0 +1,85 @@
+# Build context exclusions for the Dockerfile.
+#
+# Two jobs: keep the context small, and — more importantly — make it impossible
+# to ship a real credential into an image layer by accident.
+
+# --- Secrets. Non-negotiable. -------------------------------------------------
+# .env.local and friends hold live service-role keys. They must never enter the
+# build context, because anything in the context can be COPYed into a layer.
+# .env.docker.example is committed to git for humans to copy; the build has no
+# use for it, so it is excluded here too. .env.docker is the developer's filled-in
+# copy and is caught by the same glob.
+.env
+.env.*
+
+# --- Build output and installed dependencies ----------------------------------
+# node_modules is reinstalled inside the image with `npm ci` against the lockfile;
+# copying a host install (Windows/Node 25 here) would drag in wrong-platform
+# native binaries for sharp. .next is rebuilt from source.
+node_modules
+.next
+out
+build
+*.tsbuildinfo
+next-env.d.ts
+
+# --- VCS and agent/worktree state ---------------------------------------------
+.git
+.gitignore
+.gitattributes
+.github
+.worktrees
+.claude
+.base
+.base-ast
+.opencode
+.agent
+.automaker
+.forgestudio
+.impeccable
+.work
+.vercel
+skill-observations
+
+# --- Tests. Not run in the image; e2e/ pulls in Playwright fixtures and creds. -
+e2e
+playwright.config.ts
+playwright-report
+test-results
+coverage
+vitest.config.ts
+testsprite
+testsprite_tests
+.playwright-mcp
+
+# --- Not referenced by the application build ----------------------------------
+# supabase/ is migrations and CLI config; the app talks to Supabase Cloud over
+# HTTP and imports nothing from this directory.
+supabase
+# scripts/ is one-off seed/verify tooling, invoked by npm scripts only.
+scripts
+# website/ is the standalone Docusaurus wiki, built and deployed separately.
+website
+docs
+
+# --- Documentation and repo bookkeeping ---------------------------------------
+# Nothing under src/ imports a markdown file (verified), so no .md is a build
+# input. README.md is kept for provenance if anyone inspects the context.
+*.md
+!README.md
+LICENSE
+Residio.code-workspace
+vercel.json
+*.txt
+project_items.json
+ready-for-agent-issues.json
+
+# --- Editor / OS noise --------------------------------------------------------
+.vscode
+.idea
+.DS_Store
+*.pem
+*.log
+logs
+npm-debug.log*
+*:Zone.Identifier

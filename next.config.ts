@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Emit .next/standalone so the container image can run `node server.js`
+  // without a node_modules install at runtime. See docs/deployment/docker.md.
+  output: 'standalone',
+  // sharp reaches us transitively via next, so output file tracing does not
+  // always follow it into the standalone bundle. Including it explicitly is
+  // Next's documented fix, and is why the image never passes --omit=optional.
+  outputFileTracingIncludes: {
+    '/*': ['node_modules/sharp/**/*'],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',
