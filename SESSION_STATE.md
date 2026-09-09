@@ -763,6 +763,27 @@ marked `identifier_unverified`. Missing or blank short names retain the existing
 the approved historical-rate dataset and explicitly authorize creation of permanent invoices. Do
 not infer rates or run a backfill from this record. #24 and #345 are closed; #44 and #291 remain
 open only for this backfill dependency.
+## Deployment update (OpenCode, 2026-09-09 — **stable invoice identity deployed**)
+
+`20260909040000_generated_invoice_stable_identity.sql` is applied and verified on both cloud
+environments. It replaces the future generated-invoice format with stable UUID-derived segments:
+`INV-{YYYYMM}-{house UUID prefix}-{resident UUID prefix}-{profile-version UUID prefix}`.
+Existing `invoice_number` values were not changed.
+
+This removes the invoice generator's dependency on editable `houses.short_name`. The prior
+fail-closed short-name validation remains deployed as defense for earlier generation paths.
+
+| Environment | Applied migration |
+| --- | --- |
+| Residio_Stage | `generated_invoice_stable_identity` |
+| Residio_Prod | `20260909213023_generated_invoice_stable_identity` |
+
+### Remaining billing-integrity gate
+
+**#73 remains parked.** A historical backfill still requires the approved historical-rate dataset
+and explicit owner authorization to create permanent invoices. Do not infer rates or run a
+backfill from this record. #24, #345, and #359 are delivered; #44 and #291 remain open only for
+this backfill dependency.
 
 ---
 
