@@ -9,14 +9,6 @@ const { createServerSupabaseClient, authorizePermission } = vi.hoisted(() => ({
 vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient }));
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
 
-vi.mock('@/actions/imports/bank-accounts', () => ({
-  createBankAccountDirect: vi.fn(),
-  updateBankAccountDirect: vi.fn(),
-  deleteBankAccountDirect: vi.fn(),
-}));
-vi.mock('@/actions/billing/wallet', () => ({
-  allocateWalletToInvoices: vi.fn(),
-}));
 vi.mock('@/lib/audit/logger', () => ({
   logAudit: vi.fn(),
 }));

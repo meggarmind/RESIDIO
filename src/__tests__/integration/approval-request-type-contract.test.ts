@@ -1,8 +1,8 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { APPROVAL_REQUEST_TYPE_LABELS } from '@/types/database';
 import { Constants } from '@/types/database.generated';
-import type { ApprovalRequestType } from '@/types/database';
-import type { Database } from '@/types/database.generated';
 
 /**
  * `ApprovalRequestType` used to be a hand-written union of thirteen values while
@@ -16,15 +16,36 @@ import type { Database } from '@/types/database.generated';
 describe('ApprovalRequestType agrees with the database enum', () => {
   const dbValues = Constants.public.Enums.approval_request_type;
 
-  it('is derived from the generated enum rather than retyped', () => {
-    // Fails to compile if the union drifts in either direction: each side is
-    // asserted assignable to the other.
-    const fromGenerated: ApprovalRequestType =
-      null as unknown as Database['public']['Enums']['approval_request_type'];
-    const toGenerated: Database['public']['Enums']['approval_request_type'] =
-      null as unknown as ApprovalRequestType;
+  // The three members the Postgres enum holds, pinned literally. Anything that
+  // adds, removes or renames one has to change this line, which is the point.
+  const ENUM_MEMBERS = [
+    'billing_profile_effective_date',
+    'house_plots_change',
+    'late_fee_waiver',
+  ];
 
-    expect(fromGenerated).toBe(toGenerated);
+  it('is derived from the generated enum rather than retyped', () => {
+    // A type alias leaves nothing behind at runtime, so an assignability
+    // assertion between `ApprovalRequestType` and the generated enum reduces to
+    // `expect(null).toBe(null)` under vitest and fails only under `tsc` -- which
+    // no workflow in this repo runs. Read the declaration instead: that is
+    // observable at runtime, and it goes red the moment anyone retypes the
+    // alias as a hand-written union again.
+    const source = fs.readFileSync(
+      path.join(process.cwd(), 'src/types/database.ts'),
+      'utf-8'
+    );
+
+    expect(source).toContain(
+      "export type ApprovalRequestType = GeneratedDatabase['public']['Enums']['approval_request_type'];"
+    );
+  });
+
+  it('holds exactly the three members the database enum declares', () => {
+    expect([...dbValues].sort()).toEqual([...ENUM_MEMBERS].sort());
+    expect(Object.keys(APPROVAL_REQUEST_TYPE_LABELS).sort()).toEqual(
+      [...ENUM_MEMBERS].sort()
+    );
   });
 
   it('labels exactly the values the database enum holds', () => {

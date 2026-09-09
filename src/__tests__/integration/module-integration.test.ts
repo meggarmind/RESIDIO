@@ -50,6 +50,10 @@ const PERMISSION_ALLOWLIST = [
   // authorization boundary for these. Genuine gaps; close them per module.
   'billing/profiles.ts',
   'documents/categories.ts',
+  // Its four write actions DO gate, but indirectly: each calls `canAutoApprove()`,
+  // which wraps `authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT)`. The
+  // scan is textual and the literal does not appear in this file, so the entry
+  // stays. Not an RBAC gap -- a limitation of the scanner (#107).
   'imports/bank-accounts.ts',
   'imports/create-import.ts',
   'imports/match-residents.ts',
