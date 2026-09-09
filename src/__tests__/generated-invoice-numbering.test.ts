@@ -7,12 +7,25 @@ const migration = readFileSync(
   'utf8'
 );
 
+const shortNameValidationMigration = readFileSync(
+  fileURLToPath(new URL('../../supabase/migrations/20260909030000_validate_generated_invoice_short_names.sql', import.meta.url)),
+  'utf8'
+);
+
 const functionBody = migration.slice(
   migration.indexOf('CREATE OR REPLACE FUNCTION public.create_generated_invoice'),
   migration.indexOf('REVOKE ALL ON FUNCTION public.create_generated_invoice')
 );
 
 describe('generated invoice numbering migration', () => {
+  it('preflights every run before candidates are claimed and leaves unsafe names in the existing remediation queue', () => {
+    expect(shortNameValidationMigration).toContain('validate_invoice_generation_run_short_names');
+    expect(shortNameValidationMigration).toContain("short_name !~ '^[A-Z0-9][A-Z0-9.-]*$'");
+    expect(shortNameValidationMigration).toContain('upper(btrim(short_name))');
+    expect(shortNameValidationMigration).toContain('array_agg');
+    expect(shortNameValidationMigration).toContain('identifier_unverified = true');
+  });
+
   it('uses house short_name and period for new generated invoice numbers', () => {
     expect(functionBody).toContain('v_house_short_name TEXT');
     expect(functionBody).toContain("FROM public.houses");
