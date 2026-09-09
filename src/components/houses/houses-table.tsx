@@ -314,10 +314,20 @@ export function HousesTable() {
               </SelectContent>
             </Select>
 
-            <Button asChild variant="outline" className="hidden lg:flex">
+            {/* Issue #119 QA follow-up (D4): was `hidden lg:flex`, so the only
+                entry point to the remediation queue disappeared below the lg
+                breakpoint -- unreachable on a tablet or a laptop that isn't
+                maximized. Mirrors the Add button's pattern below: full
+                icon+text from sm, icon-only under it, so it is never hidden. */}
+            <Button asChild variant="outline" className="hidden sm:flex">
               <Link href="/houses/unverified">
                 <HelpCircle className="h-4 w-4 mr-2" />
                 Unconfirmed
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="icon" className="sm:hidden shrink-0" aria-label="Unconfirmed identifiers">
+              <Link href="/houses/unverified">
+                <HelpCircle className="h-4 w-4" />
               </Link>
             </Button>
 
