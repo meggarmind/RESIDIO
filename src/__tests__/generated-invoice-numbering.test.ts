@@ -12,12 +12,26 @@ const shortNameValidationMigration = readFileSync(
   'utf8'
 );
 
+const stableIdentityMigration = readFileSync(
+  fileURLToPath(new URL('../../supabase/migrations/20260909040000_generated_invoice_stable_identity.sql', import.meta.url)),
+  'utf8'
+);
+
 const functionBody = migration.slice(
   migration.indexOf('CREATE OR REPLACE FUNCTION public.create_generated_invoice'),
   migration.indexOf('REVOKE ALL ON FUNCTION public.create_generated_invoice')
 );
 
 describe('generated invoice numbering migration', () => {
+  it('uses immutable candidate identifiers for future generated invoice numbers', () => {
+    expect(stableIdentityMigration).toContain("'INV-%s-%s-%s-%s'");
+    expect(stableIdentityMigration).toContain("to_char(v_candidate.period_start, 'YYYYMM')");
+    expect(stableIdentityMigration).toContain("replace(v_candidate.house_id::text, '-', '')");
+    expect(stableIdentityMigration).toContain("replace(v_candidate.resident_id::text, '-', '')");
+    expect(stableIdentityMigration).toContain("replace(v_candidate.billing_profile_version_id::text, '-', '')");
+    expect(stableIdentityMigration).not.toContain('short_name');
+  });
+
   it('preflights every run before candidates are claimed and leaves unsafe names in the existing remediation queue', () => {
     expect(shortNameValidationMigration).toContain('validate_invoice_generation_run_short_names');
     expect(shortNameValidationMigration).toContain("short_name !~ '^[A-Z0-9][A-Z0-9.-]*$'");
