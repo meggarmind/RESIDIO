@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildBillingResidentOptions,
+  getPresetInvoiceDateRange,
   getInitialBillingResidentId,
 } from '@/app/(dashboard)/billing/page';
 
@@ -29,5 +30,24 @@ describe('billing resident filter', () => {
       { value: '2', label: 'Ada Okafor (Ada-O)' },
       { value: '3', label: 'Zainab Adeleke (Zee Homes)' },
     ]);
+  });
+
+  it('uses valid calendar boundaries for preset invoice period ranges', () => {
+    expect(getPresetInvoiceDateRange('this_month', new Date(2026, 1, 15))).toEqual({
+      periodFrom: '2026-02-01',
+      periodTo: '2026-02-28',
+    });
+    expect(getPresetInvoiceDateRange('last_month', new Date(2024, 2, 15))).toEqual({
+      periodFrom: '2024-02-01',
+      periodTo: '2024-02-29',
+    });
+    expect(getPresetInvoiceDateRange('last_3_months', new Date(2026, 0, 15))).toEqual({
+      periodFrom: '2025-11-01',
+      periodTo: '2026-01-31',
+    });
+    expect(getPresetInvoiceDateRange('this_year', new Date(2026, 8, 9))).toEqual({
+      periodFrom: '2026-01-01',
+      periodTo: '2026-12-31',
+    });
   });
 });

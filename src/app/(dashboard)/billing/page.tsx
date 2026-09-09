@@ -21,12 +21,16 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 import { formatCurrency } from '@/lib/utils';
-import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertCircle, Clock, CheckCircle2, Receipt, TrendingUp } from 'lucide-react';
+import { endOfMonth, endOfYear, format, startOfMonth, startOfYear, subMonths } from 'date-fns';
+import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertCircle, Clock, CheckCircle2, Receipt, TrendingUp, CalendarRange } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
+import type { DateRange } from 'react-day-picker';
 import { getBillingResidentFilterOptions } from '@/actions/billing/get-invoices';
 import { INVOICE_TYPE_LABELS, type InvoiceType, type InvoiceStatus } from '@/types/database';
 import {
@@ -56,6 +60,25 @@ type BillingResident = {
     first_name: string;
     last_name: string;
 };
+
+type DatePreset = 'all' | 'this_month' | 'last_month' | 'last_3_months' | 'this_year' | 'custom';
+
+export function getPresetInvoiceDateRange(preset: DatePreset, now = new Date()) {
+    switch (preset) {
+        case 'this_month':
+            return { periodFrom: format(startOfMonth(now), 'yyyy-MM-dd'), periodTo: format(endOfMonth(now), 'yyyy-MM-dd') };
+        case 'last_month': {
+            const lastMonth = subMonths(now, 1);
+            return { periodFrom: format(startOfMonth(lastMonth), 'yyyy-MM-dd'), periodTo: format(endOfMonth(lastMonth), 'yyyy-MM-dd') };
+        }
+        case 'last_3_months':
+            return { periodFrom: format(startOfMonth(subMonths(now, 2)), 'yyyy-MM-dd'), periodTo: format(endOfMonth(now), 'yyyy-MM-dd') };
+        case 'this_year':
+            return { periodFrom: format(startOfYear(now), 'yyyy-MM-dd'), periodTo: format(endOfYear(now), 'yyyy-MM-dd') };
+        default:
+            return {};
+    }
+}
 
 export function getInitialBillingResidentId(residentId: string | null) {
     return residentId || 'all';
@@ -93,7 +116,9 @@ export default function BillingPage() {
     const [selectedResidentId, setSelectedResidentId] = useState<string | null>(null);
     const residentId = selectedResidentId ?? getInitialBillingResidentId(requestedResidentId);
     const [search, setSearch] = useState('');
-    const [datePreset, setDatePreset] = useState<string>('all');
+    const [datePreset, setDatePreset] = useState<DatePreset>('all');
+    const [customDateRange, setCustomDateRange] = useState<DateRange>();
+    const [isCustomDatePickerOpen, setIsCustomDatePickerOpen] = useState(false);
     const [residents, setResidents] = useState<BillingResident[]>([]);
     const [residentAliases, setResidentAliases] = useState<Map<string, string[]>>(new Map());
 
@@ -101,18 +126,13 @@ export default function BillingPage() {
     const isModern = themeId === 'modern';
 
     const dateRange = useMemo(() => {
-        if (datePreset === 'all') return {};
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = now.getMonth();
-        switch (datePreset) {
-            case 'this_month': return { periodFrom: `${y}-${String(m + 1).padStart(2, '0')}-01`, periodTo: `${y}-${String(m + 1).padStart(2, '0')}-31` };
-            case 'last_month': { const d = new Date(y, m - 1, 1); return { periodFrom: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`, periodTo: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-31` }; }
-            case 'last_3_months': { const d = new Date(y, m - 2, 1); return { periodFrom: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`, periodTo: `${y}-${String(m + 1).padStart(2, '0')}-31` }; }
-            case 'this_year': return { periodFrom: `${y}-01-01`, periodTo: `${y}-12-31` };
-            default: return {};
+        if (datePreset === 'custom') {
+            return customDateRange?.from && customDateRange.to
+                ? { periodFrom: format(customDateRange.from, 'yyyy-MM-dd'), periodTo: format(customDateRange.to, 'yyyy-MM-dd') }
+                : {};
         }
-    }, [datePreset]);
+        return getPresetInvoiceDateRange(datePreset);
+    }, [customDateRange, datePreset]);
 
     const { data, isLoading, refetch } = useAdminInvoices({
         page,
@@ -169,7 +189,17 @@ export default function BillingPage() {
         setSelectedResidentId('all');
         setSearch('');
         setDatePreset('all');
+        setCustomDateRange(undefined);
         setPage(1);
+    };
+
+    const handleCustomDateRangeSelect = (range: DateRange | undefined) => {
+        setCustomDateRange(range);
+        if (range?.from && range.to) {
+            setDatePreset('custom');
+            setPage(1);
+            setIsCustomDatePickerOpen(false);
+        }
     };
 
     return (
@@ -334,7 +364,7 @@ export default function BillingPage() {
                             </SelectContent>
                         </Select>
 
-                        <Select value={datePreset} onValueChange={(value) => {
+                        <Select value={datePreset} onValueChange={(value: DatePreset) => {
                             setDatePreset(value);
                             setPage(1);
                         }}>
@@ -349,6 +379,30 @@ export default function BillingPage() {
                                 <SelectItem value="this_year">This Year</SelectItem>
                             </SelectContent>
                         </Select>
+
+                        <Popover open={isCustomDatePickerOpen} onOpenChange={setIsCustomDatePickerOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant={datePreset === 'custom' ? 'secondary' : 'outline'}
+                                    size="sm"
+                                    className={cn('h-9 gap-2 text-sm', isModern && 'rounded-xl')}
+                                >
+                                    <CalendarRange className="h-4 w-4" />
+                                    {customDateRange?.from && customDateRange.to
+                                        ? `${format(customDateRange.from, 'dd MMM yy')} - ${format(customDateRange.to, 'dd MMM yy')}`
+                                        : 'Custom range'}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="end">
+                                <CalendarComponent
+                                    mode="range"
+                                    selected={customDateRange}
+                                    onSelect={handleCustomDateRangeSelect}
+                                    defaultMonth={customDateRange?.from ?? new Date()}
+                                    numberOfMonths={2}
+                                />
+                            </PopoverContent>
+                        </Popover>
 
                         {isFiltered && (
                             <Button
