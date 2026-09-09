@@ -490,7 +490,7 @@ function ArchivePanel() {
 
     const handleDownload = (archive: ArchivedReport) => {
         const link = document.createElement('a');
-        link.href = `/api/reports/download?type=${archive.report_type}`;
+        link.href = `/api/reports/download?archiveId=${archive.id}`;
         link.download = `${archive.report_type}-${archive.generated_at?.split('T')[0] || 'report'}.pdf`;
         link.click();
     };
