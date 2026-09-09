@@ -81,6 +81,26 @@ ENV NEXT_PUBLIC_ENV_MODE=${NEXT_PUBLIC_ENV_MODE} \
     NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=${NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY}
 # ---- END BUILD-TIME PUBLIC VALUES --------------------------------------------
 
+# ---- BUILD-TIME PLACEHOLDER, NOT A CREDENTIAL --------------------------------
+# `next build` prerenders 120 pages, and /expenditure constructs a Supabase
+# service-role client while doing so (src/lib/supabase/config.ts reads the
+# SUFFIXED name chosen by NEXT_PUBLIC_ENV_MODE). With the variable unset the
+# constructor throws "Your project's URL and Key are required to create a
+# Supabase client!" and the export step aborts the build.
+#
+# This is a literal, hardcoded non-secret. It is deliberately NOT an ARG, so a
+# real service-role key cannot be passed in at build time and recorded in
+# `docker history`. Nothing contacts Supabase during the build. The runner is a
+# separate stage and does not inherit this ENV, so the real key reaches the app
+# only through runtime environment, exactly as docs/deployment/docker.md
+# requires. .github/workflows/stage-backup.yml does the same thing for the same
+# reason.
+#
+# A page needing an admin client at prerender time is an application defect,
+# not a deployment one -- tracked separately. When it is fixed, delete this.
+ENV SUPABASE_SERVICE_ROLE_KEY_CLOUD=build-time-placeholder-not-a-credential
+# ---- END BUILD-TIME PLACEHOLDER ----------------------------------------------
+
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production
 
