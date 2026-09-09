@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateImportReconciliation } from './process-import';
+import { calculateImportReconciliation } from './reconciliation';
 
 describe('calculateImportReconciliation', () => {
   it('compares bank totals with created records and counts unmatched rows', () => {
