@@ -456,7 +456,7 @@ export function useDevelopmentLevyProfiles() {
 }
 
 // Overdue Invoices Hooks
-import { checkOverdueInvoices, getOverdueStats } from '@/actions/billing/check-overdue-invoices';
+import { checkOverdueInvoices, getOverdueInvoiceAging, getOverdueStats } from '@/actions/billing/check-overdue-invoices';
 import { applyLateFees, getLateFeeHistory, getLateFeeSettings } from '@/actions/billing/apply-late-fees';
 import {
     getLateFeeWaivers,
@@ -472,6 +472,17 @@ export function useOverdueStats() {
         queryKey: ['overdue-stats'],
         queryFn: async () => {
             const result = await getOverdueStats();
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+    });
+}
+
+export function useOverdueInvoiceAging() {
+    return useQuery({
+        queryKey: ['overdue-invoice-aging'],
+        queryFn: async () => {
+            const result = await getOverdueInvoiceAging();
             if (result.error) throw new Error(result.error);
             return result.data;
         },

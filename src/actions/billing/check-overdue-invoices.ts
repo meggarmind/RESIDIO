@@ -142,3 +142,31 @@ export async function getOverdueStats() {
         },
     };
 }
+
+export async function getOverdueInvoiceAging() {
+    const supabase = await createServerSupabaseClient();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const { data, error } = await supabase
+        .from('invoices')
+        .select('due_date')
+        .in('status', ['unpaid', 'partially_paid'])
+        .lt('due_date', today.toISOString().split('T')[0]);
+
+    if (error) return { data: null, error: error.message };
+
+    const byDays = new Map<number, number>();
+    for (const invoice of data ?? []) {
+        const dueDate = new Date(`${invoice.due_date}T00:00:00`);
+        const days = Math.floor((today.getTime() - dueDate.getTime()) / 86_400_000);
+        byDays.set(days, (byDays.get(days) ?? 0) + 1);
+    }
+
+    return {
+        data: [...byDays.entries()]
+            .sort(([left], [right]) => left - right)
+            .map(([daysOverdue, count]) => ({ daysOverdue, count })),
+        error: null,
+    };
+}
