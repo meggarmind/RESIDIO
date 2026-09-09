@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { CalendarRange, CheckSquare, Loader2, Receipt, WalletCards } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -19,10 +20,11 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { formatCurrency } from '@/lib/utils';
-import { getResidentPayableInvoices, getResidentWalletBalance, settleWalletInvoices } from '@/actions/billing/settle-wallet-invoices';
+import { getResidentPayableInvoices, settleWalletInvoices } from '@/actions/billing/settle-wallet-invoices';
 import { prepayFutureInvoices } from '@/actions/billing/prepay-future-invoices';
 import { getWalletPaymentBatch, getWalletPaymentBatches } from '@/actions/billing/get-wallet-payment-batch';
 import { PaymentReceipt } from '@/components/payments/payment-receipt';
+import { useWallet } from '@/hooks/use-wallet';
 
 type PayableInvoice = {
     id: string;
@@ -44,8 +46,10 @@ export function WalletPaymentBatchTools({
     residentId: string;
     houses: HouseOption[];
 }) {
+    const queryClient = useQueryClient();
+    const { data: walletData, isLoading: isWalletLoading } = useWallet(residentId);
+    const walletBalance = isWalletLoading ? null : walletData?.data?.balance ?? null;
     const [invoices, setInvoices] = useState<PayableInvoice[]>([]);
-    const [walletBalance, setWalletBalance] = useState<number | null>(null);
     const [selected, setSelected] = useState<string[]>([]);
     const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
     const [houseId, setHouseId] = useState(houses[0]?.id || '');
@@ -71,14 +75,12 @@ export function WalletPaymentBatchTools({
 
     const loadInvoices = useCallback(async () => {
         setIsLoading(true);
-        const [result, batchResult, walletResult] = await Promise.all([
+        const [result, batchResult] = await Promise.all([
             getResidentPayableInvoices(residentId),
             getWalletPaymentBatches(residentId),
-            getResidentWalletBalance(residentId),
         ]);
         setInvoices((result.data || []) as PayableInvoice[]);
         setBatches((batchResult.data || []) as typeof batches);
-        setWalletBalance(walletResult.balance);
         setSelected([]);
         setIsLoading(false);
     }, [residentId]);
@@ -121,6 +123,12 @@ export function WalletPaymentBatchTools({
             const receiptResult = await getWalletPaymentBatch(result.batchId);
             setReceipt(receiptResult.data);
         }
+        // Settling draws down the wallet balance, and the balance now comes
+        // solely from the shared `useWallet` query (see #120 QA fix) -- so a
+        // successful settlement must invalidate it the same way the credit/
+        // debit mutations in use-wallet.ts do, or this card would show a
+        // stale figure until an unrelated refetch happened to occur.
+        queryClient.invalidateQueries({ queryKey: ['wallet', residentId] });
         await loadInvoices();
     };
 

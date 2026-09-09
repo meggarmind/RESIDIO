@@ -27,6 +27,7 @@ import { useVerificationStatus, useAdminVerifyContact } from '@/hooks/use-verifi
 import { useWallet } from '@/hooks/use-wallet';
 import { LinkedHouses } from '@/components/residents/linked-houses';
 import { ResidentPayments } from '@/components/residents/resident-payments';
+import { WalletBalance } from '@/components/residents/wallet-balance';
 import { WalletTransactions } from '@/components/residents/wallet-transactions';
 import { WalletPaymentBatchTools } from '@/components/residents/wallet-payment-batch-tools';
 import { CrossPropertyPaymentSummary } from '@/components/residents/cross-property-payment-summary';
@@ -508,7 +509,15 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
           </motion.div>
         </TabsContent>
 
-        <TabsContent value="transactions" className="mt-6" role="tabpanel" tabIndex={0} data-tab-panel="transactions">
+        <TabsContent value="transactions" className="mt-6 space-y-4" role="tabpanel" tabIndex={0} data-tab-panel="transactions">
+          {/*
+            Issue #120: the wallet balance card carries the only manual
+            credit/debit control. It lives on this tab -- alongside the batch
+            settlement tools and the ledger -- rather than on Overview, whose
+            Financial Summary already prints the same figure. The two are never
+            on screen together.
+          */}
+          <WalletBalance residentId={id} />
           <WalletPaymentBatchTools
             residentId={id}
             houses={(resident.resident_houses || []).filter((rh) => rh.is_active).map((rh) => ({
