@@ -19,6 +19,7 @@ import {
   useRetryInvoiceGenerationRun,
 } from '@/hooks/use-billing';
 import type { GenerationHistoryEntry } from '@/lib/billing/invoice-generation-history';
+import { describeVersionFallback } from '@/lib/billing/invoice-generation';
 import { Download, History, Clock, AlertCircle, Ban, RotateCcw, Mail } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useVisualTheme } from '@/contexts/visual-theme-context';
@@ -40,6 +41,9 @@ export function buildGenerationResultsCsv(entry: GenerationHistoryEntry): string
     '',
     'Skip Reasons',
     ...(entry.skip_reasons || []).map((s) => `"${s.house}","${s.reason}"`),
+    '',
+    'Rate Version Warnings',
+    ...(entry.version_fallbacks || []).map((warning) => `"${describeVersionFallback(warning)}"`),
     '',
     'Errors',
     ...(entry.errors || []).map((e) => `"${e}"`),
@@ -148,6 +152,12 @@ export function GenerationHistoryPanel({ onRetry }: GenerationHistoryPanelProps)
                             <AlertCircle className="mr-1 h-3 w-3" />
                             {entry.error_count} errors
                           </Badge>
+                        )}
+                        {(entry.version_fallbacks?.length ?? 0) > 0 && (
+                          <div className="mt-1 flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400">
+                            <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                            <span>{entry.version_fallbacks!.map(describeVersionFallback).join(' ')}</span>
+                          </div>
                         )}
                       </div>
                     </TableCell>
