@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -104,5 +104,44 @@ describe('UnverifiedIdentifiersTable (issue #119)', () => {
     render(<UnverifiedIdentifiersTable />);
 
     expect(screen.getByText('No unconfirmed identifiers')).toBeInTheDocument();
+  });
+
+  /**
+   * Issue #119 QA follow-up (D3): the action treats an *omitted* note as
+   * "preserve the existing context" and only an explicit value as "replace
+   * it" -- but this caller used to always send `note.trim() || null`, so
+   * confirming with the box left blank silently wiped `identifier_note`
+   * every time, contradicting the action's own comment and test. Confirming
+   * with the box blank must now omit `note` entirely.
+   */
+  it('confirming with the note box blank omits note, rather than wiping it', () => {
+    grant(PERMISSIONS.HOUSES_UPDATE);
+
+    render(<UnverifiedIdentifiersTable />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Confirm identifier for 3\?F\?/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm identifier' }));
+
+    expect(mocks.clearMutate).toHaveBeenCalledTimes(1);
+    const call = mocks.clearMutate.mock.calls[0][0] as { id: string; note?: string | null };
+    expect(call).toEqual({ id: 'house-1' });
+    expect(call).not.toHaveProperty('note');
+  });
+
+  it('confirming with a note typed sends the trimmed note', () => {
+    grant(PERMISSIONS.HOUSES_UPDATE);
+
+    render(<UnverifiedIdentifiersTable />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Confirm identifier for 3\?F\?/ }));
+    fireEvent.change(screen.getByLabelText(/What settled the doubt/), {
+      target: { value: '  Confirmed on site 9 Sep 2026  ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm identifier' }));
+
+    expect(mocks.clearMutate).toHaveBeenCalledWith({
+      id: 'house-1',
+      note: 'Confirmed on site 9 Sep 2026',
+    });
   });
 });

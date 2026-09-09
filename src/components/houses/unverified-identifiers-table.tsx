@@ -71,7 +71,15 @@ export function UnverifiedIdentifiersTable() {
   async function handleConfirm() {
     if (!target) return;
     try {
-      await clearMutation.mutateAsync({ id: target.id, note: note.trim() || null });
+      // Issue #119 QA follow-up (D3): omit `note` entirely when the box is
+      // left blank, rather than sending `null`. The action treats a missing
+      // note as "preserve whatever context was already there" and only an
+      // explicit empty string/null as "clear it" -- sending `null` here wiped
+      // the recorded doubt every time an admin confirmed with the box empty.
+      const trimmed = note.trim();
+      await clearMutation.mutateAsync(
+        trimmed ? { id: target.id, note: trimmed } : { id: target.id }
+      );
       setTarget(null);
     } catch {
       // The mutation hook surfaces the failure as a toast; keep the dialog open
