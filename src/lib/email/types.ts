@@ -25,6 +25,7 @@ export interface SendEmailOptions {
   react?: React.ReactElement | null;
   emailType: EmailType;
   metadata?: Record<string, unknown>;
+  attachments?: Array<{ filename: string; content: Buffer }>;
 }
 
 export interface SendEmailResult {
