@@ -25,7 +25,21 @@ const baseRun: InvoiceGenerationRunHistoryRow = {
     email_queued_count: 0,
     email_sent_count: 0,
     email_failed_count: 0,
-    result_summary: { pending: 0, created: 8, skipped: 2, skips: [{ house: 'IBB-1', reason: 'vacant' }] },
+    result_summary: {
+        pending: 0,
+        created: 8,
+        skipped: 2,
+        skips: [{ house: 'IBB-1', reason: 'vacant' }],
+        versionFallbacks: [{
+            houseId: 'house-1',
+            house: 'IBB-1',
+            billingProfileId: 'profile-1',
+            billingProfileName: 'Standard levy',
+            periodStart: '2025-07-01',
+            versionId: 'version-1',
+            effectiveFrom: '2026-08-01',
+        }],
+    },
 };
 
 describe('invoice generation history mapping', () => {
@@ -43,6 +57,12 @@ describe('invoice generation history mapping', () => {
             wallet_allocated: 0,
         });
         expect(entry.skip_reasons).toEqual([{ house: 'IBB-1', reason: 'vacant' }]);
+        expect(entry.version_fallbacks).toEqual([expect.objectContaining({
+            house: 'IBB-1',
+            billingProfileName: 'Standard levy',
+            periodStart: '2025-07-01',
+            effectiveFrom: '2026-08-01',
+        })]);
         expect(entry.duration_ms).toBe(55000);
     });
 
@@ -80,12 +100,12 @@ describe('invoice generation history mapping', () => {
 describe('invoice generation history merge', () => {
     const runEntry = (id: string, at: string): GenerationHistoryEntry => ({
         id, generated_at: at, generated_by: null, trigger_type: 'cron', target_period: '2026-08-01',
-        generated_count: 1, skipped_count: 0, error_count: 0, skip_reasons: null, errors: null,
+        generated_count: 1, skipped_count: 0, error_count: 0, skip_reasons: null, version_fallbacks: null, errors: null,
         duration_ms: null, created_at: at, source: 'run',
     });
     const legacyEntry = (id: string, at: string): GenerationHistoryEntry => ({
         id, generated_at: at, generated_by: null, trigger_type: 'manual', target_period: '2026-07-01',
-        generated_count: 1, skipped_count: 0, error_count: 0, skip_reasons: null, errors: null,
+        generated_count: 1, skipped_count: 0, error_count: 0, skip_reasons: null, version_fallbacks: null, errors: null,
         duration_ms: null, created_at: at, source: 'legacy',
     });
 
