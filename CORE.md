@@ -131,6 +131,14 @@ migrations and run queries through the Supabase MCP tools; your harness's file n
 > Treat the cloud-only rule as authoritative and the scripts as wrong; the fix is tracked
 > separately.
 
+**Applying a migration and committing its file are two separate acts** — the first happens
+through the Supabase MCP tools, the second through git, and only the first was ever enforced.
+That gap is why the database accumulated 61 applied migrations with no corresponding file on
+disk (#283). `scripts/migration-drift.mjs`, run by `.github/workflows/migration-drift.yml` on
+every PR and on a daily schedule, compares the database's applied migration list against
+`supabase/migrations/` and fails the build on any divergence in either direction — enforcing
+the pairing so drift cannot silently reaccumulate after the #279 schema baseline.
+
 ---
 
 ## 6. Server actions — the mandatory contract
@@ -251,8 +259,10 @@ Branch prefixes declare the lane:
 | Prefix | Used for |
 | --- | --- |
 | `codex/issue-<n>-<slug>` | issue work from Codex |
-| `feat/<slug>`, `feat/issue-<n>-<slug>` | features |
-| `fix/<slug>` | fixes |
+| `claude/issue-<n>-<slug>` | issue work from Claude Code |
+| `opencode/issue-<n>-<slug>` | issue work from OpenCode |
+| `feat/<slug>` | features not tied to an issue |
+| `fix/<slug>`, `fix/issue-<n>-<slug>` | fixes |
 | `chore/<slug>` | tooling, docs, instruction changes |
 | `qa/<date>` | QA campaigns |
 | `merge/<slug>` | integration branches |
@@ -323,6 +333,26 @@ Move an issue's Status at these three points, without being asked:
 
 Do not move issues *backwards* (to Backlog or Ready) on your own; that stays manual.
 
+**Harness labels.** At point 1, also add your own harness label if it is not already there:
+
+```bash
+gh issue edit <N> --add-label harness:claude   # or harness:codex / harness:opencode
+```
+
+This repo is worked by three harnesses (§7) that all authenticate as the same GitHub login, so
+the assignee cannot tell them apart (#297) and a board single-select cannot hold two values. The
+label is the only carrier that can.
+
+The labels are **additive and permanent**: they record that a harness *has worked* the ticket,
+not that it currently holds it. Two harnesses on one ticket is two labels. **Never remove another
+harness's label**, and do not remove your own when the PR merges — together they are the record of
+who worked what. `.github/workflows/harness-label.yml` adds the label from the branch prefix when
+a PR opens, as a backstop for sessions that forget; it does not replace this step, which covers the
+window before the first push.
+
+**These labels are not a lock.** Who holds a branch *right now* is still `git ls-remote --heads
+origin` (§7), and nothing here changes that.
+
 ---
 
 ## 10. Planning becomes issues
@@ -334,6 +364,53 @@ plan back and stop.
 An epic gets one umbrella issue carrying the design and the verified facts, plus one issue per
 slice. **Brief each slice for an agent starting cold**: the exact files and line numbers, what
 "done" means, and what *not* to do. That is the only context the implementing agent will have.
+
+### Issue authoring
+
+Use an evidence-led body for defects and implementation slices, in this order where applicable:
+`## Summary`, `## Root Cause`, `## What Breaks If This Is Never Done`, `## Required Change`,
+`## Scope`, `## Provenance`, and `Related:`. A genuine multi-slice initiative may instead use the
+broader PRD format (`## Problem Statement`, `## Solution`, user stories, decisions, testing and
+out-of-scope work). Do not turn an implementation slice into a PRD merely to make it look fuller.
+
+Every new child issue must be attached to exactly one native GitHub map parent immediately after
+creation, then verified before reporting it as filed. A textual `#number` reference is related
+context, not a parent relationship.
+
+### Guardrails on creating issues
+
+Filing is cheap; the backlog it produces is not. A tracker that grows faster than it is worked
+stops being a plan and becomes a second thing to manage. These five rules bind every session, and
+each exists because it was violated on 2026-09-07, when one session filed **24 issues and closed
+7**.
+
+1. **One issue per decision-and-owner — not per activity.** Before filing two issues, ask whether
+   one person would do both in one sitting, gated by the same unknown. If yes, they are one issue.
+   *Violated by #270, #271 and #272 — provisioning, container build, cron scheduling and DNS were
+   filed separately, then collapsed back into #269. They shared one decision (#264), one owner and
+   one sequence. Slicing by activity produced three tickets of ceremony and zero clarity.*
+
+2. **Verify a defect still exists before filing it.** Date the relevant commits against the report
+   and check for a later definition that supersedes the one you are looking at. *#243 described a
+   migration reverting an earlier one; a later migration had already restored it, committed the
+   same day the issue was filed. The issue was investigated, disproved and closed — after a session
+   had planned around it.*
+
+3. **Never ticket a decision the owner has not made.** An issue may pose a question. It must not
+   encode an answer inferred from a neighbouring one. *#265 was filed on an inferred "promote the
+   database in place", reversed within hours, and took four dependent tickets with it.*
+
+4. **Findings in passing are filed, not charted.** §15 requires filing a defect discovered
+   out-of-scope rather than absorbing it — that rule stands. But such issues are labelled and left
+   **out of the active plan**. They must not expand the frontier of the work in hand.
+
+5. **Report the net, and say it plainly.** Any session filing more than three issues reports
+   created versus closed and states the net movement. If the owner asked for the backlog to shrink
+   and it grew, say so in those words rather than describing the new issues as progress.
+
+**No issue without a stated consequence.** Every issue says what breaks, or stays broken, if it is
+never done. If that sentence cannot be written, it is a note or a comment on an existing issue —
+not a new one.
 
 ---
 

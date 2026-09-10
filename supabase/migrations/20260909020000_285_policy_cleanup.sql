@@ -1,0 +1,364 @@
+-- ============================================================================
+-- Migration: remove redundant and over-broad RLS policies on
+--            estate_bank_accounts, approval_requests and generated_reports
+-- ============================================================================
+-- Purpose: Issue #285. Three tables carry policies that are either exact
+--          duplicates of a sibling (pure noise, zero net effect) or so broad
+--          that they render a narrower sibling on the same table dead. Because
+--          PERMISSIVE policies OR together, a single unconditional policy
+--          silently defeats every careful predicate beside it. This migration
+--          drops the duplicates and replaces the two unconditional write
+--          policies with scoped ones.
+--
+-- Net access, per table (one line each):
+--
+--   estate_bank_accounts
+--     BEFORE: any approved authenticated user reads EVERY row, active or not,
+--             because `auth.role() = 'authenticated'` ORs the `is_active`
+--             filter away; ALL is finance-role, stated twice.
+--     AFTER:  for `authenticated`, SELECT requires (is_active = true OR
+--             finance role) AND is_approved(); ALL is finance-role, stated
+--             once. Deactivated bank accounts become finance-role-only.
+--             NOTE the AND does not hold for `anon`: the RESTRICTIVE
+--             "Approved accounts only can read" is `TO authenticated`, and a
+--             RESTRICTIVE policy constrains only the roles it names. See the
+--             anon paragraph below, which measures what `anon` actually gets.
+--
+--   approval_requests
+--     BEFORE: SELECT/UPDATE each stated twice under two names; INSERT open to
+--             any authenticated caller with ANY `requested_by` value.
+--     AFTER:  identical SELECT/UPDATE access, stated once; INSERT restricted
+--             to rows the caller owns (requested_by = auth.uid()).
+--
+--   generated_reports
+--     BEFORE: INSERT is `WITH CHECK (true)`, twice, on a table whose SELECT
+--             and DELETE are permission-gated -- and one of the two is
+--             `TO public`, so this is open to ANONYMOUS callers, not merely
+--             to any authenticated one. Measured, not inferred: see the
+--             anon paragraph below.
+--     AFTER:  INSERT requires has_permission('reports.view_financial'), the
+--             same permission the table's existing SELECT policy requires,
+--             and is `TO authenticated` so `anon` is excluded outright.
+--
+-- ----------------------------------------------------------------------------
+-- Why the pure-duplicate drops are net-zero, reasoned rather than assumed
+-- ----------------------------------------------------------------------------
+-- Six of the nine drops below remove one half of a matched pair. Three of those
+-- pairs differ ONLY in grantee -- `TO public` versus `TO authenticated` -- and
+-- `public` is the wider of the two, so dropping the `public` twin is the one
+-- shape in this file that COULD narrow access. It does not, and the reason is
+-- specific to each predicate rather than a general appeal to "they look the
+-- same".
+--
+-- For RLS purposes the `public` database role resolves to exactly {anon,
+-- authenticated} on this database: service_role, postgres and supabase_admin
+-- all bypass RLS entirely, so no policy is ever consulted for them. The
+-- question is therefore only ever "what does the dropped policy do for `anon`
+-- that the surviving `authenticated` twin does not".
+--
+--   1. Predicates calling get_my_role_name()
+--      ("Admins and chairmen can view all approval requests",
+--       "Admins and chairmen can update approval requests")
+--      EXECUTE on public.get_my_role_name() is REVOKED FROM PUBLIC, anon and
+--      GRANTED only TO authenticated, service_role
+--      (20260824200000_harden_database_security_and_health_indexes.sql:28,38
+--      re-asserted at 20260829100200_gate_auth_helpers_on_approval_status.sql
+--      :198,206). For `anon` this predicate cannot evaluate to true -- it
+--      raises 42501 permission denied inside policy evaluation, which surfaces
+--      as an HTTP 500 rather than as a row. Dropping it therefore removes an
+--      error path and grants `anon` nothing it could previously read. This is
+--      the same mechanism 20260905003000_close_anonymous_table_reads.sql
+--      documented and verified against the live database.
+--
+--   2. The ownership predicate
+--      ("Users can view own approval requests", USING requested_by = auth.uid())
+--      For `anon`, auth.uid() is NULL, so `requested_by = NULL` evaluates to
+--      NULL, which RLS treats as not-true. `anon` matches zero rows through
+--      this policy before the drop and zero rows after it. Exactly net-zero.
+--
+--   3. The estate_bank_accounts ALL pair
+--      ("Admin can manage bank accounts" vs "Admins chairmen fin sec can
+--       manage bank accounts") -- BOTH are `TO public`, so grantee is not in
+--      play at all here. The dropped predicate is
+--      get_my_role_name() = 'super_admin'; the surviving one is
+--      get_my_role_name() = ANY (ARRAY['super_admin', 'chairman',
+--      'vice_chairman', 'financial_officer']), which contains 'super_admin'.
+--      The dropped policy is a strict subset of a policy that remains, under
+--      the identical grantee and the identical command, so its removal cannot
+--      change the OR for any role -- including `anon`, for whom the surviving
+--      policy still raises in exactly the same way the dropped one did.
+--      Neither policy declares WITH CHECK, so both default WITH CHECK to their
+--      USING expression and the subset relation holds on the write side too.
+--
+-- For `authenticated` all six drops are trivially net-zero: each dropped
+-- policy has a surviving twin with a byte-identical predicate and the same
+-- command, granted to `authenticated`.
+--
+-- ----------------------------------------------------------------------------
+-- Why the two INSERT rewrites do not break a working path
+-- ----------------------------------------------------------------------------
+-- Tightening an INSERT policy is only safe if no live write path depends on the
+-- loose one. Both tables were traced to the Supabase client each writer uses;
+-- a writer holding the service-role key bypasses RLS and is unaffected, a
+-- writer on the cookie-bound anon client is not.
+--
+--   approval_requests -- written in exactly one place,
+--   src/actions/approvals/index.ts:357-369 (createApprovalRequest), on the
+--   USER-SCOPED client (createServerSupabaseClient, imported at line 3). It is
+--   therefore subject to RLS. It sets `requested_by: user.id` from
+--   supabase.auth.getUser(), so `requested_by = auth.uid()` holds for every
+--   row it writes and the new policy is transparent to it.
+--
+--   The pre-existing finance-scoped INSERT policy is NOT a usable replacement
+--   and is dropped rather than promoted: createApprovalRequest's two callers
+--   are src/actions/houses/update-house.ts:72 and
+--   src/actions/billing/profiles.ts:260, gated at the action layer by the
+--   houses and billing permissions -- not by membership of
+--   ['super_admin','chairman','vice_chairman','financial_officer']. Keeping
+--   only the finance policy would deny any role that holds houses.update
+--   without also being one of those four, i.e. it would break a working path
+--   to close a finding. Ownership is the invariant RLS can actually express
+--   here; WHO may raise a request stays an action-layer authorization
+--   decision, which is where it already lives.
+--
+--   generated_reports -- written in two places, both in
+--   src/actions/reports/report-schedules.ts. saveGeneratedReport (line 362)
+--   picks its client by trigger at lines 377-379: `scheduled` gets
+--   createAdminClient() (service-role, RLS bypassed, cron unaffected by this
+--   migration), everything else gets the user-scoped client.
+--   createReportVersion (line 469) is always user-scoped.
+--
+--   has_permission('reports.view_financial') is the correct predicate for both
+--   user-scoped paths, and is non-breaking because of an ACTION-LAYER gate that
+--   every caller must clear first. generateReport() calls checkReportAccess(),
+--   which is authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL)
+--   (src/actions/reports/report-engine.ts:227-228), and useGenerateReport
+--   THROWS on its failure (src/hooks/use-reports.ts:118-119) before
+--   saveGeneratedReport is ever reached at :139. No caller can arrive at the
+--   user-scoped insert without already holding this permission.
+--
+--   An earlier draft of this note argued instead that each insert ends in
+--   `.select().single()` and that the RETURNING read is itself gated by
+--   generated_reports_select. That argument is REFUTED and is recorded here so
+--   it is not reconstructed: src/hooks/use-reports.ts:139 discards
+--   saveGeneratedReport's return value entirely -- no check, no throw -- so a
+--   filtered RETURNING read surfaces only as a server-side console.error
+--   (report-schedules.ts:407-409) while the mutation fabricates a synthetic
+--   report and reports success. The conclusion survives; the reason does not.
+--
+--   This matters because /reports is an ANY-OF route
+--   (src/lib/auth/action-roles.ts:205 lists REPORTS_VIEW_FINANCIAL,
+--   REPORTS_VIEW_OCCUPANCY and REPORTS_VIEW_SECURITY), so an occupancy-only
+--   holder can reach the page and is stopped by the action-layer gate rather
+--   than by RLS. Had that gate been weaker, the refuted argument would have
+--   been all that stood behind this change.
+--
+--   createReportVersion additionally reads its parent row through the SELECT
+--   policy and bails (report-schedules.ts:483-490), and its caller does check
+--   the result (use-reports.ts:367-368).
+--
+--   Note GenerationTrigger includes 'api' (report-schedules.ts:11), which
+--   routes to the user-scoped client. No 'api' caller exists today; a future
+--   one will need reports.view_financial.
+--
+--   'reports.view_financial' is not a newly invented name: it is declared at
+--   src/lib/auth/action-roles.ts:81 and is already called by the live
+--   generated_reports_select and (as reports.manage_schedules' sibling)
+--   generated_reports_delete policies. Confirmed as a seeded row rather than
+--   inferred -- on Residio_Stage it exists in app_permissions and is held by
+--   FIVE roles: super_admin, chairman, vice_chairman, financial_officer and
+--   project_manager. project_manager therefore retains insert on this table.
+--
+-- ----------------------------------------------------------------------------
+-- What `anon` could do before this migration, measured on the live database
+-- ----------------------------------------------------------------------------
+-- Both probes below were run on Residio_Prod (miyeswqbwarvipdzwqnz) inside a
+-- transaction that ended in ROLLBACK. Nothing was committed.
+--
+--   generated_reports -- A LIVE ANONYMOUS WRITE HOLE, closed by this migration.
+--   has_table_privilege('anon','public.generated_reports','INSERT') is true,
+--   and generated_reports_insert was `FOR INSERT TO public WITH CHECK (true)`.
+--   Unlike the SELECT twins, `true` calls no revoked function, so nothing made
+--   it fail for `anon`. Probe as `anon` BEFORE:
+--     insert into public.generated_reports default values;
+--       -> 23502 null value in column "name" violates not-null constraint
+--   A NOT-NULL failure is downstream of the policy check: RLS PERMITTED the
+--   anonymous insert. The same probe with valid columns, AFTER this migration
+--   is applied in the same transaction:
+--       -> 42501 new row violates row-level security policy
+--   So any holder of the publishable anon key could write arbitrary rows into
+--   generated_reports, and this migration is what stops it.
+--
+--   estate_bank_accounts -- LATENT, NOT LIVE, and NOT changed here.
+--   has_table_privilege('anon','public.estate_bank_accounts','SELECT') is true,
+--   and the surviving "All authenticated can view active bank accounts" is
+--   `TO public` with `is_active = true` as a plain column read. But probing
+--   `select count(*) from public.estate_bank_accounts` as `anon` returns
+--     42501 permission denied for function get_my_role_name
+--   Postgres evaluates the second disjunct rather than short-circuiting, so
+--   `anon` receives an error, not rows. This holds identically before and
+--   after: that policy is untouched by this migration.
+--
+-- ----------------------------------------------------------------------------
+-- Deliberately NOT changed
+-- ----------------------------------------------------------------------------
+-- residents, resident_houses and hierarchical_settings carry genuine
+-- multi-audience policies and are out of scope (issue #285 section 4). No
+-- table other than the three named above is touched.
+--
+-- A WHOLESALE `public` -> `authenticated` grantee migration is not attempted
+-- here: that is the separate concern 20260905003000 owns, and doing it inside a
+-- de-duplication change would hide a real access change inside a cleanup. Note
+-- however that BOTH replacement policies created below ARE `TO authenticated`
+-- where the policies they replace were `TO public` (baseline:5113 and 5269).
+-- That is deliberate and is the point of the generated_reports change -- see
+-- the anon paragraph above. An earlier draft of this header claimed no grantee
+-- moved at all, which was simply false.
+--
+-- One `anon` finding on estate_bank_accounts is deliberately left open rather
+-- than fixed here; it is measured above and reasoned in
+-- docs/migrations/285-policy-cleanup.md section 4.1.
+--
+-- Written to be safely re-runnable: every statement is DROP POLICY IF EXISTS,
+-- and each policy that is replaced rather than removed is dropped immediately
+-- before its CREATE, so a second apply cannot abort with 42710.
+--
+-- This migration is NOT applied by the authoring session. Apply and verify
+-- manually, then check it into the applied-migrations record per
+-- docs/agents/migrations-on-merge.md.
+-- ============================================================================
+
+-- ============================================================================
+-- ROLLBACK: restores all nine previous policy definitions
+-- ============================================================================
+-- Predicates transcribed from the live pg_policies definitions as they stood
+-- before this migration. Where a policy had no WITH CHECK live, none is
+-- restored -- Postgres defaults WITH CHECK to the USING expression, and
+-- stating one explicitly on the way back would not be what was live. The
+-- "Admins and chairmen can update approval requests" twin is restored WITHOUT
+-- a WITH CHECK clause for exactly that reason; its `authenticated` sibling
+-- keeps the explicit one it has always had.
+--
+-- These are SQL comments, not executable statements.
+--
+-- BEGIN;
+--
+-- -- ---- estate_bank_accounts ---------------------------------------------
+-- DROP POLICY IF EXISTS "Authenticated users can view bank accounts" ON public.estate_bank_accounts;
+-- CREATE POLICY "Authenticated users can view bank accounts"
+--   ON public.estate_bank_accounts FOR SELECT TO public
+--   USING (auth.role() = 'authenticated'::text);
+--
+-- DROP POLICY IF EXISTS "Admin can manage bank accounts" ON public.estate_bank_accounts;
+-- CREATE POLICY "Admin can manage bank accounts"
+--   ON public.estate_bank_accounts FOR ALL TO public
+--   USING (get_my_role_name() = 'super_admin'::text);
+--
+-- -- ---- approval_requests -------------------------------------------------
+-- DROP POLICY IF EXISTS "Admins and chairmen can view all approval requests" ON public.approval_requests;
+-- CREATE POLICY "Admins and chairmen can view all approval requests"
+--   ON public.approval_requests FOR SELECT TO public
+--   USING (get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]));
+--
+-- DROP POLICY IF EXISTS "Users can view own approval requests" ON public.approval_requests;
+-- CREATE POLICY "Users can view own approval requests"
+--   ON public.approval_requests FOR SELECT TO public
+--   USING (requested_by = auth.uid());
+--
+-- DROP POLICY IF EXISTS "Admins and chairmen can update approval requests" ON public.approval_requests;
+-- CREATE POLICY "Admins and chairmen can update approval requests"
+--   ON public.approval_requests FOR UPDATE TO public
+--   USING (get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text]));
+--
+-- DROP POLICY IF EXISTS "Users can create their own approval requests" ON public.approval_requests;
+-- DROP POLICY IF EXISTS "Authenticated users can create approval requests" ON public.approval_requests;
+-- CREATE POLICY "Authenticated users can create approval requests"
+--   ON public.approval_requests FOR INSERT TO public
+--   WITH CHECK (auth.uid() IS NOT NULL);
+--
+-- DROP POLICY IF EXISTS "Financial secretary can create approval requests" ON public.approval_requests;
+-- CREATE POLICY "Financial secretary can create approval requests"
+--   ON public.approval_requests FOR INSERT TO authenticated
+--   WITH CHECK ((get_my_role_name() = ANY (ARRAY['super_admin'::text, 'chairman'::text, 'vice_chairman'::text, 'financial_officer'::text])) AND (requested_by = auth.uid()));
+--
+-- -- ---- generated_reports --------------------------------------------------
+-- DROP POLICY IF EXISTS "Authenticated users can insert generated reports" ON public.generated_reports;
+-- CREATE POLICY "Authenticated users can insert generated reports"
+--   ON public.generated_reports FOR INSERT TO authenticated
+--   WITH CHECK (true);
+--
+-- DROP POLICY IF EXISTS "generated_reports_insert" ON public.generated_reports;
+-- CREATE POLICY "generated_reports_insert"
+--   ON public.generated_reports FOR INSERT TO public
+--   WITH CHECK (true);
+--
+-- COMMIT;
+-- ============================================================================
+
+BEGIN;
+
+-- ---------------------------------------------------------------------------
+-- estate_bank_accounts
+-- ---------------------------------------------------------------------------
+-- (A) The dead is_active filter. "All authenticated can view active bank
+-- accounts" reads (is_active = true OR finance role), but this policy ORs an
+-- unconditional `auth.role() = 'authenticated'` alongside it, so the filter
+-- constrains nothing and every approved authenticated user reads deactivated
+-- bank accounts -- account numbers included. Dropped with no replacement: the
+-- surviving pair (the is_active/finance SELECT policy, ANDed with the
+-- RESTRICTIVE "Approved accounts only can read") is the intended rule, and it
+-- still lets residents read ACTIVE accounts in order to pay.
+DROP POLICY IF EXISTS "Authenticated users can view bank accounts" ON public.estate_bank_accounts;
+
+-- (D) Pure duplicate. get_my_role_name() = 'super_admin' is a strict subset of
+-- the surviving "Admins chairmen fin sec can manage bank accounts", whose array
+-- contains 'super_admin'. Same command, same grantee (both TO public), neither
+-- declaring WITH CHECK. Net-zero for every role; see the header for why that
+-- holds for `anon` too.
+DROP POLICY IF EXISTS "Admin can manage bank accounts" ON public.estate_bank_accounts;
+
+-- ---------------------------------------------------------------------------
+-- approval_requests
+-- ---------------------------------------------------------------------------
+-- (B) Three exact twins, differing from their survivors only in name and in
+-- `TO public` vs `TO authenticated`. The `TO public` half is dropped in each
+-- case. The missing WITH CHECK on the dropped UPDATE twin is not a defect and
+-- is not being corrected here: Postgres applies USING to new rows when WITH
+-- CHECK is absent, and the predicate is row-independent regardless.
+DROP POLICY IF EXISTS "Admins and chairmen can view all approval requests" ON public.approval_requests;
+DROP POLICY IF EXISTS "Users can view own approval requests" ON public.approval_requests;
+DROP POLICY IF EXISTS "Admins and chairmen can update approval requests" ON public.approval_requests;
+
+-- (E) The open INSERT. WITH CHECK (auth.uid() IS NOT NULL) let any
+-- authenticated caller insert an approval request attributed to ANYONE, and
+-- subsumed the finance-scoped policy beside it completely. Both are replaced by
+-- a single ownership-scoped policy: a caller may only file a request in their
+-- own name. The finance-scoped policy is dropped rather than kept because it
+-- becomes a strict subset of the new one (role AND own-uid is contained by
+-- own-uid), which is the same redundancy this migration exists to remove --
+-- and because it is too narrow to stand alone, per the header.
+DROP POLICY IF EXISTS "Authenticated users can create approval requests" ON public.approval_requests;
+DROP POLICY IF EXISTS "Financial secretary can create approval requests" ON public.approval_requests;
+DROP POLICY IF EXISTS "Users can create their own approval requests" ON public.approval_requests;
+CREATE POLICY "Users can create their own approval requests"
+  ON public.approval_requests FOR INSERT TO authenticated
+  WITH CHECK (requested_by = auth.uid());
+
+-- ---------------------------------------------------------------------------
+-- generated_reports
+-- ---------------------------------------------------------------------------
+-- (C) Two INSERT policies, both WITH CHECK (true), on a table whose SELECT
+-- requires reports.view_financial and whose DELETE requires
+-- reports.manage_schedules. Any authenticated caller could write arbitrary rows
+-- into it. The unnamed-convention twin is dropped outright and the canonical
+-- generated_reports_insert is rewritten to require the same permission its
+-- SELECT sibling already requires. The scheduled/cron writer is unaffected: it
+-- holds the service-role key and bypasses RLS (report-schedules.ts:377-379).
+DROP POLICY IF EXISTS "Authenticated users can insert generated reports" ON public.generated_reports;
+
+DROP POLICY IF EXISTS "generated_reports_insert" ON public.generated_reports;
+CREATE POLICY "generated_reports_insert"
+  ON public.generated_reports FOR INSERT TO authenticated
+  WITH CHECK (has_permission('reports.view_financial'));
+
+COMMIT;

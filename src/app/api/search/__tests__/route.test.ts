@@ -186,3 +186,191 @@ describe('GET /api/search authorization and permission scoping', () => {
     expect(from).toHaveBeenCalledWith('documents');
   });
 });
+
+/**
+ * Coverage for issue #115:
+ *
+ * - the payments segment only ever matched `reference_number`, so searching
+ *   a resident's NAME (what the QA report actually tried -- "Stella",
+ *   "Akintunde", "Kayode") returned nothing even though that resident had
+ *   payments;
+ * - the houses segment never queried `short_name` (the "House ID" rendered
+ *   on /houses), so a value like "IBB-1" never matched, while `house_number`
+ *   ("18A") and street-name search kept working.
+ *
+ * The fix widens the payments query with a second pass keyed on resident_id
+ * (mirroring the existing streets-widen-houses pattern), gated by
+ * `canViewPayments` alone -- NOT `canViewResidents`. A caller holding only
+ * payments.view already sees resident first/last name today on the payment
+ * detail page (`src/actions/payments/get-payment.ts` joins `residents`
+ * unconditionally, gated only by the page-level payments.view check), so
+ * this widening query grants no new visibility and needs no new permission.
+ */
+describe('GET /api/search payments-by-resident and house short_name (#115)', () => {
+  beforeEach(() => {
+    getCurrentUserPermissions.mockReset();
+    createServerSupabaseClient.mockReset();
+  });
+
+  it('matches a payment by its resident\'s name, gated by payments.view alone (no residents.view)', async () => {
+    getCurrentUserPermissions.mockResolvedValue({
+      userId: 'user-1',
+      // payments.view ONLY -- proves the resident-name widening query needs
+      // no residents.view permission.
+      permissions: [PERMISSIONS.PAYMENTS_VIEW],
+    });
+
+    const residentsWidenBuilder = makeBuilder({
+      data: [{ id: 'resident-1', first_name: 'Stella', last_name: 'Akintunde' }],
+      error: null,
+    });
+    // First call to payment_records is the reference_number pass (no match);
+    // second is the resident_id-widened pass (the actual match).
+    const paymentsByReferenceBuilder = makeBuilder({ data: [], error: null });
+    const paymentsByResidentBuilder = makeBuilder({
+      data: [{ id: 'payment-1', reference_number: 'REF-9', amount: 15000, resident_id: 'resident-1' }],
+      error: null,
+    });
+    const searchLogsBuilder = makeBuilder();
+
+    let paymentRecordsCalls = 0;
+    const from = vi.fn((table: string) => {
+      if (table === 'residents') return residentsWidenBuilder;
+      if (table === 'payment_records') {
+        paymentRecordsCalls += 1;
+        return paymentRecordsCalls === 1 ? paymentsByReferenceBuilder : paymentsByResidentBuilder;
+      }
+      if (table === 'search_logs') return searchLogsBuilder;
+      throw new Error(`Unexpected query against '${table}' for a caller with only payments.view`);
+    });
+    createServerSupabaseClient.mockResolvedValue({ from });
+
+    const response = await GET(request('Stella'));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.payments).toHaveLength(1);
+    expect(body.payments[0]).toMatchObject({
+      id: 'payment-1',
+      reference_number: 'REF-9',
+      amount: 15000,
+    });
+    expect(body.payments[0]._score).toBeGreaterThan(0);
+    // resident_id was selected only to score/match -- it must not leak into
+    // the response the client renders.
+    expect(body.payments[0]).not.toHaveProperty('resident_id');
+
+    // residents.view was never granted, so the (permission-scoped)
+    // top-level residents result stays empty even though the widening query
+    // against 'residents' did run.
+    expect(body.residents).toEqual([]);
+  });
+
+  it('still matches a payment by reference_number (the pre-existing behaviour)', async () => {
+    getCurrentUserPermissions.mockResolvedValue({
+      userId: 'user-1',
+      permissions: [PERMISSIONS.PAYMENTS_VIEW],
+    });
+
+    const residentsWidenBuilder = makeBuilder({ data: [], error: null }); // no resident-name match
+    const paymentsByReferenceBuilder = makeBuilder({
+      data: [{ id: 'payment-2', reference_number: 'PSK-REF-42', amount: 7500, resident_id: 'resident-9' }],
+      error: null,
+    });
+    const searchLogsBuilder = makeBuilder();
+
+    const from = vi.fn((table: string) => {
+      if (table === 'residents') return residentsWidenBuilder;
+      // With no matching resident ids, the resident-widened pass is never
+      // issued -- payment_records is called exactly once.
+      if (table === 'payment_records') return paymentsByReferenceBuilder;
+      if (table === 'search_logs') return searchLogsBuilder;
+      throw new Error(`Unexpected query against '${table}'`);
+    });
+    createServerSupabaseClient.mockResolvedValue({ from });
+
+    const response = await GET(request('PSK-REF-42'));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.payments).toHaveLength(1);
+    expect(body.payments[0]).toMatchObject({
+      id: 'payment-2',
+      reference_number: 'PSK-REF-42',
+      amount: 7500,
+    });
+  });
+
+  it('matches a house by short_name, alongside the existing house_number and street matches', async () => {
+    getCurrentUserPermissions.mockResolvedValue({
+      userId: 'user-1',
+      permissions: [PERMISSIONS.HOUSES_VIEW],
+    });
+
+    const housesByNumberBuilder = makeBuilder({
+      data: [{ id: 'house-1', house_number: '18A', short_name: 'IBB-1', street_id: 'street-1', streets: { name: 'Ibadan Street' } }],
+      error: null,
+    });
+    const streetsBuilder = makeBuilder({ data: [], error: null }); // no street-name match
+    const searchLogsBuilder = makeBuilder();
+
+    const from = vi.fn((table: string) => {
+      if (table === 'houses') return housesByNumberBuilder;
+      if (table === 'streets') return streetsBuilder;
+      if (table === 'search_logs') return searchLogsBuilder;
+      throw new Error(`Unexpected query against '${table}' for a caller with only houses.view`);
+    });
+    createServerSupabaseClient.mockResolvedValue({ from });
+
+    const response = await GET(request('IBB-1'));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.houses).toHaveLength(1);
+    expect(body.houses[0]).toMatchObject({
+      id: 'house-1',
+      house_number: '18A',
+      street_name: 'Ibadan Street',
+    });
+    expect(body.houses[0]._score).toBeGreaterThan(0);
+
+    // Confirms the query itself now filters on short_name, not just
+    // house_number -- the previous `.ilike('house_number', ...)` call is
+    // gone in favour of an `.or()` covering both columns.
+    expect(housesByNumberBuilder.or).toHaveBeenCalledWith(
+      expect.stringContaining('short_name.ilike.%IBB-1%')
+    );
+  });
+
+  it('a caller lacking payments.view gets an empty payments array and payment_records is never queried', async () => {
+    getCurrentUserPermissions.mockResolvedValue({
+      userId: 'user-1',
+      // No payments.view -- and no residents.view either, so the
+      // resident-name widening query (gated on payments.view) must not run.
+      permissions: [PERMISSIONS.HOUSES_VIEW],
+    });
+
+    const housesByNumberBuilder = makeBuilder({ data: [], error: null });
+    const streetsBuilder = makeBuilder({ data: [], error: null });
+    const searchLogsBuilder = makeBuilder();
+
+    const from = vi.fn((table: string) => {
+      if (table === 'houses') return housesByNumberBuilder;
+      if (table === 'streets') return streetsBuilder;
+      if (table === 'search_logs') return searchLogsBuilder;
+      // 'payment_records' and 'residents' must never be queried for a
+      // caller without payments.view -- this is the bug this test guards
+      // against.
+      throw new Error(`Unexpected query against '${table}' for a caller without payments.view`);
+    });
+    createServerSupabaseClient.mockResolvedValue({ from });
+
+    const response = await GET(request('anything'));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.payments).toEqual([]);
+    expect(from).not.toHaveBeenCalledWith('payment_records');
+    expect(from).not.toHaveBeenCalledWith('residents');
+  });
+});

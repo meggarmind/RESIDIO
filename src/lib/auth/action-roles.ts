@@ -56,6 +56,10 @@ export const PERMISSIONS = {
   BILLING_CREATE_INVOICE: 'billing.create_invoice',
   BILLING_VOID_INVOICE: 'billing.void_invoice',
   BILLING_MANAGE_PROFILES: 'billing.manage_profiles',
+  // Writing the historical rate schedule. Held apart from manage_profiles: a
+  // version with a past effective_from decides what a backfilled invoice
+  // charges, and those invoice numbers are permanent.
+  BILLING_MANAGE_PROFILE_VERSIONS: 'billing.manage_profile_versions',
   BILLING_APPLY_LATE_FEES: 'billing.apply_late_fees',
   BILLING_MANAGE_WALLETS: 'billing.manage_wallets',
   BILLING_REQUEST_LATE_FEE_WAIVER: 'billing.request_late_fee_waiver',

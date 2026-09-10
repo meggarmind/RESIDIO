@@ -208,6 +208,9 @@ export function ImportResults({ result, onStartOver }: ImportResultsProps) {
                 {result.reconciliation.unmatchedCredits > 0 && result.reconciliation.unmatchedDebits > 0 && ','}
                 {result.reconciliation.unmatchedDebits > 0 && ` ${result.reconciliation.unmatchedDebits} debit(s)`}
               </span>
+              <Button variant="link" size="sm" className="h-auto p-0" asChild>
+                <Link href={`/payments/import/${result.import_id}`}>Review rows</Link>
+              </Button>
             </div>
           )}
         </div>

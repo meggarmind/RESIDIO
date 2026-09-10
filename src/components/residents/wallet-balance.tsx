@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useWallet, useWalletTransactions } from '@/hooks/use-wallet';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { formatCurrency } from '@/lib/utils';
 import { Wallet, Plus, TrendingUp, TrendingDown } from 'lucide-react';
 import { WalletAdjustmentDialog } from './wallet-adjustment-dialog';
@@ -18,6 +20,13 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
   const [isAdjustmentDialogOpen, setIsAdjustmentDialogOpen] = useState(false);
   const { data: walletData, isLoading: walletLoading } = useWallet(residentId);
   const { data: transactionsData } = useWalletTransactions(residentId, 1000);
+
+  // CORE.md s6: a write control is gated on the WRITE permission, never on the
+  // route's view permission. A viewer without `billing.manage_wallets` still
+  // sees the balance, but gets no adjustment affordance.
+  const { hasPermission } = useAuth();
+  const canAdjustWallet = hasPermission(PERMISSIONS.BILLING_MANAGE_WALLETS);
+  const canShowAdjustment = showActions && canAdjustWallet;
 
   if (walletLoading) {
     return (
@@ -66,7 +75,7 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
               </CardTitle>
               <CardDescription className="text-xs">Resident payment wallet</CardDescription>
             </div>
-            {showActions && (
+            {canShowAdjustment && (
               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setIsAdjustmentDialogOpen(true)}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
                 Adjust
@@ -108,13 +117,15 @@ export function WalletBalance({ residentId, showActions = true }: WalletBalanceP
         </CardContent>
       </Card>
 
-      {/* Adjustment Dialog */}
-      <WalletAdjustmentDialog
-        residentId={residentId}
-        currentBalance={balance}
-        open={isAdjustmentDialogOpen}
-        onOpenChange={setIsAdjustmentDialogOpen}
-      />
+      {/* Adjustment Dialog -- mounted only for holders of billing.manage_wallets */}
+      {canShowAdjustment && (
+        <WalletAdjustmentDialog
+          residentId={residentId}
+          currentBalance={balance}
+          open={isAdjustmentDialogOpen}
+          onOpenChange={setIsAdjustmentDialogOpen}
+        />
+      )}
     </>
   );
 }

@@ -3,12 +3,14 @@
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import {
+  describeVersionFallback,
   InvoiceGenerationRequestSchema,
   resolveBillableCandidates,
   resolveInvoiceGenerationEligibility,
   type BillingProfileVersion,
   type GenerationHouse,
   type GenerationProfile,
+  type VersionFallbackWarning,
 } from '@/lib/billing/invoice-generation';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -34,6 +36,11 @@ export interface GeneratePreviewResult {
   success: boolean;
   preview: PreviewInvoiceItem[];
   skipList: Array<{ house: string; reason: string }>;
+  /**
+   * Periods priced by the earliest-version fallback rather than a version that
+   * was genuinely effective. Surfaced, never fatal -- see #242.
+   */
+  versionFallbacks: VersionFallbackWarning[];
   summary: {
     totalHouses: number;
     eligibleHouses: number;
@@ -51,6 +58,7 @@ const emptyResult = (error: string | null = null): GeneratePreviewResult => ({
   success: !error,
   preview: [],
   skipList: [],
+  versionFallbacks: [],
   summary: { totalHouses: 0, eligibleHouses: 0, totalResidents: 0, newInvoices: 0, existingInvoices: 0, totalAmount: 0, totalWalletDeductions: 0, warnings: [] },
   error,
 });
@@ -180,6 +188,7 @@ export async function generateInvoicesPreview(
       success: true,
       preview,
       skipList: resolution.skips.map(({ house, reason }) => ({ house, reason })),
+      versionFallbacks: resolution.versionFallbacks,
       summary: {
         totalHouses: houses?.length || 0,
         eligibleHouses: new Set(preview.map((item) => item.houseId)).size,
@@ -189,6 +198,7 @@ export async function generateInvoicesPreview(
         totalAmount: newInvoices.reduce((sum, item) => sum + item.amount, 0),
          totalWalletDeductions: request.walletAllocation ? newInvoices.reduce((sum, item) => sum + Math.min(item.amount, item.walletBalance), 0) : 0,
          warnings: [
+           ...resolution.versionFallbacks.map(describeVersionFallback),
            ...resolution.skips.map(({ house, reason }) => `${house}: ${reason}`),
            ...(request.mode === 'backfill' && !request.walletAllocation ? ['Wallet allocation is disabled for this backfill.'] : []),
            ...(request.mode === 'backfill' && !request.sendEmails ? ['Invoice emails are disabled for this backfill.'] : []),

@@ -7,8 +7,8 @@ residio_sources:
   - src/app/(dashboard)/dashboard/**
   - src/components/dashboard/**
   - src/actions/dashboard/**
-residio_verified_commit: 5590715
-residio_verified_at: '2026-08-30'
+residio_verified_commit: f3b16177
+residio_verified_at: '2026-09-08'
 residio_app_version: '0.4.0'
 ---
 
@@ -30,7 +30,9 @@ The dashboard is your operating picture for the estate. Start here before openin
 2. **Action Needed:** open approvals when the count is non-zero. This is the fastest way to find blocked work.
 3. **Financial Health:** scan outstanding, overdue, monthly revenue, and wallet credit values.
 4. **Payments Traffic:** use the status counts to decide whether to inspect billing or payments.
-5. **Audit Pulse:** confirm recent changes are expected and traceable.
+5. **Recent activity:** confirm recent changes are expected and traceable. If your role cannot
+   view audit logs, this card says so rather than showing an empty list — ask an administrator
+   for the "view audit logs" permission if you need it.
 
 :::tip[Daily habit]
 Use the dashboard as a queue, not a report. Resolve the highest-risk exception first, then refresh before starting the next task.

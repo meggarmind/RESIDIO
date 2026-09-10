@@ -2,7 +2,7 @@
 
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
-import type { House } from '@/types/database';
+import type { HouseWithStreet } from '@/types/database';
 import type { HouseFormData } from '@/lib/validators/house';
 import { generateLeviesForHouse } from '@/actions/billing/generate-levies';
 import { authorizePermission } from '@/lib/auth/authorize';
@@ -10,7 +10,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 
 type CreateHouseResponse = {
-  data: House | null;
+  data: HouseWithStreet | null;
   error: string | null;
 }
 
@@ -39,9 +39,17 @@ export async function createHouse(formData: HouseFormData): Promise<CreateHouseR
       notes: formData.notes || null,
       billing_profile_id: formData.billing_profile_id || null,
       number_of_plots: formData.number_of_plots ?? 1,
+      // Issue #119: the recorded identifier is kept verbatim; the doubt about
+      // it rides alongside as an explicit field.
+      identifier_unverified: formData.identifier_unverified ?? false,
+      identifier_note: formData.identifier_note || null,
       created_by: user.id,
     })
-    .select()
+    .select(`
+      *,
+      street:streets(*),
+      house_type:house_types(*)
+    `)
     .single();
 
   if (error) {
@@ -96,10 +104,12 @@ export async function createHouse(formData: HouseFormData): Promise<CreateHouseR
       short_name: formData.short_name,
       billing_profile_id: formData.billing_profile_id,
       number_of_plots: formData.number_of_plots,
+      identifier_unverified: formData.identifier_unverified ?? false,
+      identifier_note: formData.identifier_note || null,
     },
     description: `Created house ${data.house_number}`,
   });
 
   revalidatePath('/houses');
-  return { data, error: null };
+  return { data: data as HouseWithStreet, error: null };
 }

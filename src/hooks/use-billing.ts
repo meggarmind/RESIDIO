@@ -12,6 +12,15 @@ import {
     duplicateBillingProfile,
     BillingProfileData,
 } from '@/actions/billing/profiles';
+import {
+    listBillingProfileVersions,
+    createBillingProfileVersion,
+    updateBillingProfileVersion,
+} from '@/actions/billing/profile-versions';
+import type {
+    BillingProfileVersionData,
+    BillingProfileVersionUpdateData,
+} from '@/lib/validators/billing';
 import { getInvoices, getInvoiceSummary, getResidentIndebtedness, getHousePaymentStatus, getResidentCrossPropertyPaymentSummary } from '@/actions/billing/get-invoices';
 import { generateMonthlyInvoices } from '@/actions/billing/generate-invoices';
 import {
@@ -447,7 +456,7 @@ export function useDevelopmentLevyProfiles() {
 }
 
 // Overdue Invoices Hooks
-import { checkOverdueInvoices, getOverdueStats } from '@/actions/billing/check-overdue-invoices';
+import { checkOverdueInvoices, getOverdueInvoiceAging, getOverdueStats } from '@/actions/billing/check-overdue-invoices';
 import { applyLateFees, getLateFeeHistory, getLateFeeSettings } from '@/actions/billing/apply-late-fees';
 import {
     getLateFeeWaivers,
@@ -463,6 +472,17 @@ export function useOverdueStats() {
         queryKey: ['overdue-stats'],
         queryFn: async () => {
             const result = await getOverdueStats();
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+    });
+}
+
+export function useOverdueInvoiceAging() {
+    return useQuery({
+        queryKey: ['overdue-invoice-aging'],
+        queryFn: async () => {
+            const result = await getOverdueInvoiceAging();
             if (result.error) throw new Error(result.error);
             return result.data;
         },
@@ -738,6 +758,61 @@ export function useLateFeeSettings() {
         queryKey: ['late-fee-settings'],
         queryFn: async () => {
             return await getLateFeeSettings();
+        },
+    });
+}
+
+// =====================================================
+// Billing profile versions (historical rate schedule, #242)
+// =====================================================
+
+export function useBillingProfileVersions(profileId: string | undefined) {
+    return useQuery({
+        queryKey: ['billing-profile-versions', profileId],
+        queryFn: async () => {
+            const result = await listBillingProfileVersions(profileId!);
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        enabled: Boolean(profileId),
+        staleTime: POLLING_INTERVALS.BACKGROUND,
+    });
+}
+
+export function useCreateBillingProfileVersion() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (data: BillingProfileVersionData) => {
+            const result = await createBillingProfileVersion(data);
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        onSuccess: (_data, variables) => {
+            toast.success(`Rate version effective ${variables.effective_from.slice(0, 7)} created`);
+            queryClient.invalidateQueries({ queryKey: ['billing-profile-versions', variables.billing_profile_id] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to create rate version');
+        },
+    });
+}
+
+export function useUpdateBillingProfileVersion(profileId: string | undefined) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ id, data }: { id: string; data: BillingProfileVersionUpdateData }) => {
+            const result = await updateBillingProfileVersion(id, data);
+            if (result.error) throw new Error(result.error);
+            return result.data;
+        },
+        onSuccess: () => {
+            toast.success('Rate version updated');
+            queryClient.invalidateQueries({ queryKey: ['billing-profile-versions', profileId] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to update rate version');
         },
     });
 }

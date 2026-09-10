@@ -9,16 +9,10 @@ import type {
   ApprovalRequestType,
   ApprovalEntityType,
 } from '@/types/database';
-import {
-  createBankAccountDirect,
-  updateBankAccountDirect,
-  deleteBankAccountDirect,
-} from '@/actions/imports/bank-accounts';
-import { allocateWalletToInvoices } from '@/actions/billing/wallet';
-import { logAudit } from '@/lib/audit/logger';
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 
 // Response types
 interface GetApprovalRequestsResponse {
@@ -233,6 +227,15 @@ export async function approveRequest(
     return { success: false, error: updateError.message };
   }
 
+  await logAudit({
+    action: 'APPROVE',
+    entityType: 'approval_requests',
+    entityId: requestId,
+    entityDisplay: `${request.request_type} approval request`,
+    oldValues: { status: request.status },
+    newValues: { status: 'approved', reviewed_by: auth.userId, review_notes: notes || null },
+  });
+
   return { success: true, error: null };
 }
 
@@ -280,6 +283,15 @@ export async function rejectRequest(
     return { success: false, error: updateError.message };
   }
 
+  await logAudit({
+    action: 'REJECT',
+    entityType: 'approval_requests',
+    entityId: requestId,
+    entityDisplay: `${request.request_type} approval request`,
+    oldValues: { status: request.status },
+    newValues: { status: 'rejected', reviewed_by: auth.userId, review_notes: notes || null },
+  });
+
   return { success: true, error: null };
 }
 
@@ -317,98 +329,11 @@ async function applyRequestedChanges(request: ApprovalRequest): Promise<Approval
     if (error) {
       return { success: false, error: `Failed to update house: ${error.message}` };
     }
-  } else if (request.request_type === 'bank_account_create') {
-    // Create a new bank account
-    const changes = request.requested_changes as {
-      account_number: string;
-      account_name: string;
-      bank_name: string;
-      description?: string | null;
-      is_active?: boolean;
+  } else {
+    return {
+      success: false,
+      error: `Unhandled approval request type: ${request.request_type}`,
     };
-
-    const result = await createBankAccountDirect(changes, request.id);
-    if (result.error) {
-      return { success: false, error: `Failed to create bank account: ${result.error}` };
-    }
-
-    // Update the approval request with the actual entity_id
-    if (result.data) {
-      await supabase
-        .from('approval_requests')
-        .update({ entity_id: result.data.id })
-        .eq('id', request.id);
-    }
-  } else if (request.request_type === 'bank_account_update') {
-    // Update an existing bank account
-    const changes = request.requested_changes as {
-      account_number?: string;
-      account_name?: string;
-      bank_name?: string;
-      description?: string | null;
-      is_active?: boolean;
-    };
-
-    const result = await updateBankAccountDirect(request.entity_id, changes, request.id);
-    if (result.error) {
-      return { success: false, error: `Failed to update bank account: ${result.error}` };
-    }
-  } else if (request.request_type === 'bank_account_delete') {
-    // Delete (or deactivate) a bank account
-    const result = await deleteBankAccountDirect(request.entity_id, request.id);
-    if (result.error) {
-      return { success: false, error: `Failed to delete bank account: ${result.error}` };
-    }
-  } else if (request.request_type === 'manual_payment_verification') {
-    // 1. Update payment record status
-    const { error: paymentError } = await supabase
-      .from('payment_records')
-      .update({
-        status: 'paid',
-        is_verified: true,
-        verified_at: new Date().toISOString(),
-        verified_by: request.reviewed_by, // This will be set by the caller after this function returns, but we can set it here if we want or let the main action do it.
-        // Wait, Reviewed_by is set in approveRequest AFTER applyRequestedChanges.
-        // So we should use auth.uid() or pass it in.
-      })
-      .eq('id', request.entity_id);
-
-    if (paymentError) {
-      return { success: false, error: `Failed to update payment record: ${paymentError.message}` };
-    }
-
-    // Get payment details for wallet credit
-    const { data: payment } = await supabase
-      .from('payment_records')
-      .select('*')
-      .eq('id', request.entity_id)
-      .single();
-
-    if (!payment) {
-      return { success: false, error: 'Payment record not found' };
-    }
-
-    // 2. Credit and eligible invoice allocation share the atomic settlement RPC.
-    await allocateWalletToInvoices(
-      payment.resident_id,
-      payment.house_id,
-      new Date(payment.payment_date).toISOString().slice(0, 10),
-      {
-        sourcePaymentId: payment.id,
-        batchAmount: payment.amount,
-        batchType: 'payment_received',
-        creditAmount: payment.amount,
-      },
-    );
-
-    // 4. Audit Log
-    await logAudit({
-      action: 'APPROVE',
-      entityType: 'payments',
-      entityId: payment.id,
-      entityDisplay: `Manual Payment Approved: ₦${payment.amount.toLocaleString()}`,
-      newValues: { status: 'paid', verified: true },
-    });
   }
 
   return { success: true, error: null };

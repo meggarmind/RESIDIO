@@ -10,8 +10,9 @@
   "defaultLane": "codex",
   "branchPrefixes": {
     "codex": "codex/issue-",
-    "claude": "feat/issue-",
-    "opencode": "opencode/issue-"
+    "claude": "claude/issue-",
+    "opencode": "opencode/issue-",
+    "fix": "fix/issue-"
   },
   "statusField": "Status",
   "statuses": {
