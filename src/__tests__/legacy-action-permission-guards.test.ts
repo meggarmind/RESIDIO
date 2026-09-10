@@ -367,7 +367,7 @@ describe('Part 4: report page RBAC gates (not covered by module-integration.test
 describe('Part 5: legacy role queries migrated to RBAC vocabulary', () => {
   it('get-staff.ts filters by app_roles.name, not the legacy profiles.role column', () => {
     expect(getStaffSource).not.toMatch(/\.in\(\s*'role'/);
-    expect(getStaffSource).toContain("app_roles!inner(name)");
+    expect(getStaffSource).toContain("app_roles!profiles_role_id_fkey!inner(name)");
     expect(getStaffSource).toMatch(/\.in\(\s*'app_roles\.name',\s*\[\s*'super_admin',\s*'chairman'\s*\]\s*\)/);
   });
 

@@ -7,7 +7,7 @@ export async function getStaff() {
 
     const { data, error } = await supabase
         .from('profiles')
-        .select('*, app_roles!inner(name)')
+        .select('*, app_roles!profiles_role_id_fkey!inner(name)')
         .in('app_roles.name', ['super_admin', 'chairman'])
         .order('full_name');
 
