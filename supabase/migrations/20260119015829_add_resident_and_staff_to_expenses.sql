@@ -1,0 +1,3 @@
+ALTER TABLE expenses
+ADD COLUMN IF NOT EXISTS resident_id UUID REFERENCES residents(id),
+ADD COLUMN IF NOT EXISTS staff_id UUID REFERENCES profiles(id);
