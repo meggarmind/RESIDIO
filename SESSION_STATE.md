@@ -9,7 +9,98 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Current session (Codex, 2026-09-10 — #372 staff role embed)
+## Current session (Claude Code, 2026-09-18 — **migration drift checker fixed; PRs #375 #376 open, neither merged**)
+
+**Tool:** Claude Code, coordinator posture. **No migration was written and none was applied.**
+Nothing merged to `master`; the user does the merging.
+
+### What shipped — both open, neither merged
+
+| PR | Branch | What |
+| --- | --- | --- |
+| #375 | `claude/issue-374-drift-name-matching` | fixes #374 — drift checker identity comparison |
+| #376 | `chore/npm-allow-scripts` | commits the npm 11 `allowScripts` block found dirty on `master` |
+
+### The daily red `migration-drift` build was a false alarm — and the real number is worse
+
+`migration-drift` had failed on `master` daily since at least 2026-09-16 reporting
+`155 applied-without-file, 94 file-without-applied`. **The 94 was not real.** The script compared
+by version prefix only; migrations applied under a *rewritten* version (disk
+`20260813160000_add_invoice_generation_run_claims.sql` is recorded as version `20260815055719`)
+were counted **twice**, once in each direction.
+
+Fixed in #375 by matching **one-to-one** — greedy version pass, then name pass over the remainder.
+
+**Verified figures, from running the committed code against the live database, confirmed by PR
+#375's own CI: `69 applied-without-file, 8 file-without-applied` = 77 genuine items.**
+
+> **Three predictions were made before measuring, and all three were wrong** (`66/0`, `66/6`,
+> `67/8`). The multiplicity interactions — one applied-side name collision plus two
+> duplicate-version groups — are not derivable by hand. **Measure this, never calculate it.**
+
+### Do not re-litigate these
+
+1. **#375 merging does NOT turn the build green.** 77 items of real drift remain and the workflow
+   is blocking. That is the checker working. Filed as **#377**.
+2. **Do not "fix" #377 by applying the 8 unapplied files.** Six of them are *already in effect* —
+   all four `permission_category` enum values they add (`finance`, `projects`, `email_imports`,
+   `notes`) are present, subsumed by the applied `seed_missing_permission_catalog`. They need
+   **ledger entries reconciled, not re-running.** Re-running them is the destructive reading.
+3. **Two genuinely-unapplied migrations were found that nobody knew existed**: `20260813091000`
+   `revoke_anon_invoice_generation_rpc` and `20260813092000`
+   `harden_invoice_generation_rpc_authorization`. The pre-fix matching silently paired them with
+   their same-named siblings. Both touch invoice-generation RPC authorization — **`CORE.md` §11
+   point 3 applies: check open issues before applying either.**
+
+### QA found the defect in the spec, not the code
+
+The rule "match on version OR name" — written by the coordinator into #374's brief — was **lossy**.
+Set-membership let one applied row cover several disk files sharing a name, masking the two
+migrations above. QA graded PASS WITH NOTES (15 mutations, 11 caught, plus a 20,000-case fuzz
+finding zero direction asymmetries); the defect went back and was fixed with one-to-one pairing.
+
+**Three mutations survived the first round**, all at the I/O boundary — most seriously, reverting
+`MANAGEMENT_API_QUERY` to `select version` alone undid the entire fix with a **green suite**. Now
+caught; re-verified by the coordinator by hand, not relayed. Same failure mode `CORE.md` §15 warns
+is this repo's recurring one.
+
+### Environment traps hit this session
+
+- **`jq` is not installed on this machine.** `docs/agents/project-board.md:124` documents the board
+  commands piping through `jq`; they cannot work here as written. Use `gh`'s built-in `--jq`.
+- **The `gh` token lacked `read:project`/`project`** and could not set board Status. The user ran
+  `gh auth refresh -s project` mid-session; it now holds `gist, project, read:org, repo, workflow`.
+- **`gh project item-list --limit 200` silently truncates** — the board has 292 items. A reading of
+  "highest issue is #284" from that listing is an artifact, **not** evidence that
+  `add-issues-to-project.yml` is broken. It is not broken.
+- `gh` calls intermittently fail with `local error: tls: bad record MAC`. Retry; it succeeds.
+- `SUPABASE_ACCESS_TOKEN` is **not** in the Bash shell environment, so `scripts/migration-drift.mjs`
+  cannot be run end-to-end locally. The Supabase MCP works.
+- A Bash heredoc writing a ~200-line fixture failed with `unexpected EOF`; the Write tool worked.
+
+### Board
+
+#374 → **In review** (verified). #377 filed, attached to parent #262, left at its default column.
+Both carry `harness:claude`.
+
+### Next session
+
+- **#377 is the follow-on** and is briefed for a cold start: three groups needing *different*
+  treatment (8 unapplied files, 3 collision spares, ~66 missing files). It carries two decisions
+  the owner must make first — including whether Stage or the paused `Residio_Prod` is the target.
+- `Residio_Prod` (`miyeswqbwarvipdzwqnz`) exists, created 2026-09-07, **PAUSED**. The app and CI
+  both point at `Residio_Stage` (`kzugmyjjqttardhfejzc`). Do not assume Prod is a target;
+  `CORE.md` §10 guardrail 3 records that this exact inference was made and reversed once already.
+
+### Issues created versus closed (`CORE.md` §10 rule 5)
+
+**Created 2, closed 0 — net +2.** #374 (checker defect, PR open to close it) and #377 (the
+reconciliation it revealed). Both were filed because a blocking CI check was failing daily with
+nobody able to act on it; neither expands the frontier beyond making that check truthful.
+
+---
+
+## Last session (Codex, 2026-09-10 — #372 staff role embed)
 
 - Created and started #372 for the `/expenditure` failure: PostgREST `PGRST201` found both the
   profile role and app-role creator relationships. `getStaff()` now explicitly embeds
@@ -20,6 +111,10 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
   stopped and the generated stale lock was removed. No database change or migration was made.
 
 ## Last session (Claude Code, 2026-09-07 — **pilot set #104 #105 #106 #113: four PRs open, none merged**)
+
+> **Superseded 2026-09-18:** PRs #257–#260 have since merged — `gh pr list --state open` returns
+> **zero** open PRs as of that date. The heading above and the table below describe the state on
+> 2026-09-07 and are kept as the record of that session, not as current status.
 
 **Tool:** Claude Code, coordinator posture. Four issues taken as one wave. **No migration was
 written and none was applied — nothing is outstanding on that front.** Nothing merged to `master`;
