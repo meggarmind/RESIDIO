@@ -32,7 +32,10 @@ const migrationsDir = path.join(repoRoot, 'supabase', 'migrations');
 
 const ci = process.argv.includes('--ci');
 
-const MANAGEMENT_API_QUERY =
+// Exported so a test can assert this still selects `name`, not just `version` — a
+// revert to version-only selection here silently resurrects the pre-#374 double-
+// counting bug with a query the comparison logic would happily accept (#374 M1).
+export const MANAGEMENT_API_QUERY =
   'select version, name from supabase_migrations.schema_migrations order by version';
 
 /**
@@ -88,62 +91,92 @@ export function readLocalMigrations(dir) {
  * (`{ version, name }[]` from the database). No I/O — this is what the unit tests
  * exercise directly.
  *
- * A disk file and an applied row are the SAME migration when either their versions
- * match (the common case) OR their normalized names match (the rewritten-version
- * case — see `normalizeMigrationName`). Only when NEITHER matches is it real drift.
- * Matching on version alone — the pre-#374 behaviour — counted every
- * rewritten-version pair twice: once as "applied, no file" (its new version isn't
- * on disk) and once as "file, not applied" (its on-disk version isn't the one
- * recorded). Name-matching collapses that pair back into one non-drift entry.
+ * Matching is a ONE-TO-ONE PAIRING, not set membership (#374 follow-up, "D1"). An
+ * earlier version of this function matched by "does this version exist anywhere in
+ * the applied set OR does this name exist anywhere in the disk set" — set
+ * membership lets a single applied row satisfy arbitrarily many disk files (or
+ * vice versa) just because they share a normalized name. Verified live against the
+ * database: two unrelated pairs of disk files normalize to the same name apiece
+ * (`revoke_anon_invoice_generation_rpc`, `harden_invoice_generation_rpc_authorization`),
+ * each pair backed by only ONE applied row. Set-membership matching let that one
+ * applied row "cover" both files, silently hiding a genuinely unapplied migration
+ * in each pair — a false negative in a BLOCKING guard, worse than the
+ * over-reporting #283 built this script to fix.
+ *
+ * The pairing runs in two passes, each consuming what it matches so nothing is
+ * used twice:
+ *   1. VERSION pass (the stronger signal) — pair a disk version with an applied
+ *      row recording that exact version, if one is not already spoken for.
+ *   2. NAME pass, over whatever remains unconsumed on both sides — pair a
+ *      still-unmatched disk version with a still-unconsumed applied row sharing a
+ *      normalized name (the rewritten-version case; see `normalizeMigrationName`).
+ * Only a disk version left unmatched after both passes is real "file, not
+ * applied" drift; only an applied row left unconsumed after both passes is real
+ * "applied, no file" drift.
  *
  * Returns both directions of drift, plus any version with more than one file on disk.
  */
 export function compareMigrations(localByVersion, appliedEntries) {
-  const localVersions = new Set(localByVersion.keys());
+  const localVersions = [...localByVersion.keys()];
 
-  // Every disk filename's normalized name, both flattened (for "does this name
-  // exist anywhere on disk" lookups) and grouped by version (for "does this
-  // disk version's name match some applied row" lookups).
+  // Wrap each applied row with a `consumed` flag so a pass can claim it and take
+  // it out of consideration for every subsequent lookup — the mechanism that
+  // makes the pairing one-to-one instead of set membership.
+  const applied = appliedEntries.map((entry) => ({ ...entry, consumed: false }));
+
+  // Disk filenames' normalized names, grouped by version, for the name pass.
   const normalizedNamesByVersion = new Map();
-  const allDiskNormalizedNames = new Set();
   for (const [version, files] of localByVersion) {
-    const names = files.map(normalizeMigrationName);
-    normalizedNamesByVersion.set(version, names);
-    for (const name of names) allDiskNormalizedNames.add(name);
+    normalizedNamesByVersion.set(version, files.map(normalizeMigrationName));
   }
 
-  const appliedVersions = new Set(appliedEntries.map((e) => e.version));
-  const appliedNormalizedNames = new Set(
-    appliedEntries.filter((e) => e.name).map((e) => normalizeMigrationName(e.name)),
-  );
+  // Index of still-available applied rows by normalized name. Entries are
+  // removed from consideration via their own `consumed` flag, not by mutating
+  // this index, so a row consumed in the version pass is correctly invisible
+  // here even though it was indexed before that pass ran.
+  const appliedByName = new Map();
+  for (const entry of applied) {
+    if (!entry.name) continue;
+    const name = normalizeMigrationName(entry.name);
+    if (!appliedByName.has(name)) appliedByName.set(name, []);
+    appliedByName.get(name).push(entry);
+  }
 
-  // Applied-without-file: unmatched by version AND unmatched by name. Dedupe by
-  // version since two applied rows could theoretically share one (unexpected,
+  const matchedVersions = new Set();
+
+  // Pass 1 — version match. One applied row per disk version; first unconsumed
+  // row with that exact version wins (ties are not expected in practice).
+  for (const version of localVersions) {
+    const entry = applied.find((e) => !e.consumed && e.version === version);
+    if (entry) {
+      entry.consumed = true;
+      matchedVersions.add(version);
+    }
+  }
+
+  // Pass 2 — name match, over what pass 1 left unconsumed. One file's name
+  // matching is enough to clear the whole version (a duplicate-version group
+  // needs only one of its files accounted for), so stop at the first hit.
+  for (const version of localVersions) {
+    if (matchedVersions.has(version)) continue;
+    for (const name of normalizedNamesByVersion.get(version)) {
+      const candidates = appliedByName.get(name);
+      const entry = candidates && candidates.find((e) => !e.consumed);
+      if (entry) {
+        entry.consumed = true;
+        matchedVersions.add(version);
+        break;
+      }
+    }
+  }
+
+  const fileNotApplied = localVersions.filter((v) => !matchedVersions.has(v)).sort();
+
+  // Dedupe by version: two applied rows could theoretically share one (unexpected,
   // but harmless to collapse rather than double-report).
   const appliedNotOnDisk = [
-    ...new Set(
-      appliedEntries
-        .filter((e) => {
-          const matchesVersion = localVersions.has(e.version);
-          const matchesName = Boolean(e.name) && allDiskNormalizedNames.has(normalizeMigrationName(e.name));
-          return !matchesVersion && !matchesName;
-        })
-        .map((e) => e.version),
-    ),
+    ...new Set(applied.filter((e) => !e.consumed).map((e) => e.version)),
   ].sort();
-
-  // File-without-applied: mirror image, keyed by disk version. A version with
-  // multiple files (a duplicate) counts as applied if ANY of its files' names
-  // matches an applied row.
-  const fileNotApplied = [...localVersions]
-    .filter((version) => {
-      const matchesVersion = appliedVersions.has(version);
-      const matchesName = normalizedNamesByVersion
-        .get(version)
-        .some((name) => appliedNormalizedNames.has(name));
-      return !matchesVersion && !matchesName;
-    })
-    .sort();
 
   const duplicateVersions = [...localByVersion.entries()]
     .filter(([, files]) => files.length > 1)
@@ -155,6 +188,20 @@ export function compareMigrations(localByVersion, appliedEntries) {
 /** True when nothing diverges (duplicates are a warning, not drift on their own). */
 export function isClean(result) {
   return result.appliedNotOnDisk.length === 0 && result.fileNotApplied.length === 0;
+}
+
+/**
+ * Shapes one raw Management API row into `{ version, name }`. Pulled out as its
+ * own export so a test can assert `name` survives the trip — inlined in the
+ * fetch function, a mutation hardcoding `name: null` here would pass every
+ * existing test silently (#374 M14), since none of them exercised the mapping
+ * itself with a real name present.
+ */
+export function mapAppliedRow(row) {
+  return {
+    version: String(row.version),
+    name: row.name != null ? String(row.name) : null,
+  };
 }
 
 /** Fetches applied migrations as `{ version, name }`, never echoing the access token. */
@@ -193,10 +240,7 @@ async function fetchAppliedMigrations({ accessToken, projectRef }) {
     );
   }
 
-  return rows.map((row) => ({
-    version: String(row.version),
-    name: row.name != null ? String(row.name) : null,
-  }));
+  return rows.map(mapAppliedRow);
 }
 
 async function main() {
