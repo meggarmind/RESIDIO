@@ -33,7 +33,7 @@ const migrationsDir = path.join(repoRoot, 'supabase', 'migrations');
 const ci = process.argv.includes('--ci');
 
 const MANAGEMENT_API_QUERY =
-  'select version from supabase_migrations.schema_migrations order by version';
+  'select version, name from supabase_migrations.schema_migrations order by version';
 
 /**
  * The version is the leading timestamp of a migration filename — the same value
@@ -47,6 +47,21 @@ const MANAGEMENT_API_QUERY =
 export function versionOf(filename) {
   const match = /^(\d{8,})_/.exec(filename);
   return match ? match[1] : null;
+}
+
+/**
+ * Identity for matching a disk file to an applied row, once the leading timestamp
+ * is no longer trustworthy as a shared key (#374). Some migrations were applied
+ * under a REWRITTEN version — the database's `version` no longer equals the
+ * timestamp in the filename — while the recorded `name` still carries the
+ * original filename verbatim. Stripping the leading timestamp from both sides
+ * (and the disk-only `.sql` extension) collapses that pair to the same string
+ * even though their versions disagree. Comparing raw filenames without this
+ * strip would never match at all; comparing only by version (the old behaviour)
+ * double-counted every rewritten pair as drift in BOTH directions.
+ */
+export function normalizeMigrationName(identifier) {
+  return identifier.replace(/\.sql$/, '').replace(/^[0-9]{8,}_/, '');
 }
 
 /**
@@ -69,17 +84,67 @@ export function readLocalMigrations(dir) {
 }
 
 /**
- * Pure comparison: local (Map<version, filename[]>) vs. applied (version[] from the
- * database). No I/O — this is what the unit tests exercise directly.
+ * Pure comparison: local (Map<version, filename[]>) vs. applied
+ * (`{ version, name }[]` from the database). No I/O — this is what the unit tests
+ * exercise directly.
+ *
+ * A disk file and an applied row are the SAME migration when either their versions
+ * match (the common case) OR their normalized names match (the rewritten-version
+ * case — see `normalizeMigrationName`). Only when NEITHER matches is it real drift.
+ * Matching on version alone — the pre-#374 behaviour — counted every
+ * rewritten-version pair twice: once as "applied, no file" (its new version isn't
+ * on disk) and once as "file, not applied" (its on-disk version isn't the one
+ * recorded). Name-matching collapses that pair back into one non-drift entry.
  *
  * Returns both directions of drift, plus any version with more than one file on disk.
  */
-export function compareMigrations(localByVersion, appliedVersions) {
+export function compareMigrations(localByVersion, appliedEntries) {
   const localVersions = new Set(localByVersion.keys());
-  const appliedSet = new Set(appliedVersions);
 
-  const appliedNotOnDisk = [...appliedSet].filter((v) => !localVersions.has(v)).sort();
-  const fileNotApplied = [...localVersions].filter((v) => !appliedSet.has(v)).sort();
+  // Every disk filename's normalized name, both flattened (for "does this name
+  // exist anywhere on disk" lookups) and grouped by version (for "does this
+  // disk version's name match some applied row" lookups).
+  const normalizedNamesByVersion = new Map();
+  const allDiskNormalizedNames = new Set();
+  for (const [version, files] of localByVersion) {
+    const names = files.map(normalizeMigrationName);
+    normalizedNamesByVersion.set(version, names);
+    for (const name of names) allDiskNormalizedNames.add(name);
+  }
+
+  const appliedVersions = new Set(appliedEntries.map((e) => e.version));
+  const appliedNormalizedNames = new Set(
+    appliedEntries.filter((e) => e.name).map((e) => normalizeMigrationName(e.name)),
+  );
+
+  // Applied-without-file: unmatched by version AND unmatched by name. Dedupe by
+  // version since two applied rows could theoretically share one (unexpected,
+  // but harmless to collapse rather than double-report).
+  const appliedNotOnDisk = [
+    ...new Set(
+      appliedEntries
+        .filter((e) => {
+          const matchesVersion = localVersions.has(e.version);
+          const matchesName = Boolean(e.name) && allDiskNormalizedNames.has(normalizeMigrationName(e.name));
+          return !matchesVersion && !matchesName;
+        })
+        .map((e) => e.version),
+    ),
+  ].sort();
+
+  // File-without-applied: mirror image, keyed by disk version. A version with
+  // multiple files (a duplicate) counts as applied if ANY of its files' names
+  // matches an applied row.
+  const fileNotApplied = [...localVersions]
+    .filter((version) => {
+      const matchesVersion = appliedVersions.has(version);
+      const matchesName = normalizedNamesByVersion
+        .get(version)
+        .some((name) => appliedNormalizedNames.has(name));
+      return !matchesVersion && !matchesName;
+    })
+    .sort();
+
   const duplicateVersions = [...localByVersion.entries()]
     .filter(([, files]) => files.length > 1)
     .sort(([a], [b]) => a.localeCompare(b));
@@ -92,7 +157,8 @@ export function isClean(result) {
   return result.appliedNotOnDisk.length === 0 && result.fileNotApplied.length === 0;
 }
 
-async function fetchAppliedVersions({ accessToken, projectRef }) {
+/** Fetches applied migrations as `{ version, name }`, never echoing the access token. */
+async function fetchAppliedMigrations({ accessToken, projectRef }) {
   const url = `https://api.supabase.com/v1/projects/${projectRef}/database/query`;
 
   let response;
@@ -127,7 +193,10 @@ async function fetchAppliedVersions({ accessToken, projectRef }) {
     );
   }
 
-  return rows.map((row) => String(row.version));
+  return rows.map((row) => ({
+    version: String(row.version),
+    name: row.name != null ? String(row.name) : null,
+  }));
 }
 
 async function main() {
@@ -154,20 +223,20 @@ async function main() {
 
   const localByVersion = readLocalMigrations(migrationsDir);
 
-  let appliedVersions;
+  let appliedMigrations;
   try {
-    appliedVersions = await fetchAppliedVersions({ accessToken, projectRef });
+    appliedMigrations = await fetchAppliedMigrations({ accessToken, projectRef });
   } catch (error) {
     console.error(`\nmigration-drift: failed to fetch applied migrations.\n${error.message}\n`);
     process.exitCode = 1;
     return;
   }
 
-  const result = compareMigrations(localByVersion, appliedVersions);
+  const result = compareMigrations(localByVersion, appliedMigrations);
   const clean = isClean(result);
 
   console.log(
-    `\nMigration drift — ${localByVersion.size} versions on disk, ${appliedVersions.length} applied in the database\n`,
+    `\nMigration drift — ${localByVersion.size} versions on disk, ${appliedMigrations.length} applied in the database\n`,
   );
 
   if (result.appliedNotOnDisk.length) {
@@ -205,7 +274,7 @@ async function main() {
 
     if (clean) {
       lines.push(
-        `All ${localByVersion.size} migration files on disk match the ${appliedVersions.length} applied in the database.`,
+        `All ${localByVersion.size} migration files on disk match the ${appliedMigrations.length} applied in the database.`,
         '',
       );
     } else {
