@@ -20,6 +20,8 @@ export type {
 } from '@/lib/settings/hierarchical-settings-types';
 
 import { logAudit } from '@/lib/audit/logger';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 // Note: SETTING_METADATA is available from '@/lib/settings/hierarchical-settings-types'
 // It cannot be re-exported from "use server" files as it's not an async function
@@ -132,6 +134,9 @@ export async function setHierarchicalSetting(
   residentId?: string,
   description?: string
 ): Promise<SetSettingResponse> {
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -209,6 +214,9 @@ export async function removeSettingOverride(
   houseId?: string,
   residentId?: string
 ): Promise<{ success: boolean; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -412,6 +420,9 @@ export async function updateMultipleSettings(
     residentId?: string;
   }>
 ): Promise<{ success: boolean; error: string | null; updated: number }> {
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized', updated: 0 };
+
   const supabase = await createServerSupabaseClient();
 
   const { data: { user } } = await supabase.auth.getUser();

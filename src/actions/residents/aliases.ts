@@ -4,6 +4,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { sanitizeSearchInput } from '@/lib/utils';
 import { logAudit } from '@/lib/audit/logger';
 import type { ResidentPaymentAlias } from '@/types/database';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import {
   paymentAliasFormSchema,
   paymentAliasSearchSchema,
@@ -130,6 +132,9 @@ export async function getAlias(id: string): Promise<GetAliasResponse> {
 export async function createPaymentAlias(
   formData: PaymentAliasFormData
 ): Promise<MutateAliasResponse> {
+  const auth = await authorizePermission(PERMISSIONS.RESIDENTS_UPDATE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Validate input
@@ -211,6 +216,9 @@ export async function updatePaymentAlias(
   id: string,
   formData: Partial<PaymentAliasFormData>
 ): Promise<MutateAliasResponse> {
+  const auth = await authorizePermission(PERMISSIONS.RESIDENTS_UPDATE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get existing record for audit
@@ -290,6 +298,9 @@ export async function updatePaymentAlias(
 // ============================================================
 
 export async function toggleAliasStatus(id: string): Promise<MutateAliasResponse> {
+  const auth = await authorizePermission(PERMISSIONS.RESIDENTS_UPDATE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get existing record
@@ -349,6 +360,9 @@ export async function toggleAliasStatus(id: string): Promise<MutateAliasResponse
 // ============================================================
 
 export async function deletePaymentAlias(id: string): Promise<{ error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.RESIDENTS_UPDATE);
+  if (!auth.authorized) return { error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get existing record for audit

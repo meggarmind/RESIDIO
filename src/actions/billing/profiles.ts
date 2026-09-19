@@ -6,6 +6,8 @@ import { billingProfileSchema, type BillingProfileData } from '@/lib/validators/
 import { createApprovalRequest, canAutoApprove } from '@/actions/approvals';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
 import type { BillingProfileWithItems } from '@/types/database';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 export { type BillingProfileData } from '@/lib/validators/billing';
 
@@ -18,6 +20,9 @@ interface UpdateBillingProfileResponse {
 }
 
 export async function createBillingProfile(data: BillingProfileData) {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_MANAGE_PROFILES);
+    if (!auth.authorized) return { error: auth.error || 'Unauthorized' };
+
     const supabase = await createServerSupabaseClient();
 
     // 1. Validate
@@ -119,6 +124,9 @@ export async function getDevelopmentLevyProfiles() {
 }
 
 export async function deleteBillingProfile(id: string) {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_MANAGE_PROFILES);
+    if (!auth.authorized) return { error: auth.error || 'Unauthorized' };
+
     const supabase = await createServerSupabaseClient();
 
     // Capture the rate card before removal: this is a hard delete, so the audit
@@ -229,6 +237,9 @@ export async function updateBillingProfile(
     id: string,
     data: Partial<BillingProfileData> & { effective_date?: string }
 ): Promise<UpdateBillingProfileResponse> {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_MANAGE_PROFILES);
+    if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
+
     const supabase = await createServerSupabaseClient();
 
     // Get current profile
@@ -348,6 +359,9 @@ export async function updateBillingProfile(
  * Creates a copy with name "Copy of {original}"
  */
 export async function duplicateBillingProfile(id: string) {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_MANAGE_PROFILES);
+    if (!auth.authorized) return { error: auth.error || 'Unauthorized' };
+
     const supabase = await createServerSupabaseClient();
 
     // 1. Get source profile with items

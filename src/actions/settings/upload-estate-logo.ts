@@ -3,6 +3,8 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 // Allowed image types for logo
 const ALLOWED_IMAGE_TYPES = [
@@ -48,6 +50,9 @@ function validateLogoFile(file: File): { valid: boolean; error: string | null } 
  * Upload estate logo and update the setting
  */
 export async function uploadEstateLogo(formData: FormData): Promise<UploadLogoResponse> {
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get current user
@@ -147,6 +152,9 @@ export async function uploadEstateLogo(formData: FormData): Promise<UploadLogoRe
  * Remove the estate logo
  */
 export async function removeEstateLogo(): Promise<{ success: boolean; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get current user
