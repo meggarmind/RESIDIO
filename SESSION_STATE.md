@@ -9,7 +9,97 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Current session (Claude Code, 2026-09-19 — **paperless-ngx evaluated and rejected; two issues filed, no code**)
+## Current session (Claude Code, 2026-09-19 — **worktree/branch cleanup, auto-mode config refresh; #393 merged by a concurrent session**)
+
+**Tool:** Claude Code, coordinator posture. Housekeeping and configuration; one concurrent session was
+active in this repo throughout (see the concurrency warning below).
+
+**Applied versus merged.** **No migration was written or applied this session.** PR #393 merged and
+adds **no** migration (`supabase/migrations/` untouched), so there is nothing outstanding to apply.
+The only repo change authored here is this file.
+
+### What shipped
+
+1. **PR #393 merged, issue #59 closed, board moved to Done.** The batch time-window fix
+   (`areCodesValidForTimeWindow`, `verifyAccessCodesWithTimeWindow` in
+   `src/actions/security/codes.ts`, +131/-1) was **committed, pushed and PR'd by a different
+   session** at ~20:29, while this session was mid-inspection of the same worktree. This session
+   did not write that code. It verified the merge (`534e455`), confirmed no migrations, and set the
+   board Status to Done.
+
+2. **Worktree and branch cleanup.** Removed 10 worktrees, each re-verified clean and an ancestor of
+   `origin/master` immediately before removal: the 8 `.claude/worktrees/agent-*` agent worktrees,
+   plus `.worktrees/chore-session-state` and `.worktrees/fix-report-perms`. Deleted 9 local branches
+   whose remote was gone and which were merged into `origin/master`:
+   `chore/session-state-2026-09-18`, `chore/session-state-2026-09-19-documents`,
+   `chore/session-state-377-outcome`, `chore/wait-management-sweep`,
+   `claude/issue-108-rbac-guards`, `claude/issue-374-drift-name-matching`,
+   `claude/issue-377-reconcile-filenames`, `fix/issue-108-report-schedules-permission`,
+   `fix/master-typecheck-missing-permissions-action`.
+
+3. **`Caddyfile` deleted from the repo root.** It was untracked and not Residio's — it
+   reverse-proxied `freellmapi.local` to `localhost:3001`, a stray from another project sitting in
+   a PUBLIC repo's working tree.
+
+### Decisions taken by the owner
+
+**The Coolify / Traefik / Hostinger KVM runtime plan is ABANDONED.** Stated by the owner on
+2026-09-19; a replacement runtime is pending and will be set in a later session. Do not treat that
+plan as the deploy target, and do not re-derive it from the repo.
+
+**This is not yet reflected in the repo**, and the owner has deliberately deferred that to a new
+session: the `Dockerfile` header and `docs/deployment/docker.md` still describe Coolify behind
+Traefik as the target runtime. **Do not "fix" those documents by building toward Coolify** — they
+are the stale side of a decision already made. The only live deploy target is GitHub Pages
+(`meggarmind.github.io/RESIDIO/`, the admin guide, from `website/**` via
+`.github/workflows/deploy-admin-guide.yml`).
+
+### Machine-local configuration (not in this repo)
+
+The Claude Code auto-mode environment block in `~/.claude/settings.json` was refreshed — five
+entries, verified against the repo rather than restated: branch protection measured via the GitHub
+API (required PR reviews, `enforce_admins=true`); the runtime secret set and the Docker ARG/ENV
+prohibition; GitHub Pages named as the only deploy target with Coolify recorded as abandoned; and
+`gh` allowed while the `supabase` CLI and the `--local` `db:types`/`db:migrate` scripts are marked
+forbidden per `CORE.md` §5. Recorded here because it governs what an unsupervised session on this
+machine will do; it is per-machine and does not travel with the repo.
+
+### ⚠️ Concurrency warning — read before touching `SESSION_STATE.md`
+
+At 20:32 a concurrent session left an **uncommitted rewrite of this file** in
+`.worktrees/issue-59`: **1,770 deletions against 34 insertions**, replacing the entire shared
+cross-agent handoff record with a 47-line issue-59-only summary. It is not in PR #393 and was left
+untouched by this session.
+
+`CORE.md` §14 makes this file the **sole live handoff record** for all three harnesses; collapsing
+it to one issue's summary destroys the history every other session reads. If that rewrite is still
+pending in a worktree, **do not merge it as-is** — fold the #59 facts into a new section at the top
+instead, the way this entry does.
+
+### What the next session must not re-litigate
+
+- **Coolify/Traefik is not coming back.** The owner said so; a replacement is pending.
+- **#59 / #393 is done and applied-clean.** No migration, nothing outstanding.
+- The 10 worktrees and 9 branches removed here were all verified merged. They are not lost work.
+
+### Known state left behind
+
+- `.worktrees/issue-59` still exists, holding the concurrent session's uncommitted `SESSION_STATE.md`
+  rewrite. Left deliberately.
+- `.worktrees/issue-60` and `.worktrees/issue-61` appeared **during** this session (another session
+  started #60 and #61). Untouched.
+- 13 merged local branches remain that no longer back a worktree: 8 `worktree-agent-*`,
+  `claude/issue-108-rbac-batch-a` through `-d`, and `claude/issue-377-recover-missing-migrations`.
+  All are ancestors of `origin/master` and safe to delete; left in place because the cleanup the
+  owner sanctioned named a specific set.
+- `master`'s working tree carries unrelated pre-existing modifications (`CLAUDE.md`, `Dockerfile`,
+  `vitest.config.ts`, three `src/__tests__/*` ratchets, `src/lib/supabase/config.ts`,
+  `.github/workflows/stage-backup.yml`) plus untracked `src/__tests__/setup.ts` and
+  `src/actions/permissions/`. Not this session's, not touched.
+
+---
+
+## Last session (Claude Code, 2026-09-19 — **paperless-ngx evaluated and rejected; two issues filed, no code**)
 
 **Tool:** Claude Code, coordinator posture. Research and filing only.
 
