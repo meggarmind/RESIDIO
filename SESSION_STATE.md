@@ -9,7 +9,129 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Current session (Claude Code, 2026-09-18/19 — **migration drift fixed AND fully reconciled; `migration-drift` is GREEN**)
+## Current session (Claude Code, 2026-09-19 — **paperless-ngx evaluated and rejected; two issues filed, no code**)
+
+**Tool:** Claude Code, coordinator posture. Research and filing only.
+
+**Applied versus merged — read this first.** **Nothing was applied and nothing was merged.** No
+migration was written or applied, no code changed, no branch existed until this handoff. The only
+artefacts are GitHub issues #382 and #383, a comment on #241, and this file.
+
+### What was decided, and the evidence
+
+**Question from the owner:** should [paperless-ngx](https://github.com/paperless-ngx/paperless-ngx)
+replace the Residio document module? The goals were OCR, real full-text search, and richer
+taxonomy + workflows.
+
+**Decision: no. Build natively on Supabase.** Do not re-litigate this without new information.
+Six reasons, each verified against this repo rather than argued from preference:
+
+1. **RLS is the enforcement point.** Every documents policy in
+   `supabase/migrations/20251228100000_create_document_management.sql` joins
+   `profiles -> role_permissions -> app_permissions`. Paperless has its own Django users and knows
+   nothing of Supabase Auth — either its RBAC is re-implemented and kept synced, or a single
+   service account runs everything and its whole ACL layer is dead weight.
+2. **It breaks `CORE.md` §1 rule 3.** `authorizePermission()` + `logAudit()` cannot be enforced on
+   writes originating inside paperless (consume folder, IMAP ingest, its own Angular UI).
+   `document_access_logs` and `audit_logs` silently stop being complete.
+3. **Referential integrity is lost.** `documents.category_id`, `resident_id` and `house_id` are
+   real FKs; in paperless they become custom fields holding bare UUIDs.
+4. **A second schema lifecycle escapes the guardrail.** Paperless brings its own Postgres and
+   Django migration chain, outside `CORE.md` §5/§11 and outside `scripts/migration-drift.mjs`.
+5. **Ops cost is disproportionate** — 6-8 containers with CPU-heavy OCR, on a host that per #269
+   is not yet provisioned.
+6. **Licence.** GPL-3.0. Fine to call over HTTP as a separate service (not AGPL, so no network
+   copyleft on this repo's source), but no code can come into the Next.js app.
+
+**Residio already has the pieces.** `pdf-parse` is a dependency and already extracts PDF text in
+`src/lib/email-imports/parsers/first-bank-pdf.ts`. The GIN `to_tsvector` index already exists on
+`documents` (that migration, line 65) — `src/actions/documents/get-documents.ts:64` simply does
+not use it and runs `ilike` instead. OCRmyPDF, the engine paperless itself wraps, is MPL-2.0 and
+runs as a single sidecar container.
+
+### What was filed
+
+| Issue | Parent | Labels | What |
+| --- | --- | --- | --- |
+| #382 | none (standalone) | `enhancement`, `needs-triage`, `post-pilot`, `agent-created` | umbrella: document module searchable and classifiable — carries the design and the rejection above, four slices as an internal task list |
+| #383 | **#290** (verified) | `bug`, `needs-triage`, `post-pilot`, `agent-created` | documents access floor — two gaps, frozen under #241 |
+
+Both carry `harness:claude`. Both auto-landed on the board (**MeggaView**) in **Backlog**
+(`f75ad846`); nothing was moved, since Backlog → Ready is a manual triage transition.
+
+**Net movement: 2 created, 0 closed, net +2** (`CORE.md` §10 guardrail 5). Both are `post-pilot`
+and neither enters the active plan.
+
+### Why this was filed rather than worked
+
+The inventory pass found the work sits inside two existing freezes, and this is the part the next
+session must not re-litigate:
+
+- **#241 freezes the authorization-hardening workstream** — "defects it spawns are filed, not
+  worked". #383 falls squarely inside it, so it was filed and a note left on #241 so the frozen
+  tally stays complete.
+- **#262 is SUSPENDED (2026-09-07)** — no production work until core app functionality is
+  confirmed working.
+- **#241's own diagnosis describes what #382 would repeat**: ~90 commits over 14 days into
+  workstreams the pilot does not depend on, while billing, invoices and WhatsApp got zero feature
+  commits. Documents are P2 in `TODO.md` and `CORE.md` §3 has shelved the resident-facing half.
+
+### The two access-floor gaps (detail is on #383)
+
+1. `src/actions/documents/download-document.ts` — `getDocumentDownloadUrl`, `getDocumentViewUrl`
+   and `getDocumentDownloadUrls` never call `authorizePermission()`, unlike every other action in
+   that folder (compare `upload-document.ts:69`). They rely entirely on RLS.
+2. `documents.resident_id` / `house_id` exist with indexes (migration lines 43-44, 61-62) and are
+   commented as being for private documents, but **no RLS policy or action filter references
+   either column**. Anyone holding `documents.view` — which includes `security_officer` and
+   `resident` per that migration's role grants — can read every "private" per-resident document.
+
+Fixing (2) changes who can see what, so `CORE.md` §15 requires stopping and asking the owner, and
+measuring the delta in a transaction ending in `ROLLBACK`. **#228 applies**: RLS policies live in
+the database that do not exist in `supabase/migrations`, so it must be measured against the live
+policy, not the migration file.
+
+### Sequencing traps for whoever picks up #382
+
+- **Slices 2-4 add migrations and must sequence behind #279** (new schema baseline), or they land
+  orphaned.
+- **Slice 3b's OCR cron inherits #149** — `vercel.json` is inert on Hostinger/Coolify and all nine
+  existing schedules must be recreated there. A tenth cron does not run until that is resolved.
+- **Slice 3b's self-hosted-vs-managed OCR choice is the owner's** and was deliberately left
+  unmade (`CORE.md` §10 guardrail 3). Do not infer it.
+
+### Repo state observed, not acted on
+
+- **Three stale worktrees** under `.claude/worktrees/`: `claude/issue-377-recover-missing-migrations`
+  and `claude/issue-374-drift-name-matching` — **both issues are CLOSED and both PRs (#375, #379)
+  are MERGED** — plus one detached HEAD. They read to the next session as live work and are not.
+  Left in place; they are not this session's to remove.
+- **The main checkout at `C:/Projects/RESIDIO` is dirty on `chore/wait-management-sweep`**, whose
+  PR (#381) is already merged: modified `.github/workflows/stage-backup.yml`, `Dockerfile`,
+  `src/lib/supabase/config.ts`, `vitest.config.ts`; untracked `Caddyfile`,
+  `src/__tests__/setup.ts`, `src/actions/permissions/`, `src/hooks/use-finance-permissions.ts`.
+  **Another session was actively writing to it during this one** — `use-finance-permissions.ts`
+  appeared between two `git status` runs. Nothing here touched those paths, and this handoff was
+  written from an isolated worktree specifically so HEAD in the main checkout was not switched
+  underneath that session.
+- **Doc defect, reported not filed** (`CORE.md` §10 guardrail 4): `CORE.md` §9 and
+  `docs/agents/project-board.md` line 1 both name the board **"Jazrmann Dashboard"**. The live
+  board is **"MeggaView"**. Every agent following that doc looks for the wrong name.
+- **`docs/features/document-management.md` overstates allowed MIME types** — it claims images are
+  allowed; the bucket allowlist at migration line 361 is PDF/DOCX/XLSX/TXT only. Noted on #382 to
+  fix in whichever slice lands first.
+- **No Vitest or Playwright spec touches the documents module** —
+  `find src/__tests__ e2e -ipath "*document*"` returns nothing.
+
+### Open PR from this session
+
+| PR | Branch | State | What |
+| --- | --- | --- | --- |
+| — | `chore/session-state-2026-09-19-documents` | open | this file |
+
+---
+
+## Last session (Claude Code, 2026-09-18/19 — **migration drift fixed AND fully reconciled; `migration-drift` is GREEN**)
 
 **Tool:** Claude Code, coordinator posture.
 
@@ -17,7 +139,7 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 applied. But **nine rows were written to `supabase_migrations.schema_migrations` on
 Residio_Stage** (see "Ledger writes" below). That is a real database write, already done, and it
 is NOT undone by declining to merge any PR. The files that pair with those rows live in PR #379;
-if #379 is never merged, the database and the repo diverge again.
+if #379 is never merged, the database and the repo diverge again. **Resolved: #379 merged 2026-09-19T07:31Z, so those rows and their files are paired.**
 
 ### What shipped
 
@@ -25,8 +147,8 @@ if #379 is never merged, the database and the repo diverge again.
 | --- | --- | --- | --- |
 | #375 | `claude/issue-374-drift-name-matching` | **MERGED** | fixed #374 — drift checker identity comparison |
 | #376 | `chore/npm-allow-scripts` | **MERGED** | npm 11 `allowScripts` block found dirty on `master` |
-| #379 | `claude/issue-377-reconcile-filenames` | **open** | closes #377 — 66 recovered files, 5 renames, 3 deletions |
-| #378 | `chore/session-state-2026-09-18` | **open** | this file |
+| #379 | `claude/issue-377-reconcile-filenames` | **MERGED** (2026-09-19) | closes #377 — 66 recovered files, 5 renames, 3 deletions |
+| #378 | `chore/session-state-2026-09-18` | **MERGED** (2026-09-18) | that session's handoff |
 
 ### The outcome: zero drift, CI green
 
