@@ -7,6 +7,8 @@
  */
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import type {
   NotificationSchedule,
@@ -138,6 +140,9 @@ export async function getSchedulesByEvent(
 export async function createSchedule(
   input: CreateScheduleInput
 ): Promise<{ data: NotificationSchedule | null; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
@@ -180,6 +185,9 @@ export async function updateSchedule(
   id: string,
   input: UpdateScheduleInput
 ): Promise<{ data: NotificationSchedule | null; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get current schedule for audit
@@ -236,6 +244,9 @@ export async function updateSchedule(
 export async function deleteSchedule(
   id: string
 ): Promise<{ success: boolean; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
+  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get schedule for audit
@@ -276,6 +287,9 @@ export async function deleteSchedule(
 export async function toggleScheduleActive(
   id: string
 ): Promise<{ data: NotificationSchedule | null; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get current status
