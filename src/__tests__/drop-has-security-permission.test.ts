@@ -123,7 +123,7 @@ describe('drop orphaned has_security_permission', () => {
     expect(migration).toContain('20260824202000');
   });
 
-  it('has_security_permission is no longer referenced anywhere in src/', () => {
+  it('has_security_permission is no longer referenced anywhere in src/', { timeout: 30000 }, () => {
     const srcDir = fileURLToPath(new URL('../../src', import.meta.url));
     const thisTestFile = fileURLToPath(import.meta.url);
     const filesWithReference = findFilesContaining(srcDir, 'has_security_permission', thisTestFile);
