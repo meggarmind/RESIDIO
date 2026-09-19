@@ -147,6 +147,26 @@ was fixed to eliminate. Use a direct `schema_migrations` insert carrying the fil
 six seeds and was **wrong for one of them**. Check every table a seed touches, not just the
 obvious one. That check was run late and only narrowly avoided writing 9 junk rows.
 
+#### The `Wait Management` typo — one unresolved surface
+
+`20260114225500_seed_expense_categories.sql` seeded a category named **`'Wait Management'`**
+(meant to be *Waste* Management). Swept 2026-09-19:
+
+| Surface | State |
+| --- | --- |
+| Residio_Stage | **clean** — no such row; `Sanitation` / "Waste management fees" covers it |
+| `src/**`, `scripts/**`, rest of repo | **no occurrences** (repo-wide grep) |
+| `supabase/migrations/` | removed by #379; **still on `master` until #379 merges** |
+| git history (`b9b4e37`) | present, immutable, harmless |
+| **Residio_Prod** (`miyeswqbwarvipdzwqnz`) | **clean** — verified 2026-09-19 after unpausing |
+
+**Closed.** Prod was unpaused and checked: `expense_categories` holds **0 rows**, so no
+`Wait Management` row exists there either. The typo is gone from every surface.
+
+**Incidental, not pursued:** Prod has 98 public tables and **42 applied migrations** against
+Stage's 219. It is partially migrated and is *not* a mirror of Stage. Nobody should assume it is
+deployable or current without a deliberate assessment.
+
 ### Recovery is possible because `statements` retains the original file
 
 `supabase_migrations.schema_migrations.statements` holds full original file content, comments
