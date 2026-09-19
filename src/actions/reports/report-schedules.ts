@@ -168,7 +168,7 @@ export async function getReportSchedule(id: string): Promise<{ data: ReportSched
 
 // Create a new schedule
 export async function createReportSchedule(input: CreateScheduleInput): Promise<{ data: ReportSchedule | null; error: string | null }> {
-    const auth = await authorizePermission(PERMISSIONS.REPORT_SUBSCRIPTIONS_MANAGE);
+    const auth = await authorizePermission(PERMISSIONS.REPORTS_MANAGE_SCHEDULES);
     if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
 
     const supabase = await createServerSupabaseClient();
@@ -226,7 +226,7 @@ export async function updateReportSchedule(
     id: string,
     input: Partial<CreateScheduleInput> & { is_active?: boolean }
 ): Promise<{ data: ReportSchedule | null; error: string | null }> {
-    const auth = await authorizePermission(PERMISSIONS.REPORT_SUBSCRIPTIONS_MANAGE);
+    const auth = await authorizePermission(PERMISSIONS.REPORTS_MANAGE_SCHEDULES);
     if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
 
     const supabase = await createServerSupabaseClient();
@@ -281,7 +281,7 @@ export async function updateReportSchedule(
 
 // Delete a schedule
 export async function deleteReportSchedule(id: string): Promise<{ success: boolean; error: string | null }> {
-    const auth = await authorizePermission(PERMISSIONS.REPORT_SUBSCRIPTIONS_MANAGE);
+    const auth = await authorizePermission(PERMISSIONS.REPORTS_MANAGE_SCHEDULES);
     if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
 
     const supabase = await createServerSupabaseClient();
@@ -421,7 +421,7 @@ export async function saveGeneratedReport(input: {
 
 // Delete a generated report
 export async function deleteGeneratedReport(id: string): Promise<{ success: boolean; error: string | null }> {
-    const auth = await authorizePermission(PERMISSIONS.REPORT_SUBSCRIPTIONS_MANAGE);
+    const auth = await authorizePermission(PERMISSIONS.REPORTS_MANAGE_SCHEDULES);
     if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
 
     const supabase = await createServerSupabaseClient();
@@ -485,7 +485,7 @@ export async function createReportVersion(input: {
     report_data: unknown;
     edit_notes: string;
 }): Promise<{ data: GeneratedReport | null; error: string | null }> {
-    const auth = await authorizePermission(PERMISSIONS.REPORT_SUBSCRIPTIONS_MANAGE);
+    const auth = await authorizePermission(PERMISSIONS.REPORTS_MANAGE_SCHEDULES);
     if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
 
     const supabase = await createServerSupabaseClient();
