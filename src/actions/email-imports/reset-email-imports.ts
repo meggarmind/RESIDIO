@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 
 /**
@@ -10,6 +12,12 @@ import { logAudit } from '@/lib/audit/logger';
  */
 export async function resetEmailImports(params?: { userId?: string }): Promise<{ success: boolean; error?: string }> {
     const supabase = await createServerSupabaseClient();
+
+    // Authorization check - globally destructive action requires configure permission
+    const auth = await authorizePermission(PERMISSIONS.EMAIL_IMPORTS_CONFIGURE);
+    if (!auth.authorized) {
+        return { success: false, error: auth.error || 'Unauthorized' };
+    }
 
     // 1. Fetch import IDs if user-scoped
     let targetImportIds: string[] = [];
