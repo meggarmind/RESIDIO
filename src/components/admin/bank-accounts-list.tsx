@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState } from 'react';
 import {
@@ -8,6 +8,7 @@ import {
   useDeleteBankAccount,
 } from '@/hooks/use-imports';
 import { useCanAutoApprove } from '@/hooks/use-approvals';
+import { useCanViewInactiveBankAccounts } from '@/hooks/use-finance-permissions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -53,7 +54,8 @@ export function BankAccountsList() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const { data: canAutoApprove, isLoading: isLoadingPermission } = useCanAutoApprove();
-  const includeInactive = Boolean(canAutoApprove) && (statusFilter === 'all' || statusFilter === 'inactive');
+  const { data: canViewInactive } = useCanViewInactiveBankAccounts();
+  const includeInactive = Boolean(canAutoApprove) && (statusFilter === 'all' || statusFilter === 'inactive') && Boolean(canViewInactive?.authorized);
 
   // Data queries
   const { data: accountsData, isLoading, refetch } = useBankAccounts(includeInactive);
@@ -181,10 +183,10 @@ export function BankAccountsList() {
             <TabsList>
               <TabsTrigger value="all">{canAutoApprove ? 'All' : 'Active'}</TabsTrigger>
               <TabsTrigger value="active">Active</TabsTrigger>
-              {canAutoApprove && <TabsTrigger value="inactive">Inactive</TabsTrigger>}
+              {canViewInactive?.authorized && <TabsTrigger value="inactive">Inactive</TabsTrigger>}
             </TabsList>
           </Tabs>
-          {!isLoadingPermission && !canAutoApprove && (
+          {!isLoadingPermission && !canViewInactive?.authorized && (
             <span className="text-sm text-muted-foreground">Inactive accounts require finance approval permission.</span>
           )}
         </div>
@@ -197,14 +199,8 @@ export function BankAccountsList() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>
-                {isEditing ? 'Edit Bank Account' : 'Add New Bank Account'}
-              </DialogTitle>
-              <DialogDescription>
-                {isEditing
-                  ? 'Update the bank account details below.'
-                  : 'Add a new estate bank account for statement imports.'}
-              </DialogDescription>
+              <DialogTitle>{isEditing ? 'Edit Bank Account' : 'Add New Bank Account'}</DialogTitle>
+              <DialogDescription>{isEditing ? 'Update the bank account details below.' : 'Add a new estate bank account for statement imports.'}</DialogDescription>
             </DialogHeader>
 
             {/* Approval indicator */}
@@ -213,17 +209,13 @@ export function BankAccountsList() {
                 {!canAutoApprove && (
                   <Alert className="border-amber-200 bg-amber-50">
                     <Clock className="h-4 w-4 text-amber-600" />
-                    <AlertDescription className="text-amber-800">
-                      This change will require approval from an admin or chairman.
-                    </AlertDescription>
+                    <AlertDescription className="text-amber-800">This change will require approval from an admin or chairman.</AlertDescription>
                   </Alert>
                 )}
                 {canAutoApprove && (
                   <Alert className="border-green-200 bg-green-50">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-800">
-                      This change will be applied immediately.
-                    </AlertDescription>
+                    <AlertDescription className="text-green-800">This change will be applied immediately.</AlertDescription>
                   </Alert>
                 )}
               </>
@@ -232,9 +224,7 @@ export function BankAccountsList() {
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="account_number" className="text-right">
-                    Account No.*
-                  </Label>
+                  <Label htmlFor="account_number" className="text-right">Account No.*</Label>
                   <Input
                     id="account_number"
                     value={formAccountNumber}
@@ -246,9 +236,7 @@ export function BankAccountsList() {
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="account_name" className="text-right">
-                    Account Name*
-                  </Label>
+                  <Label htmlFor="account_name" className="text-right">Account Name*</Label>
                   <Input
                     id="account_name"
                     value={formAccountName}
@@ -259,9 +247,7 @@ export function BankAccountsList() {
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="bank_name" className="text-right">
-                    Bank Name*
-                  </Label>
+                  <Label htmlFor="bank_name" className="text-right">Bank Name*</Label>
                   <Input
                     id="bank_name"
                     value={formBankName}
@@ -272,9 +258,7 @@ export function BankAccountsList() {
                   />
                 </div>
                 <div className="grid grid-cols-4 items-start gap-4">
-                  <Label htmlFor="description" className="text-right pt-2">
-                    Description
-                  </Label>
+                  <Label htmlFor="description" className="text-right pt-2">Description</Label>
                   <Textarea
                     id="description"
                     value={formDescription}
@@ -287,18 +271,14 @@ export function BankAccountsList() {
                 </div>
                 {isEditing && (
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="is_active" className="text-right">
-                      Active
-                    </Label>
+                    <Label htmlFor="is_active" className="text-right">Active</Label>
                     <div className="col-span-3 flex items-center gap-2">
                       <Switch
                         id="is_active"
                         checked={formIsActive}
                         onCheckedChange={setFormIsActive}
                       />
-                      <span className="text-sm text-muted-foreground">
-                        {formIsActive ? 'Account is active' : 'Account is inactive'}
-                      </span>
+                      <span className="text-sm text-muted-foreground">{formIsActive ? 'Account is active' : 'Account is inactive'}</span>
                     </div>
                   </div>
                 )}
@@ -357,13 +337,9 @@ export function BankAccountsList() {
                   <TableCell className="font-medium">{account.account_name}</TableCell>
                   <TableCell className="font-mono text-sm">{account.account_number}</TableCell>
                   <TableCell>{account.bank_name}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
-                    {truncateDescription(account.description)}
-                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{truncateDescription(account.description)}</TableCell>
                   <TableCell>
-                    <Badge variant={account.is_active ? 'default' : 'secondary'}>
-                      {account.is_active ? 'Active' : 'Inactive'}
-                    </Badge>
+                    <Badge variant={account.is_active ? 'default' : 'secondary'}>{account.is_active ? 'Active' : 'Inactive'}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -387,8 +363,8 @@ export function BankAccountsList() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
+              )))
+            }
           </TableBody>
         </Table>
       </div>
@@ -399,17 +375,11 @@ export function BankAccountsList() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Bank Account</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <span>
-                Are you sure you want to delete &quot;{accountToDelete?.account_name}&quot;?
-              </span>
+              <span>Are you sure you want to delete "{accountToDelete?.account_name}"?</span>
               {!canAutoApprove && (
-                <span className="block text-amber-600">
-                  This action will be submitted for approval.
-                </span>
+                <span className="block text-amber-600">This action will be submitted for approval.</span>
               )}
-              <span className="block text-muted-foreground">
-                If this account has import history, it will be deactivated instead of deleted.
-              </span>
+              <span className="block text-muted-foreground">If this account has import history, it will be deactivated instead of deleted.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -421,8 +391,7 @@ export function BankAccountsList() {
               disabled={deleteMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Delete
+              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
