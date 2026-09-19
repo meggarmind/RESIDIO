@@ -44,37 +44,18 @@ const WRITE_PATTERNS = [
 //   files with a write pattern but no permission check -> PERMISSION_ALLOWLIST
 //   files with a write pattern but no logAudit call    -> AUDIT_ALLOWLIST
 const PERMISSION_ALLOWLIST = [
-  // ---- Admin-facing writes that authenticate (auth.getUser) but do not check
-  // an RBAC role/permission. RLS on the underlying tables is currently the only
-  // authorization boundary for these. Genuine gaps; close them per module.
-  'billing/profiles.ts',
-  'documents/categories.ts',
-  // Its four write actions DO gate, but indirectly: each calls `canAutoApprove()`,
-  // which wraps `authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT)`. The
-  // scan is textual and the literal does not appear in this file, so the entry
-  // stays. Not an RBAC gap -- a limitation of the scanner (#107).
-  'imports/bank-accounts.ts',
-  'imports/create-import.ts',
-  'imports/match-residents.ts',
-  'imports/process-import.ts',
-  'notifications/schedules.ts',
-  'notifications/templates.ts',
-  'reference/create-house-type.ts',
-  'reference/create-street.ts',
-  'reference/duplicate-street.ts',
-  'reference/transaction-tags.ts',
-  'reports/report-schedules.ts',
-  'residents/aliases.ts',
-  'residents/inherit-domestic-staff.ts',
-  'residents/move-out-landlord.ts',
-  'residents/remove-ownership.ts',
-  'residents/sponsor-cascade.ts',
-  'residents/swap-resident-roles.ts',
-  'residents/update-resident-house.ts',
-  'settings/backfill-ownership-history.ts',
-  'settings/hierarchical-settings.ts',
-  'settings/upload-estate-logo.ts',
-  'verification/send-verification.ts',
+  // ---- The 24 "genuine gap" entries that used to sit here were closed by #108.
+  // 66 write actions across 23 files now call authorizePermission() before any
+  // database operation, verified by placement and not merely by presence. Do not
+  // re-add an entry here to make this suite pass: that reopens the gap silently,
+  // which is the whole failure mode the allowlist exists to make visible.
+  //
+  // Two write actions in reports/report-schedules.ts remain deliberately
+  // unguarded -- saveGeneratedReport and markScheduleExecuted are reached by the
+  // CRON_SECRET-authenticated /api/cron/generate-reports route, which has no user
+  // session. The file is NOT allowlisted, because this scan is per-file and the
+  // file does contain permission checks. That per-file granularity is a known
+  // weakness of the scanner, tracked separately.
 
   // ---- Not covered by admin RBAC by design (ownership / service / pre-auth).
   // Do NOT add authorizePermission to these.
@@ -92,7 +73,6 @@ const PERMISSION_ALLOWLIST = [
   'paystack/webhook-handler.ts',
   // Vercel cron (CRON_SECRET bearer auth, no user session) as well as manual
   // triggers; a hard permission check would break the automated path.
-  'email-imports/reset-email-imports.ts',
   'email-imports/parse-email.ts',
   'email-imports/create-email-import.ts',
   'reports/process-schedules.ts',
