@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 import { requiresSponsor } from '@/lib/validators/resident';
 import { logAudit } from '@/lib/audit/logger';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 /**
  * Sponsored resident info for cascade operations
@@ -137,6 +139,9 @@ export async function processSponsorCascade(
   moveOutDate?: string,
   notes?: string
 ): Promise<ProcessSponsorCascadeResponse> {
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
+  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
   const adminClient = createAdminClient();
 
@@ -341,6 +346,9 @@ export async function autoCascadeSponsoredResidents(
   moveOutDate?: string,
   notes?: string
 ): Promise<ProcessSponsorCascadeResponse> {
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
+  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get all sponsored residents

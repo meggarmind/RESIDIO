@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { logAudit } from '@/lib/audit/logger';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 type SwapResidentRolesResponse = {
   success: boolean;
@@ -32,13 +34,13 @@ export async function swapResidentRoles(
   promoteResidentId: string,  // co_resident being promoted
   demoteResidentId: string    // tenant/resident_landlord being demoted
 ): Promise<SwapResidentRolesResponse> {
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
   const supabase = await createServerSupabaseClient();
   const adminClient = createAdminClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: 'Unauthorized' };
-  }
 
   if (!houseId || !promoteResidentId || !demoteResidentId) {
     return { success: false, error: 'House ID, promote resident ID, and demote resident ID are all required' };
@@ -170,7 +172,7 @@ export async function swapResidentRoles(
         event_date: today,
         notes: `Promoted from Occupant to ${RESIDENT_ROLE_LABELS[demoteRole]} (swapped with ${demoteName})`,
         is_current: demoteRole === 'resident_landlord', // Mark as current owner if landlord
-        created_by: user.id,
+        created_by: auth.userId,
       });
 
     // Record demotion
@@ -185,7 +187,7 @@ export async function swapResidentRoles(
         event_date: today,
         notes: `Demoted from ${RESIDENT_ROLE_LABELS[demoteRole]} to Occupant (swapped with ${promoteName})`,
         is_current: false,
-        created_by: user.id,
+        created_by: auth.userId,
       });
   } catch (historyError) {
     console.error('[swapResidentRoles] Error recording history:', historyError);

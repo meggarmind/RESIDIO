@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { createMatcher, type ResidentMatchData } from '@/lib/matching';
 import type { BankStatementRow, MatchConfidence, MatchMethod, ResidentPaymentAlias } from '@/types/database';
 import { checkDuplicate } from './process-import';
@@ -70,6 +72,16 @@ type ManualMatchResponse = {
 
 export async function matchImportRows(import_id: string): Promise<MatchResidentsResponse> {
   const supabase = await createServerSupabaseClient();
+
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  if (!auth.authorized) {
+    return {
+      results: [],
+      matched_count: 0,
+      unmatched_count: 0,
+      error: auth.error || 'Unauthorized',
+    };
+  }
 
   // Get pending rows for this import
   const { data: rows, error: rowsError } = await supabase
@@ -288,6 +300,11 @@ type ManualMatchParams = {
 export async function manualMatchRow(params: ManualMatchParams): Promise<ManualMatchResponse> {
   const supabase = await createServerSupabaseClient();
 
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
+  }
+
   const {
     row_id,
     resident_id,
@@ -460,6 +477,11 @@ function extractSenderName(description: string): string | null {
 export async function unmatchRow(row_id: string): Promise<ManualMatchResponse> {
   const supabase = await createServerSupabaseClient();
 
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
+  }
+
   const { data, error } = await supabase
     .from('bank_statement_rows')
     .update({
@@ -504,6 +526,11 @@ export async function unmatchRow(row_id: string): Promise<ManualMatchResponse> {
 export async function skipRow(row_id: string): Promise<ManualMatchResponse> {
   const supabase = await createServerSupabaseClient();
 
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
+  }
+
   const { data, error } = await supabase
     .from('bank_statement_rows')
     .update({ status: 'skipped' })
@@ -544,6 +571,11 @@ type BatchUpdateParams = {
 
 export async function batchUpdateRowStatus(params: BatchUpdateParams): Promise<{ count: number; error: string | null }> {
   const supabase = await createServerSupabaseClient();
+
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  if (!auth.authorized) {
+    return { count: 0, error: auth.error || 'Unauthorized' };
+  }
 
   const { row_ids, status } = params;
 

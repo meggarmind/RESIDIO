@@ -311,11 +311,15 @@ export function SecurityContactsTable({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_VALUE}>All Status</SelectItem>
-                {Object.entries(SECURITY_CONTACT_STATUS_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
+                {/* "expired" is a computed status (active contacts with no valid codes),
+                    not a stored column value. The "Show Expired" toggle handles it. */}
+                {Object.entries(SECURITY_CONTACT_STATUS_LABELS)
+                  .filter(([value]) => value !== 'expired')
+                  .map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
 

@@ -361,7 +361,9 @@ function createOrReuseWorktree(cwd, config, issue, lane) {
 
   const root = commonRoot(cwd);
   const defaultPath = defaultWorktree(cwd, config);
-  run('git', ['worktree', 'add', target.path, '-b', target.branch, config.defaultBranch], defaultPath);
+  // Fetch first so we branch from the current remote state, not a stale local master.
+  run('git', ['fetch', 'origin', config.defaultBranch], defaultPath);
+  run('git', ['worktree', 'add', target.path, '-b', target.branch, `origin/${config.defaultBranch}`], defaultPath);
   return { ...target, root };
 }
 

@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { logAudit } from '@/lib/audit/logger';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 type RemoveOwnershipResponse = {
   success: boolean;
@@ -29,13 +31,13 @@ export async function removeOwnership(
   removalDate?: string,
   notes?: string
 ): Promise<RemoveOwnershipResponse> {
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
   const supabase = await createServerSupabaseClient();
   const adminClient = createAdminClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: 'Unauthorized' };
-  }
 
   if (!houseId || !ownerId) {
     return { success: false, error: 'House ID and owner ID are required' };
@@ -130,7 +132,7 @@ export async function removeOwnership(
         event_date: today,
         notes: 'Removed due to ownership removal',
         is_current: false,
-        created_by: user.id,
+        created_by: auth.userId,
       }));
 
       await adminClient
@@ -183,7 +185,7 @@ export async function removeOwnership(
         event_date: today,
         notes: notes || `${ownerName} ownership removed. House is now vacant.`,
         is_current: false,
-        created_by: user.id,
+        created_by: auth.userId,
       });
   } catch (historyError) {
     console.error('[removeOwnership] Error recording history:', historyError);

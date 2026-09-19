@@ -6,6 +6,8 @@ import type { ResidentRole, ResidentHouse } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { requiresSponsor } from '@/lib/validators/resident';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 type UpdateResidentHouseData = {
   resident_role?: ResidentRole;
@@ -35,13 +37,13 @@ export async function updateResidentHouse(
   houseId: string,
   data: UpdateResidentHouseData
 ): Promise<UpdateResidentHouseResponse> {
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
+  }
+
   const supabase = await createServerSupabaseClient();
   const adminClient = createAdminClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { data: null, error: 'Unauthorized' };
-  }
 
   if (!residentId || !houseId) {
     return { data: null, error: 'Resident ID and House ID are required' };
@@ -175,7 +177,7 @@ export async function updateResidentHouse(
           event_date: new Date().toISOString().split('T')[0],
           notes: `Role changed from ${RESIDENT_ROLE_LABELS[currentRole]} to ${RESIDENT_ROLE_LABELS[data.resident_role]}`,
           is_current: false,
-          created_by: user.id,
+          created_by: auth.userId,
         });
     } catch (historyError) {
       console.error('[updateResidentHouse] Error recording history:', historyError);
