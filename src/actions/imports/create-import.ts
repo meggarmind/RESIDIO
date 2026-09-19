@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { autoTagTransaction } from '@/actions/reference/transaction-tags';
 import type { BankStatementImport, BankStatementRow, ColumnMapping, TransactionFilter, TransactionTagType } from '@/types/database';
@@ -40,6 +42,11 @@ type CreateImportParams = {
 
 export async function createImport(params: CreateImportParams): Promise<CreateImportResponse> {
   const supabase = await createServerSupabaseClient();
+
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
+  }
 
   const {
     file_name,
@@ -176,6 +183,11 @@ type CreateImportRowsParams = {
 export async function createImportRows(params: CreateImportRowsParams): Promise<CreateImportRowsResponse> {
   const supabase = await createServerSupabaseClient();
 
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
+  if (!auth.authorized) {
+    return { count: 0, error: auth.error || 'Unauthorized' };
+  }
+
   const { import_id, rows } = params;
 
   if (rows.length === 0) {
@@ -295,6 +307,11 @@ type UpdateImportStatusParams = {
 export async function updateImportStatus(params: UpdateImportStatusParams): Promise<{ error: string | null }> {
   const supabase = await createServerSupabaseClient();
 
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
+  if (!auth.authorized) {
+    return { error: auth.error || 'Unauthorized' };
+  }
+
   const {
     import_id,
     status,
@@ -335,6 +352,11 @@ export async function updateImportStatus(params: UpdateImportStatusParams): Prom
 
 export async function deleteImport(import_id: string): Promise<{ error: string | null }> {
   const supabase = await createServerSupabaseClient();
+
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
+  if (!auth.authorized) {
+    return { error: auth.error || 'Unauthorized' };
+  }
 
   // Get import info for audit
   const { data: importData, error: fetchError } = await supabase

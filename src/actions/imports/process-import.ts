@@ -9,6 +9,7 @@ import { updateExpenseStatus } from '@/actions/expenses/update-expense';
 import type { BankStatementImport, BankStatementRow, PaymentRecord, Expense } from '@/types/database';
 import type { DuplicateCheckResult, ProcessImportOptions, ProcessImportResult } from './types';
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
+import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { calculateImportReconciliation } from '@/lib/imports/reconciliation';
 // ============================================================
@@ -173,6 +174,20 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     skip_unmatched = true,
     duplicate_tolerance_days = 1,
   } = options;
+
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  if (!auth.authorized) {
+    return {
+      success: false,
+      created_count: 0,
+      created_payments_count: 0,
+      created_expenses_count: 0,
+      skipped_count: 0,
+      error_count: 1,
+      errors: [{ row_id: '', error: auth.error || 'Unauthorized' }],
+      import_id,
+    };
+  }
 
   // Get import details
   const { data: importData, error: importError } = await supabase
@@ -626,6 +641,11 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 export async function approveImport(import_id: string, notes?: string): Promise<{ error: string | null }> {
   const supabase = await createServerSupabaseClient();
 
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  if (!auth.authorized) {
+    return { error: auth.error || 'Unauthorized' };
+  }
+
   // Get current user
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -677,6 +697,11 @@ export async function approveImport(import_id: string, notes?: string): Promise<
 export async function rejectImport(import_id: string, reason: string): Promise<{ error: string | null }> {
   const supabase = await createServerSupabaseClient();
 
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  if (!auth.authorized) {
+    return { error: auth.error || 'Unauthorized' };
+  }
+
   // Get import
   const { data: importData, error: fetchError } = await supabase
     .from('bank_statement_imports')
@@ -726,6 +751,11 @@ export async function rejectImport(import_id: string, reason: string): Promise<{
 
 export async function submitForApproval(import_id: string): Promise<{ error: string | null }> {
   const supabase = await createServerSupabaseClient();
+
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  if (!auth.authorized) {
+    return { error: auth.error || 'Unauthorized' };
+  }
 
   // Get import
   const { data: importData, error: fetchError } = await supabase

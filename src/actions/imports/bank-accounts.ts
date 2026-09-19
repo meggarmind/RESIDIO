@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import type { EstateBankAccount } from '@/types/database';
 import { estateBankAccountFormSchema, type EstateBankAccountFormData } from '@/lib/validators/import';
@@ -101,6 +103,11 @@ export async function createBankAccount(
 ): Promise<MutateBankAccountResponse> {
   const supabase = await createServerSupabaseClient();
 
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
+  }
+
   // Validate input
   const validationResult = estateBankAccountFormSchema.safeParse(formData);
   if (!validationResult.success) {
@@ -180,6 +187,11 @@ export async function updateBankAccount(
   formData: Partial<EstateBankAccountFormData>
 ): Promise<MutateBankAccountResponse> {
   const supabase = await createServerSupabaseClient();
+
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
+  }
 
   // Get existing record for audit
   const { data: existing, error: fetchError } = await supabase
@@ -266,6 +278,11 @@ export async function updateBankAccount(
 export async function toggleBankAccountStatus(id: string): Promise<MutateBankAccountResponse> {
   const supabase = await createServerSupabaseClient();
 
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
+  }
+
   // Get existing record
   const { data: existing, error: fetchError } = await supabase
     .from('estate_bank_accounts')
@@ -329,6 +346,11 @@ export async function toggleBankAccountStatus(id: string): Promise<MutateBankAcc
 
 export async function deleteBankAccount(id: string): Promise<DeleteBankAccountResponse> {
   const supabase = await createServerSupabaseClient();
+
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
+  if (!auth.authorized) {
+    return { error: auth.error || 'Unauthorized' };
+  }
 
   // Get existing record
   const { data: existing, error: fetchError } = await supabase
