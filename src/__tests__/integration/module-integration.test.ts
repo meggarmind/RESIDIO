@@ -50,12 +50,23 @@ const PERMISSION_ALLOWLIST = [
   // re-add an entry here to make this suite pass: that reopens the gap silently,
   // which is the whole failure mode the allowlist exists to make visible.
   //
-  // Two write actions in reports/report-schedules.ts remain deliberately
-  // unguarded -- saveGeneratedReport and markScheduleExecuted are reached by the
-  // CRON_SECRET-authenticated /api/cron/generate-reports route, which has no user
-  // session. The file is NOT allowlisted, because this scan is per-file and the
-  // file does contain permission checks. That per-file granularity is a known
-  // weakness of the scanner, tracked separately.
+  // Two write actions in reports/report-schedules.ts remain unguarded, for
+  // DIFFERENT reasons -- do not collapse them into one justification:
+  //
+  //   markScheduleExecuted  -- genuinely cron-only. Its sole caller is the
+  //     CRON_SECRET-authenticated /api/cron/generate-reports route, which has no
+  //     user session. A hard permission check would break the scheduled path.
+  //
+  //   saveGeneratedReport   -- NOT cron-only, and NOT safe. It is also called
+  //     interactively from src/hooks/use-reports.ts:139. It has no authorization
+  //     check of any kind, and it selects its client from the caller-supplied
+  //     `generation_trigger`, so a caller passing 'scheduled' gets
+  //     createAdminClient() and bypasses RLS. Tracked as its own issue; this
+  //     comment previously claimed it was cron-only, which was wrong.
+  //
+  // The file is NOT allowlisted, because this scan is per-file and the file does
+  // contain permission checks -- which is exactly how the gap above stayed
+  // invisible. That per-file granularity is tracked separately.
 
   // ---- Not covered by admin RBAC by design (ownership / service / pre-auth).
   // Do NOT add authorizePermission to these.
