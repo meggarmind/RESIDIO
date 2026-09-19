@@ -158,18 +158,14 @@ obvious one. That check was run late and only narrowly avoided writing 9 junk ro
 | `src/**`, `scripts/**`, rest of repo | **no occurrences** (repo-wide grep) |
 | `supabase/migrations/` | removed by #379; **still on `master` until #379 merges** |
 | git history (`b9b4e37`) | present, immutable, harmless |
-| **Residio_Prod** (`miyeswqbwarvipdzwqnz`) | **UNVERIFIED — project is PAUSED** |
+| **Residio_Prod** (`miyeswqbwarvipdzwqnz`) | **clean** — verified 2026-09-19 after unpausing |
 
-**The open question is Prod.** If anyone ever ran `supabase/migrations/` against it, that file
-would have inserted the bad row. It could not be checked because the project is `INACTIVE` and was
-not restored just to look. When Prod is next unpaused, run:
+**Closed.** Prod was unpaused and checked: `expense_categories` holds **0 rows**, so no
+`Wait Management` row exists there either. The typo is gone from every surface.
 
-```sql
-select name from public.expense_categories where name ilike '%wait%';
-```
-
-Expect zero rows. If a `Wait Management` row exists, rename it rather than deleting — check
-`expenses.category_id` references first.
+**Incidental, not pursued:** Prod has 98 public tables and **42 applied migrations** against
+Stage's 219. It is partially migrated and is *not* a mirror of Stage. Nobody should assume it is
+deployable or current without a deliberate assessment.
 
 ### Recovery is possible because `statements` retains the original file
 
