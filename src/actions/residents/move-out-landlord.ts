@@ -4,6 +4,8 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 import { logAudit } from '@/lib/audit/logger';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 type MoveOutLandlordResponse = {
   success: boolean;
@@ -28,13 +30,13 @@ export async function moveOutLandlord(
   moveOutDate?: string,
   notes?: string
 ): Promise<MoveOutLandlordResponse> {
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
   const supabase = await createServerSupabaseClient();
   const adminClient = createAdminClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: 'Unauthorized' };
-  }
 
   if (!residentId || !houseId) {
     return { success: false, error: 'Resident ID and House ID are required' };
@@ -131,7 +133,7 @@ export async function moveOutLandlord(
         event_date: today,
         notes: notes || 'Owner-Occupier moved out, converted to Property Owner',
         is_current: true,
-        created_by: user.id,
+        created_by: auth.userId,
       });
 
     // Record move_out events for each secondary resident
@@ -144,7 +146,7 @@ export async function moveOutLandlord(
         event_date: today,
         notes: 'Removed due to Owner-Occupier move-out',
         is_current: false,
-        created_by: user.id,
+        created_by: auth.userId,
       }));
 
       await adminClient

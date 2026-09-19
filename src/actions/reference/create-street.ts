@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { Street } from '@/types/database';
 import type { StreetFormData } from '@/lib/validators/house';
 import { logAudit } from '@/lib/audit/logger';
@@ -11,12 +13,12 @@ type CreateStreetResponse = {
 }
 
 export async function createStreet(formData: StreetFormData): Promise<CreateStreetResponse> {
-  const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { data: null, error: 'Unauthorized' };
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
   }
+
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from('streets')
@@ -24,7 +26,7 @@ export async function createStreet(formData: StreetFormData): Promise<CreateStre
       name: formData.name,
       short_name: formData.short_name || null,
       description: formData.description || null,
-      created_by: user.id,
+      created_by: auth.userId,
     })
     .select()
     .single();
