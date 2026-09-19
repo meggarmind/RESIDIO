@@ -7,6 +7,8 @@ import { VerificationCodeEmail } from '@/emails/verification-code';
 import { getEstateEmailSettings } from '@/lib/email/send-email';
 import { logAudit } from '@/lib/audit/logger';
 import type { VerificationType, SendVerificationResult } from '@/types/database';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 // Token expiry in minutes
 const TOKEN_EXPIRY_MINUTES = 30;
@@ -80,6 +82,9 @@ async function invalidateExistingTokens(
  * Send email verification code to a resident
  */
 export async function sendEmailVerification(residentId: string): Promise<SendVerificationResult> {
+  const auth = await authorizePermission(PERMISSIONS.RESIDENTS_VERIFY);
+  if (!auth.authorized) return { success: false, message: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
   const adminClient = createAdminClient();
 
@@ -192,6 +197,9 @@ export async function sendEmailVerification(residentId: string): Promise<SendVer
  * Send phone verification code (SMS) to a resident
  */
 export async function sendPhoneVerification(residentId: string): Promise<SendVerificationResult> {
+  const auth = await authorizePermission(PERMISSIONS.RESIDENTS_VERIFY);
+  if (!auth.authorized) return { success: false, message: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
   const adminClient = createAdminClient();
 

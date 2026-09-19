@@ -4,6 +4,8 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { revalidatePath } from 'next/cache';
 import type { ResidentRole } from '@/types/database';
 import { logAudit } from '@/lib/audit/logger';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 /**
  * Inheritable staff member info
@@ -156,6 +158,9 @@ export async function inheritDomesticStaff(
   staffAssignmentIds: string[],
   moveInDate?: string
 ): Promise<InheritStaffResponse> {
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
+  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
   const adminClient = createAdminClient();
 
@@ -297,6 +302,9 @@ export async function declineInheritance(
   houseId: string,
   staffAssignmentIds: string[]
 ): Promise<{ success: boolean; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
+  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   const { data: { user } } = await supabase.auth.getUser();
