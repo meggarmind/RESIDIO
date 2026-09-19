@@ -599,6 +599,7 @@ export async function generateTimeLimitedAccessCode(
 
 /**
  * Check if an access code is valid for the current time window
+ * (Single-code version - kept for backward compatibility; prefer batch version)
  */
 export async function isCodeValidForTimeWindow(codeId: string): Promise<{ valid: boolean; reason?: string }> {
   const supabase = await createServerSupabaseClient();
@@ -646,6 +647,93 @@ export async function isCodeValidForTimeWindow(codeId: string): Promise<{ valid:
 }
 
 /**
+ * Batch check time window validity for multiple access codes
+ * Avoids N+1 queries by fetching all time window settings in one query
+ */
+export async function areCodesValidForTimeWindow(
+  codeIds: string[]
+): Promise<Map<string, { valid: boolean; reason?: string }>> {
+  const results = new Map<string, { valid: boolean; reason?: string }>();
+
+  if (codeIds.length === 0) {
+    return results;
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  // Build the list of setting keys to fetch
+  const settingKeys = codeIds.map((codeId) => `access_code_time_window_${codeId}`);
+
+  // Fetch all time window settings in a single query
+  const { data: settings, error } = await supabase
+    .from('system_settings')
+    .select('key, value')
+    .in('key', settingKeys);
+
+  if (error) {
+    console.error('Batch time window fetch error:', error);
+    // Fail open - allow all codes if settings fetch fails
+    for (const codeId of codeIds) {
+      results.set(codeId, { valid: true });
+    }
+    return results;
+  }
+
+  // Build a map for quick lookup
+  const settingsMap = new Map<string, string>();
+  for (const setting of settings || []) {
+    settingsMap.set(setting.key, setting.value);
+  }
+
+  const now = new Date();
+  const currentDay = now.getDay();
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  // Evaluate each code
+  for (const codeId of codeIds) {
+    const settingKey = `access_code_time_window_${codeId}`;
+    const settingValue = settingsMap.get(settingKey);
+
+    if (!settingValue) {
+      // No time window restriction
+      results.set(codeId, { valid: true });
+      continue;
+    }
+
+    try {
+      const timeWindow: TimeWindow = JSON.parse(settingValue);
+
+      // Check day of week
+      if (!timeWindow.days_of_week.includes(currentDay)) {
+        const allowedDays = timeWindow.days_of_week.map((d) => dayNames[d]).join(', ');
+        results.set(codeId, {
+          valid: false,
+          reason: `Access only allowed on: ${allowedDays}`,
+        });
+        continue;
+      }
+
+      // Check time of day
+      if (currentTime < timeWindow.start_time || currentTime > timeWindow.end_time) {
+        results.set(codeId, {
+          valid: false,
+          reason: `Access only allowed between ${timeWindow.start_time} and ${timeWindow.end_time}`,
+        });
+        continue;
+      }
+
+      results.set(codeId, { valid: true });
+    } catch {
+      // Invalid setting format, allow access (fail open)
+      results.set(codeId, { valid: true });
+    }
+  }
+
+  return results;
+}
+
+/**
  * Extended verify that also checks time windows
  */
 export async function verifyAccessCodeWithTimeWindow(data: VerifyAccessCodeData): Promise<VerifyCodeResponse> {
@@ -656,7 +744,7 @@ export async function verifyAccessCodeWithTimeWindow(data: VerifyAccessCodeData)
     return result;
   }
 
-  // Check time window
+  // Check time window (single code - uses existing single-code function)
   const timeWindowCheck = await isCodeValidForTimeWindow(result.data.id);
   if (!timeWindowCheck.valid) {
     return {
@@ -667,6 +755,48 @@ export async function verifyAccessCodeWithTimeWindow(data: VerifyAccessCodeData)
   }
 
   return result;
+}
+
+/**
+ * Batch verify multiple access codes with time window checks
+ * Avoids N+1 queries by fetching all time window settings in one query
+ */
+export async function verifyAccessCodesWithTimeWindow(
+  codes: VerifyAccessCodeData[]
+): Promise<VerifyCodeResponse[]> {
+  // First verify all codes without time window
+  const results = await Promise.all(codes.map((data) => verifyAccessCode(data)));
+
+  // Collect codes that passed initial verification and need time window check
+  const codesNeedingTimeWindow = results
+    .map((result, index) => ({ result, code: codes[index].code }))
+    .filter(({ result }) => result.valid && result.data);
+
+  if (codesNeedingTimeWindow.length === 0) {
+    return results;
+  }
+
+  // Batch check time windows
+  const codeIds = codesNeedingTimeWindow.map(({ result }) => result.data!.id);
+  const timeWindowResults = await areCodesValidForTimeWindow(codeIds);
+
+  // Merge time window results back into verification results
+  return results.map((result, index) => {
+    if (!result.valid || !result.data) {
+      return result;
+    }
+
+    const timeWindowCheck = timeWindowResults.get(result.data.id);
+    if (timeWindowCheck && !timeWindowCheck.valid) {
+      return {
+        ...result,
+        valid: false,
+        reason: timeWindowCheck.reason,
+      };
+    }
+
+    return result;
+  });
 }
 
 /**
