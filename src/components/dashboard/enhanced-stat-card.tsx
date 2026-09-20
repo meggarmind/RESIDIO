@@ -19,6 +19,7 @@ interface EnhancedStatCardProps {
     direction: 'up' | 'down' | 'neutral';
   };
   accentColor?: 'default' | 'success' | 'warning' | 'danger' | 'info';
+  size?: 'default' | 'compact';
   className?: string;
   animate?: boolean;
   onClick?: () => void;
@@ -47,12 +48,14 @@ export function EnhancedStatCard({
   description,
   trend,
   accentColor = 'default',
+  size = 'default',
   className,
   animate = true,
   onClick,
 }: EnhancedStatCardProps) {
   const { themeId } = useVisualTheme();
   const isModern = themeId === 'modern';
+  const isCompact = size === 'compact';
 
   // Color mappings for accent colors with enhanced gradients
   const accentColors = {
@@ -141,34 +144,37 @@ export function EnhancedStatCard({
 
       <CardHeader className={cn(
         'flex flex-row items-center justify-between space-y-0 pb-3',
-        isModern && 'pt-5'
+        isModern && 'pt-5',
+        isCompact && 'pb-2 pt-3'
       )}>
         <CardTitle className={cn(
           'text-sm font-medium tracking-wide',
-          isModern ? 'text-gray-500 dark:text-gray-400 uppercase text-xs' : 'text-muted-foreground'
+          isModern ? 'text-gray-500 dark:text-gray-400 uppercase text-xs' : 'text-muted-foreground',
+          isCompact && 'text-xs'
         )}>
           {title}
         </CardTitle>
         <div
           className={cn(
-            'flex h-11 w-11 items-center justify-center transition-transform duration-300 group-hover:scale-110',
+            'flex items-center justify-center transition-transform duration-300 group-hover:scale-110',
             colors.iconBg,
-            isModern ? 'rounded-xl shadow-sm' : 'rounded-lg'
+            isModern ? 'rounded-xl shadow-sm' : 'rounded-lg',
+            isCompact ? 'h-8 w-8' : 'h-11 w-11'
           )}
         >
-          <Icon className={cn('h-5 w-5', colors.iconColor)} />
+          <Icon className={cn(colors.iconColor, isCompact ? 'h-4 w-4' : 'h-5 w-5')} />
         </div>
       </CardHeader>
-      <CardContent className="pb-5">
+      <CardContent className={cn('pb-3', isCompact && 'pb-2')}>
         {isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <Skeleton className={cn(
-              'h-9 w-28',
+              isCompact ? 'h-6 w-20' : 'h-9 w-28',
               isModern && 'rounded-lg'
             )} />
             {description && (
               <Skeleton className={cn(
-                'h-4 w-24',
+                isCompact ? 'h-3 w-16' : 'h-4 w-24',
                 isModern && 'rounded-md'
               )} />
             )}
@@ -176,31 +182,34 @@ export function EnhancedStatCard({
         ) : (
           <>
             <div className={cn(
-              'text-3xl font-bold tracking-tight',
+              'font-bold tracking-tight',
               colors.valueColor,
-              isModern && 'text-gray-900 dark:text-white'
+              isModern && 'text-gray-900 dark:text-white',
+              isCompact ? 'text-xl' : 'text-3xl'
             )}>
               {value}
             </div>
             {description && (
               <p className={cn(
-                'text-sm mt-1',
-                isModern ? 'text-gray-500 dark:text-gray-400' : 'text-muted-foreground'
+                'mt-1',
+                isModern ? 'text-gray-500 dark:text-gray-400' : 'text-muted-foreground',
+                isCompact ? 'text-xs' : 'text-sm'
               )}>
                 {description}
               </p>
             )}
             {trend && (
-              <div className="flex items-center gap-2 mt-3">
+              <div className={cn('flex items-center gap-2 mt-2', isCompact && 'mt-1')}>
                 <span className={cn(
                   'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium',
                   trendConfig[trend.direction].bg,
-                  trendConfig[trend.direction].color
+                  trendConfig[trend.direction].color,
+                  isCompact && 'px-1.5 py-0.5 text-[10px]'
                 )}>
-                  {React.createElement(trendConfig[trend.direction].icon, { className: 'h-3 w-3' })}
+                  {React.createElement(trendConfig[trend.direction].icon, { className: isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3' })}
                   {trend.value}%
                 </span>
-                <span className="text-xs text-muted-foreground">{trend.label}</span>
+                <span className={cn('text-xs text-muted-foreground', isCompact && 'text-[10px]')}>{trend.label}</span>
               </div>
             )}
           </>

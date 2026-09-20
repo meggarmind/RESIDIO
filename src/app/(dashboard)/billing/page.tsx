@@ -256,6 +256,7 @@ export default function BillingPage() {
                     isLoading={isLoading}
                     description="All time invoices"
                     accentColor="info"
+                    size="compact"
                     className="stagger-1"
                 />
                 <EnhancedStatCard
@@ -265,6 +266,7 @@ export default function BillingPage() {
                     isLoading={isSummaryLoading}
                     description="Completed payments"
                     accentColor="success"
+                    size="compact"
                     className="stagger-2"
                 />
                 <EnhancedStatCard
@@ -274,6 +276,7 @@ export default function BillingPage() {
                     isLoading={isSummaryLoading}
                     description="Pending invoices"
                     accentColor={(summary?.unpaidCount ?? 0) > 0 ? 'warning' : 'default'}
+                    size="compact"
                     className="stagger-3"
                 />
                 <EnhancedStatCard
@@ -283,6 +286,7 @@ export default function BillingPage() {
                     isLoading={isSummaryLoading}
                     description={isFiltered ? 'Filtered invoice value' : 'All time invoice value'}
                     accentColor="default"
+                    size="compact"
                     className="stagger-4"
                 />
                 <EnhancedStatCard
@@ -292,6 +296,7 @@ export default function BillingPage() {
                     isLoading={!overdueStats}
                     description={overdueStats ? `${overdueStats.count} overdue invoice${overdueStats.count !== 1 ? 's' : ''}` : 'Loading...'}
                     accentColor="warning"
+                    size="compact"
                     className="stagger-5 cursor-pointer"
                     onClick={() => setStatus('unpaid')}
                 />
