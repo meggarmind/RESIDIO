@@ -9,7 +9,97 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Current session (Claude Code, 2026-09-19 — **worktree/branch cleanup, auto-mode config refresh; #393 merged by a concurrent session**)
+## Current session (Claude Code, 2026-09-20/21 — **Chatmaid evaluated end-to-end against the live API; #401 filed. No application code written.**)
+
+**Tool:** Claude Code, coordinator posture. No sub-agents dispatched — this was API testing,
+tracker reading and issue authoring, which CORE.md §15 keeps with the coordinator. Work was done in
+the `ChatMaid` orca worktree.
+
+**Applied versus merged.** **No migration was written or applied.** No application code changed.
+The only repo change authored here is this file. Note that **#401 requires a migration to be
+written** (the `whatsapp_provider_credentials` CHECK constraint, see below) — that is unwritten and
+unapplied, by design, and belongs to whoever implements #401.
+
+### What shipped
+
+1. **Issue #401 filed** — "Add Chatmaid as a third WhatsApp provider (webhook inbound + send
+   transport)". Attached to the **#293** map as a native sub-issue and verified (map went 5 → 6
+   children). Labelled `enhancement`, `ready-for-agent`, `harness:claude`. Net for the session:
+   **1 created, 0 closed.**
+
+2. **Comment posted on #293** correcting a false claim in its Implementation Status block: it states
+   `#278 (Stale docblock): FIXED` and `provider.ts docblock stale comment removed`. Neither is true
+   — `src/lib/whatsapp/provider.ts:35` still reads *"Until #130 lands…"*, #130 is closed, the Twilio
+   webhook route exists, and **#278 is still OPEN**. Every other #293 claim that was checked held up.
+
+3. **Chatmaid proven end-to-end on live infrastructure.** Full enquiry→reply loop:
+   inbound `inmsg_4936cdb30d9ddbc6ccf29e88` received and retrieved, reply
+   `msg_1902686e850c90e3b719122b` delivered in **937 ms**, confirmed on the destination handset.
+
+### Decisions taken by the owner
+
+- **Chatmaid sits ALONGSIDE Meta and Twilio**, not replacing them. #401 is scoped additively.
+- **Chatmaid carries bulk AND security messaging**, with Termii SMS as fallback.
+- **A dedicated secondary number** will be used, not the estate's primary line — Chatmaid is a
+  QR-paired WhatsApp Web bridge (outside WhatsApp's terms), so a flagged number is banned outright.
+
+### Decisions taken by this session on the owner's behalf
+
+- **One issue, not three.** Adapter, reconciliation cron and SMS fallback were kept in #401 rather
+  than split, per CORE.md §10 guardrail 1 — one owner, one sitting, one gating unknown.
+- **Webhook chosen over polling as the primary inbound path**, reversing an earlier recommendation
+  in-session. Reasons in #401 §2; the short version is that the existing code is webhook-shaped, two
+  provider routes already exist, and `message.outgoing` / `phone.disconnected` are webhook-only.
+- **`sendTemplate` degrades to plain text** for Chatmaid (it has no template concept) — recommended
+  in the issue and left as an explicit documented choice for the implementer.
+
+### 🔴 The finding that most shapes the build
+
+**Inbound messages arriving while the bridge session is disconnected are lost permanently.**
+Measured 2026-09-21 15:58–16:06 across two operator-initiated disconnect/reconnect cycles, 26 polls
+at 15s intervals: `GET /v1/messages/inbound` never moved off `total=1` while the test message sat
+visibly in the handset's WhatsApp. Chatmaid never recorded it and **did not backfill on reconnect**.
+
+Consequences, all carried in #401 §3: bridge uptime is the bot's reliability ceiling; there is no
+recovery mechanism; `phone.disconnected` needs a loud immediate alert; residents need a fallback
+advertised through another channel. The reconciliation cron (#401 §6) recovers **only** webhook
+delivery failures, never bridge downtime — it must not be described as downtime protection.
+
+### What the next session must NOT re-litigate
+
+1. **The WhatsApp Assistant's menu is already designed AND built.** PRD #1 specifies it;
+   `src/lib/whatsapp/financial.ts` implements it — `FinancialMenuItem`, session state, menu
+   navigation, PIN gating (`/^PIN\s+([0-9]{4,6})$/i`), statement periods, multi-house selection.
+   #401 is **transport only** and marks `financial.ts` / `identity.ts` do-not-touch. Do not rebuild
+   a working chatbot.
+2. **Webhook over polling** — decided with reasons above.
+3. **Additive, not a replacement** — Meta and Twilio stay.
+
+### Traps for whoever picks up #401
+
+- **`src/lib/whatsapp/provider.ts:35` will mislead you.** Stale docblock (#278, open). Its
+  substantive point — the registry governs send only, inbound needs per-provider routing — is still
+  correct; the "#130" framing is not.
+- **`meta | twilio` is hardcoded at five layers**, including a database
+  `CHECK (provider IN ('meta','twilio'))` at
+  `supabase/migrations/20260902102528_create_whatsapp_provider_credentials.sql:18` and the
+  `replace_whatsapp_credentials` RPC. #401 §0 lists every touch point with file:line. The **send**
+  path is genuinely additive (`isProviderSupported()`); only the *selection* plumbing assumed two.
+- **Chatmaid's docs are incomplete.** `GET /v1/messages/inbound` is real but undocumented; several
+  documented behaviours (sandbox delivery simulation, query filters) do not hold. #401 carries the
+  measured reference — trust it over the vendor docs.
+- **Credential hygiene:** the live Chatmaid API key was exposed in a session transcript on this
+  machine via a shell paste-wrap error. **Rotation was recommended to the owner**; assume it may
+  still be pending and do not reuse any key found in transcripts.
+
+### Still untested
+
+Inbound media handling, and `message.outgoing` (needs a live webhook receiver, so it lands naturally
+inside #401 §2).
+
+---
+
+## Last session (Claude Code, 2026-09-19 — **worktree/branch cleanup, auto-mode config refresh; #393 merged by a concurrent session**)
 
 **Tool:** Claude Code, coordinator posture. Housekeeping and configuration; one concurrent session was
 active in this repo throughout (see the concurrency warning below).
