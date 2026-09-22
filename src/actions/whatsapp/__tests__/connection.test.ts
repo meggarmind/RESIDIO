@@ -238,6 +238,10 @@ describe('WhatsApp connection actions', () => {
       ['a dashboard phone id', '6ab0154c3986c20fd36f0aec'],
       ['a number without the leading +', '2348031234567'],
       ['a number with spaces', '+234 803 123 4567'],
+      ['a number with a leading prefix', 'x+2348031234567'],
+      ['a number with a trailing suffix', '+2348031234567x'],
+      ['a number whose country code starts with 0', '+02348031234567'],
+      ['a number longer than 15 digits', '+2348031234567890'],
     ])('rejects a Chatmaid from number that is %s, before touching the database', async (_label, fromNumber) => {
       vi.mocked(authorizePermission).mockResolvedValue(manager as never);
 
