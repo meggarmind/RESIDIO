@@ -4,7 +4,8 @@
  * WhatsApp Provider Connection
  *
  * Lets an admin connect, replace, test, and disconnect the estate's WhatsApp
- * provider (Meta Cloud API or Twilio) without a redeploy. Credentials are
+ * provider (Meta Cloud API, Twilio or Chatmaid) without a redeploy. Exactly one
+ * provider is active at a time. Credentials are
  * encrypted at rest in `whatsapp_provider_credentials` (see the migration
  * `20260902080000_create_whatsapp_provider_credentials.sql`) and written via
  * the `replace_whatsapp_credentials` RPC, which atomically deactivates the
@@ -39,9 +40,11 @@ const ENCRYPTION_NOT_CONFIGURED_ERROR =
 // Connection status (read-only, never decrypts anything)
 // ============================================================
 
+export type WhatsAppProviderName = 'meta' | 'twilio' | 'chatmaid';
+
 export type WhatsAppConnectionStatus = {
   connected: boolean;
-  provider: 'meta' | 'twilio' | null;
+  provider: WhatsAppProviderName | null;
   phoneNumberId: string | null;
   fromNumber: string | null;
   apiVersion: string | null;
@@ -51,6 +54,8 @@ export type WhatsAppConnectionStatus = {
   hasVerifyToken: boolean;
   hasAppSecret: boolean;
   hasAuthToken: boolean;
+  hasChatmaidApiKey: boolean;
+  hasChatmaidWebhookSecret: boolean;
   // Twilio Content SIDs, keyed by approved template name (see
   // src/lib/whatsapp/templates.ts). Unlike the secret booleans above, these
   // are not sensitive -- a Content SID identifies a template, it does not
@@ -71,6 +76,8 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   hasVerifyToken: false,
   hasAppSecret: false,
   hasAuthToken: false,
+  hasChatmaidApiKey: false,
+  hasChatmaidWebhookSecret: false,
   templateContentSids: null,
 };
 
@@ -91,7 +98,7 @@ export async function getWhatsAppConnectionStatus(): Promise<ActionResult<WhatsA
   const { data, error } = await adminClient
     .from('whatsapp_provider_credentials')
     .select(
-      'provider, phone_number_id, whatsapp_from_number, api_version, updated_at, access_token_encrypted, verify_token_encrypted, app_secret_encrypted, auth_token_encrypted, account_sid_encrypted, template_content_sids, updated_by_profile:profiles!updated_by(full_name)'
+      'provider, phone_number_id, whatsapp_from_number, api_version, updated_at, access_token_encrypted, verify_token_encrypted, app_secret_encrypted, auth_token_encrypted, account_sid_encrypted, chatmaid_api_key_encrypted, chatmaid_webhook_secret_encrypted, template_content_sids, updated_by_profile:profiles!updated_by(full_name)'
     )
     .eq('is_active', true)
     .maybeSingle();
@@ -117,7 +124,7 @@ export async function getWhatsAppConnectionStatus(): Promise<ActionResult<WhatsA
     success: true,
     data: {
       connected: true,
-      provider: data.provider as 'meta' | 'twilio',
+      provider: data.provider as WhatsAppProviderName,
       phoneNumberId: data.phone_number_id,
       fromNumber: data.whatsapp_from_number,
       apiVersion: data.api_version,
@@ -127,6 +134,8 @@ export async function getWhatsAppConnectionStatus(): Promise<ActionResult<WhatsA
       hasVerifyToken: Boolean(data.verify_token_encrypted),
       hasAppSecret: Boolean(data.app_secret_encrypted),
       hasAuthToken: Boolean(data.auth_token_encrypted),
+      hasChatmaidApiKey: Boolean(data.chatmaid_api_key_encrypted),
+      hasChatmaidWebhookSecret: Boolean(data.chatmaid_webhook_secret_encrypted),
       templateContentSids: (data.template_content_sids as Record<string, string> | null) || null,
     },
     error: null,
@@ -155,27 +164,43 @@ const twilioCredentialsSchema = z.object({
   templateContentSids: z.record(z.string(), z.string()).optional(),
 });
 
+// E.164: a leading +, a non-zero country digit, then 7-14 more digits. Chatmaid
+// config keys on this number, never on the dashboard phone id, which differs
+// between Chatmaid's test and live environments.
+const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
+
+const chatmaidCredentialsSchema = z.object({
+  provider: z.literal('chatmaid'),
+  apiKey: z.string().trim().min(1, 'API key is required'),
+  webhookSecret: z.string().trim().min(1, 'Webhook signing secret is required'),
+  fromNumber: z
+    .string()
+    .trim()
+    .regex(E164_PATTERN, 'From number must be in E.164 format, e.g. +2348031234567'),
+});
+
 const saveWhatsAppCredentialsSchema = z.discriminatedUnion('provider', [
   metaCredentialsSchema,
   twilioCredentialsSchema,
+  chatmaidCredentialsSchema,
 ]);
 
 export type SaveWhatsAppCredentialsInput = z.infer<typeof saveWhatsAppCredentialsSchema>;
 
 export type SaveWhatsAppCredentialsResult = {
-  provider: 'meta' | 'twilio';
+  provider: WhatsAppProviderName;
   /**
    * The Meta webhook verify token, returned exactly once so the admin can
    * paste it into Meta's console before navigating away. It is never
    * re-readable afterwards -- getWhatsAppConnectionStatus() only ever
    * reports `hasVerifyToken: boolean`, never the value itself. Absent for
-   * Twilio, which has no equivalent field.
+   * Twilio and Chatmaid, which have no equivalent field.
    */
   verifyToken?: string;
 };
 
 /**
- * Replaces the estate's WhatsApp credentials (Meta or Twilio) in one atomic
+ * Replaces the estate's WhatsApp credentials (Meta, Twilio or Chatmaid) in one atomic
  * RPC call. Secrets are encrypted before they leave this function; the
  * plaintext values are never written to the audit log.
  */
@@ -206,26 +231,48 @@ export async function saveWhatsAppCredentials(
   const value = parsed.data;
   const adminClient = createAdminClient();
 
-  const rpcParams =
-    value.provider === 'meta'
-      ? {
-          p_provider: 'meta',
-          p_access_token_encrypted: encrypt(value.accessToken),
-          p_verify_token_encrypted: encrypt(value.verifyToken),
-          p_app_secret_encrypted: encrypt(value.appSecret),
-          p_phone_number_id: value.phoneNumberId,
-          p_api_version: value.apiVersion || 'v23.0',
-          p_graph_base_url: value.graphBaseUrl || 'https://graph.facebook.com',
-          p_actor_id: authorization.userId,
-        }
-      : {
-          p_provider: 'twilio',
-          p_account_sid_encrypted: encrypt(value.accountSid),
-          p_auth_token_encrypted: encrypt(value.authToken),
-          p_whatsapp_from_number: value.fromNumber,
-          p_template_content_sids: value.templateContentSids || null,
-          p_actor_id: authorization.userId,
-        };
+  let rpcParams: Record<string, unknown>;
+  let auditValues: Record<string, string>;
+
+  // newValues MUST NEVER contain a plaintext secret (access token, verify
+  // token, app secret, auth token, Chatmaid API key or webhook secret). Only
+  // non-sensitive facts are logged: provider, phone/from number, API version.
+  if (value.provider === 'meta') {
+    rpcParams = {
+      p_provider: 'meta',
+      p_access_token_encrypted: encrypt(value.accessToken),
+      p_verify_token_encrypted: encrypt(value.verifyToken),
+      p_app_secret_encrypted: encrypt(value.appSecret),
+      p_phone_number_id: value.phoneNumberId,
+      p_api_version: value.apiVersion || 'v23.0',
+      p_graph_base_url: value.graphBaseUrl || 'https://graph.facebook.com',
+      p_actor_id: authorization.userId,
+    };
+    auditValues = {
+      provider: 'meta',
+      phoneNumberId: value.phoneNumberId,
+      apiVersion: value.apiVersion || 'v23.0',
+    };
+  } else if (value.provider === 'twilio') {
+    rpcParams = {
+      p_provider: 'twilio',
+      p_account_sid_encrypted: encrypt(value.accountSid),
+      p_auth_token_encrypted: encrypt(value.authToken),
+      p_whatsapp_from_number: value.fromNumber,
+      p_template_content_sids: value.templateContentSids || null,
+      p_actor_id: authorization.userId,
+    };
+    auditValues = { provider: 'twilio', fromNumber: value.fromNumber };
+  } else {
+    rpcParams = {
+      p_provider: 'chatmaid',
+      p_chatmaid_api_key_encrypted: encrypt(value.apiKey),
+      p_chatmaid_webhook_secret_encrypted: encrypt(value.webhookSecret),
+      p_whatsapp_from_number: value.fromNumber,
+      p_actor_id: authorization.userId,
+    };
+    auditValues = { provider: 'chatmaid', fromNumber: value.fromNumber };
+  }
 
   const { data: row, error } = await adminClient.rpc('replace_whatsapp_credentials', rpcParams);
 
@@ -236,25 +283,12 @@ export async function saveWhatsAppCredentials(
 
   const savedRow = row as { id?: string } | null;
 
-  // newValues MUST NEVER contain a plaintext secret (access token, verify
-  // token, app secret, auth token). Only non-sensitive facts are logged:
-  // provider, phone/from number, and API version.
   await logAudit({
     action: 'UPDATE',
     entityType: 'whatsapp_provider_credentials',
     entityId: savedRow?.id || 'active',
     entityDisplay: `WhatsApp ${value.provider} connection`,
-    newValues:
-      value.provider === 'meta'
-        ? {
-            provider: 'meta',
-            phoneNumberId: value.phoneNumberId,
-            apiVersion: value.apiVersion || 'v23.0',
-          }
-        : {
-            provider: 'twilio',
-            fromNumber: value.fromNumber,
-          },
+    newValues: auditValues,
   });
 
   invalidateWhatsAppConfigCache();
@@ -393,6 +427,31 @@ export async function testWhatsAppConnection(): Promise<ActionResult<TestWhatsAp
       }
 
       return { success: true, data: { ok: true, message: 'Connected to the Meta WhatsApp Cloud API.' }, error: null };
+    }
+
+    if (config.provider === 'chatmaid') {
+      // Lists the key's phone numbers: an authenticated read that sends
+      // nothing. It proves the API key is valid; it does NOT prove the
+      // handset's bridge session is connected (that is a per-send check).
+      const response = await fetch(`${config.baseUrl}/v1/phone-numbers`, {
+        headers: { Authorization: `Bearer ${config.apiKey}` },
+        cache: 'no-store',
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        console.error(`WhatsApp Chatmaid connection test failed (HTTP ${response.status}): ${body}`);
+        return {
+          success: true,
+          data: {
+            ok: false,
+            message: `Chatmaid rejected the request (HTTP ${response.status}). Check the API key.`,
+          },
+          error: null,
+        };
+      }
+
+      return { success: true, data: { ok: true, message: 'Connected to the Chatmaid API.' }, error: null };
     }
 
     const url = `https://api.twilio.com/2010-04-01/Accounts/${config.accountSid}.json`;

@@ -173,13 +173,29 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
         .gt('expires_at', new Date().toISOString())
         .maybeSingle();
       if (error) throw error;
-      return data as WhatsAppFinancialSession | null;
+      if (!data) return null;
+      return {
+        phoneNumber: data.phone_number,
+        residentId: data.resident_id,
+        currentNode: data.current_node,
+        selectedHouseId: data.selected_house_id,
+        pinAuthenticated: data.pin_authenticated,
+        expiresAt: data.expires_at,
+      };
     },
 
     async saveSession(session) {
       const supabase = createAdminClient();
       const { error } = await supabase.from('whatsapp_sessions').upsert(
-        { ...session, updated_at: new Date().toISOString() },
+        {
+          phone_number: session.phoneNumber,
+          resident_id: session.residentId,
+          current_node: session.currentNode,
+          selected_house_id: session.selectedHouseId,
+          pin_authenticated: session.pinAuthenticated,
+          expires_at: session.expiresAt,
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: 'phone_number' }
       );
       if (error) throw error;

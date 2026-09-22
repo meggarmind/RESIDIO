@@ -1,10 +1,17 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { decrypt } from '@/lib/encryption';
 import type {
+  ChatmaidWhatsAppConfig,
   MetaWhatsAppConfig,
   TwilioWhatsAppConfig,
   WhatsAppConfig,
 } from '@/lib/whatsapp/config';
+
+/**
+ * Chatmaid's API host. The same host serves both environments; the API key's
+ * prefix (`sk_test_` / `sk_live_`) selects which one a call runs against.
+ */
+export const CHATMAID_DEFAULT_BASE_URL = 'https://developers-api.chatmaid.net';
 
 /**
  * The outcome of reading stored credentials.
@@ -83,6 +90,44 @@ export async function loadWhatsAppConfigFromDb(): Promise<StoredWhatsAppConfig> 
       };
 
       return { status: 'ok', config };
+    }
+
+    if (data.provider === 'chatmaid') {
+      const apiKey = data.chatmaid_api_key_encrypted ? decrypt(data.chatmaid_api_key_encrypted) : '';
+      const webhookSecret = data.chatmaid_webhook_secret_encrypted
+        ? decrypt(data.chatmaid_webhook_secret_encrypted)
+        : '';
+
+      // All three are required: the key to send, the secret to verify inbound
+      // webhooks, and the E.164 sending number (never the dashboard phone id,
+      // which differs between Chatmaid's test and live environments).
+      if (!apiKey || !webhookSecret || !data.whatsapp_from_number) {
+        return {
+          status: 'unusable',
+          reason: 'stored Chatmaid credentials are missing required fields',
+        };
+      }
+
+      const config: ChatmaidWhatsAppConfig = {
+        provider: 'chatmaid',
+        apiKey,
+        webhookSecret,
+        fromNumber: data.whatsapp_from_number,
+        baseUrl: CHATMAID_DEFAULT_BASE_URL,
+      };
+
+      return { status: 'ok', config };
+    }
+
+    // An unknown provider must fail closed. Before Chatmaid this branch was an
+    // implicit `else`, so ANY non-Twilio row was decoded as Meta -- a new
+    // provider's row would have been misreported as broken Meta credentials,
+    // or worse, silently accepted if it happened to carry Meta columns.
+    if (data.provider !== 'meta') {
+      return {
+        status: 'unusable',
+        reason: `unknown WhatsApp provider "${data.provider}"`,
+      };
     }
 
     const accessToken = data.access_token_encrypted ? decrypt(data.access_token_encrypted) : '';

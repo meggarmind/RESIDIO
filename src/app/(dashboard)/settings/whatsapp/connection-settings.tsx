@@ -9,6 +9,7 @@ import {
   disconnectWhatsApp,
   testWhatsAppConnection,
   type WhatsAppConnectionStatus,
+  type WhatsAppProviderName,
 } from '@/actions/whatsapp/connection';
 import { TemplateContentSids } from '@/app/(dashboard)/settings/whatsapp/template-content-sids';
 
@@ -24,7 +25,21 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   hasVerifyToken: false,
   hasAppSecret: false,
   hasAuthToken: false,
+  hasChatmaidApiKey: false,
+  hasChatmaidWebhookSecret: false,
   templateContentSids: null,
+};
+
+const PROVIDER_LABELS: Record<WhatsAppProviderName, string> = {
+  meta: 'Meta',
+  twilio: 'Twilio',
+  chatmaid: 'Chatmaid',
+};
+
+const WEBHOOK_PATHS: Record<WhatsAppProviderName, string> = {
+  meta: '/api/whatsapp/webhook',
+  twilio: '/api/whatsapp/webhook/twilio',
+  chatmaid: '/api/whatsapp/webhook/chatmaid',
 };
 
 function formatSavedAt(status: WhatsAppConnectionStatus): string {
@@ -40,7 +55,7 @@ export function ConnectionSettings({
   siteUrl: string;
 }) {
   const [status, setStatus] = useState(initial);
-  const [provider, setProvider] = useState<'meta' | 'twilio'>(initial.provider || 'meta');
+  const [provider, setProvider] = useState<WhatsAppProviderName>(initial.provider || 'meta');
   const [showForm, setShowForm] = useState(!initial.connected);
 
   // Secret fields -- always start empty. Never pre-filled from the server;
@@ -54,6 +69,8 @@ export function ConnectionSettings({
   const [accountSid, setAccountSid] = useState('');
   const [authToken, setAuthToken] = useState('');
   const [fromNumber, setFromNumber] = useState('');
+  const [chatmaidApiKey, setChatmaidApiKey] = useState('');
+  const [chatmaidWebhookSecret, setChatmaidWebhookSecret] = useState('');
 
   const [message, setMessage] = useState<string | null>(null);
   const [testMessage, setTestMessage] = useState<string | null>(null);
@@ -62,8 +79,7 @@ export function ConnectionSettings({
   const [savedVerifyToken, setSavedVerifyToken] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const webhookUrl =
-    provider === 'meta' ? `${siteUrl}/api/whatsapp/webhook` : `${siteUrl}/api/whatsapp/webhook/twilio`;
+  const webhookUrl = `${siteUrl}${WEBHOOK_PATHS[provider]}`;
 
   function clearSecretFields() {
     setAccessToken('');
@@ -71,6 +87,8 @@ export function ConnectionSettings({
     setAppSecret('');
     setAccountSid('');
     setAuthToken('');
+    setChatmaidApiKey('');
+    setChatmaidWebhookSecret('');
   }
 
   function save() {
@@ -87,12 +105,19 @@ export function ConnectionSettings({
               apiVersion: apiVersion.trim() || undefined,
               graphBaseUrl: graphBaseUrl.trim() || undefined,
             }
-          : {
-              provider: 'twilio' as const,
-              accountSid,
-              authToken,
-              fromNumber,
-            };
+          : provider === 'twilio'
+            ? {
+                provider: 'twilio' as const,
+                accountSid,
+                authToken,
+                fromNumber,
+              }
+            : {
+                provider: 'chatmaid' as const,
+                apiKey: chatmaidApiKey,
+                webhookSecret: chatmaidWebhookSecret,
+                fromNumber,
+              };
 
       const result = await saveWhatsAppCredentials(input);
       if (!result.success || !result.data) {
@@ -154,7 +179,9 @@ export function ConnectionSettings({
       {status.connected ? (
         <div className="space-y-2 rounded-md border bg-muted/30 p-3 text-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="font-medium capitalize">{status.provider} connected</span>
+            <span className="font-medium">
+              {status.provider ? PROVIDER_LABELS[status.provider] : 'WhatsApp'} connected
+            </span>
             <span className="text-xs text-muted-foreground">{formatSavedAt(status)}</span>
           </div>
           <p className="text-muted-foreground">
@@ -208,11 +235,12 @@ export function ConnectionSettings({
             <span className="text-muted-foreground">Provider</span>
             <select
               value={provider}
-              onChange={(event) => setProvider(event.target.value as 'meta' | 'twilio')}
+              onChange={(event) => setProvider(event.target.value as WhatsAppProviderName)}
               className="h-9 w-full rounded-md border bg-background px-3"
             >
               <option value="meta">Meta (WhatsApp Cloud API)</option>
               <option value="twilio">Twilio</option>
+              <option value="chatmaid">Chatmaid (WhatsApp Web bridge)</option>
             </select>
           </label>
 
@@ -243,7 +271,7 @@ export function ConnectionSettings({
                 <Input value={graphBaseUrl} onChange={(event) => setGraphBaseUrl(event.target.value)} placeholder="https://graph.facebook.com" />
               </label>
             </div>
-          ) : (
+          ) : provider === 'twilio' ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1 text-sm">
                 <span className="text-muted-foreground">Account SID</span>
@@ -256,6 +284,35 @@ export function ConnectionSettings({
               <label className="space-y-1 text-sm sm:col-span-2">
                 <span className="text-muted-foreground">From number</span>
                 <Input value={fromNumber} onChange={(event) => setFromNumber(event.target.value)} placeholder="+15551234567" />
+              </label>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">API key</span>
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  value={chatmaidApiKey}
+                  onChange={(event) => setChatmaidApiKey(event.target.value)}
+                  placeholder="sk_live_…"
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-muted-foreground">Webhook signing secret</span>
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  value={chatmaidWebhookSecret}
+                  onChange={(event) => setChatmaidWebhookSecret(event.target.value)}
+                />
+              </label>
+              <label className="space-y-1 text-sm sm:col-span-2">
+                <span className="text-muted-foreground">From number (E.164)</span>
+                <Input value={fromNumber} onChange={(event) => setFromNumber(event.target.value)} placeholder="+2348031234567" />
+                <span className="block text-xs text-muted-foreground">
+                  The paired handset&apos;s number, not the Chatmaid dashboard phone ID — that ID differs between test and live.
+                </span>
               </label>
             </div>
           )}
@@ -275,7 +332,7 @@ export function ConnectionSettings({
 
       <div className="space-y-1 text-sm">
         <span className="text-muted-foreground">
-          {provider === 'meta' ? 'Meta' : 'Twilio'} webhook callback URL
+          {PROVIDER_LABELS[provider]} webhook callback URL
         </span>
         <div className="flex items-center gap-2">
           <code className="flex-1 truncate rounded bg-muted/50 px-2 py-1 font-mono text-xs">{webhookUrl}</code>

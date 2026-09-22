@@ -22,6 +22,8 @@ const DISCONNECTED_STATUS: WhatsAppConnectionStatus = {
   hasVerifyToken: false,
   hasAppSecret: false,
   hasAuthToken: false,
+  hasChatmaidApiKey: false,
+  hasChatmaidWebhookSecret: false,
   templateContentSids: null,
 };
 

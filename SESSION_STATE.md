@@ -9,7 +9,61 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Current session (Claude Code, 2026-09-20/21 — **Chatmaid evaluated end-to-end against the live API; #401 filed. No application code written.**)
+## Current session (Claude Code, 2026-09-22 — **#401 implemented + #403 fixed; PR #404 open**)
+
+**Tool:** Claude Code, coordinator posture. Work isolated in `.worktrees/issue-401` on branch `claude/issue-401-add-chatmaid-as-a-third-whatsapp-provider-webhoo`. Three implementation slices run in parallel via sub-agents (Opus for schema/config and webhook, Sonnet for send transport), each with its own worktree and fresh QA pass.
+
+### What shipped
+
+1. **#401 — Chatmaid as third WhatsApp provider** (PR #404). Three slices, all merged into the integration branch:
+   - **Slice A (Opus)**: Migration `20260922100000_add_chatmaid_whatsapp_provider.sql` adds encrypted `chatmaid_api_key_encrypted`, `chatmaid_webhook_secret_encrypted` columns to `whatsapp_provider_credentials`, adds `paused_until` to `whatsapp_sessions`, keeps single-active-provider constraint. `config-db.ts` fixed to read Chatmaid credentials correctly (was reading as Meta). Admin settings form and server action `updateWhatsAppProviderCredentials` enforce one active provider.
+   - **Slice B (Sonnet)**: `src/lib/whatsapp/providers/chatmaid.ts` — send path with connection health check (30s cache keyed on API key fingerprint, so test→live key rotation never serves stale status), template renderers matching Meta/Twilio parameter order, idempotency keys. Urgent-only SMS fallback in `sendViaWhatsApp`: single delivery-history row on `sms` channel with `fallback_from: whatsapp` metadata; `sendSms` takes `skipHistoryLog` to avoid double-logging (QA defect caught and fixed).
+   - **Slice C (Opus)**: `src/app/api/whatsapp/webhook/chatmaid/route.ts` — verifies Chatmaid signing secret (`x-chatmaid-signature`), dispatches on **signed body's** `event` (not spoofable header). Handles `message.incoming`, `phone.status`, `delivery.sent/failed/read`. Human-takeover pause via `paused_until`. Group-chat ignored. Body >256KB rejected pre-signature. Warning log on rejected events so live payload mismatch is visible.
+   - Closes #278 (stale PROVIDER_REGISTRY docblock corrected in `chatmaid.ts`).
+
+2. **#403 — Financial repo column mapping fix** (included in PR #404):
+   - `src/lib/whatsapp/financial.ts` `createSupabaseRepository`:
+     - `getSession`: explicit map snake_case DB columns → camelCase `WhatsAppFinancialSession` (fixes bare cast leaving `residentId`/`pinAuthenticated` undefined).
+     - `saveSession`: explicit map camelCase interface → snake_case DB columns; never writes `paused_until` (owned by #401 migration).
+   - Verified against live Stage schema: `whatsapp_sessions` has 0 rows, snake_case columns match `database.generated.ts`. 14 financial tests pass.
+
+### Verification
+
+- **Lint**: 0 new errors on WhatsApp-related files (pre-existing errors on unrelated pages `/analytics/announcements`, `/settings/email-integration/config` remain).
+- **Tests**: 1430/1433 pass; 3 failures pre-existing on `master` (legacy-role-migration-ratchet, drop-has-security-permission ratchets drift from a merged migration). 134 WhatsApp-unit tests pass. Module integration test passes: permission gaps 16, audit gaps 5 (unchanged from base — no new gaps).
+- **Build**: compiles successfully; static prerender fails on pages needing Supabase env vars (same as `master`).
+- **Migration**: written, not applied (as required by CORE.md §11). `database.generated.ts` edited by hand, needs `npm run db:types` after migration applies.
+
+### Decisions recorded on #401
+
+- One provider active at a time (Chatmaid, Meta, Twilio are mutually exclusive).
+- Human-takeover pause (`paused_until` on `whatsapp_sessions`) is in scope for #401.
+- Urgent sends only fall back to SMS; consent, burst-cap and template checks still refuse before fallback reaches.
+- Webhook processes synchronously (like Twilio route); dedupe makes retries safe.
+- Signature format from Chatmaid docs: `{timestamp}.{body}`; replay window widened to 30 min (covers 1/5/15 min retries).
+
+### Follow-ups
+
+- **Chatmaid API key rotation**: the key must be rotated before anyone enters it into the new settings form. Rotation happens in Chatmaid's dashboard; new key pasted into admin UI.
+- **Live webhook proof**: signature format and exact `event` payload shape unvalidated against real delivery. First live deploy will confirm. 30-min replay window + dedupe make retries harmless.
+- **Migration apply**: blocked by branch protection on `master`; applies after PR merge by maintainer with cloud access (§11).
+- **#403 scope complete**: `financial.ts` fixed. Other `createSupabase*Repository` factories in `identity.ts` build returns explicitly — no bare cast pattern. No further action.
+
+### Board
+
+- #401: Status → In review; label `harness:claude` added.
+- #403: Status → In review; label `harness:claude` added.
+- PR #404: linked to project board.
+
+### Applied versus merged
+
+- Migration **written** (`supabase/migrations/20260922100000_add_chatmaid_whatsapp_provider.sql`), **not applied**.
+- `database.generated.ts` **hand-edited** to include new columns and `paused_until`; must regenerate after migration applies.
+- All code changes merged into integration branch `claude/issue-401-add-chatmaid-as-a-third-whatsapp-provider-webhoo` and pushed.
+
+---
+
+## Previous session (Claude Code, 2026-09-20/21 — **Chatmaid evaluated end-to-end against the live API; #401 filed. No application code written.**)
 
 **Tool:** Claude Code, coordinator posture. No sub-agents dispatched — this was API testing,
 tracker reading and issue authoring, which CORE.md §15 keeps with the coordinator. Work was done in
