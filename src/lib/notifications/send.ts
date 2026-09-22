@@ -2,8 +2,15 @@
  * Notification Sender - Channel Dispatcher Pattern
  *
  * Sends notifications through the appropriate channel (email, WhatsApp).
- * SMS is not implemented; WhatsApp uses the Meta provider boundary and
- * enforces approved template-only sends for proactive delivery.
+ * `sms` is not a directly queueable channel (see `IMPLEMENTED_CHANNELS`);
+ * WhatsApp enforces approved template-only sends for proactive delivery,
+ * against whichever provider (Meta, Twilio, Chatmaid) is currently active.
+ *
+ * The one exception: when the active provider is Chatmaid and a WhatsApp
+ * send fails on a URGENT-priority item, `sendViaWhatsApp` falls back to
+ * Termii SMS (#401 owner decision) rather than leaving the queue to retry a
+ * bridge that may be down with no recovery path. This is scoped to URGENT
+ * only and to Chatmaid only -- Meta/Twilio behaviour is unchanged.
  *
  * Provider-specific senders stay behind this dispatcher so queue/history
  * behavior remains shared across channels.
@@ -24,8 +31,11 @@ import {
   isApprovedWhatsAppTemplateName,
   sendWhatsAppTemplate,
 } from '@/lib/whatsapp';
+import { resolveWhatsAppConfig } from '@/lib/whatsapp/config';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
+import { sendSms } from '@/lib/sms/send-sms';
+import { PRIORITY } from '@/lib/notifications/queue';
 
 /**
  * Channel-specific sender function signature
@@ -239,6 +249,53 @@ async function sendViaWhatsApp(
       : [],
   });
 
+  if (!result.success) {
+    // SMS fallback (owner decision, #401): covers URGENT-priority sends only
+    // (announcements today), and only when the active provider is Chatmaid --
+    // a bridge with no delivery guarantee and no recovery path for a message
+    // that never arrived (issue #401 §3). Invoice reminders and payment
+    // receipts (NORMAL priority) are left to fail here so the queue retries
+    // them; this must not change Meta/Twilio behaviour at all, so it only
+    // fires after the normal WhatsApp send has already failed.
+    const shouldConsiderSmsFallback = item.priority === PRIORITY.URGENT;
+    if (shouldConsiderSmsFallback) {
+      const resolved = await resolveWhatsAppConfig();
+      const activeProviderIsChatmaid = resolved.status === 'ok' && resolved.config.provider === 'chatmaid';
+
+      if (activeProviderIsChatmaid) {
+        const smsResult = await sendSms({
+          to: { phone: item.recipient_phone, residentId: item.recipient_id },
+          message: item.body,
+          smsType: 'notification',
+          metadata: {
+            fallbackReason: 'whatsapp_chatmaid_send_failed',
+            whatsappError: result.error,
+          },
+        });
+
+        if (smsResult.success) {
+          return {
+            success: true,
+            externalId: smsResult.messageId,
+            // No `error` on a successful send -- the delivery channel is
+            // recorded in `metadata` so history/queue callers (and anyone
+            // reading `notification_history.metadata`) can tell this went
+            // out over SMS rather than WhatsApp.
+            metadata: {
+              deliveredVia: 'sms_fallback',
+              whatsappError: result.error,
+            },
+          };
+        }
+
+        return {
+          success: false,
+          error: `WhatsApp send failed (${result.error}); SMS fallback also failed: ${smsResult.error}`,
+        };
+      }
+    }
+  }
+
   return {
     success: result.success,
     externalId: result.messageId,
@@ -324,6 +381,7 @@ export async function sendAndRecordNotification(
       error_message: result.error || null,
       metadata: {
         ...item.metadata,
+        ...result.metadata,
         deduplication_key: item.deduplication_key,
         queue_priority: item.priority,
         queue_attempts: item.attempts + 1,

@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
+import { PRIORITY } from '@/lib/notifications/queue';
 import { sendNotification } from '@/lib/notifications/send';
 import { getSettingValueAsService, getSettingResultAsService } from '@/actions/settings/get-settings';
 import { sendWhatsAppTemplate } from '@/lib/whatsapp';
+import { resolveWhatsAppConfig } from '@/lib/whatsapp/config';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
+import { sendSms } from '@/lib/sms/send-sms';
 
 vi.mock('@/actions/settings/get-settings', () => ({
   getSettingValueAsService: vi.fn(),
@@ -18,6 +21,14 @@ vi.mock('@/lib/whatsapp', () => ({
   ),
 }));
 
+vi.mock('@/lib/whatsapp/config', () => ({
+  resolveWhatsAppConfig: vi.fn(),
+}));
+
+vi.mock('@/lib/sms/send-sms', () => ({
+  sendSms: vi.fn(),
+}));
+
 vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: vi.fn(),
 }));
@@ -25,6 +36,66 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/whatsapp/rollout', () => ({
   isWhatsAppRecipientAllowed: vi.fn().mockResolvedValue(true),
 }));
+
+const metaConfigResult = {
+  status: 'ok' as const,
+  config: {
+    provider: 'meta' as const,
+    accessToken: 'token',
+    phoneNumberId: 'phone-id',
+    verifyToken: 'verify',
+    appSecret: 'secret',
+    apiVersion: 'v23.0',
+    graphBaseUrl: 'https://graph.example.test',
+  },
+};
+
+const chatmaidConfigResult = {
+  status: 'ok' as const,
+  config: {
+    provider: 'chatmaid' as const,
+    apiKey: 'sk_test_key',
+    webhookSecret: 'whsec',
+    fromNumber: '+2348037000101',
+    baseUrl: 'https://developers-api.chatmaid.test',
+  },
+};
+
+function buildQueueItem(overrides: Partial<Parameters<typeof sendNotification>[0]> = {}) {
+  return {
+    id: 'queue-fallback',
+    template_id: null,
+    schedule_id: null,
+    recipient_id: 'resident-1',
+    recipient_email: null,
+    recipient_phone: '2348000000000',
+    channel: 'whatsapp' as const,
+    subject: null,
+    body: 'Announcement: estate-wide water outage today.',
+    html_body: null,
+    variables: null,
+    priority: PRIORITY.URGENT,
+    status: 'pending' as const,
+    deduplication_key: null,
+    dedup_window_minutes: null,
+    scheduled_for: new Date().toISOString(),
+    attempts: 0,
+    max_attempts: 3,
+    last_attempt_at: null,
+    sent_at: null,
+    error_message: null,
+    metadata: {
+      whatsapp_template: {
+        name: 'announcement',
+        languageCode: 'en_US',
+        parameters: ['Water outage', 'Estate-wide water outage today.'],
+      },
+    },
+    created_at: new Date().toISOString(),
+    created_by: null,
+    ...overrides,
+  };
+}
 
 describe('WhatsApp notification dispatch', () => {
   beforeEach(() => {
@@ -211,6 +282,100 @@ describe('WhatsApp notification dispatch', () => {
     })).resolves.toEqual({
       success: false,
       error: 'WhatsApp recipient is outside the active rollout audience',
+    });
+  });
+
+  describe('SMS fallback for URGENT sends on a failed Chatmaid provider (#401)', () => {
+    it('falls back to SMS when an URGENT WhatsApp send fails and the active provider is Chatmaid', async () => {
+      vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
+        success: false,
+        error: 'Chatmaid bridge is disconnected',
+      });
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(chatmaidConfigResult);
+      vi.mocked(sendSms).mockResolvedValue({ success: true, messageId: 'termii-1' });
+
+      const result = await sendNotification(buildQueueItem());
+
+      expect(sendSms).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: { phone: '2348000000000', residentId: 'resident-1' },
+          message: 'Announcement: estate-wide water outage today.',
+        })
+      );
+      expect(result).toEqual({
+        success: true,
+        externalId: 'termii-1',
+        metadata: {
+          deliveredVia: 'sms_fallback',
+          whatsappError: 'Chatmaid bridge is disconnected',
+        },
+      });
+    });
+
+    it('does not fall back to SMS for a non-URGENT send even when the provider is Chatmaid', async () => {
+      vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
+        success: false,
+        error: 'Chatmaid bridge is disconnected',
+      });
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(chatmaidConfigResult);
+      vi.mocked(sendSms).mockResolvedValue({ success: true, messageId: 'termii-should-not-be-used' });
+
+      const result = await sendNotification(buildQueueItem({ priority: PRIORITY.NORMAL }));
+
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        success: false,
+        externalId: undefined,
+        error: 'Chatmaid bridge is disconnected',
+      });
+    });
+
+    it('does not fall back to SMS for an URGENT send when the active provider is Meta', async () => {
+      vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
+        success: false,
+        error: 'WhatsApp provider request failed (HTTP 401)',
+      });
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(metaConfigResult);
+      vi.mocked(sendSms).mockResolvedValue({ success: true, messageId: 'termii-should-not-be-used' });
+
+      const result = await sendNotification(buildQueueItem());
+
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        success: false,
+        externalId: undefined,
+        error: 'WhatsApp provider request failed (HTTP 401)',
+      });
+    });
+
+    it('does not fall back to SMS when the Chatmaid WhatsApp send already succeeded', async () => {
+      vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
+        success: true,
+        messageId: 'msg_chatmaid_1',
+      });
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(chatmaidConfigResult);
+      vi.mocked(sendSms).mockResolvedValue({ success: true, messageId: 'termii-should-not-be-used' });
+
+      const result = await sendNotification(buildQueueItem());
+
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(resolveWhatsAppConfig).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: true, externalId: 'msg_chatmaid_1', error: undefined });
+    });
+
+    it('reports both failures when the SMS fallback itself also fails', async () => {
+      vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
+        success: false,
+        error: 'Chatmaid bridge is disconnected',
+      });
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(chatmaidConfigResult);
+      vi.mocked(sendSms).mockResolvedValue({ success: false, error: 'Termii balance exhausted' });
+
+      const result = await sendNotification(buildQueueItem());
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Chatmaid bridge is disconnected');
+      expect(result.error).toContain('Termii balance exhausted');
     });
   });
 });
