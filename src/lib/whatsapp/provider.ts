@@ -1,6 +1,7 @@
-import { resolveWhatsAppConfig, type MetaWhatsAppConfig, type TwilioWhatsAppConfig, type WhatsAppConfig } from '@/lib/whatsapp/config';
+import { resolveWhatsAppConfig, type ChatmaidWhatsAppConfig, type MetaWhatsAppConfig, type TwilioWhatsAppConfig, type WhatsAppConfig } from '@/lib/whatsapp/config';
 import { createMetaWhatsAppProvider } from '@/lib/whatsapp/providers/meta';
 import { createTwilioWhatsAppProvider } from '@/lib/whatsapp/providers/twilio';
+import { createChatmaidWhatsAppProvider } from '@/lib/whatsapp/providers/chatmaid';
 import type {
   WhatsAppSendResult,
   WhatsAppTemplateMessage,
@@ -28,16 +29,21 @@ type ProviderFactory = (config: WhatsAppConfig) => WhatsAppProvider;
  * adapter here enables outbound automatically, because the entry points below
  * gate on `isProviderSupported()` rather than on a hardcoded provider name.
  *
- * It does NOT govern inbound. `src/app/api/whatsapp/webhook/route.ts` still
- * selects Meta explicitly, and must, because webhook signature verification
- * and payload parsing are provider-specific in a way sending is not -- Meta
- * uses HMAC-SHA256 over the raw body, Twilio HMAC-SHA1 over the URL plus
- * sorted params. Until #130 lands, registering a provider here makes it able
- * to send and unable to receive.
+ * It does NOT govern inbound. Each provider has its own inbound route --
+ * `src/app/api/whatsapp/webhook/route.ts` for Meta,
+ * `src/app/api/whatsapp/webhook/twilio/route.ts` for Twilio, and
+ * `src/app/api/whatsapp/webhook/chatmaid/route.ts` for Chatmaid -- and must,
+ * because webhook signature verification and payload parsing are
+ * provider-specific in a way sending is not: Meta uses HMAC-SHA256 over the
+ * raw body, Twilio HMAC-SHA1 over the URL plus sorted params, and Chatmaid a
+ * third scheme again (`timestamp + rawBody`, see `signature.ts`). Registering
+ * a provider here makes it able to send; a separate route registration is
+ * what makes it able to receive.
  */
 const PROVIDER_REGISTRY: Partial<Record<WhatsAppConfig['provider'], ProviderFactory>> = {
   meta: (config) => createMetaWhatsAppProvider(config as MetaWhatsAppConfig),
   twilio: (config) => createTwilioWhatsAppProvider(config as TwilioWhatsAppConfig),
+  chatmaid: (config) => createChatmaidWhatsAppProvider(config as ChatmaidWhatsAppConfig),
 };
 
 /**
