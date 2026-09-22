@@ -305,6 +305,42 @@ describe('Chatmaid WhatsApp webhook route', () => {
       expect(h.notifyAdmins).not.toHaveBeenCalled();
     });
 
+    it('logs both event values, and nothing from the body, when it rejects a mismatch', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const h = await load();
+        await h.POST(post('phone.connected', receivedBody));
+
+        expect(warn).toHaveBeenCalledTimes(1);
+        const logged = JSON.stringify(warn.mock.calls[0]);
+        expect(logged).toContain('phone.connected');
+        expect(logged).toContain('message.received');
+        expect(logged).not.toContain('2348000000000');
+        expect(logged).not.toContain('balance');
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('logs the (truncated) header value when the body names no event', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const h = await load();
+        const body = JSON.stringify({ data: { from: '+2348000000000', content: 'balance' } });
+        await h.POST(post(`phone.disconnected${'x'.repeat(500)}`, body));
+
+        expect(warn).toHaveBeenCalledTimes(1);
+        const logged = JSON.stringify(warn.mock.calls[0]);
+        expect(logged).toContain('phone.disconnected');
+        expect(logged).toContain('undefined');
+        expect(logged).not.toContain('x'.repeat(100));
+        expect(logged).not.toContain('2348000000000');
+        expect(logged).not.toContain('balance');
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
     it('rejects a signed message.received body relabelled phone.connected, without notifying', async () => {
       const h = await load();
       const response = await h.POST(post('phone.connected', receivedBody));
@@ -427,6 +463,37 @@ describe('Chatmaid WhatsApp webhook route', () => {
 
       expect(response.status).toBe(413);
       expect(h.notifyAdmins).not.toHaveBeenCalled();
+    });
+
+    it('applies the cap before the signature: an oversized, badly signed body gets 413, not 401', async () => {
+      const h = await load();
+      const big = JSON.stringify({ event: 'phone.disconnected', data: { padding: 'x'.repeat(256 * 1024) } });
+
+      const response = await h.POST(post('phone.disconnected', big, 't=1,v1=bad'));
+
+      expect(response.status).toBe(413);
+      expect(h.notifyAdmins).not.toHaveBeenCalled();
+    });
+
+    it('counts bytes, not characters: a multibyte body under the cap in characters is rejected', async () => {
+      const h = await load();
+      // '€' is 3 bytes in UTF-8: ~100k characters, ~300 KB.
+      const big = JSON.stringify({ event: 'phone.disconnected', data: { padding: '€'.repeat(100_000) } });
+      expect(big.length).toBeLessThan(256 * 1024);
+      expect(Buffer.byteLength(big, 'utf8')).toBeGreaterThan(256 * 1024);
+
+      const response = await h.POST(post('phone.disconnected', big, sign(big)));
+
+      expect(response.status).toBe(413);
+      expect(h.notifyAdmins).not.toHaveBeenCalled();
+    });
+
+    it('accepts a multibyte body that is under the cap in bytes', async () => {
+      const h = await load();
+      const body = JSON.stringify({ event: 'something.new', data: { padding: '€'.repeat(80_000) } });
+      expect(Buffer.byteLength(body, 'utf8')).toBeLessThan(256 * 1024);
+
+      expect((await h.POST(post('something.new', body, sign(body)))).status).toBe(200);
     });
 
     it('accepts a body just under the cap', async () => {

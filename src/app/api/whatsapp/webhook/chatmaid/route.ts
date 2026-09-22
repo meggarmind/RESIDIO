@@ -34,6 +34,21 @@ import {
 /** Largest body accepted, checked before the signature is computed. */
 const CHATMAID_MAX_BODY_BYTES = 256 * 1024;
 
+/**
+ * A loggable description of an event name, for the 400 paths. Only the event
+ * value is logged (never the body, which carries phone numbers and message
+ * text), truncated so a hostile header cannot flood the logs.
+ */
+function describeEventValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return String(value);
+  }
+  if (typeof value !== 'string') {
+    return `<${typeof value}>`;
+  }
+  return value.length > 64 ? `${JSON.stringify(value.slice(0, 64))}...` : JSON.stringify(value);
+}
+
 function processingFailed(error: string) {
   return NextResponse.json({ received: true, processed: false, error }, { status: 500 });
 }
@@ -187,9 +202,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Webhook is not configured' }, { status: 503 });
   }
 
-  // Cap the body before reading and hashing it: this endpoint is public, and
-  // an unauthenticated sender must not be able to make it buffer and HMAC an
-  // arbitrarily large payload.
+  // Size cap, checked before the signature is computed. This endpoint is
+  // public, so an unauthenticated sender must not be able to make it HMAC and
+  // parse an arbitrarily large payload. The bound is only partial: a declared
+  // `content-length` over the cap is refused without reading the body, but
+  // without that header `request.text()` still buffers the whole body (up to
+  // the platform's own request-body limit) before the byte check below
+  // rejects it. No streaming read is attempted.
   const declaredLength = Number(request.headers.get('content-length'));
   if (Number.isFinite(declaredLength) && declaredLength > CHATMAID_MAX_BODY_BYTES) {
     return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
@@ -222,12 +241,21 @@ export async function POST(request: NextRequest) {
   // `phone.disconnected` would raise a false urgent alert). The header is
   // only a consistency check.
   const bodyEvent = (payload as { event?: unknown } | null)?.event;
+  const headerEvent = request.headers.get('x-chatmaid-event');
+
   if (typeof bodyEvent !== 'string' || bodyEvent.length === 0) {
+    console.warn('[chatmaid-webhook] Rejected: signed body names no event', {
+      headerEvent: describeEventValue(headerEvent),
+      bodyEvent: describeEventValue(bodyEvent),
+    });
     return NextResponse.json({ received: true, processed: false, error: 'Missing event' }, { status: 400 });
   }
 
-  const headerEvent = request.headers.get('x-chatmaid-event');
   if (headerEvent !== null && headerEvent !== bodyEvent) {
+    console.warn('[chatmaid-webhook] Rejected: X-Chatmaid-Event header does not match the signed body', {
+      headerEvent: describeEventValue(headerEvent),
+      bodyEvent: describeEventValue(bodyEvent),
+    });
     return NextResponse.json(
       { received: true, processed: false, error: 'Event header does not match the signed body' },
       { status: 400 }
