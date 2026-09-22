@@ -234,3 +234,142 @@ describe('loadWhatsAppConfigFromDb failure handling', () => {
     expect(result.status).toBe('unusable');
   });
 });
+
+describe('loadWhatsAppConfigFromDb provider selection', () => {
+  beforeEach(() => {
+    vi.doUnmock('@/lib/whatsapp/config-db');
+    vi.resetModules();
+    vi.unstubAllEnvs();
+    vi.doMock('@/lib/encryption', () => ({
+      decrypt: vi.fn((ciphertext: string) => `plain(${ciphertext})`),
+    }));
+  });
+
+  function mockActiveRow(row: Record<string, unknown>) {
+    vi.doMock('@/lib/supabase/server', () => ({
+      createAdminClient: vi.fn(() => ({
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: row, error: null }),
+            }),
+          }),
+        }),
+      })),
+    }));
+  }
+
+  const chatmaidRow = {
+    provider: 'chatmaid',
+    chatmaid_api_key_encrypted: 'ct-api-key',
+    chatmaid_webhook_secret_encrypted: 'ct-webhook-secret',
+    whatsapp_from_number: '+2348031234567',
+    access_token_encrypted: null,
+    verify_token_encrypted: null,
+    app_secret_encrypted: null,
+    phone_number_id: null,
+  };
+
+  it('decodes an active Chatmaid row into a Chatmaid config keyed on the E.164 number', async () => {
+    mockActiveRow(chatmaidRow);
+
+    const { loadWhatsAppConfigFromDb } = await import('@/lib/whatsapp/config-db');
+
+    expect(await loadWhatsAppConfigFromDb()).toEqual({
+      status: 'ok',
+      config: {
+        provider: 'chatmaid',
+        apiKey: 'plain(ct-api-key)',
+        webhookSecret: 'plain(ct-webhook-secret)',
+        fromNumber: '+2348031234567',
+        baseUrl: 'https://developers-api.chatmaid.net',
+      },
+    });
+  });
+
+  it.each([
+    ['API key', { chatmaid_api_key_encrypted: null }],
+    ['webhook signing secret', { chatmaid_webhook_secret_encrypted: null }],
+    ['from number', { whatsapp_from_number: null }],
+  ])('reports a Chatmaid row missing its %s as unusable', async (_label, override) => {
+    mockActiveRow({ ...chatmaidRow, ...override });
+
+    const { loadWhatsAppConfigFromDb } = await import('@/lib/whatsapp/config-db');
+
+    expect(await loadWhatsAppConfigFromDb()).toEqual({
+      status: 'unusable',
+      reason: 'stored Chatmaid credentials are missing required fields',
+    });
+  });
+
+  // The regression: every non-Twilio provider used to fall through to Meta
+  // decoding. A row for an unknown provider that happens to carry complete
+  // Meta columns must still be refused, not silently used as Meta.
+  it('reports an unknown provider as unusable instead of decoding it as Meta', async () => {
+    mockActiveRow({
+      provider: 'whatsapp-next',
+      access_token_encrypted: 'ct-access',
+      verify_token_encrypted: 'ct-verify',
+      app_secret_encrypted: 'ct-secret',
+      phone_number_id: 'pn-1',
+      api_version: 'v23.0',
+      graph_base_url: 'https://graph.facebook.com',
+    });
+
+    const { loadWhatsAppConfigFromDb } = await import('@/lib/whatsapp/config-db');
+
+    const result = await loadWhatsAppConfigFromDb();
+    expect(result.status).toBe('unusable');
+    expect(result).toMatchObject({ reason: expect.stringContaining('unknown WhatsApp provider') });
+  });
+
+  it('still decodes an active Meta row', async () => {
+    mockActiveRow({
+      provider: 'meta',
+      access_token_encrypted: 'ct-access',
+      verify_token_encrypted: 'ct-verify',
+      app_secret_encrypted: 'ct-secret',
+      phone_number_id: 'pn-1',
+      api_version: 'v23.0',
+      graph_base_url: 'https://graph.facebook.com',
+    });
+
+    const { loadWhatsAppConfigFromDb } = await import('@/lib/whatsapp/config-db');
+
+    expect(await loadWhatsAppConfigFromDb()).toEqual({
+      status: 'ok',
+      config: {
+        provider: 'meta',
+        accessToken: 'plain(ct-access)',
+        phoneNumberId: 'pn-1',
+        verifyToken: 'plain(ct-verify)',
+        appSecret: 'plain(ct-secret)',
+        apiVersion: 'v23.0',
+        graphBaseUrl: 'https://graph.facebook.com',
+      },
+    });
+  });
+
+  it('still decodes an active Twilio row', async () => {
+    mockActiveRow({
+      provider: 'twilio',
+      account_sid_encrypted: 'ct-sid',
+      auth_token_encrypted: 'ct-token',
+      whatsapp_from_number: '+15551234567',
+      template_content_sids: null,
+    });
+
+    const { loadWhatsAppConfigFromDb } = await import('@/lib/whatsapp/config-db');
+
+    expect(await loadWhatsAppConfigFromDb()).toEqual({
+      status: 'ok',
+      config: {
+        provider: 'twilio',
+        accountSid: 'plain(ct-sid)',
+        authToken: 'plain(ct-token)',
+        fromNumber: '+15551234567',
+        templateContentSids: {},
+      },
+    });
+  });
+});

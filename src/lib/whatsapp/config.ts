@@ -18,7 +18,23 @@ export interface TwilioWhatsAppConfig {
   templateContentSids: Record<string, string>;
 }
 
-export type WhatsAppConfig = MetaWhatsAppConfig | TwilioWhatsAppConfig;
+/**
+ * Chatmaid: a QR-paired WhatsApp Web bridge (#401).
+ *
+ * `fromNumber` is the sending number in E.164. Chatmaid accepts it as
+ * `fromPhoneId`, and it is deliberately what config keys on: the Chatmaid
+ * dashboard phone id is environment-scoped, so the same handset has a
+ * different id in test and live and a stored id would break on promotion.
+ */
+export interface ChatmaidWhatsAppConfig {
+  provider: 'chatmaid';
+  apiKey: string;
+  webhookSecret: string;
+  fromNumber: string;
+  baseUrl: string;
+}
+
+export type WhatsAppConfig = MetaWhatsAppConfig | TwilioWhatsAppConfig | ChatmaidWhatsAppConfig;
 
 /**
  * Why this is a result type rather than `WhatsAppConfig | null`:
