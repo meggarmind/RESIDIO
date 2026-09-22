@@ -62,18 +62,30 @@ describe('verifyChatmaidSignature', () => {
     expect(verifyChatmaidSignature(rawBody, `t=${timestampSeconds},v1=${v1}`, secret, nowMs)).toBe(false);
   });
 
-  it('rejects a stale timestamp (older than 5 minutes)', () => {
-    const t = timestampSeconds - 5 * 60 - 1;
-    expect(verifyChatmaidSignature(rawBody, sign(rawBody, t), secret, nowMs)).toBe(false);
-  });
-
-  it('accepts a timestamp exactly at the 5-minute edge', () => {
-    const t = timestampSeconds - 5 * 60;
+  // The window is 30 minutes so a retry at 15 minutes (22 minutes after the
+  // first attempt) still verifies if Chatmaid does not refresh `t`.
+  it('accepts a 16-minute-old timestamp (a late retry)', () => {
+    const t = timestampSeconds - 16 * 60;
     expect(verifyChatmaidSignature(rawBody, sign(rawBody, t), secret, nowMs)).toBe(true);
   });
 
-  it('rejects a future timestamp (more than 5 minutes ahead)', () => {
-    const t = timestampSeconds + 5 * 60 + 1;
+  it('accepts a timestamp 16 minutes ahead (clock skew)', () => {
+    const t = timestampSeconds + 16 * 60;
+    expect(verifyChatmaidSignature(rawBody, sign(rawBody, t), secret, nowMs)).toBe(true);
+  });
+
+  it('accepts a timestamp exactly at the 30-minute edge', () => {
+    const t = timestampSeconds - 30 * 60;
+    expect(verifyChatmaidSignature(rawBody, sign(rawBody, t), secret, nowMs)).toBe(true);
+  });
+
+  it('rejects a stale timestamp (31 minutes old)', () => {
+    const t = timestampSeconds - 31 * 60;
+    expect(verifyChatmaidSignature(rawBody, sign(rawBody, t), secret, nowMs)).toBe(false);
+  });
+
+  it('rejects a future timestamp (31 minutes ahead)', () => {
+    const t = timestampSeconds + 31 * 60;
     expect(verifyChatmaidSignature(rawBody, sign(rawBody, t), secret, nowMs)).toBe(false);
   });
 

@@ -12,8 +12,19 @@ import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
  * provider layer rather than in the Meta-only `inbound.ts`.
  */
 
-/** Replay window for `X-Chatmaid-Signature` timestamps, in either direction. */
-export const CHATMAID_SIGNATURE_TOLERANCE_MS = 5 * 60 * 1000;
+/**
+ * Replay window for `X-Chatmaid-Signature` timestamps, in either direction.
+ *
+ * 30 minutes, deliberately wider than the usual 5. Chatmaid retries a failed
+ * delivery at 1, 5 and 15 minutes (22 minutes after the first attempt in
+ * total), and its docs do not say whether a retry is re-signed with a fresh
+ * `t`. If it is not, a 5-minute window would reject the 5- and 15-minute
+ * retries and the event would be lost for good. Losing an event is worse than
+ * accepting an old one: replayed `message.received` and `phone.*` events are
+ * already deduped by the processed-message store, and a replayed
+ * `message.outgoing` only re-sets a pause.
+ */
+export const CHATMAID_SIGNATURE_TOLERANCE_MS = 30 * 60 * 1000;
 
 /** How long a `message.outgoing` (a human typing on the handset) silences the Assistant. */
 export const CHATMAID_HUMAN_TAKEOVER_PAUSE_MS = 30 * 60 * 1000;

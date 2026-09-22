@@ -139,7 +139,7 @@ describe('Chatmaid WhatsApp webhook route', () => {
   it.each([
     ['missing signature', null],
     ['wrong secret', sign(receivedBody, 'not-the-secret')],
-    ['stale timestamp', sign(receivedBody, chatmaidConfig.webhookSecret, Math.floor(NOW / 1000) - 301)],
+    ['stale timestamp', sign(receivedBody, chatmaidConfig.webhookSecret, Math.floor(NOW / 1000) - 31 * 60)],
   ])('rejects %s with 401 before any processing', async (_label, signature) => {
     const h = await load();
     const response = await h.POST(post('phone.disconnected', disconnectedBody, signature));
@@ -149,6 +149,15 @@ describe('Chatmaid WhatsApp webhook route', () => {
     expect(h.handleResidentMessage).not.toHaveBeenCalled();
     expect(h.pause).not.toHaveBeenCalled();
     expect(h.getPausedUntil).not.toHaveBeenCalled();
+  });
+
+  it('accepts a retry whose signature is 16 minutes old', async () => {
+    const h = await load();
+    const signature = sign(receivedBody, chatmaidConfig.webhookSecret, Math.floor(NOW / 1000) - 16 * 60);
+    const response = await h.POST(post('message.received', receivedBody, signature));
+
+    expect(response.status).toBe(200);
+    expect(h.handleResidentMessage).toHaveBeenCalledTimes(1);
   });
 
   it('rejects an unparseable body with 401 when unsigned, before trying to parse it', async () => {
