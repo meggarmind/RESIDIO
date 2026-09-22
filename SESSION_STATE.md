@@ -9,7 +9,40 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
-## Current session (Claude Code, 2026-09-22 — **#401 implemented + #403 fixed; PR #404 open**)
+## Current session (Claude Code, 2026-09-22 — **#401/#403 migration applied to Stage; types regenerated; #405 filed**)
+
+**Tool:** Claude Code, coordinator posture. Trivia-tier follow-up to the session below — no sub-agents dispatched (reading a migration file, running MCP calls, reading test output). Work done directly in the `ChatMaid` worktree, on branch `chore/issue-401-migration-applied-types-regen` (the `claude/issue-401-...` branch is merged via #404 and must not be reused, per branching rules).
+
+### What shipped
+
+1. **Migration applied — Residio_Stage (`kzugmyjjqttardhfejzc`), 2026-09-22.** `supabase/migrations/20260922100000_add_chatmaid_whatsapp_provider.sql` (merged in #404) applied via Supabase MCP. Pre-check confirmed Stage was in the exact state the migration expects (old 12-arg `replace_whatsapp_credentials`, `meta`/`twilio`-only CHECK, 0 credential rows) before applying. Post-check confirmed: CHECK now `meta | twilio | chatmaid`; both `chatmaid_*` columns and `whatsapp_sessions.paused_until` present; `replace_whatsapp_credentials` has exactly one overload (14 args), EXECUTE granted to `service_role` only. Recorded on #401 ([comment](https://github.com/meggarmind/RESIDIO/issues/401#issuecomment-5779509336)).
+   - **Not applied to Residio_Prod** (`miyeswqbwarvipdzwqnz`) — confirmed it is not an app/CI target (partially migrated, not a mirror of Stage; see prior session's #262 notes below).
+
+2. **`database.generated.ts` regenerated from live Stage** via `mcp__claude_ai_Supabase__generate_typescript_types` (cloud, never the broken `--local` `db:types` script per CORE.md §5). Diffed byte-for-byte against the file the implementing session hand-edited: **zero drift on anything Chatmaid-related.** One unrelated addition picked up: `validate_invoice_generation_run_short_names` (from a 2026-09-09 migration, already used in `src/lib/billing/invoice-generation-worker.ts` — pre-existing gap in the committed types, not something either session caused).
+
+3. **#405 filed** — `legacy-role-migration-ratchet.test.ts` has been failing both its assertions since the commit that created it (2026-09-04), unrelated to #401/#403. Two independent causes: a stale allowlist entry for a renamed migration file, and four pre-ratchet migrations (Jan/Feb 2026) that reference `profiles.role` but were never added to the allowlist. Found in passing verifying `npm test`; filed per CORE.md §10 guardrail 4 rather than fixed here — out of scope for this branch.
+
+### Verification
+
+- `npx tsc --noEmit` — clean.
+- `npm run lint` — 2 pre-existing errors in `bank-accounts-list.tsx` (`react/no-unescaped-entities`), confirmed present on `origin/master`, untouched by either session.
+- `npm test` — 1429 passed. 3 failures: `global-search-command.test.tsx` was full-suite contention (passed clean alone, per the flake protocol); the other 2 are #405, confirmed pre-existing and unrelated.
+- `npm run build` — exit 0, all ~121 pages built including `/settings/whatsapp`. (Required copying `.env.local` from the main checkout `C:/Projects/RESIDIO` into this worktree — gitignored, per-worktree, wasn't present here.)
+
+### Applied versus merged
+
+- Migration: **written, merged (#404), and now applied** to Residio_Stage only.
+- `database.generated.ts`: regenerated from the live cloud schema this session (superseding the prior session's hand-edit) and committed on this branch — not yet merged to `master`.
+- This file's update and the types regen live on `chore/issue-401-migration-applied-types-regen`, not yet a PR at time of writing this entry.
+
+### Next session must not re-litigate
+
+- Whether to apply the migration to Prod — decided no, Prod is not a target (see #262 notes below).
+- Whether `database.generated.ts` drift beyond Chatmaid is this branch's problem — it isn't; #405 covers the only other gap found, and it's a pre-existing one unrelated to types.
+
+---
+
+## Previous session (Claude Code, 2026-09-22 — **#401 implemented + #403 fixed; PR #404 open, now merged**)
 
 **Tool:** Claude Code, coordinator posture. Work isolated in `.worktrees/issue-401` on branch `claude/issue-401-add-chatmaid-as-a-third-whatsapp-provider-webhoo`. Three implementation slices run in parallel via sub-agents (Opus for schema/config and webhook, Sonnet for send transport), each with its own worktree and fresh QA pass.
 
