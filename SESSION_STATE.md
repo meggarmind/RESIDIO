@@ -9,6 +9,27 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 ---
 
+## Current session (Claude Code, 2026-09-22 — **#407 filed: Slice B (Chatmaid send transport) never landed on master; branches recovered and pushed**)
+
+**Tool:** Claude Code, coordinator posture. Trivia-tier — no sub-agents. Found while sweeping local slice/QA branches left over from the session two entries below, after confirming each was safe to delete.
+
+### Correction to the entry below
+
+**The "#401 implemented" entry's Slice B bullet is wrong.** It says Slice B (`src/lib/whatsapp/providers/chatmaid.ts`, the send transport) was "merged into the integration branch." It was not merged into `master`. Verified two ways: `gh pr view 404 --json files` lists 16 changed files, none of them Slice B's; and `origin/master`'s `src/lib/whatsapp/provider.ts` `PROVIDER_REGISTRY` has `meta` and `twilio` only, no `chatmaid` key, and `chatmaid.ts` does not exist in the tree at all. **Right now, an admin can select and activate Chatmaid in the merged settings UI, and every outbound WhatsApp send will then fail** — there is no provider implementation behind the config. See #407.
+
+### What shipped
+
+1. **#407 filed and attached to #293** (the same map parent as #401/#403). Full evidence in the issue: what's missing, why, and what landing it requires. Not fixed here — out of scope for a branch sweep, filed per CORE.md §10 guardrail 4.
+2. **`claude/issue-401-b-send` and `qa/issue-401-b` recovered.** Both existed only as local, unpushed branches in this worktree — the sole copies of Slice B's work (and a QA pass over it that also reshapes the file layout: it drops `chatmaid-inbound.ts` and folds inbound+send into one `chatmaid.ts`, which does **not** match what actually shipped on `master` — `master` kept `chatmaid-inbound.ts` as its own file per Slice C, and that's load-bearing since #403's `financial.ts` fix and #401's migration both already merged against that structure). Both branches pushed to `origin` as-is, unchanged, so a local-worktree loss can no longer destroy them. **Neither is ready to merge as-is** — whoever picks up #407 needs to reconcile `qa/issue-401-b`'s consolidated-file design against `master`'s actual (diverged) structure first.
+3. Four other local branches from the same session (`claude/issue-401-a-schema`, `claude/issue-401-c-webhook`, `qa/issue-401-a`, `qa/issue-401-c`) were deleted — confirmed via `git branch --merged origin/master` that those exact commits are ancestors of `master`, i.e. provably fully captured. Not a guess from content-diffing; an ancestry check.
+
+### Next session must not re-litigate
+
+- Whether Slice B shipped — it didn't. #407 is the tracker for landing it.
+- Whether `qa/issue-401-b`'s file layout (single `chatmaid.ts`) is the target design — it conflicts with what's actually on `master`; #407's implementer must reconcile, not just cherry-pick.
+
+---
+
 ## Current session (Claude Code, 2026-09-22 — **#401/#403 migration applied to Stage; types regenerated; #405 filed**)
 
 **Tool:** Claude Code, coordinator posture. Trivia-tier follow-up to the session below — no sub-agents dispatched (reading a migration file, running MCP calls, reading test output). Work done directly in the `ChatMaid` worktree, on branch `chore/issue-401-migration-applied-types-regen` (the `claude/issue-401-...` branch is merged via #404 and must not be reused, per branching rules).
@@ -50,7 +71,7 @@ Coordination file shared between OpenCode and Claude Code working on Residio.
 
 1. **#401 — Chatmaid as third WhatsApp provider** (PR #404). Three slices, all merged into the integration branch:
    - **Slice A (Opus)**: Migration `20260922100000_add_chatmaid_whatsapp_provider.sql` adds encrypted `chatmaid_api_key_encrypted`, `chatmaid_webhook_secret_encrypted` columns to `whatsapp_provider_credentials`, adds `paused_until` to `whatsapp_sessions`, keeps single-active-provider constraint. `config-db.ts` fixed to read Chatmaid credentials correctly (was reading as Meta). Admin settings form and server action `updateWhatsAppProviderCredentials` enforce one active provider.
-   - **Slice B (Sonnet)**: `src/lib/whatsapp/providers/chatmaid.ts` — send path with connection health check (30s cache keyed on API key fingerprint, so test→live key rotation never serves stale status), template renderers matching Meta/Twilio parameter order, idempotency keys. Urgent-only SMS fallback in `sendViaWhatsApp`: single delivery-history row on `sms` channel with `fallback_from: whatsapp` metadata; `sendSms` takes `skipHistoryLog` to avoid double-logging (QA defect caught and fixed).
+   - **Slice B (Sonnet)** — ⚠️ **CORRECTION (see the entry above, 2026-09-22): this did NOT merge.** `src/lib/whatsapp/providers/chatmaid.ts` — send path with connection health check (30s cache keyed on API key fingerprint, so test→live key rotation never serves stale status), template renderers matching Meta/Twilio parameter order, idempotency keys. Urgent-only SMS fallback in `sendViaWhatsApp`: single delivery-history row on `sms` channel with `fallback_from: whatsapp` metadata; `sendSms` takes `skipHistoryLog` to avoid double-logging (QA defect caught and fixed). Written and (per this entry) QA'd, but absent from `origin/master` and from PR #404's file list. Tracked as #407.
    - **Slice C (Opus)**: `src/app/api/whatsapp/webhook/chatmaid/route.ts` — verifies Chatmaid signing secret (`x-chatmaid-signature`), dispatches on **signed body's** `event` (not spoofable header). Handles `message.incoming`, `phone.status`, `delivery.sent/failed/read`. Human-takeover pause via `paused_until`. Group-chat ignored. Body >256KB rejected pre-signature. Warning log on rejected events so live payload mismatch is visible.
    - Closes #278 (stale PROVIDER_REGISTRY docblock corrected in `chatmaid.ts`).
 
