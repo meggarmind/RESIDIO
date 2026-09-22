@@ -276,7 +276,7 @@ describe('Chatmaid WhatsApp webhook route', () => {
     expect(h.notifyAdmins.mock.calls[0][0]).toMatchObject({ priority: 'normal', category: 'system' });
   });
 
-  it.each(['message.delivered', 'message.read', 'message.failed', 'something.new', null])(
+  it.each(['message.delivered', 'message.read', 'message.failed', 'something.new'])(
     'acknowledges %s with 200 and does nothing else',
     async (event) => {
       const h = await load();
@@ -289,4 +289,153 @@ describe('Chatmaid WhatsApp webhook route', () => {
       expect(h.pause).not.toHaveBeenCalled();
     }
   );
+
+  describe('event type comes from the signed body, not the unsigned header', () => {
+    const connectedBody = JSON.stringify({
+      event: 'phone.connected',
+      timestamp: '2026-09-22T11:59:30.000Z',
+      data: {},
+    });
+
+    it('rejects a signed phone.connected body relabelled phone.disconnected, without alerting', async () => {
+      const h = await load();
+      const response = await h.POST(post('phone.disconnected', connectedBody));
+
+      expect(response.status).toBe(400);
+      expect(h.notifyAdmins).not.toHaveBeenCalled();
+    });
+
+    it('rejects a signed message.received body relabelled phone.connected, without notifying', async () => {
+      const h = await load();
+      const response = await h.POST(post('phone.connected', receivedBody));
+
+      expect(response.status).toBe(400);
+      expect(h.notifyAdmins).not.toHaveBeenCalled();
+      expect(h.handleResidentMessage).not.toHaveBeenCalled();
+    });
+
+    it('rejects a signed body that names no event, whatever the header says', async () => {
+      const h = await load();
+      const body = JSON.stringify({ timestamp: '2026-09-22T11:59:30.000Z', data: {} });
+      const response = await h.POST(post('phone.disconnected', body));
+
+      expect(response.status).toBe(400);
+      expect(h.notifyAdmins).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['no event field', { data: {} }],
+      ['a non-string event', { event: 42, data: {} }],
+      ['an empty event', { event: '', data: {} }],
+    ])('rejects a signed body with %s and no header with 400', async (_label, value) => {
+      const h = await load();
+      const body = JSON.stringify(value);
+      const response = await h.POST(post(null, body));
+
+      expect(response.status).toBe(400);
+    });
+
+    it('dispatches on the body event when the header is absent', async () => {
+      const h = await load();
+      const response = await h.POST(post(null, disconnectedBody));
+
+      expect(response.status).toBe(200);
+      expect(h.notifyAdmins).toHaveBeenCalledTimes(1);
+      expect(h.notifyAdmins.mock.calls[0][0]).toMatchObject({ priority: 'urgent' });
+    });
+  });
+
+  it('verifies the HMAC over the raw bytes, not a re-serialisation', async () => {
+    const h = await load();
+    const pretty = `${JSON.stringify(JSON.parse(receivedBody), null, 2)}\n`;
+    expect(pretty).not.toBe(receivedBody);
+
+    // Signed over the exact bytes sent: accepted.
+    const accepted = await h.POST(post('message.received', pretty, sign(pretty)));
+    expect(accepted.status).toBe(200);
+    expect(h.handleResidentMessage).toHaveBeenCalledTimes(1);
+
+    // Same JSON value, but signed over the compact form: rejected.
+    const rejected = await h.POST(post('message.received', pretty, sign(receivedBody)));
+    expect(rejected.status).toBe(401);
+  });
+
+  it('returns 500 and does not reply when the pause lookup fails, and the retry is answered', async () => {
+    const h = await load();
+    h.getPausedUntil.mockRejectedValueOnce(new Error('db down'));
+
+    const first = await h.POST(post('message.received', receivedBody));
+    expect(first.status).toBe(500);
+    expect(h.handleResidentMessage).not.toHaveBeenCalled();
+
+    const retry = await h.POST(post('message.received', receivedBody));
+    expect(retry.status).toBe(200);
+    expect(h.handleResidentMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not hand a group message to the Assistant, and counts it as ignored', async () => {
+    const h = await load();
+    const body = JSON.stringify({
+      event: 'message.received',
+      timestamp: '2026-09-22T11:59:59.000Z',
+      data: {
+        messageId: 'inmsg_group_1',
+        from: '+2348000000000',
+        to: '+15550001111',
+        content: 'balance',
+        type: 'text',
+        isGroup: true,
+      },
+    });
+
+    const response = await h.POST(post('message.received', body));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ processed_count: 1, ignored_count: 1 });
+    expect(h.handleResidentMessage).not.toHaveBeenCalled();
+  });
+
+  describe('body size cap (256 KB)', () => {
+    it('rejects a declared content-length over the cap with 413 before reading the body', async () => {
+      const h = await load();
+      const request = new NextRequest(url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': String(256 * 1024 + 1),
+          'x-chatmaid-event': 'phone.disconnected',
+          'x-chatmaid-signature': sign(disconnectedBody),
+        },
+        body: disconnectedBody,
+      });
+
+      const response = await h.POST(request);
+
+      expect(response.status).toBe(413);
+      expect(h.notifyAdmins).not.toHaveBeenCalled();
+    });
+
+    it('rejects a validly signed body over the cap with 413 when no length is declared', async () => {
+      const h = await load();
+      const big = JSON.stringify({
+        event: 'phone.disconnected',
+        timestamp: '2026-09-22T11:59:00.000Z',
+        data: { padding: 'x'.repeat(256 * 1024) },
+      });
+
+      const response = await h.POST(post('phone.disconnected', big, sign(big)));
+
+      expect(response.status).toBe(413);
+      expect(h.notifyAdmins).not.toHaveBeenCalled();
+    });
+
+    it('accepts a body just under the cap', async () => {
+      const h = await load();
+      const prefix = JSON.stringify({ event: 'something.new', data: { padding: '' } });
+      const body = prefix.replace('"padding":""', `"padding":"${'x'.repeat(256 * 1024 - prefix.length)}"`);
+      expect(Buffer.byteLength(body)).toBe(256 * 1024);
+
+      expect((await h.POST(post('something.new', body, sign(body)))).status).toBe(200);
+    });
+  });
 });

@@ -31,6 +31,9 @@ import {
  * processing afterwards would throw that retry away.
  */
 
+/** Largest body accepted, checked before the signature is computed. */
+const CHATMAID_MAX_BODY_BYTES = 256 * 1024;
+
 function processingFailed(error: string) {
   return NextResponse.json({ received: true, processed: false, error }, { status: 500 });
 }
@@ -184,7 +187,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Webhook is not configured' }, { status: 503 });
   }
 
+  // Cap the body before reading and hashing it: this endpoint is public, and
+  // an unauthenticated sender must not be able to make it buffer and HMAC an
+  // arbitrarily large payload.
+  const declaredLength = Number(request.headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > CHATMAID_MAX_BODY_BYTES) {
+    return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+  }
+
   const rawBody = await request.text();
+  if (Buffer.byteLength(rawBody, 'utf8') > CHATMAID_MAX_BODY_BYTES) {
+    return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+  }
+
   const signature = request.headers.get('x-chatmaid-signature');
 
   if (!verifyChatmaidSignature(rawBody, signature, resolved.config.webhookSecret)) {
@@ -200,7 +215,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true, processed: false, error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const event = request.headers.get('x-chatmaid-event');
+  // Dispatch on the event named INSIDE the signed body, never on the
+  // `X-Chatmaid-Event` header: the signature does not cover headers, so
+  // trusting it would let anyone replay a genuine signed body under a
+  // different event (a signed `phone.connected` resent as
+  // `phone.disconnected` would raise a false urgent alert). The header is
+  // only a consistency check.
+  const bodyEvent = (payload as { event?: unknown } | null)?.event;
+  if (typeof bodyEvent !== 'string' || bodyEvent.length === 0) {
+    return NextResponse.json({ received: true, processed: false, error: 'Missing event' }, { status: 400 });
+  }
+
+  const headerEvent = request.headers.get('x-chatmaid-event');
+  if (headerEvent !== null && headerEvent !== bodyEvent) {
+    return NextResponse.json(
+      { received: true, processed: false, error: 'Event header does not match the signed body' },
+      { status: 400 }
+    );
+  }
+
+  const event = bodyEvent;
 
   switch (event) {
     case 'message.received':
@@ -228,6 +262,6 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({ received: true, processed: false, ignored: event });
     default:
-      return NextResponse.json({ received: true, processed: false, ignored: event ?? 'missing_event' });
+      return NextResponse.json({ received: true, processed: false, ignored: event });
   }
 }

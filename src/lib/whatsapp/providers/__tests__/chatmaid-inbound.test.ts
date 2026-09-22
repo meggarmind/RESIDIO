@@ -163,6 +163,17 @@ describe('extractChatmaidMessages', () => {
     expect(extractChatmaidMessages({})).toEqual([]);
   });
 
+  it('gives group messages a null text so the Assistant never answers in a group', () => {
+    const [group, direct] = extractChatmaidMessages({
+      data: [
+        { messageId: 'g', from: '+2348000000000', content: 'balance', type: 'text', isGroup: true },
+        { messageId: 'd', from: '+2348000000000', content: 'balance', type: 'text', isGroup: false },
+      ],
+    });
+    expect(group.text).toBeNull();
+    expect(direct.text).toBe('balance');
+  });
+
   it('gives non-text messages a null text so they are ignored, not answered', () => {
     const [message] = extractChatmaidMessages({
       data: { messageId: 'img', from: '+2348000000000', content: 'caption', type: 'image' },

@@ -228,8 +228,11 @@ export function extractChatmaidMessages(payload: unknown): WhatsAppInboundMessag
       from,
       timestamp: toUnixSecondsString(data.timestamp ?? root.timestamp),
       type,
-      // Only text is answered; media is out of scope for #401.
-      text: type === 'text' ? content : null,
+      // Only 1:1 text is answered. Media is out of scope for #401, and the
+      // Assistant must never answer in a group (it would disclose one
+      // resident's finances to everyone in it). A null text means
+      // `processInboundMessages` claims the message and counts it as ignored.
+      text: type === 'text' && data.isGroup !== true ? content : null,
     });
   }
 
@@ -253,6 +256,10 @@ export function extractChatmaidOutgoingRecipient(payload: unknown): string | nul
  * resends the same body (it carries the event's own `timestamp`), so it hashes
  * the same. The `chatmaid-event:` prefix keeps it clear of real message ids in
  * the shared `whatsapp_processed_messages` table.
+ *
+ * `event` must be the event named in the signed body, never the unsigned
+ * `X-Chatmaid-Event` header, or a replay under a different header would get a
+ * fresh key.
  */
 export function chatmaidEventDedupeKey(event: string, rawBody: string): string {
   const digest = createHash('sha256').update(rawBody, 'utf8').digest('hex');
