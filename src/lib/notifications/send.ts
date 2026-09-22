@@ -271,6 +271,14 @@ async function sendViaWhatsApp(
             fallbackReason: 'whatsapp_chatmaid_send_failed',
             whatsappError: result.error,
           },
+          // sendAndRecordNotification writes the single history row for
+          // this send (channel 'sms', linked to the queue item) when it
+          // sees `metadata.deliveredVia === 'sms_fallback'` below --
+          // sendSms's own logSms() would otherwise write a second, orphaned
+          // (queue_id: null) row, and the queue item's row would separately
+          // record a Chatmaid failure as a successful WhatsApp send (#401
+          // QA defect).
+          skipHistoryLog: true,
         });
 
         if (smsResult.success) {
@@ -363,6 +371,16 @@ export async function sendAndRecordNotification(
   // Determine history status
   const historyStatus: HistoryStatus = result.success ? 'sent' : 'failed';
 
+  // The Chatmaid WhatsApp -> SMS fallback (#401) delivers over a different
+  // channel than the queue item was written for. `sendViaWhatsApp` marks
+  // that with `metadata.deliveredVia`; when it's set, this is the ONE
+  // history row for this send -- `sendSms` was called with
+  // `skipHistoryLog: true` specifically so it would not also write one --
+  // and it must say 'sms', not the queue item's 'whatsapp', or a Chatmaid
+  // failure reads back as a successful WhatsApp send (QA defect on #401).
+  const isSmsFallback = result.metadata?.deliveredVia === 'sms_fallback';
+  const historyChannel = isSmsFallback ? 'sms' : item.channel;
+
   // Create history record
   const { data: historyEntry, error: historyError } = await supabase
     .from('notification_history')
@@ -373,7 +391,7 @@ export async function sendAndRecordNotification(
       recipient_id: item.recipient_id,
       recipient_email: item.recipient_email,
       recipient_phone: item.recipient_phone,
-      channel: item.channel,
+      channel: historyChannel,
       subject: item.subject,
       body_preview: truncateForPreview(item.body),
       status: historyStatus,
@@ -382,6 +400,7 @@ export async function sendAndRecordNotification(
       metadata: {
         ...item.metadata,
         ...result.metadata,
+        ...(isSmsFallback ? { fallback_from: 'whatsapp' } : {}),
         deduplication_key: item.deduplication_key,
         queue_priority: item.priority,
         queue_attempts: item.attempts + 1,

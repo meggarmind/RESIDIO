@@ -204,7 +204,13 @@ describe('Chatmaid WhatsApp provider', () => {
     expect(result.error?.toLowerCase()).toContain('retry');
   });
 
-  it('renders a template to plain text and sends it as content', async () => {
+  // Exact-string assertions, not `toContain`: a `toContain`-only check
+  // survives a mutation that reorders the positional parameters (e.g.
+  // swapping `invoiceNumber`/`amount`) as long as every value still appears
+  // somewhere in the rendered text. Pinning the full string is what makes
+  // parameter order itself part of what these tests protect (QA note on
+  // #401).
+  it('renders the invoice_reminder template to the exact expected plain text', async () => {
     const config = makeConfig();
     const fetchImpl = fetchWithConnection(
       config,
@@ -222,10 +228,53 @@ describe('Chatmaid WhatsApp provider', () => {
 
     expect(result).toEqual({ success: true, messageId: 'msg_template' });
     const sendBody = JSON.parse((fetchImpl.mock.calls[2][1] as RequestInit).body as string);
-    expect(sendBody.content).toContain('Ada');
-    expect(sendBody.content).toContain('INV-001');
-    expect(sendBody.content).toContain('NGN 10,000');
-    expect(sendBody.content).toContain('1 Sep');
+    expect(sendBody.content).toBe(
+      'Hi Ada, invoice INV-001 for NGN 10,000 is due 1 Sep. Please make payment at your earliest convenience.'
+    );
+  });
+
+  it('renders the payment_received template to the exact expected plain text', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse({ data: { id: 'msg_template' } }, 201)
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendTemplate({
+      to: '+2348000000000',
+      templateName: 'payment_received',
+      languageCode: 'en_US',
+      parameters: ['Ada', 'NGN 5,000', '01/09', 'REF'],
+    });
+
+    expect(result).toEqual({ success: true, messageId: 'msg_template' });
+    const sendBody = JSON.parse((fetchImpl.mock.calls[2][1] as RequestInit).body as string);
+    expect(sendBody.content).toBe(
+      "Hi Ada, we've received your payment of NGN 5,000 on 01/09 (Ref: REF). Thank you."
+    );
+  });
+
+  it('renders the announcement template to the exact expected plain text', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse({ data: { id: 'msg_template' } }, 201)
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendTemplate({
+      to: '+2348000000000',
+      templateName: 'announcement',
+      languageCode: 'en_US',
+      parameters: ['Water outage', 'Estate-wide water outage today.'],
+    });
+
+    expect(result).toEqual({ success: true, messageId: 'msg_template' });
+    const sendBody = JSON.parse((fetchImpl.mock.calls[2][1] as RequestInit).body as string);
+    expect(sendBody.content).toBe('Water outage\n\nEstate-wide water outage today.');
   });
 
   it('never includes the API key in a returned error', async () => {
@@ -311,5 +360,36 @@ describe('Chatmaid WhatsApp provider', () => {
     await provider.sendText({ to: '+2348000000000', body: 'Second' });
     // Only one additional call (the send) -- the cached connection check was reused.
     expect(fetchImpl).toHaveBeenCalledTimes(4);
+  });
+
+  it('does not reuse a cached connection status across a rotated API key sharing the same baseUrl and fromNumber', async () => {
+    // Same baseUrl and fromNumber -- e.g. the same handset promoted from a
+    // test key to a live key (#401's promotion trap). If the cache key
+    // ignored the API key, the second send below would wrongly reuse the
+    // first key's cached connection status instead of re-resolving it.
+    const baseConfig = makeConfig();
+    const testKeyConfig: ChatmaidWhatsAppConfig = { ...baseConfig, apiKey: 'sk_test_original' };
+    const liveKeyConfig: ChatmaidWhatsAppConfig = { ...baseConfig, apiKey: 'sk_live_rotated' };
+
+    const fetchImpl = fetchWithConnection(
+      testKeyConfig,
+      undefined,
+      jsonResponse({ data: { id: 'msg_test_key' } }, 201)
+    );
+    const providerWithTestKey = createChatmaidWhatsAppProvider(testKeyConfig, fetchImpl);
+    await providerWithTestKey.sendText({ to: '+2348000000000', body: 'Hi' });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+
+    fetchImpl.mockResolvedValueOnce(connectedPhoneNumbersResponse(liveKeyConfig));
+    fetchImpl.mockResolvedValueOnce(connectedStatusResponse());
+    fetchImpl.mockResolvedValueOnce(jsonResponse({ data: { id: 'msg_live_key' } }, 201));
+
+    const providerWithLiveKey = createChatmaidWhatsAppProvider(liveKeyConfig, fetchImpl);
+    const result = await providerWithLiveKey.sendText({ to: '+2348000000000', body: 'Hi again' });
+
+    expect(result).toEqual({ success: true, messageId: 'msg_live_key' });
+    // 3 calls for the first key's send + 3 more for the second key's send --
+    // if the cache were shared across keys, this would be 3 + 1 = 4.
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
   });
 });

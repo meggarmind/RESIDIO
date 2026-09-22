@@ -122,20 +122,23 @@ async function sendSingleSms(
     const data: TermiiSendResponse = await response.json();
 
     if (data.code === 'ok') {
-      // Log successful send
-      await logSms({
-        recipientPhone: recipient.phone,
-        recipientName: recipient.name,
-        residentId: recipient.residentId,
-        smsType: options.smsType,
-        message: options.message,
-        messageId: data.message_id_str || data.message_id,
-        status: 'sent',
-        metadata: {
-          ...options.metadata,
-          balance: data.balance,
-        },
-      });
+      // Log successful send, unless the caller is writing its own history
+      // row for this send (#401 -- see SendSmsOptions.skipHistoryLog).
+      if (!options.skipHistoryLog) {
+        await logSms({
+          recipientPhone: recipient.phone,
+          recipientName: recipient.name,
+          residentId: recipient.residentId,
+          smsType: options.smsType,
+          message: options.message,
+          messageId: data.message_id_str || data.message_id,
+          status: 'sent',
+          metadata: {
+            ...options.metadata,
+            balance: data.balance,
+          },
+        });
+      }
 
       return {
         success: true,
@@ -147,31 +150,35 @@ async function sendSingleSms(
     // API returned an error
     const errorMessage = data.message || 'Unknown Termii API error';
 
-    await logSms({
-      recipientPhone: recipient.phone,
-      recipientName: recipient.name,
-      residentId: recipient.residentId,
-      smsType: options.smsType,
-      message: options.message,
-      status: 'failed',
-      errorMessage,
-      metadata: options.metadata,
-    });
+    if (!options.skipHistoryLog) {
+      await logSms({
+        recipientPhone: recipient.phone,
+        recipientName: recipient.name,
+        residentId: recipient.residentId,
+        smsType: options.smsType,
+        message: options.message,
+        status: 'failed',
+        errorMessage,
+        metadata: options.metadata,
+      });
+    }
 
     return { success: false, error: errorMessage };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error sending SMS';
 
-    await logSms({
-      recipientPhone: recipient.phone,
-      recipientName: recipient.name,
-      residentId: recipient.residentId,
-      smsType: options.smsType,
-      message: options.message,
-      status: 'failed',
-      errorMessage,
-      metadata: options.metadata,
-    });
+    if (!options.skipHistoryLog) {
+      await logSms({
+        recipientPhone: recipient.phone,
+        recipientName: recipient.name,
+        residentId: recipient.residentId,
+        smsType: options.smsType,
+        message: options.message,
+        status: 'failed',
+        errorMessage,
+        metadata: options.metadata,
+      });
+    }
 
     return { success: false, error: errorMessage };
   }

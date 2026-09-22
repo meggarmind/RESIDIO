@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
 import { PRIORITY } from '@/lib/notifications/queue';
-import { sendNotification } from '@/lib/notifications/send';
+import { sendNotification, sendAndRecordNotification } from '@/lib/notifications/send';
 import { getSettingValueAsService, getSettingResultAsService } from '@/actions/settings/get-settings';
 import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { resolveWhatsAppConfig } from '@/lib/whatsapp/config';
@@ -376,6 +376,161 @@ describe('WhatsApp notification dispatch', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('Chatmaid bridge is disconnected');
       expect(result.error).toContain('Termii balance exhausted');
+    });
+
+    it('calls sendSms with skipHistoryLog so it does not write its own history row', async () => {
+      vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
+        success: false,
+        error: 'Chatmaid bridge is disconnected',
+      });
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(chatmaidConfigResult);
+      vi.mocked(sendSms).mockResolvedValue({ success: true, messageId: 'termii-1' });
+
+      await sendNotification(buildQueueItem());
+
+      expect(sendSms).toHaveBeenCalledWith(expect.objectContaining({ skipHistoryLog: true }));
+    });
+
+    it('does not send SMS when the recipient has not opted in, even for an URGENT Chatmaid item', async () => {
+      vi.mocked(createAdminClient).mockReturnValue({
+        from: vi.fn().mockImplementation((table: string) =>
+          table === 'notification_history'
+            ? {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                gte: vi.fn().mockResolvedValue({ count: 0, error: null }),
+              }
+            : {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              }
+        ),
+      } as unknown as ReturnType<typeof createAdminClient>);
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(chatmaidConfigResult);
+
+      const result = await sendNotification(buildQueueItem());
+
+      // The opt-in gate runs before the WhatsApp send is even attempted, so
+      // the fallback path (which only runs after a failed send) must never
+      // be reached -- this pins that ordering rather than assuming it.
+      expect(sendWhatsAppTemplate).not.toHaveBeenCalled();
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: false, error: 'WhatsApp recipient has not opted in' });
+    });
+
+    it('does not send SMS when the burst cap is reached, even for an URGENT Chatmaid item', async () => {
+      vi.mocked(getSettingValueAsService).mockImplementation(async (key) => {
+        if (key === 'whatsapp_outbound_burst_cap') return 1;
+        if (key === 'whatsapp_outbound_burst_window_minutes') return 10;
+        return key === 'whatsapp_outbound_daily_cap' ? 100 : true;
+      });
+      vi.mocked(createAdminClient).mockReturnValue({
+        from: vi.fn().mockImplementation((table: string) =>
+          table === 'notification_history'
+            ? {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                gte: vi.fn().mockResolvedValue({ count: 1, error: null }),
+              }
+            : {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'optin-1' }, error: null }),
+              }
+        ),
+      } as unknown as ReturnType<typeof createAdminClient>);
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(chatmaidConfigResult);
+
+      const result = await sendNotification(buildQueueItem());
+
+      expect(sendWhatsAppTemplate).not.toHaveBeenCalled();
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: false, error: 'WhatsApp outbound burst limit reached' });
+    });
+  });
+
+  describe('recording SMS-fallback history rows (#401 QA fix)', () => {
+    function buildSupabaseMock(optIn: { id: string } | null = { id: 'optin-1' }) {
+      const insertMock = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: 'history-1' }, error: null }),
+        }),
+      });
+      const queueUpdateEq = vi.fn().mockResolvedValue({ error: null });
+      const updateMock = vi.fn().mockReturnValue({ eq: queueUpdateEq });
+
+      const from = vi.fn().mockImplementation((table: string) => {
+        if (table === 'notification_history') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnThis(),
+              gte: vi.fn().mockResolvedValue({ count: 0, error: null }),
+            }),
+            insert: insertMock,
+          };
+        }
+        if (table === 'notification_queue') {
+          return { update: updateMock };
+        }
+        // whatsapp_optins
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn().mockResolvedValue({ data: optIn, error: null }),
+        };
+      });
+
+      return { from, insertMock, updateMock };
+    }
+
+    it('writes exactly one history row, on channel "sms", carrying the queue_id and fallback_from, for a successful fallback', async () => {
+      vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
+        success: false,
+        error: 'Chatmaid bridge is disconnected',
+      });
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(chatmaidConfigResult);
+      vi.mocked(sendSms).mockResolvedValue({ success: true, messageId: 'termii-1' });
+
+      const { from, insertMock } = buildSupabaseMock();
+      vi.mocked(createAdminClient).mockReturnValue({
+        from,
+      } as unknown as ReturnType<typeof createAdminClient>);
+
+      const item = buildQueueItem();
+      const result = await sendAndRecordNotification(item);
+
+      expect(result.success).toBe(true);
+      expect(insertMock).toHaveBeenCalledTimes(1);
+      const insertedRow = insertMock.mock.calls[0][0] as Record<string, unknown>;
+      expect(insertedRow.channel).toBe('sms');
+      expect(insertedRow.queue_id).toBe(item.id);
+      expect(insertedRow.status).toBe('sent');
+      expect((insertedRow.metadata as Record<string, unknown>).fallback_from).toBe('whatsapp');
+      expect((insertedRow.metadata as Record<string, unknown>).whatsappError).toBe(
+        'Chatmaid bridge is disconnected'
+      );
+    });
+
+    it('writes the normal "whatsapp" channel history row when no fallback fires', async () => {
+      vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
+        success: true,
+        messageId: 'msg_1',
+      });
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(chatmaidConfigResult);
+
+      const { from, insertMock } = buildSupabaseMock();
+      vi.mocked(createAdminClient).mockReturnValue({
+        from,
+      } as unknown as ReturnType<typeof createAdminClient>);
+
+      const item = buildQueueItem();
+      await sendAndRecordNotification(item);
+
+      expect(insertMock).toHaveBeenCalledTimes(1);
+      const insertedRow = insertMock.mock.calls[0][0] as Record<string, unknown>;
+      expect(insertedRow.channel).toBe('whatsapp');
+      expect((insertedRow.metadata as Record<string, unknown>).fallback_from).toBeUndefined();
     });
   });
 });

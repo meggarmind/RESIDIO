@@ -64,15 +64,31 @@ interface CachedConnection {
   cachedAt: number;
 }
 
-// Module-scope cache: at most one entry per (baseUrl, fromNumber) pair, so a
-// batch of sends against the same estate's Chatmaid config does not re-check
-// connection health on every message. Keyed by value rather than by config
-// object identity so config re-resolution (e.g. after cache invalidation
-// elsewhere) still hits the same cache entry.
+// Module-scope cache: at most one entry per (baseUrl, fromNumber, api key
+// fingerprint) triple, so a batch of sends against the same estate's
+// Chatmaid config does not re-check connection health on every message.
+// Keyed by value rather than by config object identity so config
+// re-resolution (e.g. after cache invalidation elsewhere) still hits the
+// same cache entry.
 const connectionCache = new Map<string, CachedConnection>();
 
+/**
+ * A short sha256 prefix of the API key, never the key itself, folded into
+ * the cache key alongside `baseUrl|fromNumber`. Without this, rotating from
+ * a test key to a live key for the same handset (same `fromNumber`; same
+ * `baseUrl` -- both environments share one host, see the file docblock)
+ * would keep serving a `connected`/`disconnected` reading resolved under
+ * the OLD key for up to 30s, which is exactly the test/live promotion trap
+ * the rest of this file is built around avoiding.
+ */
+const API_KEY_FINGERPRINT_LENGTH = 12;
+
+function apiKeyFingerprint(apiKey: string): string {
+  return createHash('sha256').update(apiKey, 'utf8').digest('hex').slice(0, API_KEY_FINGERPRINT_LENGTH);
+}
+
 function connectionCacheKey(config: ChatmaidWhatsAppConfig): string {
-  return `${config.baseUrl}|${config.fromNumber}`;
+  return `${config.baseUrl}|${config.fromNumber}|${apiKeyFingerprint(config.apiKey)}`;
 }
 
 /**
