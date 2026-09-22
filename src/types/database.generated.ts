@@ -6438,6 +6438,10 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      validate_invoice_generation_run_short_names: {
+        Args: { p_run_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       access_code_type: "permanent" | "one_time"
