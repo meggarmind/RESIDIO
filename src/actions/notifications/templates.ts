@@ -7,6 +7,8 @@
  */
 
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import type {
   NotificationTemplate,
@@ -99,6 +101,9 @@ export async function getTemplateByName(
 export async function createTemplate(
   input: CreateTemplateInput
 ): Promise<{ data: NotificationTemplate | null; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get current user
@@ -148,6 +153,9 @@ export async function updateTemplate(
   id: string,
   input: UpdateTemplateInput
 ): Promise<{ data: NotificationTemplate | null; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get current template for audit
@@ -202,6 +210,9 @@ export async function updateTemplate(
 export async function deleteTemplate(
   id: string
 ): Promise<{ success: boolean; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
+  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get template for audit and system check
@@ -247,6 +258,9 @@ export async function deleteTemplate(
 export async function toggleTemplateActive(
   id: string
 ): Promise<{ data: NotificationTemplate | null; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get current status
@@ -293,6 +307,9 @@ export async function duplicateTemplate(
   id: string,
   newName: string
 ): Promise<{ data: NotificationTemplate | null; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.NOTIFICATIONS_MANAGE);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Get original template

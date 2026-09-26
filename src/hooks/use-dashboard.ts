@@ -83,11 +83,3 @@ export function useDashboardQuickStats() {
         data: query.data?.quickStats ?? null,
     };
 }
-
-export function useDashboardRecentActivity() {
-    const query = useAdminDashboardSnapshot();
-    return {
-        ...query,
-        data: query.data?.recentActivity ?? null,
-    };
-}

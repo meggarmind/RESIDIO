@@ -3,6 +3,8 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { DocumentCategory } from '@/types/database';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 type GetCategoriesResponse = {
   data: DocumentCategory[];
@@ -71,6 +73,9 @@ export async function createDocumentCategory(input: {
   is_resident_accessible?: boolean;
   display_order?: number;
 }): Promise<CategoryResponse> {
+  const auth = await authorizePermission(PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
@@ -113,6 +118,9 @@ export async function updateDocumentCategory(
     display_order?: number;
   }
 ): Promise<CategoryResponse> {
+  const auth = await authorizePermission(PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES);
+  if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   const { data: existing } = await supabase
@@ -150,6 +158,9 @@ export async function updateDocumentCategory(
  * Delete a document category (soft delete by setting is_active to false)
  */
 export async function deleteDocumentCategory(id: string): Promise<{ success: boolean; error: string | null }> {
+  const auth = await authorizePermission(PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES);
+  if (!auth.authorized) return { success: false, error: auth.error || 'Unauthorized' };
+
   const supabase = await createServerSupabaseClient();
 
   // Soft delete - set is_active to false

@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import type { TransactionTag, TransactionTagInsert, TransactionTagUpdate, TransactionTagType } from '@/types/database';
 
@@ -92,12 +94,12 @@ export async function getTransactionTag(id: string): Promise<TransactionTagRespo
 export async function createTransactionTag(
   formData: TransactionTagInsert
 ): Promise<TransactionTagResponse> {
-  const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { data: null, error: 'Unauthorized' };
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
   }
+
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from('transaction_tags')
@@ -141,12 +143,12 @@ export async function updateTransactionTag(
   id: string,
   formData: TransactionTagUpdate
 ): Promise<TransactionTagResponse> {
-  const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { data: null, error: 'Unauthorized' };
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  if (!auth.authorized) {
+    return { data: null, error: auth.error || 'Unauthorized' };
   }
+
+  const supabase = await createServerSupabaseClient();
 
   // Fetch existing tag for audit logging
   const { data: existingTag } = await supabase
@@ -204,12 +206,12 @@ export async function updateTransactionTag(
 // ============================================================
 
 export async function deleteTransactionTag(id: string): Promise<DeleteTransactionTagResponse> {
-  const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { error: 'Unauthorized' };
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  if (!auth.authorized) {
+    return { error: auth.error || 'Unauthorized' };
   }
+
+  const supabase = await createServerSupabaseClient();
 
   // Fetch existing tag for audit logging
   const { data: existingTag } = await supabase
@@ -258,12 +260,12 @@ export async function deleteTransactionTag(id: string): Promise<DeleteTransactio
 // ============================================================
 
 export async function deleteTransactionTags(ids: string[]): Promise<DeleteTransactionTagResponse> {
-  const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { error: 'Unauthorized' };
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  if (!auth.authorized) {
+    return { error: auth.error || 'Unauthorized' };
   }
+
+  const supabase = await createServerSupabaseClient();
 
   if (!ids.length) {
     return { error: null };
@@ -340,16 +342,16 @@ export async function tagImportRow(
   rowId: string,
   tagId: string | null
 ): Promise<TagImportRowResponse> {
-  const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { error: 'Unauthorized' };
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  if (!auth.authorized) {
+    return { error: auth.error || 'Unauthorized' };
   }
+
+  const supabase = await createServerSupabaseClient();
 
   const updateData: Record<string, unknown> = {
     tag_id: tagId,
-    tagged_by: tagId ? user.id : null,
+    tagged_by: tagId ? auth.userId : null,
     tagged_at: tagId ? new Date().toISOString() : null,
     auto_tagged: false, // Manual tagging clears auto_tagged flag
   };
@@ -379,16 +381,16 @@ export async function batchTagImportRows(
   rowIds: string[],
   tagId: string | null
 ): Promise<BatchTagImportRowsResponse> {
-  const supabase = await createServerSupabaseClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { updated: 0, error: 'Unauthorized' };
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_REFERENCE);
+  if (!auth.authorized) {
+    return { updated: 0, error: auth.error || 'Unauthorized' };
   }
+
+  const supabase = await createServerSupabaseClient();
 
   const updateData: Record<string, unknown> = {
     tag_id: tagId,
-    tagged_by: tagId ? user.id : null,
+    tagged_by: tagId ? auth.userId : null,
     tagged_at: tagId ? new Date().toISOString() : null,
     auto_tagged: false, // Manual tagging clears auto_tagged flag
   };

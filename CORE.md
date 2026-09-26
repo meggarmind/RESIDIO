@@ -365,6 +365,18 @@ An epic gets one umbrella issue carrying the design and the verified facts, plus
 slice. **Brief each slice for an agent starting cold**: the exact files and line numbers, what
 "done" means, and what *not* to do. That is the only context the implementing agent will have.
 
+### Issue authoring
+
+Use an evidence-led body for defects and implementation slices, in this order where applicable:
+`## Summary`, `## Root Cause`, `## What Breaks If This Is Never Done`, `## Required Change`,
+`## Scope`, `## Provenance`, and `Related:`. A genuine multi-slice initiative may instead use the
+broader PRD format (`## Problem Statement`, `## Solution`, user stories, decisions, testing and
+out-of-scope work). Do not turn an implementation slice into a PRD merely to make it look fuller.
+
+Every new child issue must be attached to exactly one native GitHub map parent immediately after
+creation, then verified before reporting it as filed. A textual `#number` reference is related
+context, not a parent relationship.
+
 ### Guardrails on creating issues
 
 Filing is cheap; the backlog it produces is not. A tracker that grows faster than it is worked

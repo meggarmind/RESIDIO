@@ -5942,6 +5942,8 @@ export type Database = {
           api_version: string | null
           app_secret_encrypted: string | null
           auth_token_encrypted: string | null
+          chatmaid_api_key_encrypted: string | null
+          chatmaid_webhook_secret_encrypted: string | null
           created_at: string
           created_by: string | null
           graph_base_url: string | null
@@ -5961,6 +5963,8 @@ export type Database = {
           api_version?: string | null
           app_secret_encrypted?: string | null
           auth_token_encrypted?: string | null
+          chatmaid_api_key_encrypted?: string | null
+          chatmaid_webhook_secret_encrypted?: string | null
           created_at?: string
           created_by?: string | null
           graph_base_url?: string | null
@@ -5980,6 +5984,8 @@ export type Database = {
           api_version?: string | null
           app_secret_encrypted?: string | null
           auth_token_encrypted?: string | null
+          chatmaid_api_key_encrypted?: string | null
+          chatmaid_webhook_secret_encrypted?: string | null
           created_at?: string
           created_by?: string | null
           graph_base_url?: string | null
@@ -6016,6 +6022,7 @@ export type Database = {
           current_node: string
           expires_at: string
           id: string
+          paused_until: string | null
           phone_number: string
           pin_authenticated: boolean
           resident_id: string | null
@@ -6027,6 +6034,7 @@ export type Database = {
           current_node?: string
           expires_at: string
           id?: string
+          paused_until?: string | null
           phone_number: string
           pin_authenticated?: boolean
           resident_id?: string | null
@@ -6038,6 +6046,7 @@ export type Database = {
           current_node?: string
           expires_at?: string
           id?: string
+          paused_until?: string | null
           phone_number?: string
           pin_authenticated?: boolean
           resident_id?: string | null
@@ -6349,6 +6358,8 @@ export type Database = {
           p_api_version?: string
           p_app_secret_encrypted?: string
           p_auth_token_encrypted?: string
+          p_chatmaid_api_key_encrypted?: string
+          p_chatmaid_webhook_secret_encrypted?: string
           p_graph_base_url?: string
           p_phone_number_id?: string
           p_provider: string
@@ -6362,6 +6373,8 @@ export type Database = {
           api_version: string | null
           app_secret_encrypted: string | null
           auth_token_encrypted: string | null
+          chatmaid_api_key_encrypted: string | null
+          chatmaid_webhook_secret_encrypted: string | null
           created_at: string
           created_by: string | null
           graph_base_url: string | null
@@ -6425,6 +6438,10 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      validate_invoice_generation_run_short_names: {
+        Args: { p_run_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       access_code_type: "permanent" | "one_time"

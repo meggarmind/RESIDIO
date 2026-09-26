@@ -50,9 +50,10 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
 
       // Store in archive
       const fileName = `${schedule.report_type}-${new Date().toISOString().split('T')[0]}-${Date.now()}.pdf`;
-      await supabase.storage.from('report-pdfs').upload(fileName, buffer, { contentType: 'application/pdf' });
+      const { error: uploadError } = await supabase.storage.from('report-pdfs').upload(fileName, buffer, { contentType: 'application/pdf' });
+      if (uploadError) throw new Error(`PDF archive upload failed: ${uploadError.message}`);
 
-       await supabase
+        const { error: archiveError } = await supabase
         .from('report_archive')
         .insert({
           report_type: schedule.report_type,
@@ -64,17 +65,20 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
           recipients: schedule.recipients || [],
         })
         .select('id')
-        .single();
+         .single();
+       if (archiveError) throw new Error(`PDF archive record failed: ${archiveError.message}`);
 
       // Email recipients
        const recipients = ((schedule.recipients || []) as string[]).map((email: string) => ({ email, name: schedule.name }));
       if (recipients.length > 0) {
-        await sendEmail({
-          to: recipients[0],
+        const emailResult = await sendEmail({
+          to: recipients,
           subject: `Scheduled Report: ${schedule.report_type}`,
-           emailType: 'notification',
+            emailType: 'notification',
+          attachments: [{ filename: fileName, content: buffer }],
           metadata: { reportType: schedule.report_type, scheduleId: schedule.id },
         });
+        if (!emailResult.success) throw new Error(`Scheduled report email failed: ${emailResult.error || 'Unknown error'}`);
       }
 
       // Update next_run_at

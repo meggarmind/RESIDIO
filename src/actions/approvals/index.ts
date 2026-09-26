@@ -12,6 +12,7 @@ import type {
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 
 // Response types
 interface GetApprovalRequestsResponse {
@@ -226,6 +227,15 @@ export async function approveRequest(
     return { success: false, error: updateError.message };
   }
 
+  await logAudit({
+    action: 'APPROVE',
+    entityType: 'approval_requests',
+    entityId: requestId,
+    entityDisplay: `${request.request_type} approval request`,
+    oldValues: { status: request.status },
+    newValues: { status: 'approved', reviewed_by: auth.userId, review_notes: notes || null },
+  });
+
   return { success: true, error: null };
 }
 
@@ -272,6 +282,15 @@ export async function rejectRequest(
   if (updateError) {
     return { success: false, error: updateError.message };
   }
+
+  await logAudit({
+    action: 'REJECT',
+    entityType: 'approval_requests',
+    entityId: requestId,
+    entityDisplay: `${request.request_type} approval request`,
+    oldValues: { status: request.status },
+    newValues: { status: 'rejected', reviewed_by: auth.userId, review_notes: notes || null },
+  });
 
   return { success: true, error: null };
 }

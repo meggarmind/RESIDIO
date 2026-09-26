@@ -140,6 +140,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
       replyTo: emailConfig.replyTo,
       subject: options.subject,
       react: options.react,
+      attachments: options.attachments,
     });
 
     if (error) {

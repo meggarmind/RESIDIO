@@ -1,0 +1,71 @@
+# Local container run for Residio.
+#
+# This file is for the developer's machine. Coolify does not consume it — it
+# builds the Dockerfile directly and supplies build args and environment
+# variables from its own UI. Keeping the two in step is the point of the split
+# below: whatever appears under `args` here is set as a Coolify BUILD variable,
+# and whatever `env_file` supplies is set as a Coolify RUNTIME variable.
+#
+# Prerequisite: cp .env.docker.example .env.docker, then fill it in.
+#
+# There is deliberately NO database service. Residio talks to Supabase Cloud
+# over HTTPS in every environment; a local Postgres here would be a second,
+# divergent source of truth and would suggest a migration path that does not
+# exist.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # BUILD-TIME ONLY. Every value here is inlined into the client bundle and
+      # is therefore public. Never add a non-NEXT_PUBLIC_ secret to this list —
+      # build args are recorded in the image history.
+      args:
+        NEXT_PUBLIC_ENV_MODE: ${NEXT_PUBLIC_ENV_MODE:-cloud}
+        NEXT_PUBLIC_SUPABASE_URL_CLOUD: ${NEXT_PUBLIC_SUPABASE_URL_CLOUD}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD: ${NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD}
+        NEXT_PUBLIC_SUPABASE_URL_LOCAL: ${NEXT_PUBLIC_SUPABASE_URL_LOCAL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY_LOCAL: ${NEXT_PUBLIC_SUPABASE_ANON_KEY_LOCAL:-}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        NEXT_PUBLIC_PAYSTACK_KEY: ${NEXT_PUBLIC_PAYSTACK_KEY:-}
+        NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: ${NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY:-}
+
+    image: residio:local
+    container_name: residio-app
+
+    # RUNTIME. Injected into the running container only; nothing here reaches an
+    # image layer. This is where every non-NEXT_PUBLIC_ secret belongs. The file
+    # also carries the NEXT_PUBLIC_* values, which is harmless — the build-time
+    # copy is what the client bundle actually uses.
+    env_file:
+      - .env.docker
+
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+
+    # Local access only. On Coolify this mapping is unused: Traefik joins the
+    # container's network and routes to port 3000 directly, so the port is never
+    # published on the host.
+    ports:
+      - "3000:3000"
+
+    restart: unless-stopped
+
+    # Mirrors the Dockerfile HEALTHCHECK so `docker compose ps` reports honestly
+    # even when the image is pulled rather than built here.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3

@@ -3,7 +3,13 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { logAudit } from '@/lib/audit/logger';
 import { createAdminClient } from '@/lib/supabase/server';
 import { encrypt, isEncryptionConfigured } from '@/lib/encryption';
-import { getWhatsAppConnectionStatus, saveWhatsAppCredentials, disconnectWhatsApp } from '../connection';
+import { resolveWhatsAppConfig } from '@/lib/whatsapp/config';
+import {
+  getWhatsAppConnectionStatus,
+  saveWhatsAppCredentials,
+  disconnectWhatsApp,
+  testWhatsAppConnection,
+} from '../connection';
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: vi.fn() }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
@@ -176,6 +182,195 @@ describe('WhatsApp connection actions', () => {
       });
       expect(createAdminClient).not.toHaveBeenCalled();
       expect(encrypt).not.toHaveBeenCalled();
+    });
+
+    it('saves Chatmaid credentials encrypted through the Chatmaid RPC params', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      const rpc = vi.fn().mockResolvedValue({ data: { id: 'row-2' }, error: null });
+      vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
+
+      const result = await saveWhatsAppCredentials({
+        provider: 'chatmaid',
+        apiKey: 'sk_test_fake_key',
+        webhookSecret: 'whsec_fake_secret',
+        fromNumber: '+2348031234567',
+      });
+
+      expect(result).toEqual({ success: true, data: { provider: 'chatmaid' }, error: null });
+      expect(rpc).toHaveBeenCalledWith('replace_whatsapp_credentials', {
+        p_provider: 'chatmaid',
+        p_chatmaid_api_key_encrypted: 'enc(sk_test_fake_key)',
+        p_chatmaid_webhook_secret_encrypted: 'enc(whsec_fake_secret)',
+        p_whatsapp_from_number: '+2348031234567',
+        p_actor_id: 'admin-1',
+      });
+    });
+
+    it('never writes a Chatmaid API key or webhook secret into the audit log', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      const rpc = vi.fn().mockResolvedValue({ data: { id: 'row-2' }, error: null });
+      vi.mocked(createAdminClient).mockReturnValue({ rpc } as never);
+
+      await saveWhatsAppCredentials({
+        provider: 'chatmaid',
+        apiKey: 'sk_test_fake_key',
+        webhookSecret: 'whsec_fake_secret',
+        fromNumber: '+2348031234567',
+      });
+
+      expect(logAudit).toHaveBeenCalledTimes(1);
+      const auditPayload = vi.mocked(logAudit).mock.calls[0][0];
+      expect(auditPayload).toEqual(
+        expect.objectContaining({
+          action: 'UPDATE',
+          entityType: 'whatsapp_provider_credentials',
+          entityId: 'row-2',
+          newValues: { provider: 'chatmaid', fromNumber: '+2348031234567' },
+        })
+      );
+
+      const serialized = JSON.stringify(auditPayload);
+      expect(serialized).not.toContain('sk_test_fake_key');
+      expect(serialized).not.toContain('whsec_fake_secret');
+    });
+
+    it.each([
+      ['a dashboard phone id', '6ab0154c3986c20fd36f0aec'],
+      ['a number without the leading +', '2348031234567'],
+      ['a number with spaces', '+234 803 123 4567'],
+      ['a number with a leading prefix', 'x+2348031234567'],
+      ['a number with a trailing suffix', '+2348031234567x'],
+      ['a number whose country code starts with 0', '+02348031234567'],
+      ['a number longer than 15 digits', '+2348031234567890'],
+    ])('rejects a Chatmaid from number that is %s, before touching the database', async (_label, fromNumber) => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+
+      const result = await saveWhatsAppCredentials({
+        provider: 'chatmaid',
+        apiKey: 'sk_test_fake_key',
+        webhookSecret: 'whsec_fake_secret',
+        fromNumber,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/E\.164/);
+      expect(createAdminClient).not.toHaveBeenCalled();
+      expect(encrypt).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['API key', { apiKey: '' }, 'API key is required'],
+      ['webhook signing secret', { webhookSecret: '   ' }, 'Webhook signing secret is required'],
+    ])('requires the Chatmaid %s', async (_label, override, message) => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+
+      const result = await saveWhatsAppCredentials({
+        provider: 'chatmaid',
+        apiKey: 'sk_test_fake_key',
+        webhookSecret: 'whsec_fake_secret',
+        fromNumber: '+2348031234567',
+        ...override,
+      });
+
+      expect(result).toEqual({ success: false, data: null, error: message });
+      expect(createAdminClient).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Chatmaid status and connection test', () => {
+    it('reports Chatmaid secret presence as booleans only', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(viewer as never);
+      const row = query({
+        data: {
+          provider: 'chatmaid',
+          phone_number_id: null,
+          whatsapp_from_number: '+2348031234567',
+          api_version: null,
+          updated_at: '2026-09-22T00:00:00Z',
+          access_token_encrypted: null,
+          verify_token_encrypted: null,
+          app_secret_encrypted: null,
+          auth_token_encrypted: null,
+          account_sid_encrypted: null,
+          chatmaid_api_key_encrypted: 'ciphertext-chatmaid-key',
+          chatmaid_webhook_secret_encrypted: 'ciphertext-chatmaid-secret',
+          updated_by_profile: null,
+        },
+        error: null,
+      });
+      vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(row) } as never);
+
+      const result = await getWhatsAppConnectionStatus();
+
+      expect(result.data).toEqual(
+        expect.objectContaining({
+          connected: true,
+          provider: 'chatmaid',
+          fromNumber: '+2348031234567',
+          hasChatmaidApiKey: true,
+          hasChatmaidWebhookSecret: true,
+          hasAccessToken: false,
+        })
+      );
+      const serialized = JSON.stringify(result.data);
+      expect(serialized).not.toContain('ciphertext-chatmaid-key');
+      expect(serialized).not.toContain('ciphertext-chatmaid-secret');
+    });
+
+    it('tests a Chatmaid connection with an authenticated read, not a send', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue({
+        status: 'ok',
+        config: {
+          provider: 'chatmaid',
+          apiKey: 'sk_test_fake_key',
+          webhookSecret: 'whsec_fake_secret',
+          fromNumber: '+2348031234567',
+          baseUrl: 'https://developers-api.chatmaid.net',
+        },
+      });
+      const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      try {
+        const result = await testWhatsAppConnection();
+
+        expect(result.data).toEqual({ ok: true, message: 'Connected to the Chatmaid API.' });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const [url, init] = fetchMock.mock.calls[0];
+        expect(url).toBe('https://developers-api.chatmaid.net/v1/phone-numbers');
+        expect(init.method ?? 'GET').toBe('GET');
+        expect(init.headers).toEqual({ Authorization: 'Bearer sk_test_fake_key' });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('reports a rejected Chatmaid key without returning the upstream body', async () => {
+      vi.mocked(authorizePermission).mockResolvedValue(manager as never);
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue({
+        status: 'ok',
+        config: {
+          provider: 'chatmaid',
+          apiKey: 'sk_test_fake_key',
+          webhookSecret: 'whsec_fake_secret',
+          fromNumber: '+2348031234567',
+          baseUrl: 'https://developers-api.chatmaid.net',
+        },
+      });
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('upstream-detail', { status: 401 })));
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      try {
+        const result = await testWhatsAppConnection();
+
+        expect(result.data?.ok).toBe(false);
+        expect(result.data?.message).toContain('Chatmaid rejected the request (HTTP 401)');
+        expect(JSON.stringify(result)).not.toContain('upstream-detail');
+      } finally {
+        vi.unstubAllGlobals();
+        consoleError.mockRestore();
+      }
     });
   });
 
