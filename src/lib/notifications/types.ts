@@ -409,6 +409,14 @@ export interface SendNotificationResult {
   historyId?: string;
   externalId?: string;
   error?: string;
+  /**
+   * Sender-supplied detail merged into the history row's `metadata` column
+   * (see `sendAndRecordNotification`). Currently only set by the Chatmaid
+   * WhatsApp -> SMS fallback (#401), to record `deliveredVia: 'sms_fallback'`
+   * so a successful send that actually went out over SMS is distinguishable
+   * from one that went out over WhatsApp.
+   */
+  metadata?: Record<string, unknown>;
 }
 
 /**
