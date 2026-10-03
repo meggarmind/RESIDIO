@@ -25,12 +25,13 @@ All controls are on **Settings → WhatsApp**, and every promotion is audited.
 
 Before any message can be sent, the estate needs a WhatsApp provider connected. This no longer needs a developer or a redeploy — an admin with access to **Settings → WhatsApp** can connect, replace, or disconnect the provider directly from the connection card at the top of the page.
 
-Choose one of two providers:
+Choose one of three providers. Only one is active at a time — saving a different provider replaces the current one.
 
 | Provider | Why choose it |
 |---|---|
 | **Meta** (recommended) | Connects directly to the WhatsApp Cloud API, with no per-message middleman. |
 | **Twilio** | Adds a per-message cost on top of WhatsApp's own fees. Worth it mainly if the estate already runs other messaging through Twilio. |
+| **Chatmaid** | A WhatsApp Web bridge: it pairs with an ordinary WhatsApp number on a phone you keep connected, rather than using the WhatsApp Cloud API. Worth it when the estate wants to use an existing WhatsApp number. It has no delivery guarantee when the phone is offline — read [Chatmaid: what to know before choosing it](#chatmaid-what-to-know-before-choosing-it). |
 
 Whichever provider is chosen, have these details ready before you start:
 
@@ -38,12 +39,15 @@ Whichever provider is chosen, have these details ready before you start:
 |---|---|
 | Meta | Access token, phone number ID, verify token, app secret |
 | Twilio | Account SID, auth token, a WhatsApp-enabled from-number |
+| Chatmaid | API key, webhook signing secret, and the from-number of the paired phone in international format (for example `+2348031234567`) |
 
-These all come from the provider's own console, not from Residio.
+These all come from the provider's own console, not from Residio. For Chatmaid, enter the paired phone's own number, not the phone ID shown in the Chatmaid dashboard — that ID differs between Chatmaid's test and live environments.
 
 ### The webhook callback URL
 
 The connection card shows a **webhook callback URL** with a copy button. Paste this into the provider's console so it knows where to deliver incoming messages and status updates.
+
+For Chatmaid, point the webhook at the callback URL shown on the card (it ends in `/api/whatsapp/webhook/chatmaid`). Residio rejects any call that is not signed with the webhook signing secret you saved, so the secret in Chatmaid and the one in Residio must match.
 
 If you're connecting Meta, the console also asks for a **verify token**. Residio shows this to you once, immediately after you save the connection — copy it into Meta's console at that moment. It cannot be retrieved again afterwards; if you lose it, save the connection again to generate a new one.
 
@@ -53,11 +57,13 @@ The Meta verify token is only ever shown once, right after saving. Navigate away
 
 ### Test the connection
 
-Use the **Test connection** button to confirm the saved credentials actually work. Residio makes a lightweight call to the provider and reports back pass or fail. A failure means the provider rejected the stored credentials — double-check the values against the provider's console, particularly the access token or auth token, and try again. It does not mean anything was sent to a resident.
+Use the **Test connection** button to confirm the saved credentials actually work. Residio makes a lightweight call to the provider and reports back pass or fail. A failure means the provider rejected the stored credentials — double-check the values against the provider's console, particularly the access token, auth token or Chatmaid API key, and try again. It does not mean anything was sent to a resident.
+
+For Chatmaid, a pass proves only that the API key is valid. It does not prove the phone is currently connected to the bridge; that is checked each time a message is sent.
 
 ### How credentials are kept
 
-Secrets — access token, verify token, app secret, auth token — are encrypted before they are stored, and Residio never displays them again after saving. The connection card only ever shows whether a credential is set, plus the non-secret details such as the phone number ID or from-number and who last saved the connection.
+Secrets — access token, verify token, app secret, auth token, Chatmaid API key and webhook signing secret — are encrypted before they are stored, and Residio never displays them again after saving. The connection card only ever shows whether a credential is set, plus the non-secret details such as the phone number ID or from-number and who last saved the connection.
 
 To change a secret, use **Replace credentials** and enter it again in full; there is no way to view or partially edit a stored secret.
 
@@ -70,6 +76,16 @@ To change a secret, use **Replace credentials** and enter it again in full; ther
 If the estate uses Twilio, each approved message template also needs a Twilio **Content SID** before it can be sent. Residio only ever sends from a fixed, pre-approved list of template names — the Content SID mapping tells Twilio which of its approved content items corresponds to each of those names. Set this mapping from the connection card once Twilio is connected.
 
 A template with no Content SID mapped fails to send rather than going out as unapproved free text — this is a deliberate compliance guard, not a bug to work around by leaving a mapping blank.
+
+## Chatmaid: what to know before choosing it
+
+Chatmaid works through a phone that stays paired to the bridge, so the estate's WhatsApp service is only as reliable as that phone's connection.
+
+- **Messages are lost while the phone is disconnected.** Anything a resident sends to the number while the bridge is down never reaches Residio, and nothing is recovered when it reconnects. Residents who wrote in during an outage may need to be contacted.
+- **Sending needs the bridge connected.** Before each send, Residio checks that the phone is connected; if it is not, the send fails with a "bridge is disconnected" error. (Residio re-checks at most every 30 seconds.)
+- **Admins are alerted.** When Chatmaid reports the phone disconnected, admins receive an urgent notification linking to **Settings → WhatsApp**; a normal-priority notification follows when it reconnects. Re-pair the phone in the Chatmaid dashboard to restore service.
+- **Urgent messages fall back to SMS.** See the SMS fallback section on the Email and SMS page.
+- **Human takeover.** If someone on the estate team replies to a resident directly from the phone, the Assistant stays silent in that conversation for 30 minutes so the two do not talk over each other. The resident's messages during that time are still recorded and are not answered later.
 
 ## Turning the channel on
 
@@ -154,6 +170,8 @@ The cleanup runs automatically shortly after midnight, documented on the Schedul
 | Sends stop partway through a day | A daily or burst cap has been reached |
 | Financial questions go unanswered | The resident has no PIN set while the PIN policy is on |
 | Test connection fails | The provider rejected the saved credentials — recheck the access token or auth token against the provider's console |
+| Chatmaid sends fail with "bridge is disconnected", or you received a WhatsApp disconnected alert | The paired phone has lost its connection — re-pair it in the Chatmaid dashboard |
+| Assistant stops replying in one conversation (Chatmaid) | A team member replied from the phone within the last 30 minutes; the Assistant resumes afterwards |
 | Twilio template fails to send | No Content SID mapped for that template name — map it on the connection card |
 | Delivery failures climbing | Provider credentials or template approval — escalate to an engineer |
 | Inbound messages ignored | Webhook verification is failing at the provider — escalate to an engineer |
