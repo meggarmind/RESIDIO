@@ -36,7 +36,8 @@ type ProviderFactory = (config: WhatsAppConfig) => WhatsAppProvider;
  * because webhook signature verification and payload parsing are
  * provider-specific in a way sending is not: Meta uses HMAC-SHA256 over the
  * raw body, Twilio HMAC-SHA1 over the URL plus sorted params, and Chatmaid a
- * third scheme again (`timestamp + rawBody`, see `signature.ts`). Registering
+ * third scheme again (`"{timestamp}.{raw_body}"`, see `buildChatmaidSignedPayload`
+ * in `providers/chatmaid-inbound.ts`; `signature.ts` is Meta's verifier). Registering
  * a provider here makes it able to send; a separate route registration is
  * what makes it able to receive.
  */
