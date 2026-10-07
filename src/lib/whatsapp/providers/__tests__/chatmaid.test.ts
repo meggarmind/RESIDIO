@@ -1,0 +1,451 @@
+import { createHash } from 'node:crypto';
+import { describe, expect, it, vi } from 'vitest';
+import { createChatmaidWhatsAppProvider } from '@/lib/whatsapp/providers/chatmaid';
+import { isProviderSupported } from '@/lib/whatsapp/provider';
+import type { ChatmaidWhatsAppConfig } from '@/lib/whatsapp/config';
+
+// The provider caches connection-check results in module scope, keyed by
+// `baseUrl|fromNumber|<api-key fingerprint>` (see chatmaid.ts). Giving each test its own baseUrl
+// keeps that cache from leaking between tests without reaching into the
+// module's internals.
+let baseUrlCounter = 0;
+function makeConfig(overrides: Partial<ChatmaidWhatsAppConfig> = {}): ChatmaidWhatsAppConfig {
+  baseUrlCounter += 1;
+  return {
+    provider: 'chatmaid',
+    apiKey: 'sk_test_super-secret-key',
+    webhookSecret: 'whsec_test',
+    fromNumber: '+2348037000101',
+    baseUrl: `https://developers-api.chatmaid.test/${baseUrlCounter}`,
+    ...overrides,
+  };
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status });
+}
+
+const connectedPhoneNumbersResponse = (config: ChatmaidWhatsAppConfig) =>
+  jsonResponse({ data: [{ id: 'phone-1', e164: config.fromNumber }] });
+
+const connectedStatusResponse = () => jsonResponse({ connectionStatus: 'connected' });
+
+const disconnectedStatusResponse = () => jsonResponse({ connectionStatus: 'disconnected' });
+
+/**
+ * A fetch mock that answers the two connection-check calls (phone-numbers
+ * list, then status) before any responses queued for the send call itself.
+ */
+function fetchWithConnection(
+  config: ChatmaidWhatsAppConfig,
+  connectionResponses: [Response, Response] = [
+    connectedPhoneNumbersResponse(config),
+    connectedStatusResponse(),
+  ],
+  ...sendResponses: Response[]
+) {
+  const fetchImpl = vi.fn();
+  fetchImpl.mockResolvedValueOnce(connectionResponses[0]);
+  fetchImpl.mockResolvedValueOnce(connectionResponses[1]);
+  for (const response of sendResponses) {
+    fetchImpl.mockResolvedValueOnce(response);
+  }
+  return fetchImpl;
+}
+
+describe('Chatmaid WhatsApp provider', () => {
+  it('is registered as a supported provider', () => {
+    expect(isProviderSupported(makeConfig())).toBe(true);
+  });
+
+  it('sends a text message with the expected request shape and bearer auth header', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse({ data: { id: 'msg_abc123' } }, 201)
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendText({ to: '+2348000000000', body: 'Test message' });
+
+    expect(result).toEqual({ success: true, messageId: 'msg_abc123' });
+
+    // Calls 1-2: connection check. Call 3: the actual send.
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    const sendCall = fetchImpl.mock.calls[2];
+    expect(sendCall[0]).toBe(`${config.baseUrl}/v1/messages/send`);
+    const init = sendCall[1] as RequestInit;
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      `Bearer ${config.apiKey}`
+    );
+
+    const body = JSON.parse(init.body as string);
+    expect(body).toEqual({
+      fromPhoneId: config.fromNumber,
+      to: '+2348000000000',
+      content: 'Test message',
+      idempotencyKey: expect.any(String),
+    });
+  });
+
+  it('resolves the phone id from /v1/phone-numbers and checks /v1/phone-numbers/:id/status', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse({ data: { id: 'msg_abc' } }, 201)
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    await provider.sendText({ to: '+2348000000000', body: 'Hi' });
+
+    expect(fetchImpl.mock.calls[0][0]).toBe(`${config.baseUrl}/v1/phone-numbers`);
+    expect(fetchImpl.mock.calls[1][0]).toBe(
+      `${config.baseUrl}/v1/phone-numbers/phone-1/status`
+    );
+  });
+
+  it('produces an identical idempotency key for an identical body and a different one when content changes', async () => {
+    const config = makeConfig();
+    const expectedForOriginal = createHash('sha256')
+      .update(`${config.fromNumber}|+2348000000000|Same body`, 'utf8')
+      .digest('hex')
+      .slice(0, 64);
+    const expectedForChanged = createHash('sha256')
+      .update(`${config.fromNumber}|+2348000000000|Different body`, 'utf8')
+      .digest('hex')
+      .slice(0, 64);
+    expect(expectedForOriginal).not.toBe(expectedForChanged);
+
+    // Route by URL so the test does not depend on whether the connection
+    // check is cached: every call gets an answer whatever the cache state.
+    let sendCount = 0;
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.endsWith('/v1/phone-numbers')) return connectedPhoneNumbersResponse(config);
+      if (url.endsWith('/status')) return connectedStatusResponse();
+      sendCount += 1;
+      return jsonResponse({ data: { id: `msg_${sendCount}` } }, 201);
+    });
+    const sendKeys = () =>
+      fetchImpl.mock.calls
+        .filter(([url]) => url.endsWith('/v1/messages/send'))
+        .map(([, init]) => JSON.parse((init as RequestInit).body as string).idempotencyKey);
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl as unknown as typeof fetch);
+
+    await provider.sendText({ to: '+2348000000000', body: 'Same body' });
+    const firstKey = sendKeys()[0];
+    expect(firstKey).toBe(expectedForOriginal);
+
+    await provider.sendText({ to: '+2348000000000', body: 'Same body' });
+    const secondKey = sendKeys()[1];
+    expect(secondKey).toBe(firstKey);
+
+    await provider.sendText({ to: '+2348000000000', body: 'Different body' });
+    const thirdKey = sendKeys()[2];
+    expect(thirdKey).toBe(expectedForChanged);
+    expect(thirdKey).not.toBe(firstKey);
+  });
+
+  it('does not attempt to send when the resolved phone is disconnected', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(config, [
+      connectedPhoneNumbersResponse(config),
+      disconnectedStatusResponse(),
+    ]);
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendText({ to: '+2348000000000', body: 'Hi' });
+
+    expect(result).toEqual({ success: false, error: 'Chatmaid bridge is disconnected' });
+    // Only the two connection-check calls -- no third call to /v1/messages/send.
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('treats a 404 from the send call itself as disconnected', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse(
+        { success: false, error: 'Not found', statusCode: 404, message: [], timestamp: '', path: '' },
+        404
+      )
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendText({ to: '+2348000000000', body: 'Hi' });
+
+    expect(result).toEqual({ success: false, error: 'Chatmaid bridge is disconnected' });
+  });
+
+  it('surfaces retryAfter from a 429 response in the error message', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse(
+        {
+          success: false,
+          error: 'Too Many Requests',
+          message: ['Rate limit exceeded'],
+          statusCode: 429,
+          timestamp: '2026-09-21T00:00:00.000Z',
+          path: '/v1/messages/send',
+          retryAfter: 42,
+        },
+        429
+      )
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendText({ to: '+2348000000000', body: 'Hi' });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('42');
+    expect(result.error?.toLowerCase()).toContain('retry');
+  });
+
+  // Exact-string assertions, not `toContain`: a `toContain`-only check
+  // survives a mutation that reorders the positional parameters (e.g.
+  // swapping `invoiceNumber`/`amount`) as long as every value still appears
+  // somewhere in the rendered text. Pinning the full string is what makes
+  // parameter order itself part of what these tests protect (QA note on
+  // #401).
+  it('renders the invoice_reminder template to the exact expected plain text', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse({ data: { id: 'msg_template' } }, 201)
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendTemplate({
+      to: '+2348000000000',
+      templateName: 'invoice_reminder',
+      languageCode: 'en_US',
+      parameters: ['Ada', 'INV-001', 'NGN 10,000', '1 Sep'],
+    });
+
+    expect(result).toEqual({ success: true, messageId: 'msg_template' });
+    const sendBody = JSON.parse((fetchImpl.mock.calls[2][1] as RequestInit).body as string);
+    expect(sendBody.content).toBe(
+      'Hi Ada, invoice INV-001 for NGN 10,000 is due 1 Sep. Please make payment at your earliest convenience.'
+    );
+  });
+
+  it('renders the payment_received template to the exact expected plain text', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse({ data: { id: 'msg_template' } }, 201)
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendTemplate({
+      to: '+2348000000000',
+      templateName: 'payment_received',
+      languageCode: 'en_US',
+      parameters: ['Ada', 'NGN 5,000', '01/09', 'REF'],
+    });
+
+    expect(result).toEqual({ success: true, messageId: 'msg_template' });
+    const sendBody = JSON.parse((fetchImpl.mock.calls[2][1] as RequestInit).body as string);
+    expect(sendBody.content).toBe(
+      "Hi Ada, we've received your payment of NGN 5,000 on 01/09 (Ref: REF). Thank you."
+    );
+  });
+
+  it('renders the announcement template to the exact expected plain text', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse({ data: { id: 'msg_template' } }, 201)
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendTemplate({
+      to: '+2348000000000',
+      templateName: 'announcement',
+      languageCode: 'en_US',
+      parameters: ['Water outage', 'Estate-wide water outage today.'],
+    });
+
+    expect(result).toEqual({ success: true, messageId: 'msg_template' });
+    const sendBody = JSON.parse((fetchImpl.mock.calls[2][1] as RequestInit).body as string);
+    expect(sendBody.content).toBe('Water outage\n\nEstate-wide water outage today.');
+  });
+
+  it('never includes the API key in a returned error', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse(
+        {
+          success: false,
+          error: 'Unauthorized',
+          message: ['Invalid credentials'],
+          statusCode: 401,
+          timestamp: '',
+          path: '/v1/messages/send',
+        },
+        401
+      )
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendText({ to: '+2348000000000', body: 'Hi' });
+
+    expect(result.success).toBe(false);
+    expect(result.error).not.toContain(config.apiKey);
+    expect(JSON.stringify(result)).not.toContain(config.apiKey);
+  });
+
+  it('never includes the API key in a disconnected-bridge error', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(config, [
+      connectedPhoneNumbersResponse(config),
+      disconnectedStatusResponse(),
+    ]);
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendText({ to: '+2348000000000', body: 'Hi' });
+
+    expect(JSON.stringify(result)).not.toContain(config.apiKey);
+  });
+
+  it('rejects content over the 4096-character limit without making a network call', async () => {
+    const config = makeConfig();
+    const fetchImpl = vi.fn();
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const tooLong = 'a'.repeat(4097);
+    const result = await provider.sendText({ to: '+2348000000000', body: tooLong });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('4096');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('accepts content at exactly the 4096-character limit', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse({ data: { id: 'msg_max' } }, 201)
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const exactlyMax = 'a'.repeat(4096);
+    const result = await provider.sendText({ to: '+2348000000000', body: exactlyMax });
+
+    expect(result).toEqual({ success: true, messageId: 'msg_max' });
+  });
+
+  it('caches a connected status for 30s so a second send in that window skips the connection check', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse({ data: { id: 'msg_1' } }, 201)
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    await provider.sendText({ to: '+2348000000000', body: 'First' });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+
+    fetchImpl.mockResolvedValueOnce(jsonResponse({ data: { id: 'msg_2' } }, 201));
+    const second = await provider.sendText({ to: '+2348000000000', body: 'Second' });
+    // Only one additional call (the send) -- the cached connection check was reused.
+    expect(second).toEqual({ success: true, messageId: 'msg_2' });
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(fetchImpl.mock.calls[3][0]).toBe(`${config.baseUrl}/v1/messages/send`);
+  });
+
+  it('does not reuse a cached connection status across a rotated API key sharing the same baseUrl and fromNumber', async () => {
+    // Same baseUrl and fromNumber -- e.g. the same handset promoted from a
+    // test key to a live key (#401's promotion trap). If the cache key
+    // ignored the API key, the second send below would wrongly reuse the
+    // first key's cached connection status instead of re-resolving it.
+    const baseConfig = makeConfig();
+    const testKeyConfig: ChatmaidWhatsAppConfig = { ...baseConfig, apiKey: 'sk_test_original' };
+    const liveKeyConfig: ChatmaidWhatsAppConfig = { ...baseConfig, apiKey: 'sk_live_rotated' };
+
+    const fetchImpl = fetchWithConnection(
+      testKeyConfig,
+      undefined,
+      jsonResponse({ data: { id: 'msg_test_key' } }, 201)
+    );
+    const providerWithTestKey = createChatmaidWhatsAppProvider(testKeyConfig, fetchImpl);
+    await providerWithTestKey.sendText({ to: '+2348000000000', body: 'Hi' });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+
+    fetchImpl.mockResolvedValueOnce(connectedPhoneNumbersResponse(liveKeyConfig));
+    fetchImpl.mockResolvedValueOnce(connectedStatusResponse());
+    fetchImpl.mockResolvedValueOnce(jsonResponse({ data: { id: 'msg_live_key' } }, 201));
+
+    const providerWithLiveKey = createChatmaidWhatsAppProvider(liveKeyConfig, fetchImpl);
+    const result = await providerWithLiveKey.sendText({ to: '+2348000000000', body: 'Hi again' });
+
+    expect(result).toEqual({ success: true, messageId: 'msg_live_key' });
+    // 3 calls for the first key's send + 3 more for the second key's send --
+    // if the cache were shared across keys, this would be 3 + 1 = 4.
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
+  });
+
+  it('returns a fixed failure result when the send call itself rejects (network failure)', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(config);
+    fetchImpl.mockRejectedValueOnce(new Error(`socket hang up ${config.apiKey}`));
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendText({ to: '+2348000000000', body: 'Hi' });
+
+    expect(result).toEqual({ success: false, error: 'Chatmaid provider request failed' });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it('invalidates the connection cache on a 404 from the send call so the next send re-checks the bridge', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      jsonResponse({ success: false, error: 'Not found', statusCode: 404 }, 404)
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const first = await provider.sendText({ to: '+2348000000000', body: 'First' });
+    expect(first).toEqual({ success: false, error: 'Chatmaid bridge is disconnected' });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+
+    fetchImpl.mockResolvedValueOnce(connectedPhoneNumbersResponse(config));
+    fetchImpl.mockResolvedValueOnce(connectedStatusResponse());
+    fetchImpl.mockResolvedValueOnce(jsonResponse({ data: { id: 'msg_after' } }, 201));
+    const second = await provider.sendText({ to: '+2348000000000', body: 'Second' });
+
+    expect(second).toEqual({ success: true, messageId: 'msg_after' });
+    // Connection check ran again (2 calls) plus the send: 3 + 3, not 3 + 1.
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
+    expect(fetchImpl.mock.calls[3][0]).toBe(`${config.baseUrl}/v1/phone-numbers`);
+  });
+
+  it('never includes the API key in the HTTP-status fallback error', async () => {
+    const config = makeConfig();
+    const fetchImpl = fetchWithConnection(
+      config,
+      undefined,
+      new Response('upstream exploded', { status: 500 })
+    );
+    const provider = createChatmaidWhatsAppProvider(config, fetchImpl);
+
+    const result = await provider.sendText({ to: '+2348000000000', body: 'Hi' });
+
+    expect(result).toEqual({ success: false, error: 'Chatmaid request failed (HTTP 500)' });
+    expect(JSON.stringify(result)).not.toContain(config.apiKey);
+  });
+});

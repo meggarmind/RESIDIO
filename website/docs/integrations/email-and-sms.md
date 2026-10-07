@@ -10,8 +10,8 @@ residio_sources:
   - src/actions/notifications/**
   - src/app/(dashboard)/settings/email/**
   - src/app/(dashboard)/settings/notifications/**
-residio_verified_commit: 66ded86
-residio_verified_at: '2026-09-04'
+residio_verified_commit: de0256b
+residio_verified_at: '2026-10-07'
 residio_app_version: '0.4.0'
 ---
 
@@ -34,6 +34,15 @@ The toggles control which categories of email Residio sends: notifications, invo
 SMS is used for a narrower set of messages: emergency broadcasts, verification codes, and two-factor codes. It is more expensive and more intrusive than email, so it should not be the default channel for routine billing communication.
 
 Configure SMS behaviour from **Settings → Notifications**, alongside the other channels.
+
+### SMS fallback for urgent WhatsApp messages
+
+If the estate's active WhatsApp provider is Chatmaid and a WhatsApp send fails for an **urgent** notification, Residio sends that notification by SMS instead. Chatmaid depends on a phone staying connected, and a message that does not arrive has no other way of being recovered.
+
+- History records one entry for the message, on the **SMS** channel and marked as a fallback from WhatsApp. It will not also appear as a failed or successful WhatsApp send.
+- If the SMS also fails, the message is reported as failed with both errors.
+- Normal-priority messages, such as invoice reminders and receipts, are not sent by SMS in this case. They stay in the queue and are retried.
+- Meta and Twilio never fall back to SMS.
 
 :::warning[Emergency broadcasts reach everyone immediately]
 A multi-channel emergency announcement bypasses the normal reminder cadence. Confirm the message text and the recipient scope with the estate lead before sending.
