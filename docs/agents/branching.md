@@ -28,7 +28,7 @@ without asking:
 | `merge/<slug>` | Short-lived integration branch for resolving a merge | Any |
 
 These are lane defaults, not walls — exceptions happen. When you cross lanes, say so in
-`SESSION_STATE.md` rather than leaving the prefix to mislead the next session.
+your handoff comment on issue #412 rather than leaving the prefix to mislead the next session.
 
 **A branch name is not evidence of its upstream.** A local branch can carry one name and
 track another; that exact mismatch misled a session on 2026-09-02 into a false push-safety
@@ -56,11 +56,10 @@ looks correct in every one of these failure modes.
 
 ## 5. Assume other workstreams exist
 
-**The remote branch list is the live registry — not `SESSION_STATE.md`.**
+**The remote branch list is the live registry — not the handoff record.**
 
-`SESSION_STATE.md` lives on `master`, and `master` is protected, so writing to it needs a
-PR that only becomes visible once merged — by which time the coordination window it exists
-to protect has closed. Do not use it for live signalling.
+The handoff record is written at end of session, after the coordination window it could
+protect has closed. Do not use it for live signalling.
 
 Instead:
 
@@ -72,8 +71,12 @@ git ls-remote --heads origin      # who is working on what, right now
 prefix names your lane and the branch name names your work, visible to every tool on every
 machine the moment it lands, with no PR in the way. Check that list before taking a branch.
 
-`SESSION_STATE.md` remains the end-of-session **handoff record** — what happened, what was
-verified, what is left. That is a record, not a signal, and a PR is the right speed for it.
+The pinned issue **#412** is the end-of-session **handoff record** — what happened, what was
+verified, what is left. Each session posts one comment (`gh issue comment 412 --repo
+meggarmind/RESIDIO --body-file handoff.md`); read with `gh issue view 412 --repo
+meggarmind/RESIDIO --comments`. That is a record, not a signal. It lives in an issue rather
+than a file because `master` is protected and a file change there costs a PR. `SESSION_STATE.md`
+is a frozen archive (2026-10-07).
 
 Never push to a branch another session has declared without asking that session and waiting
 for an explicit answer. A clear is true as of its timestamp, not indefinitely.
@@ -133,5 +136,5 @@ real gate, not as a complete perimeter.
 
 - `docs/agents/migrations-on-merge.md` — what a merge owes its migrations
 - `docs/agents/session-roles.md` — the named Rex/Quinn two-session arrangement
-- `SESSION_STATE.md` — the cross-session declaration log
+- Issue #412 — the live cross-session handoff record (`SESSION_STATE.md` is its frozen archive)
 - `AGENTS.md` — canonical setup and conventions

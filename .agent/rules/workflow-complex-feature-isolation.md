@@ -14,6 +14,6 @@ withdrawn:
 - **Isolation is a git worktree, not a markdown file.** Work is issue-first and isolated in
   `.worktrees/issue-<number>`; every agent that writes files gets its own worktree.
 - **State lives in the tracker**, not a temporary file: the issue records scope corrections and
-  measured facts, `ACTIONPLAN.md` the active plan, `SESSION_STATE.md` the handoff.
+  measured facts, `ACTIONPLAN.md` the active plan, pinned issue #412 the handoff.
 - **Nothing commits and pushes on its own.** Implementing agents commit and stop; the user does
   the merging.

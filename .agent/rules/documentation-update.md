@@ -9,7 +9,7 @@ Superseded by `CORE.md` -- read `CORE.md` section 14 ("Progress tracking").
 Summary of what binds:
 
 - **GitHub issues are the tracker.** `TODO.md` is the product backlog, `ACTIONPLAN.md` the
-  active plan, `SESSION_STATE.md` the sole live handoff. Keep each in its own lane.
+  active plan, pinned issue #412 the sole live handoff (`SESSION_STATE.md` is a frozen archive). Keep each in its own lane.
 - Update `TODO.md` as work completes: mark finished items, add discovered follow-ups.
 - Run `npm run docs:drift` before wrapping up any session that touched `src/**`
   (`CORE.md` section 12).

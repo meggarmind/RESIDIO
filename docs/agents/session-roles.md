@@ -171,7 +171,7 @@ this" is not approval on the receiving side, whoever relays it.
 What every session shares regardless of arrangement is `CORE.md` section 7 and
 `docs/agents/branching.md`: never work on `master`; **the live registry of who
 holds what is the remote branch list** (`git ls-remote --heads origin`), not
-`SESSION_STATE.md`, which lives on protected `master` and always lags by a PR;
+the handoff record (issue #412), which is written at end of session;
 push your own branch early, because the push is the declaration; and ask and
 wait before pushing to a branch another session occupies. Refer a session
 seeking coordination there rather than turning it away.
@@ -181,5 +181,5 @@ seeking coordination there rather than turning it away.
 - `CORE.md` — section 15 (coordinated delivery), section 17 (peer capacity), section 7 (branching)
 - `CLAUDE.md` — `ListAgents` / `SendMessage` mechanics and the model-name mapping
 - `docs/agents/branching.md` — the rules every session shares, whatever its arrangement
-- `SESSION_STATE.md` — the cross-session handoff log
+- Issue #412 — the cross-session handoff log (`SESSION_STATE.md` is its frozen archive)
 - `docs/agents/doc-drift.md` — the wiki pinning rules that queued work must respect
