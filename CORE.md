@@ -656,10 +656,12 @@ which machine, and any decisions you made on the user's behalf. **Decisions, not
 Read issue #412 at the start of the session (§14). Before finishing, post a handoff comment to it
 covering:
 
+- a header: harness, machine, date, and the issues and branches worked
 - what shipped
 - what was decided and why
 - **what is applied versus merely merged**
 - what the next session must not re-litigate
+- next steps
 
 Decisions that came from the user go in writing, with the evidence that settled them, so nobody
 reverses them later by reading the change as a regression.

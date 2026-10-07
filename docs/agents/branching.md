@@ -72,11 +72,15 @@ prefix names your lane and the branch name names your work, visible to every too
 machine the moment it lands, with no PR in the way. Check that list before taking a branch.
 
 The pinned issue **#412** is the end-of-session **handoff record** — what happened, what was
-verified, what is left. Each session posts one comment (`gh issue comment 412 --repo
-meggarmind/RESIDIO --body-file handoff.md`); read with `gh issue view 412 --repo
-meggarmind/RESIDIO --comments`. That is a record, not a signal. It lives in an issue rather
-than a file because `master` is protected and a file change there costs a PR. `SESSION_STATE.md`
-is a frozen archive (2026-10-07).
+verified, what is left. Each session posts one comment; read and write it with:
+
+```bash
+gh issue view 412 --repo meggarmind/RESIDIO --comments
+gh issue comment 412 --repo meggarmind/RESIDIO --body-file handoff.md
+```
+
+That is a record, not a signal. It lives in an issue rather than a file because `master` is
+protected and a file change there costs a PR. `SESSION_STATE.md` is a frozen archive (2026-10-07).
 
 Never push to a branch another session has declared without asking that session and waiting
 for an explicit answer. A clear is true as of its timestamp, not indefinitely.
