@@ -244,15 +244,15 @@ Re-run `npm test` after adding any write action.
 **Never work on `master`** (§1). This repo is worked by two machines running Claude Code,
 OpenCode and Codex, sometimes concurrently. **No session may assume it is the only one.**
 
-**The remote branch list is the live registry — not `SESSION_STATE.md`.**
+**The remote branch list is the live registry — not the handoff record (§14).**
 
 ```bash
 git ls-remote --heads origin      # who is working on what, right now
 ```
 
 Check it before taking a branch, and **push your own branch early**: the push is the
-declaration. `SESSION_STATE.md` lives on protected `master`, so writing to it requires a PR and
-arrives far too late to coordinate. It is the end-of-session handoff record, not a live signal.
+declaration. The handoff record (pinned issue #412, §14) is written at end of session, so it is
+not a live signal.
 
 Branch prefixes declare the lane:
 
@@ -428,7 +428,7 @@ every failure mode. Standing rule, not a suggestion:
 3. **Check open issues before applying anything touching RBAC, auth or RLS.** A migration can be
    correct in intent and still be the direct cause of an open P0.
 4. **Record any deliberately withheld migration twice** — on its issue and in
-   `SESSION_STATE.md` — so a later reader does not "fix" the gap by applying it.
+   the next handoff comment on #412 — so a later reader does not "fix" the gap by applying it.
 
 Migrations are **written** by an implementing agent and **never applied** by one. See §16 for
 the rollback-fidelity requirement. Full detail: `docs/agents/migrations-on-merge.md`.
@@ -483,18 +483,28 @@ After every code modification, before calling it done:
 
 ## 14. Progress tracking
 
-Four files, four distinct jobs. Keep them in their lanes:
+Four records, four distinct jobs. Keep them in their lanes:
 
-| File | Job |
+| Record | Job |
 | --- | --- |
 | GitHub issues | **the tracker** — the authoritative record of what is to be done |
 | `TODO.md` | the product backlog: mark completed items, add discovered follow-ups |
 | `ACTIONPLAN.md` | the active plan — update it whenever work completes or invalidates a step |
-| `SESSION_STATE.md` | the sole live handoff record |
+| Pinned issue **#412** "Session state: live handoff record" | the sole live handoff record — one comment per session |
+| `SESSION_STATE.md` | frozen archive (as of 2026-10-07): read-only history, never appended |
 
-`SESSION_STATE.md` is read before substantive work and updated before finishing, whether or not
-you were asked. Record what was actually performed, decisions taken, verification results, known
-failures and remaining work. **Do not create separate handoff files.**
+Issue #412 is read before substantive work and gets a new comment before finishing, whether or
+not you were asked. Record what was actually performed, decisions taken, verification results,
+known failures and remaining work. **Do not create separate handoff files.**
+
+```bash
+gh issue view 412 --repo meggarmind/RESIDIO --comments                  # read, newest last
+gh issue comment 412 --repo meggarmind/RESIDIO --body-file handoff.md   # write
+```
+
+Post a new comment; never edit earlier ones. The record moved off `master` because branch
+protection makes every file change there cost a PR, so handoffs arrived late or not at all. The
+protocol itself lives in the body of #412.
 
 Domain knowledge lives in `CONTEXT.md` and `docs/adr/` (see `docs/agents/domain.md`).
 
@@ -503,7 +513,7 @@ Domain knowledge lives in `CONTEXT.md` and `docs/adr/` (see `docs/agents/domain.
 | Keyphrase | Action |
 | --- | --- |
 | `pause_session` / `end_session` | run the session handoff procedure |
-| `resume_session` | read `SESSION_STATE.md`, continue from its snapshot and next steps |
+| `resume_session` | read issue #412's comments, continue from the latest handoff and its next steps |
 | `sync_up` | commit and push, then evaluate pending work |
 
 Full procedures: `docs/setup/project-management.md`.
@@ -643,12 +653,15 @@ Branch per issue, commits referencing it, **PR only after a pass. The user does 
 After each wave, report: what shipped, the model used, the QA verdict, how many agents ran on
 which machine, and any decisions you made on the user's behalf. **Decisions, not a transcript.**
 
-Read `SESSION_STATE.md` at the start of the session. Before finishing, write back to it:
+Read issue #412 at the start of the session (§14). Before finishing, post a handoff comment to it
+covering:
 
+- a header: harness, machine, date, and the issues and branches worked
 - what shipped
 - what was decided and why
 - **what is applied versus merely merged**
 - what the next session must not re-litigate
+- next steps
 
 Decisions that came from the user go in writing, with the evidence that settled them, so nobody
 reverses them later by reading the change as a regression.

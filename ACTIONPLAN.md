@@ -1,7 +1,8 @@
 # Action Plan: Finance, Performance & Communications Fast-Track
 
 > The **live project state** (current phase, git state, test baseline, next steps) lives in
-> **`SESSION_STATE.md`** — read/update that for coordination instead of relying on this file.
+> **pinned issue #412** (`gh issue view 412 --repo meggarmind/RESIDIO --comments`) — read that for
+> coordination instead of relying on this file. `SESSION_STATE.md` is a frozen archive.
 
 Created: 2026-01-08T00:00:00Z
 Status: IN PROGRESS

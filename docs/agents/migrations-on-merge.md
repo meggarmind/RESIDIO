@@ -77,7 +77,7 @@ about it**, and when you withhold one, record what it *contains* — a commit SH
 or the specific lines — not just its filename.
 
 **A withheld migration must be recorded twice.** On the tracking issue and in
-`SESSION_STATE.md`. Otherwise the next person sees a gap in the applied
+the next handoff comment on issue #412. Otherwise the next person sees a gap in the applied
 sequence, assumes an oversight, and applies the file — reintroducing whatever
 it was withheld for.
 
@@ -91,5 +91,5 @@ agent-driven merges, not as an enforced gate.
 
 - `CORE.md` — section 11 (this rule in the canonical set), section 5 (Supabase is cloud-only)
 - `docs/agents/session-roles.md` — the peer arrangement these merges may run under
-- `SESSION_STATE.md` — where deferred and withheld migrations are recorded
+- Issue #412 — where deferred and withheld migrations are recorded (`SESSION_STATE.md` is the frozen archive)
 - `CLAUDE.md` — `## Supabase MCP`, for the tool names themselves

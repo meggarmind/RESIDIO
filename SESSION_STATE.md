@@ -1,3 +1,8 @@
+> **ARCHIVED — frozen as of 2026-10-07. Do not append to this file.**
+> The live handoff record is pinned issue **#412**. Read it with:
+> `gh issue view 412 --repo meggarmind/RESIDIO --comments`
+> Everything below is history and may be stale.
+
 # SESSION_STATE.md — Live Handoff
 
 Coordination file shared between OpenCode and Claude Code working on Residio.

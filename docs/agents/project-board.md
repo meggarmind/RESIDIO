@@ -102,7 +102,7 @@ disagree, the human record wins.
    ```
 
    Worktrees get cleaned up; the merged commits on `master` are the same commits and outlive them.
-2. **An explicit record in `SESSION_STATE.md`**, which names the tool per session.
+2. **An explicit record in the #412 handoff comments**, which name the harness per session.
 3. **The branch prefix** — weakest, for the reason above.
 
 **#125 is the worked example.** Its branch is `codex/issue-125-*`, so the prefix says Codex and

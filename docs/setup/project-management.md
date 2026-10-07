@@ -22,7 +22,7 @@ This document covers git configuration, documentation update cadence, session wo
 
 | Document | Frequency | Trigger |
 |----------|-----------|---------|
-| `SESSION_STATE.md` | Every substantive session | Before finishing any work, including unprompted progress tracking |
+| Issue #412 handoff comment | Every substantive session | Before finishing any work, including unprompted progress tracking |
 | `TODO.md` | When backlog status changes | Complete, defer, discover, or reprioritize work |
 | `ACTIONPLAN.md` | When an active plan changes | Complete, revise, or invalidate a plan step |
 | `README.md` | Hourly | Or at session end |
@@ -85,7 +85,7 @@ When the user types any of these keyphrases, execute the associated action:
 |-----------|--------|
 | `pause_session` | Execute session handoff procedure |
 | `end_session` | Execute session handoff procedure |
-| `resume_session` | Read `SESSION_STATE.md`, then continue from its current snapshot and next steps |
+| `resume_session` | Read issue #412's comments (`gh issue view 412 --repo meggarmind/RESIDIO --comments`), then continue from the latest handoff and its next steps |
 | `sync_up` | Execute sync-up procedure |
 
 ---
@@ -94,9 +94,20 @@ When the user types any of these keyphrases, execute the associated action:
 
 When triggered by `pause_session` or `end_session`:
 
-### Step 1: Update `SESSION_STATE.md`
-- Verified project baseline: branch, working-tree state, and test/build/lint outcomes
-- Work completed, decisions made, troubleshooting in progress, and next steps
+### Step 1: Post a handoff comment on issue #412
+Write `handoff.md` with the six sections defined in the body of #412, then post it as a new
+comment. Never edit earlier comments; `SESSION_STATE.md` is a frozen archive and takes no entries.
+
+```bash
+gh issue comment 412 --repo meggarmind/RESIDIO --body-file handoff.md
+```
+
+- **Header:** harness, machine, date, and the issue(s) and branch worked
+- **Shipped:** PRs opened or merged
+- **Decided, and why:** owner decisions with the evidence that settled them
+- **Applied vs merged:** migrations, and branches or worktrees left behind
+- **Don't re-litigate:** anything the next session might read as a regression
+- **Next steps:** including the verified baseline (branch, working-tree state, test/build/lint outcomes)
 
 ### Step 2: Update `TODO.md` and `ACTIONPLAN.md`
 - Mark completed work, add discovered follow-ups, and reprioritize the backlog as needed
