@@ -102,8 +102,9 @@ in GitHub's encrypted store, failure email by default. Claude writes and maintai
 Nightly:
 
 1. `pg_dump` of `Residio_Prod` using a PostgreSQL **17** client.
-2. Copy all storage buckets through Supabase's S3-compatible storage endpoint.
-3. Encrypt the archive (key held in the owner's password manager; the workflow holds only what
+2. Sync new and changed storage files (through Supabase's S3-compatible storage endpoint) into
+   the encrypted files mirror described below.
+3. Encrypt the database dump (key held in the owner's password manager; the workflow holds only what
    it needs to encrypt).
 4. Upload to a private **Cloudflare R2** bucket; retention 30 daily + 12 monthly for database
    dumps.
@@ -130,9 +131,12 @@ would not fit at the ceiling (~48 GB). Beyond the free tier R2 charges ~$0.015 p
 egress (downloading for a restore) is free. Cloudflare may require a payment method to enable
 R2; set a billing notification so any overage is noticed.
 
-Weekly: the same connection against `Residio_Stage` to keep it awake.
+### Stage keep-awake
 
-Known traps:
+Weekly: a small query against `Residio_Stage` so it does not pause.
+
+### Known traps
+
 
 - Supabase's free direct connection is IPv6-only and GitHub-hosted runners have no IPv6. Use the
   **session pooler** (port 5432). The transaction pooler (6543) does not work with `pg_dump`.
@@ -145,7 +149,6 @@ credentials, R2 access key / secret / bucket / endpoint, encryption public key o
 ## Open items before anything becomes a decision
 
 - Owner to confirm the hosting choice (Hostinger KVM 2) and authorise recording it on #264/#269.
-- Confirm backup retention.
 - Confirm current Hostinger pricing and what VPS snapshot/backup is included.
 - Then: file issues (backup workflow, stage keep-awake, Coolify scheduled tasks for the 9 crons).
 
