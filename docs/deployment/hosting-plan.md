@@ -1,33 +1,34 @@
-# Hosting exploration (working notes, NOT a decision)
+# Hosting plan
 
-> **Status: exploring.** Only the items marked **Confirmed** below are decided. The owner will say explicitly when a choice
-> becomes a decision. No issue should be filed or work started from these notes.
->
-> **Correction (2026-10-10):** earlier versions of these notes said Coolify was the recorded
-> decision. That was wrong. `docs/deployment/docker.md` is stale: the owner **abandoned Coolify on
-> 2026-09-19** (#269, open), choosing a naked image from GHCR, Caddy for TLS, runtime-injected
-> Supabase config, GitHub Actions cron, prod on the KVM and **stage on the laptop**. Several choices
-> below conflict with #269 and need an explicit owner ruling. See "Review before starting".
+> **Status: DECIDED by the owner on 2026-10-10.** This plan overrides the 2026-09-19 design in
+> #269 wherever they conflict (Coolify is back; stage runs on the same KVM as prod; one build per
+> environment; cron as Coolify scheduled tasks). Parts of #269 that do not conflict (the PR gate
+> and release automation in #397, fail-fast configuration in #396, the credential clean-up in
+> #400) still stand. `docs/deployment/docker.md` describes the image and the Coolify host and
+> links here. Do not re-litigate the choices below; they were made after measuring the
+> alternatives recorded in this file.
 
 Constraint driving everything: the project is entirely self-funded, so the goal is the lowest
 recurring cost that keeps the service running long term.
 
 ---
 
-## Owner preferences and choices so far (2026-10-10)
+## Decisions (2026-10-10)
 
 | # | Topic | Owner's position | Status |
 |---|---|---|---|
 | 1 | App hosting | **Hostinger KVM 2** (2 vCPU, 8 GB, 100 GB NVMe), one VPS running **both prod and stage** | **Confirmed** by owner 2026-10-10; host provisioned and ready |
-| 2 | Deployment layer | **Coolify** (Dockerfile build pack, Traefik) | **Conflicts with #269** (Coolify abandoned 2026-09-19). Owner ruling needed |
-| 3 | Database / auth / storage | **Stay on Supabase** (free plan). Neon rejected after measurement, see below | Preference, not locked |
+| 2 | Deployment layer | **Coolify** (Dockerfile build pack, Traefik) | **Decided** 2026-10-10; overrides #269's Caddy/GHCR design |
+| 3 | Database / auth / storage | **Stay on Supabase** (free plan). Neon rejected after measurement, see below | Decided |
 | 4 | Supabase Pro ($25/mo) | **Not affordable** just for backups | Owner constraint |
 | 5 | Backup destination | **Cloudflare R2** | Chosen |
 | 6 | Backup encryption key | Held by the owner in their **password manager** (copy outside GitHub) | Chosen |
 | 7 | Backup retention | **30 daily + 12 monthly** (database dumps) | Chosen |
 | 8 | Dev environment | Stays on local PCs | Owner statement |
 | 9 | Server hardening | SSH keys only, firewall 22/80/443; **admin dashboard reached through Cloudflare One** (Tunnel + Access) | Chosen 2026-10-10 |
-| 10 | Secrets | Owner asked whether Cloudflare secrets can be used | Answered: not for the VPS app, see review |
+| 10 | Secrets | Password manager is the master copy; app secrets in Coolify's encrypted variables; backup secrets in GitHub Actions secrets. Cloudflare secret stores cannot feed a VPS app | Decided |
+| 12 | Stage placement | Stage on the **same KVM** as prod, always on (not the laptop) | Decided; overrides #269 |
+| 13 | Cron | **Coolify scheduled tasks** on the KVM (#399); the GitHub Actions invoice safety net stays | Decided; overrides #269 |
 | 11 | Residio_Prod | **Unpaused** by owner 2026-10-10 (verified ACTIVE_HEALTHY) | Done |
 
 ---
@@ -156,7 +157,7 @@ credentials, R2 access key / secret / bucket / endpoint, encryption public key o
 
 ## Review before starting (2026-10-10)
 
-### Conflicts with the recorded plan (#269, decided 2026-09-19)
+### Conflicts with the 2026-09-19 plan (#269), resolved 2026-10-10 in favour of this plan
 
 | Topic | #269 says | These notes say |
 |---|---|---|
@@ -165,8 +166,9 @@ credentials, R2 access key / secret / bucket / endpoint, encryption public key o
 | Image | One image, Supabase config injected at runtime, published to GHCR | Built per environment on the VPS |
 | Cron | GitHub Actions `schedule:`, prod only | Coolify scheduled tasks |
 
-The runtime-config slice is a prerequisite under #269 for publishing an image. Whichever way the
-owner rules, the losing documents must be updated so the next session is not misled.
+Resolved: this plan wins. #395 (runtime config) and #398 (GHCR publish and compose files) are
+closed as superseded; #399 is repurposed to Coolify scheduled tasks. Because each environment is
+built separately, a stage image is never promoted to prod; prod is rebuilt from the same commit.
 
 ### Measured state of the two Supabase projects
 
@@ -210,11 +212,15 @@ secrets in GitHub Actions secrets. Secrets the app reads (from the code): `CRON_
 `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`. `DATA_ENCRYPTION_KEY`
 encrypts data at rest: losing it loses that data, so it belongs in the password manager too.
 
-## Open items before anything becomes a decision
+## Open items
 
-- Hostinger KVM 2 confirmed 2026-10-10 (host ready). Not yet recorded on #264/#269; awaiting owner go-ahead.
+- Hostinger KVM 2 confirmed and the plan decided 2026-10-10; recorded on #269, #262 and #264.
 - Confirm current Hostinger pricing and what VPS snapshot/backup is included.
-- Then: file issues (backup workflow, stage keep-awake, Coolify scheduled tasks for the 9 crons).
+- Backup workflow and stage keep-awake: #415.
+- Coolify scheduled tasks for the 9 crons: #399 (repurposed).
+- App hostnames: DNS-only, or proxied with asynchronous invoice generation (100 s proxy limit).
+- Prod is one migration behind stage (`20260922100000_add_chatmaid_whatsapp_provider`) and holds
+  no configuration or roster yet: #280 and #282. #280's wallet-balance question is unanswered.
 
 ## Sources
 

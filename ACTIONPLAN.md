@@ -7,6 +7,14 @@
 Created: 2026-01-08T00:00:00Z
 Status: IN PROGRESS
 
+## Production Hosting Plan (2026-10-10) — Decided
+
+- [x] Owner decided the hosting plan: **Coolify on one Hostinger KVM 2** running prod and stage, Supabase free plan, nightly encrypted backups to **Cloudflare R2** (30 daily + 12 monthly), Coolify dashboard behind **Cloudflare One**. Overrides #269's 2026-09-19 design where they conflict. Record: `docs/deployment/hosting-plan.md`.
+- [x] Superseded #269 slices closed: #395 (runtime config), #398 (GHCR publish). #399 repurposed to Coolify scheduled tasks. #396, #397, #400 still stand.
+- [ ] #415 Backup workflow + stage keep-awake.
+- [ ] #399 Coolify scheduled tasks for the nine cron routes.
+- [ ] #280 configuration and roster copy to prod (prod measured empty: 0 roles, 0 settings; one migration behind stage), then #282 cut-over.
+
 ## Issue-Driven Delivery Workflow (2026-08-13)
 
 - [x] Publish approved vertical-slice issues #64 → #65 → #66 with dependency metadata.

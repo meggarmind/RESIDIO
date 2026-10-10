@@ -3,13 +3,17 @@
 How Residio is packaged as a container image, how to build and run it on a developer machine,
 and what changes when the same image definition moves to the Coolify host.
 
-The runtime target is settled (#264, #269): **Coolify using the Dockerfile build pack, behind
-Traefik, on a Hostinger KVM box, talking to Supabase Cloud.** Nixpacks, nginx and a plain
-`next start` on a bare VM were all considered and rejected; this document does not re-open that.
+The runtime target is settled (owner decision **2026-10-10**, recorded on #269, restoring #264):
+**Coolify using the Dockerfile build pack, behind Traefik, on one Hostinger KVM 2 box that runs
+both prod and stage, talking to Supabase Cloud.** The 2026-09-19 alternative (naked image on GHCR,
+Caddy, runtime-injected config, GitHub Actions cron, stage on a laptop) was reversed on
+2026-10-10. Nixpacks, nginx and a plain `next start` on a bare VM were also rejected. The full
+plan, costs and measurements are in [`hosting-plan.md`](hosting-plan.md); this document does
+not re-open them.
 
-**Scope:** the image itself. The nine cron schedules that Vercel currently runs from
-`vercel.json` become Coolify scheduled tasks — that is a separate piece of work and is not
-implemented here.
+**Scope:** the image itself. The nine cron schedules that Vercel ran from `vercel.json` become
+Coolify scheduled tasks (#399), and nightly backups go to Cloudflare R2 from GitHub Actions;
+both are separate pieces of work (#415).
 
 ---
 
@@ -180,8 +184,15 @@ The same `Dockerfile` runs unchanged. What moves is where the values come from.
    container network, carrying `CRON_SECRET` in the `Authorization` header. `vercel.json`'s nine
    schedules are inert off Vercel. Note that `src/lib/auth/cron-auth.ts` fails **closed** in
    production when `CRON_SECRET` is unset — a production container without it has no working
-   scheduled jobs, and no error at boot to tell you. Implementing these schedules is section 3
-   of #269 and is out of scope here.
+   scheduled jobs, and no error at boot to tell you. Implementing these schedules is #399 and is
+   out of scope here.
+6. **Two applications, one host.** Prod and stage are separate Coolify applications on the same
+   KVM, each with its own build variables (so its own build), its own runtime secrets and its
+   own hostname. A stage image cannot be promoted to prod; rebuild from the same commit.
+7. **The Coolify dashboard is never public.** It is reached only through a Cloudflare Tunnel
+   behind a Cloudflare Access policy (Cloudflare One). Its port, and the realtime/terminal
+   websocket ports 6001/6002, stay closed on the host firewall and are routed through the tunnel.
+   The host firewall admits only 22 (key-only SSH), 80 and 443.
 
 ---
 
@@ -206,10 +217,17 @@ reason among others.
 If Traefik's timeouts are ever tuned away from the defaults on this host, the long-running cron
 routes are the first thing to re-check.
 
+**Cloudflare's proxy has its own ceiling.** A hostname proxied through Cloudflare (orange cloud)
+is cut off after **100 seconds** on free plans (error 524), whatever Traefik allows. The admin
+`generate-invoices` route is allowed 300 s. Keep the app hostnames **DNS-only** (grey cloud), or
+make long-running admin work asynchronous before proxying them. Cron calls that go to
+`127.0.0.1` inside the host never pass through Cloudflare and are unaffected.
+
 ---
 
 ## Related
 
 - `docs/setup/vercel-deployment.md` — the deployment this replaces, including the cron list
 - `.env.example` — the same variables for local `npm run dev`
-- Issue #269 — container and build definition; #264 — the hosting decision
+- [`hosting-plan.md`](hosting-plan.md) — the decided hosting plan, costs, backups and measurements
+- Issue #269 — production stand-up (revised 2026-10-10); #264 — the original Coolify decision
