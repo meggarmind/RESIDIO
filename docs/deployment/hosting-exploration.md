@@ -1,8 +1,13 @@
 # Hosting exploration (working notes, NOT a decision)
 
 > **Status: exploring.** Only the items marked **Confirmed** below are decided. The owner will say explicitly when a choice
-> becomes a decision. Until then, `docs/deployment/docker.md` and #264/#269 remain the recorded
-> hosting decision, and no issue should be filed or work started from these notes.
+> becomes a decision. No issue should be filed or work started from these notes.
+>
+> **Correction (2026-10-10):** earlier versions of these notes said Coolify was the recorded
+> decision. That was wrong. `docs/deployment/docker.md` is stale: the owner **abandoned Coolify on
+> 2026-09-19** (#269, open), choosing a naked image from GHCR, Caddy for TLS, runtime-injected
+> Supabase config, GitHub Actions cron, prod on the KVM and **stage on the laptop**. Several choices
+> below conflict with #269 and need an explicit owner ruling. See "Review before starting".
 
 Constraint driving everything: the project is entirely self-funded, so the goal is the lowest
 recurring cost that keeps the service running long term.
@@ -14,13 +19,16 @@ recurring cost that keeps the service running long term.
 | # | Topic | Owner's position | Status |
 |---|---|---|---|
 | 1 | App hosting | **Hostinger KVM 2** (2 vCPU, 8 GB, 100 GB NVMe), one VPS running **both prod and stage** | **Confirmed** by owner 2026-10-10; host provisioned and ready |
-| 2 | Deployment layer | **Coolify** (Dockerfile build pack, Traefik), as already documented in `docker.md` | Consistent with #264/#269 |
+| 2 | Deployment layer | **Coolify** (Dockerfile build pack, Traefik) | **Conflicts with #269** (Coolify abandoned 2026-09-19). Owner ruling needed |
 | 3 | Database / auth / storage | **Stay on Supabase** (free plan). Neon rejected after measurement, see below | Preference, not locked |
 | 4 | Supabase Pro ($25/mo) | **Not affordable** just for backups | Owner constraint |
 | 5 | Backup destination | **Cloudflare R2** | Chosen |
 | 6 | Backup encryption key | Held by the owner in their **password manager** (copy outside GitHub) | Chosen |
 | 7 | Backup retention | **30 daily + 12 monthly** (database dumps) | Chosen |
 | 8 | Dev environment | Stays on local PCs | Owner statement |
+| 9 | Server hardening | SSH keys only, firewall 22/80/443; **admin dashboard reached through Cloudflare One** (Tunnel + Access) | Chosen 2026-10-10 |
+| 10 | Secrets | Owner asked whether Cloudflare secrets can be used | Answered: not for the VPS app, see review |
+| 11 | Residio_Prod | **Unpaused** by owner 2026-10-10 (verified ACTIVE_HEALTHY) | Done |
 
 ---
 
@@ -145,6 +153,62 @@ Weekly: a small query against `Residio_Stage` so it does not pause.
 
 Secrets needed in GitHub: prod (and stage) session-pooler connection string, Supabase storage S3
 credentials, R2 access key / secret / bucket / endpoint, encryption public key or passphrase.
+
+## Review before starting (2026-10-10)
+
+### Conflicts with the recorded plan (#269, decided 2026-09-19)
+
+| Topic | #269 says | These notes say |
+|---|---|---|
+| Deploy layer | No Coolify; Caddy from `deploy/caddy/` | Coolify + Traefik |
+| Stage | On the laptop, ad-hoc `cloudflared` | On the KVM, always on |
+| Image | One image, Supabase config injected at runtime, published to GHCR | Built per environment on the VPS |
+| Cron | GitHub Actions `schedule:`, prod only | Coolify scheduled tasks |
+
+The runtime-config slice is a prerequisite under #269 for publishing an image. Whichever way the
+owner rules, the losing documents must be updated so the next session is not misled.
+
+### Measured state of the two Supabase projects
+
+| | Residio_Prod | Residio_Stage |
+|---|---|---|
+| Status | ACTIVE_HEALTHY (unpaused) | ACTIVE_HEALTHY |
+| DB size | 18 MB | 35 MB |
+| Migrations applied | 42 (baseline + 8) | 220 |
+| Missing vs repo | `20260922100000_add_chatmaid_whatsapp_provider` | none |
+| auth users / profiles | 0 / 0 | 6 / 3 |
+| app_roles / app_permissions / role_permissions | **0 / 1 / 0** | 8 / 105 / 398 |
+| system_settings | **0** | 62 |
+| houses / residents | 0 / 0 | 179 / 194 |
+| storage objects | 0 | 234 |
+
+Prod is schema-only. No one can log in or hold a permission until #280 (configuration and roster
+copy) and #282 (cut-over) are done. Stage holds what appears to be the real estate roster, so it is
+personal data and needs the same care (and backup) as prod.
+
+### Cloudflare One for the dashboard
+
+- Run `cloudflared` on the VPS; publish the dashboard hostname through the Tunnel behind an Access
+  policy (email OTP or Google for the owner only). The dashboard port then never opens on the
+  firewall. If Coolify is kept, its websocket ports (6001/6002, realtime and terminal) need routes
+  too, or the in-browser terminal and live logs break.
+- **Trap:** Cloudflare's proxy (orange cloud) cuts a request off after **100 seconds** (error 524) on
+  free plans. The admin `generate-invoices` route allows 300 s. Either keep the app hostname
+  DNS-only (grey cloud), or make long jobs asynchronous. Cron jobs called on `127.0.0.1` or from
+  GitHub straight to the origin are unaffected only if they do not pass through the proxy.
+- If the app hostname is proxied, use SSL mode **Full (strict)**.
+
+### Cloudflare secrets
+
+Cloudflare's Secrets Store and Worker secrets are only readable by Cloudflare's own products
+(Workers, AI Gateway). A container on the VPS cannot fetch them, so they cannot feed the app.
+Recommended: password manager as the master copy; app secrets in the deploy layer's environment
+(Coolify's encrypted variables, or a root-only `.env` read by `docker compose` under #269); backup
+secrets in GitHub Actions secrets. Secrets the app reads (from the code): `CRON_SECRET`,
+`DATA_ENCRYPTION_KEY`, `GMAIL_TOKEN_ENCRYPTION_KEY`, `GOOGLE_CLIENT_SECRET`, `PAYSTACK_SECRET_KEY`,
+`PAYSTACK_WEBHOOK_SECRET`, `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY(_CLOUD)`, `TERMII_API_KEY`,
+`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`. `DATA_ENCRYPTION_KEY`
+encrypts data at rest: losing it loses that data, so it belongs in the password manager too.
 
 ## Open items before anything becomes a decision
 
