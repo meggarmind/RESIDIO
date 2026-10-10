@@ -19,7 +19,7 @@ recurring cost that keeps the service running long term.
 | 4 | Supabase Pro ($25/mo) | **Not affordable** just for backups | Owner constraint |
 | 5 | Backup destination | **Cloudflare R2** | Chosen |
 | 6 | Backup encryption key | Held by the owner in their **password manager** (copy outside GitHub) | Chosen |
-| 7 | Backup retention | Proposed: 30 daily + 12 monthly | Proposed, not confirmed |
+| 7 | Backup retention | **30 daily + 12 monthly** (database dumps) | Chosen |
 | 8 | Dev environment | Stays on local PCs | Owner statement |
 
 ---
@@ -105,8 +105,30 @@ Nightly:
 2. Copy all storage buckets through Supabase's S3-compatible storage endpoint.
 3. Encrypt the archive (key held in the owner's password manager; the workflow holds only what
    it needs to encrypt).
-4. Upload to a private **Cloudflare R2** bucket; lifecycle rules apply retention (proposed 30
-   daily + 12 monthly).
+4. Upload to a private **Cloudflare R2** bucket; retention 30 daily + 12 monthly for database
+   dumps.
+
+Storage files are **not** copied in full every night. They are synced incrementally (for
+example `rclone` with a `crypt` remote, so they are encrypted too) into one mirror, with changed
+or deleted files moved to a dated folder rather than lost. Only the database is snapshotted
+42 times.
+
+### R2 free-tier sizing (10 GB-month storage)
+
+Measured on Residio_Stage 2026-10-10: `public` schema 17 MB (whole DB 35 MB including system
+catalogs); storage objects ~9.4 MB (233 email imports, 1 document). Prod was paused, so its size
+is unknown; these are planning estimates.
+
+| Scenario | DB dump (compressed) | x42 copies | Files mirror | Total |
+|---|---|---|---|---|
+| Today (stage-sized) | ~5 MB | ~0.2 GB | ~10 MB | **~0.2 GB** |
+| Year one, generous growth (DB 150 MB, files 300 MB) | ~40 MB | ~1.7 GB | ~0.3 GB | **~2 GB** |
+| Supabase free-plan ceiling (DB 500 MB, files 1 GB) | ~150 MB | ~6.3 GB | ~1 GB | **~7.3 GB** |
+
+Every scenario fits in 10 GB because files are mirrored once. Copying files in full nightly
+would not fit at the ceiling (~48 GB). Beyond the free tier R2 charges ~$0.015 per GB-month, and
+egress (downloading for a restore) is free. Cloudflare may require a payment method to enable
+R2; set a billing notification so any overage is noticed.
 
 Weekly: the same connection against `Residio_Stage` to keep it awake.
 
