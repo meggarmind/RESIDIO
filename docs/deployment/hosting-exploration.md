@@ -1,6 +1,6 @@
 # Hosting exploration (working notes, NOT a decision)
 
-> **Status: exploring.** Nothing here is locked in. The owner will say explicitly when a choice
+> **Status: exploring.** Only the items marked **Confirmed** below are decided. The owner will say explicitly when a choice
 > becomes a decision. Until then, `docs/deployment/docker.md` and #264/#269 remain the recorded
 > hosting decision, and no issue should be filed or work started from these notes.
 
@@ -13,7 +13,7 @@ recurring cost that keeps the service running long term.
 
 | # | Topic | Owner's position | Status |
 |---|---|---|---|
-| 1 | App hosting | **Hostinger KVM 2** (2 vCPU, 8 GB, 100 GB NVMe), one VPS running **both prod and stage** | Preference, not locked |
+| 1 | App hosting | **Hostinger KVM 2** (2 vCPU, 8 GB, 100 GB NVMe), one VPS running **both prod and stage** | **Confirmed** by owner 2026-10-10; host provisioned and ready |
 | 2 | Deployment layer | **Coolify** (Dockerfile build pack, Traefik), as already documented in `docker.md` | Consistent with #264/#269 |
 | 3 | Database / auth / storage | **Stay on Supabase** (free plan). Neon rejected after measurement, see below | Preference, not locked |
 | 4 | Supabase Pro ($25/mo) | **Not affordable** just for backups | Owner constraint |
@@ -148,7 +148,7 @@ credentials, R2 access key / secret / bucket / endpoint, encryption public key o
 
 ## Open items before anything becomes a decision
 
-- Owner to confirm the hosting choice (Hostinger KVM 2) and authorise recording it on #264/#269.
+- Hostinger KVM 2 confirmed 2026-10-10 (host ready). Not yet recorded on #264/#269; awaiting owner go-ahead.
 - Confirm current Hostinger pricing and what VPS snapshot/backup is included.
 - Then: file issues (backup workflow, stage keep-awake, Coolify scheduled tasks for the 9 crons).
 
