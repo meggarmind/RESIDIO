@@ -1,0 +1,103 @@
+name: Release
+
+# Tag-only release automation (#397 Part 2).
+#
+# When a PR merges into `master` (a release PR from `stage`, or a hotfix), its release label
+# decides the version, computed by scripts/release-version.mjs from the LAST `vX.Y.Z` tag:
+#
+#   release:major | release:minor | release:patch  ->  push tag vX.Y.Z on the merge commit
+#   release:none, no release label, unknown label  ->  do nothing (the run still passes)
+#
+# Nothing is ever committed to `master`: branch protection requires a PR and the `PR gate`
+# check, and a bot commit would need an exemption. The tag IS the version; anything that
+# shows a version (#421) reads the tag.
+#
+# Merges into `stage` never run this: a release:* label on a feature PR has no effect.
+#
+# The first time, run this workflow by hand (Actions > Release > Run workflow) to create the
+# four labels.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag the release
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Full history so every existing tag is visible to the version calculation.
+      - name: Check out the merge commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      - name: Work out the version
+        id: version
+        env:
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: node scripts/release-version.mjs
+
+      - name: Push the tag
+        if: steps.version.outputs.tag != ''
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          REASON: ${{ steps.version.outputs.reason }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if git rev-parse --quiet --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "::error::Tag ${TAG} already exists. Not moving it; tags are immutable."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag --annotate "${TAG}" "${MERGE_SHA}" --message "Release ${TAG} (#${PR_NUMBER}, ${REASON})"
+          git push origin "refs/tags/${TAG}"
+          echo "Tagged \`${TAG}\` on \`${MERGE_SHA}\` (${REASON})." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report no release
+        if: steps.version.outputs.tag == ''
+        env:
+          REASON: ${{ steps.version.outputs.reason }}
+        run: |
+          echo "No tag pushed: ${REASON}." >> "$GITHUB_STEP_SUMMARY"
+
+  # One-off setup, safe to re-run: creates or updates the four release labels.
+  labels:
+    name: Create release labels
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Create or update labels
+        run: |
+          gh label create "release:major" --repo "$REPO" --force --color B60205 \
+            --description "Release PR: not a drop-in upgrade (new required env var, breaking migration, access-control API change)"
+          gh label create "release:minor" --repo "$REPO" --force --color FBCA04 \
+            --description "Release PR: new capability, drop-in upgrade"
+          gh label create "release:patch" --repo "$REPO" --force --color 0E8A16 \
+            --description "Release PR: fixes only"
+          gh label create "release:none" --repo "$REPO" --force --color C5DEF5 \
+            --description "Merged into master without a release tag"
