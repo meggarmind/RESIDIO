@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Globe, Facebook, Instagram, Twitter, Save, Loader2 } from 'lucide-react';
+import { ResidentPortalCard } from './resident-portal-card';
 import { useGeneralSettings, useUpdateSettings, useUpdateSetting } from '@/hooks/use-settings';
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, string> {
@@ -230,6 +231,8 @@ export default function EstateInfoPage() {
             )}
           </CardContent>
         </Card>
+
+        <ResidentPortalCard />
 
         <Card>
           <CardHeader>

@@ -4,10 +4,14 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useCurrentAdmins } from '@/hooks/use-roles';
+import { usePortalAccessOverrides, useResidentPortalEnabled } from '@/hooks/use-portal-access';
+import { PortalAccessControl } from '@/components/admin/portal-access-control';
 import { Shield, User, Home, AlertCircle } from 'lucide-react';
 
 export function CurrentAdminsList() {
   const { data: admins, isLoading, error } = useCurrentAdmins();
+  const { data: overrides } = usePortalAccessOverrides((admins ?? []).map((admin) => admin.profile_id));
+  const { data: generalEnabled } = useResidentPortalEnabled();
 
   if (isLoading) {
     return (
@@ -61,7 +65,7 @@ export function CurrentAdminsList() {
         {admins.map((admin) => (
           <div
             key={admin.profile_id}
-            className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+            className="flex flex-wrap items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
           >
             <Avatar className="h-10 w-10">
               <AvatarFallback className="bg-primary/10 text-primary">
@@ -85,6 +89,11 @@ export function CurrentAdminsList() {
                 )}
               </div>
             </div>
+            <PortalAccessControl
+              profileId={admin.profile_id}
+              override={overrides?.[admin.profile_id] ?? null}
+              generalEnabled={generalEnabled ?? false}
+            />
             <Badge variant={getRoleBadgeVariant(admin.role_level)}>
               <Shield className="h-3 w-3 mr-1" />
               {admin.role_display_name}
