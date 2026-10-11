@@ -75,7 +75,6 @@ const ALLOWLIST = new Set<string>([
   '20260812235852_invoice_generation_redesign.sql',
   '20260813045937_harden_invoice_generation_rpc_authorization.sql',
   '20260813051135_harden_invoice_generation_database_contract.sql',
-  '20260813092000_harden_invoice_generation_rpc_authorization.sql',
   '20260829100100_backfill_profile_role_ids.sql',
   '20260829100300_relax_legacy_profile_role.sql',
   '20260829100400_harden_handle_new_user.sql',
@@ -94,6 +93,18 @@ const ALLOWLIST = new Set<string>([
    * this guard is DML, not DDL, so it does not qualify for that exemption.
    */
   '20260905010000_reconcile_profile_role_ids.sql',
+
+  /**
+   * Recovered by #377 (2026-09-18), after this ratchet was installed. These
+   * migrations were applied to the database months earlier with no file on
+   * disk, so the scan that built this list never saw them. They are existing
+   * offenders, not new ones, and applied migrations are immutable. Pending
+   * removal like the entries above (#422).
+   */
+  '20260111091652_add_late_fee_waivers_and_automation.sql',
+  '20260117234244_create_petty_cash_accounts_table.sql',
+  '20260220194125_create_ai_settings_table.sql',
+  '20260220194142_create_ai_conversation_logs_table.sql',
 ]);
 
 /**
