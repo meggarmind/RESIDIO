@@ -16,13 +16,23 @@
  * not the Supabase CLI — CORE.md §5 forbids the local CLI in this repo, in CI included.
  *
  * Usage:
- *   node scripts/migration-drift.mjs [--ci]
+ *   node scripts/migration-drift.mjs [--ci] [--base-ref <git-ref>]
  *
  * Requires SUPABASE_ACCESS_TOKEN and SUPABASE_PROJECT_REF in the environment. Fails
  * loudly (non-zero exit, clear message) rather than silently passing when either is
  * missing — a fork PR without secrets must NOT read as "no drift".
+ *
+ * There are two databases (#420, #427): Residio_Stage tracks `stage` and Residio_Prod
+ * tracks `master`. The workflow picks SUPABASE_PROJECT_REF for the branch being
+ * checked; DRIFT_TARGET, if set, names that database in the output.
+ *
+ * `--base-ref` is for pull requests. Migrations are applied after the merge
+ * (CORE.md §11), so a file the PR itself adds is expected to be unapplied. Versions
+ * whose files are all absent from the base ref are reported as pending rather than
+ * as drift. Everything else, including applied-without-file, still fails.
  */
 
+import { execFileSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -31,6 +41,16 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const migrationsDir = path.join(repoRoot, 'supabase', 'migrations');
 
 const ci = process.argv.includes('--ci');
+
+/** Value of `--name value` or `--name=value`, or null when the flag is absent. */
+function argValue(name) {
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === name) return args[i + 1] ?? null;
+    if (args[i].startsWith(`${name}=`)) return args[i].slice(name.length + 1);
+  }
+  return null;
+}
 
 // Exported so a test can assert this still selects `name`, not just `version` — a
 // revert to version-only selection here silently resurrects the pre-#374 double-
@@ -191,6 +211,46 @@ export function isClean(result) {
 }
 
 /**
+ * Versions a pull request adds (#427): every file for that version is absent from
+ * the base ref's `supabase/migrations/`. A version that already had a file on the
+ * base is not "added", even if the PR adds a second file under it, so a PR cannot
+ * use a duplicate timestamp to hide an existing unapplied migration.
+ *
+ * `baseFilenames` may be full paths (as `git ls-tree` prints them) or bare names.
+ */
+export function versionsAddedSince(localByVersion, baseFilenames) {
+  const base = new Set(baseFilenames.map((file) => path.basename(file)));
+  const added = new Set();
+  for (const [version, files] of localByVersion) {
+    if (files.every((file) => !base.has(file))) added.add(version);
+  }
+  return added;
+}
+
+/**
+ * Moves the PR's own not-yet-applied versions out of `fileNotApplied` into
+ * `pendingFromPr`. Only that direction is exempt: an applied row with no file is
+ * drift whatever the PR adds.
+ */
+export function exemptPendingFromPr(result, addedVersions) {
+  return {
+    ...result,
+    fileNotApplied: result.fileNotApplied.filter((version) => !addedVersions.has(version)),
+    pendingFromPr: result.fileNotApplied.filter((version) => addedVersions.has(version)),
+  };
+}
+
+/** Migration filenames on `ref`, via git. Throws if the ref cannot be read. */
+function migrationFilesAt(ref) {
+  const output = execFileSync(
+    'git',
+    ['ls-tree', '-r', '--name-only', ref, '--', 'supabase/migrations/'],
+    { cwd: repoRoot, encoding: 'utf8' },
+  );
+  return output.split('\n').filter((line) => line.endsWith('.sql'));
+}
+
+/**
  * Shapes one raw Management API row into `{ version, name }`. Pulled out as its
  * own export so a test can assert `name` survives the trip — inlined in the
  * fetch function, a mutation hardcoding `name: null` here would pass every
@@ -276,12 +336,32 @@ async function main() {
     return;
   }
 
-  const result = compareMigrations(localByVersion, appliedMigrations);
+  const baseRef = argValue('--base-ref');
+  let result = { ...compareMigrations(localByVersion, appliedMigrations), pendingFromPr: [] };
+  if (baseRef) {
+    let baseFiles;
+    try {
+      baseFiles = migrationFilesAt(baseRef);
+    } catch (error) {
+      // Never fall back to "no exemption" or "everything exempt" silently.
+      console.error(`\nmigration-drift: could not list migrations on base ref ${baseRef}.\n${error.message}\n`);
+      process.exitCode = 1;
+      return;
+    }
+    result = exemptPendingFromPr(result, versionsAddedSince(localByVersion, baseFiles));
+  }
   const clean = isClean(result);
+  const target = process.env.DRIFT_TARGET ? ` (${process.env.DRIFT_TARGET})` : '';
 
   console.log(
-    `\nMigration drift — ${localByVersion.size} versions on disk, ${appliedMigrations.length} applied in the database\n`,
+    `\nMigration drift${target} — ${localByVersion.size} versions on disk, ${appliedMigrations.length} applied in the database\n`,
   );
+
+  if (result.pendingFromPr.length) {
+    console.log(`Added by this pull request, not applied yet — expected, applied after merge (${result.pendingFromPr.length}):`);
+    for (const v of result.pendingFromPr) console.log(`  ${v}`);
+    console.log('');
+  }
 
   if (result.appliedNotOnDisk.length) {
     console.log(`Applied in the database but no file on disk (${result.appliedNotOnDisk.length}):`);
@@ -304,7 +384,11 @@ async function main() {
   }
 
   if (clean) {
-    console.log('No drift. Every applied migration has a file, and every file is applied.\n');
+    console.log(
+      result.pendingFromPr.length
+        ? 'No drift. Every applied migration has a file, and every file not added by this pull request is applied.\n'
+        : 'No drift. Every applied migration has a file, and every file is applied.\n',
+    );
   } else {
     console.log(
       `DRIFT DETECTED: ${result.appliedNotOnDisk.length} applied-without-file, ` +
@@ -314,11 +398,13 @@ async function main() {
 
   if (ci && process.env.GITHUB_STEP_SUMMARY) {
     const { appendFileSync } = await import('node:fs');
-    const lines = ['## Migration drift', ''];
+    const lines = [`## Migration drift${target}`, ''];
 
     if (clean) {
       lines.push(
-        `All ${localByVersion.size} migration files on disk match the ${appliedMigrations.length} applied in the database.`,
+        result.pendingFromPr.length
+          ? `No drift: apart from the ${result.pendingFromPr.length} added by this pull request, the migration files on disk match the ${appliedMigrations.length} applied in the database.`
+          : `All ${localByVersion.size} migration files on disk match the ${appliedMigrations.length} applied in the database.`,
         '',
       );
     } else {
@@ -332,6 +418,12 @@ async function main() {
         for (const v of result.fileNotApplied) lines.push(`- \`${v}\``);
         lines.push('');
       }
+    }
+
+    if (result.pendingFromPr.length) {
+      lines.push('### Added by this pull request, applied after merge (not drift)', '');
+      for (const v of result.pendingFromPr) lines.push(`- \`${v}\``);
+      lines.push('');
     }
 
     if (result.duplicateVersions.length) {

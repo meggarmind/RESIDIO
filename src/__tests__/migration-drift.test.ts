@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   compareMigrations,
+  exemptPendingFromPr,
   isClean,
   mapAppliedRow,
   MANAGEMENT_API_QUERY,
   normalizeMigrationName,
   versionOf,
+  versionsAddedSince,
 } from '../../scripts/migration-drift.mjs';
 
 /**
@@ -376,5 +378,71 @@ describe('mapAppliedRow', () => {
       version: '20260813001153',
       name: null,
     });
+  });
+});
+
+describe('versionsAddedSince (#427)', () => {
+  it('returns the versions whose files are all absent from the base ref', () => {
+    const local = localFixture({
+      '20260101000000': ['20260101000000_old.sql'],
+      '20261011000000': ['20261011000000_new.sql'],
+    });
+    const base = ['supabase/migrations/20260101000000_old.sql'];
+
+    expect([...versionsAddedSince(local, base)]).toEqual(['20261011000000']);
+  });
+
+  it('matches full git ls-tree paths and bare filenames alike', () => {
+    const local = localFixture({ '20260101000000': ['20260101000000_old.sql'] });
+
+    expect(versionsAddedSince(local, ['supabase/migrations/20260101000000_old.sql']).size).toBe(0);
+    expect(versionsAddedSince(local, ['20260101000000_old.sql']).size).toBe(0);
+  });
+
+  it('does not treat a version as added when the base already had a file under it', () => {
+    // A PR adding a second file under an existing timestamp must not exempt the
+    // version: that would hide the base file if it was never applied.
+    const local = localFixture({
+      '20260101000000': ['20260101000000_old.sql', '20260101000000_sneaky.sql'],
+    });
+    const base = ['supabase/migrations/20260101000000_old.sql'];
+
+    expect(versionsAddedSince(local, base).size).toBe(0);
+  });
+});
+
+describe('exemptPendingFromPr (#427)', () => {
+  it("moves the PR's own unapplied versions out of fileNotApplied, leaving the check clean", () => {
+    const local = localFixture({
+      '20260101000000': ['20260101000000_old.sql'],
+      '20261011000000': ['20261011000000_new.sql'],
+    });
+    const result = compareMigrations(local, appliedFixture(['20260101000000']));
+    const exempted = exemptPendingFromPr(result, new Set(['20261011000000']));
+
+    expect(exempted.fileNotApplied).toEqual([]);
+    expect(exempted.pendingFromPr).toEqual(['20261011000000']);
+    expect(isClean(exempted)).toBe(true);
+  });
+
+  it('still reports an unapplied file the PR did not add', () => {
+    const local = localFixture({
+      '20260101000000': ['20260101000000_old.sql'],
+      '20261011000000': ['20261011000000_new.sql'],
+    });
+    const result = compareMigrations(local, appliedFixture([]));
+    const exempted = exemptPendingFromPr(result, new Set(['20261011000000']));
+
+    expect(exempted.fileNotApplied).toEqual(['20260101000000']);
+    expect(isClean(exempted)).toBe(false);
+  });
+
+  it('never exempts applied-without-file drift, whatever the PR adds', () => {
+    const local = localFixture({ '20261011000000': ['20261011000000_new.sql'] });
+    const result = compareMigrations(local, appliedFixture(['20250101000000']));
+    const exempted = exemptPendingFromPr(result, new Set(['20261011000000', '20250101000000']));
+
+    expect(exempted.appliedNotOnDisk).toEqual(['20250101000000']);
+    expect(isClean(exempted)).toBe(false);
   });
 });
