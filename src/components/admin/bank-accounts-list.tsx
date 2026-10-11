@@ -375,7 +375,7 @@ export function BankAccountsList() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Bank Account</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <span>Are you sure you want to delete "{accountToDelete?.account_name}"?</span>
+              <span>Are you sure you want to delete &quot;{accountToDelete?.account_name}&quot;?</span>
               {!canAutoApprove && (
                 <span className="block text-amber-600">This action will be submitted for approval.</span>
               )}

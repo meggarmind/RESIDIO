@@ -173,6 +173,24 @@ const ALLOWLIST = new Set<string>([
   '20260830100200_chairman_excludes_settings_module.sql',
   '20260904215745_require_active_super_admin.sql',
   '20260905003000_close_anonymous_table_reads.sql',
+
+  /**
+   * Recovered by #377 (2026-09-18), after this ratchet was installed. These
+   * migrations were applied to the database months earlier with no file on
+   * disk, so the scan that built this list never saw them. They are existing
+   * offenders, not new ones: applied migrations are immutable, so the fix is
+   * the #213 policy rewrite, not an edit here. Allowlisted rather than
+   * dropped, and expected to shrink like every entry above (#422).
+   */
+  '20251225230550_fix_invoice_generation_log_rls.sql',
+  '20251226112930_report_schedules_and_history.sql',
+  '20251230003538_add_role_assignment_rules.sql',
+  '20260102095116_create_impersonation_system.sql',
+  '20260111095222_add_paystack_transactions_table.sql',
+  '20260111102629_add_two_factor_authentication.sql',
+  '20260119145119_fix_vendors_rls_chairman.sql',
+  '20260119151441_fix_expenses_rls_chairman.sql',
+  '20260119151448_fix_categories_budgets_rls_chairman.sql',
 ]);
 
 /**

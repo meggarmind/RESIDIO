@@ -11,20 +11,39 @@ a false picture of the live schema — an audit of `get_my_role()` quoted a
 definition from `20260106110000` that production had superseded months earlier
 via one of those six. The auditor was not careless; the repo lied.
 
+## Two databases, two merges
+
+Since 2026-10-11 (#420) every change reaches production through two merges,
+and each merge has its own database:
+
+| Merge | PR base | Apply to | When |
+| --- | --- | --- | --- |
+| feature or fix PR | `stage` | **Residio_Stage** | right after the merge, before UAT |
+| release PR (`Release vX.Y.Z`) | `master` | **Residio_Prod** | right after the merge, before the prod deploy |
+| hotfix PR | `master` | **Residio_Prod**, then Residio_Stage when `master` is merged back into `stage` | right after each merge |
+
+So a migration is applied **twice**, at two different times. Between releases
+it is normal for Residio_Stage to be ahead of Residio_Prod; the release PR
+should list the migrations it carries, and the person merging it applies
+exactly those to Residio_Prod and verifies them there by name.
+
 ## The rule
 
 **Before merging**, enumerate what the branch adds that the target lacks.
-Compare the two refs, not your working tree:
+Compare the PR's **base ref** with its head, not your working tree. The base
+is `stage` for a feature PR and `master` for a release or hotfix PR; never
+hard-code one:
 
 ```bash
+BASE=stage   # or master, for a release or hotfix PR
 diff \
-  <(git ls-tree -r --name-only origin/master -- supabase/migrations/) \
+  <(git ls-tree -r --name-only "origin/$BASE" -- supabase/migrations/) \
   <(git ls-tree -r --name-only origin/<branch> -- supabase/migrations/)
 ```
 
-**After merging, apply them.** The merge is not complete until the ledger
-matches. If you are not in a position to apply them — no database access, or a
-precondition is unmet — say so explicitly in the merge report and record it on
+**After merging, apply them** to that base's database (table above). The merge
+is not complete until that database's ledger matches. If you are not in a
+position to apply them — no database access, or a precondition is unmet — say so explicitly in the merge report and record it on
 the tracking issue. An unapplied migration that someone knows about is a task;
 one nobody knows about is the six-orphan state above.
 

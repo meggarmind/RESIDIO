@@ -1,0 +1,139 @@
+name: PR Gate
+
+# The required check for every pull request into `stage` or `master` (#397).
+#
+# Before this existed nothing ran the suite until AFTER a merge (stage-backup.yml, on push to
+# master), so a red commit was only discovered once it was already on the branch. This runs
+# lint, typecheck, unit tests and a production build on the PR itself.
+#
+# BLOCKING by design, same reasoning as migration-drift.yml. Do NOT add `continue-on-error`
+# (the harness-label.yml idiom): a gate that cannot fail gates nothing.
+#
+# Branch protection should require the single `PR gate` check below, not the four individual
+# jobs, so the job list can change without touching the protection settings.
+#
+# Playwright is deliberately absent. e2e/fixtures.ts needs cloud Supabase with seeded users,
+# which would make every PR depend on shared mutable state. e2e stays a manual pre-release
+# step (#269).
+
+on:
+  pull_request:
+    branches: [stage, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Fails on errors only; the existing warning baseline does not block.
+      - name: Lint
+        run: npm run lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Vitest
+        run: npx vitest run
+
+  # tsc and Vitest both accept things `next build` rejects (a synchronous export from a
+  # 'use server' module broke master for a day in #356), so the build is part of the gate.
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Prerendering builds a Supabase client, so the build needs these set.
+      # src/lib/supabase/config.ts reads SUFFIXED names chosen by NEXT_PUBLIC_ENV_MODE, so the
+      # mode is pinned to make explicit which pair is read. Placeholders are sufficient: nothing
+      # here contacts Supabase, and no real credential belongs in this workflow.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_ENV_MODE: cloud
+          NEXT_PUBLIC_SUPABASE_URL_CLOUD: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY_CLOUD: placeholder-service-role-key
+
+  # The one check branch protection requires. `always()` makes it run (and fail) when a job
+  # above failed or was cancelled; without it this job would be skipped, and GitHub treats a
+  # skipped required check as passing.
+  gate:
+    name: PR gate
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test, build]
+    if: always()
+    steps:
+      - name: Require every gate job to have succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Gate job results: ${RESULTS}"
+          for result in ${RESULTS}; do
+            if [ "${result}" != "success" ]; then
+              echo "::error::A gate job did not succeed (${result}). This PR must not merge."
+              exit 1
+            fi
+          done
