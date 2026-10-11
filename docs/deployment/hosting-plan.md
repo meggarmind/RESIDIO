@@ -173,7 +173,11 @@ Never paste a real secret into this file: the repository is public.
 ### Phase 1: secure the host
 
 1. Ubuntu 24.04 LTS (Hostinger's "Ubuntu + Coolify" template is fine and skips step 5).
-2. Non-root sudo user with an SSH key; `PasswordAuthentication no` and `PermitRootLogin no`.
+2. Non-root sudo user with an SSH key; `PasswordAuthentication no` and
+   **`PermitRootLogin prohibit-password`** (not `no`). Coolify manages its own host by SSHing
+   from its container to `root@host.docker.internal` with its own key; `PermitRootLogin no`
+   breaks the built-in `localhost` server ("Permission denied (publickey)"). Root stays
+   key-only; keep `/root/.ssh/authorized_keys` to Coolify's key alone.
 3. **Hostinger panel firewall, not only `ufw`**: Docker-published ports (Coolify's 8000, 6001,
    6002) bypass `ufw`. Allow inbound 22, 80, 443 only.
 4. 4 GB swap so Next.js build spikes cannot take prod down.
@@ -196,7 +200,10 @@ Never paste a real secret into this file: the repository is public.
 
 ### Phase 4: source and project
 
-11. Coolify Sources: GitHub App scoped to `meggarmind/RESIDIO` only.
+11. Use only the built-in `localhost` server (IP `host.docker.internal`, user `root`, port 22,
+    Coolify's own key). Do not add the VPS again as a second server: `localhost` inside the
+    Coolify container is the container itself, not the host.
+    Coolify Sources: GitHub App scoped to `meggarmind/RESIDIO` only.
 12. Project `Residio` with environments `production` and `staging`.
 
 ### Phase 5: the two applications
