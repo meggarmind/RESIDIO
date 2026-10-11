@@ -4027,6 +4027,7 @@ export type Database = {
           full_name: string
           id: string
           impersonation_enabled: boolean | null
+          portal_access_override: string | null
           portal_theme_override: string | null
           rejection_reason: string | null
           resident_id: string | null
@@ -4052,6 +4053,7 @@ export type Database = {
           full_name: string
           id: string
           impersonation_enabled?: boolean | null
+          portal_access_override?: string | null
           portal_theme_override?: string | null
           rejection_reason?: string | null
           resident_id?: string | null
@@ -4077,6 +4079,7 @@ export type Database = {
           full_name?: string
           id?: string
           impersonation_enabled?: boolean | null
+          portal_access_override?: string | null
           portal_theme_override?: string | null
           rejection_reason?: string | null
           resident_id?: string | null

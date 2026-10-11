@@ -14,8 +14,7 @@ import {
 // profiles.portal_access_override is added by
 // supabase/migrations/20261011140000_resident_portal_visibility_switches.sql.
 // The Supabase clients here are not parameterised with the generated Database
-// type, so the column needs no local typing; once the migration is applied,
-// run `npm run db:types` to bring src/types/database.generated.ts up to date.
+// type, so the column needs no local typing.
 
 const SETTING_KEY = 'resident_portal_enabled';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
