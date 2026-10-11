@@ -157,6 +157,96 @@ Weekly: a small query against `Residio_Stage` so it does not pause.
 Secrets needed in GitHub: prod (and stage) session-pooler connection string, Supabase storage S3
 credentials, R2 access key / secret / bucket / endpoint, encryption public key or passphrase.
 
+## KVM setup runbook (Coolify)
+
+Owner-run, phase by phase. Coolify's UI labels drift between versions; treat them as approximate.
+Never paste a real secret into this file: the repository is public.
+
+### Phase 0: prerequisites
+
+- Domain on Cloudflare DNS. Names used below: `app.<domain>` (prod), `stage.<domain>` (stage),
+  `coolify.<domain>` (dashboard).
+- Both Supabase projects' URL, anon key and service-role key (Dashboard, Settings, API).
+- Password manager ready for new secrets: `CRON_SECRET`, `DATA_ENCRYPTION_KEY`,
+  `GMAIL_TOKEN_ENCRYPTION_KEY` (each per environment).
+
+### Phase 1: secure the host
+
+1. Ubuntu 24.04 LTS (Hostinger's "Ubuntu + Coolify" template is fine and skips step 5).
+2. Non-root sudo user with an SSH key; `PasswordAuthentication no` and `PermitRootLogin no`.
+3. **Hostinger panel firewall, not only `ufw`**: Docker-published ports (Coolify's 8000, 6001,
+   6002) bypass `ufw`. Allow inbound 22, 80, 443 only.
+4. 4 GB swap so Next.js build spikes cannot take prod down.
+
+### Phase 2: install and claim Coolify
+
+5. `curl -fsSL https://cdn.coollabs.io/coolify/install.sh | sudo bash` (skip on the template).
+6. **Register the admin immediately**, through an SSH tunnel (the first visitor becomes admin and
+   8000 is firewalled): `ssh -L 8000:localhost:8000 <user>@<vps-ip>`, open
+   `http://localhost:8000`. Enable 2FA on the account.
+
+### Phase 3: Cloudflare One for the dashboard
+
+7. Zero Trust, Networks, Tunnels: create a tunnel; install `cloudflared` on the VPS as instructed.
+8. Public hostname `coolify.<domain>` to `http://localhost:8000`; also route the realtime (6001)
+   and terminal (6002) websockets per Coolify's Cloudflare Tunnel guide for the installed version.
+9. Zero Trust, Access, Applications, Self-hosted: `coolify.<domain>`, policy allowing only the
+   owner's email (one-time PIN or Google).
+10. Coolify Settings: instance domain `https://coolify.<domain>`.
+
+### Phase 4: source and project
+
+11. Coolify Sources: GitHub App scoped to `meggarmind/RESIDIO` only.
+12. Project `Residio` with environments `production` and `staging`.
+
+### Phase 5: the two applications
+
+Both: Application, Dockerfile build pack, repo `meggarmind/RESIDIO`, port 3000 (the image has its
+own `HEALTHCHECK`).
+
+| Setting | residio-prod | residio-stage |
+|---|---|---|
+| Domain | `https://app.<domain>` | `https://stage.<domain>` |
+| Branch | `master` | `master` |
+| Auto-deploy on push | **Off**: deploy by hand after any migration (`CORE.md` §11) | On |
+| Supabase | Residio_Prod | Residio_Stage |
+| Memory limit | ~2 GB | ~1 GB |
+
+Build variables (public; inlined into the browser bundle): `NEXT_PUBLIC_ENV_MODE=cloud`,
+`NEXT_PUBLIC_SUPABASE_URL_CLOUD`, `NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD`, `NEXT_PUBLIC_SITE_URL`,
+`NEXT_PUBLIC_APP_URL` (both the **https** origin), `NEXT_PUBLIC_PAYSTACK_KEY`,
+`NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`.
+
+Runtime secrets (build variable off; different values per environment):
+`SUPABASE_SERVICE_ROLE_KEY_CLOUD`, `CRON_SECRET`, `DATA_ENCRYPTION_KEY`,
+`GMAIL_TOKEN_ENCRYPTION_KEY`, `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_REPLY_TO_ADDRESS`,
+`PAYSTACK_SECRET_KEY`, `PAYSTACK_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+`GOOGLE_REDIRECT_URI`, `TERMII_API_KEY`, `TERMII_SENDER_ID`, `WHATSAPP_*` if used. Template and
+comments: `.env.docker.example`. Generate keys with
+`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` and store them in the
+password manager first. **Never rotate `DATA_ENCRYPTION_KEY` once data exists.**
+
+### Phase 6: DNS, TLS, auth redirects
+
+13. Cloudflare DNS: `A` records `app` and `stage` to the VPS IP, **DNS-only (grey cloud)**.
+14. Traefik obtains Let's Encrypt certificates automatically once DNS resolves.
+15. Supabase, each project, Authentication, URL Configuration: Site URL and redirect URL
+    `https://<host>/auth/callback`.
+16. Google Cloud Console OAuth client: the same callback URLs.
+17. Resend sending domain verified (#272).
+
+### Phase 7: run
+
+18. Deploy stage; watch the build log (expect 3-6 min on 2 vCPU).
+19. Smoke test stage: login, dashboard, System, Cron Status.
+20. Deploy prod. It is unusable until #280 (configuration) and the owner's seeding task have run.
+21. Prod scheduled tasks (#399).
+22. Coolify notifications (email) for failed deployments and scheduled tasks.
+23. Coolify's own database backup to the R2 bucket (separate prefix): it holds every secret above.
+
+Order: 1, 2, 3 first, so the dashboard is never exposed; then 4, 5, 6; stage; prod after #280;
+then #399 and #415.
+
 ## Review before starting (2026-10-10)
 
 ### Conflicts with the 2026-09-19 plan (#269), resolved 2026-10-10 in favour of this plan
