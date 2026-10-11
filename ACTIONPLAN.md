@@ -13,7 +13,7 @@ Status: IN PROGRESS
 - [x] Superseded #269 slices closed: #395 (runtime config), #398 (GHCR publish). #399 repurposed to Coolify scheduled tasks. #396, #397, #400 still stand.
 - [ ] #415 Backup workflow + stage keep-awake.
 - [ ] #399 Coolify scheduled tasks for the nine cron routes.
-- [ ] #280 configuration and roster copy to prod (prod measured empty: 0 roles, 0 settings; one migration behind stage), then #282 cut-over.
+- [ ] #280 configuration-only copy to prod (prod measured empty: 0 roles, 0 settings; one migration behind stage); houses, residents and financial history seeded by a separate owner task (2026-10-11); then #282 cut-over.
 
 ## Issue-Driven Delivery Workflow (2026-08-13)
 
