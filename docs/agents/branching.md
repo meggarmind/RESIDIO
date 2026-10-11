@@ -120,6 +120,7 @@ hotfix: branch from master --PR--> master, then merge master back into stage
 - **A hotfix branches from `master` and targets `master`.** Merge `master` back into `stage`
   in its own PR straight after, so the fix is not lost at the next release.
 - **Both branches require the `PR gate` check** (`.github/workflows/pr-gate.yml`) and a PR.
+  PRs into `master` also run the **`Security gate`** check (below).
 - **Migrations are applied twice**: to Residio_Stage when they merge into `stage`, to
   Residio_Prod when the release merges into `master`. See `docs/agents/migrations-on-merge.md`.
 
@@ -134,6 +135,47 @@ To see what is in UAT but not yet in production:
 git fetch origin stage master
 git log --oneline origin/master..origin/stage
 ```
+
+### The release flow and its security gate (#429)
+
+```
+feature PR --> stage     PR gate (lint, typecheck, vitest, build)
+                          -> Coolify residio-stage deploys, UAT on Residio_Stage
+Release PR stage --> master
+                          PR gate + Security gate
+                          -> merge commit, apply migrations to Residio_Prod (migrations-on-merge.md)
+                          -> manual production deploy in Coolify (residio-prod)
+```
+
+`Security gate` (`.github/workflows/security-gate.yml`) runs on PRs into `master` only, never on
+PRs into `stage`, and on demand from the Actions tab (**Run workflow**, pick `stage` to preview
+the next release). It runs four checks, each a job with its own summary of counts:
+
+| Check | Tool | Blocking in enforce mode |
+| --- | --- | --- |
+| Dependency audit | `npm audit --omit=dev` (full tree shown for information) | any critical or high production dependency |
+| Secret scan | gitleaks over the PR's commits (whole history on a manual run) | any finding |
+| Static analysis | CodeQL `javascript-typescript` | any error-level alert |
+| RBAC/audit contract | `src/__tests__/integration/module-integration.test.ts` alone | any failure |
+
+Read the release's posture from the PR's **Checks** tab: the `Security gate` job's summary has
+the table per check, and each check job's summary has the detail.
+
+**It is report-only today** (owner decision 2026-10-11): the check is green whatever it finds,
+and its summary says how many findings would block. On 2026-10-11 the dependency audit alone
+would block, with 1 critical and 9 high production advisories (3 critical and 28 high across
+the full tree, the figure the Coolify build log shows).
+
+**To make it blocking**, once the critical/high backlog is cleared:
+
+1. Change one line in `security-gate.yml`, `SECURITY_GATE_MODE: report` to
+   `SECURITY_GATE_MODE: enforce`, by PR. Enforce mode also fails when a check could not run,
+   so an outage cannot pass a release silently.
+2. The owner adds `Security gate` as a required status check on `master`'s branch protection.
+   Require that single aggregate check, not the four jobs, as with `PR gate`.
+
+The gate needs no secrets beyond `GITHUB_TOKEN`. A finding in the secret scan means rotating
+the credential, not only deleting it, since it stays in history.
 
 ## What these rules cannot do
 
