@@ -232,6 +232,13 @@ Build variables (public; inlined into the browser bundle): `NEXT_PUBLIC_ENV_MODE
 `NEXT_PUBLIC_APP_URL` (both the **https** origin), `NEXT_PUBLIC_PAYSTACK_KEY`,
 `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`.
 
+Build identity variables (public; do not set by hand): `NEXT_PUBLIC_APP_VERSION` (the
+`git describe --tags --match 'v*'` string), `NEXT_PUBLIC_GIT_SHA` and `NEXT_PUBLIC_APP_ENV`
+(`production` or `staging`). They are **set by CI** (`.github/workflows/coolify-version.yml`, not
+yet present), not by hand. Prod's values are set on each release tag and Stage's on each push to
+`stage`. The admin sidebar footer and `GET /api/version` show them; until CI sets them the app
+shows `dev · unknown`.
+
 Runtime secrets (build variable off; different values per environment):
 `SUPABASE_SERVICE_ROLE_KEY_CLOUD`, `CRON_SECRET`, `DATA_ENCRYPTION_KEY`,
 `GMAIL_TOKEN_ENCRYPTION_KEY`, `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_REPLY_TO_ADDRESS`,
