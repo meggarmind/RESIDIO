@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { setResidentPortalEnabled } from '@/actions/settings/resident-portal';
@@ -18,11 +19,11 @@ import { RESIDENT_PORTAL_ENABLED_QUERY_KEY, useResidentPortalEnabled } from '@/h
  * SETTINGS_MANAGE_GENERAL guard and the audit trail.
  */
 export function ResidentPortalCard() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, refreshPortalVisibility } = useAuth();
   const canManage = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useResidentPortalEnabled();
+  const { data, isLoading, isError, refetch } = useResidentPortalEnabled();
 
   const [enabled, setEnabled] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -42,6 +43,7 @@ export function ResidentPortalCard() {
         toast.error(result.error || 'Failed to update the resident portal switch');
         return;
       }
+      refreshPortalVisibility();
       await queryClient.invalidateQueries({ queryKey: RESIDENT_PORTAL_ENABLED_QUERY_KEY });
     } catch (error) {
       console.error('[ResidentPortalCard] Failed to update resident portal switch:', error);
@@ -63,6 +65,13 @@ export function ResidentPortalCard() {
       <CardContent className="space-y-3">
         {isLoading ? (
           <Skeleton className="h-10 w-full" />
+        ) : isError ? (
+          <div role="alert" className="flex items-center justify-between gap-4 text-sm">
+            <p className="text-destructive">Could not load the resident portal switch.</p>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              Retry
+            </Button>
+          </div>
         ) : (
           <>
             <div className="flex items-center justify-between gap-6">

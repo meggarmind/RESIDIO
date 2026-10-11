@@ -4,14 +4,16 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useCurrentAdmins } from '@/hooks/use-roles';
-import { usePortalAccessOverrides, useResidentPortalEnabled } from '@/hooks/use-portal-access';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { usePortalAccessOverrides } from '@/hooks/use-portal-access';
 import { PortalAccessControl } from '@/components/admin/portal-access-control';
 import { Shield, User, Home, AlertCircle } from 'lucide-react';
 
 export function CurrentAdminsList() {
   const { data: admins, isLoading, error } = useCurrentAdmins();
   const { data: overrides } = usePortalAccessOverrides((admins ?? []).map((admin) => admin.profile_id));
-  const { data: generalEnabled } = useResidentPortalEnabled();
+  // Read via the session client (auth context), not a SETTINGS_VIEW-gated action.
+  const { residentPortalEnabled: generalEnabled } = useAuth();
 
   if (isLoading) {
     return (
@@ -92,7 +94,7 @@ export function CurrentAdminsList() {
             <PortalAccessControl
               profileId={admin.profile_id}
               override={overrides?.[admin.profile_id] ?? null}
-              generalEnabled={generalEnabled ?? false}
+              generalEnabled={generalEnabled}
             />
             <Badge variant={getRoleBadgeVariant(admin.role_level)}>
               <Shield className="h-3 w-3 mr-1" />

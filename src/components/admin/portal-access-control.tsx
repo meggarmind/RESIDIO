@@ -37,7 +37,7 @@ interface PortalAccessControlProps {
  * the effective state is shown read-only.
  */
 export function PortalAccessControl({ profileId, override, generalEnabled }: PortalAccessControlProps) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, profile, refreshPortalVisibility } = useAuth();
   const canEdit = hasPermission(PERMISSIONS.SYSTEM_ASSIGN_ROLES);
   const queryClient = useQueryClient();
   const [isSaving, setIsSaving] = useState(false);
@@ -62,6 +62,7 @@ export function PortalAccessControl({ profileId, override, generalEnabled }: Por
         return;
       }
       toast.success('Resident portal access updated');
+      if (profile?.id === profileId) refreshPortalVisibility();
       await queryClient.invalidateQueries({ queryKey: PORTAL_ACCESS_OVERRIDES_QUERY_KEY });
     } catch (error) {
       console.error('[PortalAccessControl] Failed to update portal access override:', error);

@@ -50,6 +50,8 @@ interface AuthContextType {
   portalAccessOverride: PortalAccessOverride;
   residentPortalEnabled: boolean;
   canSeeSelfPortalLinks: boolean;
+  /** Re-run the portal visibility fetches (after the switch or own override changes). */
+  refreshPortalVisibility: () => void;
   canSeeImpersonationLink: boolean;
 }
 
@@ -493,12 +495,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // #423: load the portal visibility inputs once the profile id is known.
   // Independent of fetchProfile/isLoading; failures read as hidden/inherit.
   const profileId = profile?.id ?? null;
+  const [portalRefreshTick, setPortalRefreshTick] = useState(0);
+  const refreshPortalVisibility = useCallback(() => {
+    setPortalRefreshTick((tick) => tick + 1);
+  }, []);
+  const lastPortalProfileId = useRef<string | null>(null);
   useEffect(() => {
-    if (!profileId) {
+    // A different account (or none) must never see the previous account's
+    // values while its own fetch is pending. A refresh for the same account
+    // keeps the current values until the new ones arrive.
+    if (lastPortalProfileId.current !== profileId) {
+      lastPortalProfileId.current = profileId;
       setPortalAccessOverride(null);
       setResidentPortalEnabled(false);
-      return;
     }
+    if (!profileId) return;
     let cancelled = false;
     void Promise.all([
       fetchPortalAccessOverride(supabase, profileId),
@@ -511,7 +522,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [profileId, supabase]);
+  }, [profileId, supabase, portalRefreshTick]);
 
   const canSeeSelfPortalLinks = useMemo(
     () =>
@@ -549,6 +560,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       portalAccessOverride,
       residentPortalEnabled,
       canSeeSelfPortalLinks,
+      refreshPortalVisibility,
       canSeeImpersonationLink,
     }}>
       {children}

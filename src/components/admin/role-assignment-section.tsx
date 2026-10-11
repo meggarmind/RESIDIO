@@ -37,7 +37,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useRolesWithPermissions } from '@/hooks/use-roles';
-import { usePortalAccessOverrides, useResidentPortalEnabled } from '@/hooks/use-portal-access';
+import { usePortalAccessOverrides } from '@/hooks/use-portal-access';
 import { PortalAccessControl } from './portal-access-control';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useQueryClient } from '@tanstack/react-query';
@@ -140,7 +140,7 @@ function profileToTarget(profile: ProfileSearchResult): RoleTarget {
 }
 
 export function RoleAssignmentSection() {
-  const { profile, hasPermission } = useAuth();
+  const { profile, hasPermission, residentPortalEnabled } = useAuth();
   const { data: roles, isLoading: rolesLoading } = useRolesWithPermissions();
   const queryClient = useQueryClient();
 
@@ -167,7 +167,6 @@ export function RoleAssignmentSection() {
 
   // Permission checks
   const { data: portalOverrides } = usePortalAccessOverrides(selectedTarget?.profileId ? [selectedTarget.profileId] : []);
-  const { data: residentPortalEnabled } = useResidentPortalEnabled();
   const canManageRoles = hasPermission('system.manage_roles');
   const canAssignRoles = hasPermission('system.assign_roles');
   // Mirrors the server guard in assignRoleToProfile, which checks
@@ -535,7 +534,7 @@ export function RoleAssignmentSection() {
               <PortalAccessControl
                 profileId={selectedTarget.profileId}
                 override={portalOverrides?.[selectedTarget.profileId] ?? null}
-                generalEnabled={residentPortalEnabled ?? false}
+                generalEnabled={residentPortalEnabled}
               />
             </div>
           )}
