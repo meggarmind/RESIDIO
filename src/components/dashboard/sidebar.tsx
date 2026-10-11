@@ -8,7 +8,6 @@ import { User, UserSearch, ChevronLeft, ChevronRight, ChevronDown } from 'lucide
 import { usePendingApprovalsCount } from '@/hooks/use-approvals';
 import { Badge } from '@/components/ui/badge';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
-import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { useSectionedNavigation } from '@/hooks/use-navigation';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
 import { useSidebarState } from '@/hooks/use-sidebar-state';
@@ -22,7 +21,7 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { profile, hasPermission, residentId } = useAuth();
+  const { profile, canSeeSelfPortalLinks, canSeeImpersonationLink } = useAuth();
   const { sections } = useSectionedNavigation();
   const { data: pendingCount } = usePendingApprovalsCount();
   const { logoUrl } = useEstateLogo();
@@ -269,8 +268,8 @@ export function Sidebar({ className }: SidebarProps) {
           {/* Theme Switcher - only show when expanded */}
           {isExpanded && <ThemeSwitcher />}
 
-          {/* View as Resident link - only shown if user has a resident_id */}
-          {residentId && (
+          {/* My Portal link - hidden unless the portal is visible to this user and they have a resident_id (#423) */}
+          {canSeeSelfPortalLinks && (
             isCollapsed && !isExpanded ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -317,8 +316,8 @@ export function Sidebar({ className }: SidebarProps) {
             )
           )}
 
-          {/* Impersonate Resident link - only for admins with impersonation permission */}
-          {hasPermission(PERMISSIONS.IMPERSONATION_START_SESSION) && (
+          {/* Impersonate Resident link - needs the impersonation permission and portal visibility (#423) */}
+          {canSeeImpersonationLink && (
             isCollapsed && !isExpanded ? (
               <Tooltip>
                 <TooltipTrigger asChild>
