@@ -122,7 +122,7 @@ describe('Chatmaid WhatsApp provider', () => {
     // Route by URL so the test does not depend on whether the connection
     // check is cached: every call gets an answer whatever the cache state.
     let sendCount = 0;
-    const fetchImpl = vi.fn(async (url: string) => {
+    const fetchImpl = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url) => {
       if (url.endsWith('/v1/phone-numbers')) return connectedPhoneNumbersResponse(config);
       if (url.endsWith('/status')) return connectedStatusResponse();
       sendCount += 1;

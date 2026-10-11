@@ -19,7 +19,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version-file: .nvmrc
 
       # Blocking by design, same reasoning as migration-drift.yml: the claim discipline
       # agreed for the dual-harness workflow (assign the issue before starting) was
