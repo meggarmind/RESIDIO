@@ -4,7 +4,7 @@
     "owner": "meggarmind",
     "number": 1
   },
-  "defaultBranch": "master",
+  "defaultBranch": "stage",
   "worktreeDirectory": ".worktrees",
   "branchPrefix": "codex/issue-",
   "defaultLane": "codex",

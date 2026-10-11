@@ -81,12 +81,12 @@ being built.
 The image pins **Node 22 LTS** on Debian slim, via a single `ARG NODE_IMAGE` at the top of the
 `Dockerfile` so it is changed in one place.
 
-Three versions are in play and none of them agrees with the others:
+Three places pin a version. CI and the image now agree (#397); only a developer machine may differ:
 
 | Where | Version |
 |-------|---------|
 | Developer machine | 25.1.0 |
-| CI (`.github/workflows/stage-backup.yml:31`) | 20 |
+| CI (`.nvmrc`, read by every workflow via `node-version-file`) | 22 |
 | Container image | **22 LTS** |
 
 22 is the choice because it is the only one of the three that is both an active LTS line and

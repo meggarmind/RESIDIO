@@ -74,8 +74,8 @@ npm run issue:workflow -- start <issue> --lane codex
 A worktree created under any lane can be resumed, reviewed or finished from any other — the
 worktree path `.worktrees/issue-<n>` is lane-independent.
 
-> **Do not run `finish`.** It merges into local `master` and requires that merge to have reached
-> `origin/master`, which branch protection forbids; it never opens a PR, and it merges with no
+> **Do not run `finish`.** It merges into local `stage` and requires that merge to have reached
+> `origin/stage`, which branch protection forbids; it never opens a PR, and it merges with no
 > migrations check. See the note in `CORE.md` §8. Land work by PR instead.
 
 ## OpenCode
@@ -108,6 +108,6 @@ If the MCP tools are not available in your session:
 - `docs/README.md` — master index
 - `docs/setup/development-environment.md` — full setup, env vars, conventions
 - `docs/api/supabase-integration.md` — data-layer and MCP patterns
-- `docs/agents/branching.md` — branching, isolation, concurrent sessions, the `stage` backup
+- `docs/agents/branching.md` — branching, isolation, concurrent sessions, `stage` and promotion
 - `docs/agents/session-roles.md` — the peer arrangement and its standing safety terms
 - `TODO.md` / `ACTIONPLAN.md` — current phase and in-progress plan

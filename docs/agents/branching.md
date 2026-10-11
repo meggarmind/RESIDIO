@@ -1,16 +1,17 @@
-# Branching, isolation and the `stage` backup
+# Branching, isolation, `stage` and promotion
 
 This repo is worked by **two machines** running **Claude Code, OpenCode and Codex** — often
 concurrently, sometimes several sessions of one tool. No session may assume it is the only
 one. These rules exist because every incident so far was caught by a person cross-checking,
 not by anything stopping it.
 
-## 1. Never work on `master`
+## 1. Never work on `master` (or `stage`)
 
-`master` is a merge target, not a workspace. **Branch protection enforces this**: a direct
-push is refused by the server, for every tool, on every machine, including the repo owner.
+`master` is a merge target, not a workspace, and so is `stage` (§6). **Branch protection
+enforces this on both**: a direct push is refused by the server, for every tool, on every
+machine, including the repo owner.
 
-If your push to `master` is rejected, that is the rule working. Do not look for a way
+If your push to `master` or `stage` is rejected, that is the rule working. Do not look for a way
 around it, do not ask a human to force it through, and do not ask another session to push
 on your behalf — that last one is the same bypass wearing a disguise. Open a PR.
 
@@ -37,7 +38,7 @@ claim. Before disclosing what branch you are on, run
 
 ## 3. Sync before you work, not after
 
-Rebase or merge `master` into your branch **before** starting work that is not central to
+Rebase or merge `stage` into your branch **before** starting work that is not central to
 the feature, and again before opening a PR. A branch that drifts 20 commits behind turns a
 mechanical merge into a judgement call about conflicts nobody planned.
 
@@ -93,41 +94,40 @@ pushes the current branch. **It was removed from the owner's machine on 2026-09-
 that machine no longer auto-commits — but the check still applies, because a peer on a
 different system may still run one. Verify your own host rather than assuming.
 
-## 6. The `stage` backup
+## 6. Stage and promotion
 
-`stage` is the last `master` that passed checks — the rollback point.
+Since 2026-10-11 (owner decision, #420) `stage` is the **leading integration branch** and
+`master` is **production**. Until then `stage` was a lagging backup moved by
+`stage-backup.yml`; that workflow is deleted, and nothing about the old meaning still applies.
 
-- It advances **only** from `master`, **only** when the check gate is green, and only via
-  `.github/workflows/stage-backup.yml`. Nothing pushes to it by hand.
-- To see what you would roll back to: `git log origin/stage -1`.
-- To roll back: branch from `origin/stage`, open a PR to `master`. Even a rollback goes
-  through a PR — protection has no exceptions.
-
-If `stage` and `master` are equal, the current `master` passed its checks.
-
-**If `stage` lags, find out which of two very different things happened**, because they call
-for opposite responses:
-
-| What you see in the run | What it means | What to do |
-| --- | --- | --- |
-| The job ran and a step failed | Those commits did not pass | Investigate the commits |
-| The job never started — 0 steps, a few seconds | The gate could **not execute** | Fix the runner; the commits are unverified, not bad |
-
-```bash
-gh run list --workflow=stage-backup.yml --limit 1
-gh api repos/meggarmind/RESIDIO/check-runs/<job-id>/annotations -q '.[0].message'
+```
+feature branch --PR--> stage   (Coolify residio-stage, stage.<domain>, Residio_Stage: UAT)
+stage --PR "Release vX.Y.Z" (merge commit)--> master   (Coolify residio-prod, app.<domain>, Residio_Prod)
+hotfix: branch from master --PR--> master, then merge master back into stage
 ```
 
-A lagging `stage` is **not** evidence that `master` is bad. It is evidence that `master` is
-**unverified**, and the reason matters. Reading a frozen `stage` as "those commits failed"
-is the same error as reading a migrations directory as the database: the artefact reporting
-a state it cannot actually observe.
+- **Feature and fix branches start from `origin/stage` and their PRs target `stage`.**
+  `npm run issue:workflow -- start` already branches from `origin/stage`.
+- **A release is a PR from `stage` to `master`**, titled `Release vX.Y.Z`, merged with a
+  **merge commit, never a squash**. A squash would give `master` commits `stage` does not have,
+  and every later release PR would show already-shipped work again.
+- **A hotfix branches from `master` and targets `master`.** Merge `master` back into `stage`
+  in its own PR straight after, so the fix is not lost at the next release.
+- **Both branches require the `PR gate` check** (`.github/workflows/pr-gate.yml`) and a PR.
+- **Migrations are applied twice**: to Residio_Stage when they merge into `stage`, to
+  Residio_Prod when the release merges into `master`. See `docs/agents/migrations-on-merge.md`.
 
-> **Known, as of 2026-09-02:** GitHub Actions is locked account-wide — every workflow run
-> fails in ~2 seconds with 0 steps and the annotation *"The job was not started because your
-> account is locked due to a billing issue."* While that holds, **`stage` cannot advance at
-> all** and is pinned wherever it was. Branch protection still enforces ordering, but nothing
-> is verifying what merges. Treat `master` as unverified until the lock is cleared.
+**Rollback** is the previous release on `master`: its `vX.Y.Z` tag once #397's release tags
+exist, its release merge commit until then. Redeploy that commit in Coolify, or open a revert
+PR to `master` (and merge `master` back into `stage` afterwards). Even a rollback goes through
+a PR. Never move a branch ref by hand.
+
+To see what is in UAT but not yet in production:
+
+```bash
+git fetch origin stage master
+git log --oneline origin/master..origin/stage
+```
 
 ## What these rules cannot do
 
