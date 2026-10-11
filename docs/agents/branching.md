@@ -111,14 +111,20 @@ hotfix: branch from master --PR--> master, then merge master back into stage
 - **A release is a PR from `stage` to `master`**, titled `Release vX.Y.Z`, merged with a
   **merge commit, never a squash**. A squash would give `master` commits `stage` does not have,
   and every later release PR would show already-shipped work again.
+- **Label the release PR** with exactly one of `release:major`, `release:minor`,
+  `release:patch` or `release:none` (meanings in `CORE.md` §7 and
+  `scripts/release-version.mjs`). On merge, `.github/workflows/release.yml` pushes the next
+  `vX.Y.Z` tag on the merge commit, counted from the last tag. No label, an unknown label or
+  `release:none` pushes nothing; two different release labels fail the run without tagging. A
+  `release:*` label on a PR into `stage` does nothing.
 - **A hotfix branches from `master` and targets `master`.** Merge `master` back into `stage`
   in its own PR straight after, so the fix is not lost at the next release.
 - **Both branches require the `PR gate` check** (`.github/workflows/pr-gate.yml`) and a PR.
 - **Migrations are applied twice**: to Residio_Stage when they merge into `stage`, to
   Residio_Prod when the release merges into `master`. See `docs/agents/migrations-on-merge.md`.
 
-**Rollback** is the previous release on `master`: its `vX.Y.Z` tag once #397's release tags
-exist, its release merge commit until then. Redeploy that commit in Coolify, or open a revert
+**Rollback** is the previous release on `master`: its `vX.Y.Z` tag (or, for releases before
+the first tag, its release merge commit). Redeploy that commit in Coolify, or open a revert
 PR to `master` (and merge `master` back into `stage` afterwards). Even a rollback goes through
 a PR. Never move a branch ref by hand.
 
