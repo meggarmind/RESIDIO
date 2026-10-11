@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   bumpFromLabels,
@@ -114,4 +116,28 @@ describe('decideRelease (the #397 acceptance criteria)', () => {
       decideRelease({ labels: ['release:minor'], tags: ['archive/main'], packageVersion: '0.4.0' }).tag,
     ).toBe('v0.5.0');
   });
+});
+
+describe('release.yml label definitions', () => {
+  // The labels job's first run failed with HTTP 422: GitHub caps a label description at
+  // 100 characters, and `bash -e` stopped before any label was created.
+  const workflow = readFileSync(
+    fileURLToPath(new URL('../../.github/workflows/release.yml', import.meta.url)),
+    'utf8',
+  );
+  const labels = [...workflow.matchAll(/gh label create "([^"]+)"[\s\S]*?--description "([^"]*)"/g)];
+
+  it('defines all four release labels', () => {
+    expect(labels.map(([, name]) => name).sort()).toEqual(
+      ['release:major', 'release:minor', 'release:none', 'release:patch'],
+    );
+  });
+
+  it.each(labels.map(([, name, description]) => [name, description]))(
+    '%s has a description GitHub accepts (at most 100 characters)',
+    (_name, description) => {
+      expect(description.length).toBeGreaterThan(0);
+      expect(description.length).toBeLessThanOrEqual(100);
+    },
+  );
 });

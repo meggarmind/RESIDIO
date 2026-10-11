@@ -81,6 +81,8 @@ jobs:
           echo "No tag pushed: ${REASON}." >> "$GITHUB_STEP_SUMMARY"
 
   # One-off setup, safe to re-run: creates or updates the four release labels.
+  # GitHub rejects a label description over 100 characters (HTTP 422);
+  # src/__tests__/release-version.test.ts checks each one.
   labels:
     name: Create release labels
     if: github.event_name == 'workflow_dispatch'
@@ -94,7 +96,7 @@ jobs:
       - name: Create or update labels
         run: |
           gh label create "release:major" --repo "$REPO" --force --color B60205 \
-            --description "Release PR: not a drop-in upgrade (new required env var, breaking migration, access-control API change)"
+            --description "Release PR: not drop-in (new required env var, breaking migration, access-control API change)"
           gh label create "release:minor" --repo "$REPO" --force --color FBCA04 \
             --description "Release PR: new capability, drop-in upgrade"
           gh label create "release:patch" --repo "$REPO" --force --color 0E8A16 \
