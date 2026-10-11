@@ -36,6 +36,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       # Full history so every existing tag is visible to the version calculation.
       - name: Check out the merge commit
@@ -79,6 +81,21 @@ jobs:
           REASON: ${{ steps.version.outputs.reason }}
         run: |
           echo "No tag pushed: ${REASON}." >> "$GITHUB_STEP_SUMMARY"
+
+  # Writes the new tag into residio-prod's build variables (#421). It never deploys Prod.
+  # A job here rather than `on: push: tags` in coolify-version.yml, because the tag above is
+  # pushed with GITHUB_TOKEN and so starts no other workflow; see that file's header.
+  coolify-version:
+    name: Set the Prod build version in Coolify
+    needs: tag
+    if: needs.tag.outputs.tag != ''
+    permissions:
+      contents: read
+    uses: ./.github/workflows/coolify-version.yml
+    with:
+      environment: production
+      ref: ${{ github.event.pull_request.merge_commit_sha }}
+    secrets: inherit
 
   # One-off setup, safe to re-run: creates or updates the four release labels.
   # GitHub rejects a label description over 100 characters (HTTP 422);
