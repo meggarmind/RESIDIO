@@ -4,9 +4,11 @@
  *
  * The app shows which build is running from three build-time variables (#421 slice A):
  *
- *   NEXT_PUBLIC_APP_VERSION  `git describe --tags --match 'v*'` on the deployed commit:
- *                            `v0.5.0` on a release tag, `v0.5.0-3-gabc1234` on Stage, or
- *                            `v0.0.0-<shortsha>` when no tag is reachable. Never empty.
+ *   NEXT_PUBLIC_APP_VERSION  the release the deployed commit belongs to (resolveVersion):
+ *                            `v0.5.0` on the release tag itself or on the `stage` commit
+ *                            that release merged, `v0.5.0-3-gabc1234` three commits further
+ *                            along `stage`, or `v0.0.0-<shortsha>` when no tag applies.
+ *                            Never empty.
  *   NEXT_PUBLIC_GIT_SHA      the full commit SHA
  *   NEXT_PUBLIC_APP_ENV      `staging` | `production`
  *
@@ -98,16 +100,62 @@ export function decideSkip(target, env) {
   return { skip: missing.length > 0, missing };
 }
 
+/** `[major, minor, patch]` for a strict `vX.Y.Z` tag, or null for anything else. */
+export function parseTag(tag) {
+  const match = /^v(\d+)\.(\d+)\.(\d+)$/.exec(String(tag ?? '').trim());
+  return match ? match.slice(1).map(Number) : null;
+}
+
+/** Strict `vX.Y.Z` tags only, newest first by semver (never by name or date). */
+export function sortTagsNewestFirst(tags) {
+  return tags
+    .map((tag) => String(tag).trim())
+    .filter((tag) => parseTag(tag))
+    .sort((a, b) => {
+      const [x, y] = [parseTag(a), parseTag(b)];
+      return y[0] - x[0] || y[1] - x[1] || y[2] - x[2];
+    });
+}
+
 /**
- * The version string for a commit. `describe` is `git describe --tags --match 'v*'` output,
- * or empty when no tag is reachable; the fallback keeps the version non-empty and still
- * names the commit.
+ * The version string for a commit (#421; the rule is in the issue's latest comment).
+ *
+ * Release tags sit on `master`'s release merge commits, which never become ancestors of
+ * `stage`, so plain `git describe` on Stage finds an older tag, not the release Stage
+ * actually shipped. Instead:
+ *
+ *   1. An exact `v*` tag on the commit wins (`master`, a release).
+ *   2. Otherwise the newest tag T whose second parent T^2 (the `stage` commit the release
+ *      merged) is the commit or an ancestor of it: `T` when the commit IS T^2, otherwise
+ *      `T-<n>-g<7-char sha>` with n = `git rev-list --count T^2..sha`. A tag with no second
+ *      parent (not a merge, e.g. a hand-made tag) is skipped.
+ *   3. Otherwise plain `git describe --tags --match 'v*'`, and failing that
+ *      `v0.0.0-<shortsha>`.
+ *
+ * Pure apart from `git`, an object of small git queries (gitQueries() for real, a fake tag
+ * graph in tests): exactTags(sha), tags(), secondParent(tag), isAncestor(a, b),
+ * countBetween(a, b), describe(sha). Each returns [] / null / false when git has no answer.
+ * `sha` must be the full commit SHA.
  */
-export function resolveVersion({ describe, sha }) {
-  const described = String(describe ?? '').trim();
+export function resolveVersion({ sha, git }) {
+  const full = String(sha ?? '').trim();
+  if (!full) throw new Error('No commit SHA was given');
+  const short = full.slice(0, 7);
+
+  const [exact] = sortTagsNewestFirst(git.exactTags(full) ?? []);
+  if (exact) return exact;
+
+  for (const tag of sortTagsNewestFirst(git.tags() ?? [])) {
+    const merged = git.secondParent(tag);
+    if (!merged) continue;
+    if (merged !== full && !git.isAncestor(merged, full)) continue;
+    const ahead = merged === full ? 0 : Number(git.countBetween(merged, full));
+    if (!Number.isInteger(ahead) || ahead < 0) continue;
+    return ahead === 0 ? tag : `${tag}-${ahead}-g${short}`;
+  }
+
+  const described = String(git.describe(full) ?? '').trim();
   if (described) return described;
-  const short = String(sha ?? '').trim().slice(0, 7);
-  if (!short) throw new Error('No tag is reachable and no commit SHA was given');
   return `v0.0.0-${short}`;
 }
 
@@ -201,17 +249,38 @@ export function normalizeBaseUrl(raw) {
   return trimmed;
 }
 
-function gitDescribe(sha) {
+/** Trimmed git stdout, or null when git fails (no such ref, not an ancestor, no tag). */
+export function runGit(args, cwd = repoRoot) {
   try {
-    return execFileSync('git', ['describe', '--tags', '--match', 'v*', sha], {
-      cwd: repoRoot,
+    return execFileSync('git', args, {
+      cwd,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
-    // No reachable v* tag: resolveVersion falls back to v0.0.0-<shortsha>.
-    return '';
+    return null;
   }
+}
+
+/**
+ * The git queries resolveVersion needs, over `run` (runGit by default). The only place the
+ * version rule touches git, so the rule itself is tested against fake tag graphs.
+ */
+export function gitQueries(run = runGit) {
+  const lines = (out) => String(out ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+  return {
+    exactTags: (sha) => lines(run(['tag', '--list', 'v*', '--points-at', sha])),
+    tags: () => lines(run(['tag', '--list', 'v*'])),
+    secondParent: (tag) => run(['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}^2`]) || null,
+    isAncestor: (ancestor, sha) => run(['merge-base', '--is-ancestor', ancestor, sha]) !== null,
+    countBetween: (from, to) => run(['rev-list', '--count', `${from}..${to}`]),
+    describe: (sha) => run(['describe', '--tags', '--match', 'v*', sha]),
+  };
+}
+
+/** The full SHA of `ref`, or null. */
+export function resolveSha(ref, run = runGit) {
+  return run(['rev-parse', '--verify', '--quiet', `${String(ref || 'HEAD').trim()}^{commit}`]) || null;
 }
 
 async function main() {
@@ -232,8 +301,9 @@ async function main() {
     for (const value of secretValues) console.log(`::add-mask::${value}`);
   }
 
-  const sha = (env.GIT_SHA || execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' })).trim();
-  const version = resolveVersion({ describe: gitDescribe(sha), sha });
+  const sha = resolveSha(env.GIT_SHA);
+  if (!sha) throw new Error('Could not resolve the commit to describe');
+  const version = resolveVersion({ sha, git: gitQueries() });
   const baseUrl = normalizeBaseUrl(env.COOLIFY_BASE_URL);
   const headers = buildHeaders(env);
   const plan = planRequests({ target, appUuid: env[target.uuidSecret].trim(), version, sha });

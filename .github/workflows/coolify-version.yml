@@ -1,9 +1,9 @@
 name: Coolify Version
 
 # Writes the build version into each Coolify application's build variables (#421 slice B):
-# NEXT_PUBLIC_APP_VERSION (`git describe --tags --match 'v*'`), NEXT_PUBLIC_GIT_SHA and
-# NEXT_PUBLIC_APP_ENV. The logic, the Coolify endpoints and the doc pages they came from are
-# in scripts/coolify-version.mjs.
+# NEXT_PUBLIC_APP_VERSION (the release the commit belongs to; the rule is resolveVersion in
+# the script), NEXT_PUBLIC_GIT_SHA and NEXT_PUBLIC_APP_ENV. The logic, the Coolify endpoints
+# and the doc pages they came from are in scripts/coolify-version.mjs.
 #
 #   staging     every push to `stage`: set the variables on residio-stage, then trigger its
 #               deploy. Stage's Coolify auto-deploy is switched off, so this IS the deploy;
@@ -74,7 +74,7 @@ jobs:
           echo "::error::Run production from master and staging from stage."
           exit 1
 
-      # Full history and tags, so `git describe` can reach the last vX.Y.Z tag.
+      # Full history and tags, so the version rule can see every vX.Y.Z tag and its parents.
       - name: Check out the commit
         uses: actions/checkout@v5
         with:
