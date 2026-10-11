@@ -6,10 +6,13 @@
  */
 
 import { NextResponse } from 'next/server';
+import { getPublicOrigin } from '@/lib/http/public-origin';
 import { exchangeGmailCode } from '@/actions/email-imports/gmail-oauth';
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  // Behind the proxy request.url carries the bind address (#417).
+  const origin = getPublicOrigin(request);
   const code = searchParams.get('code');
   const error = searchParams.get('error');
 

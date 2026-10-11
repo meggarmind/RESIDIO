@@ -1,6 +1,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { extractRole, isAdminRole, isResidentRole } from '@/lib/auth/action-roles';
 import { NextResponse } from 'next/server';
+import { getPublicOrigin } from '@/lib/http/public-origin';
 
 /**
  * OAuth / email-confirmation callback.
@@ -25,7 +26,8 @@ function safeNextPath(next: string | null): string | null {
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-  const origin = requestUrl.origin;
+  // Behind the proxy request.url carries the bind address (#417).
+  const origin = getPublicOrigin(request);
   const code = requestUrl.searchParams.get('code');
   const next = safeNextPath(requestUrl.searchParams.get('next'));
 
