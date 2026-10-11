@@ -1,7 +1,18 @@
 name: Migration Drift
 
+# Two databases, each paired with the branch it tracks (#420, #427):
+#
+#   Residio_Stage <-> stage    (vars.SUPABASE_PROJECT_REF_STAGE)
+#   Residio_Prod  <-> master   (vars.SUPABASE_PROJECT_REF_PROD)
+#
+# Checking a branch against the other branch's database reports normal states as drift
+# (between releases Residio_Stage is legitimately ahead of Residio_Prod), so every run
+# picks the database for the branch it checks. A missing variable fails the job loudly;
+# it never falls back to the other database.
+
 on:
   pull_request:
+    branches: [stage, master]
     paths:
       - 'supabase/migrations/**'
       - 'scripts/migration-drift.mjs'
@@ -18,8 +29,12 @@ permissions:
   contents: read
 
 jobs:
-  drift:
+  # A PR is checked against its BASE branch's database. Its own new migration files are
+  # applied after the merge (CORE.md §11), so the script is given the base commit and
+  # reports those as pending rather than drift. Everything else still fails.
+  pr:
     name: Check applied migrations against supabase/migrations/
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -30,6 +45,11 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Fetch the base commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: git fetch --no-tags --depth=1 origin "${BASE_SHA}"
+
       # Unlike docs-drift.mjs, this check is BLOCKING (non-zero exit on drift). A
       # non-blocking warning is exactly what let 61 applied migrations accumulate
       # with no file on disk before anyone noticed — this is the check that would
@@ -38,8 +58,54 @@ jobs:
       # Secrets are unavailable to pull_request runs triggered by a fork; the script
       # itself fails loudly (rather than passing silently) when they are absent, so
       # that case is distinguishable in the log and job summary from "checked, no drift".
+      - name: Check migration drift against the base branch's database
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          REF_STAGE: ${{ vars.SUPABASE_PROJECT_REF_STAGE }}
+          REF_PROD: ${{ vars.SUPABASE_PROJECT_REF_PROD }}
+        run: |
+          # Chosen in shell, not with `a && b || c` in an expression: that form falls
+          # through to the Stage ref when the Prod variable is empty, which would check
+          # a master PR against the wrong database and pass.
+          case "${BASE_REF}" in
+            master) export SUPABASE_PROJECT_REF="${REF_PROD}" DRIFT_TARGET="Residio_Prod" ;;
+            stage)  export SUPABASE_PROJECT_REF="${REF_STAGE}" DRIFT_TARGET="Residio_Stage" ;;
+            *) echo "::error::Unexpected base branch '${BASE_REF}'"; exit 1 ;;
+          esac
+          node scripts/migration-drift.mjs --ci --base-ref "${BASE_SHA}"
+
+  # Scheduled and manual runs check each branch against its own database. Both
+  # directions count as drift here.
+  branches:
+    name: "Drift: ${{ matrix.database }} vs ${{ matrix.branch }}"
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - branch: stage
+            database: Residio_Stage
+            ref_var: SUPABASE_PROJECT_REF_STAGE
+          - branch: master
+            database: Residio_Prod
+            ref_var: SUPABASE_PROJECT_REF_PROD
+    steps:
+      - name: Check out ${{ matrix.branch }}
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ matrix.branch }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
       - name: Check migration drift
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_PROJECT_REF: ${{ vars[matrix.ref_var] }}
+          DRIFT_TARGET: ${{ matrix.database }}
         run: node scripts/migration-drift.mjs --ci

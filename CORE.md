@@ -135,9 +135,12 @@ migrations and run queries through the Supabase MCP tools; your harness's file n
 through the Supabase MCP tools, the second through git, and only the first was ever enforced.
 That gap is why the database accumulated 61 applied migrations with no corresponding file on
 disk (#283). `scripts/migration-drift.mjs`, run by `.github/workflows/migration-drift.yml` on
-every PR and on a daily schedule, compares the database's applied migration list against
-`supabase/migrations/` and fails the build on any divergence in either direction — enforcing
-the pairing so drift cannot silently reaccumulate after the #279 schema baseline.
+every PR and on a daily schedule, compares each database's applied migration list against
+`supabase/migrations/` on the branch it tracks (Residio_Stage against `stage`, Residio_Prod
+against `master`; a PR against its base branch's database) and fails the build on any divergence
+in either direction — enforcing the pairing so drift cannot silently reaccumulate after the #279
+schema baseline. A PR's own new migrations are reported as pending, not drift, because they are
+applied after the merge (§11).
 
 ---
 
