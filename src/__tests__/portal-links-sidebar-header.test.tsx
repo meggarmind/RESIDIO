@@ -5,7 +5,7 @@
 // and Header with a mocked useAuth.
 
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type AuthValue = {
   profile: Record<string, unknown> | null;
@@ -39,10 +39,10 @@ vi.mock('@/hooks/use-navigation', () => ({
 }));
 vi.mock('@/hooks/use-approvals', () => ({ usePendingApprovalsCount: () => ({ data: 0 }) }));
 vi.mock('@/hooks/use-estate-logo', () => ({ useEstateLogo: () => ({ logoUrl: null }) }));
+let sidebarState = { isCollapsed: false, isExpanded: true };
 vi.mock('@/hooks/use-sidebar-state', () => ({
   useSidebarState: () => ({
-    isCollapsed: false,
-    isExpanded: true,
+    ...sidebarState,
     toggleCollapsed: vi.fn(),
     setHoverExpanded: vi.fn(),
   }),
@@ -70,6 +70,18 @@ vi.mock('@/components/ui/dropdown-menu', () => {
   };
 });
 
+// Tooltip content only mounts on hover; render it inline so the collapsed
+// variant's labels are observable.
+vi.mock('@/components/ui/tooltip', () => {
+  const Pass = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
+  return {
+    Tooltip: Pass,
+    TooltipProvider: Pass,
+    TooltipTrigger: Pass,
+    TooltipContent: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  };
+});
+
 const { Sidebar } = await import('@/components/dashboard/sidebar');
 const { Header } = await import('@/components/dashboard/header');
 
@@ -94,7 +106,10 @@ function makeAuth(overrides: Partial<AuthValue> = {}): AuthValue {
   };
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  sidebarState = { isCollapsed: false, isExpanded: true };
+});
 
 describe('Sidebar portal links (#423)', () => {
   it('hides My Portal and View as Resident when both booleans are false', () => {
@@ -115,6 +130,35 @@ describe('Sidebar portal links (#423)', () => {
     authValue = makeAuth({ canSeeImpersonationLink: true });
     render(<Sidebar />);
     expect(screen.queryByText('View as Resident')).not.toBeNull();
+    expect(screen.queryByText('My Portal')).toBeNull();
+  });
+});
+
+describe('Sidebar portal links, collapsed variant (#423)', () => {
+  beforeEach(() => {
+    sidebarState = { isCollapsed: true, isExpanded: false };
+  });
+
+  it('hides both entries when both booleans are false', () => {
+    authValue = makeAuth();
+    render(<Sidebar />);
+    expect(screen.queryByText('My Portal')).toBeNull();
+    expect(screen.queryByText('View as Resident')).toBeNull();
+  });
+
+  it('shows both entries when both booleans are true', () => {
+    authValue = makeAuth({ canSeeSelfPortalLinks: true, canSeeImpersonationLink: true });
+    render(<Sidebar />);
+    expect(screen.queryByText('My Portal')).not.toBeNull();
+    expect(screen.queryByText('View as Resident')).not.toBeNull();
+    expect(document.querySelector('a[href="/portal"]')).not.toBeNull();
+  });
+});
+
+describe('Sidebar gating source (#423)', () => {
+  it('does not show My Portal from residentId alone', () => {
+    authValue = makeAuth({ residentId: 'res-1', canSeeSelfPortalLinks: false });
+    render(<Sidebar />);
     expect(screen.queryByText('My Portal')).toBeNull();
   });
 });

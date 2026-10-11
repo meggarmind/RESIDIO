@@ -9,8 +9,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let permissions: string[] = [];
 
+const refreshPortalVisibility = vi.fn();
+let currentProfileId = 'self-profile';
 vi.mock('@/lib/auth/auth-provider', () => ({
-  useAuth: () => ({ hasPermission: (p: string) => permissions.includes(p) }),
+  useAuth: () => ({
+    hasPermission: (p: string) => permissions.includes(p),
+    profile: { id: currentProfileId },
+    refreshPortalVisibility,
+  }),
 }));
 
 const setPortalAccessOverride = vi.fn();
@@ -68,6 +74,8 @@ function renderControl(props: { override: 'enabled' | 'disabled' | null; general
 
 beforeEach(() => {
   setPortalAccessOverride.mockReset();
+  refreshPortalVisibility.mockReset();
+  currentProfileId = 'self-profile';
   setPortalAccessOverride.mockResolvedValue({ success: true, error: null });
 });
 afterEach(() => cleanup());
@@ -96,5 +104,22 @@ describe('PortalAccessControl', () => {
 
     fireEvent.change(select, { target: { value: 'inherit' } });
     await waitFor(() => expect(setPortalAccessOverride).toHaveBeenLastCalledWith(PROFILE_ID, null));
+  });
+
+  it('refreshes the auth context after a successful save for the current user', async () => {
+    permissions = [PERMISSIONS.SYSTEM_ASSIGN_ROLES];
+    currentProfileId = PROFILE_ID;
+    renderControl({ override: null, generalEnabled: false });
+    fireEvent.change(screen.getByLabelText('Resident portal access'), { target: { value: 'enabled' } });
+    await waitFor(() => expect(refreshPortalVisibility).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not refresh the auth context when saving another profile', async () => {
+    permissions = [PERMISSIONS.SYSTEM_ASSIGN_ROLES];
+    renderControl({ override: null, generalEnabled: false });
+    fireEvent.change(screen.getByLabelText('Resident portal access'), { target: { value: 'enabled' } });
+    await waitFor(() => expect(setPortalAccessOverride).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByLabelText('Resident portal access').hasAttribute('disabled')).toBe(false));
+    expect(refreshPortalVisibility).not.toHaveBeenCalled();
   });
 });
