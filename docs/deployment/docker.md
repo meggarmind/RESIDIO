@@ -219,8 +219,9 @@ routes are the first thing to re-check.
 
 **Cloudflare's proxy has its own ceiling.** A hostname proxied through Cloudflare (orange cloud)
 is cut off after **100 seconds** on free plans (error 524), whatever Traefik allows. The admin
-`generate-invoices` route is allowed 300 s. Keep the app hostnames **DNS-only** (grey cloud), or
-make long-running admin work asynchronous before proxying them. Cron calls that go to
+`generate-invoices` route is allowed 300 s. The app hostnames are therefore **DNS-only** (grey
+cloud), decided 2026-10-11. Do not switch them to proxied until long-running admin work is
+asynchronous. Cron calls that go to
 `127.0.0.1` inside the host never pass through Cloudflare and are unaffected.
 
 ---

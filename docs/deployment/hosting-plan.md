@@ -29,6 +29,8 @@ recurring cost that keeps the service running long term.
 | 10 | Secrets | Password manager is the master copy; app secrets in Coolify's encrypted variables; backup secrets in GitHub Actions secrets. Cloudflare secret stores cannot feed a VPS app | Decided |
 | 12 | Stage placement | Stage on the **same KVM** as prod, always on (not the laptop) | Decided; overrides #269 |
 | 13 | Cron | **Coolify scheduled tasks** on the KVM (#399); the GitHub Actions invoice safety net stays | Decided; overrides #269 |
+| 14 | App hostnames | **DNS-only** (Cloudflare grey cloud) for prod and stage app hostnames; only the Coolify dashboard goes through Cloudflare One | Decided 2026-10-11 |
+| 15 | Prod data | #280 moves **configuration only** (roles, permissions, settings, reference data). Houses, residents **and financial history** are seeded into prod by a separate task, owned by the owner | Decided 2026-10-11; revises the 2026-09-07 "no financial history" rule |
 | 11 | Residio_Prod | **Unpaused** by owner 2026-10-10 (verified ACTIVE_HEALTHY) | Done |
 
 ---
@@ -218,9 +220,9 @@ encrypts data at rest: losing it loses that data, so it belongs in the password 
 - Confirm current Hostinger pricing and what VPS snapshot/backup is included.
 - Backup workflow and stage keep-awake: #415.
 - Coolify scheduled tasks for the 9 crons: #399 (repurposed).
-- App hostnames: DNS-only, or proxied with asynchronous invoice generation (100 s proxy limit).
 - Prod is one migration behind stage (`20260922100000_add_chatmaid_whatsapp_provider`) and holds
-  no configuration or roster yet: #280 and #282. #280's wallet-balance question is unanswered.
+  no configuration or roster yet. #280 (configuration only), the owner's separate seeding task
+  (houses, residents, financial history), then #282.
 
 ## Sources
 
