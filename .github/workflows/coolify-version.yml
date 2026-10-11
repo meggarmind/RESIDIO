@@ -37,6 +37,21 @@ on:
         description: The commit to describe (the release merge commit)
         type: string
         required: true
+    # Declared, not `secrets: inherit`, so a caller passes only what its target needs.
+    # All optional: a missing one makes the script skip with a notice, not fail.
+    secrets:
+      COOLIFY_BASE_URL:
+        required: false
+      COOLIFY_API_TOKEN:
+        required: false
+      CF_ACCESS_CLIENT_ID:
+        required: false
+      CF_ACCESS_CLIENT_SECRET:
+        required: false
+      COOLIFY_APP_UUID_STAGE:
+        required: false
+      COOLIFY_APP_UUID_PROD:
+        required: false
   # Manual re-run, e.g. to set Prod's variables for a tag cut before the secrets existed.
   # Run it from `master` for production and from `stage` for staging (enforced below).
   workflow_dispatch:

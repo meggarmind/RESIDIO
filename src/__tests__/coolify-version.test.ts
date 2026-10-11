@@ -346,4 +346,54 @@ describe('coolify-version.yml and its call from release.yml', () => {
     expect(job).toMatch(/environment: production/);
     expect(job).not.toMatch(/staging/);
   });
+
+  const releaseJob = () => release.match(/\n {2}coolify-version:\n([\s\S]*?)(?=\n {2}\S|$)/)?.[1] ?? '';
+
+  it('release.yml describes the merge commit the tag sits on, never the PR head', () => {
+    expect(release).not.toMatch(/pull_request\.head\.sha/);
+    expect(releaseJob()).toMatch(/\n\s+ref: \$\{\{ github\.event\.pull_request\.merge_commit_sha \}\}\n/);
+    // The tag job checks out the same commit it tags.
+    expect(release).toMatch(/ref: \$\{\{ github\.event\.pull_request\.merge_commit_sha \}\}\n\s+fetch-depth: 0/);
+  });
+
+  it('never uses secrets: inherit', () => {
+    expect(release).not.toMatch(/secrets:\s*inherit/);
+    expect(workflow).not.toMatch(/secrets:\s*inherit/);
+  });
+
+  it('release.yml passes exactly the five Prod secrets, not the Stage UUID', () => {
+    const block = releaseJob().match(/\n\s+secrets:\n((?:\s{6}\S.*\n?)+)/)?.[1] ?? '';
+    const names = [...block.matchAll(/^\s+([A-Z_]+): \$\{\{ secrets\.([A-Z_]+) \}\}$/gm)].map((m) => {
+      expect(m[1]).toBe(m[2]);
+      return m[1];
+    });
+    expect(names.sort()).toEqual(requiredSecrets(TARGETS.production).sort());
+    expect(releaseJob()).not.toMatch(/COOLIFY_APP_UUID_STAGE/);
+  });
+
+  it('declares every secret on workflow_call as optional, so unconfigured still skips', () => {
+    const call = workflow.match(/\n {2}workflow_call:\n([\s\S]*?)(?=\n {2}\S)/)?.[1] ?? '';
+    const secrets = call.match(/\n {4}secrets:\n([\s\S]*)$/)?.[1] ?? '';
+    const all = [...new Set([...requiredSecrets(TARGETS.staging), ...requiredSecrets(TARGETS.production)])];
+    for (const name of all) {
+      expect(secrets).toMatch(new RegExp(`(?:^|\\n) {6}${name}:\\n {8}required: false`));
+    }
+    expect(secrets).not.toMatch(/required: true/);
+  });
+
+  it('refuses a manual run from the wrong branch', () => {
+    const guard = workflow.match(/- name: Refuse a manual run from the wrong branch\n([\s\S]*?)(?=\n\s+- name:)/)?.[1] ?? '';
+    expect(guard).toMatch(/github\.event_name == 'workflow_dispatch'/);
+    expect(guard).toMatch(/inputs\.environment == 'production' && github\.ref != 'refs\/heads\/master'/);
+    expect(guard).toMatch(/inputs\.environment == 'staging' && github\.ref != 'refs\/heads\/stage'/);
+    expect(guard).toMatch(/exit 1/);
+    // It runs before the version is written.
+    expect(workflow.indexOf('Refuse a manual run')).toBeLessThan(workflow.indexOf('run: node scripts/coolify-version.mjs'));
+  });
+
+  it('checks out full history with tags (fetch-depth 0), or the version rule sees no tags', () => {
+    const depths = [...workflow.matchAll(/fetch-depth:\s*(\S+)/g)].map((m) => m[1]);
+    expect(depths).toEqual(['0']);
+    expect(workflow).toMatch(/fetch-tags: true/);
+  });
 });

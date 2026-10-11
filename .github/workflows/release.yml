@@ -95,7 +95,13 @@ jobs:
     with:
       environment: production
       ref: ${{ github.event.pull_request.merge_commit_sha }}
-    secrets: inherit
+    # Only what the Prod path needs; never the Stage UUID, and never `secrets: inherit`.
+    secrets:
+      COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+      COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+      COOLIFY_APP_UUID_PROD: ${{ secrets.COOLIFY_APP_UUID_PROD }}
 
   # One-off setup, safe to re-run: creates or updates the four release labels.
   # GitHub rejects a label description over 100 characters (HTTP 422);
