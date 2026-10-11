@@ -22,7 +22,7 @@ function firstValue(header: string | null): string | null {
 }
 
 function configuredOrigin(): string | null {
-  // Read at call time, not module load, so tests (and runtime config) can change it.
+  // NEXT_PUBLIC_* is inlined at build time in client bundles; in server code it is read from the environment at call time.
   const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (!raw) return null;
   try {

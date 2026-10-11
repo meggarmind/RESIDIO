@@ -47,6 +47,12 @@ describe('getPublicOrigin', () => {
         ).toBe('http://fwd.example');
     });
 
+    it('prefers x-forwarded-host over the host header when both are set', () => {
+        expect(
+            getPublicOrigin(req({ 'x-forwarded-host': 'fwd.example', host: 'host.example' })),
+        ).toBe('https://fwd.example');
+    });
+
     it('defaults forwarded proto to https and takes the first comma-separated value', () => {
         expect(
             getPublicOrigin(
