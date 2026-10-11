@@ -222,7 +222,7 @@ own `HEALTHCHECK`).
 | Setting | residio-prod | residio-stage |
 |---|---|---|
 | Domain | `https://app.<domain>` | `https://stage.<domain>` |
-| Branch | `master` | `master` |
+| Branch | `master` | `stage` |
 | Auto-deploy on push | **Off**: deploy by hand after any migration (`CORE.md` §11) | On |
 | Supabase | Residio_Prod | Residio_Stage |
 | Memory limit | ~2 GB | ~1 GB |
