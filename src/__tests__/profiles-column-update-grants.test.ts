@@ -48,6 +48,11 @@ describe('profiles column-level UPDATE grants', () => {
     expect(sql).toContain('REVOKE UPDATE ON public.profiles FROM anon, authenticated;');
   });
 
+  it('removes every anon write and TRUNCATE, which bypasses RLS', () => {
+    expect(sql).toContain('REVOKE INSERT, DELETE ON public.profiles FROM anon;');
+    expect(sql).toContain('REVOKE TRUNCATE ON public.profiles FROM anon, authenticated;');
+  });
+
   it('grants authenticated UPDATE on the theme columns only', () => {
     const grants = [...sql.matchAll(/GRANT UPDATE \(([^)]*)\) ON public\.profiles TO (\w+);/g)];
     expect(grants).toHaveLength(1);
@@ -64,17 +69,24 @@ describe('profiles column-level UPDATE grants', () => {
 
   it('session-client profiles writes touch only granted columns', () => {
     const offenders: string[] = [];
+    const write = /\.from\(\s*[`'"]profiles[`'"]\s*\)\s*\.(update|upsert|insert)\(/g;
     for (const file of listFiles(path.join(root, 'src'))) {
       if (file.includes(`${path.sep}__tests__${path.sep}`)) continue;
       const source = readFileSync(file, 'utf8');
-      for (const match of source.matchAll(/(\w+)\s*\.from\(['"]profiles['"]\)\s*\.(update|upsert|insert)\(/g)) {
-        const statementStart = source.lastIndexOf(';', match.index);
-        const statement = source.slice(statementStart + 1, match.index + match[0].length);
-        if (/createAdminClient\(\)|adminClient|serviceClient/.test(statement)) continue;
-        const clientName = match[1];
-        const declaration = new RegExp(`(?:const|let)\\s+${clientName}\\s*=\\s*([^;]+);`).exec(source);
-        if (declaration && /createAdminClient\(/.test(declaration[1])) continue;
-        offenders.push(`${path.relative(root, file)} (${match[2]} via ${clientName})`);
+      for (const match of source.matchAll(write)) {
+        const before = source.slice(source.lastIndexOf(';', match.index) + 1, match.index);
+        // Inline receiver: the statement itself must build the admin client.
+        if (/createAdminClient\(\)\s*\)?\s*$/.test(before)) continue;
+        const receiver = /(\w+)\s*$/.exec(before)?.[1];
+        // Named receiver: every declaration of that name in the file must be
+        // the admin client. A trusted-sounding name is not enough.
+        const declarations = receiver
+          ? [...source.matchAll(new RegExp(`(?:const|let|var)\\s+${receiver}\\s*=\\s*([^;]+);`, 'g'))]
+          : [];
+        if (declarations.length > 0 && declarations.every((d) => /^(await\s+)?createAdminClient\(/.test(d[1].trim()))) {
+          continue;
+        }
+        offenders.push(`${path.relative(root, file)} (${match[1]} via ${receiver ?? 'inline client'})`);
       }
     }
     // The single permitted session-client writer, reviewed below.
@@ -83,7 +95,11 @@ describe('profiles column-level UPDATE grants', () => {
 
   it('the theme-preferences writer updates only the granted columns', () => {
     const source = readFileSync(path.join(root, 'src/actions/settings/theme-preferences.ts'), 'utf8');
+    // What is actually passed to .update(), not just the object built for it.
+    const updateArgs = [...source.matchAll(/\.from\(\s*['"]profiles['"]\s*\)\s*\.update\(([^)]*)\)/g)].map((m) => m[1].trim());
+    expect(updateArgs).toEqual(['updateData']);
     const updateData = /const updateData = ([\s\S]*?);/.exec(source)?.[1] ?? '';
+    expect(updateData).not.toContain('...');
     const columns = [...updateData.matchAll(/(\w+):/g)].map((m) => m[1]).sort();
     expect([...new Set(columns)]).toEqual(GRANTED_COLUMNS);
   });
