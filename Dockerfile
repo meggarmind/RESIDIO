@@ -93,8 +93,8 @@ ENV NEXT_PUBLIC_ENV_MODE=${NEXT_PUBLIC_ENV_MODE} \
 # `docker history`. Nothing contacts Supabase during the build. The runner is a
 # separate stage and does not inherit this ENV, so the real key reaches the app
 # only through runtime environment, exactly as docs/deployment/docker.md
-# requires. .github/workflows/stage-backup.yml does the same thing for the same
-# reason.
+# requires. The Build job in .github/workflows/pr-gate.yml does the same thing
+# for the same reason.
 #
 # A page needing an admin client at prerender time is an application defect,
 # not a deployment one -- tracked separately. When it is fixed, delete this.
