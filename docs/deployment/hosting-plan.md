@@ -321,6 +321,13 @@ encrypts data at rest: losing it loses that data, so it belongs in the password 
 
 ## Open items
 
+- **Coolify realtime banner (deferred by owner 2026-10-11).** "Cannot connect to real-time service"
+  persists after the `realtime.<domain>` Bypass. Server side measured healthy (6001-6002 published
+  by `coolify`, `PUSHER_HOST`/`PUSHER_PORT` set). Not yet run: `curl` status of
+  `https://realtime.<domain>/` from outside, `curl localhost:6001` on the host, the browser's `wss://`
+  URL and status (DevTools, Network, WS), and `grep PUSHER docker-compose.prod.yml`. Impact: live
+  logs and status need a page refresh; deploys still work.
+
 - Hostinger KVM 2 confirmed and the plan decided 2026-10-10; recorded on #269, #262 and #264.
 - Confirm current Hostinger pricing and what VPS snapshot/backup is included.
 - Backup workflow and stage keep-awake: #415.
