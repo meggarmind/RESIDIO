@@ -138,7 +138,14 @@ EXPOSE 3000
 
 # node:*-slim has neither curl nor wget. Node 22's global fetch is the only
 # dependency-free probe available.
+#
+# redirect:'manual' keeps the probe inside the container. `/` redirects to
+# /dashboard and the middleware then redirects to NEXT_PUBLIC_SITE_URL/login,
+# the PUBLIC hostname. Following that chain would make health depend on Traefik
+# already having a route and a certificate for the hostname, which Coolify only
+# creates once a container is healthy, so a first deploy could never pass
+# (#439). The 307 from `/` is below 500 and counts as healthy.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/',{redirect:'manual'}).then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "server.js"]
