@@ -10,8 +10,8 @@ residio_sources:
   - src/app/(dashboard)/system/accounts/**
   - src/components/admin/role-assignment-section.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 96e11f5
-residio_verified_at: '2026-09-04'
+residio_verified_commit: 1166300
+residio_verified_at: '2026-10-11'
 residio_app_version: '0.4.0'
 ---
 
@@ -44,6 +44,10 @@ Approval is the gate. Everyone in this queue is asking for access to resident na
 | Security Officer | Security contacts, access records, and gate operations | Security |
 | Project Manager | Capital projects and development levies | Operations |
 | Resident | Self-service portal only, no admin dashboard | — |
+
+:::info[Resident portal links]
+Whether an admin sees *My Portal*, *Resident Portal* and *View as Resident* depends on the estate-wide **Resident portal** switch (Settings → Estate Information) and a per-account override (System → Accounts: Inherit, Enabled or Disabled). The links are hidden by default. An account with no linked resident never sees *My Portal* or *Resident Portal*, whatever its role, including the Super Administrator. Hiding the links does not block the `/portal` address.
+:::
 
 :::info[Chairman and the Settings module]
 The Chairman is the Super Administrator without configuration. Every operational module is available — residents, houses, payments, billing, security, reports, documents, announcements, approvals — but the whole **Settings** section is not, and does not appear in the sidebar. That includes Role Definitions and Assignment Rules, so creating roles is the Super Administrator's job. Role *assignment* is a separate permission on **System → Accounts**, outside Settings, so it can be granted to a role such as Chairman independently of Settings access.

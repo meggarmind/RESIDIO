@@ -46,7 +46,7 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const { profile, signOut, residentId, isSigningOut, isLoading } = useAuth();
+  const { profile, signOut, canSeeSelfPortalLinks, isSigningOut, isLoading } = useAuth();
   const { isDismissed, restoreAssistant } = useAiAssistant();
   const mounted = useSyncExternalStore(
     () => () => {},
@@ -261,7 +261,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {residentId || profile?.role_name === 'super_admin' ? (
+                  {canSeeSelfPortalLinks ? (
                     <DropdownMenuItem asChild>
                       <Link href="/portal" className="cursor-pointer font-medium flex items-center w-full">
                         <User className="mr-2 h-4 w-4" />
