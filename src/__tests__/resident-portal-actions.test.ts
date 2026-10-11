@@ -173,6 +173,18 @@ describe('setResidentPortalEnabled', () => {
     );
   });
 
+  it('does not write or audit when reading the previous value fails', async () => {
+    const { client, calls } = createClient({ data: null, error: { message: 'read failed' } });
+    createAdminClient.mockReturnValue(client);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await setResidentPortalEnabled(true);
+
+    expect(result).toEqual({ success: false, error: 'Failed to load the resident portal switch' });
+    expect(calls.upsert).toEqual([]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
   it('does not audit when the upsert fails', async () => {
     const { client } = createClient({ data: { value: false }, error: null }, { data: null, error: { message: 'boom' } });
     createAdminClient.mockReturnValue(client);
@@ -314,6 +326,18 @@ describe('setPortalAccessOverride', () => {
     const result = await setPortalAccessOverride(profileId, 'enabled');
 
     expect(result).toEqual({ success: false, error: 'Invalid profile id' });
+    expect(calls.update).toEqual([]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('does not write or audit when reading the profile fails', async () => {
+    const { client, calls } = createClient({ data: null, error: { message: 'read failed' } });
+    createAdminClient.mockReturnValue(client);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await setPortalAccessOverride(PROFILE_ID, 'enabled');
+
+    expect(result).toEqual({ success: false, error: 'Failed to load the profile' });
     expect(calls.update).toEqual([]);
     expect(logAudit).not.toHaveBeenCalled();
   });

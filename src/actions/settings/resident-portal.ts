@@ -61,11 +61,17 @@ export async function setResidentPortalEnabled(enabled: boolean): Promise<{ succ
   if (typeof enabled !== 'boolean') return { success: false, error: 'Invalid value for the resident portal switch' };
 
   const adminClient = createAdminClient();
-  const { data: previous } = await adminClient
+  const { data: previous, error: readError } = await adminClient
     .from('system_settings')
     .select('value')
     .eq('key', SETTING_KEY)
     .maybeSingle();
+
+  // Without the previous value the audit row would record a false "null".
+  if (readError) {
+    console.error('[setResidentPortalEnabled] Failed to read resident_portal_enabled:', readError);
+    return { success: false, error: 'Failed to load the resident portal switch' };
+  }
 
   const { error } = await adminClient
     .from('system_settings')
