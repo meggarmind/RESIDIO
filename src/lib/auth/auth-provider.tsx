@@ -8,6 +8,13 @@ import { createClient } from '@/lib/supabase/client';
 import { AppRoleName } from '@/types/database';
 import { getServerSession } from '@/actions/auth/get-server-session';
 import { clearAdminReadCache } from '@/lib/offline/admin-read-cache';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import {
+  canSeeImpersonationLink as canSeeImpersonationLinkRule,
+  canSeeSelfPortalLinks as canSeeSelfPortalLinksRule,
+  type PortalAccessOverride,
+} from '@/lib/auth/portal-visibility';
+import { fetchPortalAccessOverride, fetchResidentPortalEnabled } from '@/lib/auth/portal-visibility-fetch';
 
 // Profile as the app sees it. The legacy `role` column is gone (#193):
 // every role and permission decision reads role_id -> app_roles ->
@@ -39,6 +46,13 @@ interface AuthContextType {
   // Resident portal helpers
   isResident: boolean;
   residentId: string | null;
+  // Resident portal link visibility (#423)
+  portalAccessOverride: PortalAccessOverride;
+  residentPortalEnabled: boolean;
+  canSeeSelfPortalLinks: boolean;
+  /** Re-run the portal visibility fetches (after the switch or own override changes). */
+  refreshPortalVisibility: () => void;
+  canSeeImpersonationLink: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -102,6 +116,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const isInitialized = useRef(false);
+  // #423: fetched separately from the profile and fail-closed; never gates isLoading.
+  const [portalAccessOverride, setPortalAccessOverride] = useState<PortalAccessOverride>(null);
+  const [residentPortalEnabled, setResidentPortalEnabled] = useState(false);
 
   // Memoize the Supabase client to prevent recreation on re-renders
   const supabase = useMemo(() => createClient(), []);
@@ -475,6 +492,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return profile?.resident_id ?? null;
   }, [profile?.resident_id]);
 
+  // #423: load the portal visibility inputs once the profile id is known.
+  // Independent of fetchProfile/isLoading; failures read as hidden/inherit.
+  const profileId = profile?.id ?? null;
+  const [portalRefreshTick, setPortalRefreshTick] = useState(0);
+  const refreshPortalVisibility = useCallback(() => {
+    setPortalRefreshTick((tick) => tick + 1);
+  }, []);
+  const lastPortalProfileId = useRef<string | null>(null);
+  useEffect(() => {
+    // A different account (or none) must never see the previous account's
+    // values while its own fetch is pending. A refresh for the same account
+    // keeps the current values until the new ones arrive.
+    if (lastPortalProfileId.current !== profileId) {
+      lastPortalProfileId.current = profileId;
+      setPortalAccessOverride(null);
+      setResidentPortalEnabled(false);
+    }
+    if (!profileId) return;
+    let cancelled = false;
+    void Promise.all([
+      fetchPortalAccessOverride(supabase, profileId),
+      fetchResidentPortalEnabled(supabase),
+    ]).then(([override, enabled]) => {
+      if (cancelled) return;
+      setPortalAccessOverride(override);
+      setResidentPortalEnabled(enabled);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId, supabase, portalRefreshTick]);
+
+  const canSeeSelfPortalLinks = useMemo(
+    () =>
+      canSeeSelfPortalLinksRule({
+        generalEnabled: residentPortalEnabled,
+        override: portalAccessOverride,
+        residentId,
+      }),
+    [residentPortalEnabled, portalAccessOverride, residentId]
+  );
+
+  const canSeeImpersonationLink = useMemo(
+    () =>
+      canSeeImpersonationLinkRule({
+        generalEnabled: residentPortalEnabled,
+        override: portalAccessOverride,
+        hasImpersonationPermission: hasPermission(PERMISSIONS.IMPERSONATION_START_SESSION),
+      }),
+    [residentPortalEnabled, portalAccessOverride, hasPermission]
+  );
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -488,6 +557,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasAllPermissions,
       isResident,
       residentId,
+      portalAccessOverride,
+      residentPortalEnabled,
+      canSeeSelfPortalLinks,
+      refreshPortalVisibility,
+      canSeeImpersonationLink,
     }}>
       {children}
     </AuthContext.Provider>
