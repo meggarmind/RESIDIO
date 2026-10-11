@@ -97,7 +97,7 @@ disagree, the human record wins.
    two. Read them per commit, not per branch — that is how a two-harness ticket shows up:
 
    ```bash
-   MERGE=$(git log origin/master --format=%H --grep="Merge pull request #<PR> " -1)
+   MERGE=$(git log origin/<base> --format=%H --grep="Merge pull request #<PR> " -1)   # <base>: stage for feature PRs, master for release/hotfix PRs
    git log --format='%h %s%n%b' "$MERGE^1..$MERGE^2" | grep -iE "^[0-9a-f]{8} |co-authored-by"
    ```
 

@@ -270,10 +270,25 @@ Branch prefixes declare the lane:
 These are lane defaults, not walls. When you cross lanes, say so rather than letting the prefix
 mislead the next session.
 
-- Sync `master` into your branch **before** starting work not central to the feature.
+- Sync `stage` into your branch **before** starting work not central to the feature.
 - Apply a migration only from the branch that introduces it, and only after that branch merges.
-- `stage` is the last `master` that passed checks — the rollback point. It advances only via
-  `.github/workflows/stage-backup.yml`. Never push to it by hand.
+
+**`stage` leads, `master` is production** (owner decision 2026-10-11, #420):
+
+```
+feature branch --PR--> stage   (Coolify residio-stage, Residio_Stage: UAT)
+stage --PR "Release vX.Y.Z" (merge commit)--> master   (Coolify residio-prod, Residio_Prod)
+hotfix: branch from master --PR--> master, then merge master back into stage
+```
+
+- **Feature and fix PRs target `stage`.** Only release PRs (from `stage`) and hotfix PRs target
+  `master`. Both branches are protected and require the `PR gate` check.
+- **Promote with a merge commit, never a squash**, so `stage` and `master` keep a shared history
+  and the next release PR does not re-present already-shipped commits.
+- **After a hotfix, merge `master` back into `stage`** in its own PR, before the next release.
+- **Rollback is the previous release on `master`** (its `vX.Y.Z` tag once #397's release tags
+  exist, its merge commit until then), redeployed in Coolify, or a revert PR. Never move `stage`
+  or `master` refs by hand.
 
 Full rules: `docs/agents/branching.md`.
 
@@ -304,9 +319,9 @@ issue unfinished and preserve its worktree. Parent initiative issues are never c
 completion.
 
 > **`finish` is coordinator-only, and currently cannot complete.** It merges into local
-> `master` and then requires that merge to have reached `origin/master` — but `master` is
-> branch-protected and refuses pushes, and `finish` never opens a PR. It also merges with no
-> migrations check, contradicting §11. **No sub-agent may run it.** Land work by PR (§16).
+> `stage` (`defaultBranch` in `.github/issue-workflow.json`) and then requires that merge to have
+> reached `origin/stage` — but `stage` is branch-protected and refuses pushes, and `finish` never
+> opens a PR. It also merges with no migrations check, contradicting §11. **No sub-agent may run it.** Land work by PR (§16).
 
 ---
 
@@ -418,13 +433,25 @@ not a new one.
 
 Merging a branch that adds migrations obliges you to apply them, and to verify by name against
 the **database's applied list** — never against the migrations directory, which looks correct in
-every failure mode. Standing rule, not a suggestion:
+every failure mode. There are **two databases and two merges** (§7), so every migration is applied
+twice, at two different times:
 
-1. **Before merging**, diff `git ls-tree` on both refs to enumerate the migrations the branch
-   adds.
-2. **After merging**, apply them. If you cannot, say so in the merge report and record it on the
-   tracking issue. An unapplied migration nobody knows about is how six of them ended up
-   orphaned on this project.
+| Merge | Apply to | When |
+| --- | --- | --- |
+| feature PR into `stage` | **Residio_Stage** | right after the merge, before UAT |
+| release PR `stage` → `master` | **Residio_Prod** | right after the merge, before the prod deploy |
+| hotfix PR into `master` | **Residio_Prod**, then Residio_Stage on the merge-back | right after each merge |
+
+Standing rule, not a suggestion:
+
+1. **Before merging**, diff `git ls-tree` on the PR's **base ref** and its head to enumerate the
+   migrations the branch adds. The base is `origin/stage` for a feature PR and `origin/master` for
+   a release or hotfix PR. Never hard-code one.
+2. **After merging**, apply them to that base's database and verify by name there. If you cannot,
+   say so in the merge report and record it on the tracking issue. An unapplied migration nobody
+   knows about is how six of them ended up orphaned on this project. A migration applied to
+   Residio_Stage but not yet to Residio_Prod is normal between releases; the release PR lists
+   them.
 3. **Check open issues before applying anything touching RBAC, auth or RLS.** A migration can be
    correct in intent and still be the direct cause of an open P0.
 4. **Record any deliberately withheld migration twice** — on its issue and in
