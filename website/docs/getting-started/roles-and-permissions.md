@@ -10,7 +10,7 @@ residio_sources:
   - src/app/(dashboard)/system/accounts/**
   - src/components/admin/role-assignment-section.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: df973bb
+residio_verified_commit: 1166300
 residio_verified_at: '2026-10-11'
 residio_app_version: '0.4.0'
 ---
