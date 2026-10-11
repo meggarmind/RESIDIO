@@ -37,6 +37,8 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useRolesWithPermissions } from '@/hooks/use-roles';
+import { usePortalAccessOverrides, useResidentPortalEnabled } from '@/hooks/use-portal-access';
+import { PortalAccessControl } from './portal-access-control';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -164,6 +166,8 @@ export function RoleAssignmentSection() {
   const [showLinkDialog, setShowLinkDialog] = useState(false);
 
   // Permission checks
+  const { data: portalOverrides } = usePortalAccessOverrides(selectedTarget?.profileId ? [selectedTarget.profileId] : []);
+  const { data: residentPortalEnabled } = useResidentPortalEnabled();
   const canManageRoles = hasPermission('system.manage_roles');
   const canAssignRoles = hasPermission('system.assign_roles');
   // Mirrors the server guard in assignRoleToProfile, which checks
@@ -524,6 +528,17 @@ export function RoleAssignmentSection() {
               <X className="h-4 w-4" />
             </Button>
           </div>
+
+          {/* Resident portal access (#423): lets a non-admin account be enabled for a pilot */}
+          {selectedTarget.profileId && (
+            <div className="mt-6 pt-4 border-t">
+              <PortalAccessControl
+                profileId={selectedTarget.profileId}
+                override={portalOverrides?.[selectedTarget.profileId] ?? null}
+                generalEnabled={residentPortalEnabled ?? false}
+              />
+            </div>
+          )}
 
           {/* Role Assignment */}
           <div className="mt-6 pt-4 border-t space-y-4">
