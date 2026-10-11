@@ -289,9 +289,15 @@ hotfix: branch from master --PR--> master, then merge master back into stage
 - **Promote with a merge commit, never a squash**, so `stage` and `master` keep a shared history
   and the next release PR does not re-present already-shipped commits.
 - **After a hotfix, merge `master` back into `stage`** in its own PR, before the next release.
-- **Rollback is the previous release on `master`** (its `vX.Y.Z` tag once #397's release tags
-  exist, its merge commit until then), redeployed in Coolify, or a revert PR. Never move `stage`
-  or `master` refs by hand.
+- **Label every PR into `master`** with exactly one of `release:major` (not a drop-in upgrade:
+  new required env var, breaking migration, access-control API change), `release:minor` (new
+  capability, drop-in), `release:patch` (fixes) or `release:none`. On merge,
+  `.github/workflows/release.yml` pushes the next `vX.Y.Z` tag, computed from the last tag. No
+  label means no tag. **The tag is the version**: nothing is committed to `master`, and
+  `package.json`'s `version` is not hand-edited.
+- **Rollback is the previous release on `master`** (its `vX.Y.Z` tag; for releases before the
+  first tag, its merge commit), redeployed in Coolify, or a revert PR. Never move `stage`,
+  `master` or tag refs by hand.
 
 Full rules: `docs/agents/branching.md`.
 
