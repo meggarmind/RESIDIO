@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { supabaseConfig } from '@/lib/supabase/config';
 import { ROUTE_PERMISSIONS, Permission, extractRole, isAdminRole } from '@/lib/auth/action-roles';
+import { getPublicOrigin } from '@/lib/http/public-origin';
 import type { ProfileApprovalStatus } from '@/types/database';
 
 /**
@@ -111,6 +112,8 @@ export async function middleware(request: NextRequest) {
     );
 
     const pathname = request.nextUrl.pathname;
+    // Redirect targets must use the public origin, not request.url (#417).
+    const publicOrigin = getPublicOrigin(request);
 
     // Check if route requires authentication
     const sortedRoutes = Object.keys(routePermissionConfig).sort((a, b) => b.length - a.length);
@@ -160,14 +163,14 @@ export async function middleware(request: NextRequest) {
         if (status === 'rejected' || status === 'suspended') {
             await supabase.auth.signOut();
             if (pathname !== '/login') {
-                const redirectUrl = new URL('/login', request.url);
+                const redirectUrl = new URL('/login', publicOrigin);
                 redirectUrl.searchParams.set('error', `account_${status}`);
                 return NextResponse.redirect(redirectUrl);
             }
         } else if (status !== 'active'
             && !pathname.startsWith('/pending-approval')
             && !pathname.startsWith('/login')) {
-            return NextResponse.redirect(new URL('/pending-approval', request.url));
+            return NextResponse.redirect(new URL('/pending-approval', publicOrigin));
         }
     }
 
@@ -178,7 +181,7 @@ export async function middleware(request: NextRequest) {
 
     if (!isExemptRoute && isMaintenanceMode) {
         if (roleName !== 'super_admin') {
-            return NextResponse.redirect(new URL('/maintenance', request.url));
+            return NextResponse.redirect(new URL('/maintenance', publicOrigin));
         }
     }
 
@@ -190,7 +193,7 @@ export async function middleware(request: NextRequest) {
     // Every routePermissionConfig key is non-public, so this is a superset of
     // the old behaviour for the routes that were already guarded.
     if (!isPublicRoute(pathname) && !user) {
-        const redirectUrl = new URL('/login', request.url);
+        const redirectUrl = new URL('/login', publicOrigin);
         redirectUrl.searchParams.set('next', pathname);
         return NextResponse.redirect(redirectUrl);
     }
@@ -205,19 +208,19 @@ export async function middleware(request: NextRequest) {
         if (pathname.startsWith('/portal')) {
             const isImpersonationRequest = request.nextUrl.searchParams.has('impersonate');
             if (!isResidentUser && !isImpersonationRequest) {
-                return NextResponse.redirect(new URL('/dashboard', request.url));
+                return NextResponse.redirect(new URL('/dashboard', publicOrigin));
             }
             return response;
         }
 
         if (isResidentUser && !hasAdminRole && adminOnlyRoutes.some(route => pathname.startsWith(route))) {
-            return NextResponse.redirect(new URL('/portal', request.url));
+            return NextResponse.redirect(new URL('/portal', publicOrigin));
         }
 
         const requiredPermissions = routePermissionConfig[protectedRoute];
         if (requiredPermissions.length > 0) {
             if (!profile?.role_id) {
-                const redirectUrl = new URL('/dashboard', request.url);
+                const redirectUrl = new URL('/dashboard', publicOrigin);
                 redirectUrl.searchParams.set('error', 'unauthorized');
                 return NextResponse.redirect(redirectUrl);
             }
@@ -239,7 +242,7 @@ export async function middleware(request: NextRequest) {
             const hasPermission = requiredPermissions.some(p => userPermissions.includes(p));
 
             if (!hasPermission) {
-                const redirectUrl = new URL('/dashboard', request.url);
+                const redirectUrl = new URL('/dashboard', publicOrigin);
                 redirectUrl.searchParams.set('error', 'unauthorized');
                 return NextResponse.redirect(redirectUrl);
             }
@@ -251,7 +254,7 @@ export async function middleware(request: NextRequest) {
     // gate above deliberately exempts /login so this is the branch that decides.
     if (pathname === '/login' && user && profile) {
         if (profile.approval_status !== 'active') {
-            return NextResponse.redirect(new URL('/pending-approval', request.url));
+            return NextResponse.redirect(new URL('/pending-approval', publicOrigin));
         }
 
         const isResident = profile.resident_id != null;
@@ -260,7 +263,7 @@ export async function middleware(request: NextRequest) {
             : isResident
                 ? '/portal'
                 : '/pending-approval';
-        return NextResponse.redirect(new URL(redirectPath, request.url));
+        return NextResponse.redirect(new URL(redirectPath, publicOrigin));
     }
 
     return response;
