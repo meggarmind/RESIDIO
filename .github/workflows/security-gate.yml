@@ -1,0 +1,390 @@
+name: Security Gate
+
+# The security assessment a release must pass before `stage` reaches `master` (#429).
+#
+# Production deploys from `master`, which only moves by a Release PR from `stage` (#420), so this
+# runs on PRs into `master` only. It deliberately does NOT run on PRs into `stage`: feature PRs
+# are gated for correctness by pr-gate.yml, and this is the extra bar for production.
+# `workflow_dispatch` runs it on demand against any ref (pick `stage` to preview a release).
+#
+# Four checks, each its own job, each writing counts to the job summary:
+#   1. Dependency audit  - npm audit, production dependencies (dev deps are not in the image)
+#   2. Secret scan       - gitleaks over the PR's commit range (full history on a manual run)
+#   3. Static analysis   - CodeQL, javascript-typescript (the repo is public, so it is free)
+#   4. RBAC/audit        - src/__tests__/integration/module-integration.test.ts on its own
+#
+# MODE SWITCH: SECURITY_GATE_MODE below is the one line that makes this blocking.
+#   report  - every check runs and reports; `Security gate` is green whatever it finds.
+#   enforce - `Security gate` fails on any blocking finding, or if a check could not run:
+#             any critical/high production dependency, any secret, any CodeQL error-level
+#             alert, any RBAC/audit contract failure.
+# Owner decision 2026-10-11: start in `report`, flip to `enforce` once the critical/high backlog
+# is cleared. Branch protection should then require the single `Security gate` check, as with
+# `PR gate` (pr-gate.yml).
+#
+# The check jobs never fail on findings; they publish counts as outputs and the `Security gate`
+# job decides. In report mode the tooling steps also carry continue-on-error, so a tool outage
+# shows as "error" in the summary instead of turning the release red.
+#
+# No secrets beyond GITHUB_TOKEN: gitleaks is the plain CLI (the gitleaks-action licence
+# requirement applies to organisation accounts and is avoided entirely), CodeQL uses the token.
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  SECURITY_GATE_MODE: report # report | enforce
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependencies:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.summary.outputs.status }}
+      blocking: ${{ steps.summary.outputs.blocking }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      # npm audit reads package-lock.json; no install is needed. It exits non-zero whenever
+      # anything is found, so the exit code is ignored and the JSON is judged below instead.
+      - name: npm audit
+        continue-on-error: ${{ env.SECURITY_GATE_MODE == 'report' }}
+        run: |
+          npm audit --omit=dev --json > audit-prod.json || true
+          npm audit --json > audit-all.json || true
+
+      - name: Summarise
+        id: summary
+        if: always()
+        run: |
+          count() { jq -r --arg s "$2" '.metadata.vulnerabilities[$s] // empty' "$1" 2>/dev/null; }
+          if [ -z "$(count audit-prod.json critical)" ]; then
+            echo "status=error" >> "$GITHUB_OUTPUT"
+            echo "blocking=0" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Dependency audit: could not run"
+              echo
+              echo "npm audit produced no usable report. Output:"
+              echo '```'
+              head -c 4000 audit-prod.json 2>/dev/null || echo "(no output)"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          crit=$(count audit-prod.json critical); high=$(count audit-prod.json high)
+          blocking=$((crit + high))
+          echo "status=ok" >> "$GITHUB_OUTPUT"
+          echo "blocking=${blocking}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Dependency audit"
+            echo
+            echo "Blocking set: **production** dependencies at critical or high (${blocking})."
+            echo
+            echo "| Scope | Critical | High | Moderate | Low | Info | Total |"
+            echo "| --- | ---: | ---: | ---: | ---: | ---: | ---: |"
+            for f in audit-prod.json audit-all.json; do
+              label=$([ "$f" = audit-prod.json ] && echo "Production (gates)" || echo "All, incl. dev (info)")
+              jq -r --arg l "$label" '.metadata.vulnerabilities |
+                "| \($l) | \(.critical) | \(.high) | \(.moderate) | \(.low) | \(.info) | \(.total) |"' "$f"
+            done
+            echo
+            echo "<details><summary>Production packages at critical or high</summary>"
+            echo
+            echo "| Package | Severity | Direct | Fix available |"
+            echo "| --- | --- | --- | --- |"
+            jq -r '.vulnerabilities | to_entries[]
+              | select(.value.severity == "critical" or .value.severity == "high")
+              | "| \(.key) | \(.value.severity) | \(.value.isDirect) | \(
+                  if (.value.fixAvailable | type) == "object"
+                  then "\(.value.fixAvailable.name)@\(.value.fixAvailable.version)\(if .value.fixAvailable.isSemVerMajor then " (major)" else "" end)"
+                  else .value.fixAvailable end) |"' audit-prod.json | sort -t'|' -k3,3 -k2,2
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.summary.outputs.status }}
+      blocking: ${{ steps.summary.outputs.blocking }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        continue-on-error: ${{ env.SECURITY_GATE_MODE == 'report' }}
+        env:
+          GITLEAKS_VERSION: 8.21.2
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" version
+
+      # A PR scans only the commits it brings (base..head). A manual run has no range, so it
+      # scans the whole history of the chosen ref. --redact keeps secret values out of the log
+      # and the report; --exit-code 0 leaves the verdict to the summary step.
+      - name: gitleaks
+        continue-on-error: ${{ env.SECURITY_GATE_MODE == 'report' }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ -n "${BASE_SHA}" ]; then
+            echo "SCAN_RANGE=${BASE_SHA}..${HEAD_SHA}" >> "$GITHUB_ENV"
+            log_opts=(--log-opts="${BASE_SHA}..${HEAD_SHA}")
+          else
+            echo "SCAN_RANGE=full history of ${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+            log_opts=()
+          fi
+          "$RUNNER_TEMP/gitleaks" git . "${log_opts[@]}" --redact --no-banner \
+            --report-format json --report-path gitleaks.json --exit-code 0
+
+      - name: Summarise
+        id: summary
+        if: always()
+        run: |
+          if ! jq -e 'type == "array"' gitleaks.json > /dev/null 2>&1; then
+            echo "status=error" >> "$GITHUB_OUTPUT"
+            echo "blocking=0" >> "$GITHUB_OUTPUT"
+            echo "## Secret scan: could not run (see the gitleaks step log)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          leaks=$(jq length gitleaks.json)
+          echo "status=ok" >> "$GITHUB_OUTPUT"
+          echo "blocking=${leaks}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Secret scan"
+            echo
+            echo "gitleaks over ${SCAN_RANGE}: **${leaks}** finding(s). Every finding is blocking."
+            if [ "${leaks}" -gt 0 ]; then
+              echo
+              echo "| Rule | File | Line | Commit |"
+              echo "| --- | --- | ---: | --- |"
+              jq -r '.[:100][] | "| \(.RuleID) | \(.File) | \(.StartLine) | \(.Commit[0:7]) |"' gitleaks.json
+              [ "${leaks}" -gt 100 ] && echo "| ... | $((leaks - 100)) more, see the gitleaks step log | | |"
+              echo
+              echo "Values are redacted. A real secret must be rotated, not just removed from the tree."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  codeql:
+    name: Static analysis (CodeQL)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    outputs:
+      status: ${{ steps.summary.outputs.status }}
+      blocking: ${{ steps.summary.outputs.blocking }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Initialise CodeQL
+        continue-on-error: ${{ env.SECURITY_GATE_MODE == 'report' }}
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      # Results are written to disk and counted here rather than uploaded inside analyze, so
+      # the verdict does not depend on the code-scanning upload succeeding (it is refused, for
+      # example, while the repository's CodeQL "default setup" is switched on).
+      - name: Analyse
+        continue-on-error: ${{ env.SECURITY_GATE_MODE == 'report' }}
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:javascript-typescript
+          output: codeql-results
+          upload: never
+
+      # Publishes the alerts to the Security tab when code scanning accepts them. Informational
+      # only, in either mode: the gate reads the SARIF above, not the upload.
+      - name: Upload to code scanning
+        if: always() && hashFiles('codeql-results/*.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: codeql-results
+          category: /language:javascript-typescript
+
+      # A result's level falls back to its rule's default level, then to "warning" (the SARIF
+      # default). security-severity is GitHub's CVSS-style score on security queries.
+      - name: Summarise
+        id: summary
+        if: always()
+        run: |
+          sarif=$(ls codeql-results/*.sarif 2>/dev/null | head -n1)
+          if [ -z "${sarif}" ]; then
+            echo "status=error" >> "$GITHUB_OUTPUT"
+            echo "blocking=0" >> "$GITHUB_OUTPUT"
+            echo "## Static analysis (CodeQL): could not run (see the CodeQL step logs)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          jq '[.runs[] as $run
+               | ([$run.tool.driver.rules[]?] + [$run.tool.extensions[]?.rules[]?]
+                  | map({key: .id, value: .}) | from_entries) as $rules
+               | $run.results[]?
+               | ($rules[.ruleId] // {}) as $rule
+               | {
+                   rule: .ruleId,
+                   level: (.level // $rule.defaultConfiguration.level // "warning"),
+                   sev: ($rule.properties["security-severity"] // null | if . == null then null else tonumber end),
+                   file: (.locations[0].physicalLocation.artifactLocation.uri // "?"),
+                   line: (.locations[0].physicalLocation.region.startLine // 0)
+                 }]' "${sarif}" > codeql-findings.json
+          errors=$(jq '[.[] | select(.level == "error")] | length' codeql-findings.json)
+          echo "status=ok" >> "$GITHUB_OUTPUT"
+          echo "blocking=${errors}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Static analysis (CodeQL, javascript-typescript)"
+            echo
+            echo "Blocking set: error-level alerts (${errors})."
+            echo
+            echo "| By level | Count |"
+            echo "| --- | ---: |"
+            for l in error warning note; do
+              echo "| ${l} | $(jq --arg l "$l" '[.[] | select(.level == $l)] | length' codeql-findings.json) |"
+            done
+            echo
+            echo "| By security severity | Count |"
+            echo "| --- | ---: |"
+            jq -r '
+              def band: if .sev == null then "not a security query"
+                elif .sev >= 9 then "critical" elif .sev >= 7 then "high"
+                elif .sev >= 4 then "medium" else "low" end;
+              ["critical","high","medium","low","not a security query"] as $order
+              | (map(band) | group_by(.) | map({key: .[0], value: length}) | from_entries) as $c
+              | $order[] | "| \(.) | \($c[.] // 0) |"' codeql-findings.json
+            echo
+            echo "<details><summary>Alerts by rule</summary>"
+            echo
+            echo "| Rule | Level | Count | First location |"
+            echo "| --- | --- | ---: | --- |"
+            jq -r 'group_by(.rule)[] | "| \(.[0].rule) | \(.[0].level) | \(length) | \(.[0].file):\(.[0].line) |"' codeql-findings.json
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  rbac:
+    name: RBAC/audit contract
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.summary.outputs.status }}
+      blocking: ${{ steps.summary.outputs.blocking }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        continue-on-error: ${{ env.SECURITY_GATE_MODE == 'report' }}
+        run: npm ci
+
+      # The CORE.md §6 contract: every write server action calls authorizePermission() and
+      # logAudit(), unless allowlisted. It also runs inside pr-gate's vitest; running it alone
+      # here makes it a distinct signal on the release.
+      - name: module-integration.test.ts
+        continue-on-error: ${{ env.SECURITY_GATE_MODE == 'report' }}
+        run: |
+          npx vitest run src/__tests__/integration/module-integration.test.ts \
+            --reporter=default --reporter=json --outputFile.json=rbac.json
+
+      - name: Summarise
+        id: summary
+        if: always()
+        run: |
+          if ! jq -e '.numTotalTests' rbac.json > /dev/null 2>&1; then
+            echo "status=error" >> "$GITHUB_OUTPUT"
+            echo "blocking=0" >> "$GITHUB_OUTPUT"
+            echo "## RBAC/audit contract: could not run (see the test step log)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          failed=$(jq '.numFailedTests + .numRuntimeErrorTestSuites' rbac.json)
+          echo "status=ok" >> "$GITHUB_OUTPUT"
+          echo "blocking=${failed}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## RBAC/audit contract"
+            echo
+            echo "\`module-integration.test.ts\`: every write action has authorizePermission() and logAudit(), or an allowlist entry."
+            echo
+            jq -r '"| Passed | Failed | Skipped | Total |\n| ---: | ---: | ---: | ---: |\n| \(.numPassedTests) | \(.numFailedTests) | \(.numPendingTests + .numTodoTests) | \(.numTotalTests) |"' rbac.json
+            if [ "${failed}" -gt 0 ]; then
+              echo
+              echo "Failing tests:"
+              jq -r '.testResults[].assertionResults[] | select(.status == "failed") | "- \(.fullName)"' rbac.json
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The one check branch protection should require. `always()` makes it run when a job above
+  # failed or was cancelled; a skipped required check counts as passing.
+  gate:
+    name: Security gate
+    runs-on: ubuntu-latest
+    needs: [dependencies, secrets, codeql, rbac]
+    if: always()
+    steps:
+      - name: Verdict
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          {
+            echo "## Security gate: ${SECURITY_GATE_MODE} mode"
+            echo
+            echo "| Check | Job | Tool | Blocking findings |"
+            echo "| --- | --- | --- | ---: |"
+            echo "${NEEDS}" | jq -r '
+              {dependencies: "Dependency audit (prod critical+high)", secrets: "Secret scan",
+               codeql: "Static analysis (CodeQL error-level)", rbac: "RBAC/audit contract"} as $names
+              | to_entries[]
+              | "| \($names[.key]) | \(.value.result) | \(.value.outputs.status // "" | if . == "" then "error" else . end) | \(.value.outputs.blocking // "" | if . == "" then "-" else . end) |"'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          blocking=$(echo "${NEEDS}" | jq '[.[] | .outputs.blocking // "" | if . == "" then 0 else tonumber end] | add')
+          broken=$(echo "${NEEDS}" | jq '[.[] | select(.result != "success" or .outputs.status != "ok")] | length')
+          echo "Blocking findings: ${blocking}; checks that did not run cleanly: ${broken}"
+
+          if [ "${SECURITY_GATE_MODE}" = "report" ]; then
+            {
+              echo
+              echo "Report-only: this check passes regardless. ${blocking} finding(s) would block in enforce mode; ${broken} check(s) did not run cleanly."
+            } >> "$GITHUB_STEP_SUMMARY"
+            [ "${blocking}" -gt 0 ] && echo "::warning::${blocking} security finding(s) would block this release in enforce mode."
+            [ "${broken}" -gt 0 ] && echo "::warning::${broken} security check(s) did not run cleanly."
+            exit 0
+          fi
+
+          if [ "${SECURITY_GATE_MODE}" != "enforce" ]; then
+            echo "::error::SECURITY_GATE_MODE must be 'report' or 'enforce', got '${SECURITY_GATE_MODE}'."
+            exit 1
+          fi
+          if [ "${blocking}" -gt 0 ] || [ "${broken}" -gt 0 ]; then
+            echo "::error::Security gate failed: ${blocking} blocking finding(s), ${broken} check(s) not run cleanly. This release must not merge."
+            exit 1
+          fi
+          echo "Security gate passed."
