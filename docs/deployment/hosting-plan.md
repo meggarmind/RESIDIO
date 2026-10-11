@@ -192,10 +192,18 @@ Never paste a real secret into this file: the repository is public.
 ### Phase 3: Cloudflare One for the dashboard
 
 7. Zero Trust, Networks, Tunnels: create a tunnel; install `cloudflared` on the VPS as instructed.
-8. Public hostname `coolify.<domain>` to `http://localhost:8000`; also route the realtime (6001)
-   and terminal (6002) websockets per Coolify's Cloudflare Tunnel guide for the installed version.
+8. Tunnel public hostnames, **in this order**: `coolify.<domain>` path `terminal/ws` to
+   `http://localhost:6002`; `realtime.<domain>` to `http://localhost:6001`; `coolify.<domain>` to
+   `http://localhost:8000`. Then set `PUSHER_HOST=realtime.<domain>` and `PUSHER_PORT=443` in
+   `/data/coolify/source/.env` (root-owned: use `sudo -i`) and re-run the installer.
+   In the installed version (2026-10) realtime and terminal run **inside the `coolify`
+   container**, which publishes 6001-6002; there is no separate `coolify-realtime` container.
 9. Zero Trust, Access, Applications, Self-hosted: `coolify.<domain>`, policy allowing only the
-   owner's email (one-time PIN or Google).
+   owner's email (one-time PIN or Google). `realtime.<domain>` gets a **Bypass** policy instead:
+   the browser's background websocket cannot complete an Access login on a second hostname, so
+   gating it breaks live updates ("Cannot connect to real-time service"). Private channels are
+   still authorised by Coolify's own backend, which stays behind Access and 2FA. A second
+   Bypass application covers `coolify.<domain>/webhooks` so GitHub can trigger deploys.
 10. Coolify Settings: instance domain `https://coolify.<domain>`.
 
 ### Phase 4: source and project
