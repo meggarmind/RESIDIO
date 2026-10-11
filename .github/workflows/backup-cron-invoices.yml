@@ -1,7 +1,8 @@
 # Backup Cron - Invoice Generation
-# This workflow acts as a safety net in case Vercel cron fails.
+# This workflow acts as a safety net in case the production scheduler (Coolify
+# scheduled tasks on the KVM) fails.
 # It runs daily and checks if invoice generation is needed for the current month.
-# If Vercel cron failed to generate invoices, this will trigger generation.
+# If the scheduled run failed to generate invoices, this will trigger generation.
 #
 # SECURITY NOTE: This workflow only uses repository secrets (APP_URL, CRON_SECRET)
 # and does not process any untrusted user input.
@@ -10,7 +11,7 @@ name: Backup Cron - Invoice Generation
 
 on:
   schedule:
-    # Run at 7 AM UTC daily (1 hour after Vercel cron at 6 AM)
+    # Run at 7 AM UTC daily (1 hour after the scheduled run at 6 AM)
     - cron: '0 7 * * *'
   workflow_dispatch:
     # Allow manual trigger for testing
@@ -30,8 +31,8 @@ jobs:
           if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
             echo "::error::Required secrets APP_URL and CRON_SECRET are not configured"
             echo "Please configure these secrets in your repository settings:"
-            echo "  - APP_URL: Your deployed application URL (e.g., https://residio.vercel.app)"
-            echo "  - CRON_SECRET: The same CRON_SECRET configured in Vercel"
+            echo "  - APP_URL: Your deployed production URL (the public https origin)"
+            echo "  - CRON_SECRET: The same CRON_SECRET configured in production"
             exit 1
           fi
           echo "Secrets configured correctly"

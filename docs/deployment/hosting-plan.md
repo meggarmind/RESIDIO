@@ -1,0 +1,346 @@
+# Hosting plan
+
+> **Status: DECIDED by the owner on 2026-10-10.** This plan overrides the 2026-09-19 design in
+> #269 wherever they conflict (Coolify is back; stage runs on the same KVM as prod; one build per
+> environment; cron as Coolify scheduled tasks). Parts of #269 that do not conflict (the PR gate
+> and release automation in #397, fail-fast configuration in #396, the credential clean-up in
+> #400) still stand. `docs/deployment/docker.md` describes the image and the Coolify host and
+> links here. Do not re-litigate the choices below; they were made after measuring the
+> alternatives recorded in this file.
+
+Constraint driving everything: the project is entirely self-funded, so the goal is the lowest
+recurring cost that keeps the service running long term.
+
+---
+
+## Decisions (2026-10-10)
+
+| # | Topic | Owner's position | Status |
+|---|---|---|---|
+| 1 | App hosting | **Hostinger KVM 2** (2 vCPU, 8 GB, 100 GB NVMe), one VPS running **both prod and stage** | **Confirmed** by owner 2026-10-10; host provisioned and ready |
+| 2 | Deployment layer | **Coolify** (Dockerfile build pack, Traefik) | **Decided** 2026-10-10; overrides #269's Caddy/GHCR design |
+| 3 | Database / auth / storage | **Stay on Supabase** (free plan). Neon rejected after measurement, see below | Decided |
+| 4 | Supabase Pro ($25/mo) | **Not affordable** just for backups | Owner constraint |
+| 5 | Backup destination | **Cloudflare R2** | Chosen |
+| 6 | Backup encryption key | Held by the owner in their **password manager** (copy outside GitHub) | Chosen |
+| 7 | Backup retention | **30 daily + 12 monthly** (database dumps) | Chosen |
+| 8 | Dev environment | Stays on local PCs | Owner statement |
+| 9 | Server hardening | SSH keys only, firewall 22/80/443; **admin dashboard reached through Cloudflare One** (Tunnel + Access) | Chosen 2026-10-10 |
+| 10 | Secrets | Password manager is the master copy; app secrets in Coolify's encrypted variables; backup secrets in GitHub Actions secrets. Cloudflare secret stores cannot feed a VPS app | Decided |
+| 12 | Stage placement | Stage on the **same KVM** as prod, always on (not the laptop) | Decided; overrides #269 |
+| 13 | Cron | **Coolify scheduled tasks** on the KVM (#399); the GitHub Actions invoice safety net stays | Decided; overrides #269 |
+| 14 | App hostnames | **DNS-only** (Cloudflare grey cloud) for prod and stage app hostnames; only the Coolify dashboard goes through Cloudflare One | Decided 2026-10-11 |
+| 15 | Prod data | #280 moves **configuration only** (roles, permissions, settings, reference data). Houses, residents **and financial history** are seeded into prod by a separate task, owned by the owner | Decided 2026-10-11; revises the 2026-09-07 "no financial history" rule |
+| 11 | Residio_Prod | **Unpaused** by owner 2026-10-10 (verified ACTIVE_HEALTHY) | Done |
+
+---
+
+## Target layout
+
+```
+Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
+└── Coolify (Traefik terminates TLS)
+    ├── residio-prod   -> app.<domain>    -> Supabase project Residio_Prod
+    ├── residio-stage  -> stage.<domain>  -> Supabase project Residio_Stage
+    └── Scheduled tasks: the 9 cron routes from vercel.json, against prod
+```
+
+- Builds run on the VPS (8 GB covers Coolify ~1 GB, two app containers ~0.5-1 GB each, and a
+  2-4 GB build spike). x86, so no ARM image concern.
+- One image per environment: `NEXT_PUBLIC_*_CLOUD` values are inlined at build time
+  (`docker.md`), so prod and stage each get their own build variables in Coolify.
+- Keep the Coolify dashboard off the public internet (firewall rule or VPN) and keep it updated.
+- Keep `.github/workflows/backup-cron-invoices.yml` as the safety net for invoice generation.
+
+## Cost
+
+| Item | Year 1-2 (24-month promo) | After renewal |
+|---|---|---|
+| Hostinger KVM 2 | ~$8.79/mo (~$211 upfront) | ~$14.99/mo |
+| Supabase (2 free projects) | $0 | $0 |
+| Cloudflare R2 (10 GB free tier) | $0 | $0 |
+| GitHub Actions (backup minutes) | $0 | $0 |
+| Domain | ~$10-15/yr | ~$10-15/yr |
+| **Total** | **~$117/yr** | **~$190/yr** |
+
+Prices were taken from third-party listings in mid-2026. Confirm them at checkout.
+
+---
+
+## Options considered
+
+| Option | Verdict | Reason |
+|---|---|---|
+| Vercel Hobby | Rejected for production | Non-commercial terms; crons limited to once a day (two of ours are hourly); ~4.5 MB request body cap vs our 10 MB server-action limit |
+| Cloudflare Workers (free) | Rejected | 3 MiB compressed worker limit and 10 ms CPU per request; `sharp`/pdfjs incompatible |
+| Oracle Cloud Always Free | Viable $0 fallback | Allowance reportedly halved to 2 OCPU / 12 GB (June 2026); ARM builds; idle reclamation unless Pay-As-You-Go; no support |
+| Coolify vs plain Docker on the VPS | Coolify | Per-environment build variables, TLS, scheduled tasks, rollback and deploy-on-push for free; Traefik's default no-timeout suits 5-minute routes (nginx's 60 s default would not) |
+| Two VPSs (separate stage) | Not now | Roughly double the cost for a solo project |
+| Neon instead of Supabase | Rejected | Replaces only Postgres; see measurements below |
+| Self-hosted Supabase on the VPS | Rejected | ~10 containers, would compete with prod and stage for 8 GB |
+
+## Supabase usage, measured 2026-10-10 (Residio_Stage, read-only)
+
+- Database 35 MB; 96 public tables, all with RLS; 258 policies, 217 identity-aware.
+- 105 public functions (34 `SECURITY DEFINER`); 21 called via `.rpc()` from the app.
+- Auth: 6 users (email 5, Google 2); 143 `auth.getUser()` calls in `src/`; admin user API used;
+  10 public tables hold foreign keys to `auth.users`; trigger `on_auth_user_created` ->
+  `handle_new_user`. 2FA is app-level (0 Supabase MFA factors).
+- Query layer: ~1,500 `.from()` calls; ~107 files use the service-role client.
+- Storage: 5 buckets, 14 storage policies; `email-imports` holds 233 objects (~9 MB).
+- Not used: Realtime (0 published tables), pg_cron, pg_net, Vault secrets (0).
+- `Residio_Prod` was **paused (INACTIVE)** at the time of measurement: nothing deployed is using it.
+
+Moving to Neon would mean replacing auth, storage and the query layer and re-proving every RLS
+policy. That is weeks of the highest-risk work in this repo, to solve a problem with free fixes.
+
+---
+
+## Supabase free-plan risks and their fixes
+
+| Risk | Fix | Cost |
+|---|---|---|
+| Prod pauses after ~7 days idle | Daily cron routes plus the nightly backup keep it active (verify after go-live) | $0 |
+| Stage pauses | Weekly GitHub Actions query, or unpause by hand when needed | $0 |
+| No backups on the free plan | Nightly backup workflow below | $0 |
+| 500 MB DB / 1 GB storage limits | Stage uses 35 MB and ~9 MB; ample headroom for one estate | $0 |
+
+## Backup plan (GitHub Actions -> Cloudflare R2)
+
+A deterministic GitHub Actions workflow, not a Claude routine: same script every night, secrets
+in GitHub's encrypted store, failure email by default. Claude writes and maintains it.
+
+Nightly:
+
+1. `pg_dump` of `Residio_Prod` using a PostgreSQL **17** client.
+2. Sync new and changed storage files (through Supabase's S3-compatible storage endpoint) into
+   the encrypted files mirror described below.
+3. Encrypt the database dump (key held in the owner's password manager; the workflow holds only what
+   it needs to encrypt).
+4. Upload to a private **Cloudflare R2** bucket; retention 30 daily + 12 monthly for database
+   dumps.
+
+Storage files are **not** copied in full every night. They are synced incrementally (for
+example `rclone` with a `crypt` remote, so they are encrypted too) into one mirror, with changed
+or deleted files moved to a dated folder rather than lost. Only the database is snapshotted
+42 times.
+
+### R2 free-tier sizing (10 GB-month storage)
+
+Measured on Residio_Stage 2026-10-10: `public` schema 17 MB (whole DB 35 MB including system
+catalogs); storage objects ~9.4 MB (233 email imports, 1 document). Prod was paused, so its size
+is unknown; these are planning estimates.
+
+| Scenario | DB dump (compressed) | x42 copies | Files mirror | Total |
+|---|---|---|---|---|
+| Today (stage-sized) | ~5 MB | ~0.2 GB | ~10 MB | **~0.2 GB** |
+| Year one, generous growth (DB 150 MB, files 300 MB) | ~40 MB | ~1.7 GB | ~0.3 GB | **~2 GB** |
+| Supabase free-plan ceiling (DB 500 MB, files 1 GB) | ~150 MB | ~6.3 GB | ~1 GB | **~7.3 GB** |
+
+Every scenario fits in 10 GB because files are mirrored once. Copying files in full nightly
+would not fit at the ceiling (~48 GB). Beyond the free tier R2 charges ~$0.015 per GB-month, and
+egress (downloading for a restore) is free. Cloudflare may require a payment method to enable
+R2; set a billing notification so any overage is noticed.
+
+### Stage keep-awake
+
+Weekly: a small query against `Residio_Stage` so it does not pause.
+
+### Known traps
+
+
+- Supabase's free direct connection is IPv6-only and GitHub-hosted runners have no IPv6. Use the
+  **session pooler** (port 5432). The transaction pooler (6543) does not work with `pg_dump`.
+- The job fails while prod is paused. Resume prod first.
+- Do a test restore into a scratch database once, then every few months.
+
+Secrets needed in GitHub: prod (and stage) session-pooler connection string, Supabase storage S3
+credentials, R2 access key / secret / bucket / endpoint, encryption public key or passphrase.
+
+## KVM setup runbook (Coolify)
+
+Owner-run, phase by phase. Coolify's UI labels drift between versions; treat them as approximate.
+Never paste a real secret into this file: the repository is public.
+
+### Phase 0: prerequisites
+
+- Domain on Cloudflare DNS. Names used below: `app.<domain>` (prod), `stage.<domain>` (stage),
+  `coolify.<domain>` (dashboard).
+- Both Supabase projects' URL, anon key and service-role key (Dashboard, Settings, API).
+- Password manager ready for new secrets: `CRON_SECRET`, `DATA_ENCRYPTION_KEY`,
+  `GMAIL_TOKEN_ENCRYPTION_KEY` (each per environment).
+
+### Phase 1: secure the host
+
+1. Ubuntu 24.04 LTS (Hostinger's "Ubuntu + Coolify" template is fine and skips step 5).
+2. Non-root sudo user with an SSH key; `PasswordAuthentication no` and
+   **`PermitRootLogin prohibit-password`** (not `no`). Coolify manages its own host by SSHing
+   from its container to `root@host.docker.internal` with its own key; `PermitRootLogin no`
+   breaks the built-in `localhost` server ("Permission denied (publickey)"). Root stays
+   key-only; keep `/root/.ssh/authorized_keys` to Coolify's key alone.
+3. **Hostinger panel firewall, not only `ufw`**: Docker-published ports (Coolify's 8000, 6001,
+   6002) bypass `ufw`. Allow inbound 22, 80, 443 only.
+4. 4 GB swap so Next.js build spikes cannot take prod down.
+
+### Phase 2: install and claim Coolify
+
+5. `curl -fsSL https://cdn.coollabs.io/coolify/install.sh | sudo bash` (skip on the template).
+6. **Register the admin immediately**, through an SSH tunnel (the first visitor becomes admin and
+   8000 is firewalled): `ssh -L 8000:localhost:8000 <user>@<vps-ip>`, open
+   `http://localhost:8000`. Enable 2FA on the account.
+
+### Phase 3: Cloudflare One for the dashboard
+
+7. Zero Trust, Networks, Tunnels: create a tunnel; install `cloudflared` on the VPS as instructed.
+8. Tunnel public hostnames, **in this order**: `coolify.<domain>` path `terminal/ws` to
+   `http://localhost:6002`; `realtime.<domain>` to `http://localhost:6001`; `coolify.<domain>` to
+   `http://localhost:8000`. Then set `PUSHER_HOST=realtime.<domain>` and `PUSHER_PORT=443` in
+   `/data/coolify/source/.env` (root-owned: use `sudo -i`) and re-run the installer.
+   In the installed version (2026-10) realtime and terminal run **inside the `coolify`
+   container**, which publishes 6001-6002; there is no separate `coolify-realtime` container.
+9. Zero Trust, Access, Applications, Self-hosted: `coolify.<domain>`, policy allowing only the
+   owner's email (one-time PIN or Google). `realtime.<domain>` gets a **Bypass** policy instead:
+   the browser's background websocket cannot complete an Access login on a second hostname, so
+   gating it breaks live updates ("Cannot connect to real-time service"). Private channels are
+   still authorised by Coolify's own backend, which stays behind Access and 2FA. A second
+   Bypass application covers `coolify.<domain>/webhooks` so GitHub can trigger deploys.
+10. Coolify Settings: instance domain `https://coolify.<domain>`.
+
+### Phase 4: source and project
+
+11. Use only the built-in `localhost` server (IP `host.docker.internal`, user `root`, port 22,
+    Coolify's own key). Do not add the VPS again as a second server: `localhost` inside the
+    Coolify container is the container itself, not the host.
+    Coolify Sources: GitHub App scoped to `meggarmind/RESIDIO` only.
+12. Project `Residio` with environments `production` and `staging`.
+
+### Phase 5: the two applications
+
+Both: Application, Dockerfile build pack, repo `meggarmind/RESIDIO`, port 3000 (the image has its
+own `HEALTHCHECK`).
+
+| Setting | residio-prod | residio-stage |
+|---|---|---|
+| Domain | `https://app.<domain>` | `https://stage.<domain>` |
+| Branch | `master` | `master` |
+| Auto-deploy on push | **Off**: deploy by hand after any migration (`CORE.md` §11) | On |
+| Supabase | Residio_Prod | Residio_Stage |
+| Memory limit | ~2 GB | ~1 GB |
+
+Build variables (public; inlined into the browser bundle): `NEXT_PUBLIC_ENV_MODE=cloud`,
+`NEXT_PUBLIC_SUPABASE_URL_CLOUD`, `NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD`, `NEXT_PUBLIC_SITE_URL`,
+`NEXT_PUBLIC_APP_URL` (both the **https** origin), `NEXT_PUBLIC_PAYSTACK_KEY`,
+`NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`.
+
+Runtime secrets (build variable off; different values per environment):
+`SUPABASE_SERVICE_ROLE_KEY_CLOUD`, `CRON_SECRET`, `DATA_ENCRYPTION_KEY`,
+`GMAIL_TOKEN_ENCRYPTION_KEY`, `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_REPLY_TO_ADDRESS`,
+`PAYSTACK_SECRET_KEY`, `PAYSTACK_WEBHOOK_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+`GOOGLE_REDIRECT_URI`, `TERMII_API_KEY`, `TERMII_SENDER_ID`, `WHATSAPP_*` if used. Template and
+comments: `.env.docker.example`. Generate keys with
+`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` and store them in the
+password manager first. **Never rotate `DATA_ENCRYPTION_KEY` once data exists.**
+
+### Phase 6: DNS, TLS, auth redirects
+
+13. Cloudflare DNS: `A` records `app` and `stage` to the VPS IP, **DNS-only (grey cloud)**.
+14. Traefik obtains Let's Encrypt certificates automatically once DNS resolves.
+15. Supabase, each project, Authentication, URL Configuration: Site URL and redirect URL
+    `https://<host>/auth/callback`.
+16. Google Cloud Console OAuth client: the same callback URLs.
+17. Resend sending domain verified (#272).
+
+### Phase 7: run
+
+18. Deploy stage; watch the build log (expect 3-6 min on 2 vCPU).
+19. Smoke test stage: login, dashboard, System, Cron Status.
+20. Deploy prod. It is unusable until #280 (configuration) and the owner's seeding task have run.
+21. Prod scheduled tasks (#399).
+22. Coolify notifications (email) for failed deployments and scheduled tasks.
+23. Coolify's own database backup to the R2 bucket (separate prefix): it holds every secret above.
+
+Order: 1, 2, 3 first, so the dashboard is never exposed; then 4, 5, 6; stage; prod after #280;
+then #399 and #415.
+
+## Review before starting (2026-10-10)
+
+### Conflicts with the 2026-09-19 plan (#269), resolved 2026-10-10 in favour of this plan
+
+| Topic | #269 says | These notes say |
+|---|---|---|
+| Deploy layer | No Coolify; Caddy from `deploy/caddy/` | Coolify + Traefik |
+| Stage | On the laptop, ad-hoc `cloudflared` | On the KVM, always on |
+| Image | One image, Supabase config injected at runtime, published to GHCR | Built per environment on the VPS |
+| Cron | GitHub Actions `schedule:`, prod only | Coolify scheduled tasks |
+
+Resolved: this plan wins. #395 (runtime config) and #398 (GHCR publish and compose files) are
+closed as superseded; #399 is repurposed to Coolify scheduled tasks. Because each environment is
+built separately, a stage image is never promoted to prod; prod is rebuilt from the same commit.
+
+### Measured state of the two Supabase projects
+
+| | Residio_Prod | Residio_Stage |
+|---|---|---|
+| Status | ACTIVE_HEALTHY (unpaused) | ACTIVE_HEALTHY |
+| DB size | 18 MB | 35 MB |
+| Migrations applied | 42 (baseline + 8) | 220 |
+| Missing vs repo | `20260922100000_add_chatmaid_whatsapp_provider` | none |
+| auth users / profiles | 0 / 0 | 6 / 3 |
+| app_roles / app_permissions / role_permissions | **0 / 1 / 0** | 8 / 105 / 398 |
+| system_settings | **0** | 62 |
+| houses / residents | 0 / 0 | 179 / 194 |
+| storage objects | 0 | 234 |
+
+Prod is schema-only. No one can log in or hold a permission until #280 (configuration and roster
+copy) and #282 (cut-over) are done. Stage holds what appears to be the real estate roster, so it is
+personal data and needs the same care (and backup) as prod.
+
+### Cloudflare One for the dashboard
+
+- Run `cloudflared` on the VPS; publish the dashboard hostname through the Tunnel behind an Access
+  policy (email OTP or Google for the owner only). The dashboard port then never opens on the
+  firewall. If Coolify is kept, its websocket ports (6001/6002, realtime and terminal) need routes
+  too, or the in-browser terminal and live logs break.
+- **Trap:** Cloudflare's proxy (orange cloud) cuts a request off after **100 seconds** (error 524) on
+  free plans. The admin `generate-invoices` route allows 300 s. Either keep the app hostname
+  DNS-only (grey cloud), or make long jobs asynchronous. Cron jobs called on `127.0.0.1` or from
+  GitHub straight to the origin are unaffected only if they do not pass through the proxy.
+- If the app hostname is proxied, use SSL mode **Full (strict)**.
+
+### Cloudflare secrets
+
+Cloudflare's Secrets Store and Worker secrets are only readable by Cloudflare's own products
+(Workers, AI Gateway). A container on the VPS cannot fetch them, so they cannot feed the app.
+Recommended: password manager as the master copy; app secrets in the deploy layer's environment
+(Coolify's encrypted variables, or a root-only `.env` read by `docker compose` under #269); backup
+secrets in GitHub Actions secrets. Secrets the app reads (from the code): `CRON_SECRET`,
+`DATA_ENCRYPTION_KEY`, `GMAIL_TOKEN_ENCRYPTION_KEY`, `GOOGLE_CLIENT_SECRET`, `PAYSTACK_SECRET_KEY`,
+`PAYSTACK_WEBHOOK_SECRET`, `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY(_CLOUD)`, `TERMII_API_KEY`,
+`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`. `DATA_ENCRYPTION_KEY`
+encrypts data at rest: losing it loses that data, so it belongs in the password manager too.
+
+## Open items
+
+- **Coolify realtime banner (deferred by owner 2026-10-11).** "Cannot connect to real-time service"
+  persists after the `realtime.<domain>` Bypass. Server side measured healthy (6001-6002 published
+  by `coolify`, `PUSHER_HOST`/`PUSHER_PORT` set). Not yet run: `curl` status of
+  `https://realtime.<domain>/` from outside, `curl localhost:6001` on the host, the browser's `wss://`
+  URL and status (DevTools, Network, WS), and `grep PUSHER docker-compose.prod.yml`. Impact: live
+  logs and status need a page refresh; deploys still work.
+
+- Hostinger KVM 2 confirmed and the plan decided 2026-10-10; recorded on #269, #262 and #264.
+- Confirm current Hostinger pricing and what VPS snapshot/backup is included.
+- Backup workflow and stage keep-awake: #415.
+- Coolify scheduled tasks for the 9 crons: #399 (repurposed).
+- Prod is one migration behind stage (`20260922100000_add_chatmaid_whatsapp_provider`) and holds
+  no configuration or roster yet. #280 (configuration only), the owner's separate seeding task
+  (houses, residents, financial history), then #282.
+
+## Sources
+
+- Vercel cron limits: https://vercel.com/docs/cron-jobs/usage-and-pricing
+- Cloudflare Workers limits: https://developers.cloudflare.com/workers/platform/limits/
+- OpenNext on Cloudflare: https://opennext.js.org/cloudflare
+- Oracle Always Free: https://docs.oracle.com/en-us/iaas/Content/FreeTier/resourceref.htm
+- Oracle free-tier change: https://infoq.com/news/2026/07/oracle-cloud-free-tier-limits/
+- Hostinger pricing: https://findstack.com/resources/hostinger-vps-for-ai-agents

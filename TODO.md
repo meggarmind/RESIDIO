@@ -1776,7 +1776,7 @@ Comprehensive UI/UX improvements:
 
 Production deployment:
 
-- [ ] Vercel deployment configuration
+- [ ] Production deployment: Coolify on Hostinger KVM, prod and stage (see `docs/deployment/hosting-plan.md`, #269)
 - [ ] Production Supabase setup
 - [ ] Environment variables configuration
 - [ ] SSL/domain setup (residio.estate or similar)

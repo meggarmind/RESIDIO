@@ -1,5 +1,9 @@
 # Vercel Deployment Guide
 
+> **Superseded.** Residio no longer deploys to Vercel. Production and stage run on Coolify on a
+> Hostinger KVM (decided 2026-10-10). See `docs/deployment/hosting-plan.md` and
+> `docs/deployment/docker.md`. This guide is kept for history and for its cron list.
+
 This guide covers deploying Residio to Vercel with proper cron job configuration.
 
 ## Prerequisites
