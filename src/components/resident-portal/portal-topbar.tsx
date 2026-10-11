@@ -25,7 +25,7 @@ export function PortalTopBar({ title }: { title?: string }) {
     const { theme, setTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
     const router = useRouter();
-    const { residentId, signOut, profile, hasPermission, isSigningOut } = useAuth();
+    const { residentId, signOut, profile, hasPermission, isSigningOut, canSeeImpersonationLink } = useAuth();
     const { data: resident } = useResident(residentId || undefined);
     const { canImpersonate, isImpersonating } = useImpersonation();
 
@@ -76,8 +76,8 @@ export function PortalTopBar({ title }: { title?: string }) {
                     </button>
                 </div>
 
-                {/* View as Resident - Only for admins who can impersonate */}
-                {canImpersonate && !isImpersonating && (
+                {/* View as Resident - Only for admins who can impersonate and may see portal links (#423) */}
+                {canImpersonate && !isImpersonating && canSeeImpersonationLink && (
                     <Button
                         variant="ghost"
                         size="sm"
