@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { safeNextPath } from '@/lib/auth/safe-next-path';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from '@/components/ui/input-otp';
@@ -26,7 +27,11 @@ export function Verify2FAForm() {
   const [codeSent, setCodeSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  const redirectTo = searchParams.get('next') || '/dashboard';
+  // Strict same-origin allow-list; anything else becomes /dashboard (#455).
+  const redirectTo = safeNextPath(
+    searchParams.get('next'),
+    typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+  );
 
   useEffect(() => {
     // Check if we have a pending 2FA verification
@@ -85,7 +90,7 @@ export function Verify2FAForm() {
       const response = await fetch('/api/auth/2fa/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, method: methodToUse }),
+        body: JSON.stringify({ method: methodToUse }),
       });
 
       const result = await response.json();
@@ -117,7 +122,7 @@ export function Verify2FAForm() {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, code }),
+        body: JSON.stringify({ code }),
       });
 
       const result = await response.json();

@@ -1,0 +1,53 @@
+import { cookies } from 'next/headers';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import {
+    getSessionIdFromAccessToken,
+    signTwoFactorMarker,
+    TWO_FACTOR_COOKIE,
+    TWO_FACTOR_MARKER_TTL_SECONDS,
+} from '@/lib/auth/two-factor-marker';
+
+export interface TwoFactorSessionContext {
+    userId: string;
+    sessionId: string | null;
+}
+
+/**
+ * The caller's identity for the 2FA endpoints, taken from the Supabase session
+ * cookie. Never from a request body: a client-supplied userId let anyone trigger
+ * codes for, and probe the lockout of, any account (#455).
+ */
+export async function getTwoFactorSessionContext(): Promise<TwoFactorSessionContext | null> {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    return { userId: user.id, sessionId: getSessionIdFromAccessToken(session?.access_token) };
+}
+
+/**
+ * Mint the signed second-factor marker cookie for the CURRENT session. Call only
+ * after a code check has succeeded. Returns false (no cookie set) if there is no
+ * session id to bind to or the signing secret is unavailable: fail closed.
+ */
+export async function issueTwoFactorMarkerCookie(): Promise<boolean> {
+    try {
+        const ctx = await getTwoFactorSessionContext();
+        if (!ctx?.sessionId) return false;
+
+        const marker = await signTwoFactorMarker({ userId: ctx.userId, sessionId: ctx.sessionId });
+        const cookieStore = await cookies();
+        cookieStore.set(TWO_FACTOR_COOKIE, marker, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: TWO_FACTOR_MARKER_TTL_SECONDS,
+            path: '/',
+        });
+        return true;
+    } catch (error) {
+        console.error('[2FA] Could not issue session marker:', error instanceof Error ? error.message : error);
+        return false;
+    }
+}

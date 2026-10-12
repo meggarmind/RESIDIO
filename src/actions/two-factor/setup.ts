@@ -10,19 +10,13 @@ import { getEstateEmailSettings } from '@/lib/email/send-email';
 import { VerificationCodeEmail } from '@/emails/verification-code';
 import type { TwoFactorSetupResult, TwoFactorMethod, Enable2FAInput } from '@/types/database';
 import crypto from 'crypto';
+import { generateOtp, hashOtp, otpMatches, encryptTotpSecret, readTotpSecret, hashBackupCode } from '@/lib/auth/two-factor-secrets';
 
 // Token expiry in minutes
 const TOKEN_EXPIRY_MINUTES = 10;
 
 // Rate limit: max setup attempts per hour
 const MAX_SETUP_ATTEMPTS_PER_HOUR = 5;
-
-/**
- * Generate a random 6-digit OTP
- */
-function generateOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
 
 /**
  * Generate a random TOTP secret for authenticator apps
@@ -174,11 +168,23 @@ export async function initiateTwoFactorSetup(
       return { success: false, message: 'Failed to initiate setup' };
     }
 
-    // Store the secret on the profile (will be encrypted)
-    await adminClient
+    // Store the secret on the profile, encrypted at rest (AES-256-GCM, #455)
+    let encryptedSecret: string;
+    try {
+      encryptedSecret = encryptTotpSecret(secret);
+    } catch (error) {
+      console.error('[2FA Setup] Could not encrypt TOTP secret:', error instanceof Error ? error.message : error);
+      return { success: false, message: 'Failed to initiate setup' };
+    }
+    const { error: secretError } = await adminClient
       .from('profiles')
-      .update({ two_factor_secret_encrypted: secret })
+      .update({ two_factor_secret_encrypted: encryptedSecret })
       .eq('id', user.id);
+
+    if (secretError) {
+      console.error('[2FA Setup] Failed to store TOTP secret:', secretError);
+      return { success: false, message: 'Failed to initiate setup' };
+    }
 
     // Generate QR code data (client will render this)
     // In production, use a QR code library
@@ -202,14 +208,14 @@ export async function initiateTwoFactorSetup(
     }
 
     // Generate OTP
-    const otp = generateOTP();
+    const otp = generateOtp();
 
     // Store token
     const { error: insertError } = await adminClient
       .from('two_factor_tokens')
       .insert({
         profile_id: user.id,
-        token: otp,
+        token: hashOtp(user.id, otp),
         token_type: method,
         purpose: 'setup',
         expires_at: expiresAt.toISOString(),
@@ -229,7 +235,7 @@ export async function initiateTwoFactorSetup(
         .from('two_factor_tokens')
         .update({ used_at: new Date().toISOString() })
         .eq('profile_id', user.id)
-        .eq('token', otp);
+        .eq('token', hashOtp(user.id, otp));
 
       return { success: false, message: `Failed to send SMS: ${smsResult.error}` };
     }
@@ -242,14 +248,14 @@ export async function initiateTwoFactorSetup(
     };
   } else if (method === 'email') {
     // Generate OTP
-    const otp = generateOTP();
+    const otp = generateOtp();
 
     // Store token
     const { error: insertError } = await adminClient
       .from('two_factor_tokens')
       .insert({
         profile_id: user.id,
-        token: otp,
+        token: hashOtp(user.id, otp),
         token_type: method,
         purpose: 'setup',
         expires_at: expiresAt.toISOString(),
@@ -284,7 +290,7 @@ export async function initiateTwoFactorSetup(
         .from('two_factor_tokens')
         .update({ used_at: new Date().toISOString() })
         .eq('profile_id', user.id)
-        .eq('token', otp);
+        .eq('token', hashOtp(user.id, otp));
 
       return { success: false, message: `Failed to send email: ${emailResult.error}` };
     }
@@ -351,10 +357,15 @@ export async function confirmTwoFactorSetup(
       return { success: false, message: 'Setup not initialized properly' };
     }
 
-    isValid = validateTOTP(code, profile.two_factor_secret_encrypted);
+    try {
+      isValid = validateTOTP(code, readTotpSecret(profile.two_factor_secret_encrypted));
+    } catch (error) {
+      console.error('[2FA Setup] Could not read TOTP secret:', error instanceof Error ? error.message : error);
+      return { success: false, message: 'Setup not initialized properly' };
+    }
   } else {
     // Validate OTP code
-    isValid = token.token === code;
+    isValid = otpMatches(String(token.token), user.id, code);
   }
 
   if (!isValid) {
@@ -503,7 +514,7 @@ async function generateAndStoreBackupCodes(profileId: string): Promise<string[]>
     codes.push(code);
 
     // Hash the code for storage
-    const hash = crypto.createHash('sha256').update(code).digest('hex');
+    const hash = hashBackupCode(code);
     hashedCodes.push({
       profile_id: profileId,
       code_hash: hash,
