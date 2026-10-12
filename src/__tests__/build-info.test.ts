@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getBuildInfo } from '@/lib/version';
 import { GET } from '@/app/api/version/route';
@@ -67,6 +69,44 @@ describe('getBuildInfo', () => {
   ])('maps env %s to %s', (raw, expected) => {
     vi.stubEnv('NEXT_PUBLIC_APP_ENV', raw);
     expect(getBuildInfo().env).toBe(expected);
+  });
+
+  it.each([
+    ['Production', 'production'],
+    ['PROD', 'production'],
+    ['STAGING', 'staging'],
+    ['Stage', 'staging'],
+  ])('maps env %s case-insensitively to %s', (raw, expected) => {
+    vi.stubEnv('NEXT_PUBLIC_APP_ENV', raw);
+    expect(getBuildInfo().env).toBe(expected);
+  });
+
+  it('never consults NODE_ENV: production NODE_ENV with no app env is still development', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('NEXT_PUBLIC_APP_ENV', '');
+    expect(getBuildInfo().env).toBe('development');
+    delete process.env.NEXT_PUBLIC_APP_ENV;
+    expect(getBuildInfo().env).toBe('development');
+  });
+});
+
+describe('src/lib/version.ts source', () => {
+  // Next.js inlines NEXT_PUBLIC_* into the client bundle only for the literal
+  // `process.env.NAME` form. A dynamic lookup passes every unit test above and
+  // silently yields `dev · unknown` in the browser.
+  const source = readFileSync(fileURLToPath(new URL('../lib/version.ts', import.meta.url)), 'utf8');
+
+  it.each(['NEXT_PUBLIC_APP_VERSION', 'NEXT_PUBLIC_GIT_SHA', 'NEXT_PUBLIC_APP_ENV'])(
+    'reads %s by its literal name',
+    (name) => {
+      expect(source).toContain(`process.env.${name}`);
+    },
+  );
+
+  it('never reads process.env dynamically', () => {
+    expect(source).not.toMatch(/process\.env\s*\[/);
+    expect(source).not.toMatch(/process\.env\s*\)/);
+    expect(source).not.toMatch(/=\s*process\.env\s*[;,]/);
   });
 });
 
