@@ -236,7 +236,7 @@ export async function getHouseholdMembers(houseId: string): Promise<{
       resident_role,
       is_primary,
       move_in_date,
-      resident:residents (
+      resident:residents!resident_houses_resident_id_fkey (
         id,
         first_name,
         last_name,
@@ -321,7 +321,7 @@ export async function removeHouseholdMember(
   // Get resident info for audit log before deactivation
   const { data: residentInfo } = await supabase
     .from('resident_houses')
-    .select('resident:residents(id, first_name, last_name, resident_code)')
+    .select('resident:residents!resident_houses_resident_id_fkey(id, first_name, last_name, resident_code)')
     .eq('id', residentHouseId)
     .single();
 

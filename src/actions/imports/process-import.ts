@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import { logAudit } from '@/lib/audit/logger';
 import { updateImportStatus } from './create-import';
 import { createPayment } from '@/actions/payments/create-payment';
@@ -222,24 +223,20 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     };
   }
 
-  // Get rows to process
-  let rowQuery = supabase
-    .from('bank_statement_rows')
-    .select('*')
-    .eq('import_id', import_id)
-    .in('status', ['matched', 'unmatched'])
-    .order('row_number');
-
-  if (skip_unmatched) {
-    rowQuery = supabase
+  // Get rows to process. Paged: a single PostgREST read is capped (1000 rows by default) and a
+  // silently truncated read would mark the import completed with rows untouched (#459).
+  const processableStatuses = skip_unmatched ? ['matched'] : ['matched', 'unmatched'];
+  const { data: rows, error: rowsErrorMessage } = await fetchAllRows((from, to) =>
+    supabase
       .from('bank_statement_rows')
       .select('*')
       .eq('import_id', import_id)
-      .eq('status', 'matched')
-      .order('row_number');
-  }
-
-  const { data: rows, error: rowsError } = await rowQuery;
+      .in('status', processableStatuses)
+      .order('row_number')
+      .order('id')
+      .range(from, to)
+  );
+  const rowsError = rowsErrorMessage ? { message: rowsErrorMessage } : null;
 
   if (rowsError) {
     return {

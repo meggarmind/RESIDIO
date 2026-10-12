@@ -91,7 +91,7 @@ export async function getPaymentRecipients(paymentId: string): Promise<{
   const { data: housemates } = await supabase
     .from('resident_houses')
     .select(`
-      resident:residents(
+      resident:residents!resident_houses_resident_id_fkey(
         id,
         first_name,
         last_name,
