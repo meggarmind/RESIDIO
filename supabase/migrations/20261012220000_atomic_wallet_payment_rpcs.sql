@@ -11,7 +11,14 @@
 --       (profiles.resident_id = invoices.resident_id, as the TS action did).
 --   reverse_invoice_payment_allocation: service_role OR billing.manage_wallets.
 --
--- Payable statuses: unpaid, partially_paid, overdue (void and paid are rejected).
+-- Payable statuses: unpaid, partially_paid (paid and void are rejected). public.invoice_status is
+-- ('unpaid','paid','void','partially_paid'); there is no 'overdue' value. Reversal also refuses void.
+--
+-- LOCK ORDER (checked against the latest definitions): settle_wallet_invoices locks wallet (line 72
+-- of 20260813125404) then invoices (line 95); reverse_wallet_payment_batch locks batch, wallet, then
+-- items/invoices; adjust_wallet_credit/debit lock the wallet only. These RPCs lock wallet then
+-- invoices by id, the same order, so no function locks invoices before the wallet and no
+-- wallet/invoice deadlock cycle exists among them.
 -- NOTE: invoices has no currency column, so there is no currency check.
 --
 -- ROLLBACK (the functions are new; revert the TS callers first, then):
@@ -92,7 +99,7 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'error', 'Invoice not found');
     END IF;
 
-    IF v_inv.status NOT IN ('unpaid', 'partially_paid', 'overdue') THEN
+    IF v_inv.status NOT IN ('unpaid', 'partially_paid') THEN
         RETURN jsonb_build_object(
             'success', false, 'error', 'Invoice is not payable (status: ' || v_inv.status::TEXT || ')',
             'invoice_fully_paid', v_inv.status = 'paid', 'new_wallet_balance', v_wallet.balance
@@ -275,7 +282,7 @@ BEGIN
         IF v_rec.resident_id IS DISTINCT FROM v_resident THEN
             RETURN jsonb_build_object('success', false, 'error', 'Some invoices were not found');
         END IF;
-        IF v_rec.status NOT IN ('unpaid', 'partially_paid', 'overdue')
+        IF v_rec.status NOT IN ('unpaid', 'partially_paid')
            OR v_rec.amount_due - v_rec.amount_paid <= 0 THEN
             RETURN jsonb_build_object(
                 'success', false, 'error', 'Invoice ' || v_rec.invoice_number || ' is not payable',
@@ -392,6 +399,10 @@ BEGIN
     SELECT * INTO v_inv FROM public.invoices WHERE id = p_invoice_id FOR UPDATE;
     IF NOT FOUND OR v_inv.resident_id IS DISTINCT FROM v_resident THEN
         RETURN jsonb_build_object('success', false, 'error', 'Invoice not found');
+    END IF;
+
+    IF v_inv.status = 'void' THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Cannot reverse a payment on a void invoice');
     END IF;
 
     IF v_inv.amount_paid < p_amount THEN

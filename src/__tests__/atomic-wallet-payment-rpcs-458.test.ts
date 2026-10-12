@@ -268,12 +268,12 @@ describe('static: atomic wallet payment RPC migration (#458)', () => {
             expect(body).toContain("'NaN', 'Infinity', '-Infinity'");
             expect(body).toContain('round(');
         }
-        expect(fn('pay_invoice_with_wallet')).toContain("NOT IN ('unpaid', 'partially_paid', 'overdue')");
+        expect(fn('pay_invoice_with_wallet')).toContain("NOT IN ('unpaid', 'partially_paid')");
         expect(fn('pay_invoice_with_wallet')).toContain('p_amount > v_wallet.balance');
         expect(fn('pay_invoice_with_wallet')).toContain('p_amount > v_remaining');
         const multi = fn('pay_invoices_with_wallet');
         expect(multi).toContain('v_total > v_wallet.balance');
-        expect(multi).toContain("NOT IN ('unpaid', 'partially_paid', 'overdue')");
+        expect(multi).toContain("NOT IN ('unpaid', 'partially_paid')");
     });
 
     it('bulk call validates every item before the first write and tracks a running balance', () => {
@@ -290,6 +290,62 @@ describe('static: atomic wallet payment RPC migration (#458)', () => {
         expect(fn('pay_invoice_with_wallet')).toMatch(/'debit', v_pay, v_new_balance,/);
         expect(fn('reverse_invoice_payment_allocation')).toMatch(/'credit', p_amount, v_new_balance, 'invoice_reversal'/);
         expect(fn('reverse_invoice_payment_allocation')).toContain('v_new_balance := v_wallet.balance + p_amount;');
+    });
+
+    it('every invoices.status literal exists in the invoice_status enum (no phantom values)', () => {
+        const schema = readFileSync(
+            new URL('../../supabase/migrations/20251208000300_create_billing_schema.sql', import.meta.url),
+            'utf8',
+        );
+        const enumMatch = schema.match(/CREATE TYPE public\.invoice_status AS ENUM \(([^)]*)\)/);
+        expect(enumMatch).not.toBeNull();
+        const allowed = new Set([...enumMatch![1].matchAll(/'([^']+)'/g)].map((m) => m[1]));
+        expect(allowed).toEqual(new Set(['unpaid', 'paid', 'void', 'partially_paid']));
+
+        const sql = stripComments(migration);
+        const used = new Set<string>();
+        // comparisons: status = 'x', status <> 'x', status [NOT] IN ('a', 'b')
+        for (const m of sql.matchAll(/\bstatus\s*(?:(?:=|<>)\s*('[^']+')|(?:NOT IN|IN)\s*\(([^)]*)\))/g)) {
+            for (const l of (m[1] ?? m[2]).matchAll(/'([^']+)'/g)) used.add(l[1]);
+        }
+        // assignments: v_new_status := CASE ... END
+        for (const m of sql.matchAll(/v_new_status := CASE([\s\S]*?)END;/g)) {
+            for (const l of m[1].matchAll(/THEN '([^']+)'|ELSE '([^']+)'/g)) used.add(l[1] ?? l[2]);
+        }
+        expect(used.size).toBeGreaterThanOrEqual(4);
+        for (const lit of used) expect(allowed.has(lit), `'${lit}' is not an invoice_status value`).toBe(true);
+    });
+
+    it('wallet_transactions.type literals are credit/debit', () => {
+        const found = [...stripComments(migration).matchAll(/v_wallet\.id, '(\w+)',/g)].map((m) => m[1]);
+        expect(found.length).toBe(3);
+        for (const t of found) expect(['credit', 'debit']).toContain(t);
+    });
+
+    it('rejects void invoices on reversal', () => {
+        expect(fn('reverse_invoice_payment_allocation')).toMatch(
+            /IF v_inv\.status = 'void' THEN\s+RETURN jsonb_build_object\('success', false/,
+        );
+    });
+
+    it('keeps each specific guard condition', () => {
+        const multi = fn('pay_invoices_with_wallet');
+        expect(multi).toMatch(/v_residents\[1\] IS DISTINCT FROM v_caller_resident/);
+        expect(multi).toMatch(/array_length\(v_residents, 1\) <> 1\s+OR/);
+        expect(multi).toMatch(/count\(DISTINCT x\) FROM unnest\(v_ids\) x\) <> v_count/);
+        expect(multi).toMatch(/jsonb_array_length\(p_items\) = 0/);
+        expect(multi).toMatch(/IF array_length\(v_residents, 1\) <> 1 THEN\s+RETURN[^;]*same resident/);
+        expect(multi).toMatch(/RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '42501'/);
+        expect(multi).toMatch(/v_pay > v_rec\.amount_due - v_rec\.amount_paid/);
+        expect(multi).toMatch(/'debit', v_pay, v_balance, 'invoice', v_rec\.id/);
+        const rev = fn('reverse_invoice_payment_allocation');
+        expect(rev).toMatch(/IF v_inv\.amount_paid < p_amount THEN/);
+        expect(rev).toMatch(/p_amount IS NULL OR [^;]*p_amount <= 0/);
+        const pay = fn('pay_invoice_with_wallet');
+        expect(pay).toMatch(/RAISE EXCEPTION 'Not authenticated' USING ERRCODE = '42501'/);
+        expect(pay).toMatch(/p_amount <= 0/);
+        expect(pay).toMatch(/v_caller_resident IS NULL OR v_caller_resident IS DISTINCT FROM v_resident/);
+        expect(pay).toMatch(/'debit', v_pay, v_new_balance, 'invoice', v_inv\.id/);
     });
 
     it('documents its rollback', () => {

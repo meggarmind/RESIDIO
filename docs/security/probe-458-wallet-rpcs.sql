@@ -12,7 +12,7 @@ DECLARE
   owner_p uuid; owner_r uuid;      -- resident A (the payer)
   other_p uuid; other_r uuid;      -- resident B (must be refused on A's invoices)
   admin_p uuid;
-  inv1 uuid; inv2 uuid; inv_bad uuid; inv_b uuid;
+  inv1 uuid; inv2 uuid; inv_bad uuid; inv_b uuid; inv_void uuid; inv_paid uuid;
   w uuid; res jsonb; msg text; bal numeric; cnt int;
   lo uuid; hi uuid; lo_after numeric; hi_after numeric; lo_amt numeric; hi_amt numeric;
   bal_before numeric;
@@ -163,6 +163,61 @@ BEGIN
     CASE WHEN (res->>'success')::bool AND res->>'new_invoice_status' = 'unpaid'
               AND bal = bal_before + 50 AND hi_after = bal THEN 'PASS' ELSE 'FAIL' END,
     res->>'new_invoice_status', bal, hi_after;
+
+  -- 9. Extra fixtures (owner context): a void invoice and a paid invoice for A, and an unpaid one.
+  INSERT INTO public.invoices (resident_id, invoice_number, amount_due, amount_paid, status, due_date)
+    VALUES (owner_r, 'PROBE458-' || gen_random_uuid(), 25, 25, 'void', current_date) RETURNING id INTO inv_void;
+  INSERT INTO public.invoices (resident_id, invoice_number, amount_due, amount_paid, status, due_date)
+    VALUES (owner_r, 'PROBE458-' || gen_random_uuid(), 25, 25, 'paid', current_date) RETURNING id INTO inv_paid;
+
+  -- 9a. Owner: void and paid invoices are not payable (single and bulk).
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',owner_p)::text, true);
+  SET LOCAL ROLE authenticated;
+  res := public.pay_invoice_with_wallet(inv_void, 5);
+  RAISE NOTICE '% 9a void invoice not payable (single): %', CASE WHEN (res->>'success')::bool = false THEN 'PASS' ELSE 'FAIL' END, res->>'error';
+  res := public.pay_invoice_with_wallet(inv_paid, 5);
+  RAISE NOTICE '% 9b paid invoice not payable (single): %', CASE WHEN (res->>'success')::bool = false THEN 'PASS' ELSE 'FAIL' END, res->>'error';
+  res := public.pay_invoices_with_wallet(jsonb_build_array(jsonb_build_object('invoice_id', inv_void)));
+  RAISE NOTICE '% 9c void invoice not payable (bulk): %', CASE WHEN (res->>'success')::bool = false THEN 'PASS' ELSE 'FAIL' END, res->>'error';
+  res := public.pay_invoices_with_wallet(jsonb_build_array(jsonb_build_object('invoice_id', inv_paid)));
+  RAISE NOTICE '% 9d paid invoice not payable (bulk): %', CASE WHEN (res->>'success')::bool = false THEN 'PASS' ELSE 'FAIL' END, res->>'error';
+
+  -- 10. Empty array and duplicate ids are rejected (no raise, success=false).
+  res := public.pay_invoices_with_wallet('[]'::jsonb);
+  RAISE NOTICE '% 10a empty array: %', CASE WHEN (res->>'success')::bool = false THEN 'PASS' ELSE 'FAIL' END, res->>'error';
+  res := public.pay_invoices_with_wallet(jsonb_build_array(
+           jsonb_build_object('invoice_id', inv_bad), jsonb_build_object('invoice_id', inv_bad)));
+  RAISE NOTICE '% 10b duplicate ids: %', CASE WHEN (res->>'success')::bool = false THEN 'PASS' ELSE 'FAIL' END, res->>'error';
+  RESET ROLE;
+
+  -- 11. Bulk by a non-owner that mixes A's and B's invoices is refused at the ownership stage (42501).
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',other_p)::text, true);
+  SET LOCAL ROLE authenticated;
+  BEGIN
+    res := public.pay_invoices_with_wallet(jsonb_build_array(
+             jsonb_build_object('invoice_id', inv_b), jsonb_build_object('invoice_id', inv_bad)));
+    RAISE NOTICE 'FAIL 11 non-owner mixed bulk accepted: %', res;
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PASS 11 non-owner mixed bulk refused (42501)';
+  END;
+  RESET ROLE;
+
+  -- 12. Admin bulk across two residents is rejected (all invoices must belong to one resident).
+  PERFORM set_config('request.jwt.claims', json_build_object('role','authenticated','sub',admin_p)::text, true);
+  SET LOCAL ROLE authenticated;
+  res := public.pay_invoices_with_wallet(jsonb_build_array(
+           jsonb_build_object('invoice_id', inv_b), jsonb_build_object('invoice_id', inv_bad)));
+  RAISE NOTICE '% 12 admin mixed-resident bulk: %', CASE WHEN (res->>'success')::bool = false THEN 'PASS' ELSE 'FAIL' END, res->>'error';
+
+  -- 13. Reversal guards (admin): over-reversal and void invoice are rejected, wallet unchanged.
+  SELECT balance INTO bal_before FROM public.resident_wallets WHERE id = w;
+  res := public.reverse_invoice_payment_allocation(inv1, 9999);
+  RAISE NOTICE '% 13a over-reversal: %', CASE WHEN (res->>'success')::bool = false THEN 'PASS' ELSE 'FAIL' END, res->>'error';
+  res := public.reverse_invoice_payment_allocation(inv_void, 5);
+  RAISE NOTICE '% 13b void invoice reversal: %', CASE WHEN (res->>'success')::bool = false THEN 'PASS' ELSE 'FAIL' END, res->>'error';
+  RESET ROLE;
+  SELECT balance INTO bal FROM public.resident_wallets WHERE id = w;
+  RAISE NOTICE '% 13c wallet unchanged by rejected reversals (% vs %)', CASE WHEN bal = bal_before THEN 'PASS' ELSE 'FAIL' END, bal, bal_before;
 
   RAISE EXCEPTION 'probe 458 rolled back';
 END $$;
