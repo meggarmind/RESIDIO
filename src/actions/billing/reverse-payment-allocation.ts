@@ -7,12 +7,18 @@ import { logAudit } from '@/lib/audit/logger';
 import type { InvoiceStatus } from '@/types/database';
 import { revalidatePath } from 'next/cache';
 import { validateMoneyAmount } from '@/lib/validators/money';
+import { callWalletInvoiceRpc } from '@/lib/billing/wallet-payment-rpc';
 
-type WalletCreditRpcClient = {
-  rpc: (name: 'adjust_wallet_credit', args: Record<string, unknown>) => Promise<{
-    data: { success?: boolean; new_balance?: number; wallet_id?: string } | null;
-    error: { message: string } | null;
-  }>;
+type ReverseRpcData = {
+  success?: boolean;
+  error?: string;
+  new_invoice_status?: string;
+  new_amount_paid?: number;
+  old_amount_paid?: number;
+  old_status?: string;
+  invoice_number?: string;
+  new_wallet_balance?: number;
+  old_wallet_balance?: number;
 };
 
 interface ReverseAllocationResult {
@@ -71,112 +77,41 @@ export async function reversePaymentAllocation(
 
   const supabase = await createServerSupabaseClient();
 
-  // 3. Fetch invoice
-  const { data: invoice, error: fetchError } = await supabase
-    .from('invoices')
-    .select('*')
-    .eq('id', invoiceId)
-    .single();
-
-  if (fetchError || !invoice) {
-    return {
-      success: false,
-      amountReversed: 0,
-      newInvoiceStatus: null,
-      error: 'Invoice not found',
-    };
-  }
-
-  // 4. Validate amount to reverse doesn't exceed amount paid
-  if (invoice.amount_paid < amountToReverse) {
-    return {
-      success: false,
-      amountReversed: 0,
-      newInvoiceStatus: null,
-      error: `Cannot reverse ₦${amountToReverse.toLocaleString()}. Only ₦${invoice.amount_paid.toLocaleString()} has been paid on this invoice.`,
-    };
-  }
-
-  // 5. Calculate new invoice state
-  const newAmountPaid = invoice.amount_paid - amountToReverse;
-  const newStatus: InvoiceStatus =
-    newAmountPaid === 0
-      ? 'unpaid'
-      : newAmountPaid >= invoice.amount_due
-      ? 'paid'
-      : 'partially_paid';
-
-  // 6. Update invoice (reduce amount_paid, update status)
-  const { error: updateError } = await supabase
-    .from('invoices')
-    .update({
-      amount_paid: newAmountPaid,
-      status: newStatus,
-    })
-    .eq('id', invoiceId);
-
-  if (updateError) {
-    return {
-      success: false,
-      amountReversed: 0,
-      newInvoiceStatus: null,
-      error: `Failed to update invoice: ${updateError.message}`,
-    };
-  }
-
-  // 7. Credit wallet and write its ledger entry atomically (adjust_wallet_credit
-  // locks the wallet row and inserts the wallet_transactions row in one DB
-  // transaction, replacing the old read-modify-write and unchecked ledger insert).
-  const { data: credit, error: creditError } = await (supabase as unknown as WalletCreditRpcClient).rpc('adjust_wallet_credit', {
-    p_resident_id: invoice.resident_id,
+  // 3. Reverse atomically: reverse_invoice_payment_allocation locks the wallet then the
+  // invoice, lowers amount_paid, recomputes status, credits the wallet and writes the
+  // 'invoice_reversal' ledger row in ONE database transaction (no client-side
+  // read-modify-write, no compensating rollback). It re-checks billing.manage_wallets.
+  const { data, error } = await callWalletInvoiceRpc(supabase, 'reverse_invoice_payment_allocation', {
+    p_invoice_id: invoiceId,
     p_amount: amountToReverse,
-    p_reference_type: 'invoice_reversal',
-    p_reference_id: invoiceId,
-    p_description: `Payment reversal for invoice ${invoice.invoice_number}`,
   });
+  const result = data as ReverseRpcData | null;
 
-  if (creditError || !credit || credit.success !== true || typeof credit.new_balance !== 'number') {
-    // Rollback invoice update, and check that the rollback itself succeeded
-    const { error: rollbackError } = await supabase
-      .from('invoices')
-      .update({
-        amount_paid: invoice.amount_paid,
-        status: invoice.status,
-      })
-      .eq('id', invoiceId);
-
-    if (rollbackError) {
-      console.error('[ReversePaymentAllocation] Invoice rollback failed after wallet credit failure:', {
-        invoiceId,
-        creditError,
-        rollbackError,
-      });
-    }
-
+  if (error || !result || result.success !== true) {
     return {
       success: false,
       amountReversed: 0,
       newInvoiceStatus: null,
-      error: `Failed to credit wallet: ${creditError?.message || 'Wallet credit failed'}${rollbackError ? ' (invoice rollback also failed; reconcile manually)' : ''}`,
+      error: error?.message || result?.error || 'Payment reversal failed',
     };
   }
 
-  const newWalletBalance = credit.new_balance;
-  const previousWalletBalance = newWalletBalance - amountToReverse;
+  const newStatus = result.new_invoice_status as InvoiceStatus;
+  const newWalletBalance = Number(result.new_wallet_balance);
 
-  // 9. Audit log
+  // 4. Audit log
   await logAudit({
     action: 'UPDATE',
     entityType: 'invoices',
     entityId: invoiceId,
-    entityDisplay: `Payment reversal: ${invoice.invoice_number}`,
+    entityDisplay: `Payment reversal: ${result.invoice_number}`,
     oldValues: {
-      amount_paid: invoice.amount_paid,
-      status: invoice.status,
-      wallet_balance: previousWalletBalance,
+      amount_paid: result.old_amount_paid,
+      status: result.old_status,
+      wallet_balance: result.old_wallet_balance,
     },
     newValues: {
-      amount_paid: newAmountPaid,
+      amount_paid: result.new_amount_paid,
       status: newStatus,
       wallet_balance: newWalletBalance,
     },
@@ -187,7 +122,7 @@ export async function reversePaymentAllocation(
     },
   });
 
-  // 10. Revalidate cache
+  // 5. Revalidate cache
   revalidatePath('/billing');
   revalidatePath(`/billing/${invoiceId}`);
   revalidatePath('/residents');
