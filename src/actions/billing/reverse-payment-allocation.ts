@@ -4,10 +4,16 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { getOrCreateWallet } from './wallet';
 import type { InvoiceStatus } from '@/types/database';
 import { revalidatePath } from 'next/cache';
 import { validateMoneyAmount } from '@/lib/validators/money';
+
+type WalletCreditRpcClient = {
+  rpc: (name: 'adjust_wallet_credit', args: Record<string, unknown>) => Promise<{
+    data: { success?: boolean; new_balance?: number; wallet_id?: string } | null;
+    error: { message: string } | null;
+  }>;
+};
 
 interface ReverseAllocationResult {
   success: boolean;
@@ -118,61 +124,45 @@ export async function reversePaymentAllocation(
     };
   }
 
-  // 7. Credit wallet (add reversed amount back)
-  const { data: wallet } = await getOrCreateWallet(invoice.resident_id);
-  if (!wallet) {
-    // Rollback invoice update
-    await supabase
-      .from('invoices')
-      .update({
-        amount_paid: invoice.amount_paid,
-        status: invoice.status,
-      })
-      .eq('id', invoiceId);
-
-    return {
-      success: false,
-      amountReversed: 0,
-      newInvoiceStatus: null,
-      error: 'Failed to get resident wallet',
-    };
-  }
-
-  const newWalletBalance = wallet.balance + amountToReverse;
-
-  const { error: walletUpdateError } = await supabase
-    .from('resident_wallets')
-    .update({ balance: newWalletBalance })
-    .eq('id', wallet.id);
-
-  if (walletUpdateError) {
-    // Rollback invoice update
-    await supabase
-      .from('invoices')
-      .update({
-        amount_paid: invoice.amount_paid,
-        status: invoice.status,
-      })
-      .eq('id', invoiceId);
-
-    return {
-      success: false,
-      amountReversed: 0,
-      newInvoiceStatus: null,
-      error: `Failed to credit wallet: ${walletUpdateError.message}`,
-    };
-  }
-
-  // 8. Log wallet transaction
-  await supabase.from('wallet_transactions').insert({
-    wallet_id: wallet.id,
-    type: 'credit',
-    amount: amountToReverse,
-    balance_after: newWalletBalance,
-    reference_type: 'invoice_reversal',
-    reference_id: invoiceId,
-    description: `Payment reversal for invoice ${invoice.invoice_number}`,
+  // 7. Credit wallet and write its ledger entry atomically (adjust_wallet_credit
+  // locks the wallet row and inserts the wallet_transactions row in one DB
+  // transaction, replacing the old read-modify-write and unchecked ledger insert).
+  const { data: credit, error: creditError } = await (supabase as unknown as WalletCreditRpcClient).rpc('adjust_wallet_credit', {
+    p_resident_id: invoice.resident_id,
+    p_amount: amountToReverse,
+    p_reference_type: 'invoice_reversal',
+    p_reference_id: invoiceId,
+    p_description: `Payment reversal for invoice ${invoice.invoice_number}`,
   });
+
+  if (creditError || !credit || credit.success !== true || typeof credit.new_balance !== 'number') {
+    // Rollback invoice update, and check that the rollback itself succeeded
+    const { error: rollbackError } = await supabase
+      .from('invoices')
+      .update({
+        amount_paid: invoice.amount_paid,
+        status: invoice.status,
+      })
+      .eq('id', invoiceId);
+
+    if (rollbackError) {
+      console.error('[ReversePaymentAllocation] Invoice rollback failed after wallet credit failure:', {
+        invoiceId,
+        creditError,
+        rollbackError,
+      });
+    }
+
+    return {
+      success: false,
+      amountReversed: 0,
+      newInvoiceStatus: null,
+      error: `Failed to credit wallet: ${creditError?.message || 'Wallet credit failed'}${rollbackError ? ' (invoice rollback also failed; reconcile manually)' : ''}`,
+    };
+  }
+
+  const newWalletBalance = credit.new_balance;
+  const previousWalletBalance = newWalletBalance - amountToReverse;
 
   // 9. Audit log
   await logAudit({
@@ -183,7 +173,7 @@ export async function reversePaymentAllocation(
     oldValues: {
       amount_paid: invoice.amount_paid,
       status: invoice.status,
-      wallet_balance: wallet.balance,
+      wallet_balance: previousWalletBalance,
     },
     newValues: {
       amount_paid: newAmountPaid,

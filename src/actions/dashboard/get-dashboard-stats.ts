@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { embed } from '@/lib/utils';
+import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 
 type DashboardStats = {
     totalResidents: number;
@@ -50,12 +51,17 @@ export async function getDashboardStats(): Promise<{ data: DashboardStats | null
         }
 
         // 2. Get payments this month
-        const { data: paymentsData, error: payError } = await supabase
-            .from('payment_records')
-            .select('amount')
-            .gte('payment_date', monthStart)
-            .lte('payment_date', monthEnd)
-            .eq('status', 'paid');
+        // Paged: one read is capped at 1000 rows, which would under-report the totals (#459).
+        const { data: paymentsData, error: payError } = await fetchAllRows((from, to) =>
+            supabase
+                .from('payment_records')
+                .select('amount')
+                .gte('payment_date', monthStart)
+                .lte('payment_date', monthEnd)
+                .eq('status', 'paid')
+                .order('id')
+                .range(from, to)
+        );
 
         if (payError) {
             console.error('Error fetching payments:', payError);
@@ -65,11 +71,15 @@ export async function getDashboardStats(): Promise<{ data: DashboardStats | null
         const paymentsThisMonthAmount = paymentsData?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) ?? 0;
 
         // 2b. Get unverified payments (Unified Expenditure Engine)
-        const { data: unverifiedPaymentsData, error: unverifiedPayError } = await supabase
-            .from('payment_records')
-            .select('amount')
-            .eq('is_verified', false)
-            .eq('status', 'paid');
+        const { data: unverifiedPaymentsData, error: unverifiedPayError } = await fetchAllRows((from, to) =>
+            supabase
+                .from('payment_records')
+                .select('amount')
+                .eq('is_verified', false)
+                .eq('status', 'paid')
+                .order('id')
+                .range(from, to)
+        );
 
         if (unverifiedPayError) {
             console.error('Error fetching unverified payments:', unverifiedPayError);

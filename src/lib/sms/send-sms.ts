@@ -1,6 +1,6 @@
 import { termiiConfig, isSmsConfigured, formatPhoneForTermii } from './termii';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getSettingValueAsService } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/lib/settings/service';
 import type {
   SendSmsOptions,
   SendSmsResult,

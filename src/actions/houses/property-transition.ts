@@ -81,7 +81,7 @@ export async function getTransitionPreview(
       resident_role,
       is_live_in,
       sponsor_resident_id,
-      residents!inner(first_name, last_name)
+      residents!resident_houses_resident_id_fkey!inner(first_name, last_name)
     `)
     .eq('house_id', houseId)
     .eq('is_active', true);
