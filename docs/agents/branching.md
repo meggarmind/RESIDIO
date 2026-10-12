@@ -120,7 +120,9 @@ hotfix: branch from master --PR--> master, then merge master back into stage
 - **A hotfix branches from `master` and targets `master`.** Merge `master` back into `stage`
   in its own PR straight after, so the fix is not lost at the next release.
 - **Both branches require the `PR gate` check** (`.github/workflows/pr-gate.yml`) and a PR.
-  PRs into `master` also run the **`Security gate`** check (below).
+  PRs into `master` also run the **`Security gate`** check (below). Docs-only PRs (`*.md`, `*.mdx`,
+  `docs/**`) skip lint, typecheck, test and build; the gate also runs on pushes to `stage` to seed
+  caches.
 - **Migrations are applied twice**: to Residio_Stage when they merge into `stage`, to
   Residio_Prod when the release merges into `master`. See `docs/agents/migrations-on-merge.md`.
 
@@ -139,7 +141,7 @@ git log --oneline origin/master..origin/stage
 ### The release flow and its security gate (#429)
 
 ```
-feature PR --> stage     PR gate (lint, typecheck, vitest, build)
+feature PR --> stage     PR gate (lint, typecheck, vitest, build; skipped for docs-only)
                           -> Coolify residio-stage deploys, UAT on Residio_Stage
 Release PR stage --> master
                           PR gate + Security gate

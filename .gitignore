@@ -91,3 +91,6 @@ docs/features/Email-import/Email-import/FirstBank Alert on Your Account - Credit
 # It accumulates machine-local permission rules that have twice carried
 # credential literals into a public repo.
 .claude/settings.local.json
+
+# ESLint cache (#497)
+.eslintcache
