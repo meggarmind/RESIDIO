@@ -86,6 +86,20 @@ describe('getActiveResidents', () => {
     expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
+  it.each([PERMISSIONS.EXPENDITURE_VIEW, PERMISSIONS.EMAIL_IMPORTS_VIEW])(
+    'is allowed for a role holding only %s',
+    async (perm) => {
+      mocks.authorizeAnyPermission.mockImplementation(async (list: string[]) =>
+        list.includes(perm) ? allowed : denied,
+      );
+      mocks.createAdminClient.mockReturnValue({
+        from: () => ({ select: () => ({ eq: () => ({ order: vi.fn().mockResolvedValue({ data: [], error: null }) }) }) }),
+      });
+
+      await expect(getActiveResidents()).resolves.toEqual({ data: [], error: null });
+    },
+  );
+
   it('returns residents when authorized', async () => {
     mocks.authorizeAnyPermission.mockResolvedValue(allowed);
     const rows = [{ id: 'r1', first_name: 'A', last_name: 'B', resident_code: 'R-1' }];
@@ -170,8 +184,14 @@ describe('notification preference actions', () => {
     expect(write).toEqual({ success: false, error: 'Unauthorized: Missing permission' });
     expect(mocks.getPreferences).not.toHaveBeenCalled();
     expect(mocks.updatePreference).not.toHaveBeenCalled();
-    expect(mocks.authorizePermission).toHaveBeenCalledWith(PERMISSIONS.NOTIFICATIONS_VIEW);
-    expect(mocks.authorizePermission).toHaveBeenCalledWith(PERMISSIONS.NOTIFICATIONS_MANAGE);
+    expect(mocks.authorizeAnyPermission).toHaveBeenCalledWith([
+      PERMISSIONS.NOTIFICATIONS_VIEW,
+      PERMISSIONS.RESIDENTS_VIEW,
+    ]);
+    expect(mocks.authorizeAnyPermission).toHaveBeenCalledWith([
+      PERMISSIONS.NOTIFICATIONS_MANAGE,
+      PERMISSIONS.RESIDENTS_UPDATE,
+    ]);
   });
 
   it('refuses a role-less account (no resident link, no permission)', async () => {
@@ -188,17 +208,31 @@ describe('notification preference actions', () => {
 
     await expect(getResidentPreferences('resident-2')).resolves.toEqual({ data: [], error: null });
     await expect(updateResidentPreference(input)).resolves.toEqual({ success: true, error: null });
-    expect(mocks.authorizePermission).not.toHaveBeenCalled();
+    expect(mocks.authorizeAnyPermission).not.toHaveBeenCalled();
     expect(mocks.logAudit).toHaveBeenCalledTimes(1);
   });
 
   it('lets an admin with the notifications permission act on any resident', async () => {
     mocks.createServerSupabaseClient.mockResolvedValue(sessionClient({ id: 'admin-1' }, null));
-    mocks.authorizePermission.mockResolvedValue(allowed);
     mocks.getPreferences.mockResolvedValue([]);
     mocks.updatePreference.mockResolvedValue({ success: true });
 
-    await expect(getResidentPreferences('resident-2')).resolves.toEqual({ data: [], error: null });
-    await expect(updateResidentPreference(input)).resolves.toEqual({ success: true, error: null });
+    // Model a role holding exactly ONE permission; each entry of each any-of
+    // list must be sufficient on its own.
+    const holding = (perm: string) =>
+      mocks.authorizeAnyPermission.mockImplementation(async (list: string[]) =>
+        list.includes(perm) ? allowed : denied,
+      );
+
+    for (const perm of [PERMISSIONS.NOTIFICATIONS_VIEW, PERMISSIONS.RESIDENTS_VIEW]) {
+      holding(perm);
+      await expect(getResidentPreferences('resident-2')).resolves.toEqual({ data: [], error: null });
+      // a read permission must not authorise a write
+      await expect(updateResidentPreference(input)).resolves.toMatchObject({ success: false });
+    }
+    for (const perm of [PERMISSIONS.NOTIFICATIONS_MANAGE, PERMISSIONS.RESIDENTS_UPDATE]) {
+      holding(perm);
+      await expect(updateResidentPreference(input)).resolves.toEqual({ success: true, error: null });
+    }
   });
 });
