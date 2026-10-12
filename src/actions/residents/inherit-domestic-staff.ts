@@ -91,7 +91,7 @@ export async function getInheritableStaff(
       tags,
       sponsor_resident_id,
       move_out_date,
-      residents!inner(
+      residents!resident_houses_resident_id_fkey!inner(
         id,
         first_name,
         last_name,

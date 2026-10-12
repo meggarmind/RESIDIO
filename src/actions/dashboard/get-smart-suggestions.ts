@@ -28,16 +28,19 @@ export async function getSmartSuggestions(): Promise<{ data: SmartSuggestion[]; 
     const suggestions: SmartSuggestion[] = [];
 
     const now = new Date();
-    const todayIso = now.toISOString().split('T')[0];
-    const severelyOverdueCutoff = new Date(now.getTime() - SEVERELY_OVERDUE_DAYS * 24 * 60 * 60 * 1000);
+    const severelyOverdueCutoffIso = new Date(now.getTime() - SEVERELY_OVERDUE_DAYS * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split('T')[0];
     const staleApprovalCutoffIso = new Date(now.getTime() - STALE_APPROVAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
     const [overdueResult, approvalsResult, personnelResult] = await Promise.all([
+        // Counted in SQL: downloading rows would be capped at 1000 and undercount (#459).
+        // due_date is a date, so "due_date < cutoff instant" is "due_date <= cutoff's calendar day".
         supabase
             .from('invoices')
-            .select('due_date')
+            .select('id', { count: 'exact', head: true })
             .in('status', ['unpaid', 'partially_paid'])
-            .lt('due_date', todayIso),
+            .lte('due_date', severelyOverdueCutoffIso),
         supabase
             .from('approval_requests')
             .select('id', { count: 'exact', head: true })
@@ -47,10 +50,8 @@ export async function getSmartSuggestions(): Promise<{ data: SmartSuggestion[]; 
     ]);
 
     // Rule: a meaningful number of invoices are severely overdue (30+ days)
-    if (!overdueResult.error && overdueResult.data) {
-        const severelyOverdueCount = overdueResult.data.filter(
-            (invoice) => new Date(invoice.due_date) < severelyOverdueCutoff
-        ).length;
+    if (!overdueResult.error) {
+        const severelyOverdueCount = overdueResult.count ?? 0;
 
         if (severelyOverdueCount >= SEVERELY_OVERDUE_COUNT_THRESHOLD) {
             suggestions.push({
