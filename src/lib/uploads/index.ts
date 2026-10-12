@@ -6,8 +6,6 @@
  * content matches the type it claims.
  */
 
-import { randomUUID } from 'node:crypto';
-
 // ============================================================
 // Size caps
 // ============================================================
@@ -69,7 +67,7 @@ export function sanitizeFilename(name: string | null | undefined): string {
  * original name as a path segment on its own.
  */
 export function buildStorageFilename(originalName: string | null | undefined): string {
-  return `${randomUUID()}-${sanitizeFilename(originalName)}`;
+  return `${globalThis.crypto.randomUUID()}-${sanitizeFilename(originalName)}`;
 }
 
 /** Join a trusted prefix with a generated filename. Throws on unsafe prefix. */
