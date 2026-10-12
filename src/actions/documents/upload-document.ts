@@ -10,6 +10,7 @@ import type { DocumentWithRelations } from '@/types/database';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 
 type UploadDocumentResponse = {
   data: DocumentWithRelations | null;
@@ -216,7 +217,7 @@ export async function uploadDocumentVersion(
   const { data: versions } = await supabase
     .from('documents')
     .select('version')
-    .or(`id.eq.${parentDocumentId},parent_document_id.eq.${parentDocumentId}`)
+    .or(idOrParentFilterStrict('id', 'parent_document_id', parentDocumentId))
     .order('version', { ascending: false })
     .limit(1);
 

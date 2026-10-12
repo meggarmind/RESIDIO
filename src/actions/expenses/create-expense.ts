@@ -6,6 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
 import type { ExpenseSourceType, ExpensePaymentMethod } from '@/types/database';
+import { validateMoneyAmount } from '@/lib/validators/money';
 
 export interface CreateExpenseInput {
     amount: number;
@@ -29,12 +30,23 @@ export async function createExpense(input: CreateExpenseInput) {
     const { authorized, userId } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
     if (!authorized) throw new Error('Unauthorized');
 
+    const amountError = validateMoneyAmount(input.amount, { label: 'Expense amount' });
+    if (amountError) throw new Error(amountError);
+
+    const expenseDate = typeof input.expense_date === 'string' ? input.expense_date : '';
+    if (!/^\d{4}-\d{2}-\d{2}/.test(expenseDate) || Number.isNaN(Date.parse(expenseDate))) {
+        throw new Error('Expense date must be a valid date');
+    }
+
     const supabase = await createServerSupabaseClient();
 
-    // Determine verification status based on source
-    // Petty cash and bank imports are auto-verified
-    const isVerified = input.is_verified ??
-        (input.source_type === 'petty_cash' || input.source_type === 'bank_import');
+    // Determine verification status based on source.
+    // Petty cash and bank imports are auto-verified. The client-supplied
+    // is_verified flag is honoured only for those sources: a manual expense can
+    // never be created pre-verified (it must go through manual verification).
+    const autoVerifiedSource =
+        input.source_type === 'petty_cash' || input.source_type === 'bank_import';
+    const isVerified = autoVerifiedSource ? (input.is_verified ?? true) : false;
 
     // Helper to sanitize UUID inputs (convert empty strings to null)
     const sanitizeUuid = (id?: string) => (!id || id.trim() === '') ? null : id;

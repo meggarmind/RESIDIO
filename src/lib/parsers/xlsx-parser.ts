@@ -10,6 +10,25 @@ import type { ColumnMapping } from '@/types/database';
 import type { ParsedRow } from '@/lib/validators/import';
 import { getBankParser, detectBankFormat } from './bank-formats';
 
+/** Largest spreadsheet accepted for parsing (bounds prototype-pollution/ReDoS exposure and memory). */
+export const MAX_XLSX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
+const XLSX_TOO_LARGE_ERROR = `Excel file is too large. The maximum size is ${MAX_XLSX_FILE_SIZE_BYTES / (1024 * 1024)} MB.`;
+
+function emptyErrorResult(message: string): XLSXParseResult {
+  return {
+    rows: [],
+    detectedColumns: null,
+    headerRowIndex: 0,
+    rawData: [],
+    totalCredits: 0,
+    totalDebits: 0,
+    dateRange: { start: null, end: null },
+    sheetNames: [],
+    errors: [message],
+  };
+}
+
 export interface XLSXParseOptions {
   /** Bank format to use (e.g., 'firstbank'). Auto-detects if not provided. */
   bankFormat?: string;
@@ -45,6 +64,10 @@ export async function parseXLSXBuffer(
   buffer: ArrayBuffer,
   options: XLSXParseOptions = {}
 ): Promise<XLSXParseResult> {
+  if (buffer.byteLength > MAX_XLSX_FILE_SIZE_BYTES) {
+    return emptyErrorResult(XLSX_TOO_LARGE_ERROR);
+  }
+
   try {
     const workbook = XLSX.read(buffer, {
       type: 'array',
@@ -76,6 +99,10 @@ export async function parseXLSXFile(
   file: File,
   options: XLSXParseOptions = {}
 ): Promise<XLSXParseResult> {
+  if (file.size > MAX_XLSX_FILE_SIZE_BYTES) {
+    return emptyErrorResult(XLSX_TOO_LARGE_ERROR);
+  }
+
   try {
     const buffer = await file.arrayBuffer();
     return parseXLSXBuffer(buffer, options);
@@ -437,6 +464,10 @@ function parseExcelDate(value: unknown): Date | null {
  * Get sheet names from workbook
  */
 export async function getXLSXSheetNames(file: File): Promise<string[]> {
+  if (file.size > MAX_XLSX_FILE_SIZE_BYTES) {
+    return [];
+  }
+
   try {
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array' });

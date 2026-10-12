@@ -6,6 +6,7 @@ import type { SystemSetting } from '@/types/database';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { settingValueError } from '@/lib/validators/setting-value';
 
 type UpdateSettingResponse = {
     data: SystemSetting | null;
@@ -28,6 +29,9 @@ export async function updateSetting(key: string, value: unknown): Promise<Update
     if (!auth.authorized) {
         return { data: null, error: auth.error || 'Unauthorized' };
     }
+
+    const valueError = settingValueError(key, value);
+    if (valueError) return { data: null, error: valueError };
 
     // Get old value for audit comparison
     const { data: oldSetting } = await supabase
@@ -88,6 +92,11 @@ export async function updateSettings(settings: Record<string, unknown>): Promise
     const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
     if (!auth.authorized) {
         return { success: false, error: auth.error || 'Unauthorized' };
+    }
+
+    for (const [key, value] of Object.entries(settings)) {
+        const valueError = settingValueError(key, value);
+        if (valueError) return { success: false, error: valueError };
     }
 
     const keys = Object.keys(settings);
@@ -186,6 +195,9 @@ export async function createSetting(
     if (!auth.authorized) {
         return { data: null, error: auth.error || 'Unauthorized' };
     }
+
+    const valueError = settingValueError(key, value);
+    if (valueError) return { data: null, error: valueError };
 
     let storageValue = value;
     if (typeof value === 'boolean') {
