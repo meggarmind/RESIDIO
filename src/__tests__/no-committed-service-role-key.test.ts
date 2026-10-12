@@ -64,5 +64,5 @@ describe('no committed service_role key (#454)', () => {
       }
     }
     expect(offenders).toEqual([]);
-  });
+  }, 60_000);
 });

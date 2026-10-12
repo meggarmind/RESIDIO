@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
         console.log('[Admin] Starting manual invoice generation by', user.email);
 
-        const result = await generateMonthlyInvoices(new Date(), 'manual');
+        const result = await generateMonthlyInvoices(new Date());
 
         console.log('[Admin] Invoice generation completed:', {
             generated: result.generated,
