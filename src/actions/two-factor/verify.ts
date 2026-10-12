@@ -7,6 +7,8 @@ import { getEstateEmailSettings } from '@/lib/email/send-email';
 import { VerificationCodeEmail } from '@/emails/verification-code';
 import type { TwoFactorVerifyResult, TwoFactorMethod, Verify2FAInput } from '@/types/database';
 import crypto from 'crypto';
+import { getTwoFactorSessionContext } from '@/lib/auth/two-factor-session';
+import { generateOtp, safeEqual, readTotpSecret, verifyBackupCodeHash } from '@/lib/auth/two-factor-secrets';
 
 // Token expiry in minutes
 const TOKEN_EXPIRY_MINUTES = 5;
@@ -18,19 +20,17 @@ const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MINUTES = 15;
 
 /**
- * Generate a random 6-digit OTP
- */
-function generateOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-/**
  * Send 2FA verification code for login
  */
 export async function sendTwoFactorCode(
-  userId: string,
   method: TwoFactorMethod
 ): Promise<{ success: boolean; message: string; expiresAt?: string }> {
+  // The target user is the signed-in session's user, never a caller-supplied id (#455).
+  const session = await getTwoFactorSessionContext();
+  if (!session) {
+    return { success: false, message: 'Not authenticated' };
+  }
+  const userId = session.userId;
   const adminClient = createAdminClient();
 
   // Get profile
@@ -67,7 +67,7 @@ export async function sendTwoFactorCode(
     .eq('purpose', 'login')
     .is('used_at', null);
 
-  const otp = generateOTP();
+  const otp = generateOtp();
   const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_MINUTES * 60 * 1000);
 
   // Store token
@@ -180,9 +180,13 @@ async function getRemainingAttempts(userId: string): Promise<number> {
  * Verify 2FA code during login
  */
 export async function verifyTwoFactorCode(
-  userId: string,
   input: Verify2FAInput
 ): Promise<TwoFactorVerifyResult> {
+  const session = await getTwoFactorSessionContext();
+  if (!session) {
+    return { success: false, message: 'Not authenticated' };
+  }
+  const userId = session.userId;
   const adminClient = createAdminClient();
 
   // Check for lockout
@@ -219,7 +223,12 @@ export async function verifyTwoFactorCode(
       return { success: false, message: '2FA not properly configured' };
     }
 
-    isValid = validateTOTP(input.code, profile.two_factor_secret_encrypted);
+    try {
+      isValid = validateTOTP(input.code, readTotpSecret(profile.two_factor_secret_encrypted));
+    } catch (error) {
+      console.error('[2FA Verify] Could not read TOTP secret:', error instanceof Error ? error.message : error);
+      return { success: false, message: '2FA not properly configured' };
+    }
   } else {
     // Validate OTP from database
     const { data: token } = await adminClient
@@ -234,7 +243,7 @@ export async function verifyTwoFactorCode(
       .limit(1)
       .single();
 
-    if (token && token.token === input.code) {
+    if (token && safeEqual(String(token.token), input.code)) {
       isValid = true;
 
       // Mark token as used
@@ -288,9 +297,13 @@ export async function verifyTwoFactorCode(
  * Verify a backup code
  */
 export async function verifyBackupCode(
-  userId: string,
   code: string
 ): Promise<TwoFactorVerifyResult> {
+  const session = await getTwoFactorSessionContext();
+  if (!session) {
+    return { success: false, message: 'Not authenticated' };
+  }
+  const userId = session.userId;
   const adminClient = createAdminClient();
 
   // Check for lockout
@@ -303,17 +316,15 @@ export async function verifyBackupCode(
     };
   }
 
-  // Hash the provided code
-  const codeHash = crypto.createHash('sha256').update(code.toUpperCase()).digest('hex');
-
-  // Find matching unused backup code
-  const { data: backupCode } = await adminClient
+  // Unused codes for this user (at most ~10). Salted hashes cannot be looked up
+  // by value, so each is checked; legacy unsalted SHA-256 rows still verify.
+  const { data: candidates } = await adminClient
     .from('two_factor_backup_codes')
     .select('*')
     .eq('profile_id', userId)
-    .eq('code_hash', codeHash)
-    .is('used_at', null)
-    .single();
+    .is('used_at', null);
+
+  const backupCode = (candidates ?? []).find((c) => verifyBackupCodeHash(code, c.code_hash));
 
   if (!backupCode) {
     // Log failed attempt

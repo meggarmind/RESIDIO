@@ -26,7 +26,12 @@ export function Verify2FAForm() {
   const [codeSent, setCodeSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  const redirectTo = searchParams.get('next') || '/dashboard';
+  const requestedNext = searchParams.get('next');
+  // Same-origin paths only: block open redirects such as //evil.com or /\evil.com
+  const redirectTo =
+    requestedNext && requestedNext.startsWith('/') && !requestedNext.startsWith('//') && !requestedNext.startsWith('/\\')
+      ? requestedNext
+      : '/dashboard';
 
   useEffect(() => {
     // Check if we have a pending 2FA verification
@@ -85,7 +90,7 @@ export function Verify2FAForm() {
       const response = await fetch('/api/auth/2fa/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, method: methodToUse }),
+        body: JSON.stringify({ method: methodToUse }),
       });
 
       const result = await response.json();
@@ -117,7 +122,7 @@ export function Verify2FAForm() {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, code }),
+        body: JSON.stringify({ code }),
       });
 
       const result = await response.json();

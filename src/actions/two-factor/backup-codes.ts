@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import crypto from 'crypto';
+import { safeEqual, readTotpSecret, hashBackupCode } from '@/lib/auth/two-factor-secrets';
 
 /**
  * Generate new backup codes for the current user
@@ -46,7 +47,12 @@ export async function generateBackupCodes(
     if (!profile.two_factor_secret_encrypted) {
       return { success: false, message: '2FA not properly configured' };
     }
-    isValid = validateTOTP(verificationCode, profile.two_factor_secret_encrypted);
+    try {
+      isValid = validateTOTP(verificationCode, readTotpSecret(profile.two_factor_secret_encrypted));
+    } catch (error) {
+      console.error('[2FA Backup] Could not read TOTP secret:', error instanceof Error ? error.message : error);
+      return { success: false, message: '2FA not properly configured' };
+    }
   } else {
     // Validate OTP from database
     const { data: token } = await adminClient
@@ -61,7 +67,7 @@ export async function generateBackupCodes(
       .limit(1)
       .single();
 
-    if (token && token.token === verificationCode) {
+    if (token && safeEqual(String(token.token), verificationCode)) {
       isValid = true;
       await adminClient
         .from('two_factor_tokens')
@@ -203,7 +209,7 @@ async function generateAndStoreBackupCodes(profileId: string): Promise<string[]>
     codes.push(code);
 
     // Hash the code for storage
-    const hash = crypto.createHash('sha256').update(code).digest('hex');
+    const hash = hashBackupCode(code);
     hashedCodes.push({
       profile_id: profileId,
       code_hash: hash,
