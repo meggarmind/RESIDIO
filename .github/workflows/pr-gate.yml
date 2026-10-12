@@ -16,7 +16,7 @@ name: PR Gate
 #   - A `changes` job classifies the PR. A docs-only PR (every path under docs/ or *.md/*.mdx)
 #     skips lint, typecheck, test and build; the `PR gate` check still runs and passes.
 #     Anything unclear (non-PR event, empty list, git error) runs everything.
-#   - Build (.next/cache), lint (.eslintcache) and typecheck (tsbuildinfo) restore caches.
+#   - Lint (.eslintcache) and typecheck (tsbuildinfo) restore caches. Build does not (see there).
 #   - The workflow also runs on pushes to `stage`: a PR run can only restore caches from its own
 #     ref or its base branch, so runs on `stage` seed caches every PR can read.
 #   - Trigger-level `paths:` filtering is FORBIDDEN here: a required check whose workflow never
@@ -183,13 +183,10 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Cache Next.js build
-        uses: actions/cache@v4
-        with:
-          path: .next/cache
-          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'public/**', 'next.config.*') }}
-          restore-keys: |
-            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+      # No .next/cache step, deliberately (#497). Next 16 builds with Turbopack, which does not
+      # persist its compile cache there without an experimental flag; measured, the cache held
+      # 200 KB and changed nothing. Of the ~80 s build, ~34 s is compile and ~39 s is Next's own
+      # TypeScript pass (which also checks the generated .next/types that the Typecheck job lacks).
 
       # Prerendering builds a Supabase client, so the build needs these set.
       # src/lib/supabase/config.ts reads SUFFIXED names chosen by NEXT_PUBLIC_ENV_MODE, so the
