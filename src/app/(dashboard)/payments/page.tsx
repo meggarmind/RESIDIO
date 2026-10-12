@@ -117,7 +117,7 @@ function PaymentsContent() {
         <PaymentFilters />
 
         {paymentsResult?.error ? (
-          <div className={cn(
+          <div role="alert" className={cn(
             'text-red-500 py-4',
             isModern && 'bg-red-50 dark:bg-red-900/20 rounded-xl p-4'
           )}>
