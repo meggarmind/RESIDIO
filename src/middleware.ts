@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { supabaseConfig } from '@/lib/supabase/config';
 import { ROUTE_PERMISSIONS, Permission, extractRole, isAdminRole } from '@/lib/auth/action-roles';
 import { getPublicOrigin } from '@/lib/http/public-origin';
+import { TWO_FACTOR_COOKIE, getSessionIdFromAccessToken, verifyTwoFactorMarker } from '@/lib/auth/two-factor-marker';
 import type { ProfileApprovalStatus } from '@/types/database';
 
 /**
@@ -77,6 +78,28 @@ export function isPublicRoute(pathname: string): boolean {
     return publicRoutePrefixes.some((prefix) => pathname.startsWith(prefix));
 }
 
+/**
+ * Paths an enrolled user may reach before completing the second factor (#455):
+ * the verify page and its API, the sign-in/out and recovery pages, the auth
+ * callback and the pending/maintenance notices. Everything else -- every
+ * dashboard and portal route and every other /api route -- needs the marker.
+ */
+const twoFactorExemptPrefixes = [
+    '/auth/verify-2fa',
+    '/auth/callback',
+    '/api/auth/2fa',
+    '/login',
+    '/register',
+    '/forgot-password',
+    '/reset-password',
+    '/pending-approval',
+    '/maintenance',
+];
+
+export function isTwoFactorExemptPath(pathname: string): boolean {
+    return twoFactorExemptPrefixes.some((prefix) => pathname.startsWith(prefix));
+}
+
 // Routes that should be accessible even during maintenance mode
 const maintenanceExemptRoutes = ['/login', '/maintenance', '/pending-approval', '/api'];
 
@@ -129,6 +152,7 @@ export async function middleware(request: NextRequest) {
         role_id: string | null;
         resident_id: string | null;
         approval_status: ProfileApprovalStatus | null;
+        two_factor_enabled?: boolean | null;
         app_roles?: unknown;
     } | null = null;
 
@@ -142,7 +166,7 @@ export async function middleware(request: NextRequest) {
                 : Promise.resolve({ data: null, error: null }),
             supabase
                 .from('profiles')
-                .select('role_id, resident_id, approval_status, app_roles!profiles_role_id_fkey (name, category)')
+                .select('role_id, resident_id, approval_status, two_factor_enabled, app_roles!profiles_role_id_fkey (name, category)')
                 .eq('id', user.id)
                 .single(),
         ]);
@@ -182,6 +206,28 @@ export async function middleware(request: NextRequest) {
     if (!isExemptRoute && isMaintenanceMode) {
         if (roleName !== 'super_admin') {
             return NextResponse.redirect(new URL('/maintenance', publicOrigin));
+        }
+    }
+
+    // Second-factor gate (#455). An enrolled user holds a half-authenticated
+    // session after the password step; nothing but the verify flow is served
+    // until a signed marker for THIS user and session is present. Fails closed:
+    // a missing session id, bad signature or unavailable secret all redirect.
+    if (user && profile?.two_factor_enabled && !isTwoFactorExemptPath(pathname)) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const sessionId = getSessionIdFromAccessToken(sessionData?.session?.access_token);
+        const verified = await verifyTwoFactorMarker(
+            request.cookies.get(TWO_FACTOR_COOKIE)?.value,
+            { userId: user.id, sessionId }
+        );
+
+        if (!verified) {
+            if (pathname.startsWith('/api')) {
+                return NextResponse.json({ error: 'two_factor_required' }, { status: 403 });
+            }
+            const redirectUrl = new URL('/auth/verify-2fa', publicOrigin);
+            if (pathname !== '/') redirectUrl.searchParams.set('next', pathname);
+            return NextResponse.redirect(redirectUrl);
         }
     }
 
