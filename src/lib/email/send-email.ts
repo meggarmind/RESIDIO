@@ -1,5 +1,3 @@
-'use server';
-
 import { resend, emailConfig, isEmailConfigured } from './resend';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getSettingValueAsService, getSettings } from '@/actions/settings/get-settings';

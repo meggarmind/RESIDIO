@@ -1,5 +1,3 @@
-'use server';
-
 import { termiiConfig, isSmsConfigured, formatPhoneForTermii } from './termii';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getSettingValueAsService } from '@/actions/settings/get-settings';
