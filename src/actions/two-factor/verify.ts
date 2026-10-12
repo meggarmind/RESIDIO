@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email/send-email';
 import { sendVerificationSms } from '@/lib/sms/send-sms';
 import { getEstateEmailSettings } from '@/lib/email/send-email';

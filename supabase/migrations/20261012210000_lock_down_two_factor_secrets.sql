@@ -31,30 +31,62 @@
 -- reaches an environment. Until it is applied, sending an SMS/email login OTP fails
 -- at insert (value too long for CHAR(6)); authenticator (TOTP) users are unaffected.
 --
--- Rollback (restores the pre-migration state; delete hashed OTP rows first):
+-- COLUMN CONVENTION (read this before adding a profiles column):
+--   Reads of public.profiles by anon/authenticated are now granted PER COLUMN.
+--   Any column added to public.profiles after this migration needs, in the same
+--   migration:  GRANT SELECT (<column>) ON public.profiles TO authenticated;
+--   (and TO anon only if signed-out reads need it). Without it, user-session
+--   reads that name the column fail with 'permission denied'. Never
+--   select('*') on profiles through a user-session client; the scan in
+--   src/__tests__/profiles-no-star-select.test.ts enforces that.
+--
+-- Rollback. The baseline grants on these tables are not written in any migration
+-- (the 2FA migration has no GRANT; profiles got GRANT ALL TO authenticated in
+-- 20251206223732 and Supabase's default privileges give anon/authenticated/service_role
+-- ALL on new public tables), so the exact prior grants cannot be proven from the repo.
+-- This restores the standard Supabase defaults, which is what the earlier
+-- migration 20261011120000 also assumed. Delete hashed OTP rows first:
 --   DELETE FROM public.two_factor_tokens WHERE token LIKE 'h1$%';
 --   ALTER TABLE public.two_factor_tokens ALTER COLUMN token TYPE CHAR(6);
 --   ALTER TABLE public.two_factor_tokens
 --     ADD CONSTRAINT two_factor_tokens_token_check CHECK (token ~ '^[0-9]{6}$');
---   GRANT SELECT ON public.profiles TO authenticated;   -- and to anon if it held it
---   GRANT SELECT ON public.two_factor_tokens, public.two_factor_backup_codes TO authenticated;
+--   GRANT SELECT ON public.profiles TO anon, authenticated;
+--   GRANT ALL ON public.two_factor_tokens, public.two_factor_backup_codes
+--     TO anon, authenticated, service_role;
 --   CREATE POLICY "Users can view own 2FA tokens" ON public.two_factor_tokens
 --     FOR SELECT TO authenticated USING (profile_id = auth.uid());
 --   CREATE POLICY "Users can view own backup codes" ON public.two_factor_backup_codes
 --     FOR SELECT TO authenticated USING (profile_id = auth.uid());
+--   (profiles UPDATE/INSERT/DELETE grants are untouched by this migration.)
 
 DO $$
 BEGIN
+  -- Refuse if any view / materialized view reads the secret column, or references
+  -- profiles in a way that cannot be told apart from reading it: a dependency on
+  -- the whole table (refobjsubid = 0, e.g. a whole-row reference or count(*)) with
+  -- no column-level dependency at all. A view over profiles that names other
+  -- columns is fine: it never touches the revoked one.
   IF EXISTS (
     SELECT 1
     FROM pg_depend d
     JOIN pg_rewrite r ON r.oid = d.objid
     JOIN pg_class v ON v.oid = r.ev_class AND v.relkind IN ('v', 'm')
-    JOIN pg_attribute a ON a.attrelid = d.refobjid AND a.attnum = d.refobjsubid
+    LEFT JOIN pg_attribute a ON a.attrelid = d.refobjid AND a.attnum = d.refobjsubid
     WHERE d.refobjid = 'public.profiles'::regclass
-      AND a.attname = 'two_factor_secret_encrypted'
+      AND (
+        a.attname = 'two_factor_secret_encrypted'
+        OR (
+          d.refobjsubid = 0
+          AND NOT EXISTS (
+            SELECT 1 FROM pg_depend d2
+            WHERE d2.objid = d.objid
+              AND d2.refobjid = d.refobjid
+              AND d2.refobjsubid > 0
+          )
+        )
+      )
   ) THEN
-    RAISE EXCEPTION 'A view depends on profiles.two_factor_secret_encrypted; refusing to restrict it';
+    RAISE EXCEPTION 'A view depends on profiles.two_factor_secret_encrypted (directly or via a whole-row reference); refusing to restrict it';
   END IF;
 END $$;
 
