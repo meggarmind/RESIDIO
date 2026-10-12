@@ -1,5 +1,5 @@
 import { render } from '@react-email/render';
-import { getSettingValueAsService } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/lib/settings/service';
 import { InvoiceGeneratedEmail } from '@/emails';
 import { getEstateEmailSettings } from '@/lib/email';
 import { createAdminClient } from '@/lib/supabase/server';

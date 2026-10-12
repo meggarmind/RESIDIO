@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { applyLateFees } from '../apply-late-fees';
-import { getSettingValueAsService } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/lib/settings/service';
 import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -8,7 +8,7 @@ vi.mock('@/lib/supabase/server', () => ({
     createServerSupabaseClient: vi.fn(),
 }));
 
-vi.mock('@/actions/settings/get-settings', () => ({
+vi.mock('@/lib/settings/service', () => ({
     getSettingValueAsService: vi.fn(),
 }));
 

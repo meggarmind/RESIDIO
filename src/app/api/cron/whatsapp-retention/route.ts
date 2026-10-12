@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSettingValueAsService } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/lib/settings/service';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { purgeWhatsAppOperationalState } from '@/lib/whatsapp/retention';
 
