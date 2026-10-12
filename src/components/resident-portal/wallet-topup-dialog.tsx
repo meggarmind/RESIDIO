@@ -25,7 +25,6 @@ const PaystackButton = dynamic(
 import { useAuth } from '@/lib/auth/auth-provider';
 import { checkPaymentEmails } from '@/actions/email-imports/check-payment';
 import { submitPaymentProof } from '@/actions/payments/submit-payment-proof';
-import { verifyPaystackPayment } from '@/actions/payments/verify-paystack-payment';
 
 interface WalletTopUpDialogProps {
   open: boolean;
@@ -59,23 +58,11 @@ export function WalletTopUpDialog({
     publicKey: process.env.NEXT_PUBLIC_PAYSTACK_KEY || 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
   };
 
-  const handlePaystackSuccess = async (reference: any) => {
-    const toastId = toast.loading("Verifying payment...");
-    try {
-      const result = await verifyPaystackPayment({
-        reference: reference.reference,
-        amount: Number(amount),
-      });
-
-      if (result.success) {
-        toast.success("Payment successful! Wallet updated.", { id: toastId });
-        onOpenChange(false);
-      } else {
-        toast.error(result.error || "Failed to verify payment.", { id: toastId });
-      }
-    } catch (error) {
-      toast.error("Verification failed.", { id: toastId });
-    }
+  // The wallet is credited server-side from the verified Paystack amount
+  // (webhook / reference verification), never from a client-supplied figure.
+  const handlePaystackSuccess = () => {
+    toast.success("Payment received. Your wallet will update once it is confirmed.");
+    onOpenChange(false);
   };
 
   const handlePaystackClose = () => {

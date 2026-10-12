@@ -66,7 +66,6 @@ const PERMISSION_ALLOWLIST = [
   // Business-rule authorization: validates the caller is the primary resident.
   'residents/add-household-member.ts',
   // Resident self-service: authorizes via auth.getUser() + resource ownership.
-  'payments/verify-paystack-payment.ts',
   'payments/submit-payment-proof.ts',
   'billing/pay-invoice-with-wallet.ts',
   'billing/pay-multiple-invoices-with-wallet.ts',
