@@ -5,7 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
-import { assertCanManageTarget } from '@/lib/auth/role-rank';
+import { assertCanManageTarget, canGrantRole } from '@/lib/auth/role-rank';
 import { sanitizeSearchInput } from '@/lib/utils';
 import type { ProfileApprovalStatus } from '@/types/database';
 
@@ -315,12 +315,16 @@ export async function assignRoleToProfile(
 
   // Escalation guards: the two highest roles may only be granted by a super
   // admin. This is the real enforcement — the UI merely mirrors it.
-  if (role.name === 'super_admin' && auth.roleName !== 'super_admin') {
-    return { success: false, error: 'Only Super Administrator can assign the Super Administrator role' };
-  }
-
-  if (role.name === 'chairman' && auth.roleName !== 'super_admin') {
-    return { success: false, error: 'Only Super Administrator can assign the Chairman role' };
+  if (!canGrantRole(auth.roleName, role.name)) {
+    return {
+      success: false,
+      error:
+        role.name === 'super_admin'
+          ? 'Only Super Administrator can assign the Super Administrator role'
+          : role.name === 'chairman'
+            ? 'Only Super Administrator can assign the Chairman role'
+            : 'You cannot assign a role that outranks your own',
+    };
   }
 
   // Bootstrap invariant (#184): moving the last active super_admin onto another

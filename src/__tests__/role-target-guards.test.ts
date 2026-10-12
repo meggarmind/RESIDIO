@@ -17,6 +17,8 @@ type Write = { table: string; op: string; values?: Row };
 
 const state = vi.hoisted(() => ({
   tables: {} as Record<string, Row[]>,
+  /** Profile ids whose maybeSingle() read fails with a database error. */
+  failProfileReads: [] as string[],
   writes: [] as Array<{ table: string; op: string; values?: Row }>,
   auth: {
     authorized: true,
@@ -81,7 +83,13 @@ function fakeFrom(table: string) {
       const rows = execute();
       return rows[0] ? { data: rows[0], error: null } : { data: null, error: { message: 'no rows' } };
     },
-    maybeSingle: async () => ({ data: execute()[0] ?? null, error: null }),
+    maybeSingle: async () => {
+      const id = filters.find(([col]) => col === 'id')?.[1] as string | undefined;
+      if (table === 'profiles' && id && state.failProfileReads.includes(id)) {
+        return { data: null, error: { message: 'db down' } };
+      }
+      return { data: execute()[0] ?? null, error: null };
+    },
     then: (resolve: (v: unknown) => unknown) => resolve({ data: execute(), error: null }),
   };
   return builder;
@@ -115,7 +123,7 @@ import { assignRoleToUser, updateRole, updateRolePermissions } from '@/actions/r
 import { rejectAccount } from '@/actions/auth/account-approval';
 import { linkAuthAccountToResident } from '@/actions/auth/link-account';
 import { resetUserTwoFactor } from '@/actions/two-factor/disable';
-import { getRoleRank, canGrantRole } from '@/lib/auth/role-rank';
+import { getRoleRank, canGrantRole, assertCanManageTarget } from '@/lib/auth/role-rank';
 
 const RESIDENT_ID = '11111111-1111-4111-8111-111111111111';
 const TARGET_AUTH_ID = '22222222-2222-4222-8222-222222222222';
@@ -126,6 +134,9 @@ const ROLES: Record<string, Row> = {
   secretary: { id: 'r-sec', name: 'secretary', display_name: 'Secretary', is_active: true, is_system_role: true },
   resident: { id: 'r-res', name: 'resident', display_name: 'Resident', is_active: true, is_system_role: true },
   treasurer: { id: 'r-treasurer', name: 'treasurer', display_name: 'Treasurer', is_active: true, is_system_role: false },
+  // A role *named* super_admin that is not flagged as a system role, so the name
+  // check is exercised on its own rather than hidden behind is_system_role.
+  unflagged_super_admin: { id: 'r-sa-unflagged', name: 'super_admin', display_name: 'Super Admin', is_active: true, is_system_role: false },
   auditor: { id: 'r-auditor', name: 'auditor', display_name: 'Auditor', is_active: true, is_system_role: false },
 };
 
@@ -138,6 +149,7 @@ type Scenario = {
 /** Seeds the fake database and points the mocked authorizePermission at the caller. */
 function seed({ caller, target = 'secretary', targetStatus = 'active' }: Scenario) {
   state.writes = [];
+  state.failProfileReads = [];
   state.tables = {
     app_roles: Object.values(ROLES).map((r) => ({ ...r })),
     role_permissions: [{ role_id: 'r-auditor', permission_id: 'p1' }],
@@ -427,5 +439,89 @@ describe('updateRolePermissions', () => {
     seed({ caller: 'super_admin' });
     expect((await updateRolePermissions(ROLES.chairman.id as string, ['p2'])).success).toBe(true);
     expect((await updateRolePermissions(ROLES.super_admin.id as string, ['p3'])).success).toBe(true);
+  });
+});
+
+describe('assertCanManageTarget -- lookup failures refuse', () => {
+  it('refuses when the caller profile cannot be found', async () => {
+    seed({ caller: 'chairman' });
+    state.tables.profiles = state.tables.profiles.filter((p) => p.id !== 'caller');
+    expect(await assertCanManageTarget('caller', TARGET_AUTH_ID)).toEqual({
+      ok: false,
+      error: 'Could not verify your role',
+    });
+  });
+
+  it('refuses when the caller lookup errors', async () => {
+    seed({ caller: 'chairman' });
+    state.failProfileReads = ['caller'];
+    expect(await assertCanManageTarget('caller', TARGET_AUTH_ID)).toEqual({
+      ok: false,
+      error: 'Could not verify your role',
+    });
+  });
+
+  it('refuses with "Account not found" when the target does not exist', async () => {
+    seed({ caller: 'super_admin' });
+    expect(await assertCanManageTarget('caller', 'missing')).toEqual({
+      ok: false,
+      error: 'Account not found',
+    });
+  });
+
+  it('refuses with a distinct error when the target lookup errors', async () => {
+    seed({ caller: 'super_admin' });
+    state.failProfileReads = [TARGET_AUTH_ID];
+    expect(await assertCanManageTarget('caller', TARGET_AUTH_ID)).toEqual({
+      ok: false,
+      error: 'Could not verify the account',
+    });
+  });
+
+  it('stops a role assignment on a missing target or a failed lookup, with no write', async () => {
+    seed({ caller: 'super_admin' });
+    state.tables.profiles = state.tables.profiles.filter((p) => p.id !== TARGET_AUTH_ID);
+    expect((await assignRoleToUser(TARGET_AUTH_ID, ROLES.auditor.id as string)).success).toBe(false);
+
+    seed({ caller: 'super_admin' });
+    state.failProfileReads = [TARGET_AUTH_ID];
+    expect((await assignRoleToUser(TARGET_AUTH_ID, ROLES.auditor.id as string)).success).toBe(false);
+    expect(writesTo('profiles')).toEqual([]);
+  });
+});
+
+describe('linkAuthAccountToResident -- the one place "not found" is tolerated', () => {
+  it('provisions a profile when none exists (accounts predating handle_new_user)', async () => {
+    seed({ caller: 'chairman' });
+    state.tables.profiles = state.tables.profiles.filter((p) => p.id !== TARGET_AUTH_ID);
+    const result = await linkAuthAccountToResident(TARGET_AUTH_ID, RESIDENT_ID);
+    expect(result.success).toBe(true);
+    expect(writesTo('profiles').map((w) => w.op)).toEqual(['insert']);
+  });
+
+  it('does NOT tolerate a failed target lookup', async () => {
+    seed({ caller: 'treasurer', target: 'chairman' });
+    state.failProfileReads = [TARGET_AUTH_ID];
+    const result = await linkAuthAccountToResident(TARGET_AUTH_ID, RESIDENT_ID);
+    expect(result.success).toBe(false);
+    expect(writesTo('profiles')).toEqual([]);
+  });
+});
+
+describe('role edits when the role is missing, or merely named super_admin', () => {
+  it('refuses updateRole and updateRolePermissions for a role that does not exist', async () => {
+    seed({ caller: 'chairman' });
+    expect((await updateRole('r-missing', { display_name: 'x' })).success).toBe(false);
+    expect((await updateRolePermissions('r-missing', ['p2'])).success).toBe(false);
+    expect(state.writes).toEqual([]);
+  });
+
+  it('refuses a non-super_admin editing a role named super_admin even when it is not flagged system', async () => {
+    seed({ caller: 'chairman' });
+    const id = ROLES.unflagged_super_admin.id as string;
+    expect((await updateRole(id, { display_name: 'x' })).success).toBe(false);
+    expect((await updateRolePermissions(id, ['p2'])).success).toBe(false);
+    expect(writesTo('app_roles')).toEqual([]);
+    expect(writesTo('role_permissions')).toEqual([]);
   });
 });
