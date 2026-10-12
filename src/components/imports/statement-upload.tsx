@@ -18,7 +18,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Upload, File, X, Loader2, AlertCircle, Lock, FileText, CheckCircle2 } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/use-imports';
 import { parseCSVFile } from '@/lib/parsers/csv-parser';
-import { parseXLSXFile } from '@/lib/parsers/xlsx-parser';
 import { parsePdfStatement } from '@/actions/imports/parse-pdf-statement';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -108,6 +107,8 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
         rawData = result.rawData;
         headers = rawData.length > 0 ? Object.keys(rawData[0]) : [];
       } else if (extension === 'xlsx' || extension === 'xls') {
+        // Load the xlsx parser only when a spreadsheet is actually chosen (#464).
+        const { parseXLSXFile } = await import('@/lib/parsers/xlsx-parser');
         const result = await parseXLSXFile(file);
         rawData = result.rawData;
         headers = rawData.length > 0 ? Object.keys(rawData[0]) : [];

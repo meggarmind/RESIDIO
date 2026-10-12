@@ -117,10 +117,14 @@ export function NotificationBell() {
   const [category, setCategory] = useState<string>('all');
 
   const { data: unreadCount = 0, isLoading: isLoadingCount } = useUnreadNotificationCount();
-  const { data: notificationsData, isLoading: isLoadingNotifications } = useInAppNotifications({
-    limit: 10,
-    category: category !== 'all' ? category : undefined,
-  });
+  // The list is only shown inside the popover, so do not fetch it while closed (#464).
+  const { data: notificationsData, isLoading: isLoadingNotifications } = useInAppNotifications(
+    {
+      limit: 10,
+      category: category !== 'all' ? category : undefined,
+    },
+    { enabled: open }
+  );
   const markAsReadMutation = useMarkNotificationAsRead();
   const markAllAsReadMutation = useMarkAllNotificationsAsRead();
 

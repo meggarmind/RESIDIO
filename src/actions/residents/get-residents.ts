@@ -134,6 +134,35 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
 }
 
 /**
+ * Slim resident list for dropdowns that only need a name and code (#464).
+ * Skips the nested resident_houses/house/street/house_type join that
+ * getResidents pulls in. Same RESIDENTS_VIEW gate and same RLS-scoped client
+ * as getResidents, so the set of people who can see a resident is unchanged.
+ */
+export async function getResidentOptions(): Promise<{
+  data: Array<{ id: string; first_name: string; last_name: string; resident_code: string }>;
+  error: string | null;
+}> {
+  const auth = await authorizePermission(PERMISSIONS.RESIDENTS_VIEW);
+  if (!auth.authorized) {
+    return { data: [], error: auth.error || 'Unauthorized' };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from('residents')
+    .select('id, first_name, last_name, resident_code')
+    .order('first_name')
+    .order('last_name')
+    .limit(1000);
+
+  return {
+    data: data ?? [],
+    error: error?.message ?? null,
+  };
+}
+
+/**
  * Get all active residents (simple list for dropdowns)
  */
 export async function getActiveResidents(): Promise<{
