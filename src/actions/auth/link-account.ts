@@ -4,6 +4,7 @@ import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/se
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { ACCOUNT_NOT_FOUND_ERROR, assertCanManageTarget } from '@/lib/auth/role-rank';
 import { z } from 'zod';
 
 // Types for auth account search results
@@ -259,6 +260,29 @@ export async function linkAuthAccountToResident(
       `)
       .eq('id', authUserId)
       .single();
+
+    // Target guard (#475). Read through the service role so RLS hiding the row
+    // from the caller cannot turn into a bypass. "Not found" is tolerated only
+    // because the insert path below provisions accounts that predate the
+    // handle_new_user() trigger.
+    const targetGuard = await assertCanManageTarget(auth.userId!, authUserId);
+    if (!targetGuard.ok && targetGuard.error !== ACCOUNT_NOT_FOUND_ERROR) {
+      return { success: false, error: targetGuard.error };
+    }
+
+    // Linking force-sets approval_status to 'active'. That is right for a
+    // pending account; for a rejected or suspended one it would silently undo an
+    // administrator's decision.
+    if (
+      targetGuard.ok &&
+      (targetGuard.targetApprovalStatus === 'rejected' ||
+        targetGuard.targetApprovalStatus === 'suspended')
+    ) {
+      return {
+        success: false,
+        error: `This account is ${targetGuard.targetApprovalStatus}. Reinstate it before linking it to a resident.`,
+      };
+    }
 
     let previousResidentId: string | undefined;
     let previousResidentName: string | undefined;

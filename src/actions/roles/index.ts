@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
+import { assertCanManageTarget, canGrantRole } from '@/lib/auth/role-rank';
 import type {
   AppRole,
   AppPermission,
@@ -260,6 +261,16 @@ export async function updateRole(
     .eq('id', roleId)
     .single();
 
+  // Rank guard (#475): super_admin and system roles are editable by a super
+  // admin only. Without this a manage_roles holder could rewrite the roles that
+  // sit above them.
+  if (
+    auth.roleName !== 'super_admin' &&
+    (!oldRole || oldRole.name === 'super_admin' || oldRole.is_system_role)
+  ) {
+    return { success: false, error: 'Only Super Administrator can edit system roles' };
+  }
+
   // Check if it's a system role
   if (oldRole?.is_system_role) {
     // System roles can only have limited fields updated
@@ -380,9 +391,21 @@ export async function updateRolePermissions(
   // Get role for audit
   const { data: role } = await supabase
     .from('app_roles')
-    .select('display_name')
+    .select('name, display_name, is_system_role')
     .eq('id', roleId)
     .single();
+
+  // Rank guard (#475): only a super admin may change the permissions of
+  // super_admin or any system role, or of the role they themselves hold --
+  // otherwise a manage_roles holder can grant their own role anything.
+  if (auth.roleName !== 'super_admin') {
+    if (!role || role.name === 'super_admin' || role.is_system_role) {
+      return { success: false, error: 'Only Super Administrator can edit permissions of system roles' };
+    }
+    if (auth.roleId === roleId) {
+      return { success: false, error: 'You cannot edit the permissions of your own role' };
+    }
+  }
 
   // Get old permissions
   const { data: oldPerms } = await supabase
@@ -467,6 +490,12 @@ export async function assignRoleToUser(
 
   const supabase = await createServerSupabaseClient();
 
+  // Target guard (#475): the account being changed must not outrank the caller.
+  const targetGuard = await assertCanManageTarget(auth.userId!, userId);
+  if (!targetGuard.ok) {
+    return { success: false, error: targetGuard.error };
+  }
+
   // Check role assignment rules
   const { checkRoleAssignmentAllowed } = await import('./assignment-rules');
   const ruleCheck = await checkRoleAssignmentAllowed(userId, roleId);
@@ -483,6 +512,23 @@ export async function assignRoleToUser(
     .select('name')
     .eq('id', roleId)
     .single();
+
+  if (!targetRole) {
+    return { success: false, error: 'Role not found' };
+  }
+
+  // Escalation guard (#475): this path had none. Same rule as
+  // assignRoleToProfile -- super_admin and chairman are grantable by a
+  // super_admin only, and nobody may grant above their own rank.
+  if (!canGrantRole(auth.roleName, targetRole.name)) {
+    return {
+      success: false,
+      error:
+        targetRole.name === 'super_admin' || targetRole.name === 'chairman'
+          ? `Only Super Administrator can assign the ${targetRole.name === 'super_admin' ? 'Super Administrator' : 'Chairman'} role`
+          : 'You cannot assign a role that outranks your own',
+    };
+  }
 
   // Bootstrap invariant (#184). This is a second role-assignment path alongside
   // assignRoleToProfile(), and it can demote the last administrator just as

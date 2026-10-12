@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
+import { assertCanManageTarget } from '@/lib/auth/role-rank';
 import { sanitizeSearchInput } from '@/lib/utils';
 import type { ProfileApprovalStatus } from '@/types/database';
 
@@ -302,6 +303,14 @@ export async function assignRoleToProfile(
 
   if (!role.is_active) {
     return { success: false, error: 'Cannot assign an inactive role' };
+  }
+
+  // Target guard (#475): the account being changed must not outrank the caller.
+  // Without this an assign_roles holder could demote a chairman or a non-last
+  // super_admin by "assigning" them an ordinary role.
+  const targetGuard = await assertCanManageTarget(auth.userId!, profileId);
+  if (!targetGuard.ok) {
+    return { success: false, error: targetGuard.error };
   }
 
   // Escalation guards: the two highest roles may only be granted by a super
