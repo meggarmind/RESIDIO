@@ -482,7 +482,8 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     );
   }
 
-  if (isEditing) {
+  // ?edit=true is a URL anyone can type; only render the form for users who may save it.
+  if (isEditing && canUpdateHouse) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -878,6 +879,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleOpenEditDialog(rh)}
+                            aria-label="Edit role"
                             disabled={updateResidentHouseMutation.isPending}
                             className="text-muted-foreground hover:text-primary"
                           >
