@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
-import { getSettingResultAsService } from '@/actions/settings/get-settings';
+import { getSettingResultAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 
-vi.mock('@/actions/settings/get-settings', () => ({ getSettingResultAsService: vi.fn() }));
+vi.mock('@/lib/settings/service', () => ({ getSettingResultAsService: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 
 describe('WhatsApp rollout targeting', () => {
