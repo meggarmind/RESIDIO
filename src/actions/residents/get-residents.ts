@@ -3,7 +3,7 @@
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { sanitizeSearchInput } from '@/lib/utils';
+import { eqValue, ilikeContains } from '@/lib/postgrest-filter';
 import type { ResidentWithHouses } from '@/types/database';
 import type { ResidentSearchParams } from '@/lib/validators/resident';
 
@@ -69,8 +69,14 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
 
   // Apply basic filters
   if (search) {
-    const sanitized = sanitizeSearchInput(search);
-    query = query.or(`first_name.ilike.%${sanitized}%,last_name.ilike.%${sanitized}%,resident_code.eq.${search},phone_primary.ilike.%${sanitized}%`);
+    query = query.or(
+      [
+        ilikeContains('first_name', search),
+        ilikeContains('last_name', search),
+        eqValue('resident_code', search),
+        ilikeContains('phone_primary', search),
+      ].join(',')
+    );
   }
   if (status) {
     query = query.eq('account_status', status);

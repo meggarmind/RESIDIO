@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 
 // Types
 export type ReportType = 'financial_overview' | 'collection_report' | 'invoice_aging' | 'transaction_log' | 'debtors_report' | 'indebtedness_summary' | 'indebtedness_detail' | 'development_levy';
@@ -513,7 +514,7 @@ export async function createReportVersion(input: {
     const { data: versions } = await supabase
         .from('generated_reports')
         .select('version')
-        .or(`id.eq.${originalId},parent_report_id.eq.${originalId}`)
+        .or(idOrParentFilterStrict('id', 'parent_report_id', originalId))
         .order('version', { ascending: false })
         .limit(1);
 
@@ -523,7 +524,7 @@ export async function createReportVersion(input: {
     await supabase
         .from('generated_reports')
         .update({ is_latest: false })
-        .or(`id.eq.${originalId},parent_report_id.eq.${originalId}`);
+        .or(idOrParentFilterStrict('id', 'parent_report_id', originalId));
 
     // Create the new version
     const { data, error } = await supabase
@@ -590,7 +591,7 @@ export async function getReportVersionHistory(reportId: string): Promise<{ data:
     const { data, error } = await supabase
         .from('generated_reports')
         .select('*')
-        .or(`id.eq.${originalId},parent_report_id.eq.${originalId}`)
+        .or(idOrParentFilterStrict('id', 'parent_report_id', originalId))
         .order('version', { ascending: false });
 
     if (error) {
