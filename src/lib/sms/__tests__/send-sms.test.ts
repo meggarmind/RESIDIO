@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sendSms } from '@/lib/sms/send-sms';
-import { getSettingValueAsService } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 
-vi.mock('@/actions/settings/get-settings', () => ({
+vi.mock('@/lib/settings/service', () => ({
   getSettingValueAsService: vi.fn(),
 }));
 
