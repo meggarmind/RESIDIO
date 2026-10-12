@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processPaystackWebhook } from '@/actions/paystack';
+import { getWebhookSecret } from '@/lib/paystack/client';
 
 /**
  * Paystack Webhook Handler
@@ -20,6 +21,12 @@ import { processPaystackWebhook } from '@/actions/paystack';
  * - Webhook secret is stored in PAYSTACK_WEBHOOK_SECRET env var
  */
 export async function POST(request: NextRequest) {
+  // Fail closed: without a configured secret nothing can be authenticated.
+  if (!getWebhookSecret()) {
+    console.error('[Paystack Webhook] PAYSTACK_WEBHOOK_SECRET is not set; refusing to process');
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 });
+  }
+
   try {
     // Get raw body for signature verification
     const payload = await request.text();
@@ -37,6 +44,10 @@ export async function POST(request: NextRequest) {
 
     // Process the webhook
     const result = await processPaystackWebhook(payload, signature);
+
+    if (!result.success && result.error === 'Invalid webhook signature') {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
 
     if (!result.success) {
       console.error('[Paystack Webhook] Processing failed:', result.error);

@@ -3,7 +3,8 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { formatDateTime, sanitizeSearchInput } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils';
+import { ilikeAny } from '@/lib/postgrest-filter';
 import type { SecurityContactFilters } from '@/lib/validators/security-contact';
 
 type ExportSecurityContactsResponse = {
@@ -38,10 +39,7 @@ export async function exportSecurityContactsCSV(
 
   // Apply filters
   if (search) {
-    const sanitized = sanitizeSearchInput(search);
-    query = query.or(
-      `full_name.ilike.%${sanitized}%,phone_primary.ilike.%${sanitized}%,id_number.ilike.%${sanitized}%`
-    );
+    query = query.or(ilikeAny(['full_name', 'phone_primary', 'id_number'], search));
   }
 
   if (resident_id) {
