@@ -28,13 +28,18 @@ vi.mock('@/hooks/use-payments', () => ({
   useBulkUpdatePayments: () => ({ mutateAsync: vi.fn(), isPending: false }),
   usePayments: () => ({ data: { data: [], count: 0 }, isLoading: false }),
   usePaymentStats: () => ({ data: undefined, isLoading: false }),
+  usePayment: () => ({ data: undefined, isLoading: false, error: null }),
 }));
+
+vi.mock('@/components/payments/payment-receipt', () => ({ PaymentReceipt: () => null }));
+vi.mock('@/components/payments/email-receipt-dialog', () => ({ EmailReceiptDialog: () => null }));
 
 vi.mock('@/components/payments/payment-filters', () => ({
   PaymentFilters: () => null,
 }));
 
 import { PaymentTable } from '@/components/payments/payment-table';
+import { PaymentQuickViewSheet } from '@/components/payments/payment-quick-view-sheet';
 import PaymentsPage from '@/app/(dashboard)/payments/page';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
@@ -101,5 +106,31 @@ describe('Payments permission gating (issue #462)', () => {
 
     expect(screen.getByText('Update Status')).toBeInTheDocument();
     expect(screen.getByText('Delete Selected')).toBeInTheDocument();
+  });
+
+  it('hides the empty-state Add Payment from a view-only user', () => {
+    mocks.permissions = [PERMISSIONS.PAYMENTS_VIEW];
+    render(<PaymentTable data={[]} />);
+    expect(screen.getByText('No payments found')).toBeInTheDocument();
+    expect(screen.queryByText('Add Payment')).not.toBeInTheDocument();
+  });
+
+  it('shows the empty-state Add Payment to a user holding payments.create', () => {
+    mocks.permissions = [PERMISSIONS.PAYMENTS_VIEW, PERMISSIONS.PAYMENTS_CREATE];
+    render(<PaymentTable data={[]} />);
+    expect(screen.getByText('Add Payment')).toBeInTheDocument();
+  });
+
+  it('hides the quick-view Edit link from a view-only user', () => {
+    mocks.permissions = [PERMISSIONS.PAYMENTS_VIEW];
+    render(<PaymentQuickViewSheet paymentId="pay-1" open onOpenChange={() => {}} />);
+    expect(screen.getByText('Receipt Preview')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Edit/ })).not.toBeInTheDocument();
+  });
+
+  it('shows the quick-view Edit link to a user holding payments.update', () => {
+    mocks.permissions = [PERMISSIONS.PAYMENTS_VIEW, PERMISSIONS.PAYMENTS_UPDATE];
+    render(<PaymentQuickViewSheet paymentId="pay-1" open onOpenChange={() => {}} />);
+    expect(screen.getByRole('link', { name: /Edit/ })).toBeInTheDocument();
   });
 });

@@ -263,10 +263,12 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                         </p>
                     </div>
                     <div className="flex gap-3">
-                        <Button onClick={() => router.push(residentId ? `/payments/new?residentId=${residentId}` : '/payments/new')}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Payment
-                        </Button>
+                        <Can permission={PERMISSIONS.PAYMENTS_CREATE}>
+                            <Button onClick={() => router.push(residentId ? `/payments/new?residentId=${residentId}` : '/payments/new')}>
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Payment
+                            </Button>
+                        </Can>
                         <Button
                             variant="ghost"
                             onClick={() => router.push('/payments')}
