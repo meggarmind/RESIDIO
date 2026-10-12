@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   user: null as { id: string } | null,
   profile: null as Record<string, unknown> | null,
   sessionId: 'session-1' as string | null,
+  profileError: null as { code: string; message: string } | null,
 }));
 
 function fakeJwt(sessionId: string | null) {
@@ -29,7 +30,9 @@ vi.mock('@supabase/ssr', () => ({
         select: () => builder,
         eq: () => builder,
         single: async () =>
-          table === 'profiles' ? { data: state.profile, error: null } : { data: null, error: null },
+          table === 'profiles'
+            ? { data: state.profileError ? null : state.profile, error: state.profileError }
+            : { data: null, error: null },
         then: (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
       };
       return builder;
@@ -71,6 +74,7 @@ beforeEach(() => {
   state.user = USER;
   state.sessionId = SESSION_ID;
   state.profile = activeProfile({ two_factor_enabled: true });
+  state.profileError = null;
 });
 
 describe('middleware 2FA gate', () => {
@@ -150,6 +154,50 @@ describe('middleware 2FA gate', () => {
     state.profile = null;
     const res = await middleware(req('/residents'));
     expect(new URL(res.headers.get('location') as string).pathname).toBe('/login');
+  });
+
+  it('fails closed on a profile query ERROR: /api gets 403, pages go to login', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    state.profile = null;
+    state.profileError = { code: '57014', message: 'statement timeout' };
+    expect((await middleware(req('/api/payments/list'))).status).toBe(403);
+    const page = await middleware(req('/residents'));
+    const loc = new URL(page.headers.get('location') as string);
+    expect(loc.pathname).toBe('/login');
+    expect(loc.searchParams.get('error')).toBe('profile_unavailable');
+    spy.mockRestore();
+  });
+
+  it('a profile query error does not trap the login page or the verify flow', async () => {
+    state.profile = null;
+    state.profileError = { code: '57014', message: 'statement timeout' };
+    for (const path of ['/login', '/auth/verify-2fa', '/api/auth/2fa/verify']) {
+      const res = await middleware(req(path));
+      expect(res.status, path).not.toBe(403);
+    }
+  });
+
+  it('keeps the existing behaviour for a genuinely missing profile (PGRST116)', async () => {
+    state.profile = null;
+    state.profileError = { code: 'PGRST116', message: 'no rows' };
+    const res = await middleware(req('/residents'));
+    expect(new URL(res.headers.get('location') as string).pathname).toBe('/pending-approval');
+  });
+
+  it('exempt paths match exact or on a segment boundary only', () => {
+    for (const bad of ['/api/auth/2fa-evil', '/loginx', '/auth/verify-2fa.evil', '/login.evil', '/api/auth/2fax/verify', '/maintenance-x']) {
+      expect(isTwoFactorExemptPath(bad), bad).toBe(false);
+    }
+    for (const good of ['/login', '/login/', '/auth/verify-2fa', '/api/auth/2fa/verify', '/auth/callback']) {
+      expect(isTwoFactorExemptPath(good), good).toBe(true);
+    }
+  });
+
+  it('an unverified enrolled user is not waved through a look-alike path', async () => {
+    for (const bad of ['/loginx', '/api/auth/2fa-evil', '/auth/verify-2fa.evil']) {
+      const res = await middleware(req(bad));
+      expect(res.status, bad).not.toBe(200);
+    }
   });
 
   it('exempt-path list is tight', () => {

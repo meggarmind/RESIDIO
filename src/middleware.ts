@@ -96,8 +96,9 @@ const twoFactorExemptPrefixes = [
     '/maintenance',
 ];
 
+/** Exact match or a path-segment child: /login and /login/x, never /loginx or /auth/verify-2fa.evil. */
 export function isTwoFactorExemptPath(pathname: string): boolean {
-    return twoFactorExemptPrefixes.some((prefix) => pathname.startsWith(prefix));
+    return twoFactorExemptPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'));
 }
 
 // Routes that should be accessible even during maintenance mode
@@ -148,6 +149,7 @@ export async function middleware(request: NextRequest) {
     // PERFORMANCE: getUser() first, then batch maintenance check and
     // profiles query into a single Promise.all round trip.
     let isMaintenanceMode = false;
+    let profileQueryFailed = false;
     let profile: {
         role_id: string | null;
         resident_id: string | null;
@@ -171,7 +173,22 @@ export async function middleware(request: NextRequest) {
                 .single(),
         ]);
         profile = profileData?.data || null;
+        // PGRST116 is "no row" (a legitimately missing profile). Any other error
+        // means we could not establish whether 2FA applies, so we must not guess.
+        profileQueryFailed = !!profileData?.error && profileData.error.code !== 'PGRST116';
         isMaintenanceMode = maintenanceData?.data?.value === true;
+    }
+
+    // Fail closed when the profile lookup itself errored (#455): without it the
+    // two-factor and approval checks below would silently be skipped.
+    if (user && profileQueryFailed && !isTwoFactorExemptPath(pathname)) {
+        console.error('[middleware] profile query failed for authenticated user; failing closed');
+        if (pathname.startsWith('/api')) {
+            return NextResponse.json({ error: 'profile_unavailable' }, { status: 403 });
+        }
+        const redirectUrl = new URL('/login', publicOrigin);
+        redirectUrl.searchParams.set('error', 'profile_unavailable');
+        return NextResponse.redirect(redirectUrl);
     }
 
     // Approval gate. Accounts that are not active hold no permissions at the
