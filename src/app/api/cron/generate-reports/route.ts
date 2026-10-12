@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDueSchedules, markScheduleExecuted, saveGeneratedReport } from '@/actions/reports/report-schedules';
+import { getDueSchedules, markScheduleExecuted, saveScheduledReport } from '@/lib/reports/scheduled-report-store';
 import { generateReport } from '@/actions/reports/report-engine';
 import { getDateRangeFromPreset, type ReportRequestFormData } from '@/lib/validators/reports';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
                 const summary = buildReportSummary(reportResult.report);
 
                 // Save the generated report
-                const { data: savedReport, error: saveError } = await saveGeneratedReport({
+                const { data: savedReport, error: saveError } = await saveScheduledReport({
                     name: `${schedule.name} - ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`,
                     report_type: schedule.report_type,
                     schedule_id: schedule.id,
@@ -96,7 +96,6 @@ export async function GET(request: NextRequest) {
                     template_style: schedule.template_style,
                     report_data: reportResult.report,
                     summary,
-                    generation_trigger: 'scheduled',
                     generation_duration_ms: durationMs,
                 });
 

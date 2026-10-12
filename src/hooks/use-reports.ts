@@ -145,7 +145,6 @@ export function useGenerateReport() {
                     bank_account_ids: params.bankAccountIds,
                     template_style: 'modern',
                     report_data: result.report,
-                    generation_trigger: 'manual',
                     generation_duration_ms: durationMs,
                 });
             }
