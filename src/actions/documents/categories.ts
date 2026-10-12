@@ -1,6 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { z } from 'zod';
 import type { DocumentCategory } from '@/types/database';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';
@@ -105,6 +106,15 @@ export async function createDocumentCategory(input: {
   return { data: data as DocumentCategory, error: null };
 }
 
+// Strict: only these columns may be edited; anything else is rejected.
+const updateDocumentCategorySchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().nullable().optional(),
+  is_resident_accessible: z.boolean().optional(),
+  is_active: z.boolean().optional(),
+  display_order: z.number().optional(),
+}).strict();
+
 /**
  * Update an existing document category
  */
@@ -121,6 +131,12 @@ export async function updateDocumentCategory(
   const auth = await authorizePermission(PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES);
   if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
 
+  const parsed = updateDocumentCategorySchema.safeParse(input);
+  if (!parsed.success) {
+    return { data: null, error: parsed.error.issues[0]?.message || 'Invalid category data' };
+  }
+  const fields = parsed.data;
+
   const supabase = await createServerSupabaseClient();
 
   const { data: existing } = await supabase
@@ -131,7 +147,7 @@ export async function updateDocumentCategory(
 
   const { data, error } = await supabase
     .from('document_categories')
-    .update(input)
+    .update(fields)
     .eq('id', id)
     .select()
     .single();
