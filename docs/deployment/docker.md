@@ -169,6 +169,8 @@ The same `Dockerfile` runs unchanged. What moves is where the values come from.
 
 1. **Build args** are entered in Coolify's UI as build-time environment variables. Only the
    `NEXT_PUBLIC_*` set belongs here. Changing one requires a rebuild, not a restart.
+   `NEXT_PUBLIC_APP_VERSION`, `NEXT_PUBLIC_GIT_SHA` and `NEXT_PUBLIC_APP_ENV` are optional public
+   build args set by CI (see `hosting-plan.md`); without them the app shows `dev · unknown`.
 2. **Runtime secrets** are entered as ordinary Coolify environment variables with the build-time
    flag off. Changing one takes effect on redeploy of the running container.
 3. **Traefik terminates TLS.** The container speaks plain HTTP on 3000 and is never exposed on

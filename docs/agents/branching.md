@@ -177,6 +177,31 @@ the full tree, the figure the Coolify build log shows).
 The gate needs no secrets beyond `GITHUB_TOKEN`. A finding in the secret scan means rotating
 the credential, not only deleting it, since it stays in history.
 
+### Build version variables (#421)
+
+`.github/workflows/coolify-version.yml` (logic in `scripts/coolify-version.mjs`) writes
+`NEXT_PUBLIC_APP_VERSION`, `NEXT_PUBLIC_GIT_SHA` and `NEXT_PUBLIC_APP_ENV` into each Coolify
+application's build variables, so the build knows what it is. The version is the exact tag on a
+release commit. Otherwise it is the newest `vX.Y.Z` tag whose second parent (the `stage` commit
+that release merged) the commit has reached: `v0.5.0` on that commit, `v0.5.0-3-gabc1234` three
+commits later. Plain `git describe` would be wrong on `stage`, because release tags sit on
+`master` merge commits that `stage` never contains. On every push to `stage` it sets them on `residio-stage` **and triggers its deploy**. On
+every new release tag, `release.yml` calls it to set them on `residio-prod` **only**: Prod is
+still deployed by hand after migrations, and that build picks the values up. Until it is set
+up, the workflow logs a notice naming the missing secrets and passes. Owner setup, once:
+
+1. **Cloudflare Zero Trust**: create a service token and add a **Service Auth** policy for
+   `coolify.<domain>/api*`. The API stays behind Access; only `/webhooks` is bypassed.
+2. **Coolify**: create an API token with write and deploy rights, and switch **auto-deploy off
+   on `residio-stage`** (Prod's is already off). Otherwise Coolify builds before the variables
+   are set and Stage shows the previous version; every Stage run raises a warning as a reminder.
+3. **GitHub Actions secrets**: `COOLIFY_BASE_URL` (`https://coolify.<domain>`),
+   `COOLIFY_API_TOKEN`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`,
+   `COOLIFY_APP_UUID_STAGE`, `COOLIFY_APP_UUID_PROD`.
+
+For a release tagged before the secrets existed, run **Coolify Version** from the Actions tab
+on `master` with `production`.
+
 ## What these rules cannot do
 
 They bind sessions that read this file, and branch protection binds every tool at the

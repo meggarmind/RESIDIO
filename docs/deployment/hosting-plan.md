@@ -223,7 +223,7 @@ own `HEALTHCHECK`).
 |---|---|---|
 | Domain | `https://app.<domain>` | `https://stage.<domain>` |
 | Branch | `master` | `stage` |
-| Auto-deploy on push | **Off**: deploy by hand after any migration (`CORE.md` §11) | On |
+| Auto-deploy on push | **Off**: deploy by hand after any migration (`CORE.md` §11) | **Off**: CI (`.github/workflows/coolify-version.yml`) sets the build version, then triggers the deploy |
 | Supabase | Residio_Prod | Residio_Stage |
 | Memory limit | ~2 GB | ~1 GB |
 
@@ -231,6 +231,16 @@ Build variables (public; inlined into the browser bundle): `NEXT_PUBLIC_ENV_MODE
 `NEXT_PUBLIC_SUPABASE_URL_CLOUD`, `NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD`, `NEXT_PUBLIC_SITE_URL`,
 `NEXT_PUBLIC_APP_URL` (both the **https** origin), `NEXT_PUBLIC_PAYSTACK_KEY`,
 `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`.
+
+Build identity variables (public; do not set by hand): `NEXT_PUBLIC_APP_VERSION` (the release
+the commit belongs to: `v0.5.0` on the release, and on the `stage` commit it merged;
+`v0.5.0-3-gabc1234` three commits further along `stage`), `NEXT_PUBLIC_GIT_SHA` and
+`NEXT_PUBLIC_APP_ENV` (`production` or `staging`). They are **set by CI**
+(`.github/workflows/coolify-version.yml`), not by hand. Prod's values are set on each release
+tag, and CI never deploys Prod. Stage's are set on each push to `stage`, and CI then triggers the
+Stage deploy, which is why Stage's own auto-deploy is off. Setup and secrets:
+`docs/agents/branching.md` (Build version variables). The admin sidebar footer and
+`GET /api/version` show them; until CI sets them the app shows `dev · unknown`.
 
 Runtime secrets (build variable off; different values per environment):
 `SUPABASE_SERVICE_ROLE_KEY_CLOUD`, `CRON_SECRET`, `DATA_ENCRYPTION_KEY`,
