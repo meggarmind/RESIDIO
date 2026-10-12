@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { safeNextPath } from '@/lib/auth/safe-next-path';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from '@/components/ui/input-otp';
@@ -26,12 +27,11 @@ export function Verify2FAForm() {
   const [codeSent, setCodeSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  const requestedNext = searchParams.get('next');
-  // Same-origin paths only: block open redirects such as //evil.com or /\evil.com
-  const redirectTo =
-    requestedNext && requestedNext.startsWith('/') && !requestedNext.startsWith('//') && !requestedNext.startsWith('/\\')
-      ? requestedNext
-      : '/dashboard';
+  // Strict same-origin allow-list; anything else becomes /dashboard (#455).
+  const redirectTo = safeNextPath(
+    searchParams.get('next'),
+    typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+  );
 
   useEffect(() => {
     // Check if we have a pending 2FA verification
