@@ -2,7 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
-import { debitWalletForInvoice } from '@/actions/billing/wallet';
+import { debitWalletForInvoiceAtomic } from '@/lib/billing/wallet-invoice-debit';
 import { createLogger } from '@/lib/logger';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import { authorizePermission } from '@/lib/auth/authorize';
@@ -315,7 +315,7 @@ export async function generateLeviesForHouse(
                 });
 
                 // Try to auto-debit from wallet
-                const debitResult = await debitWalletForInvoice(targetResidentId, newInvoice.id);
+                const debitResult = await debitWalletForInvoiceAtomic(supabase, targetResidentId, newInvoice.id);
                 if (debitResult.success && debitResult.amountDebited > 0) {
                     log.info(`Auto-debited ₦${debitResult.amountDebited} from wallet for ${invoiceNumber}`);
                 }
