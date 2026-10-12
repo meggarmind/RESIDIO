@@ -7,6 +7,7 @@ import {
   isUuid,
   MAX_SEARCH_TERM_LENGTH,
   quotePostgrestValue,
+  uuidInList,
 } from '@/lib/postgrest-filter';
 
 /**
@@ -92,6 +93,21 @@ describe('eqValue', () => {
     );
     expect(clauses).toHaveLength(2);
     expect(clauses[0]).toBe('resident_code.eq."a,id.neq.0"');
+  });
+});
+
+describe('uuidInList', () => {
+  const a = '123e4567-e89b-42d3-a456-426614174000';
+  const b = '223e4567-e89b-42d3-a456-426614174001';
+  it('joins valid uuids in parentheses', () => {
+    expect(uuidInList([a, b])).toBe(`(${a},${b})`);
+  });
+  it('drops anything that is not a uuid, so no syntax can be injected', () => {
+    expect(uuidInList([a, '1),id.neq.0,(2', 'x', undefined, `${a},${b}`])).toBe(`(${a})`);
+  });
+  it('returns null when nothing valid remains', () => {
+    expect(uuidInList([])).toBeNull();
+    expect(uuidInList(['a,b'])).toBeNull();
   });
 });
 

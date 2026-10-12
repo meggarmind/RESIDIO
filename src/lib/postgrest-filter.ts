@@ -72,6 +72,16 @@ export function idOrParentFilter(
 }
 
 /**
+ * `(id1,id2,...)` for `.not('col', 'in', ...)` raw filters. Non-UUID entries are
+ * dropped (they cannot match a uuid column anyway), so a crafted value can never
+ * add syntax. Returns null when no valid id remains.
+ */
+export function uuidInList(ids: unknown[]): string | null {
+  const valid = ids.filter(isUuid);
+  return valid.length > 0 ? `(${valid.join(',')})` : null;
+}
+
+/**
  * Like {@link idOrParentFilter} but throws on a non-UUID. For call sites where
  * the id was already read back from the database, so a non-UUID is an
  * impossible state rather than bad user input.

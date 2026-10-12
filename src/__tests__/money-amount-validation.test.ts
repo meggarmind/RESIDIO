@@ -272,6 +272,32 @@ describe('system settings numeric values', () => {
     expect(result.success).toBe(false);
     expect(state.fromCalls).toEqual([]);
   });
+  it.each([
+    ['grace_period_days', -1],
+    ['grace_period_days', 100000],
+    ['grace_period_days', 1.5],
+    ['grace_period_days', '-3'],
+    ['session_timeout_minutes', 20000],
+    ['approval_auto_reject_hours', -5],
+    ['late_fee_amount', -5],
+    ['late_fee_amount', 1e12],
+  ])('updateSetting rejects %s = %j without writing', async (key, value) => {
+    const result = await updateSetting(key, value);
+    expect(result.error).toBeTruthy();
+    expect(state.fromCalls).toEqual([]);
+  });
+  it.each([
+    ['grace_period_days', 7],
+    ['grace_period_days', '7'],
+    ['grace_period_days', 0],
+    ['late_fee_amount', 5.5],
+    ['payment_reminder_days', [7, 3, 1]],
+    ['company_name', 'Acme'],
+    ['some_other_number', -4],
+  ])('updateSetting lets %s = %j through to the database', async (key, value) => {
+    await updateSetting(key, value);
+    expect(state.fromCalls).toContain('system_settings');
+  });
   it('createSetting rejects a non-finite number', async () => {
     const result = await createSetting('k', Number.NEGATIVE_INFINITY);
     expect(result.error).toMatch(/finite/);

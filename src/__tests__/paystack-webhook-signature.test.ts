@@ -41,4 +41,13 @@ describe('verifyWebhookSignature (#456)', () => {
     expect(await verifyWebhookSignature(BODY, '')).toBe(false);
     expect(await verifyWebhookSignature(BODY + ' ', sign(BODY))).toBe(false);
   });
+
+  it('rejects the correct HMAC with extra trailing characters, and any shorter prefix', async () => {
+    process.env.PAYSTACK_WEBHOOK_SECRET = SECRET;
+    const good = sign(BODY);
+    expect(await verifyWebhookSignature(BODY, good + 'a')).toBe(false);
+    expect(await verifyWebhookSignature(BODY, good + good)).toBe(false);
+    expect(await verifyWebhookSignature(BODY, good.slice(0, -1))).toBe(false);
+    expect(await verifyWebhookSignature(BODY, good.slice(0, 1))).toBe(false);
+  });
 });

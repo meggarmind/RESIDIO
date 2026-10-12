@@ -130,7 +130,7 @@ describe('getInvoiceSummary', () => {
     for (const q of queries) {
       expect((q.eq as ReturnType<typeof vi.fn>).mock.calls).toContainEqual(['resident_id', 'resident-1']);
       expect((q.eq as ReturnType<typeof vi.fn>).mock.calls).toContainEqual(['house_id', 'house-1']);
-      expect((q.or as ReturnType<typeof vi.fn>).mock.calls).toContainEqual(['invoice_number.ilike.%INV-001%']);
+      expect((q.or as ReturnType<typeof vi.fn>).mock.calls).toContainEqual(['invoice_number.ilike."%INV-001%"']);
       expect((q.gte as ReturnType<typeof vi.fn>).mock.calls).toContainEqual(['period_start', '2026-01-01']);
       expect((q.lte as ReturnType<typeof vi.fn>).mock.calls).toContainEqual(['period_start', '2026-01-31']);
     }

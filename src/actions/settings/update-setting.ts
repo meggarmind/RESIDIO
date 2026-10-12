@@ -6,13 +6,7 @@ import type { SystemSetting } from '@/types/database';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-
-/** Rejects NaN/Infinity, which would otherwise be stored as the strings "NaN"/"Infinity". */
-function nonFiniteNumberError(key: string, value: unknown): string | null {
-    return typeof value === 'number' && !Number.isFinite(value)
-        ? `Setting "${key}" must be a finite number`
-        : null;
-}
+import { settingValueError } from '@/lib/validators/setting-value';
 
 type UpdateSettingResponse = {
     data: SystemSetting | null;
@@ -36,7 +30,7 @@ export async function updateSetting(key: string, value: unknown): Promise<Update
         return { data: null, error: auth.error || 'Unauthorized' };
     }
 
-    const valueError = nonFiniteNumberError(key, value);
+    const valueError = settingValueError(key, value);
     if (valueError) return { data: null, error: valueError };
 
     // Get old value for audit comparison
@@ -101,7 +95,7 @@ export async function updateSettings(settings: Record<string, unknown>): Promise
     }
 
     for (const [key, value] of Object.entries(settings)) {
-        const valueError = nonFiniteNumberError(key, value);
+        const valueError = settingValueError(key, value);
         if (valueError) return { success: false, error: valueError };
     }
 
@@ -202,7 +196,7 @@ export async function createSetting(
         return { data: null, error: auth.error || 'Unauthorized' };
     }
 
-    const valueError = nonFiniteNumberError(key, value);
+    const valueError = settingValueError(key, value);
     if (valueError) return { data: null, error: valueError };
 
     let storageValue = value;
