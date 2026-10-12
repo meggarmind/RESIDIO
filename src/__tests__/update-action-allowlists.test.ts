@@ -124,6 +124,36 @@ describe('updatePayment', () => {
     expect(updatesTo('payment_records')).toHaveLength(0);
   });
 
+  it('leaves an unchanged house_id on a legacy row editable (no membership lookup)', async () => {
+    const { updatePayment } = await import('@/actions/payments/update-payment');
+    tableResults['payment_records'] = { data: { id: UUID_A, resident_id: UUID_B, house_id: UUID_C, amount: 5 }, error: null };
+    tableResults['resident_houses'] = { data: [], error: null }; // no membership row
+
+    const res = await updatePayment(UUID_A, { house_id: UUID_C, notes: 'x' });
+    expect(res.success).toBe(true);
+    expect(updatesTo('payment_records')).toHaveLength(1);
+  });
+
+  it('rejects a changed house_id without membership', async () => {
+    const { updatePayment } = await import('@/actions/payments/update-payment');
+    tableResults['payment_records'] = { data: { id: UUID_A, resident_id: UUID_B, house_id: UUID_A, amount: 5 }, error: null };
+    tableResults['resident_houses'] = { data: [], error: null };
+
+    const res = await updatePayment(UUID_A, { house_id: UUID_C });
+    expect(res.success).toBe(false);
+    expect(updatesTo('payment_records')).toHaveLength(0);
+  });
+
+  it('re-checks the existing house when resident_id alone changes', async () => {
+    const { updatePayment } = await import('@/actions/payments/update-payment');
+    tableResults['payment_records'] = { data: { id: UUID_A, resident_id: UUID_B, house_id: UUID_C, amount: 5 }, error: null };
+    tableResults['resident_houses'] = { data: [], error: null };
+
+    const res = await updatePayment(UUID_A, { resident_id: UUID_A });
+    expect(res.success).toBe(false);
+    expect(updatesTo('payment_records')).toHaveLength(0);
+  });
+
   it('rejects invalid values instead of writing them', async () => {
     const { updatePayment } = await import('@/actions/payments/update-payment');
     const res = await updatePayment(UUID_A, { amount: -5 } as never);

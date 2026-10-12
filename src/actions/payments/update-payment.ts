@@ -36,9 +36,14 @@ export async function updatePayment(id: string, data: z.infer<typeof updatePayme
         .single();
 
     // A house must belong to the (possibly changed) resident
-    const houseId = input.house_id !== undefined ? input.house_id : null;
-    if (houseId) {
-        const residentId = input.resident_id ?? oldRecord?.resident_id;
+    // Only re-validate when the house or the resident actually changes: the edit form always
+    // re-sends house_id, and legacy/imported payments may have no resident_houses row.
+    const newResidentId = input.resident_id ?? oldRecord?.resident_id;
+    const houseChanged = input.house_id !== undefined && input.house_id !== (oldRecord?.house_id ?? null);
+    const residentChanged = input.resident_id !== undefined && input.resident_id !== oldRecord?.resident_id;
+    const houseId = input.house_id !== undefined ? input.house_id : (oldRecord?.house_id ?? null);
+    if (houseId && (houseChanged || residentChanged)) {
+        const residentId = newResidentId;
         if (!residentId) return { error: 'Payment not found', success: false };
         const membership = await residentHasHouse(supabase, residentId, houseId);
         if (!membership.ok) return { error: membership.error, success: false };
