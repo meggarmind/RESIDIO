@@ -638,7 +638,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 export async function approveImport(import_id: string, notes?: string): Promise<{ error: string | null }> {
   const supabase = await createServerSupabaseClient();
 
-  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_APPROVE);
   if (!auth.authorized) {
     return { error: auth.error || 'Unauthorized' };
   }
@@ -694,7 +694,7 @@ export async function approveImport(import_id: string, notes?: string): Promise<
 export async function rejectImport(import_id: string, reason: string): Promise<{ error: string | null }> {
   const supabase = await createServerSupabaseClient();
 
-  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REJECT);
   if (!auth.authorized) {
     return { error: auth.error || 'Unauthorized' };
   }
