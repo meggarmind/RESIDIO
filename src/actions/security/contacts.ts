@@ -18,7 +18,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
-import { sanitizeSearchInput } from '@/lib/utils';
+import { ilikeAny } from '@/lib/postgrest-filter';
 
 type SecurityContactResponse = {
   data: SecurityContact | null;
@@ -75,10 +75,7 @@ export async function getSecurityContacts(
 
   // Apply filters
   if (search) {
-    const sanitized = sanitizeSearchInput(search);
-    query = query.or(
-      `full_name.ilike.%${sanitized}%,phone_primary.ilike.%${sanitized}%,id_number.ilike.%${sanitized}%`
-    );
+    query = query.or(ilikeAny(['full_name', 'phone_primary', 'id_number'], search));
   }
 
   if (resident_id) {
@@ -728,9 +725,7 @@ export async function searchSecurityContacts(
       access_codes(*)
     `
     )
-    .or(
-      `full_name.ilike.%${query}%,phone_primary.ilike.%${query}%,id_number.ilike.%${query}%`
-    )
+    .or(ilikeAny(['full_name', 'phone_primary', 'id_number'], query))
     .eq('status', 'active')
     .limit(20);
 

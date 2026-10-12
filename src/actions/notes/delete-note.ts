@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 
 type DeleteNoteResponse = {
   success: boolean;
@@ -131,7 +132,7 @@ export async function deleteNoteVersion(id: string): Promise<DeleteNoteResponse>
     const { data: previousVersion } = await supabase
       .from('entity_notes')
       .select('id')
-      .or(`id.eq.${rootNoteId},parent_note_id.eq.${rootNoteId}`)
+      .or(idOrParentFilterStrict('id', 'parent_note_id', rootNoteId))
       .eq('version', note.version - 1)
       .single();
 

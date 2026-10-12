@@ -773,17 +773,27 @@ async function createExpenseFromTransaction(
     return { success: false, error: 'No expense category found' };
   }
 
-  const result = await createExpense({
-    amount: Math.abs(Number(transaction.amount)),
-    category_id: categoryId,
-    expense_date: transaction.transaction_date || new Date().toISOString().split('T')[0],
-    description: transaction.description || 'Email import expense',
-    status: 'paid',
-    source_type: 'bank_import', // Reusing bank_import source_type for consistent reporting
-    payment_method: 'bank_transfer',
-    is_verified: true,
-    project_id: transaction.matched_project_id || undefined,
-  });
+  // createExpense throws on invalid input (e.g. a zero or 3-decimal amount).
+  // Record that as a failed row instead of aborting the whole import.
+  let result: Awaited<ReturnType<typeof createExpense>>;
+  try {
+    result = await createExpense({
+      amount: Math.abs(Number(transaction.amount)),
+      category_id: categoryId,
+      expense_date: transaction.transaction_date || new Date().toISOString().split('T')[0],
+      description: transaction.description || 'Email import expense',
+      status: 'paid',
+      source_type: 'bank_import', // Reusing bank_import source_type for consistent reporting
+      payment_method: 'bank_transfer',
+      is_verified: true,
+      project_id: transaction.matched_project_id || undefined,
+    });
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create expense',
+    };
+  }
 
   if (!result || !result.id) {
     return { success: false, error: 'Failed to create expense' };
