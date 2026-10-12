@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -167,6 +168,25 @@ export async function createReportSchedule(input: CreateScheduleInput): Promise<
     return { data, error: null };
 }
 
+// Editable schedule columns. Strict: last_run_at, next_run_at, created_by, id etc.
+// are rejected (next_run_at is recomputed below, never taken from the caller).
+const updateScheduleSchema = z.object({
+    name: z.string().min(1).optional(),
+    description: z.string().optional(),
+    report_type: z.enum(['financial_overview', 'collection_report', 'invoice_aging', 'transaction_log', 'debtors_report', 'indebtedness_summary', 'indebtedness_detail', 'development_levy']).optional(),
+    frequency: z.enum(['daily', 'weekly', 'monthly', 'quarterly', 'yearly']).optional(),
+    day_of_week: z.number().int().min(0).max(6).optional(),
+    day_of_month: z.number().int().min(1).max(31).optional(),
+    period_preset: z.enum(['this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year']).optional(),
+    bank_account_ids: z.array(z.string()).optional(),
+    include_charts: z.boolean().optional(),
+    include_summary: z.boolean().optional(),
+    configuration: z.record(z.string(), z.unknown()).optional(),
+    recipients: z.array(z.string()).optional(),
+    template_style: z.enum(['traditional', 'modern']).optional(),
+    is_active: z.boolean().optional(),
+}).strict();
+
 // Update a schedule
 export async function updateReportSchedule(
     id: string,
@@ -174,6 +194,12 @@ export async function updateReportSchedule(
 ): Promise<{ data: ReportSchedule | null; error: string | null }> {
     const auth = await authorizePermission(PERMISSIONS.REPORTS_MANAGE_SCHEDULES);
     if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
+    const parsedInput = updateScheduleSchema.safeParse(input);
+    if (!parsedInput.success) {
+        return { data: null, error: parsedInput.error.issues[0]?.message || 'Invalid schedule data' };
+    }
+    const fields = parsedInput.data;
 
     const supabase = await createServerSupabaseClient();
 
@@ -189,17 +215,17 @@ export async function updateReportSchedule(
 
     // Recalculate next run if frequency changes
     let nextRunAt = existing.next_run_at;
-    if (input.frequency || input.day_of_week !== undefined || input.day_of_month !== undefined) {
-        const freq = input.frequency || existing.frequency;
-        const dow = input.day_of_week ?? existing.day_of_week;
-        const dom = input.day_of_month ?? existing.day_of_month;
+    if (fields.frequency || fields.day_of_week !== undefined || fields.day_of_month !== undefined) {
+        const freq = fields.frequency || existing.frequency;
+        const dow = fields.day_of_week ?? existing.day_of_week;
+        const dom = fields.day_of_month ?? existing.day_of_month;
         nextRunAt = calculateNextRunDate(freq, dow ?? undefined, dom ?? undefined).toISOString();
     }
 
     const { data, error } = await supabase
         .from('report_schedules')
         .update({
-            ...input,
+            ...fields,
             next_run_at: nextRunAt,
         })
         .eq('id', id)

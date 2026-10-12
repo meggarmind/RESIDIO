@@ -7,6 +7,8 @@ import type {
   CreateVisitorVehicleData,
   UpdateVisitorVehicleData,
 } from '@/lib/validators/security-contact';
+import { z } from 'zod';
+import { vehicleTypeEnum } from '@/lib/validators/security-contact';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -226,6 +228,23 @@ export async function createVehicle(formData: CreateVisitorVehicleData): Promise
   return { data: vehicle, error: null };
 }
 
+// Editable vehicle columns. Deliberately NOT derived from updateVisitorVehicleSchema:
+// zod 4 applies .default() through .partial(), which would silently reset
+// vehicle_type / is_primary on every partial update. contact_id is not editable
+// (a vehicle cannot be re-parented through the ordinary edit). Unknown keys are stripped.
+const updateVehicleFieldsSchema = z.object({
+  id: z.string().uuid('Invalid vehicle ID'),
+  vehicle_type: vehicleTypeEnum.optional(),
+  plate_number: z.string().min(2, 'Plate number is required').max(20, 'Plate number is too long').optional(),
+  make: z.string().optional().or(z.literal('')),
+  model: z.string().optional().or(z.literal('')),
+  color: z.string().optional().or(z.literal('')),
+  year: z.number().min(1900).max(new Date().getFullYear() + 1).optional().nullable(),
+  photo_url: z.string().url().optional().or(z.literal('')),
+  is_primary: z.boolean().optional(),
+  notes: z.string().optional().or(z.literal('')),
+});
+
 /**
  * Updates an existing vehicle registration
  */
@@ -238,7 +257,11 @@ export async function updateVehicle(formData: UpdateVisitorVehicleData): Promise
     return { data: null, error: auth.error || 'Permission denied: Cannot update vehicles' };
   }
 
-  const { id, ...updateData } = formData;
+  const parsed = updateVehicleFieldsSchema.safeParse(formData);
+  if (!parsed.success) {
+    return { data: null, error: parsed.error.issues[0]?.message || 'Invalid vehicle data' };
+  }
+  const { id, ...updateData } = parsed.data;
 
   // Get existing vehicle for audit
   const { data: existingVehicle, error: fetchError } = await supabase

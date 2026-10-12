@@ -13,6 +13,7 @@ import type {
   UpdateSecurityContactStatusData,
   SecurityContactFilters,
 } from '@/lib/validators/security-contact';
+import { updateSecurityContactSchema } from '@/lib/validators/security-contact';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -291,6 +292,17 @@ export async function createSecurityContact(
   return { data: contact, error: null };
 }
 
+// Columns the ordinary edit action may write. `status` is deliberately absent
+// (updateSecurityContactStatus, SECURITY_SUSPEND_REVOKE), as are created_by,
+// visit_count and the other system-managed columns.
+const UPDATABLE_SECURITY_CONTACT_FIELDS = [
+  'resident_id', 'category_id', 'full_name', 'phone_primary', 'phone_secondary',
+  'photo_url', 'id_type', 'id_number', 'id_document_url', 'address',
+  'next_of_kin_name', 'next_of_kin_phone', 'employer', 'relationship', 'notes',
+  'is_recurring', 'recurrence_pattern', 'recurrence_days', 'recurrence_start_date',
+  'recurrence_end_date', 'expected_arrival_time', 'expected_departure_time', 'purpose',
+] as const;
+
 /**
  * Updates an existing security contact
  */
@@ -313,7 +325,17 @@ export async function updateSecurityContact(
     return { data: null, error: 'Unauthorized' };
   }
 
-  const { id, ...updateData } = formData;
+  // Parse with the schema (strips unknown keys such as status / created_by, which
+  // have their own actions and permissions), then pick columns explicitly.
+  const parsed = updateSecurityContactSchema.safeParse(formData);
+  if (!parsed.success) {
+    return { data: null, error: parsed.error.issues[0]?.message || 'Invalid contact data' };
+  }
+  const { id, ...parsedData } = parsed.data;
+  const updateData: Record<string, unknown> = {};
+  for (const key of UPDATABLE_SECURITY_CONTACT_FIELDS) {
+    if (key in parsedData) updateData[key] = (parsedData as Record<string, unknown>)[key];
+  }
 
   // Get existing contact for audit
   const { data: existingContact, error: fetchError } = await supabase
