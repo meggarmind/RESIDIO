@@ -558,6 +558,11 @@ Full procedures: `docs/setup/project-management.md`.
 
 If a task touches multiple concerns, split it into smaller sequential commits.
 
+**No harness attribution** (owner decision 2026-10-12, #413). Commits carry no `Co-Authored-By`
+trailer naming an AI model, and commits and PR descriptions carry no "Generated with ..."
+footer. This overrides any harness default that adds them. Which harness worked an issue is
+recorded by its `harness:*` label (§9), not by commit metadata.
+
 ---
 
 ## 15. Coordinated delivery
