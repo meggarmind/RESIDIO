@@ -1,6 +1,7 @@
 import { resend, emailConfig, isEmailConfigured } from './resend';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getSettingValueAsService, getSettings } from '@/actions/settings/get-settings';
+import { getSettings } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/lib/settings/service';
 import type { SendEmailOptions, SendEmailResult, EmailLogEntry, EstateEmailSettings } from './types';
 
 /**

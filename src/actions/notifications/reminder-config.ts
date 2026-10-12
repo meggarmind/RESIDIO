@@ -11,7 +11,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 // `getReminderSettings` below reads via the RLS-bound `getSettingValue`
 // deliberately: it is only reached from authenticated dashboard pages
 // (settings/notifications/reminders), never from the cron path -- see #139.
-import { getSettingValue, getSettingValueAsService } from '@/actions/settings/get-settings';
+import { getSettingValue } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/lib/settings/service';
 import { updateSetting } from '@/actions/settings/update-setting';
 import { logAudit } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';

@@ -1,4 +1,4 @@
-import { getSettingResultAsService } from '@/actions/settings/get-settings';
+import { getSettingResultAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export type WhatsAppRolloutMode = 'disabled' | 'pilot' | 'estate';
