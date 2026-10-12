@@ -294,11 +294,19 @@ export async function approveLateFeeWaiver(
   if (invoiceUpdateError) {
     console.error('Invoice update error:', invoiceUpdateError);
     // Release the claim so the request can be retried.
-    await supabase
+    const { error: releaseError } = await supabase
       .from('late_fee_waivers')
       .update({ status: 'pending', reviewed_by: null, reviewed_at: null, review_notes: null })
       .eq('id', waiverId)
       .eq('status', 'approved');
+    if (releaseError) {
+      console.error('Waiver claim release error (waiver may be stuck approved):', releaseError);
+      return {
+        success: false,
+        error:
+          'Failed to update invoice, and the waiver could not be reset: it may be stuck as approved without the invoice being reduced. Contact an administrator.',
+      };
+    }
     return { success: false, error: 'Failed to update invoice' };
   }
 

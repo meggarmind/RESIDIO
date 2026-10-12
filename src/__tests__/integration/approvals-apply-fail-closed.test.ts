@@ -24,6 +24,7 @@ function createQuery(result: unknown) {
     update: vi.fn(),
     eq: vi.fn(),
     single: vi.fn(),
+    maybeSingle: vi.fn(),
     then: (promise as Promise<unknown>).then.bind(promise),
   };
 
@@ -31,6 +32,7 @@ function createQuery(result: unknown) {
   (query.update as ReturnType<typeof vi.fn>).mockReturnValue(query);
   (query.eq as ReturnType<typeof vi.fn>).mockReturnValue(query);
   (query.single as ReturnType<typeof vi.fn>).mockResolvedValue(result);
+  (query.maybeSingle as ReturnType<typeof vi.fn>).mockResolvedValue(result);
 
   return query;
 }
@@ -55,9 +57,16 @@ describe('applyRequestedChanges fails closed on an unhandled request_type', () =
       },
       error: null,
     });
-    const updateQuery = createQuery({ data: null, error: null });
+    // The request is claimed (pending -> approved) before changes are applied, so an
+    // unhandled type is claimed, fails to apply, and the claim is released again.
+    const claimQuery = createQuery({ data: { id: 'req-1' }, error: null });
+    const releaseQuery = createQuery({ data: null, error: null });
 
-    const from = vi.fn().mockReturnValueOnce(fetchQuery).mockReturnValueOnce(updateQuery);
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(fetchQuery)
+      .mockReturnValueOnce(claimQuery)
+      .mockReturnValueOnce(releaseQuery);
 
     createServerSupabaseClient.mockResolvedValue({ from });
 
@@ -66,8 +75,10 @@ describe('applyRequestedChanges fails closed on an unhandled request_type', () =
     expect(result.success).toBe(false);
     expect(result.error).toContain('late_fee_waiver');
 
-    // The status update to 'approved' must never be issued for an unhandled type.
-    expect(updateQuery.update).not.toHaveBeenCalled();
+    // The claim must be released back to pending, and success never audited.
+    expect(releaseQuery.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending' }));
+    expect(releaseQuery.eq).toHaveBeenCalledWith('status', 'approved');
+    expect(logAudit).not.toHaveBeenCalled();
   });
 
   it('still applies a handled request_type and flips status to approved', async () => {
@@ -82,14 +93,14 @@ describe('applyRequestedChanges fails closed on an unhandled request_type', () =
       },
       error: null,
     });
+    const updateQuery = createQuery({ data: { id: 'req-2' }, error: null });
     const applyQuery = createQuery({ data: null, error: null });
-    const updateQuery = createQuery({ data: [{ id: 'req-2' }], error: null });
 
     const from = vi
       .fn()
       .mockReturnValueOnce(fetchQuery)
-      .mockReturnValueOnce(applyQuery)
-      .mockReturnValueOnce(updateQuery);
+      .mockReturnValueOnce(updateQuery)
+      .mockReturnValueOnce(applyQuery);
 
     createServerSupabaseClient.mockResolvedValue({ from });
 

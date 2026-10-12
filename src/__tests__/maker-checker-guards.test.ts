@@ -96,6 +96,50 @@ describe('approveLateFeeWaiver maker-checker (#473)', () => {
     expect(logAudit).not.toHaveBeenCalled();
   });
 
+  const failingInvoiceSetup = (releaseResult: unknown) => {
+    const fetchQ = createQuery({ data: waiverRow(), error: null });
+    const claimQ = createQuery({ data: { id: 'w-1', status: 'approved' }, error: null });
+    const invoiceQ = createQuery({ data: null, error: { message: 'invoice boom' } });
+    const releaseQ = createQuery(releaseResult);
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(fetchQ)
+      .mockReturnValueOnce(claimQ)
+      .mockReturnValueOnce(invoiceQ)
+      .mockReturnValueOnce(releaseQ);
+    createServerSupabaseClient.mockResolvedValue({ from });
+    return releaseQ;
+  };
+
+  it('releases the claim (guarded on approved) when the invoice update fails', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const releaseQ = failingInvoiceSetup({ data: null, error: null });
+
+    const result = await approveLateFeeWaiver('w-1');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Failed to update invoice');
+    expect(releaseQ.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending' }));
+    expect(releaseQ.eq).toHaveBeenCalledWith('status', 'approved');
+    expect(logAudit).not.toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it('reports a possibly stuck waiver, logging the error object, when the release fails too', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    failingInvoiceSetup({ data: null, error: { message: 'release failed' } });
+
+    const result = await approveLateFeeWaiver('w-1');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/stuck/i);
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('stuck'),
+      expect.objectContaining({ message: 'release failed' }),
+    );
+    errSpy.mockRestore();
+  });
+
   it('refuses a non-pending waiver outright', async () => {
     const fetchQ = createQuery({ data: waiverRow({ status: 'approved' }), error: null });
     const from = vi.fn().mockReturnValueOnce(fetchQ);
@@ -136,21 +180,58 @@ describe('approveRequest maker-checker and pending guard (#473)', () => {
 
   it('guards the status UPDATE on pending and reports a lost race without auditing', async () => {
     const fetchQ = createQuery({ data: requestRow(), error: null });
-    const applyQ = createQuery({ data: null, error: null });
-    const updateQ = createQuery({ data: [], error: null }); // 0 rows matched
-    const from = vi
-      .fn()
-      .mockReturnValueOnce(fetchQ)
-      .mockReturnValueOnce(applyQ)
-      .mockReturnValueOnce(updateQ);
+    const updateQ = createQuery({ data: null, error: null }); // claim matched 0 rows
+    const from = vi.fn().mockReturnValueOnce(fetchQ).mockReturnValueOnce(updateQ);
     createServerSupabaseClient.mockResolvedValue({ from });
 
     const result = await approveRequest('req-1');
 
     expect(updateQ.eq).toHaveBeenCalledWith('status', 'pending');
+    expect(from).toHaveBeenCalledTimes(2); // changes never applied
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/already been processed/i);
     expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  const applyFailureSetup = (releaseResult: unknown) => {
+    const fetchQ = createQuery({ data: requestRow(), error: null });
+    const claimQ = createQuery({ data: { id: 'req-1' }, error: null });
+    const applyQ = createQuery({ data: null, error: { message: 'boom' } });
+    const releaseQ = createQuery(releaseResult);
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(fetchQ)
+      .mockReturnValueOnce(claimQ)
+      .mockReturnValueOnce(applyQ)
+      .mockReturnValueOnce(releaseQ);
+    createServerSupabaseClient.mockResolvedValue({ from });
+    return releaseQ;
+  };
+
+  it('releases the claim when applying the changes fails', async () => {
+    const releaseQ = applyFailureSetup({ data: null, error: null });
+
+    const result = await approveRequest('req-1');
+
+    expect(result.success).toBe(false);
+    expect(releaseQ.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending' }));
+    expect(releaseQ.eq).toHaveBeenCalledWith('status', 'approved');
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a stuck claim when the release also fails', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    applyFailureSetup({ data: null, error: { message: 'release failed' } });
+
+    const result = await approveRequest('req-1');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/stuck/i);
+    expect(errSpy).toHaveBeenCalledWith(
+      expect.stringContaining('stuck'),
+      expect.objectContaining({ message: 'release failed' }),
+    );
+    errSpy.mockRestore();
   });
 
   it('refuses an already-approved request', async () => {
