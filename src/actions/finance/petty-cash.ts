@@ -217,9 +217,16 @@ export async function updatePettyCashAccount(
 
     if (!user) return { data: null, error: 'Unauthorized' };
 
+    // Explicit allow-list: current_balance and every other column are never writable here.
+    // (The form sends camelCase `initialFloat`; the column is `initial_float`.)
+    const updates: { name?: string; initial_float?: number; notes?: string } = {};
+    if (input.name !== undefined) updates.name = input.name;
+    if (input.initialFloat !== undefined) updates.initial_float = input.initialFloat;
+    if (input.notes !== undefined) updates.notes = input.notes;
+
     const { data, error } = await supabase
         .from('petty_cash_accounts')
-        .update(input)
+        .update(updates)
         .eq('id', id)
         .select()
         .single();
@@ -234,7 +241,7 @@ export async function updatePettyCashAccount(
         entityType: 'petty_cash_accounts',
         entityId: id,
         entityDisplay: `Petty Cash Update: ${data.name}`,
-        newValues: input,
+        newValues: updates,
     });
 
     revalidatePath('/expenditure');
