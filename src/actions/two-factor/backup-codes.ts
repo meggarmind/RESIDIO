@@ -5,7 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import crypto from 'crypto';
-import { safeEqual, readTotpSecret, hashBackupCode } from '@/lib/auth/two-factor-secrets';
+import { otpMatches, readTotpSecret, hashBackupCode } from '@/lib/auth/two-factor-secrets';
 
 /**
  * Generate new backup codes for the current user
@@ -67,7 +67,7 @@ export async function generateBackupCodes(
       .limit(1)
       .single();
 
-    if (token && safeEqual(String(token.token), verificationCode)) {
+    if (token && otpMatches(String(token.token), user.id, verificationCode)) {
       isValid = true;
       await adminClient
         .from('two_factor_tokens')

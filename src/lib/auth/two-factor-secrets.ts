@@ -38,6 +38,43 @@ export function hashBackupCode(code: string): string {
     return `${BACKUP_PREFIX}${salt.toString('hex')}$${hash.toString('hex')}`;
 }
 
+/** True for a legacy unencrypted base32 secret (candidate for lazy re-encryption). */
+export function isPlaintextTotpSecret(stored: string): boolean {
+    return PLAINTEXT_TOTP.test(stored);
+}
+
+const OTP_PREFIX = 'h1$';
+const DEV_OTP_SECRET = 'residio-dev-only-2fa-otp-secret-not-for-production';
+
+function otpKey(): string {
+    const key = process.env.DATA_ENCRYPTION_KEY || process.env.GMAIL_TOKEN_ENCRYPTION_KEY;
+    if (key) return key;
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('DATA_ENCRYPTION_KEY (or GMAIL_TOKEN_ENCRYPTION_KEY) must be set to hash 2FA codes.');
+    }
+    return DEV_OTP_SECRET;
+}
+
+/**
+ * Value to store in two_factor_tokens.token: `h1$` + HMAC-SHA256(server key, profile id + code).
+ * Needs the column widened to TEXT (migration 20261012210000). A DB-read leak then no
+ * longer yields usable codes, and a hash cannot be replayed across profiles.
+ */
+export function hashOtp(profileId: string, code: string): string {
+    const mac = crypto
+        .createHmac('sha256', `residio:2fa-otp:v1:${otpKey()}`)
+        .update(`${profileId}:${code}`)
+        .digest('hex');
+    return `${OTP_PREFIX}${mac}`;
+}
+
+/** Compare a submitted code with a stored token. Accepts hashed tokens and legacy plaintext ones (until they expire). */
+export function otpMatches(stored: string, profileId: string, code: string): boolean {
+    if (typeof stored !== 'string' || typeof code !== 'string') return false;
+    if (stored.startsWith(OTP_PREFIX)) return safeEqual(stored, hashOtp(profileId, code));
+    return safeEqual(stored.trim(), code);
+}
+
 /** Verifies a salted (v2) hash or a legacy unsalted SHA-256 hex hash. */
 export function verifyBackupCodeHash(code: string, stored: string): boolean {
     const normalised = code.toUpperCase();

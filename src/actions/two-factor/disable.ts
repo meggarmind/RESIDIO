@@ -6,7 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import type { TwoFactorMethod } from '@/types/database';
 import { createHmac } from 'crypto';
-import { safeEqual, readTotpSecret } from '@/lib/auth/two-factor-secrets';
+import { otpMatches, readTotpSecret } from '@/lib/auth/two-factor-secrets';
 
 /**
  * Disable 2FA for the current user
@@ -72,7 +72,7 @@ export async function disableTwoFactor(
       .limit(1)
       .single();
 
-    if (token && safeEqual(String(token.token), verificationCode)) {
+    if (token && otpMatches(String(token.token), user.id, verificationCode)) {
       isValid = true;
 
       // Mark token as used

@@ -8,7 +8,15 @@ import { VerificationCodeEmail } from '@/emails/verification-code';
 import type { TwoFactorVerifyResult, TwoFactorMethod, Verify2FAInput } from '@/types/database';
 import crypto from 'crypto';
 import { getTwoFactorSessionContext } from '@/lib/auth/two-factor-session';
-import { generateOtp, safeEqual, readTotpSecret, verifyBackupCodeHash } from '@/lib/auth/two-factor-secrets';
+import {
+  generateOtp,
+  hashOtp,
+  otpMatches,
+  readTotpSecret,
+  encryptTotpSecret,
+  isPlaintextTotpSecret,
+  verifyBackupCodeHash,
+} from '@/lib/auth/two-factor-secrets';
 
 // Token expiry in minutes
 const TOKEN_EXPIRY_MINUTES = 5;
@@ -75,7 +83,7 @@ export async function sendTwoFactorCode(
     .from('two_factor_tokens')
     .insert({
       profile_id: userId,
-      token: otp,
+      token: hashOtp(userId, otp),
       token_type: method,
       purpose: 'login',
       expires_at: expiresAt.toISOString(),
@@ -224,7 +232,21 @@ export async function verifyTwoFactorCode(
     }
 
     try {
-      isValid = validateTOTP(input.code, readTotpSecret(profile.two_factor_secret_encrypted));
+      const secret = readTotpSecret(profile.two_factor_secret_encrypted);
+      isValid = validateTOTP(input.code, secret);
+
+      // Lazy re-encryption: a legacy plaintext secret is rewritten encrypted the
+      // first time its owner proves possession of it. Best effort, never blocks login.
+      if (isValid && isPlaintextTotpSecret(profile.two_factor_secret_encrypted)) {
+        try {
+          await adminClient
+            .from('profiles')
+            .update({ two_factor_secret_encrypted: encryptTotpSecret(secret) })
+            .eq('id', userId);
+        } catch (reencryptError) {
+          console.error('[2FA Verify] Could not re-encrypt legacy TOTP secret:', reencryptError instanceof Error ? reencryptError.message : reencryptError);
+        }
+      }
     } catch (error) {
       console.error('[2FA Verify] Could not read TOTP secret:', error instanceof Error ? error.message : error);
       return { success: false, message: '2FA not properly configured' };
@@ -243,14 +265,17 @@ export async function verifyTwoFactorCode(
       .limit(1)
       .single();
 
-    if (token && safeEqual(String(token.token), input.code)) {
-      isValid = true;
-
-      // Mark token as used
-      await adminClient
+    if (token && otpMatches(String(token.token), userId, input.code)) {
+      // Claim the token atomically: only the request that flips used_at wins, so a
+      // concurrent replay of the same code fails.
+      const { data: claimed } = await adminClient
         .from('two_factor_tokens')
         .update({ used_at: new Date().toISOString() })
-        .eq('id', token.id);
+        .eq('id', token.id)
+        .is('used_at', null)
+        .select('id');
+
+      isValid = (claimed?.length ?? 0) > 0;
     }
   }
 
@@ -324,7 +349,20 @@ export async function verifyBackupCode(
     .eq('profile_id', userId)
     .is('used_at', null);
 
-  const backupCode = (candidates ?? []).find((c) => verifyBackupCodeHash(code, c.code_hash));
+  const matched = (candidates ?? []).find((c) => verifyBackupCodeHash(code, c.code_hash));
+
+  // Single use: claim the row only while used_at is still NULL and require a row
+  // back, so two concurrent submissions of one code cannot both succeed.
+  let backupCode: { id: string } | null = null;
+  if (matched) {
+    const { data: claimed } = await adminClient
+      .from('two_factor_backup_codes')
+      .update({ used_at: new Date().toISOString() })
+      .eq('id', matched.id)
+      .is('used_at', null)
+      .select('id');
+    backupCode = claimed && claimed.length > 0 ? matched : null;
+  }
 
   if (!backupCode) {
     // Log failed attempt
@@ -343,12 +381,6 @@ export async function verifyBackupCode(
       remainingAttempts,
     };
   }
-
-  // Mark backup code as used
-  await adminClient
-    .from('two_factor_backup_codes')
-    .update({ used_at: new Date().toISOString() })
-    .eq('id', backupCode.id);
 
   // Increment used backup codes count
   await adminClient

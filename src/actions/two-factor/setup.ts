@@ -10,7 +10,7 @@ import { getEstateEmailSettings } from '@/lib/email/send-email';
 import { VerificationCodeEmail } from '@/emails/verification-code';
 import type { TwoFactorSetupResult, TwoFactorMethod, Enable2FAInput } from '@/types/database';
 import crypto from 'crypto';
-import { generateOtp, safeEqual, encryptTotpSecret, readTotpSecret, hashBackupCode } from '@/lib/auth/two-factor-secrets';
+import { generateOtp, hashOtp, otpMatches, encryptTotpSecret, readTotpSecret, hashBackupCode } from '@/lib/auth/two-factor-secrets';
 
 // Token expiry in minutes
 const TOKEN_EXPIRY_MINUTES = 10;
@@ -215,7 +215,7 @@ export async function initiateTwoFactorSetup(
       .from('two_factor_tokens')
       .insert({
         profile_id: user.id,
-        token: otp,
+        token: hashOtp(user.id, otp),
         token_type: method,
         purpose: 'setup',
         expires_at: expiresAt.toISOString(),
@@ -235,7 +235,7 @@ export async function initiateTwoFactorSetup(
         .from('two_factor_tokens')
         .update({ used_at: new Date().toISOString() })
         .eq('profile_id', user.id)
-        .eq('token', otp);
+        .eq('token', hashOtp(user.id, otp));
 
       return { success: false, message: `Failed to send SMS: ${smsResult.error}` };
     }
@@ -255,7 +255,7 @@ export async function initiateTwoFactorSetup(
       .from('two_factor_tokens')
       .insert({
         profile_id: user.id,
-        token: otp,
+        token: hashOtp(user.id, otp),
         token_type: method,
         purpose: 'setup',
         expires_at: expiresAt.toISOString(),
@@ -290,7 +290,7 @@ export async function initiateTwoFactorSetup(
         .from('two_factor_tokens')
         .update({ used_at: new Date().toISOString() })
         .eq('profile_id', user.id)
-        .eq('token', otp);
+        .eq('token', hashOtp(user.id, otp));
 
       return { success: false, message: `Failed to send email: ${emailResult.error}` };
     }
@@ -365,7 +365,7 @@ export async function confirmTwoFactorSetup(
     }
   } else {
     // Validate OTP code
-    isValid = safeEqual(String(token.token), code);
+    isValid = otpMatches(String(token.token), user.id, code);
   }
 
   if (!isValid) {
