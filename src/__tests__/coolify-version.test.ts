@@ -2,17 +2,25 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  STAGE_AUTO_DEPLOY_WARNING,
   TARGETS,
+  assertOk,
   buildHeaders,
   decideSkip,
+  describeDeployResponse,
   envPayload,
+  failureMessage,
   gitQueries,
+  main,
+  maskCommands,
   normalizeBaseUrl,
   planRequests,
   redact,
   requestInit,
   requiredSecrets,
   resolveVersion,
+  secretValuesFor,
+  skipNotice,
   targetFor,
 } from '../../scripts/coolify-version.mjs';
 
@@ -300,6 +308,235 @@ describe('redact', () => {
 
   it('ignores blank values instead of mangling the text', () => {
     expect(redact('PATCH /x', ['', '  ', undefined as unknown as string])).toBe('PATCH /x');
+  });
+});
+
+/** Realistic-looking secret values: a Coolify token, an Access pair, two UUIDs. */
+const realistic = {
+  COOLIFY_BASE_URL: 'https://coolify.residio-internal.example',
+  COOLIFY_API_TOKEN: '7|q9XkV2mLr8TzWb4NcYp1HsJd6FgQa3Ue5RtOiPl0',
+  CF_ACCESS_CLIENT_ID: '4f1c2a9be07d3e6f8a5b1c2d3e4f5a6b.access',
+  CF_ACCESS_CLIENT_SECRET: 'b8e2f4a6c1d3e5f7a9b0c2d4e6f8a1b3c5d7e9f0a2b4c6d8e1f3a5b7c9d0e2f4',
+  COOLIFY_APP_UUID_STAGE: 'k0s8wcg4owo4sgk8c4cwk0g8',
+  COOLIFY_APP_UUID_PROD: 'p4gc8kws0gkcswo0w4g4kcso',
+};
+const realisticValues = Object.values(realistic);
+
+describe('assertOk / failureMessage', () => {
+  it.each([200, 201, 204, 299])('accepts HTTP %i', (status) => {
+    expect(() => assertOk(status, 'PATCH', '/x')).not.toThrow();
+  });
+
+  it.each([199, 300, 301, 302, 304, 307, 308, 399, 400, 401, 403, 404, 405, 500, 502])(
+    'throws on HTTP %i (a 302 is Access rejecting the service token)',
+    (status) => {
+      expect(() => assertOk(status, 'POST', '/api/v1/deploy?uuid=u&force=false')).toThrow(
+        `POST /api/v1/deploy?uuid=u&force=false returned HTTP ${status}`,
+      );
+    },
+  );
+
+  it('the thrown message carries no secret value, even when the path holds one', () => {
+    const path = `/api/v1/applications/${realistic.COOLIFY_APP_UUID_STAGE}/envs/bulk`;
+    let message = '';
+    try {
+      assertOk(302, 'PATCH', path, realisticValues);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toMatch(/^PATCH \/api\/v1\/applications\/\*\*\*\/envs\/bulk returned HTTP 302$/);
+    for (const value of realisticValues) expect(message).not.toContain(value);
+  });
+
+  it('failureMessage redacts every value anywhere in the message', () => {
+    const detail = `failed (${realistic.COOLIFY_API_TOKEN} ${realistic.CF_ACCESS_CLIENT_SECRET})`;
+    const message = failureMessage('POST', `/api/v1/deploy?uuid=${realistic.COOLIFY_APP_UUID_PROD}`, detail, realisticValues);
+    for (const value of realisticValues) expect(message).not.toContain(value);
+    expect(message).toContain('POST /api/v1/deploy?uuid=***');
+  });
+});
+
+describe('maskCommands', () => {
+  it('masks every secret value', () => {
+    const commands = maskCommands(secretValuesFor(TARGETS.staging, realistic));
+    for (const name of requiredSecrets(TARGETS.staging)) {
+      expect(commands).toContain(`::add-mask::${realistic[name as keyof typeof realistic]}`);
+    }
+    expect(commands.every((command: string) => command.startsWith('::add-mask::'))).toBe(true);
+  });
+
+  it('masks each line of a multi-line value, and skips blank lines', () => {
+    expect(maskCommands(['line-one\r\nline-two\n\n  ', 'single'])).toEqual([
+      '::add-mask::line-one',
+      '::add-mask::line-two',
+      '::add-mask::single',
+    ]);
+  });
+});
+
+describe('skipNotice', () => {
+  it('names the missing secrets and contains no value from the environment', () => {
+    const env = { ...realistic, COOLIFY_APP_UUID_PROD: '', PATH: '/usr/bin', GITHUB_TOKEN: 'ghs_abcdefSECRET' };
+    const notice = skipNotice(TARGETS.production, env) ?? '';
+    expect(notice).toMatch(/^::notice::/);
+    expect(notice).toContain('COOLIFY_APP_UUID_PROD');
+    for (const value of [...realisticValues, '/usr/bin', 'ghs_abcdefSECRET']) {
+      expect(notice).not.toContain(value);
+    }
+  });
+
+  it('is null when the target is configured', () => {
+    expect(skipNotice(TARGETS.staging, realistic)).toBeNull();
+  });
+});
+
+describe('describeDeployResponse', () => {
+  it('reports Coolify\'s deployment UUID and message, never the application UUID', () => {
+    const json = {
+      deployments: [
+        {
+          message: `Application ${realistic.COOLIFY_APP_UUID_STAGE} deployment queued.`,
+          resource_uuid: realistic.COOLIFY_APP_UUID_STAGE,
+          deployment_uuid: 'dpl0g8k4c',
+        },
+      ],
+    };
+    const out = describeDeployResponse(json, realisticValues);
+    expect(out).toBe('Coolify reports deployment dpl0g8k4c: "Application *** deployment queued."');
+    for (const value of realisticValues) expect(out).not.toContain(value);
+  });
+
+  it.each([null, 'not json', {}, { deployments: 'x' }, { deployments: [{ token: 'x' }] }])(
+    'gives a fixed string for an unknown shape (%j)',
+    (json) => {
+      expect(describeDeployResponse(json, realisticValues)).toBe(
+        'Coolify accepted the deploy (no deployment details in the response)',
+      );
+    },
+  );
+});
+
+describe('main', () => {
+  type Call = { url: string; init: RequestInit };
+
+  function run(env: Record<string, string>, status = 200, body: unknown = { deployments: [] }) {
+    const calls: Call[] = [];
+    const logs: string[] = [];
+    const summaries: string[] = [];
+    const fetchImpl = async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return { status, json: async () => body } as unknown as Response;
+    };
+    const done = main({
+      env,
+      fetchImpl,
+      log: (line: string) => logs.push(line),
+      appendSummary: (_file: string, text: string) => summaries.push(text),
+      git: fakeGit(releaseGraph),
+      resolveCommit: () => c('s4'),
+    });
+    return { done, calls, logs, summaries };
+  }
+
+  it.each(['push', 'workflow_dispatch', 'workflow_call', 'pull_request'])(
+    'never deploys production, whatever the environment (GITHUB_EVENT_NAME=%s)',
+    async (event) => {
+      const env = {
+        ...realistic,
+        TARGET_ENV: 'production',
+        GITHUB_EVENT_NAME: event,
+        GITHUB_ACTIONS: 'true',
+        GITHUB_REF: 'refs/heads/stage',
+        DEPLOY: 'true',
+        FORCE_DEPLOY: 'true',
+      };
+      const { done, calls } = run(env);
+      await done;
+      expect(calls.map((call) => `${call.init.method} ${call.url}`)).toEqual([
+        `PATCH ${realistic.COOLIFY_BASE_URL}/api/v1/applications/${realistic.COOLIFY_APP_UUID_PROD}/envs/bulk`,
+      ]);
+    },
+  );
+
+  it.each(['push', 'workflow_dispatch'])('Stage sets then deploys (%s)', async (event) => {
+    const { done, calls } = run({ ...realistic, TARGET_ENV: 'staging', GITHUB_EVENT_NAME: event });
+    await done;
+    expect(calls.map((call) => call.init.method)).toEqual(['PATCH', 'POST']);
+    expect(calls[1].url).toBe(`${realistic.COOLIFY_BASE_URL}/api/v1/deploy?uuid=${realistic.COOLIFY_APP_UUID_STAGE}&force=false`);
+    expect(JSON.parse(String(calls[0].init.body)).data[0]).toMatchObject({ key: 'NEXT_PUBLIC_APP_VERSION', value: 'v0.5.0' });
+  });
+
+  it('a 302 fails the run, with no secret in the error', async () => {
+    const { done, calls } = run({ ...realistic, TARGET_ENV: 'staging' }, 302);
+    const error = await done.then(() => null, (e: Error) => e);
+    expect(error?.message).toBe('PATCH /api/v1/applications/***/envs/bulk returned HTTP 302');
+    for (const value of realisticValues) expect(error?.message).not.toContain(value);
+    // Stops at the failure: no deploy after a failed variable write.
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a network failure names only the error type, never a value', async () => {
+    const logs: string[] = [];
+    const error = await main({
+      env: { ...realistic, TARGET_ENV: 'production' },
+      fetchImpl: async () => {
+        throw Object.assign(new Error(`connect to ${realistic.COOLIFY_API_TOKEN}`), { name: 'TypeError' });
+      },
+      log: (line: string) => logs.push(line),
+      git: fakeGit(releaseGraph),
+      resolveCommit: () => c('s4'),
+    }).then(() => null, (e: Error) => e);
+    expect(error?.message).toBe('PATCH /api/v1/applications/***/envs/bulk failed before a response (TypeError)');
+  });
+
+  it('masks every secret before printing anything else, under GitHub Actions', async () => {
+    const { done, logs } = run({ ...realistic, TARGET_ENV: 'staging', GITHUB_ACTIONS: 'true' });
+    await done;
+    const masks = maskCommands(secretValuesFor(TARGETS.staging, realistic));
+    expect(logs.slice(0, masks.length)).toEqual(masks);
+    for (const value of secretValuesFor(TARGETS.staging, realistic)) {
+      expect(logs).toContain(`::add-mask::${value}`);
+    }
+  });
+
+  it('skips with the names-only notice when unconfigured, and makes no request', async () => {
+    const env = { TARGET_ENV: 'staging', COOLIFY_API_TOKEN: realistic.COOLIFY_API_TOKEN, HOME: '/home/runner' };
+    const { done, calls, logs } = run(env);
+    await done;
+    expect(calls).toHaveLength(0);
+    expect(logs).toEqual([skipNotice(TARGETS.staging, env)]);
+    expect(logs.join('\n')).not.toContain(realistic.COOLIFY_API_TOKEN);
+    expect(logs.join('\n')).not.toContain('/home/runner');
+  });
+
+  it('logs what Coolify reported for the Stage deploy, then warns about auto-deploy', async () => {
+    const body = { deployments: [{ message: 'Deployment queued.', resource_uuid: realistic.COOLIFY_APP_UUID_STAGE, deployment_uuid: 'dpl1' }] };
+    const { done, logs, summaries } = run(
+      { ...realistic, TARGET_ENV: 'staging', GITHUB_STEP_SUMMARY: '/tmp/summary' },
+      200,
+      body,
+    );
+    await done;
+    expect(logs).toContain('Coolify reports deployment dpl1: "Deployment queued."');
+    expect(logs).toContain(`::warning::${STAGE_AUTO_DEPLOY_WARNING}`);
+    expect(STAGE_AUTO_DEPLOY_WARNING).toMatch(/auto-deploy.*residio-stage.*switch it off \(docs\/agents\/branching\.md\)/);
+    expect(summaries.join('')).toContain(STAGE_AUTO_DEPLOY_WARNING);
+    for (const value of realisticValues) {
+      expect(logs.join('\n')).not.toContain(value);
+      expect(summaries.join('')).not.toContain(value);
+    }
+  });
+
+  it('Prod raises no auto-deploy warning (it is never deployed from CI)', async () => {
+    const { done, logs } = run({ ...realistic, TARGET_ENV: 'production' });
+    await done;
+    expect(logs.some((line) => line.startsWith('::warning::'))).toBe(false);
+  });
+});
+
+describe('targetFor', () => {
+  it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty'])('rejects inherited key %s', (name) => {
+    expect(() => targetFor(name)).toThrow(/Unknown TARGET_ENV/);
   });
 });
 

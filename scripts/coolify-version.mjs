@@ -49,8 +49,10 @@
  *
  * Exits 0 with a `::notice::` naming the missing secrets (names only) when the target is not
  * configured yet, so setup in progress never turns the workflow red. Once configured, any
- * non-2xx response fails the run with the method, the path and the status code. Response
- * bodies and secret values are never logged.
+ * non-2xx response (3xx included) fails the run with the method, the path and the status
+ * code. Secret values are never logged. The only body read is a successful deploy
+ * response, and from it only Coolify's deployment UUID and message (describeDeployResponse).
+ * Every Stage deploy also raises a `::warning::` about Coolify's own auto-deploy racing it.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -79,7 +81,8 @@ export const TARGETS = {
 
 /** The target for a `TARGET_ENV` value; throws on anything else rather than guessing. */
 export function targetFor(name) {
-  const target = TARGETS[name];
+  // Own keys only: `TARGETS['constructor']` or `['__proto__']` must not count as a target.
+  const target = Object.hasOwn(TARGETS, name) ? TARGETS[name] : undefined;
   if (!target) {
     throw new Error(`Unknown TARGET_ENV "${name}"; expected one of ${Object.keys(TARGETS).join(', ')}`);
   }
@@ -283,56 +286,156 @@ export function resolveSha(ref, run = runGit) {
   return run(['rev-parse', '--verify', '--quiet', `${String(ref || 'HEAD').trim()}^{commit}`]) || null;
 }
 
-async function main() {
-  const env = process.env;
+/**
+ * The `::notice::` for an unconfigured target, or null when every secret is set. It names
+ * the missing secrets and nothing else: no values, no other environment.
+ */
+export function skipNotice(target, env) {
+  const { skip, missing } = decideSkip(target, env);
+  if (!skip) return null;
+  return (
+    `::notice::Coolify version update skipped for ${target.appEnv}: missing secret(s) ${missing.join(', ')}. ` +
+    'See docs/agents/branching.md (Build version variables).'
+  );
+}
+
+/** The secret values to redact for this target, from the environment. */
+export function secretValuesFor(target, env) {
+  return requiredSecrets(target).map((name) => String(env[name] ?? ''));
+}
+
+/**
+ * One `::add-mask::` command per non-blank LINE of each secret value. GitHub masks a single
+ * line per command, so a multi-line value masked whole would leak its other lines.
+ */
+export function maskCommands(secretValues) {
+  const lines = secretValues.flatMap((value) => String(value ?? '').split(/\r?\n/));
+  return [...new Set(lines.filter((line) => line.trim()))].map((line) => `::add-mask::${line}`);
+}
+
+/** `METHOD path detail`, with every secret value redacted from the whole message. */
+export function failureMessage(method, path, detail, secretValues = []) {
+  return redact(`${method} ${path} ${detail}`, secretValues);
+}
+
+/**
+ * Throws unless `status` is 2xx. A 3xx is a failure too: Cloudflare Access answers a
+ * rejected service token with a 302 to its login page, and redirects are not followed.
+ */
+export function assertOk(status, method, path, secretValues = []) {
+  if (!Number.isInteger(status) || status < 200 || status > 299) {
+    throw new Error(failureMessage(method, path, `returned HTTP ${status}`, secretValues));
+  }
+}
+
+/**
+ * What Coolify's deploy endpoint reported, from its JSON body, for the log. Coolify v4
+ * answers `{ deployments: [{ message, resource_uuid, deployment_uuid }] }`. Only `message`
+ * and `deployment_uuid` are read, each as a short single-line string with secret values
+ * redacted; `resource_uuid` is the application UUID, a secret here, and is never shown.
+ * Anything else, or an unknown shape, gives a fixed string.
+ */
+export function describeDeployResponse(json, secretValues = []) {
+  const clean = (value) =>
+    typeof value === 'string'
+      ? redact(value.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 200), secretValues)
+      : '';
+  const deployments = Array.isArray(json?.deployments) ? json.deployments : [];
+  const parts = deployments
+    .map((deployment) => {
+      const uuid = clean(deployment?.deployment_uuid);
+      const message = clean(deployment?.message);
+      return [uuid && `deployment ${uuid}`, message && `"${message}"`].filter(Boolean).join(': ');
+    })
+    .filter(Boolean);
+  return parts.length ? `Coolify reports ${parts.join('; ')}` : 'Coolify accepted the deploy (no deployment details in the response)';
+}
+
+/** Shown on every Stage run that triggers a deploy (#421 D6). */
+export const STAGE_AUTO_DEPLOY_WARNING =
+  'If Coolify auto-deploy is still on for residio-stage, its own build may race this one and show the ' +
+  'previous version — switch it off (docs/agents/branching.md).';
+
+/**
+ * The whole run. Every side effect is injected so tests drive it with a fake `fetchImpl`
+ * and fake git; nothing here reaches the network on its own.
+ *
+ * @param {{
+ *   env?: Record<string, string | undefined>,
+ *   fetchImpl?: (url: string, init: object) => Promise<{ status: number, json: () => Promise<unknown> }>,
+ *   log?: (line: string) => void,
+ *   appendSummary?: (file: string, text: string) => void,
+ *   git?: ReturnType<typeof gitQueries>,
+ *   resolveCommit?: (ref: string | undefined) => string | null,
+ * }} [deps]
+ */
+export async function main({
+  env = process.env,
+  fetchImpl = fetch,
+  log = console.log,
+  appendSummary = (file, text) => appendFileSync(file, text),
+  git = gitQueries(),
+  resolveCommit = resolveSha,
+} = {}) {
   const target = targetFor(env.TARGET_ENV ?? '');
 
-  const { skip, missing } = decideSkip(target, env);
-  if (skip) {
-    console.log(
-      `::notice::Coolify version update skipped for ${target.appEnv}: missing secret(s) ${missing.join(', ')}. ` +
-        'See docs/agents/branching.md (Build version variables).',
-    );
+  const notice = skipNotice(target, env);
+  if (notice) {
+    log(notice);
     return;
   }
 
-  const secretValues = requiredSecrets(target).map((name) => env[name]);
+  const secretValues = secretValuesFor(target, env);
   if (env.GITHUB_ACTIONS === 'true') {
-    for (const value of secretValues) console.log(`::add-mask::${value}`);
+    for (const command of maskCommands(secretValues)) log(command);
   }
 
-  const sha = resolveSha(env.GIT_SHA);
+  const sha = resolveCommit(env.GIT_SHA);
   if (!sha) throw new Error('Could not resolve the commit to describe');
-  const version = resolveVersion({ sha, git: gitQueries() });
+  const version = resolveVersion({ sha, git });
   const baseUrl = normalizeBaseUrl(env.COOLIFY_BASE_URL);
   const headers = buildHeaders(env);
   const plan = planRequests({ target, appUuid: env[target.uuidSecret].trim(), version, sha });
+  const summary = [];
 
-  console.log(`Build version for ${target.appEnv}: ${version} (${sha})`);
+  log(`Build version for ${target.appEnv}: ${version} (${sha})`);
   for (const request of plan) {
-    const shown = `${request.method} ${redact(request.path, secretValues)}`;
+    const shown = redact(`${request.method} ${request.path}`, secretValues);
     let response;
     try {
-      response = await fetch(`${baseUrl}${request.path}`, {
+      response = await fetchImpl(`${baseUrl}${request.path}`, {
         ...requestInit(request, headers),
         signal: AbortSignal.timeout(30_000),
       });
     } catch (error) {
-      throw new Error(`${shown} failed before a response (${redact(error.name ?? 'Error', secretValues)})`);
+      throw new Error(
+        failureMessage(request.method, request.path, `failed before a response (${error?.name ?? 'Error'})`, secretValues),
+      );
     }
-    // The body is deliberately never read into the log: an error page may echo headers.
-    if (response.status < 200 || response.status > 299) {
-      throw new Error(`${shown} returned HTTP ${response.status}`);
+    // Status first; a failed response's body is never read (an error page may echo headers).
+    assertOk(response.status, request.method, request.path, secretValues);
+    log(`${shown} -> HTTP ${response.status}`);
+
+    if (request.method === 'POST' && request.path.startsWith('/api/v1/deploy')) {
+      let json = null;
+      try {
+        json = await response.json();
+      } catch {
+        json = null;
+      }
+      const reported = describeDeployResponse(json, secretValues);
+      log(reported);
+      log(`::warning::${STAGE_AUTO_DEPLOY_WARNING}`);
+      summary.push(`${reported}.`, `> ${STAGE_AUTO_DEPLOY_WARNING}`);
     }
-    console.log(`${shown} -> HTTP ${response.status}`);
   }
 
   const action = target.deploy ? 'variables set and deploy triggered' : 'variables set; no deploy (Prod is deployed by hand)';
-  console.log(`Coolify ${target.appEnv}: ${action}.`);
+  log(`Coolify ${target.appEnv}: ${action}.`);
   if (env.GITHUB_STEP_SUMMARY) {
-    appendFileSync(
+    appendSummary(
       env.GITHUB_STEP_SUMMARY,
-      `Coolify \`${target.appEnv}\`: \`${version}\` (\`${sha}\`), ${action}.\n`,
+      [`Coolify \`${target.appEnv}\`: \`${version}\` (\`${sha}\`), ${action}.`, ...summary, ''].join('\n\n'),
     );
   }
 }
