@@ -67,7 +67,7 @@
     "googleapis": "^169.0.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.556.0",
-    "next": "^16.1.1",
+    "next": "^16.4.0",
     "next-themes": "^0.4.6",
     "papaparse": "^5.5.3",
     "pdf-lib": "^1.17.1",
@@ -84,7 +84,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "use-debounce": "^10.0.6",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.1.13"
   },
   "devDependencies": {
@@ -98,7 +98,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.0.7",
+    "eslint-config-next": "16.4.0",
     "glob": "^13.0.0",
     "jsdom": "^29.1.1",
     "shadcn": "^3.6.2",
