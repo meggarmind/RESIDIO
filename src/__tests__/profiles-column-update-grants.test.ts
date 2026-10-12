@@ -86,7 +86,9 @@ describe('profiles column-level UPDATE grants', () => {
         if (declarations.length > 0 && declarations.every((d) => /^(await\s+)?createAdminClient\(/.test(d[1].trim()))) {
           continue;
         }
-        offenders.push(`${path.relative(root, file)} (${match[1]} via ${receiver ?? 'inline client'})`);
+        // POSIX separators, so the expectation below holds on Windows checkouts too.
+        const relative = path.relative(root, file).split(path.sep).join('/');
+        offenders.push(`${relative} (${match[1]} via ${receiver ?? 'inline client'})`);
       }
     }
     // The single permitted session-client writer, reviewed below.
