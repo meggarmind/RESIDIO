@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   STAGE_AUTO_DEPLOY_WARNING,
   TARGETS,
@@ -31,6 +31,10 @@ import {
  */
 
 const SHA = '0123456789abcdef0123456789abcdef01234567';
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 const configured = {
   COOLIFY_BASE_URL: 'https://coolify.example.test',
@@ -109,6 +113,14 @@ describe('resolveVersion', () => {
 
   it('gives the release itself on the stage commit the release merged (T^2)', () => {
     expect(resolveVersion({ sha: c('s4'), git: fakeGit(releaseGraph) })).toBe('v0.5.0');
+  });
+
+  it('beats plain git describe, which finds an older tag on stage (the #421 defect)', () => {
+    // Measured 2026-10-11: describe on origin/stage gave v0.4.2-19-gb2b531e, though
+    // b2b531e is v0.5.0^2.
+    const git = fakeGit({ ...releaseGraph, describe: 'v0.4.2-19-gs400000' });
+    expect(resolveVersion({ sha: c('s4'), git })).toBe('v0.5.0');
+    expect(resolveVersion({ sha: c('s6'), git })).toBe('v0.5.0-2-gs600000');
   });
 
   it('picks the newest qualifying tag and counts the commits ahead of its T^2', () => {
@@ -450,6 +462,8 @@ describe('main', () => {
         DEPLOY: 'true',
         FORCE_DEPLOY: 'true',
       };
+      // In process.env as well, in case anything reads it directly instead of `env`.
+      for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
       const { done, calls } = run(env);
       await done;
       expect(calls.map((call) => `${call.init.method} ${call.url}`)).toEqual([
