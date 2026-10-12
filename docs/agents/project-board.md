@@ -94,7 +94,8 @@ disagree, the human record wins.
 1. **Commit trailers on the branch.** Claude Code signs its commits
    `Co-Authored-By: Claude Opus 5`; OpenCode and Codex commits are bare. So a trailer proves
    Claude touched it, and a bare commit means "not Claude" rather than naming which of the other
-   two. Read them per commit, not per branch — that is how a two-harness ticket shows up:
+   two. **This only holds for commits before 2026-10-12**: from then on no harness signs its
+   commits (`CORE.md` §14), so for later work the `harness:*` label is the record. Read them per commit, not per branch — that is how a two-harness ticket shows up:
 
    ```bash
    MERGE=$(git log origin/<base> --format=%H --grep="Merge pull request #<PR> " -1)   # <base>: stage for feature PRs, master for release/hotfix PRs

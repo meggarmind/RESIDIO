@@ -12,7 +12,7 @@ This document covers git configuration, documentation update cadence, session wo
 | User | `meggarmind` |
 | Email | `feyijimiohioma@gmail.com` |
 
-**Note**: Do not include Claude Code references in commits.
+**Note**: Commits and PR descriptions carry no harness attribution — see `CORE.md` §14.
 
 ---
 
@@ -146,10 +146,6 @@ chore(sync): [brief description of session work]
 
 - [Key change 1]
 - [Key change 2]
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 EOF
 )"
 
