@@ -40,6 +40,8 @@ import { Users, Plus, Search, Pencil, UserPlus, ChevronDown, ChevronUp, Chevrons
 import type { ResidentSearchParams, ContactVerificationFilter } from '@/lib/validators/resident';
 import type { AccountStatus, ResidentRole, ResidentWithHouses } from '@/types/database';
 import { RESIDENT_ROLE_LABELS } from '@/types/database';
+import { Can } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const ALL_VALUE = '_all';
 
@@ -110,17 +112,19 @@ const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview 
           >
             <Eye className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            asChild
-            aria-label="Edit resident"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Link href={`/residents/${resident.id}?edit=true`}>
-              <Pencil className="h-4 w-4" />
-            </Link>
-          </Button>
+          <Can permission={PERMISSIONS.RESIDENTS_UPDATE}>
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              aria-label="Edit resident"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Link href={`/residents/${resident.id}?edit=true`}>
+                <Pencil className="h-4 w-4" />
+              </Link>
+            </Button>
+          </Can>
         </div>
       </TableCell>
     </TableRow>
@@ -482,10 +486,12 @@ export function ResidentsTable() {
                         Get started by adding your first resident to the system
                       </p>
                     </div>
-                    <Button onClick={() => router.push('/residents/new')}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Resident
-                    </Button>
+                    <Can permission={PERMISSIONS.RESIDENTS_CREATE}>
+                      <Button onClick={() => router.push('/residents/new')}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Resident
+                      </Button>
+                    </Can>
                   </div>
                 </TableCell>
               </TableRow>
