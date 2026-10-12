@@ -1,6 +1,9 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { logAudit } from '@/lib/audit/logger';
 import {
     mapInvoiceGenerationRunToHistoryEntry,
     mergeGenerationHistory,
@@ -176,11 +179,22 @@ export async function updateInvoiceGenerationDay(day: number): Promise<{
     success: boolean;
     error: string | null;
 }> {
-    if (day < 1 || day > 28) {
+    const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_BILLING);
+    if (!auth.authorized) {
+        return { success: false, error: auth.error || 'Unauthorized' };
+    }
+
+    if (!Number.isInteger(day) || day < 1 || day > 28) {
         return { success: false, error: 'Day must be between 1 and 28' };
     }
 
     const supabase = await createServerSupabaseClient();
+
+    const { data: existing } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'invoice_generation_day')
+        .maybeSingle();
 
     const { error } = await supabase
         .from('system_settings')
@@ -190,6 +204,15 @@ export async function updateInvoiceGenerationDay(day: number): Promise<{
     if (error) {
         return { success: false, error: error.message };
     }
+
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'system_settings',
+        entityId: 'invoice_generation_day',
+        entityDisplay: 'Invoice generation day',
+        oldValues: existing ? { value: existing.value } : undefined,
+        newValues: { value: day },
+    });
 
     return { success: true, error: null };
 }
@@ -225,7 +248,18 @@ export async function updateAutoGenerateEnabled(enabled: boolean): Promise<{
     success: boolean;
     error: string | null;
 }> {
+    const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_BILLING);
+    if (!auth.authorized) {
+        return { success: false, error: auth.error || 'Unauthorized' };
+    }
+
     const supabase = await createServerSupabaseClient();
+
+    const { data: existing } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'auto_generate_invoices')
+        .maybeSingle();
 
     const { error } = await supabase
         .from('system_settings')
@@ -235,6 +269,15 @@ export async function updateAutoGenerateEnabled(enabled: boolean): Promise<{
     if (error) {
         return { success: false, error: error.message };
     }
+
+    await logAudit({
+        action: enabled ? 'ACTIVATE' : 'DEACTIVATE',
+        entityType: 'system_settings',
+        entityId: 'auto_generate_invoices',
+        entityDisplay: 'Auto-generate invoices',
+        oldValues: existing ? { value: existing.value } : undefined,
+        newValues: { value: enabled },
+    });
 
     return { success: true, error: null };
 }
