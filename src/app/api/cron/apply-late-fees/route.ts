@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { applyLateFees, getLateFeeSettings } from '@/actions/billing/apply-late-fees';
+import { getLateFeeSettings } from '@/actions/billing/apply-late-fees';
+import { runLateFeeApplication } from '@/lib/billing/apply-late-fees';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { createLogger } from '@/lib/logger';
 
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
     }
 
     log.info('Starting automated late fee application');
-    const result = await applyLateFees('cron');
+    const result = await runLateFeeApplication('cron');
 
     log.info('Late fee application completed:', {
       processed: result.processed,
