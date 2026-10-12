@@ -6,6 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
 import type { PettyCashAccount } from '@/types/database';
+import { validateMoneyAmount } from '@/lib/validators/money';
 
 // ============================================================
 // Petty Cash Metrics & Management
@@ -275,6 +276,9 @@ export async function replenishPettyCashAccount(
     const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
     if (!authorized) return { success: false, error: 'Unauthorized' };
 
+    const amountError = validateMoneyAmount(amount, { label: 'Replenishment amount' });
+    if (amountError) return { success: false, error: amountError };
+
     const supabase = await createServerSupabaseClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -338,6 +342,9 @@ export async function recordCashCollection(
 ): Promise<{ success: boolean; error?: string }> {
     const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
     if (!authorized) return { success: false, error: 'Unauthorized' };
+
+    const amountError = validateMoneyAmount(amount, { label: 'Collection amount' });
+    if (amountError) return { success: false, error: amountError };
 
     const supabase = await createServerSupabaseClient();
 

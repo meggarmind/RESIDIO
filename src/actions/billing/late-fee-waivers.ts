@@ -5,6 +5,7 @@ import { embed } from '@/lib/utils';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { validateMoneyAmount } from '@/lib/validators/money';
 import type {
   LateFeeWaiver,
   LateFeeWaiverWithDetails,
@@ -162,8 +163,9 @@ export async function requestLateFeeWaiver(params: {
 
   // Validate partial waiver amount
   if (waiverType === 'partial') {
-    if (!waiverAmount || waiverAmount <= 0) {
-      return { success: false, error: 'Partial waiver amount must be greater than 0' };
+    const waiverAmountError = validateMoneyAmount(waiverAmount, { label: 'Partial waiver amount' });
+    if (waiverAmountError || waiverAmount === undefined) {
+      return { success: false, error: waiverAmountError ?? 'Partial waiver amount must be greater than 0' };
     }
     if (waiverAmount >= lateFeeAmount) {
       return { success: false, error: 'Partial waiver amount must be less than the total late fee' };

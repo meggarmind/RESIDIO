@@ -7,6 +7,13 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 
+/** Rejects NaN/Infinity, which would otherwise be stored as the strings "NaN"/"Infinity". */
+function nonFiniteNumberError(key: string, value: unknown): string | null {
+    return typeof value === 'number' && !Number.isFinite(value)
+        ? `Setting "${key}" must be a finite number`
+        : null;
+}
+
 type UpdateSettingResponse = {
     data: SystemSetting | null;
     error: string | null;
@@ -28,6 +35,9 @@ export async function updateSetting(key: string, value: unknown): Promise<Update
     if (!auth.authorized) {
         return { data: null, error: auth.error || 'Unauthorized' };
     }
+
+    const valueError = nonFiniteNumberError(key, value);
+    if (valueError) return { data: null, error: valueError };
 
     // Get old value for audit comparison
     const { data: oldSetting } = await supabase
@@ -88,6 +98,11 @@ export async function updateSettings(settings: Record<string, unknown>): Promise
     const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
     if (!auth.authorized) {
         return { success: false, error: auth.error || 'Unauthorized' };
+    }
+
+    for (const [key, value] of Object.entries(settings)) {
+        const valueError = nonFiniteNumberError(key, value);
+        if (valueError) return { success: false, error: valueError };
     }
 
     const keys = Object.keys(settings);
@@ -186,6 +201,9 @@ export async function createSetting(
     if (!auth.authorized) {
         return { data: null, error: auth.error || 'Unauthorized' };
     }
+
+    const valueError = nonFiniteNumberError(key, value);
+    if (valueError) return { data: null, error: valueError };
 
     let storageValue = value;
     if (typeof value === 'boolean') {

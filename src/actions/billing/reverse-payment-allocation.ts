@@ -7,6 +7,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { getOrCreateWallet } from './wallet';
 import type { InvoiceStatus } from '@/types/database';
 import { revalidatePath } from 'next/cache';
+import { validateMoneyAmount } from '@/lib/validators/money';
 
 interface ReverseAllocationResult {
   success: boolean;
@@ -52,12 +53,13 @@ export async function reversePaymentAllocation(
   }
 
   // 2. Validate amount
-  if (amountToReverse <= 0) {
+  const amountError = validateMoneyAmount(amountToReverse, { label: 'Reversal amount' });
+  if (amountError) {
     return {
       success: false,
       amountReversed: 0,
       newInvoiceStatus: null,
-      error: 'Reversal amount must be greater than zero',
+      error: amountError,
     };
   }
 
