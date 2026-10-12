@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import { createMatcher, type ResidentMatchData } from '@/lib/matching';
 import type { BankStatementRow, MatchConfidence, MatchMethod, ResidentPaymentAlias } from '@/types/database';
 import { checkDuplicate } from './process-import';
@@ -84,19 +85,24 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
   }
 
   // Get pending rows for this import
-  const { data: rows, error: rowsError } = await supabase
-    .from('bank_statement_rows')
-    .select('*')
-    .eq('import_id', import_id)
-    .eq('status', 'pending')
-    .order('row_number');
+  // Paged: a single read is capped at 1000 rows, which would leave the rest 'pending' (#459).
+  const { data: rows, error: rowsError } = await fetchAllRows((from, to) =>
+    supabase
+      .from('bank_statement_rows')
+      .select('*')
+      .eq('import_id', import_id)
+      .eq('status', 'pending')
+      .order('row_number')
+      .order('id')
+      .range(from, to)
+  );
 
   if (rowsError) {
     return {
       results: [],
       matched_count: 0,
       unmatched_count: 0,
-      error: rowsError.message,
+      error: rowsError,
     };
   }
 

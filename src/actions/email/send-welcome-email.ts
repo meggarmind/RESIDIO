@@ -33,7 +33,7 @@ export async function sendWelcomeEmail(residentId: string): Promise<SendWelcomeE
       last_name,
       email,
       resident_code,
-      resident_houses(
+      resident_houses!resident_houses_resident_id_fkey(
         house:houses(
           house_number,
           street:streets(name)
