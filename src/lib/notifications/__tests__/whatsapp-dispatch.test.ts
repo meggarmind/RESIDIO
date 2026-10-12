@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
 import { PRIORITY } from '@/lib/notifications/queue';
 import { sendNotification, sendAndRecordNotification } from '@/lib/notifications/send';
-import { getSettingValueAsService, getSettingResultAsService } from '@/actions/settings/get-settings';
+import { getSettingValueAsService, getSettingResultAsService } from '@/lib/settings/service';
 import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { resolveWhatsAppConfig } from '@/lib/whatsapp/config';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 import { sendSms } from '@/lib/sms/send-sms';
 
-vi.mock('@/actions/settings/get-settings', () => ({
+vi.mock('@/lib/settings/service', () => ({
   getSettingValueAsService: vi.fn(),
   getSettingResultAsService: vi.fn(),
 }));

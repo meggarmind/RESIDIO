@@ -17,7 +17,7 @@
  */
 
 import { resend, emailConfig, isEmailConfigured } from '@/lib/email/resend';
-import { getSettingValueAsService, getSettingResultAsService } from '@/actions/settings/get-settings';
+import { getSettingValueAsService, getSettingResultAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 import type {
   NotificationChannel,
