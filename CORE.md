@@ -697,10 +697,12 @@ Before opening the PR, the coordinator pushes the branch and runs the real gate 
 
 ```bash
 gh workflow run pr-gate.yml --repo meggarmind/RESIDIO --ref <branch>
-gh run watch --repo meggarmind/RESIDIO $(gh run list --repo meggarmind/RESIDIO --workflow pr-gate.yml --branch <branch> --limit 1 --json databaseId --jq '.[0].databaseId')
+# a dispatched run takes a few seconds to appear; without the filter and pause, `list` returns the previous run
+sleep 10
+gh run watch --exit-status --repo meggarmind/RESIDIO $(gh run list --repo meggarmind/RESIDIO --workflow pr-gate.yml --branch <branch> --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId')
 ```
 
-A docs-only PR skips the heavy jobs automatically.
+`--exit-status` makes a red gate a non-zero exit. A docs-only PR skips the heavy jobs automatically.
 
 After each wave, report: what shipped, the model used, the QA verdict, how many agents ran on
 which machine, and any decisions you made on the user's behalf. **Decisions, not a transcript.**
