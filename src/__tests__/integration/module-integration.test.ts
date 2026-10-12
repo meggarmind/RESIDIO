@@ -50,23 +50,15 @@ const PERMISSION_ALLOWLIST = [
   // re-add an entry here to make this suite pass: that reopens the gap silently,
   // which is the whole failure mode the allowlist exists to make visible.
   //
-  // Two write actions in reports/report-schedules.ts remain unguarded, for
-  // DIFFERENT reasons -- do not collapse them into one justification:
-  //
-  //   markScheduleExecuted  -- genuinely cron-only. Its sole caller is the
-  //     CRON_SECRET-authenticated /api/cron/generate-reports route, which has no
-  //     user session. A hard permission check would break the scheduled path.
-  //
-  //   saveGeneratedReport   -- NOT cron-only, and NOT safe. It is also called
-  //     interactively from src/hooks/use-reports.ts:139. It has no authorization
-  //     check of any kind, and it selects its client from the caller-supplied
-  //     `generation_trigger`, so a caller passing 'scheduled' gets
-  //     createAdminClient() and bypasses RLS. Tracked as its own issue; this
-  //     comment previously claimed it was cron-only, which was wrong.
-  //
-  // The file is NOT allowlisted, because this scan is per-file and the file does
-  // contain permission checks -- which is exactly how the gap above stayed
-  // invisible. That per-file granularity is tracked separately.
+  // reports/report-schedules.ts is fully guarded (#388). saveGeneratedReport now
+  // calls authorizePermission(REPORTS_VIEW_FINANCIAL), deliberately matching the
+  // live RLS INSERT policy on generated_reports, and uses the session client
+  // only. The service-role cron writes (getDueSchedules, markScheduleExecuted,
+  // saveScheduledReport) moved to src/lib/reports/scheduled-report-store.ts: a
+  // plain server lib, not a use-server module, imported only by the
+  // CRON_SECRET-authenticated /api/cron/generate-reports route. It sits outside
+  // this src/actions/** scan by design, so it is not, and must not become, an
+  // allowlist entry.
 
   // ---- Not covered by admin RBAC by design (ownership / service / pre-auth).
   // Do NOT add authorizePermission to these.
@@ -183,7 +175,20 @@ function hasTopLevelUseServer(content: string): boolean {
       break;
     }
   }
-  return /^(['"])use server\1(?:\s*;|\s*$|\s*\n)/.test(rest);
+  return /^(['"])use server\1(?:\s*;|\s*$|\s*\n|\s*\/\/|\s*\/\*)/.test(rest);
+}
+
+/**
+ * True when any line is a bare 'use server' / "use server" string statement
+ * (optional `;`, optional trailing `//` or block comment). Inside a function
+ * body this makes that one function a callable server-action endpoint (#460);
+ * at the top of a file it is the module directive. Mentions of the words in
+ * other code, longer string literals, or comments do not match.
+ */
+function hasUseServerDirectiveLine(content: string): boolean {
+  return content
+    .split(/\r?\n/)
+    .some((line) => /^\s*(['"])use server\1\s*;?\s*(?:\/\/.*|\/\*.*)?$/.test(line));
 }
 
 function isAllowlisted(file: string, allowlist: string[]): boolean {
@@ -266,7 +271,7 @@ describe('Module Integration Compliance', () => {
   });
 
   describe('Server Action Surface', () => {
-    it("no file outside src/actions should be a 'use server' module", async () => {
+    it("no file outside src/actions should carry a 'use server' directive (module or function level)", async () => {
       const srcFiles = await glob('**/*.{ts,tsx}', {
         cwd: SRC_DIR,
         ignore: ['actions/**'],
@@ -278,14 +283,14 @@ describe('Module Integration Compliance', () => {
         if (USE_SERVER_OUTSIDE_ACTIONS_ALLOWLIST.includes(relative)) continue;
 
         const content = fs.readFileSync(path.join(SRC_DIR, file), 'utf-8');
-        if (hasTopLevelUseServer(content)) {
+        if (hasTopLevelUseServer(content) || hasUseServerDirectiveLine(content)) {
           violations.push(relative);
         }
       }
 
       expect(
         violations,
-        `Files outside src/actions/** with a top-level 'use server' directive:\n${violations.join('\n')}\n\n` +
+        `Files outside src/actions/** with a 'use server' directive (top-level or inside a function):\n${violations.join('\n')}\n\n` +
           `Every export of such a file is a callable server action that the permission/audit scans never see. ` +
           `Remove the directive (server-only libraries do not need it), move the actions under src/actions/**, ` +
           `or add the file to USE_SERVER_OUTSIDE_ACTIONS_ALLOWLIST with a reason.`

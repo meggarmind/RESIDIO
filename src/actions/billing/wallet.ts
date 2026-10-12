@@ -6,6 +6,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { callWalletPaymentRpc } from '@/lib/billing/wallet-payment-rpc';
+import { debitWalletForInvoiceAtomic } from '@/lib/billing/wallet-invoice-debit';
 
 export type WalletTransaction = {
     id: string;
@@ -179,87 +180,51 @@ export async function debitWallet(
 }
 
 /**
- * Debit from wallet to pay an invoice (full or partial)
+ * Debit from wallet to pay an invoice (full or partial).
+ *
+ * Admin-callable server action: requires billing.manage_wallets and is audited.
+ * Internal flows (levy generation, the payment allocator) use
+ * debitWalletForInvoiceAtomic() directly and keep their own authorization.
  */
 export async function debitWalletForInvoice(
     residentId: string,
     invoiceId: string
 ): Promise<{ success: boolean; amountDebited: number; error: string | null }> {
+    const auth = await authorizePermission(PERMISSIONS.BILLING_MANAGE_WALLETS);
+    if (!auth.authorized) {
+        return { success: false, amountDebited: 0, error: auth.error || 'Unauthorized' };
+    }
+
+    if (typeof residentId !== 'string' || !UUID_PATTERN.test(residentId)) {
+        return { success: false, amountDebited: 0, error: 'Invalid resident' };
+    }
+    if (typeof invoiceId !== 'string' || !UUID_PATTERN.test(invoiceId)) {
+        return { success: false, amountDebited: 0, error: 'Invalid invoice' };
+    }
+
     const supabase = await createServerSupabaseClient();
-
-    // Get wallet
-    const { data: wallet, error: walletError } = await getOrCreateWallet(residentId);
-    if (walletError || !wallet) {
-        return { success: false, amountDebited: 0, error: walletError || 'Failed to get wallet' };
+    const result = await debitWalletForInvoiceAtomic(supabase, residentId, invoiceId);
+    if (!result.success) {
+        return { success: false, amountDebited: 0, error: result.error || 'Wallet debit failed' };
     }
 
-    if (wallet.balance <= 0) {
-        return { success: false, amountDebited: 0, error: 'Insufficient wallet balance' };
-    }
-
-    // Get invoice
-    const { data: invoice, error: invoiceError } = await supabase
-        .from('invoices')
-        .select('id, amount_due, amount_paid, status, invoice_number')
-        .eq('id', invoiceId)
-        .single();
-
-    if (invoiceError || !invoice) {
-        return { success: false, amountDebited: 0, error: 'Invoice not found' };
-    }
-
-    const remainingDue = invoice.amount_due - invoice.amount_paid;
-    if (remainingDue <= 0) {
-        return { success: false, amountDebited: 0, error: 'Invoice already paid' };
-    }
-
-    // Calculate how much we can pay
-    const amountToDebit = Math.min(wallet.balance, remainingDue);
-    const newWalletBalance = wallet.balance - amountToDebit;
-    const newAmountPaid = invoice.amount_paid + amountToDebit;
-    const newStatus = newAmountPaid >= invoice.amount_due ? 'paid' : 'partially_paid';
-
-    // Update wallet
-    const { error: walletUpdateError } = await supabase
-        .from('resident_wallets')
-        .update({ balance: newWalletBalance })
-        .eq('id', wallet.id);
-
-    if (walletUpdateError) {
-        return { success: false, amountDebited: 0, error: walletUpdateError.message };
-    }
-
-    // Update invoice
-    const { error: invoiceUpdateError } = await supabase
-        .from('invoices')
-        .update({ amount_paid: newAmountPaid, status: newStatus })
-        .eq('id', invoiceId);
-
-    if (invoiceUpdateError) {
-        // Rollback wallet
-        await supabase
-            .from('resident_wallets')
-            .update({ balance: wallet.balance })
-            .eq('id', wallet.id);
-        return { success: false, amountDebited: 0, error: invoiceUpdateError.message };
-    }
-
-    // Log transaction
-    await supabase
-        .from('wallet_transactions')
-        .insert({
-            wallet_id: wallet.id,
-            type: 'debit',
-            amount: amountToDebit,
-            balance_after: newWalletBalance,
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'wallets',
+        entityId: result.walletId ?? residentId,
+        entityDisplay: `Wallet debit for invoice ${result.invoiceNumber ?? invoiceId}`,
+        oldValues: result.newBalance === null ? undefined : { balance: result.newBalance + result.amountDebited },
+        newValues: {
+            balance: result.newBalance,
+            amount_debited: result.amountDebited,
             reference_type: 'invoice',
             reference_id: invoiceId,
-            description: `Payment for ${invoice.invoice_number}`,
-        });
+        },
+    });
 
     revalidatePath('/billing');
     revalidatePath('/residents');
-    return { success: true, amountDebited: amountToDebit, error: null };
+    return { success: true, amountDebited: result.amountDebited, error: null };
 }
 
 /**
@@ -378,7 +343,7 @@ export async function allocateWalletToInvoices(
 
         if (!priorityError && priorityInvoices && priorityInvoices.length > 0) {
             for (const invoice of priorityInvoices) {
-                const result = await debitWalletForInvoice(residentId, invoice.id);
+                const result = await debitWalletForInvoiceAtomic(supabase, residentId, invoice.id);
                 if (result.success && result.amountDebited > 0) {
                     invoicesPaid++;
                     totalAllocated += result.amountDebited;
@@ -414,7 +379,7 @@ export async function allocateWalletToInvoices(
     }
 
     for (const invoice of invoices || []) {
-        const result = await debitWalletForInvoice(residentId, invoice.id);
+        const result = await debitWalletForInvoiceAtomic(supabase, residentId, invoice.id);
         if (result.success && result.amountDebited > 0) {
             invoicesPaid++;
             totalAllocated += result.amountDebited;
