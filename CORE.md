@@ -702,7 +702,7 @@ sleep 10
 gh run watch --exit-status --repo meggarmind/RESIDIO $(gh run list --repo meggarmind/RESIDIO --workflow pr-gate.yml --branch <branch> --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId')
 ```
 
-`--exit-status` makes a red gate a non-zero exit. A docs-only PR skips the heavy jobs automatically.
+`--exit-status` makes a red gate a non-zero exit. A dispatched run always runs every job; only a docs-only PR's own gate run skips the heavy ones.
 
 After each wave, report: what shipped, the model used, the QA verdict, how many agents ran on
 which machine, and any decisions you made on the user's behalf. **Decisions, not a transcript.**
