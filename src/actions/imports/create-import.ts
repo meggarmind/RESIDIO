@@ -8,6 +8,7 @@ import { autoTagTransaction } from '@/actions/reference/transaction-tags';
 import type { BankStatementImport, BankStatementRow, ColumnMapping, TransactionFilter, TransactionTagType } from '@/types/database';
 import type { ParsedRow } from '@/lib/validators/import';
 import { generateTransactionHash } from '@/lib/utils/hashing';
+import { MAX_IMPORT_ROWS } from '@/lib/uploads';
 
 // ============================================================
 // Response Types
@@ -60,6 +61,10 @@ export async function createImport(params: CreateImportParams): Promise<CreateIm
     period_start,
     period_end,
   } = params;
+
+  if (!Number.isInteger(total_rows) || total_rows < 0 || total_rows > MAX_IMPORT_ROWS) {
+    return { data: null, error: `An import can contain at most ${MAX_IMPORT_ROWS} rows` };
+  }
 
   // Verify bank account exists
   const { data: bankAccount, error: bankError } = await supabase
@@ -194,6 +199,10 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
     return { count: 0, error: null };
   }
 
+  if (rows.length > MAX_IMPORT_ROWS) {
+    return { count: 0, error: `An import can contain at most ${MAX_IMPORT_ROWS} rows (received ${rows.length})` };
+  }
+
   // Transform parsed rows to database format
   const dbRows = rows.map((row) => ({
     import_id,
@@ -229,8 +238,16 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
         }
       });
     } catch (err) {
+      // Keep the statement all-or-nothing: remove rows already stored for this import
+      const { error: cleanupError } = await supabase
+        .from('bank_statement_rows')
+        .delete()
+        .eq('import_id', import_id);
+      if (cleanupError) {
+        console.error('[createImportRows] Failed to roll back partial insert:', cleanupError);
+      }
       return {
-        count: totalInserted,
+        count: 0,
         error: `Failed to insert rows ${i + 1}-${i + batch.length} after 3 retries: ${err instanceof Error ? err.message : 'Unknown error'}`,
       };
     }

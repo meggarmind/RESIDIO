@@ -1,10 +1,13 @@
 'use server';
 
-import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
+import { calculateNextRunDate } from '@/lib/reports/scheduled-report-store';
 
 // Types
 export type ReportType = 'financial_overview' | 'collection_report' | 'invoice_aging' | 'transaction_log' | 'debtors_report' | 'indebtedness_summary' | 'indebtedness_detail' | 'development_levy';
@@ -73,62 +76,6 @@ export interface CreateScheduleInput {
     configuration?: Record<string, unknown>;
     recipients?: string[];
     template_style?: TemplateStyle;
-}
-
-// Calculate next run date based on frequency
-function calculateNextRunDate(frequency: ScheduleFrequency, dayOfWeek?: number, dayOfMonth?: number): Date {
-    const now = new Date();
-    const next = new Date(now);
-
-    // Set to 6 AM UTC (same as other crons)
-    next.setUTCHours(6, 0, 0, 0);
-
-    switch (frequency) {
-        case 'daily':
-            // Next day at 6 AM
-            next.setUTCDate(next.getUTCDate() + 1);
-            break;
-
-        case 'weekly':
-            // Next occurrence of day_of_week
-            const targetDay = dayOfWeek ?? 1; // Default to Monday
-            const currentDay = next.getUTCDay();
-            let daysUntilTarget = targetDay - currentDay;
-            if (daysUntilTarget <= 0) daysUntilTarget += 7;
-            next.setUTCDate(next.getUTCDate() + daysUntilTarget);
-            break;
-
-        case 'monthly':
-            // Next occurrence of day_of_month
-            const targetDayOfMonth = dayOfMonth ?? 1;
-            next.setUTCDate(targetDayOfMonth);
-            if (next <= now) {
-                next.setUTCMonth(next.getUTCMonth() + 1);
-            }
-            break;
-
-        case 'quarterly':
-            // First day of next quarter
-            const currentQuarter = Math.floor(now.getUTCMonth() / 3);
-            const nextQuarterMonth = (currentQuarter + 1) * 3;
-            next.setUTCMonth(nextQuarterMonth);
-            next.setUTCDate(dayOfMonth ?? 1);
-            if (next <= now) {
-                next.setUTCMonth(next.getUTCMonth() + 3);
-            }
-            break;
-
-        case 'yearly':
-            // January of next year (or specified day)
-            next.setUTCMonth(0);
-            next.setUTCDate(dayOfMonth ?? 1);
-            if (next <= now) {
-                next.setUTCFullYear(next.getUTCFullYear() + 1);
-            }
-            break;
-    }
-
-    return next;
 }
 
 // Get all report schedules
@@ -221,6 +168,25 @@ export async function createReportSchedule(input: CreateScheduleInput): Promise<
     return { data, error: null };
 }
 
+// Editable schedule columns. Strict: last_run_at, next_run_at, created_by, id etc.
+// are rejected (next_run_at is recomputed below, never taken from the caller).
+const updateScheduleSchema = z.object({
+    name: z.string().min(1).optional(),
+    description: z.string().optional(),
+    report_type: z.enum(['financial_overview', 'collection_report', 'invoice_aging', 'transaction_log', 'debtors_report', 'indebtedness_summary', 'indebtedness_detail', 'development_levy']).optional(),
+    frequency: z.enum(['daily', 'weekly', 'monthly', 'quarterly', 'yearly']).optional(),
+    day_of_week: z.number().int().min(0).max(6).optional(),
+    day_of_month: z.number().int().min(1).max(31).optional(),
+    period_preset: z.enum(['this_month', 'last_month', 'this_quarter', 'last_quarter', 'this_year', 'last_year']).optional(),
+    bank_account_ids: z.array(z.string()).optional(),
+    include_charts: z.boolean().optional(),
+    include_summary: z.boolean().optional(),
+    configuration: z.record(z.string(), z.unknown()).optional(),
+    recipients: z.array(z.string()).optional(),
+    template_style: z.enum(['traditional', 'modern']).optional(),
+    is_active: z.boolean().optional(),
+}).strict();
+
 // Update a schedule
 export async function updateReportSchedule(
     id: string,
@@ -228,6 +194,12 @@ export async function updateReportSchedule(
 ): Promise<{ data: ReportSchedule | null; error: string | null }> {
     const auth = await authorizePermission(PERMISSIONS.REPORTS_MANAGE_SCHEDULES);
     if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
+
+    const parsedInput = updateScheduleSchema.safeParse(input);
+    if (!parsedInput.success) {
+        return { data: null, error: parsedInput.error.issues[0]?.message || 'Invalid schedule data' };
+    }
+    const fields = parsedInput.data;
 
     const supabase = await createServerSupabaseClient();
 
@@ -243,17 +215,17 @@ export async function updateReportSchedule(
 
     // Recalculate next run if frequency changes
     let nextRunAt = existing.next_run_at;
-    if (input.frequency || input.day_of_week !== undefined || input.day_of_month !== undefined) {
-        const freq = input.frequency || existing.frequency;
-        const dow = input.day_of_week ?? existing.day_of_week;
-        const dom = input.day_of_month ?? existing.day_of_month;
+    if (fields.frequency || fields.day_of_week !== undefined || fields.day_of_month !== undefined) {
+        const freq = fields.frequency || existing.frequency;
+        const dow = fields.day_of_week ?? existing.day_of_week;
+        const dom = fields.day_of_month ?? existing.day_of_month;
         nextRunAt = calculateNextRunDate(freq, dow ?? undefined, dom ?? undefined).toISOString();
     }
 
     const { data, error } = await supabase
         .from('report_schedules')
         .update({
-            ...input,
+            ...fields,
             next_run_at: nextRunAt,
         })
         .eq('id', id)
@@ -369,11 +341,11 @@ export async function getGeneratedReport(id: string): Promise<{ data: GeneratedR
     return { data, error: null };
 }
 
-// Save a generated report to history
+// Save a generated report to history (interactive, session-authenticated only).
+// Scheduled/cron writes live in `@/lib/reports/scheduled-report-store` (#388).
 export async function saveGeneratedReport(input: {
     name: string;
     report_type: ReportType;
-    schedule_id?: string;
     period_start: string;
     period_end: string;
     period_preset?: string;
@@ -381,22 +353,21 @@ export async function saveGeneratedReport(input: {
     template_style?: TemplateStyle;
     report_data: unknown;
     summary?: unknown;
-    generation_trigger: GenerationTrigger;
     generation_duration_ms?: number;
 }): Promise<{ data: GeneratedReport | null; error: string | null }> {
-    // Use admin client for scheduled reports (no auth context)
-    const supabase = input.generation_trigger === 'scheduled'
-        ? createAdminClient()
-        : await createServerSupabaseClient();
+    const auth = await authorizePermission(PERMISSIONS.REPORTS_VIEW_FINANCIAL);
+    if (!auth.authorized) return { data: null, error: auth.error || 'Unauthorized' };
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const supabase = await createServerSupabaseClient();
 
+    // Named fields only: extra properties smuggled in by a caller are ignored, and
+    // trigger/schedule are server-side constants for the interactive path.
     const { data, error } = await supabase
         .from('generated_reports')
         .insert({
             name: input.name,
             report_type: input.report_type,
-            schedule_id: input.schedule_id || null,
+            schedule_id: null,
             period_start: input.period_start,
             period_end: input.period_end,
             period_preset: input.period_preset || null,
@@ -404,17 +375,25 @@ export async function saveGeneratedReport(input: {
             template_style: input.template_style || 'modern',
             report_data: input.report_data,
             summary: input.summary || null,
-            generation_trigger: input.generation_trigger,
+            generation_trigger: 'manual',
             generation_duration_ms: input.generation_duration_ms || null,
-            generated_by: user?.id || null,
+            generated_by: auth.userId,
         })
         .select()
         .single();
 
-    if (error) {
+    if (error || !data) {
         console.error('[Reports] Failed to save generated report:', error);
-        return { data: null, error: error.message };
+        return { data: null, error: error?.message || 'Failed to save generated report' };
     }
+
+    await logAudit({
+        action: 'CREATE',
+        entityType: 'system_settings',
+        entityId: data.id,
+        entityDisplay: `Generated Report: ${data.name}`,
+        description: 'Saved generated report to history',
+    });
 
     return { data, error: null };
 }
@@ -438,41 +417,6 @@ export async function deleteGeneratedReport(id: string): Promise<{ success: bool
 
     revalidatePath('/reports');
     return { success: true, error: null };
-}
-
-// Get schedules due for execution (for cron job)
-export async function getDueSchedules(): Promise<{ data: ReportSchedule[] | null; error: string | null }> {
-    const supabase = createAdminClient();
-
-    const now = new Date().toISOString();
-
-    const { data, error } = await supabase
-        .from('report_schedules')
-        .select('*')
-        .eq('is_active', true)
-        .lte('next_run_at', now);
-
-    if (error) {
-        console.error('[Reports] Failed to fetch due schedules:', error);
-        return { data: null, error: error.message };
-    }
-
-    return { data, error: null };
-}
-
-// Update schedule after execution
-export async function markScheduleExecuted(id: string, frequency: ScheduleFrequency, dayOfWeek?: number, dayOfMonth?: number): Promise<void> {
-    const supabase = createAdminClient();
-
-    const nextRunAt = calculateNextRunDate(frequency, dayOfWeek, dayOfMonth);
-
-    await supabase
-        .from('report_schedules')
-        .update({
-            last_run_at: new Date().toISOString(),
-            next_run_at: nextRunAt.toISOString(),
-        })
-        .eq('id', id);
 }
 
 // ============================================================
@@ -513,7 +457,7 @@ export async function createReportVersion(input: {
     const { data: versions } = await supabase
         .from('generated_reports')
         .select('version')
-        .or(`id.eq.${originalId},parent_report_id.eq.${originalId}`)
+        .or(idOrParentFilterStrict('id', 'parent_report_id', originalId))
         .order('version', { ascending: false })
         .limit(1);
 
@@ -523,7 +467,7 @@ export async function createReportVersion(input: {
     await supabase
         .from('generated_reports')
         .update({ is_latest: false })
-        .or(`id.eq.${originalId},parent_report_id.eq.${originalId}`);
+        .or(idOrParentFilterStrict('id', 'parent_report_id', originalId));
 
     // Create the new version
     const { data, error } = await supabase
@@ -590,7 +534,7 @@ export async function getReportVersionHistory(reportId: string): Promise<{ data:
     const { data, error } = await supabase
         .from('generated_reports')
         .select('*')
-        .or(`id.eq.${originalId},parent_report_id.eq.${originalId}`)
+        .or(idOrParentFilterStrict('id', 'parent_report_id', originalId))
         .order('version', { ascending: false });
 
     if (error) {

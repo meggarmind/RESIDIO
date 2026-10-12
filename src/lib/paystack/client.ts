@@ -153,6 +153,26 @@ export async function verifyTransaction(
 }
 
 /**
+ * Webhook secret, read at call time so a missing value is never cached.
+ */
+export function getWebhookSecret(): string {
+  return process.env.PAYSTACK_WEBHOOK_SECRET || paystackConfig.webhookSecret || '';
+}
+
+/**
+ * Constant-time string comparison (pure JS so this module stays safe to import
+ * from client bundles via the barrel). Length mismatch returns false.
+ */
+function timingSafeEqualStrings(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/**
  * Verify Paystack webhook signature
  * Paystack signs webhooks with HMAC SHA512
  */
@@ -160,15 +180,20 @@ export async function verifyWebhookSignature(
   payload: string,
   signature: string
 ): Promise<boolean> {
-  if (!paystackConfig.webhookSecret) {
-    console.warn('[Paystack] Webhook secret not configured, skipping signature verification');
-    return true; // Allow in development without secret
+  // Fail closed in every environment: no secret means no way to authenticate
+  // the caller, so the webhook must be rejected (issue #456).
+  const secret = getWebhookSecret();
+  if (!secret) {
+    console.error(
+      '[Paystack] PAYSTACK_WEBHOOK_SECRET is not set; rejecting webhook (fail closed)'
+    );
+    return false;
   }
 
   try {
     // Use Web Crypto API for edge runtime compatibility
     const encoder = new TextEncoder();
-    const keyData = encoder.encode(paystackConfig.webhookSecret);
+    const keyData = encoder.encode(secret);
     const data = encoder.encode(payload);
 
     const cryptoKey = await crypto.subtle.importKey(
@@ -183,7 +208,7 @@ export async function verifyWebhookSignature(
     const hashArray = Array.from(new Uint8Array(signatureBuffer));
     const hash = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 
-    return hash === signature;
+    return timingSafeEqualStrings(hash, (signature || '').toLowerCase());
   } catch (error) {
     console.error('[Paystack] Webhook signature verification error:', error);
     return false;

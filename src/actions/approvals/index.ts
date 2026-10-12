@@ -205,14 +205,14 @@ export async function approveRequest(
     return { success: false, error: 'Request has already been processed' };
   }
 
-  // Apply the changes based on request type
-  const applyResult = await applyRequestedChanges(request);
-  if (!applyResult.success) {
-    return applyResult;
+  // Maker-checker: the requester cannot approve their own request (#473).
+  if (request.requested_by === auth.userId) {
+    return { success: false, error: 'You cannot approve your own request' };
   }
 
-  // Update the request status
-  const { error: updateError } = await supabase
+  // Claim the request first, guarded on status = 'pending', so concurrent
+  // approvals (or approve vs reject) cannot both apply the changes.
+  const { data: claimed, error: updateError } = await supabase
     .from('approval_requests')
     .update({
       status: 'approved',
@@ -221,10 +221,42 @@ export async function approveRequest(
       review_notes: notes || null,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', requestId);
+    .eq('id', requestId)
+    .eq('status', 'pending')
+    .select('id')
+    .maybeSingle();
 
   if (updateError) {
     return { success: false, error: updateError.message };
+  }
+
+  if (!claimed) {
+    return { success: false, error: 'Request has already been processed' };
+  }
+
+  // Apply the changes based on request type
+  const applyResult = await applyRequestedChanges(request);
+  if (!applyResult.success) {
+    // Release the claim so the request can be retried.
+    const { error: releaseError } = await supabase
+      .from('approval_requests')
+      .update({
+        status: 'pending',
+        reviewed_by: null,
+        reviewed_at: null,
+        review_notes: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', requestId)
+      .eq('status', 'approved');
+    if (releaseError) {
+      console.error('Approval claim release error (request may be stuck approved):', releaseError);
+      return {
+        success: false,
+        error: `${applyResult.error} The request could not be reset and may be stuck as approved without its changes applied. Contact an administrator.`,
+      };
+    }
+    return applyResult;
   }
 
   await logAudit({

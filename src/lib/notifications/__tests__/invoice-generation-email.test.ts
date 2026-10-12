@@ -4,12 +4,12 @@ import {
   queueInvoiceGeneratedEmail,
 } from '@/lib/notifications/invoice-generation-email';
 import { addToQueue } from '@/lib/notifications/queue';
-import { getSettingValueAsService } from '@/actions/settings/get-settings';
+import { getSettingValueAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 
 vi.mock('@react-email/render', () => ({ render: vi.fn().mockResolvedValue('<html>invoice</html>') }));
 vi.mock('@/emails', () => ({ InvoiceGeneratedEmail: vi.fn(() => null) }));
-vi.mock('@/actions/settings/get-settings', () => ({ getSettingValueAsService: vi.fn() }));
+vi.mock('@/lib/settings/service', () => ({ getSettingValueAsService: vi.fn() }));
 vi.mock('@/lib/email', () => ({ getEstateEmailSettings: vi.fn().mockResolvedValue({ estateName: 'Estate' }) }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('@/lib/notifications/queue', () => ({

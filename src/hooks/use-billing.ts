@@ -212,7 +212,7 @@ export function useGenerateInvoices() {
 
     return useMutation({
         mutationFn: async (targetDate?: Date) => {
-            const result = await generateMonthlyInvoices(targetDate, 'manual');
+            const result = await generateMonthlyInvoices(targetDate);
             if (!result.success && result.errors.length > 0) {
                 throw new Error(result.errors.join(', '));
             }

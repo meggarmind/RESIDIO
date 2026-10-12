@@ -7,6 +7,7 @@ import { RESIDENT_ROLE_LABELS } from '@/types/database';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { uuidInList } from '@/lib/postgrest-filter';
 
 export type TransitionType =
   | 'developer_to_owner'
@@ -80,7 +81,7 @@ export async function getTransitionPreview(
       resident_role,
       is_live_in,
       sponsor_resident_id,
-      residents!inner(first_name, last_name)
+      residents!resident_houses_resident_id_fkey!inner(first_name, last_name)
     `)
     .eq('house_id', houseId)
     .eq('is_active', true);
@@ -234,7 +235,8 @@ export async function getAvailableResidentsForTransition(
     .eq('is_active', true);
   const excludeIds = (currentAssignments || []).map((assignment) => assignment.resident_id);
   let query = supabase.from('residents').select('id, first_name, last_name, resident_code, entity_type').order('first_name');
-  if (excludeIds.length > 0) query = query.not('id', 'in', `(${excludeIds.join(',')})`);
+  const excludeList = uuidInList(excludeIds);
+  if (excludeList) query = query.not('id', 'in', excludeList);
   if (targetRole === 'resident_landlord') query = query.eq('entity_type', 'individual');
 
   const { data, error } = await query;

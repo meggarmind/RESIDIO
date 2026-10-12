@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { ilikeAny } from '@/lib/postgrest-filter';
 import type {
   EntityNoteWithRelations,
   NoteListParams,
@@ -217,7 +218,7 @@ export async function searchNotes(params: {
       { count: 'exact' }
     )
     .eq('is_current', true)
-    .or(`title.ilike.%${searchTerm}%,content.ilike.%${searchTerm}%`);
+    .or(ilikeAny(['title', 'content'], searchTerm));
 
   // Apply filters
   if (params.entity_type) {
