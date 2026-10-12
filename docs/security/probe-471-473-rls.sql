@@ -56,6 +56,118 @@ BEGIN
   RAISE EXCEPTION 'probe 473 rolled back';
 END $$;
 
--- Expectation for chairman / super_admin approving a waiver they did not
--- request: 1 row. Approving one they requested: 42501 (WITH CHECK). Repeat the
--- block above with sub = such a user and requested_by = that user to confirm.
+-- #473 positive blocks. Fixtures (one waiver row) are created inside each block
+-- as the migration owner, then the role is switched. Needs: a financial_officer
+-- profile (maker), a chairman/super_admin profile (approver), and any invoice.
+-- Every block ends in RAISE EXCEPTION, so the fixture is rolled back.
+
+-- (a) approver who is NOT the requester: approve updates 1 row; and (b) the same
+-- approver cannot re-point requested_by (trigger, 42501).
+DO $$
+DECLARE
+  fo uuid; ap uuid; inv record; w uuid; n int;
+BEGIN
+  SELECT p.id INTO fo FROM public.profiles p JOIN public.app_roles r ON r.id = p.role_id
+   WHERE r.name = 'financial_officer' LIMIT 1;
+  SELECT p.id INTO ap FROM public.profiles p JOIN public.app_roles r ON r.id = p.role_id
+   WHERE r.name IN ('chairman','super_admin') LIMIT 1;
+  SELECT id, resident_id INTO inv FROM public.invoices LIMIT 1;
+  IF fo IS NULL OR ap IS NULL OR inv.id IS NULL THEN
+    RAISE NOTICE 'SKIP 473 (a,b): fixtures missing'; RAISE EXCEPTION 'probe rolled back';
+  END IF;
+  INSERT INTO public.late_fee_waivers
+    (invoice_id, resident_id, requested_by, reason, waiver_type, original_late_fee, status)
+  VALUES (inv.id, inv.resident_id, fo, 'probe', 'full', 100, 'pending') RETURNING id INTO w;
+
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('role','authenticated','sub',ap)::text, true);
+  SET LOCAL ROLE authenticated;
+
+  BEGIN
+    UPDATE public.late_fee_waivers SET requested_by = ap WHERE id = w;
+    RAISE NOTICE '(b) FAIL: requested_by changed';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE '(b) PASS: requested_by change refused (42501)';
+  END;
+
+  UPDATE public.late_fee_waivers SET status = 'approved' WHERE id = w;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RAISE NOTICE '(a) approver-not-requester approve: % rows (expect 1)', n;
+  RESET ROLE;
+  RAISE EXCEPTION 'probe rolled back';
+END $$;
+
+-- (c) approver who IS the requester gets 42501 setting approved.
+DO $$
+DECLARE
+  ap uuid; inv record; w uuid;
+BEGIN
+  SELECT p.id INTO ap FROM public.profiles p JOIN public.app_roles r ON r.id = p.role_id
+   WHERE r.name IN ('chairman','super_admin') LIMIT 1;
+  SELECT id, resident_id INTO inv FROM public.invoices LIMIT 1;
+  IF ap IS NULL OR inv.id IS NULL THEN
+    RAISE NOTICE 'SKIP 473 (c): fixtures missing'; RAISE EXCEPTION 'probe rolled back';
+  END IF;
+  INSERT INTO public.late_fee_waivers
+    (invoice_id, resident_id, requested_by, reason, waiver_type, original_late_fee, status)
+  VALUES (inv.id, inv.resident_id, ap, 'probe', 'full', 100, 'pending') RETURNING id INTO w;
+
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('role','authenticated','sub',ap)::text, true);
+  SET LOCAL ROLE authenticated;
+  BEGIN
+    UPDATE public.late_fee_waivers SET status = 'approved' WHERE id = w;
+    RAISE NOTICE '(c) FAIL: self-approval succeeded';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE '(c) PASS: self-approval refused (42501)';
+  END;
+  RESET ROLE;
+  RAISE EXCEPTION 'probe rolled back';
+END $$;
+
+-- (d) request-holder INSERT with requested_by = self and status pending succeeds;
+-- (e) INSERT as someone else, or already approved, is refused (42501).
+DO $$
+DECLARE
+  fo uuid; other uuid; inv record;
+BEGIN
+  SELECT p.id INTO fo FROM public.profiles p JOIN public.app_roles r ON r.id = p.role_id
+   WHERE r.name = 'financial_officer' LIMIT 1;
+  SELECT id INTO other FROM public.profiles WHERE id <> fo LIMIT 1;
+  SELECT id, resident_id INTO inv FROM public.invoices LIMIT 1;
+  IF fo IS NULL OR other IS NULL OR inv.id IS NULL THEN
+    RAISE NOTICE 'SKIP 473 (d,e): fixtures missing'; RAISE EXCEPTION 'probe rolled back';
+  END IF;
+  PERFORM set_config('request.jwt.claims',
+    json_build_object('role','authenticated','sub',fo)::text, true);
+  SET LOCAL ROLE authenticated;
+
+  INSERT INTO public.late_fee_waivers
+    (invoice_id, resident_id, requested_by, reason, waiver_type, original_late_fee, status)
+  VALUES (inv.id, inv.resident_id, fo, 'probe', 'full', 100, 'pending');
+  RAISE NOTICE '(d) PASS: own pending request inserted';
+
+  BEGIN
+    INSERT INTO public.late_fee_waivers
+      (invoice_id, resident_id, requested_by, reason, waiver_type, original_late_fee, status)
+    VALUES (inv.id, inv.resident_id, other, 'probe', 'full', 100, 'pending');
+    RAISE NOTICE '(e1) FAIL: inserted as another requester';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE '(e1) PASS: requested_by <> caller refused (42501)';
+  END;
+  BEGIN
+    INSERT INTO public.late_fee_waivers
+      (invoice_id, resident_id, requested_by, reason, waiver_type, original_late_fee, status)
+    VALUES (inv.id, inv.resident_id, fo, 'probe', 'full', 100, 'approved');
+    RAISE NOTICE '(e2) FAIL: inserted pre-approved';
+  EXCEPTION WHEN insufficient_privilege THEN
+    RAISE NOTICE '(e2) PASS: pre-approved insert refused (42501)';
+  END;
+  RESET ROLE;
+  RAISE EXCEPTION 'probe rolled back';
+END $$;
+
+-- KNOWN LIMITS (for the PR summary): approval_requests UPDATE policies still allow
+-- self-approval through the Data API (enforced in the action layer only), and
+-- approvers can edit other late_fee_waivers columns (reason, amounts) in the
+-- same UPDATE; only status and requested_by are constrained.
