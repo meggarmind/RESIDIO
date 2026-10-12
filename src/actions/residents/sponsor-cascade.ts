@@ -78,7 +78,7 @@ export async function getSponsoredResidents(
       resident_id,
       resident_role,
       house_id,
-      residents!inner(
+      residents!resident_houses_resident_id_fkey!inner(
         id,
         first_name,
         last_name
@@ -392,7 +392,7 @@ export async function getPotentialSponsors(
     .select(`
       resident_id,
       resident_role,
-      residents!inner(
+      residents!resident_houses_resident_id_fkey!inner(
         first_name,
         last_name
       )
