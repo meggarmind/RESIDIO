@@ -1,7 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { sanitizeSearchInput } from '@/lib/utils';
+import { ilikeAny } from '@/lib/postgrest-filter';
 import type { DocumentWithRelations, DocumentListParams } from '@/types/database';
 
 type GetDocumentsResponse = {
@@ -62,10 +62,7 @@ export async function getDocuments(
 
   // Full-text search on title and description
   if (search) {
-    const sanitized = sanitizeSearchInput(search);
-    query = query.or(
-      `title.ilike.%${sanitized}%,description.ilike.%${sanitized}%,file_name.ilike.%${sanitized}%`
-    );
+    query = query.or(ilikeAny(['title', 'description', 'file_name'], search));
   }
 
   // Only get latest versions (no parent_document_id means it's the original or latest)
@@ -151,10 +148,7 @@ export async function getResidentAccessibleDocuments(
   }
 
   if (search) {
-    const sanitized = sanitizeSearchInput(search);
-    query = query.or(
-      `title.ilike.%${sanitized}%,description.ilike.%${sanitized}%`
-    );
+    query = query.or(ilikeAny(['title', 'description'], search));
   }
 
   const from = (page - 1) * limit;

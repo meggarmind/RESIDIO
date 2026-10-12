@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import { embed } from '@/lib/utils';
 import { getSettingValue } from '@/actions/settings/get-settings';
@@ -18,15 +20,16 @@ interface ReminderResult {
 
 /**
  * Send payment reminders for invoices due based on configured reminder days
- * Called by Vercel Cron job or manually from settings UI
+ * Admin-triggered from the settings UI (requires settings.manage_general)
  */
 export async function sendPaymentReminders(): Promise<ReminderResult> {
-  const supabase = await createServerSupabaseClient();
+  // Admin-triggered only (settings > email debug). Cron does not call this action.
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  if (!auth.authorized) {
+    return { success: false, sent: 0, skipped: 0, failed: 0, errors: [auth.error || 'Unauthorized'] };
+  }
 
-  // Check auth for manual trigger (cron bypasses this via API route)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = await createServerSupabaseClient();
 
   const result: ReminderResult = {
     success: true,

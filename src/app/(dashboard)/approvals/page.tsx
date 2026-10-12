@@ -36,6 +36,8 @@ import { toast } from 'sonner';
 import { EnhancedPageHeader, EnhancedTableCard } from '@/components/dashboard/enhanced-stat-card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { Can } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const ALL_VALUE = '_all';
 
@@ -231,6 +233,7 @@ export default function ApprovalsPage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 {request.status === 'pending' && (
+                                                    <Can permission={PERMISSIONS.APPROVALS_APPROVE_REJECT}>
                                                     <div className="flex gap-2 justify-end">
                                                         <Button
                                                             size="sm"
@@ -251,6 +254,7 @@ export default function ApprovalsPage() {
                                                             Reject
                                                         </Button>
                                                     </div>
+                                                    </Can>
                                                 )}
                                                 {request.status !== 'pending' && request.reviewer && (
                                                     <span className="text-xs text-muted-foreground italic">

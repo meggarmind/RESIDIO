@@ -52,6 +52,8 @@ import { toast } from 'sonner';
 import type { ResidentRole, ResidentHouse, Resident } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } from '@/types/database';
 import { requiresSponsor } from '@/lib/validators/resident';
+import { Can, useCan } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 // Both wizards pull in @react-pdf/renderer and only render after a click, so keep
 // them out of this page's initial bundle (#464).
@@ -164,6 +166,8 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
   const { data: house, isLoading, error } = useHouse(id);
   // Reduced limit for performance - consider async search for large estates
   const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 500 });
+  const canAssignResident = useCan(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
+  const canUpdateHouse = useCan(PERMISSIONS.HOUSES_UPDATE);
   const deleteMutation = useDeleteHouse();
   const assignMutation = useAssignHouse();
   const unassignMutation = useUnassignHouse();
@@ -488,7 +492,8 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     );
   }
 
-  if (isEditing) {
+  // ?edit=true is a URL anyone can type; only render the form for users who may save it.
+  if (isEditing && canUpdateHouse) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -589,20 +594,24 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link href={`/houses/${id}?edit=true`}>
-              <Pencil className="h-4 w-4 mr-2" />
-              Edit
-            </Link>
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={handleDelete}
-            disabled={deleteMutation.isPending || activeResidents.length > 0}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </Button>
+          <Can permission={PERMISSIONS.HOUSES_UPDATE}>
+            <Button variant="outline" asChild>
+              <Link href={`/houses/${id}?edit=true`}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </Link>
+            </Button>
+          </Can>
+          <Can permission={PERMISSIONS.HOUSES_DELETE}>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending || activeResidents.length > 0}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          </Can>
         </div>
       </div>
 
@@ -679,6 +688,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
+                <Can permission={PERMISSIONS.HOUSES_ASSIGN_RESIDENT}>
                 <Dialog open={isLinkDialogOpen} onOpenChange={handleLinkDialogOpen}>
                   <DialogTrigger asChild>
                     <Button size="sm" variant="outline">
@@ -779,12 +789,15 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
-                <Button size="sm" variant="outline" asChild>
-                  <Link href={`/residents/new?house_id=${id}&house_state=${houseState}`}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add New
-                  </Link>
-                </Button>
+                </Can>
+                <Can permission={PERMISSIONS.RESIDENTS_CREATE}>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href={`/residents/new?house_id=${id}&house_state=${houseState}`}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add New
+                    </Link>
+                  </Button>
+                </Can>
               </div>
             </div>
           </CardHeader>
@@ -798,15 +811,15 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                   const residentName = `${rh.resident.first_name} ${rh.resident.last_name}`;
 
                   // Determine which action buttons to show based on role
-                  const showRemoveButton = ['co_resident', 'household_member', 'domestic_staff', 'caretaker'].includes(role);
-                  const showMoveOutButton = role === 'resident_landlord';
-                  const showTenantMoveOutButton = role === 'tenant';
+                  const showRemoveButton = canAssignResident && (['co_resident', 'household_member', 'domestic_staff', 'caretaker'].includes(role));
+                  const showMoveOutButton = canAssignResident && (role === 'resident_landlord');
+                  const showTenantMoveOutButton = canAssignResident && (role === 'tenant');
                   // Edit button only for secondary roles
-                  const showEditButton = ['co_resident', 'household_member', 'domestic_staff', 'caretaker'].includes(role);
+                  const showEditButton = canAssignResident && (['co_resident', 'household_member', 'domestic_staff', 'caretaker'].includes(role));
                   // Promote button only for co_resident when there's a primary residing resident
-                  const showPromoteButton = role === 'co_resident' && primaryResidingResident;
+                  const showPromoteButton = canAssignResident && (role === 'co_resident' && primaryResidingResident);
                   // Transfer button will be added in Phase 5
-                  const showTransferButton = role === 'non_resident_landlord' || role === 'developer';
+                  const showTransferButton = canUpdateHouse && (role === 'non_resident_landlord' || role === 'developer');
 
                   return (
                     <div key={rh.id} className="flex items-center justify-between p-3 border rounded-lg" data-testid="resident-card">
@@ -876,6 +889,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleOpenEditDialog(rh)}
+                            aria-label="Edit role"
                             disabled={updateResidentHouseMutation.isPending}
                             className="text-muted-foreground hover:text-primary"
                           >
@@ -915,7 +929,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                         )}
 
                         {/* Remove Ownership button for Non-Resident Landlord/Developer */}
-                        {showTransferButton && (
+                        {canAssignResident && (role === 'non_resident_landlord' || role === 'developer') && (
                           <Button
                             variant="outline"
                             size="sm"

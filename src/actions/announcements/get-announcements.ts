@@ -1,7 +1,7 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { sanitizeSearchInput } from '@/lib/utils';
+import { ilikeAny } from '@/lib/postgrest-filter';
 import type { AnnouncementWithRelations, AnnouncementListParams } from '@/types/database';
 
 type GetAnnouncementsResponse = {
@@ -69,10 +69,7 @@ export async function getAnnouncements(
 
   // Full-text search on title, content, and summary
   if (search) {
-    const sanitized = sanitizeSearchInput(search);
-    query = query.or(
-      `title.ilike.%${sanitized}%,content.ilike.%${sanitized}%,summary.ilike.%${sanitized}%`
-    );
+    query = query.or(ilikeAny(['title', 'content', 'summary'], search));
   }
 
   // Pagination

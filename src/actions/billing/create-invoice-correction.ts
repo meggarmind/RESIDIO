@@ -7,6 +7,10 @@ import { logAudit } from '@/lib/audit/logger';
 import { allocateWalletToInvoices } from './wallet';
 import { sendCorrectionNotification } from '../notifications/send-correction-notification';
 import type { Invoice, InvoiceStatus } from '@/types/database';
+import { validateMoneyAmount } from '@/lib/validators/money';
+
+/** Upper bound on correction entries in one request. */
+const MAX_CORRECTION_ENTRIES = 50;
 
 interface CorrectionEntry {
   type: 'credit' | 'debit';
@@ -88,6 +92,28 @@ export async function createInvoiceCorrection(
       debitNotes: [],
       error: 'At least one correction entry is required',
     };
+  }
+
+  if (input.corrections.length > MAX_CORRECTION_ENTRIES) {
+    return {
+      success: false,
+      creditNotes: [],
+      debitNotes: [],
+      error: `A correction can have at most ${MAX_CORRECTION_ENTRIES} entries`,
+    };
+  }
+
+  for (const [index, entry] of input.corrections.entries()) {
+    const label = `Correction ${index + 1}`;
+    let entryError: string | null = null;
+    if (!entry || (entry.type !== 'credit' && entry.type !== 'debit')) {
+      entryError = `${label}: type must be "credit" or "debit"`;
+    } else {
+      entryError = validateMoneyAmount(entry.amount, { label: `${label} amount` });
+    }
+    if (entryError) {
+      return { success: false, creditNotes: [], debitNotes: [], error: entryError };
+    }
   }
 
   const supabase = await createServerSupabaseClient();
