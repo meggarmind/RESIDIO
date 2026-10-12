@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as XLSX from 'xlsx';
 import {
   MAX_XLSX_FILE_SIZE_BYTES,
@@ -36,6 +36,29 @@ describe('xlsx parser size cap', () => {
     const result = await parseXLSXFile(file);
     expect(result.errors[0]).toMatch(/too large/);
     expect(await getXLSXSheetNames(file)).toEqual([]);
+  });
+
+  it('parseXLSXFile on an oversize File returns the error and never reads the file', async () => {
+    const arrayBuffer = vi.fn(async () => new ArrayBuffer(8));
+    const file = { size: MAX_XLSX_FILE_SIZE_BYTES + 1, arrayBuffer } as unknown as File;
+    const result = await parseXLSXFile(file);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toMatch(/too large/);
+    expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it('getXLSXSheetNames on an oversize File returns [] and never reads the file', async () => {
+    const arrayBuffer = vi.fn(async () => buildWorkbookBuffer());
+    const file = { size: MAX_XLSX_FILE_SIZE_BYTES + 1, arrayBuffer } as unknown as File;
+    expect(await getXLSXSheetNames(file)).toEqual([]);
+    expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it('getXLSXSheetNames on a File at the limit does read it', async () => {
+    const arrayBuffer = vi.fn(async () => buildWorkbookBuffer());
+    const file = { size: MAX_XLSX_FILE_SIZE_BYTES, arrayBuffer } as unknown as File;
+    expect(await getXLSXSheetNames(file)).toEqual(['Statement']);
+    expect(arrayBuffer).toHaveBeenCalledTimes(1);
   });
 
   it('accepts a buffer exactly at the limit (reaches the parser, not the size error)', async () => {

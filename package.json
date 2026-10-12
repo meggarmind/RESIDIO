@@ -107,6 +107,9 @@
     "typescript": "^5",
     "vitest": "^4.0.16"
   },
+  "overrides": {
+    "eslint-plugin-react-hooks": "7.0.1"
+  },
   "allowScripts": {
     "esbuild@0.27.2": true,
     "msw@2.12.4": true,
