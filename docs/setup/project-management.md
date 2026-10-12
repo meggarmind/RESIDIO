@@ -136,8 +136,9 @@ When triggered by `sync_up`:
 git status
 git diff --stat
 
-# Stage changes
-git add .
+# Stage the paths you changed -- explicitly, never `git add .` or `git add -A`.
+# Another session or harness may have edits in flight in this tree (CORE.md sections 7 and 15).
+git add <path> [<path> ...]
 
 # Commit with format
 git commit -m "$(cat <<'EOF'
