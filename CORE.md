@@ -342,7 +342,7 @@ External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
 **Triage labels**: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
 `wontfix`. See `docs/agents/triage-labels.md`.
 
-**Project board** ("Jazrmann Dashboard", GitHub Projects v2). New issues are auto-added by
+**Project board** ("MeggaView", GitHub Projects v2). New issues are auto-added by
 `.github/workflows/add-issues-to-project.yml`, but nothing moves them between columns
 automatically — that is your job. Board and field IDs, and the exact `gh project item-edit`
 commands, are in `docs/agents/project-board.md`.

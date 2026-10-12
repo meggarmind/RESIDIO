@@ -1,4 +1,4 @@
-# Project board: "Jazrmann Dashboard"
+# Project board: "MeggaView"
 
 RESIDIO issues live on a GitHub Projects (v2) board, separate from the triage
 labels described in `triage-labels.md`. New issues are added to it
