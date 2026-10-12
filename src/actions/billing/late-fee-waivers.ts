@@ -235,6 +235,11 @@ export async function approveLateFeeWaiver(
     return { success: false, error: 'Waiver request has already been processed' };
   }
 
+  // Maker-checker: the person who requested a waiver cannot approve it (#473).
+  if (waiver.requested_by === auth.userId) {
+    return { success: false, error: 'You cannot approve your own waiver request' };
+  }
+
   const invoice = embed(waiver.invoice);
   const metadata = (invoice.metadata as Record<string, unknown>) || {};
 
@@ -253,6 +258,30 @@ export async function approveLateFeeWaiver(
     late_fee_remaining: waiver.waiver_type === 'full' ? 0 : waiver.original_late_fee - waiverAmount,
   };
 
+  // Claim the waiver first (guarded on status = 'pending') so two concurrent
+  // approvals cannot both reduce the invoice.
+  const { data: updatedWaiver, error: updateError } = await supabase
+    .from('late_fee_waivers')
+    .update({
+      status: 'approved',
+      reviewed_by: auth.userId,
+      reviewed_at: new Date().toISOString(),
+      review_notes: notes || null,
+    })
+    .eq('id', waiverId)
+    .eq('status', 'pending')
+    .select()
+    .maybeSingle();
+
+  if (updateError) {
+    console.error('Waiver update error:', updateError);
+    return { success: false, error: 'Failed to update waiver status' };
+  }
+
+  if (!updatedWaiver) {
+    return { success: false, error: 'Waiver request has already been processed' };
+  }
+
   const { error: invoiceUpdateError } = await supabase
     .from('invoices')
     .update({
@@ -264,25 +293,21 @@ export async function approveLateFeeWaiver(
 
   if (invoiceUpdateError) {
     console.error('Invoice update error:', invoiceUpdateError);
+    // Release the claim so the request can be retried.
+    const { error: releaseError } = await supabase
+      .from('late_fee_waivers')
+      .update({ status: 'pending', reviewed_by: null, reviewed_at: null, review_notes: null })
+      .eq('id', waiverId)
+      .eq('status', 'approved');
+    if (releaseError) {
+      console.error('Waiver claim release error (waiver may be stuck approved):', releaseError);
+      return {
+        success: false,
+        error:
+          'Failed to update invoice, and the waiver could not be reset: it may be stuck as approved without the invoice being reduced. Contact an administrator.',
+      };
+    }
     return { success: false, error: 'Failed to update invoice' };
-  }
-
-  // Update the waiver status
-  const { data: updatedWaiver, error: updateError } = await supabase
-    .from('late_fee_waivers')
-    .update({
-      status: 'approved',
-      reviewed_by: auth.userId,
-      reviewed_at: new Date().toISOString(),
-      review_notes: notes || null,
-    })
-    .eq('id', waiverId)
-    .select()
-    .single();
-
-  if (updateError) {
-    console.error('Waiver update error:', updateError);
-    return { success: false, error: 'Failed to update waiver status' };
   }
 
   // Log audit
