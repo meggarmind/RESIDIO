@@ -16,11 +16,16 @@ import { getPublicOrigin } from '@/lib/http/public-origin';
  * Only same-origin relative paths may be used as a post-login destination.
  * Rejects absolute URLs and protocol-relative `//evil.com` values, which would
  * otherwise turn this route into an open redirect.
+ *
+ * Also rejects any backslash: browsers treat `\` as `/` when resolving a URL,
+ * so `/\evil.com` would become protocol-relative `//evil.com` if the redirect
+ * were ever built relative to `next` rather than prefixed with the origin.
  */
 function safeNextPath(next: string | null): string | null {
   if (!next) return null;
   if (!next.startsWith('/')) return null;
   if (next.startsWith('//')) return null;
+  if (next.includes('\\')) return null;
   return next;
 }
 

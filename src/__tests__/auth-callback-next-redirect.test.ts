@@ -77,6 +77,9 @@ describe('auth callback next= open-redirect guard (#418)', () => {
         ['javascript:alert(1)', encodeURIComponent('javascript:alert(1)')],
         ['raw %2F%2Fevil.com (decodes to //evil.com)', '%2F%2Fevil.com'],
         ['raw /%2F%2Fevil.com (decodes to ///evil.com)', '/%2F%2Fevil.com'],
+        ['/\\evil.com', encodeURIComponent('/\\evil.com')],
+        ['/\\/evil.com', encodeURIComponent('/\\/evil.com')],
+        ['/\\\\/evil.com', encodeURIComponent('/\\\\/evil.com')],
     ];
 
     it.each(rejected)('rejects %s and redirects to the role default', async (_label, rawNext) => {
@@ -88,9 +91,6 @@ describe('auth callback next= open-redirect guard (#418)', () => {
     // Values that must never leave the public host, however they are resolved.
     const hostile: Array<[label: string, rawNext: string]> = [
         ...rejected,
-        ['/\\evil.com', encodeURIComponent('/\\evil.com')],
-        ['/\\/evil.com', encodeURIComponent('/\\/evil.com')],
-        ['/\\\\/evil.com', encodeURIComponent('/\\\\/evil.com')],
         ['encoded /%2F%2Fevil.com (literal percent-escapes)', encodeURIComponent('/%2F%2Fevil.com')],
     ];
 
