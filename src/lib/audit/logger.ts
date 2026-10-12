@@ -54,7 +54,6 @@ interface LogAuditOptions {
  * });
  */
 export async function logAudit(options: LogAuditOptions): Promise<void> {
-  'use server';
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();

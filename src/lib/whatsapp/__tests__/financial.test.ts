@@ -7,13 +7,13 @@ import type {
 } from '@/lib/whatsapp/financial';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
-import { getSettingResultAsService } from '@/actions/settings/get-settings';
+import { getSettingResultAsService } from '@/lib/settings/service';
 
 vi.mock('@/lib/whatsapp/rollout', () => ({
   isWhatsAppRecipientAllowed: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock('@/actions/settings/get-settings', () => ({
+vi.mock('@/lib/settings/service', () => ({
   getSettingResultAsService: vi.fn(),
 }));
 
