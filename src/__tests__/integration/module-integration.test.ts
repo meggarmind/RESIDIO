@@ -183,7 +183,20 @@ function hasTopLevelUseServer(content: string): boolean {
       break;
     }
   }
-  return /^(['"])use server\1(?:\s*;|\s*$|\s*\n)/.test(rest);
+  return /^(['"])use server\1(?:\s*;|\s*$|\s*\n|\s*\/\/|\s*\/\*)/.test(rest);
+}
+
+/**
+ * True when any line is a bare 'use server' / "use server" string statement
+ * (optional `;`, optional trailing `//` or block comment). Inside a function
+ * body this makes that one function a callable server-action endpoint (#460);
+ * at the top of a file it is the module directive. Mentions of the words in
+ * other code, longer string literals, or comments do not match.
+ */
+function hasUseServerDirectiveLine(content: string): boolean {
+  return content
+    .split(/\r?\n/)
+    .some((line) => /^\s*(['"])use server\1\s*;?\s*(?:\/\/.*|\/\*.*)?$/.test(line));
 }
 
 function isAllowlisted(file: string, allowlist: string[]): boolean {
@@ -266,7 +279,7 @@ describe('Module Integration Compliance', () => {
   });
 
   describe('Server Action Surface', () => {
-    it("no file outside src/actions should be a 'use server' module", async () => {
+    it("no file outside src/actions should carry a 'use server' directive (module or function level)", async () => {
       const srcFiles = await glob('**/*.{ts,tsx}', {
         cwd: SRC_DIR,
         ignore: ['actions/**'],
@@ -278,14 +291,14 @@ describe('Module Integration Compliance', () => {
         if (USE_SERVER_OUTSIDE_ACTIONS_ALLOWLIST.includes(relative)) continue;
 
         const content = fs.readFileSync(path.join(SRC_DIR, file), 'utf-8');
-        if (hasTopLevelUseServer(content)) {
+        if (hasTopLevelUseServer(content) || hasUseServerDirectiveLine(content)) {
           violations.push(relative);
         }
       }
 
       expect(
         violations,
-        `Files outside src/actions/** with a top-level 'use server' directive:\n${violations.join('\n')}\n\n` +
+        `Files outside src/actions/** with a 'use server' directive (top-level or inside a function):\n${violations.join('\n')}\n\n` +
           `Every export of such a file is a callable server action that the permission/audit scans never see. ` +
           `Remove the directive (server-only libraries do not need it), move the actions under src/actions/**, ` +
           `or add the file to USE_SERVER_OUTSIDE_ACTIONS_ALLOWLIST with a reason.`
