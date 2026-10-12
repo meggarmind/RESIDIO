@@ -205,6 +205,11 @@ export async function approveRequest(
     return { success: false, error: 'Request has already been processed' };
   }
 
+  // Maker-checker: the requester cannot approve their own request (#473).
+  if (request.requested_by === auth.userId) {
+    return { success: false, error: 'You cannot approve your own request' };
+  }
+
   // Apply the changes based on request type
   const applyResult = await applyRequestedChanges(request);
   if (!applyResult.success) {
@@ -212,7 +217,8 @@ export async function approveRequest(
   }
 
   // Update the request status
-  const { error: updateError } = await supabase
+  // Guarded on status = 'pending' so a concurrent approval cannot be recorded twice.
+  const { data: approvedRows, error: updateError } = await supabase
     .from('approval_requests')
     .update({
       status: 'approved',
@@ -221,10 +227,16 @@ export async function approveRequest(
       review_notes: notes || null,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', requestId);
+    .eq('id', requestId)
+    .eq('status', 'pending')
+    .select('id');
 
   if (updateError) {
     return { success: false, error: updateError.message };
+  }
+
+  if (!approvedRows || approvedRows.length === 0) {
+    return { success: false, error: 'Request has already been processed' };
   }
 
   await logAudit({

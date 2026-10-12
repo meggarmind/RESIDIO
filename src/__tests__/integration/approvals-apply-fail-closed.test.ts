@@ -83,7 +83,7 @@ describe('applyRequestedChanges fails closed on an unhandled request_type', () =
       error: null,
     });
     const applyQuery = createQuery({ data: null, error: null });
-    const updateQuery = createQuery({ data: null, error: null });
+    const updateQuery = createQuery({ data: [{ id: 'req-2' }], error: null });
 
     const from = vi
       .fn()
