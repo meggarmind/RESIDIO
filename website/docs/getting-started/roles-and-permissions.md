@@ -10,8 +10,8 @@ residio_sources:
   - src/app/(dashboard)/system/accounts/**
   - src/components/admin/role-assignment-section.tsx
   - src/components/admin/pending-accounts-list.tsx
-residio_verified_commit: 1166300
-residio_verified_at: '2026-10-11'
+residio_verified_commit: 3e68aca
+residio_verified_at: '2026-10-12'
 residio_app_version: '0.4.0'
 ---
 
@@ -31,6 +31,14 @@ Review sign-ups in **System → Accounts → Pending Accounts**. The queue shows
 :::warning[Approve deliberately]
 Approval is the gate. Everyone in this queue is asking for access to resident names, addresses, contact details, and financial records. Confirm who someone is before approving. If you cannot, reject rather than leave them waiting.
 :::
+
+## Two-factor sign-in
+
+Two-factor authentication is optional: it applies only to accounts that have turned it on. For those accounts, entering the right password is not enough. After signing in, the person is taken to a verification page and sees nothing else until they enter a code from their chosen method (authenticator app, SMS or email). A backup code can be used instead if the device is unavailable; each backup code works once.
+
+- The verification lasts for that sign-in. Signing in again, or waiting 24 hours, asks for a code again.
+- After five wrong codes in 15 minutes the account is locked out of verification for 15 minutes.
+- Accounts without two-factor turned on sign in exactly as before. No role is required to use it.
 
 ## Roles
 
