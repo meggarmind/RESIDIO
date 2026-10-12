@@ -150,6 +150,42 @@ function hasAuditLog(content: string): boolean {
   return content.includes('logAudit');
 }
 
+const SRC_DIR = path.join(process.cwd(), 'src');
+
+// Files OUTSIDE src/actions/** that may carry a top-level 'use server'
+// directive. Such a directive makes every export a callable server-action RPC
+// endpoint, but the permission/audit scans above only look at src/actions/**,
+// so a stray directive elsewhere is an unguarded endpoint nobody checks (#409).
+// Exact paths, relative to the repo root. Keep this list minimal.
+const USE_SERVER_OUTSIDE_ACTIONS_ALLOWLIST = [
+  // Exposes only the caller's own permission state (getCurrentUserPermissions,
+  // authorizePermission, authorizeAnyPermission). Out of scope for #409.
+  'src/lib/auth/authorize.ts',
+];
+
+/**
+ * True when the file's leading directive is 'use server' / "use server".
+ * Skips a BOM, whitespace and leading comments; a later mention of the string
+ * (in a comment, a string literal, or a function-level directive) does not count.
+ */
+function hasTopLevelUseServer(content: string): boolean {
+  let rest = content.replace(/^﻿/, '');
+  for (;;) {
+    const trimmed = rest.replace(/^\s+/, '');
+    if (trimmed.startsWith('//')) {
+      const eol = trimmed.indexOf('\n');
+      rest = eol === -1 ? '' : trimmed.slice(eol + 1);
+    } else if (trimmed.startsWith('/*')) {
+      const end = trimmed.indexOf('*/');
+      rest = end === -1 ? '' : trimmed.slice(end + 2);
+    } else {
+      rest = trimmed;
+      break;
+    }
+  }
+  return /^(['"])use server\1(?:\s*;|\s*$|\s*\n)/.test(rest);
+}
+
 function isAllowlisted(file: string, allowlist: string[]): boolean {
   // Normalize path separators
   const normalizedFile = file.replace(/\\/g, '/');
@@ -225,6 +261,34 @@ describe('Module Integration Compliance', () => {
       expect(
         violations,
         `Files missing audit logging:\n${violations.join('\n')}\n\nAdd logAudit calls or update AUDIT_ALLOWLIST in test file.`
+      ).toHaveLength(0);
+    }, SCAN_TIMEOUT_MS);
+  });
+
+  describe('Server Action Surface', () => {
+    it("no file outside src/actions should be a 'use server' module", async () => {
+      const srcFiles = await glob('**/*.{ts,tsx}', {
+        cwd: SRC_DIR,
+        ignore: ['actions/**'],
+      });
+      const violations: string[] = [];
+
+      for (const file of srcFiles) {
+        const relative = `src/${file.replace(/\\/g, '/')}`;
+        if (USE_SERVER_OUTSIDE_ACTIONS_ALLOWLIST.includes(relative)) continue;
+
+        const content = fs.readFileSync(path.join(SRC_DIR, file), 'utf-8');
+        if (hasTopLevelUseServer(content)) {
+          violations.push(relative);
+        }
+      }
+
+      expect(
+        violations,
+        `Files outside src/actions/** with a top-level 'use server' directive:\n${violations.join('\n')}\n\n` +
+          `Every export of such a file is a callable server action that the permission/audit scans never see. ` +
+          `Remove the directive (server-only libraries do not need it), move the actions under src/actions/**, ` +
+          `or add the file to USE_SERVER_OUTSIDE_ACTIONS_ALLOWLIST with a reason.`
       ).toHaveLength(0);
     }, SCAN_TIMEOUT_MS);
   });
