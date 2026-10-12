@@ -5,18 +5,11 @@ import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { MAX_LOGO_BYTES, SNIFFED_MIME, checkSizeCap, matchesAllowedType, type SniffedType } from '@/lib/uploads';
 
-// Allowed image types for logo
-const ALLOWED_IMAGE_TYPES = [
-  'image/png',
-  'image/jpeg',
-  'image/jpg',
-  'image/webp',
-  'image/svg+xml',
-] as const;
-
-// Max logo file size: 2MB
-const MAX_LOGO_FILE_SIZE = 2 * 1024 * 1024;
+// Raster only: SVG can carry script and the logos bucket is public.
+const ALLOWED_LOGO_TYPES: ReadonlyArray<SniffedType> = ['png', 'jpeg', 'webp'];
+const LOGO_EXTENSION: Record<string, string> = { png: 'png', jpeg: 'jpg', webp: 'webp' };
 
 type UploadLogoResponse = {
   data: { url: string } | null;
@@ -24,26 +17,21 @@ type UploadLogoResponse = {
 };
 
 /**
- * Validates the logo file before upload
+ * Validates the logo file by size and by content (magic bytes), never by the
+ * client-supplied MIME type or file name.
  */
-function validateLogoFile(file: File): { valid: boolean; error: string | null } {
-  // Check file size
-  if (file.size > MAX_LOGO_FILE_SIZE) {
-    return {
-      valid: false,
-      error: `File size exceeds maximum allowed (${MAX_LOGO_FILE_SIZE / 1024 / 1024}MB)`,
-    };
-  }
+async function validateLogoFile(
+  file: File
+): Promise<{ valid: boolean; error: string | null; type: SniffedType | null }> {
+  const sizeError = checkSizeCap(file.size, MAX_LOGO_BYTES, 'Logo');
+  if (sizeError) return { valid: false, error: sizeError, type: null };
 
-  // Check MIME type
-  if (!ALLOWED_IMAGE_TYPES.includes(file.type as typeof ALLOWED_IMAGE_TYPES[number])) {
-    return {
-      valid: false,
-      error: 'File type not allowed. Please upload PNG, JPG, WebP, or SVG images.',
-    };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const type = matchesAllowedType(bytes, ALLOWED_LOGO_TYPES);
+  if (!type) {
+    return { valid: false, error: 'File type not allowed. Please upload PNG, JPG or WebP images.', type: null };
   }
-
-  return { valid: true, error: null };
+  return { valid: true, error: null, type };
 }
 
 /**
@@ -69,8 +57,8 @@ export async function uploadEstateLogo(formData: FormData): Promise<UploadLogoRe
   }
 
   // Validate file
-  const validation = validateLogoFile(file);
-  if (!validation.valid) {
+  const validation = await validateLogoFile(file);
+  if (!validation.valid || !validation.type) {
     return { data: null, error: validation.error };
   }
 
@@ -82,17 +70,15 @@ export async function uploadEstateLogo(formData: FormData): Promise<UploadLogoRe
     .single();
 
   // Generate a unique file name
-  const timestamp = Date.now();
-  const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
-  const filePath = `estate-logo-${timestamp}.${extension}`;
+  const filePath = `estate-logo-${globalThis.crypto.randomUUID()}.${LOGO_EXTENSION[validation.type]}`;
 
   // Upload to Supabase Storage (using 'logos' bucket)
   const { error: uploadError } = await supabase.storage
     .from('logos')
     .upload(filePath, file, {
-      contentType: file.type,
+      contentType: SNIFFED_MIME[validation.type],
       cacheControl: '3600',
-      upsert: true,
+      upsert: false,
     });
 
   if (uploadError) {

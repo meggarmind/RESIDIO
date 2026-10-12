@@ -45,6 +45,8 @@ import {
 import { IdentifierUnverifiedBadge } from '@/components/houses/identifier-unverified-badge';
 import type { HouseSearchParams } from '@/lib/validators/house';
 import { getPropertyShortname } from '@/lib/utils';
+import { Can } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const ALL_VALUE = '_all';
 
@@ -106,18 +108,20 @@ const HouseRow = memo(function HouseRow({ house, onNavigate, onPreview }: { hous
           >
             <Eye className="h-4 w-4 text-muted-foreground" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 hover:bg-muted"
-            asChild
-            aria-label="Edit house"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Link href={`/houses/${house.id}?edit=true`}>
-              <Pencil className="h-4 w-4 text-muted-foreground" />
-            </Link>
-          </Button>
+          <Can permission={PERMISSIONS.HOUSES_UPDATE}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 hover:bg-muted"
+              asChild
+              aria-label="Edit house"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Link href={`/houses/${house.id}?edit=true`}>
+                <Pencil className="h-4 w-4 text-muted-foreground" />
+              </Link>
+            </Button>
+          </Can>
         </div>
       </TableCell>
     </TableRow>
@@ -331,14 +335,16 @@ export function HousesTable() {
               </Link>
             </Button>
 
-            <Button onClick={() => router.push('/houses/new')} className="hidden sm:flex">
-              <Plus className="h-4 w-4 mr-2" />
-              Add
-            </Button>
-            {/* Mobile-only Add Button (icon only to save space) */}
-            <Button onClick={() => router.push('/houses/new')} size="icon" className="sm:hidden shrink-0">
-              <Plus className="h-4 w-4" />
-            </Button>
+            <Can permission={PERMISSIONS.HOUSES_CREATE}>
+              <Button onClick={() => router.push('/houses/new')} className="hidden sm:flex">
+                <Plus className="h-4 w-4 mr-2" />
+                Add
+              </Button>
+              {/* Mobile-only Add Button (icon only to save space) */}
+              <Button onClick={() => router.push('/houses/new')} size="icon" className="sm:hidden shrink-0">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </Can>
           </div>
         </div>
 
