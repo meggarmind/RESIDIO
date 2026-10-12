@@ -311,6 +311,7 @@ export default function BillingPage() {
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                             <Input
                                 placeholder="Invoice number..."
+                                aria-label="Search by invoice number"
                                 value={search}
                                 onChange={(e) => {
                                     setSearch(e.target.value);
@@ -340,7 +341,7 @@ export default function BillingPage() {
                             setStatus(value);
                             setPage(1);
                         }}>
-                            <SelectTrigger className={cn("w-[110px] h-9 text-sm", isModern && 'rounded-xl')}>
+                            <SelectTrigger aria-label="Filter by status" className={cn("w-[110px] h-9 text-sm", isModern && 'rounded-xl')}>
                                 <SelectValue placeholder="Status" />
                             </SelectTrigger>
                             <SelectContent>

@@ -30,9 +30,13 @@ import { POLLING_INTERVALS } from '@/lib/config/polling';
 /**
  * Fetch notifications for the current user
  */
-export function useInAppNotifications(params: NotificationListParams = {}) {
+export function useInAppNotifications(
+  params: NotificationListParams = {},
+  options: { enabled?: boolean } = {}
+) {
   return useQuery({
     queryKey: ['inAppNotifications', params],
+    enabled: options.enabled ?? true,
     queryFn: async () => {
       const result = await getNotifications(params);
       if (result.error) throw new Error(result.error);

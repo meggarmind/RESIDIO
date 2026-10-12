@@ -5,7 +5,8 @@ import { AlertCircle, CheckCircle2, Eye, FileBarChart, Loader2, Play, ShieldChec
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { getHouses } from '@/actions/houses/get-houses';
 import { getStreets } from '@/actions/reference/get-streets';
@@ -197,14 +198,14 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
   const newItems = previewItems.filter((item) => item.isNew);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 pt-[6vh]" onClick={onClose}>
-      <div className="w-full max-w-3xl p-4" onClick={(event) => event.stopPropagation()}>
+    <Dialog open onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent showCloseButton={false} className="max-w-3xl gap-0 border-0 bg-transparent p-0 shadow-none sm:max-w-3xl">
         <Card className="overflow-hidden shadow-2xl">
           <CardHeader className="border-b bg-muted/20">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <CardTitle className="flex items-center gap-2 text-lg"><FileBarChart className="h-5 w-5" />Generate Invoices</CardTitle>
-                <p className="mt-1 text-xs text-muted-foreground">Prepare a reviewable financial run. Nothing is written during preview.</p>
+                <DialogTitle className="flex items-center gap-2 text-lg font-semibold"><FileBarChart className="h-5 w-5" aria-hidden="true" />Generate Invoices</DialogTitle>
+                <DialogDescription className="mt-1 text-xs">Prepare a reviewable financial run. Nothing is written during preview.</DialogDescription>
               </div>
               <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close"><X className="h-4 w-4" /></Button>
             </div>
@@ -344,8 +345,8 @@ export function GenerateInvoicesDialog({ open, onClose }: GenerateInvoicesDialog
             {runId && !run && <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading durable run…</div>}
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

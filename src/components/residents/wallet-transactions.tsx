@@ -110,7 +110,19 @@ function YearlyWalletTransactionRow({ summary }: { summary: FilteredYearlySummar
 
   return (
     <>
-      <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => setOpen(!open)}>
+      <TableRow
+        className="cursor-pointer hover:bg-muted/50"
+        onClick={() => setOpen(!open)}
+        tabIndex={0}
+        aria-expanded={open}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return;
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setOpen(!open);
+          }
+        }}
+      >
         <TableCell className="font-medium">
           <div className="flex items-center gap-2">
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />

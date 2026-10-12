@@ -3,6 +3,7 @@
 import { use, useState, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -46,8 +47,6 @@ import { OccupancyBadge, AccountStatusBadge, ResidentRoleBadge } from '@/compone
 import { useHouse, useDeleteHouse, useOwnershipHistory } from '@/hooks/use-houses';
 import { useHousePaymentStatus } from '@/hooks/use-billing';
 import { useResidents, useAssignHouse, useUnassignHouse, useMoveOutLandlord, useUpdateResidentHouse, useSwapResidentRoles, useTransferOwnership, useRemoveOwnership, usePendingMoveOut, useConfirmRenterMoveOut } from '@/hooks/use-residents';
-import { MoveOutWizard } from '@/components/residents/move-out-wizard';
-import { OwnerMoveOutWizard } from '@/components/residents/owner-move-out-wizard';
 import { Home, Pencil, Trash2, Users, ArrowLeft, Plus, Link2, Loader2, DoorOpen, AlertTriangle, SquarePen, ArrowUp, ArrowRightLeft, History, Calendar, UserMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ResidentRole, ResidentHouse, Resident } from '@/types/database';
@@ -55,6 +54,17 @@ import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, RESIDENT_ROLE_LABELS } fr
 import { requiresSponsor } from '@/lib/validators/resident';
 import { Can, useCan } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+
+// Both wizards pull in @react-pdf/renderer and only render after a click, so keep
+// them out of this page's initial bundle (#464).
+const MoveOutWizard = dynamic(
+  () => import('@/components/residents/move-out-wizard').then((m) => ({ default: m.MoveOutWizard })),
+  { ssr: false }
+);
+const OwnerMoveOutWizard = dynamic(
+  () => import('@/components/residents/owner-move-out-wizard').then((m) => ({ default: m.OwnerMoveOutWizard })),
+  { ssr: false }
+);
 
 // House state for Add New form context
 type HouseState = 'empty' | 'has_tenant' | 'has_resident_landlord' | 'has_non_resident_landlord';
