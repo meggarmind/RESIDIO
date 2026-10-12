@@ -1,6 +1,7 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import { TestEmail } from '@/emails';
 
@@ -17,14 +18,9 @@ interface TestEmailResult {
  * Send a test email to verify email configuration
  */
 export async function testEmail(input: TestEmailInput): Promise<TestEmailResult> {
-  const supabase = await createServerSupabaseClient();
-
-  // Check auth
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: 'Unauthorized' };
+  const auth = await authorizePermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
   }
 
   // Validate email
@@ -49,7 +45,7 @@ export async function testEmail(input: TestEmailInput): Promise<TestEmailResult>
     }),
     emailType: 'test',
     metadata: {
-      triggeredBy: user.id,
+      triggeredBy: auth.userId,
     },
   });
 
