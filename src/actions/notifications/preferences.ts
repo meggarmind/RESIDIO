@@ -7,6 +7,8 @@
  */
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizeAnyPermission } from '@/lib/auth/authorize';
+import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import {
   getPreferences,
@@ -28,11 +30,48 @@ import type {
 } from '@/lib/notifications/types';
 
 /**
+ * A signed-in resident may act only on their own preferences (the resident id
+ * is resolved from the session's profile, never from the caller). Anyone else
+ * needs one of the given permissions (#472).
+ */
+async function authorizePreferenceAccess(
+  residentId: string,
+  permissions: Permission[]
+): Promise<{ allowed: true } | { allowed: false; error: string }> {
+  if (!residentId) return { allowed: false, error: 'Resident ID is required' };
+
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { allowed: false, error: 'Unauthorized: Not authenticated' };
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('resident_id')
+    .eq('id', user.id)
+    .single();
+  if (profile?.resident_id && profile.resident_id === residentId) {
+    return { allowed: true };
+  }
+
+  const auth = await authorizeAnyPermission(permissions);
+  if (!auth.authorized) return { allowed: false, error: auth.error || 'Unauthorized' };
+  return { allowed: true };
+}
+
+/**
  * Get all preferences for a resident
  */
 export async function getResidentPreferences(
   residentId: string
 ): Promise<{ data: NotificationPreference[] | null; error: string | null }> {
+  const access = await authorizePreferenceAccess(residentId, [
+    PERMISSIONS.NOTIFICATIONS_VIEW,
+    PERMISSIONS.RESIDENTS_VIEW,
+  ]);
+  if (!access.allowed) return { data: null, error: access.error };
+
   try {
     const preferences = await getPreferences(residentId);
     return { data: preferences, error: null };
@@ -67,6 +106,12 @@ export async function getResidentPreferencesByCategory(
 export async function updateResidentPreference(
   input: UpdatePreferencesInput
 ): Promise<{ success: boolean; error: string | null }> {
+  const access = await authorizePreferenceAccess(input.resident_id, [
+    PERMISSIONS.NOTIFICATIONS_MANAGE,
+    PERMISSIONS.RESIDENTS_UPDATE,
+  ]);
+  if (!access.allowed) return { success: false, error: access.error };
+
   try {
     const result = await updatePreference(input);
 

@@ -28,6 +28,8 @@ import { useDeletePayment, useBulkUpdatePayments } from '@/hooks/use-payments';
 import { formatCurrency } from '@/lib/utils';
 import type { PaymentRecord } from '@/types/database';
 import { toast } from 'sonner';
+import { Can } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -115,18 +117,20 @@ const PaymentRow = memo(function PaymentRow({
                             </Link>
                         </Button>
                     )}
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:text-destructive"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(payment.id);
-                        }}
-                        aria-label="Delete payment"
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <Can permission={PERMISSIONS.PAYMENTS_DELETE}>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(payment.id);
+                            }}
+                            aria-label="Delete payment"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </Can>
                 </div>
             </TableCell>
         </TableRow>
@@ -259,10 +263,12 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                         </p>
                     </div>
                     <div className="flex gap-3">
-                        <Button onClick={() => router.push(residentId ? `/payments/new?residentId=${residentId}` : '/payments/new')}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Payment
-                        </Button>
+                        <Can permission={PERMISSIONS.PAYMENTS_CREATE}>
+                            <Button onClick={() => router.push(residentId ? `/payments/new?residentId=${residentId}` : '/payments/new')}>
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Payment
+                            </Button>
+                        </Can>
                         <Button
                             variant="ghost"
                             onClick={() => router.push('/payments')}
@@ -369,6 +375,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                 {selectedIds.size} payment{selectedIds.size !== 1 ? 's' : ''} selected
                             </span>
                             <div className="hidden md:flex gap-2">
+                                <Can permission={PERMISSIONS.PAYMENTS_BULK_UPDATE}>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button
@@ -403,6 +410,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
+                                </Can>
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -412,6 +420,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                     <Download className="h-4 w-4 mr-2" />
                                     Export CSV
                                 </Button>
+                                <Can permission={PERMISSIONS.PAYMENTS_DELETE}>
                                 <Button
                                     variant="destructive"
                                     size="sm"
@@ -420,9 +429,11 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                     <Trash2 className="h-4 w-4 mr-2" />
                                     Delete Selected
                                 </Button>
+                                </Can>
                             </div>
                             {/* Mobile: Icon only buttons */}
                             <div className="flex md:hidden gap-2">
+                                <Can permission={PERMISSIONS.PAYMENTS_BULK_UPDATE}>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button
@@ -455,6 +466,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
+                                </Can>
                                 <Button
                                     variant="outline"
                                     size="icon"
@@ -463,6 +475,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                 >
                                     <Download className="h-4 w-4" />
                                 </Button>
+                                <Can permission={PERMISSIONS.PAYMENTS_DELETE}>
                                 <Button
                                     variant="destructive"
                                     size="icon"
@@ -470,6 +483,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                 >
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
+                                </Can>
                             </div>
                         </div>
                         <Button

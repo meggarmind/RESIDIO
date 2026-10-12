@@ -19,6 +19,7 @@ import {
   extractEmailBody,
   extractAttachments,
 } from '@/lib/email-imports/gmail-client';
+import { storeEmailAttachments } from '@/lib/email-imports/store-attachments';
 import { updateGmailSyncStatus } from './gmail-oauth';
 import { createEmailImport, updateEmailImportStatus } from './create-email-import';
 import { parseAllPendingEmails } from './parse-email';
@@ -140,25 +141,10 @@ async function storeEmailContent(
     }
 
     // Store attachments
-    for (const attachment of attachments) {
-      const attachmentPath = `${basePath}/attachments/${attachment.filename}`;
-      const { error: attachmentError } = await adminClient.storage
-        .from('email-imports')
-        .upload(attachmentPath, attachment.data, {
-          contentType: attachment.mimeType,
-          upsert: true,
-        });
-
-      if (!attachmentError) {
-        attachmentPaths.push({
-          name: attachment.filename,
-          path: attachmentPath,
-          size: attachment.data.length,
-          mimeType: attachment.mimeType,
-        });
-      } else {
-        console.error(`Failed to upload attachment ${attachment.filename}:`, attachmentError);
-      }
+    const { stored, skipped } = await storeEmailAttachments(adminClient, basePath, attachments);
+    attachmentPaths.push(...stored);
+    for (const s of skipped) {
+      console.error(`Skipped attachment ${s.name} for message ${messageId}: ${s.reason}`);
     }
 
     return { rawContentPath, attachmentPaths, error: null };

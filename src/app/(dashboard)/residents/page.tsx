@@ -10,6 +10,8 @@ import {
 import { RegistryKpiStrip } from '@/components/dashboard/registry-kpi-strip';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { Can } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 export default function ResidentsPage() {
   // Use optimized stats query instead of fetching all residents
@@ -28,9 +30,11 @@ export default function ResidentsPage() {
         description="Manage community members and their access"
         icon={Users}
         actions={
-          <Button asChild>
-            <Link href="/residents/new"><Plus className="mr-2 h-4 w-4" />Add resident</Link>
-          </Button>
+          <Can permission={PERMISSIONS.RESIDENTS_CREATE}>
+            <Button asChild>
+              <Link href="/residents/new"><Plus className="mr-2 h-4 w-4" />Add resident</Link>
+            </Button>
+          </Can>
         }
       />
 
