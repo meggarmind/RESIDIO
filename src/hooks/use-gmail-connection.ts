@@ -97,7 +97,7 @@ export function useManualFetch() {
 
   return useMutation({
     mutationFn: async () => {
-      const result = await fetchNewEmails({ trigger: 'manual' });
+      const result = await fetchNewEmails();
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch emails');
       }
