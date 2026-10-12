@@ -40,6 +40,8 @@ import {
 } from '@/components/dashboard/enhanced-stat-card';
 import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { cn } from '@/lib/utils';
+import { Can } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const statusColors: Record<string, string> = {
     unpaid: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
@@ -232,17 +234,19 @@ export default function BillingPage() {
                             )}
                             Check Overdue
                         </Button>
-                        <Button
-                            asChild
-                            className={cn(
-                                isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
-                            )}
-                        >
-                            <Link href="/billing/generate">
-                                <FileText className="mr-2 h-4 w-4" />
-                                Generate Invoices
-                            </Link>
-                        </Button>
+                        <Can permission={PERMISSIONS.BILLING_CREATE_INVOICE}>
+                            <Button
+                                asChild
+                                className={cn(
+                                    isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
+                                )}
+                            >
+                                <Link href="/billing/generate">
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    Generate Invoices
+                                </Link>
+                            </Button>
+                        </Can>
                     </div>
                 }
             />
@@ -307,6 +311,7 @@ export default function BillingPage() {
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                             <Input
                                 placeholder="Invoice number..."
+                                aria-label="Search by invoice number"
                                 value={search}
                                 onChange={(e) => {
                                     setSearch(e.target.value);
@@ -336,7 +341,7 @@ export default function BillingPage() {
                             setStatus(value);
                             setPage(1);
                         }}>
-                            <SelectTrigger className={cn("w-[110px] h-9 text-sm", isModern && 'rounded-xl')}>
+                            <SelectTrigger aria-label="Filter by status" className={cn("w-[110px] h-9 text-sm", isModern && 'rounded-xl')}>
                                 <SelectValue placeholder="Status" />
                             </SelectTrigger>
                             <SelectContent>

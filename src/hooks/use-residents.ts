@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getResidents } from '@/actions/residents/get-residents';
+import { getResidents, getResidentOptions } from '@/actions/residents/get-residents';
 import { getResident } from '@/actions/residents/get-resident';
 import { getResidentStats, getContactVerificationStats } from '@/actions/residents/get-resident-stats';
 import { createResident } from '@/actions/residents/create-resident';
@@ -43,6 +43,22 @@ export function useResidents(params: Partial<ResidentSearchParams> = {}) {
       if (result.error) throw new Error(result.error);
       return { data: result.data, count: result.count };
     },
+  });
+}
+
+/**
+ * Slim id/name/code list for resident dropdowns. One shared cache key (nested
+ * under 'residents', so invalidateQueries(['residents']) still refreshes it).
+ */
+export function useResidentOptions() {
+  return useQuery({
+    queryKey: ['residents', 'options'],
+    queryFn: async () => {
+      const result = await getResidentOptions();
+      if (result.error) throw new Error(result.error);
+      return { data: result.data };
+    },
+    staleTime: 60 * 1000,
   });
 }
 

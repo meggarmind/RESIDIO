@@ -6,6 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import type { InvoiceStatus } from '@/types/database';
 import { revalidatePath } from 'next/cache';
+import { validateMoneyAmount } from '@/lib/validators/money';
 
 type WalletCreditRpcClient = {
   rpc: (name: 'adjust_wallet_credit', args: Record<string, unknown>) => Promise<{
@@ -58,12 +59,13 @@ export async function reversePaymentAllocation(
   }
 
   // 2. Validate amount
-  if (amountToReverse <= 0) {
+  const amountError = validateMoneyAmount(amountToReverse, { label: 'Reversal amount' });
+  if (amountError) {
     return {
       success: false,
       amountReversed: 0,
       newInvoiceStatus: null,
-      error: 'Reversal amount must be greater than zero',
+      error: amountError,
     };
   }
 

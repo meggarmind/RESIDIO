@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { sanitizeSearchInput } from '@/lib/utils';
+import { ilikeAny } from '@/lib/postgrest-filter';
 import type {
   ImpersonationSession,
   ImpersonationSessionWithDetails,
@@ -388,7 +388,6 @@ export async function searchResidentsForImpersonation(query: string): Promise<{
   const supabase = await createServerSupabaseClient();
 
   // Search by name, email, phone, or resident code
-  const searchPattern = `%${sanitizeSearchInput(query)}%`;
 
   const { data: residents, error } = await supabase
     .from('residents')
@@ -412,7 +411,7 @@ export async function searchResidentsForImpersonation(query: string): Promise<{
         )
       )
     `)
-    .or(`first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},email.ilike.${searchPattern},phone_primary.ilike.${searchPattern},resident_code.ilike.${searchPattern}`)
+    .or(ilikeAny(['first_name', 'last_name', 'email', 'phone_primary', 'resident_code'], query))
     .limit(20);
 
   if (error) {

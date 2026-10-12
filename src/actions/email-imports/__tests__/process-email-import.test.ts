@@ -163,5 +163,35 @@ describe('Email Import Processing', () => {
             expect(result.autoProcessed).toBe(1);
             expect(result.expensesCreated).toBe(1);
         });
+
+        it('records a debit as errored (does not abort) when createExpense rejects it', async () => {
+            const mockDebits = [
+                { id: 'tx_bad', transaction_type: 'debit', status: 'queued_for_review', matched_expense_category_id: 'cat_123', amount: 0.001 },
+            ];
+
+            mockSupabase.from.mockImplementation((table: string) => {
+                if (table === 'email_transactions') {
+                    const query = createMockQuery();
+                    query.eq.mockImplementation((col: string, val: unknown) => {
+                        if (val === 'matched') return createMockQuery([]);
+                        if (val === 'debit') {
+                            const debitQuery = createMockQuery();
+                            debitQuery.in = vi.fn().mockReturnValue(createMockQuery(mockDebits));
+                            return debitQuery;
+                        }
+                        return query;
+                    });
+                    return query;
+                }
+                return createMockQuery();
+            });
+
+            vi.mocked(createExpense).mockRejectedValue(new Error('Expense amount can have at most 2 decimal places'));
+
+            const result = await processEmailTransactions('import_123');
+
+            expect(result.errored).toBe(1);
+            expect(result.expensesCreated).toBe(0);
+        });
     });
 });

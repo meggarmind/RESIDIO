@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { NoteVersion, EntityNoteWithRelations } from '@/types/database';
+import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 
 type GetNoteHistoryResponse = {
   data: NoteVersion[];
@@ -58,7 +59,7 @@ export async function getNoteHistory(noteId: string): Promise<GetNoteHistoryResp
       document:documents(id, title, file_name, file_type)
     `
     )
-    .or(`id.eq.${rootNoteId},parent_note_id.eq.${rootNoteId}`)
+    .or(idOrParentFilterStrict('id', 'parent_note_id', rootNoteId))
     .order('version', { ascending: false });
 
   if (error) {
@@ -138,7 +139,7 @@ export async function compareNoteVersions(
       document:documents(id, title, file_name, file_type)
     `
     )
-    .or(`id.eq.${rootNoteId},parent_note_id.eq.${rootNoteId}`)
+    .or(idOrParentFilterStrict('id', 'parent_note_id', rootNoteId))
     .in('version', [versionA, versionB]);
 
   if (error) {
@@ -215,7 +216,7 @@ export async function restoreNoteVersion(
   const { data: versionData, error: versionError } = await supabase
     .from('entity_notes')
     .select('*')
-    .or(`id.eq.${rootNoteId},parent_note_id.eq.${rootNoteId}`)
+    .or(idOrParentFilterStrict('id', 'parent_note_id', rootNoteId))
     .eq('version', versionToRestore)
     .single();
 
@@ -227,7 +228,7 @@ export async function restoreNoteVersion(
   const { data: currentVersions } = await supabase
     .from('entity_notes')
     .select('id, version')
-    .or(`id.eq.${rootNoteId},parent_note_id.eq.${rootNoteId}`)
+    .or(idOrParentFilterStrict('id', 'parent_note_id', rootNoteId))
     .eq('is_current', true)
     .order('version', { ascending: false })
     .limit(1);

@@ -90,7 +90,9 @@ npm run docs:drift       # report wiki pages whose sources have moved on
 npm run issue:workflow   # issue lifecycle helper (see §8)
 ```
 
-Run `lint` then `build`, plus tests where relevant, after changes.
+Locally, run lint, `npx tsc --noEmit` and the test files the change touches. The full Vitest suite
+and `next build` run remotely on the real gate before a PR opens (see §16): local full runs on a
+loaded machine are ~4x slower and time out falsely (#497).
 
 - **Path alias**: `@/*` maps to `src/*`. Always import via `@/...`, never relative.
 - State: TanStack React Query. Forms: React Hook Form + Zod. Icons: Lucide.
@@ -690,6 +692,17 @@ nearly caused a clean branch to be reported as broken.
 ## 16. Reporting and continuity
 
 Branch per issue, commits referencing it, **PR only after a pass. The user does the merging.**
+
+Before opening the PR, the coordinator pushes the branch and runs the real gate against it:
+
+```bash
+gh workflow run pr-gate.yml --repo meggarmind/RESIDIO --ref <branch>
+# a dispatched run takes a few seconds to appear; without the filter and pause, `list` returns the previous run
+sleep 10
+gh run watch --exit-status --repo meggarmind/RESIDIO $(gh run list --repo meggarmind/RESIDIO --workflow pr-gate.yml --branch <branch> --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId')
+```
+
+`--exit-status` makes a red gate a non-zero exit. A dispatched run always runs every job; only a docs-only PR's own gate run skips the heavy ones.
 
 After each wave, report: what shipped, the model used, the QA verdict, how many agents ran on
 which machine, and any decisions you made on the user's behalf. **Decisions, not a transcript.**
