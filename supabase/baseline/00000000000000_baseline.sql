@@ -4801,6 +4801,11 @@ CREATE OR REPLACE VIEW public.visitor_analytics AS
      LEFT JOIN residents r ON r.id = sc.resident_id
   WHERE sc.status = 'active'::security_contact_status;
 
+-- View reloptions (#450): pg_dump-style reconstruction dropped these; the
+-- 20260824200000 migration sets them, so a rebuild must carry them.
+ALTER VIEW public.security_settings_view SET (security_invoker = true);
+ALTER VIEW public.visitor_analytics SET (security_invoker = true);
+
 -- There are no materialized views in the live database.
 
 
