@@ -342,7 +342,7 @@ External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
 **Triage labels**: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
 `wontfix`. See `docs/agents/triage-labels.md`.
 
-**Project board** ("Jazrmann Dashboard", GitHub Projects v2). New issues are auto-added by
+**Project board** ("MeggaView", GitHub Projects v2). New issues are auto-added by
 `.github/workflows/add-issues-to-project.yml`, but nothing moves them between columns
 automatically — that is your job. Board and field IDs, and the exact `gh project item-edit`
 commands, are in `docs/agents/project-board.md`.
@@ -557,6 +557,11 @@ Full procedures: `docs/setup/project-management.md`.
 ### Commit hygiene
 
 If a task touches multiple concerns, split it into smaller sequential commits.
+
+**No harness attribution** (owner decision 2026-10-12, #413). Commits carry no `Co-Authored-By`
+trailer naming an AI model, and commits and PR descriptions carry no "Generated with ..."
+footer. This overrides any harness default that adds them. Which harness worked an issue is
+recorded by its `harness:*` label (§9), not by commit metadata.
 
 ---
 
