@@ -113,6 +113,14 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Fail the build, naming every problem, when a NEXT_PUBLIC_* value Next inlines into
+# the client bundle is missing or malformed (#396). Checks only the Supabase URL and
+# anon key for the selected NEXT_PUBLIC_ENV_MODE. It does NOT check the service-role
+# key, so the placeholder above keeps working. The same file is reused at start-up in
+# the runner stage; the copy's name is what switches its CLI mode on.
+COPY src/lib/config/env-validation.mjs ./preflight-env.mjs
+RUN node preflight-env.mjs --build
+
 # `output: 'standalone'` in next.config.ts produces .next/standalone.
 RUN npm run build
 
@@ -137,6 +145,7 @@ RUN mkdir -p /app/.next && chown -R node:node /app
 COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/preflight-env.mjs ./preflight-env.mjs
 
 USER node
 
@@ -154,4 +163,8 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/',{redirect:'manual'}).then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "server.js"]
+# Validate the runtime environment BEFORE server.js binds its port (#396): a missing or
+# malformed strict variable exits non-zero naming all of them, and the container never
+# starts listening. `exec` keeps node as PID 1 so SIGTERM still reaches the server.
+# (src/instrumentation.ts repeats the check, but Next calls it only after the port is bound.)
+CMD ["sh", "-c", "node preflight-env.mjs && exec node server.js"]
