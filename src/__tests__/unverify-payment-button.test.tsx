@@ -6,7 +6,7 @@ import '@testing-library/jest-dom/vitest';
 
 const mocks = vi.hoisted(() => ({
   permissions: [] as string[],
-  unverify: vi.fn(async (..._args: unknown[]) => ({ success: true })),
+  unverify: vi.fn<(...args: unknown[]) => Promise<{ success: boolean; error?: string }>>(async () => ({ success: true })),
 }));
 
 vi.mock('@/lib/auth/auth-provider', () => ({
