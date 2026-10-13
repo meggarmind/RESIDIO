@@ -294,7 +294,9 @@ hotfix: branch from master --PR--> master, then merge master back into stage
 - **Label every PR into `master`** with exactly one of `release:major` (not a drop-in upgrade:
   new required env var, breaking migration, access-control API change), `release:minor` (new
   capability, drop-in), `release:patch` (fixes) or `release:none`. On merge,
-  `.github/workflows/release.yml` pushes the next `vX.Y.Z` tag, computed from the last tag. No
+  `.github/workflows/release.yml` pushes the next `vX.Y.Z` tag, computed from the last tag (a
+  `release:major` release from `stage` also deploys residio-stage immediately; Prod is still
+  deployed by hand). No
   label means no tag. **The tag is the version**: nothing is committed to `master`, and
   `package.json`'s `version` is not hand-edited.
 - **Rollback is the previous release on `master`** (its `vX.Y.Z` tag; for releases before the

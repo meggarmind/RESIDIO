@@ -19,8 +19,8 @@
  * Usage (the workflow sets these):
  *   PR_LABELS='["release:minor"]' node scripts/release-version.mjs
  *
- * Writes `tag=<vX.Y.Z or empty>` and `reason=<text>` to $GITHUB_OUTPUT when set, and
- * always to stdout. Exits non-zero only when the labels contradict each other or the
+ * Writes `tag=<vX.Y.Z or empty>`, `reason=<text>` and `bump=<major|minor|patch|none, or
+ * empty without a release label>` to $GITHUB_OUTPUT when set, and always to stdout. Exits non-zero only when the labels contradict each other or the
  * version state is unreadable; a failed run never tags.
  */
 
@@ -139,7 +139,10 @@ function main() {
 
   console.log(decision.tag ? `Next release: ${decision.tag} (${decision.reason})` : `No release: ${decision.reason}`);
   if (process.env.GITHUB_OUTPUT) {
-    appendFileSync(process.env.GITHUB_OUTPUT, `tag=${decision.tag}\nreason=${decision.reason}\n`);
+    // `bump` is the label's verdict (major|minor|patch|none), empty without a release label.
+    // release.yml uses it to deploy Stage for a release:major.
+    const bump = bumpFromLabels(labels) ?? '';
+    appendFileSync(process.env.GITHUB_OUTPUT, `tag=${decision.tag}\nreason=${decision.reason}\nbump=${bump}\n`);
   }
 }
 

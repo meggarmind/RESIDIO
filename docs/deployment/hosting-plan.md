@@ -459,7 +459,7 @@ own `HEALTHCHECK`).
 |---|---|---|
 | Domain | `https://app.<domain>` | `https://stage.<domain>` |
 | Branch | `master` | `stage` |
-| Auto-deploy on push | **Off**: deploy by hand after any migration (`CORE.md` §11) | **Off**: CI (`.github/workflows/coolify-version.yml`) sets the build version and pins the commit; the KVM cron deploys every 4 hours |
+| Auto-deploy on push | **Off**: deploy by hand after any migration (`CORE.md` §11) | **Off**: CI (`.github/workflows/coolify-version.yml`) sets the build version and pins the commit; the KVM cron deploys every 4 hours, and a `release:major` release from `stage` deploys it at once (#525) |
 | Supabase | Residio_Prod | Residio_Stage |
 | Memory limit | ~2 GB | ~1 GB |
 
@@ -474,8 +474,9 @@ the commit belongs to: `v0.5.0` on the release, and on the `stage` commit it mer
 `NEXT_PUBLIC_APP_ENV` (`production` or `staging`). They are **set by CI**
 (`.github/workflows/coolify-version.yml`), not by hand. Prod's values are set on each release
 tag, and CI never deploys Prod. Stage's are set on each push to `stage`, and CI also pins residio-stage's commit to that SHA.
-CI does not deploy Stage: the KVM cron does, every 4 hours, building the pinned commit. That is
-why Stage's own auto-deploy is off. Setup and secrets:
+CI does not deploy Stage: the KVM cron does, every 4 hours, building the pinned commit, which
+is why Stage's own auto-deploy is off. The one exception is a `release:major` merged from
+`stage`, which `release.yml` deploys straight away (#525). Setup and secrets:
 `docs/agents/branching.md` (Build version variables). The admin sidebar footer and
 `GET /api/version` show them; until CI sets them the app shows `dev · unknown`.
 
