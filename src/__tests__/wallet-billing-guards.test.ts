@@ -206,14 +206,16 @@ describe('billing automation settings actions', () => {
     });
 });
 
-describe('reversePaymentAllocation wallet credit', () => {
-    const invoiceRow = {
-        id: INVOICE,
-        resident_id: RESIDENT,
-        amount_due: 100,
-        amount_paid: 100,
-        status: 'paid',
+describe('reversePaymentAllocation atomic RPC', () => {
+    const rpcOk = {
+        success: true,
+        new_invoice_status: 'partially_paid',
+        new_amount_paid: 60,
+        old_amount_paid: 100,
+        old_status: 'paid',
         invoice_number: 'INV-1',
+        new_wallet_balance: 90,
+        old_wallet_balance: 50,
     };
 
     it('rejects unauthorised callers with no DB access', async () => {
@@ -224,69 +226,43 @@ describe('reversePaymentAllocation wallet credit', () => {
         expect(logAudit).not.toHaveBeenCalled();
     });
 
-    it('credits the wallet via adjust_wallet_credit with no direct wallet or ledger writes', async () => {
+    it('reverses through reverse_invoice_payment_allocation with no direct table access', async () => {
         authorizePermission.mockResolvedValue({ authorized: true });
-        const { client, calls, rpcCalls } = fakeClient({
-            tables: { invoices: invoiceRow },
-            rpc: () => ({ data: { success: true, new_balance: 90, wallet_id: WALLET }, error: null }),
-        });
+        const { client, calls, rpcCalls } = fakeClient({ rpc: () => ({ data: rpcOk, error: null }) });
         createServerSupabaseClient.mockResolvedValue(client);
 
         const result = await reversePaymentAllocation(INVOICE, 40);
 
-        expect(result).toMatchObject({ success: true, amountReversed: 40, newWalletBalance: 90 });
+        expect(result).toMatchObject({ success: true, amountReversed: 40, newInvoiceStatus: 'partially_paid', newWalletBalance: 90 });
         expect(rpcCalls).toEqual([
-            { name: 'adjust_wallet_credit', args: expect.objectContaining({ p_resident_id: RESIDENT, p_amount: 40, p_reference_type: 'invoice_reversal' }) },
+            { name: 'reverse_invoice_payment_allocation', args: { p_invoice_id: INVOICE, p_amount: 40 } },
         ]);
-        expect(writes(calls).map((c) => c.table)).toEqual(['invoices']);
-        expect(logAudit.mock.calls[0][0].oldValues).toMatchObject({ wallet_balance: 50 });
+        expect(calls).toEqual([]);
+        expect(logAudit).toHaveBeenCalledTimes(1);
+        expect(logAudit.mock.calls[0][0].oldValues).toMatchObject({ amount_paid: 100, status: 'paid', wallet_balance: 50 });
+        expect(logAudit.mock.calls[0][0].newValues).toMatchObject({ amount_paid: 60, wallet_balance: 90 });
     });
 
-    it('rolls the invoice back, and does not audit, when the wallet credit fails', async () => {
+    it('surfaces an RPC error, writes nothing client-side and does not audit', async () => {
         authorizePermission.mockResolvedValue({ authorized: true });
-        const { client, calls } = fakeClient({
-            tables: { invoices: invoiceRow },
-            rpc: () => ({ data: null, error: { message: 'credit failed' } }),
-        });
+        const { client, calls } = fakeClient({ rpc: () => ({ data: null, error: { message: 'boom' } }) });
         createServerSupabaseClient.mockResolvedValue(client);
 
         const result = await reversePaymentAllocation(INVOICE, 40);
 
-        expect(result.success).toBe(false);
-        expect(result.error).toContain('credit failed');
-        const invoiceWrites = writes(calls).filter((c) => c.table === 'invoices');
-        expect(invoiceWrites).toHaveLength(2);
-        expect(invoiceWrites[1].payload).toEqual({ amount_paid: 100, status: 'paid' });
+        expect(result).toMatchObject({ success: false, amountReversed: 0, error: 'boom' });
+        expect(writes(calls)).toEqual([]);
         expect(logAudit).not.toHaveBeenCalled();
     });
 
-    it('surfaces a failed rollback instead of swallowing it', async () => {
+    it('surfaces a validation failure returned by the RPC', async () => {
         authorizePermission.mockResolvedValue({ authorized: true });
-        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-        // First invoice update succeeds only if updateError is null; use a client that fails the 2nd update.
-        let updates = 0;
-        const { client } = fakeClient({
-            tables: { invoices: invoiceRow },
-            rpc: () => ({ data: null, error: { message: 'credit failed' } }),
-        });
-        const origFrom = client.from.bind(client);
-        client.from = (table: string) => {
-            const b = origFrom(table) as Record<string, unknown>;
-            const origUpdate = b.update as (p: unknown) => unknown;
-            b.update = (p: unknown) => {
-                updates += 1;
-                origUpdate(p);
-                if (updates === 2) b.then = (resolve: (v: unknown) => unknown) => resolve({ data: null, error: { message: 'rollback denied' } });
-                return b;
-            };
-            return b as ReturnType<typeof origFrom>;
-        };
+        const { client } = fakeClient({ rpc: () => ({ data: { success: false, error: 'Cannot reverse 40.' }, error: null }) });
         createServerSupabaseClient.mockResolvedValue(client);
 
         const result = await reversePaymentAllocation(INVOICE, 40);
 
-        expect(result.error).toContain('rollback also failed');
-        expect(spy).toHaveBeenCalled();
-        spy.mockRestore();
+        expect(result).toMatchObject({ success: false, error: 'Cannot reverse 40.' });
+        expect(logAudit).not.toHaveBeenCalled();
     });
 });
