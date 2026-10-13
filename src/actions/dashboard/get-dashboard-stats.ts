@@ -2,7 +2,6 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { embed } from '@/lib/utils';
-import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 
 type DashboardStats = {
     totalResidents: number;
@@ -19,6 +18,13 @@ type DashboardStats = {
     recentActivity: RecentActivityItem[];
 }
 
+type PaymentMetrics = {
+    collected_count: number | string;
+    collected_total: number | string;
+    unverified_count: number | string;
+    unverified_total: number | string;
+}
+
 type RecentActivityItem = {
     id: string;
     type: 'payment' | 'resident' | 'invoice';
@@ -33,8 +39,10 @@ export async function getDashboardStats(): Promise<{ data: DashboardStats | null
     try {
         // Get current month boundaries
         const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+        const toDate = (d: Date) =>
+            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const monthStartDate = toDate(new Date(now.getFullYear(), now.getMonth(), 1));
+        const monthEndDate = toDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
 
         // 1. Get resident counts
         const { count: totalResidents, error: resError } = await supabase
@@ -50,43 +58,23 @@ export async function getDashboardStats(): Promise<{ data: DashboardStats | null
             console.error('Error fetching resident counts:', resError || activeError);
         }
 
-        // 2. Get payments this month
-        // Paged: one read is capped at 1000 rows, which would under-report the totals (#459).
-        const { data: paymentsData, error: payError } = await fetchAllRows((from, to) =>
-            supabase
-                .from('payment_records')
-                .select('amount')
-                .gte('payment_date', monthStart)
-                .lte('payment_date', monthEnd)
-                .eq('status', 'paid')
-                .order('id')
-                .range(from, to)
-        );
+        // 2. Payments this month + unverified payments: one server-side aggregate, no row download.
+        // SECURITY INVOKER RPC, so RLS applies as the caller. Never fall back to partial numbers.
+        const { data: metrics, error: metricsError } = await supabase.rpc('get_dashboard_payment_metrics', {
+            p_month_start: monthStartDate,
+            p_month_end: monthEndDate,
+        });
 
-        if (payError) {
-            console.error('Error fetching payments:', payError);
+        if (metricsError || !metrics) {
+            console.error('Error fetching dashboard payment metrics:', metricsError);
+            return { data: null, error: 'Failed to fetch dashboard stats' };
         }
 
-        const paymentsThisMonth = paymentsData?.length ?? 0;
-        const paymentsThisMonthAmount = paymentsData?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) ?? 0;
-
-        // 2b. Get unverified payments (Unified Expenditure Engine)
-        const { data: unverifiedPaymentsData, error: unverifiedPayError } = await fetchAllRows((from, to) =>
-            supabase
-                .from('payment_records')
-                .select('amount')
-                .eq('is_verified', false)
-                .eq('status', 'paid')
-                .order('id')
-                .range(from, to)
-        );
-
-        if (unverifiedPayError) {
-            console.error('Error fetching unverified payments:', unverifiedPayError);
-        }
-
-        const unverifiedPaymentsCount = unverifiedPaymentsData?.length ?? 0;
-        const unverifiedPaymentsAmount = unverifiedPaymentsData?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) ?? 0;
+        const m = metrics as PaymentMetrics;
+        const paymentsThisMonth = Number(m.collected_count) || 0;
+        const paymentsThisMonthAmount = Number(m.collected_total) || 0;
+        const unverifiedPaymentsCount = Number(m.unverified_count) || 0;
+        const unverifiedPaymentsAmount = Number(m.unverified_total) || 0;
 
         // 3. Calculate payment rate from invoices
         const { count: totalInvoices, error: invError } = await supabase
