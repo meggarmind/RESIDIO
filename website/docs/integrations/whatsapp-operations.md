@@ -8,8 +8,8 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: de0256b
-residio_verified_at: '2026-10-07'
+residio_verified_commit: aa601b6
+residio_verified_at: '2026-10-13'
 residio_app_version: '0.4.0'
 ---
 
