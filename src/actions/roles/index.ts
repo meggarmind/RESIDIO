@@ -157,6 +157,9 @@ export async function getAllPermissions(): Promise<{
 // Write Operations
 // =====================================================
 
+/** Role names no one may create (compared trimmed and lower-cased). */
+const RESERVED_ROLE_NAMES = ['super_admin', 'chairman'];
+
 /**
  * Create a new role
  */
@@ -170,12 +173,33 @@ export async function createRole(roleData: AppRoleInsert): Promise<{
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
+  // Name guard (#503): a role may not be created under the name of one of the two
+  // top roles. Compared trimmed and case-insensitively, so ' Chairman ' and
+  // 'SUPER_ADMIN' are refused too; the name written is the trimmed one.
+  const name = typeof roleData.name === 'string' ? roleData.name.trim() : '';
+  if (!name) {
+    return { success: false, error: 'Role name is required' };
+  }
+  if (RESERVED_ROLE_NAMES.includes(name.toLowerCase())) {
+    return { success: false, error: 'That role name is reserved' };
+  }
+
   const supabase = await createServerSupabaseClient();
 
+  // Fields are copied explicitly rather than spread from the client payload, and
+  // is_system_role is always false (#503): system roles are seeded by migration,
+  // never minted through this action, whatever the client sent.
   const { data, error } = await supabase
     .from('app_roles')
     .insert({
-      ...roleData,
+      name,
+      display_name: roleData.display_name,
+      description: roleData.description,
+      category: roleData.category,
+      level: roleData.level,
+      is_active: roleData.is_active,
+      can_be_assigned_to_resident: roleData.can_be_assigned_to_resident,
+      is_system_role: false,
       created_by: auth.userId,
     })
     .select()
@@ -216,6 +240,43 @@ export async function createRoleWithPermissions(
   data?: AppRole;
   error?: string;
 }> {
+  const auth = await authorizePermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
+  // Permission guard (#503). Rule: only a super_admin may create a role carrying
+  // a permission the caller does not hold themselves; anyone else may attach only
+  // a subset of their own permissions. Otherwise a manage_roles holder could mint
+  // a role with permissions they lack and then (with assign_roles) hand it out.
+  // An id that resolves to no permission is refused. Checked before anything is
+  // written, so a refusal leaves no role behind.
+  if (permissionIds.length > 0 && auth.roleName !== 'super_admin') {
+    const supabase = await createServerSupabaseClient();
+    const { data: requested, error: lookupError } = await supabase
+      .from('app_permissions')
+      .select('id, name')
+      .in('id', permissionIds);
+
+    if (lookupError) {
+      console.error('[createRoleWithPermissions] Could not resolve permissions:', lookupError);
+      return { success: false, error: 'Could not verify the requested permissions' };
+    }
+
+    const held = new Set(auth.permissions ?? []);
+    const byId = new Map((requested ?? []).map((p) => [p.id, p.name]));
+    const notAllowed = permissionIds.some((id) => {
+      const permName = byId.get(id);
+      return !permName || !held.has(permName);
+    });
+    if (notAllowed) {
+      return {
+        success: false,
+        error: 'Only Super Administrator can grant permissions you do not hold yourself',
+      };
+    }
+  }
+
   const created = await createRole(roleData);
   if (!created.success || !created.data) return created;
 
