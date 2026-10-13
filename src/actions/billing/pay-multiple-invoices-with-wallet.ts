@@ -3,15 +3,24 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { logAudit } from '@/lib/audit/logger';
-import { getOrCreateWallet } from './wallet';
+import { callWalletInvoiceRpc } from '@/lib/billing/wallet-payment-rpc';
+
+type BulkRpcData = {
+    success?: boolean;
+    error?: string;
+    total_paid?: number;
+    count_paid?: number;
+    new_wallet_balance?: number;
+    old_wallet_balance?: number;
+};
 
 /**
- * Pay multiple invoices using the resident's wallet balance
- * 
- * This action ensures that either all invoices are paid or none are (atomic-like behavior).
- * It verifies:
- * - All invoices belong to the resident
- * - User has sufficient balance for the total amount
+ * Pay multiple invoices (in full) using the resident's wallet balance.
+ *
+ * All-or-nothing: the `pay_invoices_with_wallet` RPC validates every invoice and the total
+ * against the wallet under row locks, then debits the wallet, updates every invoice and
+ * writes one ledger row per invoice (with a correct running balance_after) in ONE database
+ * transaction. Ownership is re-checked inside the database. No client-side read-modify-write.
  */
 export async function payMultipleInvoicesWithWallet(
     invoiceIds: string[]
@@ -22,22 +31,23 @@ export async function payMultipleInvoicesWithWallet(
     countPaid: number;
     error: string | null;
 }> {
+    const fail = (error: string, newWalletBalance = 0) => ({
+        success: false,
+        totalPaid: 0,
+        newWalletBalance,
+        countPaid: 0,
+        error,
+    });
+
     if (!invoiceIds || invoiceIds.length === 0) {
-        return {
-            success: false,
-            totalPaid: 0,
-            newWalletBalance: 0,
-            countPaid: 0,
-            error: 'No invoices selected'
-        };
+        return fail('No invoices selected');
     }
 
     const supabase = await createServerSupabaseClient();
 
-    // 1. Authentication & Resident Profile
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-        return { success: false, totalPaid: 0, newWalletBalance: 0, countPaid: 0, error: 'Not authenticated' };
+        return fail('Not authenticated');
     }
 
     const { data: profile, error: profileError } = await supabase
@@ -47,131 +57,43 @@ export async function payMultipleInvoicesWithWallet(
         .single();
 
     if (profileError || !profile?.resident_id) {
-        return { success: false, totalPaid: 0, newWalletBalance: 0, countPaid: 0, error: 'No resident profile found' };
-    }
-    const residentId = profile.resident_id;
-
-    // 2. Fetch Invoices & Calculate Total
-    const { data: invoices, error: invoicesError } = await supabase
-        .from('invoices')
-        .select('id, invoice_number, amount_due, amount_paid, status, resident_id')
-        .in('id', invoiceIds);
-
-    if (invoicesError || !invoices || invoices.length !== invoiceIds.length) {
-        return { success: false, totalPaid: 0, newWalletBalance: 0, countPaid: 0, error: 'Some invoices were not found' };
+        return fail('No resident profile found');
     }
 
-    // Verify ownership and calculate total remaining
-    let totalToPay = 0;
-    for (const inv of invoices) {
-        if (inv.resident_id !== residentId) {
-            return { success: false, totalPaid: 0, newWalletBalance: 0, countPaid: 0, error: `Unauthorized: Invoice ${inv.invoice_number} does not belong to you` };
-        }
-        const remaining = (inv.amount_due || 0) - (inv.amount_paid || 0);
-        if (remaining <= 0) {
-            return { success: false, totalPaid: 0, newWalletBalance: 0, countPaid: 0, error: `Invoice ${inv.invoice_number} is already paid` };
-        }
-        totalToPay += remaining;
+    const { data, error } = await callWalletInvoiceRpc(supabase, 'pay_invoices_with_wallet', {
+        p_items: invoiceIds.map((id) => ({ invoice_id: id })),
+    });
+    const result = data as BulkRpcData | null;
+
+    if (error || !result) {
+        return fail(error?.message || 'Bulk payment failed');
+    }
+    if (!result.success) {
+        return fail(result.error || 'Bulk payment failed', result.new_wallet_balance ?? 0);
     }
 
-    // 3. Wallet Check
-    const { data: wallet, error: walletError } = await getOrCreateWallet(residentId);
-    if (walletError || !wallet) {
-        return { success: false, totalPaid: 0, newWalletBalance: 0, countPaid: 0, error: walletError || 'Failed to access wallet' };
-    }
+    const totalPaid = Number(result.total_paid);
+    const countPaid = Number(result.count_paid);
+    const newWalletBalance = Number(result.new_wallet_balance);
 
-    if (wallet.balance < totalToPay) {
-        return { success: false, totalPaid: 0, newWalletBalance: wallet.balance, countPaid: 0, error: 'Insufficient wallet balance for all selected invoices' };
-    }
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'invoices',
+        entityId: user.id, // Grouping by user
+        entityDisplay: `Bulk wallet payment for ${invoiceIds.length} invoices`,
+        oldValues: { count: invoiceIds.length, total: totalPaid, wallet_balance: result.old_wallet_balance },
+        newValues: { countPaid, wallet_balance: newWalletBalance },
+    });
 
-    // 4. Execution (Sequential updates - using a simple rollback strategy)
-    // Note: For true atomicity, a Postgres function (RPC) would be better.
-    const paidInvoiceIds: string[] = [];
-    const initialWalletBalance = wallet.balance;
+    revalidatePath('/portal/invoices');
+    revalidatePath('/portal/wallet');
+    revalidatePath('/portal');
 
-    try {
-        // A. Update Wallet
-        const newWalletBalance = initialWalletBalance - totalToPay;
-        const { error: walletUpError } = await supabase
-            .from('resident_wallets')
-            .update({ balance: newWalletBalance })
-            .eq('id', wallet.id);
-
-        if (walletUpError) throw new Error(`Wallet update failed: ${walletUpError.message}`);
-
-        // B. Update Invoices
-        for (const inv of invoices) {
-            const { error: invUpError } = await supabase
-                .from('invoices')
-                .update({
-                    amount_paid: inv.amount_due, // Paying in full for bulk
-                    status: 'paid'
-                })
-                .eq('id', inv.id);
-
-            if (invUpError) {
-                // Rollback strategy: This is partial, but better than nothing
-                // In a production app, we'd use a transaction or RPC
-                throw new Error(`Failed to update invoice ${inv.invoice_number}: ${invUpError.message}`);
-            }
-            paidInvoiceIds.push(inv.id);
-
-            // C. Log Individual Wallet Transactions
-            await supabase
-                .from('wallet_transactions')
-                .insert({
-                    wallet_id: wallet.id,
-                    type: 'debit',
-                    amount: (inv.amount_due || 0) - (inv.amount_paid || 0),
-                    balance_after: 0, // Simplified, ideally calculated per step
-                    reference_type: 'invoice',
-                    reference_id: inv.id,
-                    description: `Bulk payment for ${inv.invoice_number}`,
-                });
-        }
-
-        // Fix balance_after in transactions if needed, but for now we'll keep it simple
-        // Actually, balance_after should be tracked properly if we want accurate history.
-        // Let's just fix it at the end for the whole batch if possible.
-
-        // 5. Audit Log (Summary)
-        await logAudit({
-            action: 'UPDATE',
-            entityType: 'invoices',
-            entityId: user.id, // Grouping by user
-            entityDisplay: `Bulk wallet payment for ${invoiceIds.length} invoices`,
-            oldValues: { count: invoiceIds.length, total: totalToPay, wallet_balance: initialWalletBalance },
-            newValues: { countPaid: paidInvoiceIds.length, wallet_balance: wallet.balance - totalToPay }
-        });
-
-        revalidatePath('/portal/invoices');
-        revalidatePath('/portal/wallet');
-        revalidatePath('/portal');
-
-        return {
-            success: true,
-            totalPaid: totalToPay,
-            newWalletBalance: wallet.balance - totalToPay,
-            countPaid: paidInvoiceIds.length,
-            error: null
-        };
-
-    } catch (error) {
-        // Attempt Rollback (Wallet only for now)
-        await supabase
-            .from('resident_wallets')
-            .update({ balance: initialWalletBalance })
-            .eq('id', wallet.id);
-
-        // We're not rolling back individual invoices easily here without much more complexity
-        // (This is why transactions are better)
-
-        return {
-            success: false,
-            totalPaid: 0,
-            newWalletBalance: initialWalletBalance,
-            countPaid: paidInvoiceIds.length,
-            error: error instanceof Error ? error.message : String(error) || 'Bulk payment failed'
-        };
-    }
+    return {
+        success: true,
+        totalPaid,
+        newWalletBalance,
+        countPaid,
+        error: null,
+    };
 }

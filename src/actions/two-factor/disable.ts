@@ -7,6 +7,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { assertCanManageTarget } from '@/lib/auth/role-rank';
 import type { TwoFactorMethod } from '@/types/database';
 import { createHmac } from 'crypto';
+import { otpMatches, readTotpSecret } from '@/lib/auth/two-factor-secrets';
 
 /**
  * Disable 2FA for the current user
@@ -52,7 +53,12 @@ export async function disableTwoFactor(
     if (!profile.two_factor_secret_encrypted) {
       return { success: false, message: '2FA not properly configured' };
     }
-    isValid = validateTOTP(verificationCode, profile.two_factor_secret_encrypted);
+    try {
+      isValid = validateTOTP(verificationCode, readTotpSecret(profile.two_factor_secret_encrypted));
+    } catch (error) {
+      console.error('[2FA Disable] Could not read TOTP secret:', error instanceof Error ? error.message : error);
+      return { success: false, message: '2FA not properly configured' };
+    }
   } else {
     // For SMS/email, we need to send a disable code first
     const { data: token } = await adminClient
@@ -67,7 +73,7 @@ export async function disableTwoFactor(
       .limit(1)
       .single();
 
-    if (token && token.token === verificationCode) {
+    if (token && otpMatches(String(token.token), user.id, verificationCode)) {
       isValid = true;
 
       // Mark token as used
@@ -259,7 +265,7 @@ export async function requestDisableCode(): Promise<{ success: boolean; message:
 
   // Use the verification flow but with 'disable' purpose
   // For now, we'll use the login flow
-  const result = await sendTwoFactorCode(user.id, method);
+  const result = await sendTwoFactorCode(method);
 
   if (result.success) {
     // Update the token purpose to 'disable'

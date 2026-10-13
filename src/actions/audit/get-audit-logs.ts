@@ -3,7 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { sanitizeSearchInput } from '@/lib/utils';
+import { ilikeAny } from '@/lib/postgrest-filter';
 import type { AuditLogWithActor, AuditAction, AuditEntityType } from '@/types/database';
 
 type GetAuditLogsParams = {
@@ -72,8 +72,7 @@ export async function getAuditLogs(
   if (startDate) query = query.gte('created_at', startDate);
   if (endDate) query = query.lte('created_at', endDate);
   if (search) {
-    const sanitized = sanitizeSearchInput(search);
-    query = query.or(`entity_display.ilike.%${sanitized}%,description.ilike.%${sanitized}%`);
+    query = query.or(ilikeAny(['entity_display', 'description'], search));
   }
 
   // Pagination (ordered by most recent first)

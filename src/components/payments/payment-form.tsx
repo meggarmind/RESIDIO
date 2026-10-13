@@ -27,7 +27,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { useCreatePayment, useUpdatePayment, useResidentPropertiesForPayment } from '@/hooks/use-payments';
-import { useResidents } from '@/hooks/use-residents';
+import { useResidentOptions } from '@/hooks/use-residents';
 import { paymentFormSchema, type PaymentFormData } from '@/lib/validators/payment';
 import type { Database } from '@/types/database.generated';
 import { toast } from 'sonner';
@@ -47,7 +47,7 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
     const createMutation = useCreatePayment();
     const updateMutation = useUpdatePayment();
     // Reduced limit - consider implementing async search for large estates
-    const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 200 });
+    const { data: residentsData, isLoading: residentsLoading } = useResidentOptions();
     const [submitState, setSubmitState] = React.useState<'idle' | 'loading' | 'success'>('idle');
 
     const isEditing = !!initialData;

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { createLogger } from '@/lib/logger';
 import { getGmailConnectionStatus } from '@/actions/email-imports/gmail-oauth';
-import { fetchNewEmails } from '@/actions/email-imports/fetch-emails';
+import { runEmailFetch } from '@/lib/email-imports/fetch-emails';
 import { parseAllPendingEmails } from '@/actions/email-imports/parse-email';
 import {
   matchEmailTransactions,
@@ -57,8 +57,7 @@ export async function GET(request: NextRequest) {
 
     // Step 2: Fetch new emails
     log.info('Fetching new emails from Gmail');
-    const fetchResult = await fetchNewEmails({
-      trigger: 'cron',
+    const fetchResult = await runEmailFetch('cron', {
       maxEmails: 50,
       sinceDays: 1, // Only look at last 24 hours for hourly cron
     });

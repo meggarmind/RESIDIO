@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { applyLateFees } from '../apply-late-fees';
+import { runLateFeeApplication } from '@/lib/billing/apply-late-fees';
+import { authorizePermission } from '@/lib/auth/authorize';
 import { getSettingValueAsService } from '@/lib/settings/service';
 import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -86,7 +88,7 @@ beforeEach(() => {
     vi.clearAllMocks();
 });
 
-describe('applyLateFees (cron trigger) honours configured settings', () => {
+describe('runLateFeeApplication (cron trigger) honours configured settings', () => {
     it('applies the configured late fee rate and grace period, not the compiled-in defaults', async () => {
         // Configured: 12% (not the code default of 5%), 3-day grace period
         // (not the code default of 7). If this read fell back to the RLS-bound
@@ -111,7 +113,7 @@ describe('applyLateFees (cron trigger) honours configured settings', () => {
         ]);
         adminClientMock.mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
 
-        const result = await applyLateFees('cron');
+        const result = await runLateFeeApplication('cron');
 
         expect(result.success).toBe(true);
         expect(result.applied).toBe(1);
@@ -144,9 +146,55 @@ describe('applyLateFees (cron trigger) honours configured settings', () => {
     it('does not apply late fees when the enabled setting reads as configured-off', async () => {
         settingsMock.mockImplementation(async (key: string) => (key === 'late_fee_enabled' ? false : null));
 
-        const result = await applyLateFees('cron');
+        const result = await runLateFeeApplication('cron');
 
         expect(result.success).toBe(false);
         expect(result.errors).toContain('Late fees are not enabled');
+    });
+});
+
+describe('applyLateFees (exported server action) authorization (#470)', () => {
+    const authMock = vi.mocked(authorizePermission);
+    // A forged client call can pass any extra argument; there is no trigger slot.
+    const forged = applyLateFees as unknown as (trigger: string) => ReturnType<typeof applyLateFees>;
+
+    it('takes no trigger parameter, so a caller cannot opt out of authorization', () => {
+        expect(applyLateFees.length).toBe(0);
+    });
+
+    it('refuses a role-less caller who passes "cron", and never touches the service role', async () => {
+        authMock.mockResolvedValue({ authorized: false, error: 'Unauthorized' } as Awaited<ReturnType<typeof authorizePermission>>);
+
+        const result = await forged('cron');
+
+        expect(result.success).toBe(false);
+        expect(result.errors).toContain('Unauthorized');
+        expect(authMock).toHaveBeenCalledWith('billing.apply_late_fees');
+        expect(adminClientMock).not.toHaveBeenCalled();
+        expect(serverClientMock).not.toHaveBeenCalled();
+        expect(settingsMock).not.toHaveBeenCalled();
+    });
+
+    it('runs as the manual trigger for the authorised user, ignoring a forged "cron" argument', async () => {
+        authMock.mockResolvedValue({ authorized: true, userId: 'user-1' } as Awaited<ReturnType<typeof authorizePermission>>);
+        settingsMock.mockImplementation(async (key: string) => (key === 'late_fee_enabled' ? true : null));
+        serverClientMock.mockResolvedValue(
+            createMockClient([
+                { data: [], error: null }, // pending waivers
+                { data: [], error: null }, // overdue invoices (none)
+            ]) as unknown as Awaited<ReturnType<typeof createServerSupabaseClient>>,
+        );
+        const logClient = createMockClient([{ data: { id: 'log-1' }, error: null }]);
+        adminClientMock.mockReturnValue(logClient as unknown as ReturnType<typeof createAdminClient>);
+
+        const result = await forged('cron');
+
+        expect(result.success).toBe(true);
+        expect(serverClientMock).toHaveBeenCalled(); // user-scoped client, not service role, for the run
+        const logChain = logClient.from.mock.results[0].value as FluentQuery;
+        expect(vi.mocked(logChain.insert).mock.calls[0][0]).toMatchObject({
+            trigger_type: 'manual',
+            triggered_by: 'user-1',
+        });
     });
 });

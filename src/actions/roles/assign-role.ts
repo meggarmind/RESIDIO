@@ -6,7 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
 import { assertCanManageTarget, canGrantRole } from '@/lib/auth/role-rank';
-import { sanitizeSearchInput } from '@/lib/utils';
+import { ilikeAny } from '@/lib/postgrest-filter';
 import type { ProfileApprovalStatus } from '@/types/database';
 
 // =====================================================
@@ -50,7 +50,6 @@ export async function searchResidentsForRoleAssignment(
   }
 
   const supabase = await createServerSupabaseClient();
-  const searchPattern = `%${sanitizeSearchInput(query)}%`;
 
   // Search residents by name or email
   // Join with resident_houses to get house information (many-to-many relationship)
@@ -74,7 +73,7 @@ export async function searchResidentsForRoleAssignment(
         )
       )
     `)
-    .or(`first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},email.ilike.${searchPattern}`)
+    .or(ilikeAny(['first_name', 'last_name', 'email'], query))
     .limit(20);
 
   if (error) {
@@ -204,7 +203,6 @@ export async function searchProfilesForRoleAssignment(
   }
 
   const supabase = await createServerSupabaseClient();
-  const searchPattern = `%${sanitizeSearchInput(query)}%`;
 
   const { data: profiles, error } = await supabase
     .from('profiles')
@@ -217,7 +215,7 @@ export async function searchProfilesForRoleAssignment(
       role_id,
       app_roles!profiles_role_id_fkey (name, display_name)
     `)
-    .or(`email.ilike.${searchPattern},full_name.ilike.${searchPattern}`)
+    .or(ilikeAny(['email', 'full_name'], query))
     .limit(20);
 
   if (error) {

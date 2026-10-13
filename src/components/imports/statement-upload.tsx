@@ -18,8 +18,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Upload, File, X, Loader2, AlertCircle, Lock, FileText, CheckCircle2 } from 'lucide-react';
 import { useBankAccounts } from '@/hooks/use-imports';
 import { parseCSVFile } from '@/lib/parsers/csv-parser';
-import { parseXLSXFile } from '@/lib/parsers/xlsx-parser';
 import { parsePdfStatement } from '@/actions/imports/parse-pdf-statement';
+import { MAX_IMPORT_ROWS, MAX_XLSX_STATEMENT_BYTES, checkSizeCap } from '@/lib/uploads';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -108,6 +108,10 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
         rawData = result.rawData;
         headers = rawData.length > 0 ? Object.keys(rawData[0]) : [];
       } else if (extension === 'xlsx' || extension === 'xls') {
+        const sizeError = checkSizeCap(file.size, MAX_XLSX_STATEMENT_BYTES, 'Spreadsheet');
+        if (sizeError) throw new Error(sizeError);
+        // Load the xlsx parser only when a spreadsheet is actually chosen (#464).
+        const { parseXLSXFile } = await import('@/lib/parsers/xlsx-parser');
         const result = await parseXLSXFile(file);
         rawData = result.rawData;
         headers = rawData.length > 0 ? Object.keys(rawData[0]) : [];
@@ -136,6 +140,10 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
 
         rawData = result.data?.rawData || [];
         headers = result.data?.headers || [];
+      }
+
+      if (rawData.length > MAX_IMPORT_ROWS) {
+        throw new Error(`This file has more than ${MAX_IMPORT_ROWS} rows. Split it into smaller files.`);
       }
 
       if (rawData.length === 0) {

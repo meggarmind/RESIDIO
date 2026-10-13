@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import type { EntityNoteWithRelations, UpdateNoteInput } from '@/types/database';
+import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 
 type UpdateNoteResponse = {
   data: EntityNoteWithRelations | null;
@@ -57,7 +58,7 @@ export async function updateNote(
   const { data: versions } = await supabase
     .from('entity_notes')
     .select('version')
-    .or(`id.eq.${rootNoteId},parent_note_id.eq.${rootNoteId}`)
+    .or(idOrParentFilterStrict('id', 'parent_note_id', rootNoteId))
     .order('version', { ascending: false })
     .limit(1);
 

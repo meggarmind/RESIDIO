@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { DocumentWithRelations, Document } from '@/types/database';
+import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 
 type GetDocumentResponse = {
   data: DocumentWithRelations | null;
@@ -90,7 +91,7 @@ export async function getDocumentVersions(documentId: string): Promise<GetVersio
   const { data: versions, error } = await supabase
     .from('documents')
     .select('*')
-    .or(`id.eq.${rootId},parent_document_id.eq.${rootId}`)
+    .or(idOrParentFilterStrict('id', 'parent_document_id', rootId))
     .order('version', { ascending: false });
 
   if (error) {

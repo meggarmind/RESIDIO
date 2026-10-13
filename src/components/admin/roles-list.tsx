@@ -502,6 +502,7 @@ export function RolesList() {
                                 size="icon"
                                 className="h-8 w-8"
                                 onClick={() => openEditDialog(role)}
+                                aria-label={`Edit role ${role.display_name}`}
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
@@ -518,6 +519,7 @@ export function RolesList() {
                                   size="icon"
                                   className="h-8 w-8 text-destructive hover:text-destructive"
                                   onClick={() => openDeleteDialog(role)}
+                                  aria-label={`Delete role ${role.display_name}`}
                                   disabled={deleteMutation.isPending}
                                 >
                                   <Trash2 className="h-4 w-4" />

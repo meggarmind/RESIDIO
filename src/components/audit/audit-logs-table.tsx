@@ -81,6 +81,7 @@ const AuditLogRow = memo(function AuditLogRow({
         <Button
           variant="ghost"
           size="icon"
+          aria-label={`View details of ${AUDIT_ACTION_LABELS[log.action]} on ${log.entity_display || 'record'}`}
           onClick={(e) => {
             e.stopPropagation();
             onViewDetails(log);

@@ -19,6 +19,8 @@ import {
 import { ModernPaymentsEmptyState } from '@/components/dashboard/modern-empty-state';
 import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { cn } from '@/lib/utils';
+import { Can } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 function PaymentsContent() {
   const searchParams = useSearchParams();
@@ -62,16 +64,18 @@ function PaymentsContent() {
         description="Track and manage all payment transactions"
         icon={CreditCard}
         actions={
-          <Button
-            asChild
-            className={cn(
-              isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
-            )}
-          >
-            <Link href="/payments/new">
-              <Plus className="mr-2 h-4 w-4" /> Record Payment
-            </Link>
-          </Button>
+          <Can permission={PERMISSIONS.PAYMENTS_CREATE}>
+            <Button
+              asChild
+              className={cn(
+                isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
+              )}
+            >
+              <Link href="/payments/new">
+                <Plus className="mr-2 h-4 w-4" /> Record Payment
+              </Link>
+            </Button>
+          </Can>
         }
       />
 
@@ -117,7 +121,7 @@ function PaymentsContent() {
         <PaymentFilters />
 
         {paymentsResult?.error ? (
-          <div className={cn(
+          <div role="alert" className={cn(
             'text-red-500 py-4',
             isModern && 'bg-red-50 dark:bg-red-900/20 rounded-xl p-4'
           )}>

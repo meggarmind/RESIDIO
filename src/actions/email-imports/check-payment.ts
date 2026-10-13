@@ -18,7 +18,6 @@ export async function checkPaymentEmails() {
         // 1. Fetch new emails
         // We limit scope to recent emails (last 3 days) to be fast
         const fetchResult = await fetchNewEmails({
-            trigger: 'manual',
             maxEmails: 20,
             sinceDays: 3
         });

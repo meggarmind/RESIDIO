@@ -280,6 +280,7 @@ export function StreetsList() {
                                                 size="icon"
                                                 className="h-8 w-8"
                                                 onClick={() => openEditDialog(street)}
+                                                aria-label={`Edit street ${street.name}`}
                                             >
                                                 <Pencil className="h-4 w-4" />
                                             </Button>
@@ -288,6 +289,7 @@ export function StreetsList() {
                                                 size="icon"
                                                 className="h-8 w-8"
                                                 onClick={() => handleDuplicate(street.id)}
+                                                aria-label={`Duplicate street ${street.name}`}
                                                 disabled={duplicateMutation.isPending}
                                             >
                                                 <Copy className="h-4 w-4" />
@@ -297,6 +299,7 @@ export function StreetsList() {
                                                 size="icon"
                                                 className="h-8 w-8 text-destructive hover:text-destructive"
                                                 onClick={() => openDeleteDialog(street)}
+                                                aria-label={`Delete street ${street.name}`}
                                                 disabled={deleteMutation.isPending}
                                             >
                                                 <Trash2 className="h-4 w-4" />

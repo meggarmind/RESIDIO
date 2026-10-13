@@ -334,12 +334,19 @@ export async function deleteRole(roleId: string): Promise<{
   }
 
   // Check if any users have this role
-  const { count } = await supabase
+  // Explicit column: `*` would include profiles.two_factor_secret_encrypted, which API
+  // roles cannot read (#455). Fail closed: if the count cannot be established, do not delete.
+  const { count, error: countError } = await supabase
     .from('profiles')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact', head: true })
     .eq('role_id', roleId);
 
-  if (count && count > 0) {
+  if (countError || count === null) {
+    console.error('[deleteRole] Could not count users assigned to role:', countError);
+    return { success: false, error: 'Could not verify that no users hold this role; role not deleted' };
+  }
+
+  if (count > 0) {
     return {
       success: false,
       error: `Cannot delete role: ${count} user(s) are assigned to this role`,
