@@ -106,6 +106,16 @@ describe('unverifyPayment', () => {
     }));
   });
 
+  it('records in the audit entry that a bank-matched payment was bank-matched', async () => {
+    const { unverifyPayment } = await import('@/actions/finance/manual-verification');
+    results['payment_records'] = { data: stored({ bank_row_id: 'row-9' }), error: null };
+    expect((await unverifyPayment(A)).success).toBe(true);
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      oldValues: expect.objectContaining({ bank_row_id: 'row-9' }),
+      newValues: expect.objectContaining({ was_bank_matched: true }),
+    }));
+  });
+
   it('refuses when unauthorized, without touching the table', async () => {
     const { unverifyPayment } = await import('@/actions/finance/manual-verification');
     authorize.mockResolvedValueOnce({ authorized: false });

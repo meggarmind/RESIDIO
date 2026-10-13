@@ -147,10 +147,15 @@ export async function unverifyPayment(
         entityType: 'payment_records',
         entityId: paymentId,
         entityDisplay: `Payment: ${existingPayment.reference || paymentId}`,
-        oldValues: { is_verified: true, verified_by: existingPayment.verified_by },
+        oldValues: {
+            is_verified: true,
+            verified_by: existingPayment.verified_by,
+            bank_row_id: existingPayment.bank_row_id ?? null,
+        },
         newValues: {
             is_verified: false,
             unverified_by: user.id,
+            was_bank_matched: existingPayment.bank_row_id != null,
             verification_type: 'manual',
         },
     });
