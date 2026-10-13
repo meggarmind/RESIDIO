@@ -64,6 +64,17 @@ BEGIN
   RAISE NOTICE '% collected = 3 rows / 600.60 (first day, last day, mid month; neighbours and non-paid excluded)',
     CASE WHEN (m->>'collected_count')::bigint = 3 AND (m->>'collected_total')::numeric = 600.60 THEN 'PASS' ELSE 'FAIL' END;
 
+  -- verified_total: is_verified OR import_id OR email_import_id (the enhanced dashboard's
+  -- definition). Fixture rows have no import ids, so only the is_verified rows (100.10 in window)
+  -- count; compare against a direct SUM with the same predicate.
+  SELECT COALESCE(sum(amount), 0) INTO d_tot
+    FROM public.payment_records
+   WHERE status = 'paid' AND payment_date >= '2031-02-01' AND payment_date <= '2031-02-28'
+     AND (is_verified = true OR import_id IS NOT NULL OR email_import_id IS NOT NULL);
+  RAISE NOTICE '% verified_total matches direct query and equals 100.10 (rpc %, direct %)',
+    CASE WHEN (m->>'verified_total')::numeric = d_tot AND d_tot = 100.10 THEN 'PASS' ELSE 'FAIL' END,
+    m->>'verified_total', d_tot;
+
   SELECT count(*), COALESCE(sum(amount), 0) INTO after_unv_cnt, after_unv_tot
     FROM public.payment_records WHERE is_verified = false AND status = 'paid';
   RAISE NOTICE '% unverified matches direct query (rpc % / %, direct % / %)',

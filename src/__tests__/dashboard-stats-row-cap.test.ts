@@ -76,6 +76,19 @@ describe('getDashboardStats money totals via server-side aggregate (#459, #215)'
   });
 });
 
+describe('getDashboardStats RPC returning no data and no error', () => {
+  it('fails instead of returning zeros', async () => {
+    const { client } = makeClient({ data: null, error: null });
+    createServerSupabaseClient.mockResolvedValue(client);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await getDashboardStats();
+
+    expect(result.data).toBeNull();
+    expect(result.error).toBe('Failed to fetch dashboard stats');
+  });
+});
+
 describe('static: dashboard payment metrics migration (#215)', () => {
   const sql = readFileSync(
     new URL('../../supabase/migrations/20261013100000_dashboard_payment_metrics.sql', import.meta.url),
@@ -117,9 +130,16 @@ describe('static: dashboard payment metrics migration (#215)', () => {
     for (const v of used) expect(allowed.has(v), `status '${v}' must exist in payment_status`).toBe(true);
     expect(new Set(used)).toEqual(new Set(['paid']));
 
-    // collected: dated window inclusive on both ends; unverified: is_verified = false, no date bound
-    expect(code).toContain('payment_date >= p_month_start');
-    expect(code).toContain('payment_date <= p_month_end');
-    expect(code).toContain("status = 'paid' AND is_verified = false");
+    expect(used).toHaveLength(2);
+
+    // Each filter must appear on every aggregate that depends on it: the window and the paid
+    // status on the collected subquery, paid + is_verified=false on the unverified subquery.
+    const count = (re: RegExp) => (code.match(re) ?? []).length;
+    expect(count(/status = 'paid'/g)).toBe(2);
+    expect(count(/payment_date >= p_month_start/g)).toBe(1);
+    expect(count(/payment_date <= p_month_end/g)).toBe(1);
+    expect(count(/status = 'paid' AND is_verified = false/g)).toBe(1);
+    // verified_total keeps the import-aware definition used by fetchFinancialHealth
+    expect(count(/is_verified = true OR import_id IS NOT NULL OR email_import_id IS NOT NULL/g)).toBe(1);
   });
 });

@@ -334,6 +334,34 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: 
 // Helper Functions
 // ─────────────────────────────────────────────────────────────────
 
+type PaymentMetrics = {
+    collected_count: number;
+    collected_total: number;
+    verified_total: number;
+};
+
+const localDate = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/**
+ * Paid-payment aggregates for an inclusive date window via get_dashboard_payment_metrics
+ * (SECURITY INVOKER, so RLS applies as the caller). Throws on any error or empty result: callers
+ * must never render partial numbers.
+ */
+async function fetchPaymentMetrics(supabase: SupabaseClient, start: Date, end: Date): Promise<PaymentMetrics> {
+    const { data, error } = await supabase.rpc('get_dashboard_payment_metrics', {
+        p_month_start: localDate(start),
+        p_month_end: localDate(end),
+    });
+    if (error) throw error;
+    if (!data) throw new Error('get_dashboard_payment_metrics returned no data');
+    return {
+        collected_count: Number(data.collected_count) || 0,
+        collected_total: Number(data.collected_total) || 0,
+        verified_total: Number(data.verified_total) || 0,
+    };
+}
+
 async function fetchFinancialHealth(
     supabase: SupabaseClient,
     monthStart: Date,
@@ -368,37 +396,17 @@ async function fetchFinancialHealth(
     ) ?? 0;
     const overdueCount = overdueInvoices?.length ?? 0;
 
-    // Current month payments - verified and total
-    const { data: currentPayments, error: currentPaymentsError } = await supabase
-        .from('payment_records')
-        .select('amount, is_verified, import_id, email_import_id')
-        .gte('payment_date', monthStart.toISOString())
-        .lte('payment_date', monthEnd.toISOString())
-        .eq('status', 'paid');
+    // Payment totals come from one server-side aggregate per month (no row download, so the
+    // PostgREST 1000-row cap cannot truncate them). A row counts as verified when is_verified OR
+    // it came from a statement/email import.
+    const [currentMetrics, prevMetrics] = await Promise.all([
+        fetchPaymentMetrics(supabase, monthStart, monthEnd),
+        fetchPaymentMetrics(supabase, prevMonthStart, prevMonthEnd),
+    ]);
 
-    if (currentPaymentsError) throw currentPaymentsError;
-
-    const totalMonthlyRevenue = currentPayments?.reduce((sum: number, p) => sum + (Number(p.amount) || 0), 0) ?? 0;
-    const monthlyRevenue = currentPayments?.reduce((sum: number, p) => {
-        // Count as verified if is_verified is true OR it came from a statement import
-        const isVerified = p.is_verified === true || p.import_id !== null || p.email_import_id !== null;
-        return isVerified ? sum + (Number(p.amount) || 0) : sum;
-    }, 0) ?? 0;
-
-    // Previous month payments
-    const { data: prevPayments, error: prevPaymentsError } = await supabase
-        .from('payment_records')
-        .select('amount, is_verified, import_id, email_import_id')
-        .gte('payment_date', prevMonthStart.toISOString())
-        .lte('payment_date', prevMonthEnd.toISOString())
-        .eq('status', 'paid');
-
-    if (prevPaymentsError) throw prevPaymentsError;
-
-    const previousMonthRevenue = prevPayments?.reduce((sum: number, p) => {
-        const isVerified = p.is_verified === true || p.import_id !== null || p.email_import_id !== null;
-        return isVerified ? sum + (Number(p.amount) || 0) : sum;
-    }, 0) ?? 0;
+    const totalMonthlyRevenue = currentMetrics.collected_total;
+    const monthlyRevenue = currentMetrics.verified_total;
+    const previousMonthRevenue = prevMetrics.verified_total;
 
     const revenueChange = previousMonthRevenue > 0
         ? ((monthlyRevenue - previousMonthRevenue) / previousMonthRevenue) * 100
@@ -750,14 +758,9 @@ async function fetchMonthlyTrends(supabase: SupabaseClient, now: Date): Promise<
     // This is ~6x faster than sequential fetching
     const results = await Promise.all(
         monthRanges.map(async ({ monthStart, monthEnd, monthName }) => {
-            // Run both queries for this month in parallel
-            const [paymentsResult, invoicesResult] = await Promise.all([
-                supabase
-                    .from('payment_records')
-                    .select('amount')
-                    .gte('payment_date', monthStart.toISOString())
-                    .lte('payment_date', monthEnd.toISOString())
-                    .eq('status', 'paid'),
+            // Run both reads for this month in parallel
+            const [metrics, invoicesResult] = await Promise.all([
+                fetchPaymentMetrics(supabase, monthStart, monthEnd),
                 supabase
                     .from('invoices')
                     .select('*', { count: 'exact', head: true })
@@ -765,14 +768,13 @@ async function fetchMonthlyTrends(supabase: SupabaseClient, now: Date): Promise<
                     .lte('created_at', monthEnd.toISOString()),
             ]);
 
-            const payments = paymentsResult.data;
-            const revenue = payments?.reduce((sum: number, p) => sum + (Number(p.amount) || 0), 0) ?? 0;
+            const revenue = metrics.collected_total;
 
             return {
                 month: monthName,
                 revenue,
                 invoicesGenerated: invoicesResult.count ?? 0,
-                paymentsReceived: payments?.length ?? 0,
+                paymentsReceived: metrics.collected_count,
             };
         })
     );
