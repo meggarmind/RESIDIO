@@ -31,7 +31,7 @@ The toggles control which categories of email Residio sends: notifications, invo
 
 ## SMS
 
-SMS is used for a narrower set of messages: verification codes and two-factor codes. SMS is currently switched off for emergency broadcasts, reminders, contact verification codes, and the WhatsApp fallback below until the SMS provider (Termii) is connected. It is more expensive and more intrusive than email, so it should not be the default channel for routine billing communication.
+SMS is used for a narrower set of messages: two-factor codes, plus contact verification codes once the SMS provider is connected. SMS is currently switched off for emergency broadcasts, reminders, contact verification codes, and the WhatsApp fallback below until the SMS provider (Termii) is connected. It is more expensive and more intrusive than email, so it should not be the default channel for routine billing communication.
 
 Configure SMS behaviour from **Settings → Notifications**, alongside the other channels.
 
