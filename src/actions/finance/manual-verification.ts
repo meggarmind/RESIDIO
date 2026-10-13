@@ -91,6 +91,82 @@ export async function manuallyVerifyPayment(
 }
 
 /**
+ * Un-verify a payment record (#502). A verified payment's amount, payer, property and
+ * status are locked; this is the audited route to correct one. Uses the same permission
+ * as manuallyVerifyPayment.
+ */
+export async function unverifyPayment(
+    paymentId: string,
+    reason?: string
+): Promise<ManualVerifyResult> {
+    const { authorized } = await authorizePermission(PERMISSIONS.EXPENDITURE_MANAGE);
+    if (!authorized) {
+        return { success: false, error: 'Unauthorized' };
+    }
+
+    const supabase = await createServerSupabaseClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        return { success: false, error: 'Unauthorized' };
+    }
+
+    const { data: existingPayment, error: fetchError } = await supabase
+        .from('payment_records')
+        .select('*')
+        .eq('id', paymentId)
+        .single();
+
+    if (fetchError || !existingPayment) {
+        return { success: false, error: 'Payment not found' };
+    }
+
+    if (!existingPayment.is_verified) {
+        return { success: false, error: 'Payment is not verified' };
+    }
+
+    const { error: updateError } = await supabase
+        .from('payment_records')
+        .update({
+            is_verified: false,
+            verified_at: null,
+            verified_by: null,
+            notes: reason
+                ? `${existingPayment.notes || ''}\n[Un-verified]: ${reason}`.trim()
+                : existingPayment.notes,
+        })
+        .eq('id', paymentId);
+
+    if (updateError) {
+        console.error('Error un-verifying payment:', updateError);
+        return { success: false, error: 'Failed to un-verify payment' };
+    }
+
+    await logAudit({
+        action: 'UPDATE',
+        entityType: 'payment_records',
+        entityId: paymentId,
+        entityDisplay: `Payment: ${existingPayment.reference || paymentId}`,
+        oldValues: {
+            is_verified: true,
+            verified_by: existingPayment.verified_by,
+            bank_row_id: existingPayment.bank_row_id ?? null,
+        },
+        newValues: {
+            is_verified: false,
+            unverified_by: user.id,
+            was_bank_matched: existingPayment.bank_row_id != null,
+            verification_type: 'manual',
+        },
+    });
+
+    revalidatePath('/payments');
+    revalidatePath('/dashboard');
+
+    return { success: true };
+}
+
+/**
  * Manually verify an expense record.
  * This is used when an admin wants to mark an expense as verified
  * without matching it to a bank statement row.
