@@ -199,4 +199,21 @@ describe('publishAnnouncement', () => {
     expect(result.error).toBeNull();
     expect(mocks.buildAnnouncementWhatsApp).toHaveBeenCalledTimes(1);
   });
+  it('applies the opt-in filter in the query itself (.eq opted_in = true)', async () => {
+    setupFullMock({ optIns: [{ resident_id: 'r-1', phone_number: '+234801' }] });
+    const client = await mocks.createServerSupabaseClient();
+    const optInChains: Array<Record<string, ReturnType<typeof vi.fn>>> = [];
+    const originalFrom = client.from;
+    client.from = vi.fn((table: string) => {
+      const c = originalFrom(table);
+      if (table === 'whatsapp_optins') optInChains.push(c);
+      return c;
+    });
+
+    await publishAnnouncement('ann-1');
+
+    expect(optInChains).toHaveLength(1);
+    expect(optInChains[0].select).toHaveBeenCalledWith('resident_id, phone_number');
+    expect(optInChains[0].eq).toHaveBeenCalledWith('opted_in', true);
+  });
 });
