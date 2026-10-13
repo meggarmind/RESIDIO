@@ -9,38 +9,29 @@ const mocks = vi.hoisted(() => ({
   addToQueue: vi.fn(),
   shouldSendToResident: vi.fn(),
   createAdminClient: vi.fn(),
+  isWhatsAppOptedIn: vi.fn(),
+  sendSms: vi.fn(),
+  sendEmail: vi.fn(),
+  getReminderSchedule: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: vi.fn(),
   createAdminClient: mocks.createAdminClient,
 }));
+vi.mock('@/lib/whatsapp/opt-in', () => ({ isWhatsAppOptedIn: mocks.isWhatsAppOptedIn }));
 vi.mock('@/lib/email', () => ({
-  sendEmail: vi.fn(),
+  sendEmail: mocks.sendEmail,
   getEstateEmailSettings: vi.fn().mockResolvedValue({ estateName: 'Test Estate' }),
 }));
-vi.mock('@/lib/sms/send-sms', () => ({ sendSms: vi.fn() }));
+vi.mock('@/lib/sms/send-sms', () => ({ sendSms: mocks.sendSms }));
 vi.mock('@/actions/settings/get-settings', () => ({ getSettingValue: vi.fn() }));
 vi.mock('@/actions/settings/update-setting', () => ({ updateSetting: vi.fn() }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
 vi.mock('../reminder-config', () => ({
   areRemindersEnabled: vi.fn().mockResolvedValue(true),
   getActiveDays: vi.fn(),
-  getReminderSchedule: vi.fn().mockResolvedValue({
-    data: {
-      steps: [
-        {
-          id: 'step-1',
-          daysFromDue: 0,
-          escalationLevel: 'friendly',
-          channels: ['whatsapp'],
-          isActive: true,
-          priority: 5,
-        },
-      ],
-    },
-    error: null,
-  }),
+  getReminderSchedule: mocks.getReminderSchedule,
 }));
 vi.mock('@/emails/payment-reminder-escalated', () => ({
   PaymentReminderEscalatedEmail: vi.fn(),
@@ -80,6 +71,24 @@ const INVOICE = {
   house: { house_number: '4', street: { name: 'Palm Rd' } },
 };
 
+function scheduleWithChannels(channels: string[]) {
+  return {
+    data: {
+      steps: [
+        {
+          id: 'step-1',
+          daysFromDue: 0,
+          escalationLevel: 'friendly',
+          channels,
+          isActive: true,
+          priority: 5,
+        },
+      ],
+    },
+    error: null,
+  };
+}
+
 function adminClientReturning(invoices: unknown[]) {
   const result = { data: invoices, error: null };
   const chain: Record<string, unknown> = {};
@@ -93,6 +102,9 @@ beforeEach(() => {
   mocks.createAdminClient.mockReturnValue(adminClientReturning([INVOICE]));
   mocks.addToQueue.mockResolvedValue({ success: true });
   mocks.shouldSendToResident.mockResolvedValue({ shouldSend: true });
+  mocks.isWhatsAppOptedIn.mockResolvedValue(true);
+  mocks.sendEmail.mockResolvedValue({ success: true });
+  mocks.getReminderSchedule.mockResolvedValue(scheduleWithChannels(['whatsapp']));
 });
 
 describe('processInvoiceReminders WhatsApp trigger (#6)', () => {
@@ -104,6 +116,7 @@ describe('processInvoiceReminders WhatsApp trigger (#6)', () => {
       category: 'invoice',
       channel: 'whatsapp',
     });
+    expect(mocks.isWhatsAppOptedIn).toHaveBeenCalledWith('res-1', '+2348000000000');
     expect(mocks.addToQueue).toHaveBeenCalledTimes(1);
     const queued = mocks.addToQueue.mock.calls[0][0];
     expect(queued).toMatchObject({
@@ -155,5 +168,40 @@ describe('processInvoiceReminders WhatsApp trigger (#6)', () => {
 
     expect(result.sent.whatsapp).toBe(0);
     expect(result.errors).toEqual([{ invoiceId: 'inv-1', error: 'WhatsApp: queue down' }]);
+  });
+
+  it('queues nothing and reports it when the resident has not opted in', async () => {
+    mocks.isWhatsAppOptedIn.mockResolvedValue(false);
+
+    const result = await processInvoiceReminders();
+
+    expect(mocks.addToQueue).not.toHaveBeenCalled();
+    expect(result.sent.whatsapp).toBe(0);
+    expect(result.errors).toEqual([
+      { invoiceId: 'inv-1', error: 'WhatsApp: recipient has not opted in' },
+    ]);
+  });
+});
+
+describe('processInvoiceReminders SMS gate (#6)', () => {
+  it('never sends SMS and adds no error, while email and whatsapp in the same step still run', async () => {
+    mocks.getReminderSchedule.mockResolvedValue(
+      scheduleWithChannels(['email', 'sms', 'whatsapp'])
+    );
+    mocks.createAdminClient.mockReturnValue(
+      adminClientReturning([
+        { ...INVOICE, resident: { ...INVOICE.resident, email: 'ada@example.test' } },
+      ])
+    );
+
+    const result = await processInvoiceReminders();
+
+    expect(mocks.sendSms).not.toHaveBeenCalled();
+    expect(result.sent.sms).toBe(0);
+    expect(result.errors).toEqual([]);
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.addToQueue).toHaveBeenCalledTimes(1);
+    expect(result.sent.email).toBe(1);
+    expect(result.sent.whatsapp).toBe(1);
   });
 });

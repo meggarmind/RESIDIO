@@ -63,6 +63,8 @@ Before saving a template change:
 
 **Settings → Notifications → Reminders** defines which billing events trigger a message, and **Schedules** defines when. Reminders are dispatched by a scheduled job rather than at the moment you save them, so a saved reminder that has not arrived yet is usually waiting for its next run, not broken.
 
+Invoice reminders go out by email and WhatsApp only. SMS is switched off for reminders until the SMS provider (Termii) is connected, so an SMS step in a reminder schedule is skipped without an error.
+
 ## The notification queue
 
 **System → Notification Queue** shows messages that Residio has created but not yet delivered. A healthy queue drains on each scheduled run.

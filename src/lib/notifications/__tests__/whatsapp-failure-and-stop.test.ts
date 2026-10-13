@@ -29,6 +29,7 @@ import { getSettingValueAsService, getSettingResultAsService } from '@/lib/setti
 import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
+import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in';
 import { retryQueueItem } from '@/lib/notifications/queue';
 import { sendAndRecordNotification, sendNotification } from '@/lib/notifications/send';
 import {
@@ -219,5 +220,21 @@ describe('STOP then send round trip (#6)', () => {
     const after = await sendNotification(item);
     expect(after).toEqual({ success: false, error: 'WhatsApp recipient has not opted in' });
     expect(sendWhatsAppTemplate).toHaveBeenCalledTimes(1);
+  });
+
+  it('the enqueue-time helper and the send path read the same consent state', async () => {
+    const fake = useFake({
+      whatsapp_optins: [{ resident_id: 'resident-1', phone_number: PHONE, opted_in: true }],
+      notification_history: [],
+    });
+    const item = queueRow() as unknown as NotificationQueueItem;
+
+    await expect(isWhatsAppOptedIn('resident-1', PHONE)).resolves.toBe(true);
+    await expect(sendNotification(item)).resolves.toMatchObject({ success: true });
+
+    fake.state.tables.whatsapp_optins[0].opted_in = false;
+
+    await expect(isWhatsAppOptedIn('resident-1', PHONE)).resolves.toBe(false);
+    await expect(sendNotification(item)).resolves.toMatchObject({ success: false });
   });
 });

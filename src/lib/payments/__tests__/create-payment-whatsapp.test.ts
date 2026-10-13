@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   shouldSendToResident: vi.fn(),
   createServerSupabaseClient: vi.fn(),
   allocateWalletToInvoices: vi.fn(),
+  isWhatsAppOptedIn: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -20,6 +21,7 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/actions/billing/wallet', () => ({
   allocateWalletToInvoices: mocks.allocateWalletToInvoices,
 }));
+vi.mock('@/lib/whatsapp/opt-in', () => ({ isWhatsAppOptedIn: mocks.isWhatsAppOptedIn }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: mocks.logAudit }));
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: mocks.authorizePermission }));
 vi.mock('@/lib/notifications/preferences', () => ({
@@ -74,6 +76,7 @@ beforeEach(() => {
   mocks.allocateWalletToInvoices.mockResolvedValue({ success: true, invoicesPaid: 0, totalAllocated: 0 });
   mocks.addToQueue.mockResolvedValue({ success: true });
   mocks.shouldSendToResident.mockResolvedValue({ shouldSend: true });
+  mocks.isWhatsAppOptedIn.mockResolvedValue(true);
   mocks.createServerSupabaseClient.mockResolvedValue(supabaseWith('+2348000000000'));
 });
 
@@ -87,6 +90,7 @@ describe('createPaymentCore WhatsApp trigger (#6)', () => {
       category: 'payment',
       channel: 'whatsapp',
     });
+    expect(mocks.isWhatsAppOptedIn).toHaveBeenCalledWith(RESIDENT_ID, '+2348000000000');
     expect(mocks.addToQueue).toHaveBeenCalledTimes(1);
     const queued = mocks.addToQueue.mock.calls[0][0];
     expect(queued).toMatchObject({
@@ -112,6 +116,15 @@ describe('createPaymentCore WhatsApp trigger (#6)', () => {
 
   it('queues nothing when the resident has no phone number', async () => {
     mocks.createServerSupabaseClient.mockResolvedValue(supabaseWith(null));
+
+    const result = await createPaymentCore(INPUT);
+
+    expect(result.success).toBe(true);
+    expect(mocks.addToQueue).not.toHaveBeenCalled();
+  });
+
+  it('queues nothing for a resident who has not opted in, but the payment still succeeds', async () => {
+    mocks.isWhatsAppOptedIn.mockResolvedValue(false);
 
     const result = await createPaymentCore(INPUT);
 
