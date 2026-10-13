@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+
+const updateSpy = vi.hoisted(() => vi.fn(async () => ({ success: true })));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), back: vi.fn() }) }));
 vi.mock('@/hooks/use-payments', () => ({
   useCreatePayment: () => ({ mutateAsync: vi.fn() }),
-  useUpdatePayment: () => ({ mutateAsync: vi.fn() }),
+  useUpdatePayment: () => ({ mutateAsync: updateSpy }),
   useResidentPropertiesForPayment: () => ({ data: undefined, isLoading: false }),
 }));
 vi.mock('@/hooks/use-residents', () => ({
@@ -14,13 +16,15 @@ vi.mock('@/hooks/use-residents', () => ({
 }));
 
 import { PaymentForm } from '@/components/payments/payment-form';
+import { findLockedFieldChanges } from '@/lib/payments/verified-lock';
 
+const RESIDENT = '11111111-1111-4111-8111-111111111111';
 const base = {
-  id: 'p1', resident_id: 'r1', house_id: null, amount: 5000, status: 'paid', method: 'cash',
+  id: 'p1', resident_id: RESIDENT, house_id: null, amount: '5000.00', status: 'paid', method: 'cash',
   payment_date: '2026-01-15', reference_number: 'R1', notes: 'n', period_start: null, period_end: null,
 };
 
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); updateSpy.mockClear(); });
 
 describe('PaymentForm verified lock (#502)', () => {
   it('disables amount and status and explains why for a verified payment', () => {
@@ -37,5 +41,17 @@ describe('PaymentForm verified lock (#502)', () => {
     expect(screen.getByPlaceholderText('0.00')).toBeEnabled();
     expect(screen.getAllByRole('combobox')[1]).toBeEnabled();
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+
+  it('saving a verified payment sends the stored amount, status and resident, so the server lock does not refuse it', async () => {
+    render(<PaymentForm initialData={{ ...base, is_verified: true } as never} />);
+    fireEvent.change(screen.getByPlaceholderText('Additional details...'), { target: { value: 'edited note' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update Payment' }));
+
+    await waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
+    const [{ id, data }] = updateSpy.mock.calls[0] as unknown as [{ id: string; data: Record<string, unknown> }];
+    expect(id).toBe('p1');
+    expect(data).toMatchObject({ amount: 5000, status: 'paid', resident_id: RESIDENT, notes: 'edited note' });
+    expect(findLockedFieldChanges(true, base, data)).toEqual([]);
   });
 });

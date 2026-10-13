@@ -11,10 +11,12 @@ const audit = vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => undefi
 
 function makeBuilder(table: string) {
   const b: Record<string, unknown> = {};
-  for (const m of ['eq', 'select']) b[m] = vi.fn(() => b);
-  b.update = vi.fn((payload: unknown) => { updates.push({ table, payload }); return b; });
+  let op = 'select';
+  for (const m of ['eq', 'select', 'in']) b[m] = vi.fn(() => b);
+  b.update = vi.fn((payload: unknown) => { op = 'update'; updates.push({ table, payload }); return b; });
   b.single = vi.fn(async () => results[table] ?? { data: null, error: null });
-  b.then = (resolve: (v: unknown) => unknown) => resolve({ data: null, error: null });
+  b.then = (resolve: (v: unknown) => unknown) =>
+    resolve(results[`${table}:${op}`] ?? { data: null, error: null });
   return b;
 }
 const supabase = {
@@ -80,6 +82,55 @@ describe('updatePayment on a verified payment', () => {
     const res = await updatePayment(A, { notes: 'x' });
     expect(res.success).toBe(true);
     expect(paymentUpdates()).toEqual([{ notes: 'x' }]);
+  });
+});
+
+describe('updatePayment fails closed when the stored record cannot be read', () => {
+  it.each([
+    ['an error', { data: null, error: { message: 'boom' } }],
+    ['no row', { data: null, error: null }],
+  ])('refuses with %s and never writes', async (_n, result) => {
+    const { updatePayment } = await import('@/actions/payments/update-payment');
+    results['payment_records'] = result;
+    const res = await updatePayment(A, { amount: 6000 });
+    expect(res.success).toBe(false);
+    expect(paymentUpdates()).toHaveLength(0);
+  });
+});
+
+describe('bulkUpdatePayments and verified payments', () => {
+  const bulk = async (ids: string[]) => {
+    const { bulkUpdatePayments } = await import('@/actions/payments/bulk-update-payments');
+    return bulkUpdatePayments({ ids, status: 'failed' });
+  };
+
+  it('updates only the unverified ids and reports the skipped count', async () => {
+    results['payment_records:select'] = {
+      data: [{ id: A, status: 'paid', is_verified: true }, { id: B, status: 'paid', is_verified: false }],
+      error: null,
+    };
+    results['payment_records:update'] = { data: [{ id: B }], error: null };
+    const res = (await bulk([A, B])) as { success?: boolean; updatedCount?: number; skippedCount?: number; message?: string };
+    expect(res.success).toBe(true);
+    expect(res.skippedCount).toBe(1);
+    expect(res.message).toMatch(/skipped 1 verified/);
+    expect(supabase.from).toHaveBeenCalled();
+    const inCalls = (supabase.from.mock.results.at(-1)!.value as { in: ReturnType<typeof vi.fn> }).in.mock.calls;
+    expect(inCalls[0][1]).toEqual([B]);
+  });
+
+  it('refuses, without writing, when every selected payment is verified', async () => {
+    results['payment_records:select'] = { data: [{ id: A, status: 'paid', is_verified: true }], error: null };
+    const res = (await bulk([A])) as { error?: string };
+    expect(res.error).toMatch(/verified/);
+    expect(paymentUpdates()).toHaveLength(0);
+  });
+
+  it('fails closed when the selection cannot be read', async () => {
+    results['payment_records:select'] = { data: null, error: { message: 'boom' } };
+    const res = (await bulk([A])) as { error?: string };
+    expect(res.error).toBeTruthy();
+    expect(paymentUpdates()).toHaveLength(0);
   });
 });
 
