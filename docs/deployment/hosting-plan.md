@@ -198,7 +198,7 @@ GitHub, Settings, Secrets and variables, Actions, **Repository secrets** (not va
 | `FILES_CRYPT_PASSWORD` | rclone crypt password: a long random string, **also stored in the password manager** |
 | `FILES_CRYPT_PASSWORD2` | rclone crypt salt: a second long random string, also in the password manager |
 
-Fifteen secrets. Stage has no storage mirror (test data), so no `STAGE_STORAGE_*` secrets.
+Thirteen secrets. Stage has no storage mirror (test data), so no `STAGE_STORAGE_*` secrets.
 The R2 token must not be able to create or delete buckets. Losing `FILES_CRYPT_PASSWORD` or
 `FILES_CRYPT_PASSWORD2` makes the files mirror unreadable: treat both like the age private key.
 
@@ -253,7 +253,7 @@ For the files mirror, `rclone ls` through a crypt remote built with the same two
 
 ### Checklist
 
-- [ ] The 15 secrets above exist in GitHub Actions secrets
+- [ ] The 13 secrets above exist in GitHub Actions secrets
 - [ ] age keypair generated; private key is in the password manager and one other place outside GitHub
 - [ ] Backup Database run manually for `both`; both jobs green; objects visible in R2
 - [ ] **Owner has run the test restore above once and the data came back. #415 is not done until this is ticked.**
