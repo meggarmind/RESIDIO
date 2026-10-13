@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/*': ['node_modules/sharp/**/*'],
   },
+  // Build-time type-check scope. tsconfig.build.json leaves out tests and
+  // tooling, which .dockerignore keeps out of the image's build context (#504).
+  typescript: {
+    tsconfigPath: 'tsconfig.build.json',
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',
