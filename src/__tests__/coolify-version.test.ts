@@ -2,12 +2,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  STAGE_AUTO_DEPLOY_WARNING,
   TARGETS,
   assertOk,
   buildHeaders,
   decideSkip,
-  describeDeployResponse,
   envPayload,
   failureMessage,
   gitQueries,
@@ -27,7 +25,7 @@ import {
 /**
  * Unit tests for the Coolify build-version writer (#421 slice B). Pure functions only: no
  * git, no network. The script's `main()` does the I/O; these pin the decisions it makes,
- * above all that Prod is never deployed from CI.
+ * above all that nothing is deployed from CI and Stage's commit is pinned to the SHA.
  */
 
 const SHA = '0123456789abcdef0123456789abcdef01234567';
@@ -224,19 +222,29 @@ describe('planRequests', () => {
     expect(plan.some((request: { path: string }) => request.path.includes('/deploy'))).toBe(false);
   });
 
-  it('Stage sets the variables first, then triggers the deploy', () => {
+  it('Stage sets the variables first, then pins the commit, and never deploys', () => {
     const plan = planRequests({ target: TARGETS.staging, ...args });
 
     expect(plan.map((request: { method: string; path: string }) => `${request.method} ${request.path}`)).toEqual([
       'PATCH /api/v1/applications/app-uuid/envs/bulk',
-      'POST /api/v1/deploy?uuid=app-uuid&force=false',
+      'PATCH /api/v1/applications/app-uuid',
     ]);
     expect(plan[0].body?.data.find((v: { key: string }) => v.key === 'NEXT_PUBLIC_APP_ENV')?.value).toBe('staging');
+    expect(plan[1].body).toEqual({ git_commit_sha: SHA });
+    expect(plan.some((request: { path: string }) => request.path.includes('/deploy'))).toBe(false);
   });
 
-  it('only staging is a deploying target', () => {
-    expect(TARGETS.production.deploy).toBe(false);
-    expect(TARGETS.staging.deploy).toBe(true);
+  it('the pin uses the same SHA as NEXT_PUBLIC_GIT_SHA in the env payload', () => {
+    const plan = planRequests({ target: TARGETS.staging, ...args });
+    const shaVar = plan[0].body?.data.find((v: { key: string }) => v.key === 'NEXT_PUBLIC_GIT_SHA');
+    expect(shaVar?.value).toBe(SHA);
+    expect((plan[1].body as unknown as { git_commit_sha: string }).git_commit_sha).toBe(shaVar?.value);
+  });
+
+  it('only staging pins the commit, and no target deploys', () => {
+    expect(TARGETS.production.pinCommit).toBe(false);
+    expect(TARGETS.staging.pinCommit).toBe(true);
+    for (const target of Object.values(TARGETS)) expect(target).not.toHaveProperty('deploy');
   });
 
   it('rejects an unknown target rather than guessing', () => {
@@ -292,10 +300,10 @@ describe('buildHeaders / requestInit', () => {
   });
 
   it('never follows a redirect (Access answers a bad token with a 302 to its login page)', () => {
-    const [patch, deploy] = planRequests({ target: TARGETS.staging, appUuid: 'u', version: 'v1.0.0', sha: SHA });
+    const [patch, pin] = planRequests({ target: TARGETS.staging, appUuid: 'u', version: 'v1.0.0', sha: SHA });
     expect(requestInit(patch, {}).redirect).toBe('manual');
     expect(JSON.parse(requestInit(patch, {}).body ?? '{}').data).toHaveLength(3);
-    expect(requestInit(deploy, {})).not.toHaveProperty('body');
+    expect(JSON.parse(requestInit(pin, {}).body ?? '{}')).toEqual({ git_commit_sha: SHA });
   });
 });
 
@@ -342,8 +350,8 @@ describe('assertOk / failureMessage', () => {
   it.each([199, 300, 301, 302, 304, 307, 308, 399, 400, 401, 403, 404, 405, 500, 502])(
     'throws on HTTP %i (a 302 is Access rejecting the service token)',
     (status) => {
-      expect(() => assertOk(status, 'POST', '/api/v1/deploy?uuid=u&force=false')).toThrow(
-        `POST /api/v1/deploy?uuid=u&force=false returned HTTP ${status}`,
+      expect(() => assertOk(status, 'PATCH', '/api/v1/applications/u')).toThrow(
+        `PATCH /api/v1/applications/u returned HTTP ${status}`,
       );
     },
   );
@@ -362,9 +370,9 @@ describe('assertOk / failureMessage', () => {
 
   it('failureMessage redacts every value anywhere in the message', () => {
     const detail = `failed (${realistic.COOLIFY_API_TOKEN} ${realistic.CF_ACCESS_CLIENT_SECRET})`;
-    const message = failureMessage('POST', `/api/v1/deploy?uuid=${realistic.COOLIFY_APP_UUID_PROD}`, detail, realisticValues);
+    const message = failureMessage('PATCH', `/api/v1/applications/${realistic.COOLIFY_APP_UUID_PROD}`, detail, realisticValues);
     for (const value of realisticValues) expect(message).not.toContain(value);
-    expect(message).toContain('POST /api/v1/deploy?uuid=***');
+    expect(message).toContain('PATCH /api/v1/applications/***');
   });
 });
 
@@ -402,42 +410,17 @@ describe('skipNotice', () => {
   });
 });
 
-describe('describeDeployResponse', () => {
-  it('reports Coolify\'s deployment UUID and message, never the application UUID', () => {
-    const json = {
-      deployments: [
-        {
-          message: `Application ${realistic.COOLIFY_APP_UUID_STAGE} deployment queued.`,
-          resource_uuid: realistic.COOLIFY_APP_UUID_STAGE,
-          deployment_uuid: 'dpl0g8k4c',
-        },
-      ],
-    };
-    const out = describeDeployResponse(json, realisticValues);
-    expect(out).toBe('Coolify reports deployment dpl0g8k4c: "Application *** deployment queued."');
-    for (const value of realisticValues) expect(out).not.toContain(value);
-  });
-
-  it.each([null, 'not json', {}, { deployments: 'x' }, { deployments: [{ token: 'x' }] }])(
-    'gives a fixed string for an unknown shape (%j)',
-    (json) => {
-      expect(describeDeployResponse(json, realisticValues)).toBe(
-        'Coolify accepted the deploy (no deployment details in the response)',
-      );
-    },
-  );
-});
-
 describe('main', () => {
   type Call = { url: string; init: RequestInit };
 
-  function run(env: Record<string, string>, status = 200, body: unknown = { deployments: [] }) {
+  function run(env: Record<string, string>, status = 200, statusFor?: (call: Call) => number) {
     const calls: Call[] = [];
     const logs: string[] = [];
     const summaries: string[] = [];
     const fetchImpl = async (url: string, init: RequestInit) => {
-      calls.push({ url, init });
-      return { status, json: async () => body } as unknown as Response;
+      const call = { url, init };
+      calls.push(call);
+      return { status: statusFor ? statusFor(call) : status } as unknown as Response;
     };
     const done = main({
       env,
@@ -472,12 +455,27 @@ describe('main', () => {
     },
   );
 
-  it.each(['push', 'workflow_dispatch'])('Stage sets then deploys (%s)', async (event) => {
+  it.each(['push', 'workflow_dispatch'])('Stage sets the variables then pins the commit, no deploy (%s)', async (event) => {
     const { done, calls } = run({ ...realistic, TARGET_ENV: 'staging', GITHUB_EVENT_NAME: event });
     await done;
-    expect(calls.map((call) => call.init.method)).toEqual(['PATCH', 'POST']);
-    expect(calls[1].url).toBe(`${realistic.COOLIFY_BASE_URL}/api/v1/deploy?uuid=${realistic.COOLIFY_APP_UUID_STAGE}&force=false`);
-    expect(JSON.parse(String(calls[0].init.body)).data[0]).toMatchObject({ key: 'NEXT_PUBLIC_APP_VERSION', value: 'v0.5.0' });
+    const app = `${realistic.COOLIFY_BASE_URL}/api/v1/applications/${realistic.COOLIFY_APP_UUID_STAGE}`;
+    expect(calls.map((call) => `${call.init.method} ${call.url}`)).toEqual([`PATCH ${app}/envs/bulk`, `PATCH ${app}`]);
+    const envs = JSON.parse(String(calls[0].init.body)).data;
+    expect(envs[0]).toMatchObject({ key: 'NEXT_PUBLIC_APP_VERSION', value: 'v0.5.0' });
+    expect(JSON.parse(String(calls[1].init.body))).toEqual({ git_commit_sha: c('s4') });
+    expect(envs[1]).toMatchObject({ key: 'NEXT_PUBLIC_GIT_SHA', value: c('s4') });
+  });
+
+  it('a non-2xx pin response fails the run, with no secret in the error', async () => {
+    const { done, calls } = run(
+      { ...realistic, TARGET_ENV: 'staging' },
+      200,
+      (call) => (call.url.endsWith('/envs/bulk') ? 201 : 500),
+    );
+    const error = await done.then(() => null, (e: Error) => e);
+    expect(error?.message).toBe('PATCH /api/v1/applications/*** returned HTTP 500');
+    for (const value of realisticValues) expect(error?.message).not.toContain(value);
+    expect(calls).toHaveLength(2);
   });
 
   it('a 302 fails the run, with no secret in the error', async () => {
@@ -485,7 +483,7 @@ describe('main', () => {
     const error = await done.then(() => null, (e: Error) => e);
     expect(error?.message).toBe('PATCH /api/v1/applications/***/envs/bulk returned HTTP 302');
     for (const value of realisticValues) expect(error?.message).not.toContain(value);
-    // Stops at the failure: no deploy after a failed variable write.
+    // Stops at the failure: no commit pin after a failed variable write.
     expect(calls).toHaveLength(1);
   });
 
@@ -523,28 +521,21 @@ describe('main', () => {
     expect(logs.join('\n')).not.toContain('/home/runner');
   });
 
-  it('logs what Coolify reported for the Stage deploy, then warns about auto-deploy', async () => {
-    const body = { deployments: [{ message: 'Deployment queued.', resource_uuid: realistic.COOLIFY_APP_UUID_STAGE, deployment_uuid: 'dpl1' }] };
-    const { done, logs, summaries } = run(
-      { ...realistic, TARGET_ENV: 'staging', GITHUB_STEP_SUMMARY: '/tmp/summary' },
-      200,
-      body,
-    );
+  it('logs the pin without any secret, and the summary says nothing was deployed', async () => {
+    const { done, logs, summaries } = run({ ...realistic, TARGET_ENV: 'staging', GITHUB_STEP_SUMMARY: '/tmp/summary' });
     await done;
-    expect(logs).toContain('Coolify reports deployment dpl1: "Deployment queued."');
-    expect(logs).toContain(`::warning::${STAGE_AUTO_DEPLOY_WARNING}`);
-    expect(STAGE_AUTO_DEPLOY_WARNING).toMatch(/auto-deploy.*residio-stage.*switch it off \(docs\/agents\/branching\.md\)/);
-    expect(summaries.join('')).toContain(STAGE_AUTO_DEPLOY_WARNING);
+    expect(logs).toContain(`Pinned residio-stage to ${c('s4')}; the KVM cron deploys it`);
+    expect(summaries.join('')).toContain('no deploy');
     for (const value of realisticValues) {
       expect(logs.join('\n')).not.toContain(value);
       expect(summaries.join('')).not.toContain(value);
     }
   });
 
-  it('Prod raises no auto-deploy warning (it is never deployed from CI)', async () => {
+  it('Prod pins nothing and logs no pin', async () => {
     const { done, logs } = run({ ...realistic, TARGET_ENV: 'production' });
     await done;
-    expect(logs.some((line) => line.startsWith('::warning::'))).toBe(false);
+    expect(logs.some((line) => line.startsWith('Pinned'))).toBe(false);
   });
 });
 
