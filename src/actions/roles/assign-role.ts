@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
+import { assertCanManageTarget, canGrantRole } from '@/lib/auth/role-rank';
 import { ilikeAny } from '@/lib/postgrest-filter';
 import type { ProfileApprovalStatus } from '@/types/database';
 
@@ -302,14 +303,26 @@ export async function assignRoleToProfile(
     return { success: false, error: 'Cannot assign an inactive role' };
   }
 
-  // Escalation guards: the two highest roles may only be granted by a super
-  // admin. This is the real enforcement — the UI merely mirrors it.
-  if (role.name === 'super_admin' && auth.roleName !== 'super_admin') {
-    return { success: false, error: 'Only Super Administrator can assign the Super Administrator role' };
+  // Target guard (#475): the account being changed must not outrank the caller.
+  // Without this an assign_roles holder could demote a chairman or a non-last
+  // super_admin by "assigning" them an ordinary role.
+  const targetGuard = await assertCanManageTarget(auth.userId!, profileId);
+  if (!targetGuard.ok) {
+    return { success: false, error: targetGuard.error };
   }
 
-  if (role.name === 'chairman' && auth.roleName !== 'super_admin') {
-    return { success: false, error: 'Only Super Administrator can assign the Chairman role' };
+  // Escalation guards: the two highest roles may only be granted by a super
+  // admin. This is the real enforcement — the UI merely mirrors it.
+  if (!canGrantRole(auth.roleName, role.name)) {
+    return {
+      success: false,
+      error:
+        role.name === 'super_admin'
+          ? 'Only Super Administrator can assign the Super Administrator role'
+          : role.name === 'chairman'
+            ? 'Only Super Administrator can assign the Chairman role'
+            : 'You cannot assign a role that outranks your own',
+    };
   }
 
   // Bootstrap invariant (#184): moving the last active super_admin onto another
