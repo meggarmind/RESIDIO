@@ -290,6 +290,108 @@ Weekly: a small query against `Residio_Stage` so it does not pause.
 
 Secrets needed in GitHub: prod (and stage) session-pooler connection string, Supabase storage S3
 credentials, R2 access key / secret / bucket / endpoint, encryption public key or passphrase.
+The exact names and the restore runbook are in the next section.
+
+## Backups: secrets, restore runbook
+
+Implemented by `.github/workflows/backup-database.yml` (#415) and the scripts in
+`scripts/backup/`. Never paste a real value into this file: the repository is public.
+
+| Job | Schedule | What it does |
+|---|---|---|
+| `prod` | nightly 02:23 UTC | `pg_dump -Fc` (PostgreSQL 17 client), `age` encrypt, upload to R2, prune; then incremental storage mirror |
+| `stage` | Mondays 03:41 UTC | `select 1` keep-awake, then the same dump, encrypt, upload, prune (database only) |
+
+Run either by hand from the Actions tab (Backup Database, Run workflow, choose `prod`, `stage` or
+`both`). Layout in the bucket:
+
+```text
+db/<prod|stage>/daily/YYYY-MM-DD.dump.age     newest 30 kept
+db/<prod|stage>/monthly/YYYY-MM.dump.age      newest 12 kept; the first backup of each month is copied here
+files/prod/current/...                        storage mirror, file names and contents encrypted (rclone crypt)
+files/prod/deleted/YYYY-MM-DD/...             files changed or deleted that day (not pruned automatically)
+```
+
+### Secrets to create
+
+GitHub, Settings, Secrets and variables, Actions, **Repository secrets** (not variables):
+
+| Secret | Value |
+|---|---|
+| `PROD_DB_URL` | Residio_Prod (`miyeswqbwarvipdzwqnz`) **session pooler** string, port **5432** (Dashboard, Connect, Session pooler). Not the direct host (IPv6-only), not port 6543 |
+| `STAGE_DB_URL` | Same for Residio_Stage (`kzugmyjjqttardhfejzc`) |
+| `R2_ENDPOINT` | `https://<cloudflare-account-id>.r2.cloudflarestorage.com` |
+| `R2_ACCESS_KEY_ID` | R2 API token, Object Read & Write, scoped to the one bucket |
+| `R2_SECRET_ACCESS_KEY` | The same token's secret |
+| `R2_BUCKET` | Name of the private backup bucket |
+| `BACKUP_AGE_PUBLIC_KEY` | The `age1...` public key (generated below). Public, but kept as a secret so it is not scattered |
+| `PROD_STORAGE_S3_ENDPOINT` | `https://miyeswqbwarvipdzwqnz.storage.supabase.co/storage/v1/s3` (Dashboard, Storage, S3 connection shows the exact URL) |
+| `PROD_STORAGE_S3_REGION` | The project's region as shown on the same page (S3 signing needs it) |
+| `PROD_STORAGE_S3_ACCESS_KEY_ID` | Storage S3 access key (Dashboard, Storage, S3 connection, New access key) |
+| `PROD_STORAGE_S3_SECRET_ACCESS_KEY` | The matching secret |
+| `FILES_CRYPT_PASSWORD` | rclone crypt password: a long random string, **also stored in the password manager** |
+| `FILES_CRYPT_PASSWORD2` | rclone crypt salt: a second long random string, also in the password manager |
+
+Thirteen secrets. Stage has no storage mirror (test data), so no `STAGE_STORAGE_*` secrets.
+The R2 token must not be able to create or delete buckets. Losing `FILES_CRYPT_PASSWORD` or
+`FILES_CRYPT_PASSWORD2` makes the files mirror unreadable: treat both like the age private key.
+
+### Generate the age keypair
+
+On the owner's own machine (not a runner, not a shared host):
+
+```bash
+age-keygen -o residio-backup.agekey
+# prints:  Public key: age1...
+```
+
+1. Put the **whole contents of `residio-backup.agekey`** (the `AGE-SECRET-KEY-...` line) in the
+   password manager, plus a second copy outside GitHub and outside this machine.
+2. Put only the `age1...` public key in the `BACKUP_AGE_PUBLIC_KEY` secret.
+3. Delete the local `residio-backup.agekey` once both copies are confirmed. GitHub never holds
+   the private key, so a leaked runner cannot read the backups, and nobody can decrypt them
+   without the password manager copy.
+
+### Test restore (once, then every few months)
+
+Restore into a throwaway database, never into prod or stage. A local plain PostgreSQL 17 (a
+container is fine: `docker run --rm -e POSTGRES_PASSWORD=scratch -p 54329:5432 postgres:17`)
+or an empty scratch Supabase project both work. This is not the Supabase CLI.
+
+```bash
+# 1. Get the newest dump (rclone remote "r2" configured on your machine, or use the Cloudflare dashboard)
+rclone copy r2:<bucket>/db/prod/daily/<YYYY-MM-DD>.dump.age .
+
+# 2. Decrypt with the private key from the password manager (saved to a temp file, deleted after)
+age -d -i residio-backup.agekey -o restore.dump <YYYY-MM-DD>.dump.age
+
+# 3. The archive must be readable before anything is restored
+pg_restore --list restore.dump | head
+
+# 4. Restore into the scratch database
+createdb -h localhost -p 54329 -U postgres scratch
+pg_restore --no-owner --no-privileges --exit-on-error=false \
+  -h localhost -p 54329 -U postgres -d scratch restore.dump
+
+# 5. Spot-check against the app: row counts of residents, invoices, payments
+psql -h localhost -p 54329 -U postgres -d scratch \
+  -c 'select count(*) from residents' -c 'select count(*) from invoices'
+```
+
+Restoring into plain PostgreSQL reports errors for Supabase-only roles and extensions
+(`anon`, `authenticated`, `pg_graphql`, ...). Those are expected; the `public` schema data is
+what must come back. Delete `restore.dump` and the scratch database afterwards.
+
+For the files mirror, `rclone ls` through a crypt remote built with the same two passwords
+(`rclone config`, type `crypt`, remote `r2:<bucket>/files/prod`) lists and downloads the files.
+
+### Checklist
+
+- [ ] The 13 secrets above exist in GitHub Actions secrets
+- [ ] age keypair generated; private key is in the password manager and one other place outside GitHub
+- [ ] Backup Database run manually for `both`; both jobs green; objects visible in R2
+- [ ] **Owner has run the test restore above once and the data came back. #415 is not done until this is ticked.**
+- [ ] A second test restore is scheduled for three months out
 
 ## KVM setup runbook (Coolify)
 
