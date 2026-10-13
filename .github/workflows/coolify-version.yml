@@ -9,10 +9,14 @@ name: Coolify Version
 #               commit (git_commit_sha) to the same SHA. No deploy: the KVM cron deploys Stage
 #               every 4 hours through the Coolify API, and that build uses the pinned commit,
 #               so it always matches the variables. Stage's Coolify auto-deploy stays off.
+#               Exception (#525): release.yml calls this with `deploy: true` for a
+#               release:major merged from `stage`, and the script then also queues a Stage
+#               deploy of that commit, unless `stage` has already moved past it.
 #   production  every new release tag: set the variables on residio-prod ONLY. Prod is never
 #               deployed from CI; the owner deploys it by hand after migrations (CORE.md §11,
-#               docs/deployment/hosting-plan.md:226). The decision lives in the script's
-#               TARGETS table; there is no deploy step in this file.
+#               docs/deployment/hosting-plan.md:226). The script fails a production run
+#               asked to deploy. There is no deploy step in this file; the decision lives
+#               in the script.
 #
 # Why the release tag arrives through workflow_call, not `on: push: tags`:
 # release.yml pushes the vX.Y.Z tag with the default GITHUB_TOKEN, and events caused by
@@ -38,6 +42,11 @@ on:
         description: The commit to describe (the release merge commit)
         type: string
         required: true
+      deploy:
+        description: Also deploy Stage (staging only; the script refuses it for production)
+        type: boolean
+        required: false
+        default: false
     # Declared, not `secrets: inherit`, so a caller passes only what its target needs.
     # All optional: a missing one makes the script skip with a notice, not fail.
     secrets:
@@ -106,6 +115,8 @@ jobs:
       - name: Write the build variables
         env:
           GIT_SHA: ${{ inputs.ref || github.sha }}
+          # Only a workflow_call can ask for it; a push or a manual run never deploys.
+          DEPLOY: ${{ inputs.deploy && 'true' || 'false' }}
           COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}

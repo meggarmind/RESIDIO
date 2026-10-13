@@ -116,7 +116,11 @@ hotfix: branch from master --PR--> master, then merge master back into stage
   `scripts/release-version.mjs`). On merge, `.github/workflows/release.yml` pushes the next
   `vX.Y.Z` tag on the merge commit, counted from the last tag. No label, an unknown label or
   `release:none` pushes nothing; two different release labels fail the run without tagging. A
-  `release:*` label on a PR into `stage` does nothing.
+  `release:*` label on a PR into `stage` does nothing. A `release:major` release PR from `stage`
+  also deploys residio-stage immediately (#525): after the tag, the `stage-deploy` job pins
+  Stage to the PR's head commit and queues a deploy, unless `stage` has already moved past it
+  (then the cron deploys the newer commit). Other labels, and major hotfixes from other
+  branches, deploy nothing. Prod is never deployed from CI.
 - **A hotfix branches from `master` and targets `master`.** Merge `master` back into `stage`
   in its own PR straight after, so the fix is not lost at the next release.
 - **Both branches require the `PR gate` check** (`.github/workflows/pr-gate.yml`) and a PR.
@@ -190,7 +194,8 @@ commits later. Plain `git describe` would be wrong on `stage`, because release t
 `master` merge commits that `stage` never contains. On every push to `stage` it sets them on `residio-stage` **and pins that application's commit
 to the same SHA, but does not deploy**: the KVM cron deploys Stage every 4 hours (`17 */4 * * *`
 UTC) through the Coolify API, and an API deploy builds the pinned commit, so the build always
-matches the variables CI last wrote. On
+matches the variables CI last wrote. The exception is a `release:major` release from `stage`
+(#525): `release.yml` calls it with `deploy: true`, and it also queues the deploy at once. On
 every new release tag, `release.yml` calls it to set them on `residio-prod` **only**: Prod is
 still deployed by hand after migrations, and that build picks the values up. Until it is set
 up, the workflow logs a notice naming the missing secrets and passes. Owner setup, once:

@@ -1,4 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
@@ -140,4 +143,39 @@ describe('release.yml label definitions', () => {
       expect(description.length).toBeLessThanOrEqual(100);
     },
   );
+});
+
+describe('GITHUB_OUTPUT bump (#525)', () => {
+  const script = fileURLToPath(new URL('../../scripts/release-version.mjs', import.meta.url));
+  const outputFor = (labels: string[]) => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'release-version-'));
+    const out = path.join(dir, 'output');
+    writeFileSync(out, '');
+    try {
+      execFileSync('node', [script], {
+        env: { ...process.env, PR_LABELS: JSON.stringify(labels), GITHUB_OUTPUT: out },
+        stdio: 'ignore',
+      });
+      return Object.fromEntries(
+        readFileSync(out, 'utf8')
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => [line.split('=')[0], line.slice(line.indexOf('=') + 1)]),
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  it.each(['major', 'minor', 'patch', 'none'])('writes bump=%s for release:%s', (bump) => {
+    const output = outputFor([`release:${bump}`]);
+    expect(output.bump).toBe(bump);
+    expect(output).toHaveProperty('tag');
+    expect(output).toHaveProperty('reason');
+  });
+
+  it('writes an empty bump with no release label, and with an unrelated one', () => {
+    expect(outputFor([])).toMatchObject({ bump: '', tag: '' });
+    expect(outputFor(['bug'])).toMatchObject({ bump: '', tag: '' });
+  });
 });

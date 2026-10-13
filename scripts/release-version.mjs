@@ -139,7 +139,10 @@ function main() {
 
   console.log(decision.tag ? `Next release: ${decision.tag} (${decision.reason})` : `No release: ${decision.reason}`);
   if (process.env.GITHUB_OUTPUT) {
-    appendFileSync(process.env.GITHUB_OUTPUT, `tag=${decision.tag}\nreason=${decision.reason}\n`);
+    // `bump` is the label's verdict (major|minor|patch|none), empty without a release label.
+    // release.yml uses it to deploy Stage for a release:major.
+    const bump = bumpFromLabels(labels) ?? '';
+    appendFileSync(process.env.GITHUB_OUTPUT, `tag=${decision.tag}\nreason=${decision.reason}\nbump=${bump}\n`);
   }
 }
 
