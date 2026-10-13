@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'src/**'
-      - 'vercel.json'
+      - 'docs/deployment/hosting-plan.md'
       - 'website/docs/**'
       - 'scripts/docs-drift.mjs'
       - '.github/workflows/docs-drift.yml'
