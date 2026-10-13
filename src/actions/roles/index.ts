@@ -157,6 +157,49 @@ export async function getAllPermissions(): Promise<{
 // Write Operations
 // =====================================================
 
+/**
+ * Permission-escalation rule (#503), shared by createRoleWithPermissions and
+ * updateRolePermissions: only a super_admin may put a permission on a role that
+ * the caller does not hold themselves; anyone else may grant only a subset of
+ * their own permissions. Otherwise a manage_roles holder could mint or edit a
+ * role carrying permissions they lack and then (with assign_roles) hand it out.
+ * An id that resolves to no permission is refused, and so is a failed lookup.
+ * Returns an error message, or null when the grant is allowed.
+ */
+async function assertCallerMayGrantPermissions(
+  auth: { roleName: string | null; permissions?: string[] },
+  permissionIds: string[]
+): Promise<string | null> {
+  if (permissionIds.length === 0 || auth.roleName === 'super_admin') return null;
+
+  const supabase = await createServerSupabaseClient();
+  const { data: requested, error: lookupError } = await supabase
+    .from('app_permissions')
+    .select('id, name')
+    .in('id', permissionIds);
+
+  if (lookupError) {
+    console.error('[roles] Could not resolve permissions for the grant check:', lookupError);
+    return 'Could not verify the requested permissions';
+  }
+
+  const held = new Set(auth.permissions ?? []);
+  const byId = new Map((requested ?? []).map((p) => [p.id, p.name]));
+  const notAllowed = permissionIds.some((id) => {
+    const permName = byId.get(id);
+    return !permName || !held.has(permName);
+  });
+
+  return notAllowed
+    ? 'Only Super Administrator can grant permissions you do not hold yourself'
+    : null;
+}
+
+/** Values the role form offers; anything else is refused rather than stored. */
+const ROLE_CATEGORIES = ['exco', 'bot', 'staff', 'resident'];
+const ROLE_LEVEL_MIN = 0;
+const ROLE_LEVEL_MAX = 10;
+
 /** Role names no one may create (compared trimmed and lower-cased). */
 const RESERVED_ROLE_NAMES = ['super_admin', 'chairman'];
 
@@ -182,6 +225,21 @@ export async function createRole(roleData: AppRoleInsert): Promise<{
   }
   if (RESERVED_ROLE_NAMES.includes(name.toLowerCase())) {
     return { success: false, error: 'That role name is reserved' };
+  }
+
+  // level and category are validated against what the role form offers: an
+  // integer 0-10 and one of four categories (#503). There is no rank-by-level
+  // concept to compare against the caller's -- authorization ranks by role name
+  // (role-rank.ts) and `level` is display/ordering only -- so this is a type and
+  // range check, not an outranks check.
+  if (
+    roleData.level !== undefined &&
+    (!Number.isInteger(roleData.level) || roleData.level < ROLE_LEVEL_MIN || roleData.level > ROLE_LEVEL_MAX)
+  ) {
+    return { success: false, error: `Level must be a whole number from ${ROLE_LEVEL_MIN} to ${ROLE_LEVEL_MAX}` };
+  }
+  if (roleData.category !== undefined && !ROLE_CATEGORIES.includes(roleData.category)) {
+    return { success: false, error: 'Unknown role category' };
   }
 
   const supabase = await createServerSupabaseClient();
@@ -245,36 +303,11 @@ export async function createRoleWithPermissions(
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
-  // Permission guard (#503). Rule: only a super_admin may create a role carrying
-  // a permission the caller does not hold themselves; anyone else may attach only
-  // a subset of their own permissions. Otherwise a manage_roles holder could mint
-  // a role with permissions they lack and then (with assign_roles) hand it out.
-  // An id that resolves to no permission is refused. Checked before anything is
-  // written, so a refusal leaves no role behind.
-  if (permissionIds.length > 0 && auth.roleName !== 'super_admin') {
-    const supabase = await createServerSupabaseClient();
-    const { data: requested, error: lookupError } = await supabase
-      .from('app_permissions')
-      .select('id, name')
-      .in('id', permissionIds);
-
-    if (lookupError) {
-      console.error('[createRoleWithPermissions] Could not resolve permissions:', lookupError);
-      return { success: false, error: 'Could not verify the requested permissions' };
-    }
-
-    const held = new Set(auth.permissions ?? []);
-    const byId = new Map((requested ?? []).map((p) => [p.id, p.name]));
-    const notAllowed = permissionIds.some((id) => {
-      const permName = byId.get(id);
-      return !permName || !held.has(permName);
-    });
-    if (notAllowed) {
-      return {
-        success: false,
-        error: 'Only Super Administrator can grant permissions you do not hold yourself',
-      };
-    }
+  // Permission guard (#503): see assertCallerMayGrantPermissions. Checked before
+  // anything is written, so a refusal leaves no role behind.
+  const grantRefusal = await assertCallerMayGrantPermissions(auth, permissionIds);
+  if (grantRefusal) {
+    return { success: false, error: grantRefusal };
   }
 
   const created = await createRole(roleData);
@@ -482,6 +515,16 @@ export async function updateRolePermissions(
     .eq('role_id', roleId);
 
   const oldPermIds = oldPerms?.map((p) => p.permission_id) || [];
+
+  // Escalation guard (#503): only permissions being ADDED are checked; keeping or
+  // removing a permission the caller does not hold stays allowed.
+  const grantRefusal = await assertCallerMayGrantPermissions(
+    auth,
+    permissionIds.filter((id) => !oldPermIds.includes(id))
+  );
+  if (grantRefusal) {
+    return { success: false, error: grantRefusal };
+  }
 
   // Delete all existing permissions for this role.
   //

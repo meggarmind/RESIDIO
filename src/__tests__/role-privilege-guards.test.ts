@@ -101,7 +101,7 @@ vi.mock('@/actions/email-imports/process-email-import', () => ({
 }));
 
 import { removeRoleFromProfile } from '@/actions/roles/assign-role';
-import { createRole, createRoleWithPermissions } from '@/actions/roles/index';
+import { createRole, createRoleWithPermissions, updateRolePermissions } from '@/actions/roles/index';
 import { updateRoleAssignmentRule, batchUpdateRoleAssignmentRules } from '@/actions/roles/assignment-rules';
 import { toggleImpersonationEnabled } from '@/actions/impersonation/approval';
 import { checkPaymentEmails } from '@/actions/email-imports/check-payment';
@@ -114,6 +114,7 @@ const ROLES: Record<string, Row> = {
   secretary: { id: 'r-sec', name: 'secretary', display_name: 'Secretary', is_active: true, is_system_role: true },
   resident: { id: 'r-res', name: 'resident', display_name: 'Resident', is_active: true, is_system_role: true },
   treasurer: { id: 'r-treasurer', name: 'treasurer', display_name: 'Treasurer', is_active: true, is_system_role: false },
+  auditor: { id: 'r-auditor', name: 'auditor', display_name: 'Auditor', is_active: true, is_system_role: false },
 };
 
 const PERMS: Row[] = [
@@ -127,7 +128,8 @@ function seed(caller: keyof typeof ROLES, target: keyof typeof ROLES | null = 's
   state.tables = {
     app_roles: Object.values(ROLES).map((r) => ({ ...r })),
     app_permissions: PERMS.map((p) => ({ ...p })),
-    role_permissions: [],
+    // the custom auditor role already holds x.admin, which no non-super_admin caller below does
+    role_permissions: [{ role_id: 'r-auditor', permission_id: 'p-admin' }],
     role_assignment_rules: [],
     profiles: [
       { id: 'caller', email: 'c@example.test', full_name: 'Caller', role_id: ROLES[caller].id, approval_status: 'active' },
@@ -351,5 +353,75 @@ describe('checkPaymentEmails', () => {
     expect(result.success).toBe(true);
     expect(state.parseAllPendingEmails).toHaveBeenCalledWith('imp-1');
     expect(state.matchEmailTransactions).toHaveBeenCalledWith('imp-1');
+  });
+});
+
+describe('createRole level and category', () => {
+  const base = { name: 'auditor', display_name: 'Auditor' };
+
+  it.each([-1, 11, 1.5, Number.NaN])('refuses level %s and writes nothing', async (level) => {
+    seed('chairman');
+    expect((await createRole({ ...base, level })).success).toBe(false);
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+
+  it('refuses an unknown category and writes nothing', async () => {
+    seed('chairman');
+    expect((await createRole({ ...base, category: 'wizard' as never })).success).toBe(false);
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+
+  it.each([0, 5, 10])('keeps the legitimate level %s the form can send', async (level) => {
+    seed('chairman');
+    const result = await createRole({ ...base, level, category: 'exco' });
+    expect(result.success).toBe(true);
+    expect((writesTo('app_roles')[0].values as Row).level).toBe(level);
+    expect((writesTo('app_roles')[0].values as Row).category).toBe('exco');
+  });
+});
+
+describe('updateRolePermissions escalation', () => {
+  const auditor = ROLES.auditor.id as string;
+
+  it('refuses a non-super_admin adding a permission they do not hold, and changes nothing', async () => {
+    seed('treasurer', 'secretary', ['x.view']);
+    const result = await updateRolePermissions(auditor, ['p-admin', 'p-edit']);
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/do not hold/);
+    expect(writesTo('role_permissions')).toEqual([]);
+  });
+
+  it('refuses a permission id that resolves to nothing', async () => {
+    seed('treasurer', 'secretary', ['x.view']);
+    expect((await updateRolePermissions(auditor, ['p-missing'])).success).toBe(false);
+    expect(writesTo('role_permissions')).toEqual([]);
+  });
+
+  it('lets a non-super_admin add permissions they hold', async () => {
+    seed('treasurer', 'secretary', ['x.view', 'x.edit', 'x.admin']);
+    expect((await updateRolePermissions(auditor, ['p-view', 'p-edit'])).success).toBe(true);
+  });
+
+  it('lets a non-super_admin keep or remove a permission they do not hold', async () => {
+    seed('treasurer', 'secretary', ['x.view']);
+    // p-admin is already on the role (kept), p-view is new but held
+    expect((await updateRolePermissions(auditor, ['p-admin', 'p-view'])).success).toBe(true);
+    seed('treasurer', 'secretary', []);
+    // removing everything adds nothing
+    expect((await updateRolePermissions(auditor, [])).success).toBe(true);
+  });
+
+  it('lets a super_admin add any permission', async () => {
+    seed('super_admin', 'secretary', []);
+    expect((await updateRolePermissions(auditor, ['p-admin', 'p-edit'])).success).toBe(true);
+  });
+
+  it('closes the create-empty-then-edit route around createRoleWithPermissions', async () => {
+    seed('chairman', 'secretary', ['x.view']);
+    const created = await createRoleWithPermissions({ name: 'sneaky', display_name: 'Sneaky' }, []);
+    expect(created.success).toBe(true);
+    const newRoleId = (state.tables.app_roles.find((r) => r.name === 'sneaky') as Row).id as string;
+    expect((await updateRolePermissions(newRoleId, ['p-admin'])).success).toBe(false);
+    expect(writesTo('role_permissions')).toEqual([]);
   });
 });
