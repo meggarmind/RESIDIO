@@ -388,7 +388,7 @@ See detailed progress in: `docs/features/global-search.md`
 
 ### Recent Session Work (2026-01-19): Portal Access Diagnostics
 - [x] **Investigation**: Diagnosed `/portal` redirect issue as expected authentication behavior (requires login + `resident_id`).
-- [x] **Diagnostic Tool**: Created `public/portal-diagnostic.html` for self-service authentication checks against cloud Supabase.
+- [x] **Diagnostic Tool**: Created a static portal-diagnostic page for self-service authentication checks (removed in #400: it shipped a hardcoded, since-rotated Supabase key).
 - [x] **Documentation**: Created solution walkthrough covering login, test account creation, and admin impersonation.
 - [x] **Verification**: Confirmed behavior is correct and provided user with resolution steps.
 
