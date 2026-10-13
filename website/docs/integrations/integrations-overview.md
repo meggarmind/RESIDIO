@@ -25,7 +25,7 @@ Residio talks to a small set of external services. Each one is configured with s
 |---|---|---|
 | WhatsApp Cloud API | Resident messaging, identity checks, and balance lookups | **Settings → WhatsApp** |
 | Email (Resend) | Outbound notifications, reminders, receipts | **Settings → Email** |
-| SMS (Termii) | Emergency broadcasts, verification codes, two-factor codes | **Settings → Notifications** |
+| SMS (Termii) | Emergency broadcasts, two-factor codes (contact verification SMS is switched off until Termii is connected) | **Settings → Notifications** |
 | Gmail import | Pulls bank alerts and statements into the payment queue | **Settings → Email Integration** |
 | Bank statement files | CSV, Excel, and PDF statement parsing | **Transactions → Import Statement** |
 | Paystack | Online card payment collection and reconciliation | **Transactions**, **Approvals** |
