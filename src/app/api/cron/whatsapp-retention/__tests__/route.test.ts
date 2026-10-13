@@ -48,10 +48,25 @@ describe('GET /api/cron/whatsapp-retention', () => {
     expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 5, processedMessageDays: 9 });
   });
 
-  it('falls back to 1 and 2 days when the settings are unset or not numbers', async () => {
-    settings({ whatsapp_session_retention_days: '7', whatsapp_processed_message_retention_days: null });
+  it('falls back to 1 and 2 days when the settings are unset', async () => {
+    settings({ whatsapp_session_retention_days: null, whatsapp_processed_message_retention_days: null });
     await GET(request(`Bearer ${SECRET}`));
     expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 1, processedMessageDays: 2 });
+  });
+
+  // Defensive: getSettingValueAsService coerces numeric strings to numbers, so
+  // a non-numeric value should not reach the route in practice.
+  it('defensively falls back to the defaults for a clearly non-numeric value', async () => {
+    settings({ whatsapp_session_retention_days: {}, whatsapp_processed_message_retention_days: true });
+    await GET(request(`Bearer ${SECRET}`));
+    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 1, processedMessageDays: 2 });
+  });
+
+  // A stored '7' is coerced to the number 7 by the settings service.
+  it('passes an in-range numeric value through unchanged', async () => {
+    settings({ whatsapp_session_retention_days: 7, whatsapp_processed_message_retention_days: 7 });
+    await GET(request(`Bearer ${SECRET}`));
+    expect(purgeWhatsAppOperationalState).toHaveBeenCalledWith({ sessionDays: 7, processedMessageDays: 7 });
   });
 
   it('clamps retention days above 30 down to 30', async () => {
