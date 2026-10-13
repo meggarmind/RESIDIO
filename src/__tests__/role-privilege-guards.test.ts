@@ -11,6 +11,8 @@ type Row = Record<string, unknown>;
 const state = vi.hoisted(() => ({
   tables: {} as Record<string, Row[]>,
   writes: [] as Array<{ table: string; op: string; values?: Row | Row[] }>,
+  /** Tables whose SELECTs fail with a database error. */
+  failReads: [] as string[],
   auth: {
     authorized: true,
     userId: 'caller',
@@ -73,11 +75,15 @@ function fakeFrom(table: string) {
     order: () => builder,
     limit: () => builder,
     single: async () => {
+      if (op === 'select' && state.failReads.includes(table)) return { data: null, error: { message: 'db down' } };
       const rows = execute();
       return rows[0] ? { data: rows[0], error: null } : { data: null, error: { message: 'no rows' } };
     },
     maybeSingle: async () => ({ data: execute()[0] ?? null, error: null }),
-    then: (resolve: (v: unknown) => unknown) => resolve({ data: execute(), error: null }),
+    then: (resolve: (v: unknown) => unknown) =>
+      op === 'select' && state.failReads.includes(table)
+        ? resolve({ data: null, error: { message: 'db down' } })
+        : resolve({ data: execute(), error: null }),
   };
   return builder;
 }
@@ -101,7 +107,7 @@ vi.mock('@/actions/email-imports/process-email-import', () => ({
 }));
 
 import { removeRoleFromProfile } from '@/actions/roles/assign-role';
-import { createRole, createRoleWithPermissions, updateRolePermissions } from '@/actions/roles/index';
+import { createRole, createRoleWithPermissions, updateRole, updateRolePermissions } from '@/actions/roles/index';
 import { updateRoleAssignmentRule, batchUpdateRoleAssignmentRules } from '@/actions/roles/assignment-rules';
 import { toggleImpersonationEnabled } from '@/actions/impersonation/approval';
 import { checkPaymentEmails } from '@/actions/email-imports/check-payment';
@@ -125,6 +131,7 @@ const PERMS: Row[] = [
 
 function seed(caller: keyof typeof ROLES, target: keyof typeof ROLES | null = 'secretary', callerPerms: string[] = []) {
   state.writes = [];
+  state.failReads = [];
   state.tables = {
     app_roles: Object.values(ROLES).map((r) => ({ ...r })),
     app_permissions: PERMS.map((p) => ({ ...p })),
@@ -423,5 +430,173 @@ describe('updateRolePermissions escalation', () => {
     const newRoleId = (state.tables.app_roles.find((r) => r.name === 'sneaky') as Row).id as string;
     expect((await updateRolePermissions(newRoleId, ['p-admin'])).success).toBe(false);
     expect(writesTo('role_permissions')).toEqual([]);
+  });
+});
+
+describe('role name guard (shared by createRole, createRoleWithPermissions, updateRole)', () => {
+  const reservedVariants = [
+    'super_admin',
+    'Chairman',
+    'ｃｈａｉｒｍａｎ', // fullwidth, folds to chairman under NFKC
+    'chair​man', // zero-width space
+    'super⁠_admin', // word joiner
+    '﻿chairman', // BOM
+    'chair\u0007man', // control character
+    ' admin ',
+    'financial_secretary',
+    'financial_officer',
+    'vice_chairman',
+    'Secretary',
+    'resident', // an existing system role, caught via the database read
+  ];
+
+  it.each(reservedVariants)('createRole refuses %j and writes nothing', async (name) => {
+    seed('super_admin');
+    const result = await createRole({ name, display_name: 'x' });
+    expect(result).toEqual({ success: false, error: 'That role name is reserved' });
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+
+  it('createRoleWithPermissions refuses a look-alike name and creates nothing', async () => {
+    seed('super_admin');
+    const result = await createRoleWithPermissions({ name: 'chair​man', display_name: 'x' }, ['p-view']);
+    expect(result).toEqual({ success: false, error: 'That role name is reserved' });
+    expect(writesTo('app_roles')).toEqual([]);
+    expect(writesTo('role_permissions')).toEqual([]);
+  });
+
+  it('reads system role names from the database, so a newly seeded system role is protected', async () => {
+    seed('chairman');
+    state.tables.app_roles.push({ id: 'r-new', name: 'Bursar', display_name: 'Bursar', is_active: true, is_system_role: true });
+    expect((await createRole({ name: 'bursar', display_name: 'x' })).error).toBe('That role name is reserved');
+  });
+
+  it('refuses when the system role names cannot be read', async () => {
+    seed('chairman');
+    state.failReads = ['app_roles'];
+    const result = await createRole({ name: 'auditor', display_name: 'x' });
+    expect(result).toEqual({ success: false, error: 'Could not verify the role name' });
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+
+  it('stores the cleaned name and still accepts an ordinary one', async () => {
+    seed('chairman');
+    const result = await createRole({ name: ' audi​tor ', display_name: 'Auditor' });
+    expect(result.success).toBe(true);
+    expect((writesTo('app_roles')[0].values as Row).name).toBe('auditor');
+  });
+});
+
+describe('updateRole on a custom role', () => {
+  const auditor = ROLES.auditor.id as string;
+
+  it('never writes is_system_role or fields outside the whitelist', async () => {
+    seed('chairman');
+    const result = await updateRole(auditor, {
+      display_name: 'Renamed',
+      is_system_role: true,
+      id: 'forged',
+      created_by: 'forged',
+    } as never);
+    expect(result.success).toBe(true);
+    expect(writesTo('app_roles')[0].values).toEqual({ display_name: 'Renamed' });
+  });
+
+  it.each([-1, 11, 2.5])('refuses level %s and writes nothing', async (level) => {
+    seed('chairman');
+    expect((await updateRole(auditor, { level })).success).toBe(false);
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+
+  it('refuses an unknown category and writes nothing', async () => {
+    seed('chairman');
+    expect((await updateRole(auditor, { category: 'wizard' as never })).success).toBe(false);
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+
+  it('keeps the legitimate values the form sends', async () => {
+    seed('chairman');
+    const body = { display_name: 'X', description: null, category: 'staff' as const, level: 3, is_active: false };
+    expect((await updateRole(auditor, body)).success).toBe(true);
+    expect(writesTo('app_roles')[0].values).toEqual(body);
+  });
+
+  it('refuses a rename to a reserved or blank name, and writes nothing', async () => {
+    seed('chairman');
+    for (const name of ['chair​man', 'secretary', '   ']) {
+      expect((await updateRole(auditor, { name } as never)).success).toBe(false);
+    }
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+
+  it('allows a rename to a free name, stored cleaned', async () => {
+    seed('chairman');
+    expect((await updateRole(auditor, { name: ' inspector ' } as never)).success).toBe(true);
+    expect((writesTo('app_roles')[0].values as Row).name).toBe('inspector');
+  });
+
+  it('refuses a non-super_admin editing the role they hold, and writes nothing', async () => {
+    seed('treasurer');
+    const result = await updateRole(ROLES.treasurer.id as string, { display_name: 'Mine' });
+    expect(result).toEqual({ success: false, error: 'You cannot edit your own role' });
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+});
+
+describe('error text and no-write guarantees for refusals', () => {
+  it('a refused batch writes nothing, even for the legitimate rows in it', async () => {
+    seed('chairman');
+    const result = await batchUpdateRoleAssignmentRules([
+      { residentRole: 'tenant' as never, appRoleId: ROLES.secretary.id as string, isAllowed: true },
+      { residentRole: 'tenant' as never, appRoleId: ROLES.treasurer.id as string, isAllowed: true },
+      { residentRole: 'tenant' as never, appRoleId: ROLES.chairman.id as string, isAllowed: true },
+    ]);
+    expect(result).toEqual({
+      success: false,
+      error: 'You cannot allow a rule to assign a role that you could not assign yourself',
+    });
+    expect(state.writes).toEqual([]);
+    expect(state.tables.role_assignment_rules).toEqual([]);
+  });
+
+  it('a failed role lookup in the rule check refuses with its exact message', async () => {
+    seed('chairman');
+    state.failReads = ['app_roles'];
+    expect(await updateRoleAssignmentRule('tenant' as never, ROLES.secretary.id as string, true)).toEqual({
+      success: false,
+      error: 'Could not verify the roles in this rule',
+    });
+    expect(
+      await batchUpdateRoleAssignmentRules([
+        { residentRole: 'tenant' as never, appRoleId: ROLES.secretary.id as string, isAllowed: true },
+      ])
+    ).toEqual({ success: false, error: 'Could not verify the roles in this rule' });
+    expect(writesTo('role_assignment_rules')).toEqual([]);
+  });
+
+  it('an unknown role in a rule is refused with "Role not found"', async () => {
+    seed('chairman');
+    expect(await updateRoleAssignmentRule('tenant' as never, 'r-missing', true)).toEqual({
+      success: false,
+      error: 'Role not found',
+    });
+  });
+
+  it('a failed permission lookup refuses createRoleWithPermissions with its exact message', async () => {
+    seed('chairman', 'secretary', ['x.view']);
+    state.failReads = ['app_permissions'];
+    expect(await createRoleWithPermissions({ name: 'auditor', display_name: 'A' }, ['p-view'])).toEqual({
+      success: false,
+      error: 'Could not verify the requested permissions',
+    });
+    expect(writesTo('app_roles')).toEqual([]);
+  });
+
+  it('an unknown permission id is refused with the grant message, not accepted', async () => {
+    seed('chairman', 'secretary', ['x.view']);
+    expect(await createRoleWithPermissions({ name: 'auditor', display_name: 'A' }, ['p-missing'])).toEqual({
+      success: false,
+      error: 'Only Super Administrator can grant permissions you do not hold yourself',
+    });
   });
 });

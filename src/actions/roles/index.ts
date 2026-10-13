@@ -200,8 +200,88 @@ const ROLE_CATEGORIES = ['exco', 'bot', 'staff', 'resident'];
 const ROLE_LEVEL_MIN = 0;
 const ROLE_LEVEL_MAX = 10;
 
-/** Role names no one may create (compared trimmed and lower-cased). */
-const RESERVED_ROLE_NAMES = ['super_admin', 'chairman'];
+/**
+ * Names no custom role may take, whatever the database says: the two top roles,
+ * plus the legacy names the RLS policies were written against (#503), so a custom
+ * role can never carry a name a policy might key on. System role names are added
+ * at check time from the database.
+ */
+const RESERVED_ROLE_NAMES = [
+  'super_admin',
+  'chairman',
+  'admin',
+  'financial_secretary',
+  'financial_officer',
+  'vice_chairman',
+  'secretary',
+];
+
+/**
+ * Canonical form of a role name for comparison and storage: NFKC (so fullwidth
+ * and compatibility look-alikes fold to ASCII), with zero-width, other format and
+ * control characters removed, then trimmed. Callers lower-case it to compare.
+ */
+function cleanRoleName(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  return raw.normalize('NFKC').replace(/[\p{Cf}\p{Cc}]/gu, '').trim();
+}
+
+/**
+ * Shared name guard for createRole, createRoleWithPermissions (via createRole)
+ * and updateRole. Returns the cleaned name to store, or an error. The reserved
+ * set is the static list above plus every existing is_system_role name, read now;
+ * a failed read refuses rather than allows.
+ */
+async function checkRoleName(
+  raw: unknown
+): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  const name = cleanRoleName(raw);
+  if (!name) {
+    return { ok: false, error: 'Role name is required' };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data: systemRoles, error } = await supabase
+    .from('app_roles')
+    .select('name')
+    .eq('is_system_role', true);
+
+  if (error) {
+    console.error('[roles] Could not read system role names for the name guard:', error);
+    return { ok: false, error: 'Could not verify the role name' };
+  }
+
+  const reserved = new Set([
+    ...RESERVED_ROLE_NAMES,
+    ...(systemRoles ?? []).map((r) => cleanRoleName(r.name).toLowerCase()),
+  ]);
+  if (reserved.has(name.toLowerCase())) {
+    return { ok: false, error: 'That role name is reserved' };
+  }
+
+  return { ok: true, name };
+}
+
+/**
+ * Validates the fields a role form can send. level and category are checked
+ * against what the form offers; there is no rank-by-level concept (authorization
+ * ranks by role name, see role-rank.ts), so this is a type and range check.
+ */
+function checkRoleFields(data: { level?: unknown; category?: unknown }): string | null {
+  if (
+    data.level !== undefined &&
+    (typeof data.level !== 'number' ||
+      !Number.isInteger(data.level) ||
+      data.level < ROLE_LEVEL_MIN ||
+      data.level > ROLE_LEVEL_MAX)
+  ) {
+    return `Level must be a whole number from ${ROLE_LEVEL_MIN} to ${ROLE_LEVEL_MAX}`;
+  }
+  if (data.category !== undefined && !ROLE_CATEGORIES.includes(data.category as string)) {
+    return 'Unknown role category';
+  }
+  return null;
+}
 
 /**
  * Create a new role
@@ -216,30 +296,16 @@ export async function createRole(roleData: AppRoleInsert): Promise<{
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
-  // Name guard (#503): a role may not be created under the name of one of the two
-  // top roles. Compared trimmed and case-insensitively, so ' Chairman ' and
-  // 'SUPER_ADMIN' are refused too; the name written is the trimmed one.
-  const name = typeof roleData.name === 'string' ? roleData.name.trim() : '';
-  if (!name) {
-    return { success: false, error: 'Role name is required' };
+  // Name guard (#503): see checkRoleName. The cleaned name is what is stored.
+  const nameCheck = await checkRoleName(roleData.name);
+  if (!nameCheck.ok) {
+    return { success: false, error: nameCheck.error };
   }
-  if (RESERVED_ROLE_NAMES.includes(name.toLowerCase())) {
-    return { success: false, error: 'That role name is reserved' };
-  }
+  const name = nameCheck.name;
 
-  // level and category are validated against what the role form offers: an
-  // integer 0-10 and one of four categories (#503). There is no rank-by-level
-  // concept to compare against the caller's -- authorization ranks by role name
-  // (role-rank.ts) and `level` is display/ordering only -- so this is a type and
-  // range check, not an outranks check.
-  if (
-    roleData.level !== undefined &&
-    (!Number.isInteger(roleData.level) || roleData.level < ROLE_LEVEL_MIN || roleData.level > ROLE_LEVEL_MAX)
-  ) {
-    return { success: false, error: `Level must be a whole number from ${ROLE_LEVEL_MIN} to ${ROLE_LEVEL_MAX}` };
-  }
-  if (roleData.category !== undefined && !ROLE_CATEGORIES.includes(roleData.category)) {
-    return { success: false, error: 'Unknown role category' };
+  const fieldError = checkRoleFields(roleData);
+  if (fieldError) {
+    return { success: false, error: fieldError };
   }
 
   const supabase = await createServerSupabaseClient();
@@ -365,6 +431,12 @@ export async function updateRole(
     return { success: false, error: 'Only Super Administrator can edit system roles' };
   }
 
+  // Own-role guard (#503), mirroring updateRolePermissions: only a super admin may
+  // edit the role they themselves hold.
+  if (auth.roleName !== 'super_admin' && auth.roleId === roleId) {
+    return { success: false, error: 'You cannot edit your own role' };
+  }
+
   // Check if it's a system role
   if (oldRole?.is_system_role) {
     // System roles can only have limited fields updated
@@ -376,6 +448,36 @@ export async function updateRole(
       }
     }
     roleData = updateData as AppRoleUpdate;
+  } else {
+    // Custom role (#503): same validation as createRole, and an explicit field
+    // whitelist so the client payload can never write is_system_role, id,
+    // created_by or anything else. A rename (not offered by the form) must pass
+    // the shared name guard.
+    const incoming = roleData as Record<string, unknown>;
+    const fieldError = checkRoleFields(incoming);
+    if (fieldError) {
+      return { success: false, error: fieldError };
+    }
+
+    const clean: Record<string, unknown> = {};
+    for (const key of [
+      'display_name',
+      'description',
+      'category',
+      'level',
+      'is_active',
+      'can_be_assigned_to_resident',
+    ]) {
+      if (key in incoming) clean[key] = incoming[key];
+    }
+    if ('name' in incoming) {
+      const nameCheck = await checkRoleName(incoming.name);
+      if (!nameCheck.ok) {
+        return { success: false, error: nameCheck.error };
+      }
+      clean.name = nameCheck.name;
+    }
+    roleData = clean as AppRoleUpdate;
   }
 
   const { data, error } = await supabase
