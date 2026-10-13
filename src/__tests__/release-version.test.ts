@@ -167,8 +167,8 @@ describe('GITHUB_OUTPUT bump (#525)', () => {
     }
   };
 
-  it.each(['major', 'minor', 'patch', 'none'])('writes bump=%s for release:%s', (bump) => {
-    const output = outputFor([`release:${bump}`]);
+  it.each(['major', 'minor', 'patch', 'none'].map((b) => [b, `release:${b}`]))('writes bump=%s for %s', (bump, label) => {
+    const output = outputFor([label]);
     expect(output.bump).toBe(bump);
     expect(output).toHaveProperty('tag');
     expect(output).toHaveProperty('reason');

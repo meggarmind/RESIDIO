@@ -19,8 +19,8 @@
  * Usage (the workflow sets these):
  *   PR_LABELS='["release:minor"]' node scripts/release-version.mjs
  *
- * Writes `tag=<vX.Y.Z or empty>` and `reason=<text>` to $GITHUB_OUTPUT when set, and
- * always to stdout. Exits non-zero only when the labels contradict each other or the
+ * Writes `tag=<vX.Y.Z or empty>`, `reason=<text>` and `bump=<major|minor|patch|none, or
+ * empty without a release label>` to $GITHUB_OUTPUT when set, and always to stdout. Exits non-zero only when the labels contradict each other or the
  * version state is unreadable; a failed run never tags.
  */
 

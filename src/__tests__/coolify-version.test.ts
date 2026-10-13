@@ -485,6 +485,13 @@ describe('main', () => {
     },
   );
 
+  it.each(['TRUE', '1', 'yes', 'false', ''])('a stray DEPLOY=%j on Stage still makes only the two non-deploy requests', async (value) => {
+    const { done, calls } = run({ ...realistic, TARGET_ENV: 'staging', DEPLOY: value });
+    await done;
+    const app = `${realistic.COOLIFY_BASE_URL}/api/v1/applications/${realistic.COOLIFY_APP_UUID_STAGE}`;
+    expect(calls.map((call) => `${call.init.method} ${call.url}`)).toEqual([`PATCH ${app}/envs/bulk`, `PATCH ${app}`]);
+  });
+
   it.each(['push', 'workflow_dispatch'])('Stage sets the variables then pins the commit, no deploy (%s)', async (event) => {
     const { done, calls } = run({ ...realistic, TARGET_ENV: 'staging', GITHUB_EVENT_NAME: event });
     await done;
@@ -640,6 +647,14 @@ describe('main with DEPLOY=true (#525)', () => {
     expect(stageHead).not.toHaveBeenCalled();
   });
 
+  it('compares full SHAs: a head sharing the first 12 characters still counts as moved on', async () => {
+    const lookalike = c('s4').slice(0, 12) + 'f'.repeat(28);
+    const { done, calls, logs } = run(staging, { head: lookalike });
+    await expect(done).resolves.toBeUndefined();
+    expect(calls).toHaveLength(0);
+    expect(logs.some((line) => line.startsWith('::notice::Stage has moved on'))).toBe(true);
+  });
+
   it('does nothing, without failing, when stage has moved past the released commit', async () => {
     const { done, calls, logs } = run(staging, { head: c('newer') });
     await expect(done).resolves.toBeUndefined();
@@ -675,7 +690,7 @@ describe('main with DEPLOY=true (#525)', () => {
             ? {
                 deployments: [
                   {
-                    message: `Queued\u0007 ${realistic.COOLIFY_APP_UUID_STAGE} ${'x'.repeat(400)}`,
+                    message: `Queued\u0007 ${realistic.COOLIFY_APP_UUID_STAGE} ${'x'.repeat(5000)}`,
                     resource_uuid: realistic.COOLIFY_APP_UUID_STAGE,
                     deployment_uuid: 'dep-123',
                   },
@@ -690,6 +705,10 @@ describe('main with DEPLOY=true (#525)', () => {
     expect(line).toContain('dep-123');
     for (const value of realisticValues) expect(logs.join('\n')).not.toContain(value);
     expect(line.length).toBeLessThan(500);
+    const parts = line.slice(line.indexOf('(') + 1, -1).split(': ');
+    expect(parts).toHaveLength(2);
+    for (const part of parts) expect(part.length).toBeLessThanOrEqual(200);
+    expect(parts[1]).toHaveLength(200);
     expect(line).not.toMatch(/[\u0000-\u001f]/);
   });
 
@@ -768,6 +787,8 @@ describe('coolify-version.yml and its call from release.yml', () => {
 
   it('release.yml describes the merge commit the tag sits on, never the PR head (Prod path)', () => {
     expect(releaseJob()).not.toMatch(/pull_request\.head\.sha/);
+    // The Prod call never asks for a deploy.
+    expect(releaseJob()).not.toMatch(/\bdeploy:/);
     expect(releaseJob()).toMatch(/\n\s+ref: \$\{\{ github\.event\.pull_request\.merge_commit_sha \}\}\n/);
     // The tag job checks out the same commit it tags.
     expect(release).toMatch(/ref: \$\{\{ github\.event\.pull_request\.merge_commit_sha \}\}\n\s+fetch-depth: 0/);
@@ -816,6 +837,7 @@ describe('coolify-version.yml and its call from release.yml', () => {
     expect(job).toMatch(/needs\.tag\.outputs\.tag != ''/);
     expect(job).toMatch(/needs\.tag\.outputs\.bump == 'major'/);
     expect(job).toMatch(/github\.event\.pull_request\.head\.ref == 'stage'/);
+    expect(job).toMatch(/github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
     expect(job).toMatch(/permissions:\n\s+contents: read\n/);
     expect(job).toMatch(/uses: \.\/\.github\/workflows\/coolify-version\.yml/);
     expect(release).toMatch(/\n {6}bump: \$\{\{ steps\.version\.outputs\.bump \}\}/);

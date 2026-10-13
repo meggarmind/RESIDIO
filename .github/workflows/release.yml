@@ -114,6 +114,7 @@ jobs:
   #    commit exists on `master` only, and Stage builds from `stage`.
   #  - `head.ref == 'stage'`: a major hotfix comes from a hotfix branch and must not land on
   #    Stage before master is merged back into stage.
+  #  - Same-repo only (belt and braces): a fork cannot have a branch named `stage` deploy.
   #  - The script deploys only if that commit is still stage's head; otherwise the cron
   #    deploys the newer one.
   stage-deploy:
@@ -122,7 +123,8 @@ jobs:
     if: >-
       needs.tag.outputs.tag != '' &&
       needs.tag.outputs.bump == 'major' &&
-      github.event.pull_request.head.ref == 'stage'
+      github.event.pull_request.head.ref == 'stage' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: read
     uses: ./.github/workflows/coolify-version.yml

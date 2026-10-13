@@ -474,10 +474,9 @@ the commit belongs to: `v0.5.0` on the release, and on the `stage` commit it mer
 `NEXT_PUBLIC_APP_ENV` (`production` or `staging`). They are **set by CI**
 (`.github/workflows/coolify-version.yml`), not by hand. Prod's values are set on each release
 tag, and CI never deploys Prod. Stage's are set on each push to `stage`, and CI also pins residio-stage's commit to that SHA.
-CI does not deploy Stage, with one exception: the KVM cron does, every 4 hours, building the
-pinned commit. The exception is a `release:major` release from `stage`, which deploys
-residio-stage immediately (#525). That is
-why Stage's own auto-deploy is off. Setup and secrets:
+CI does not deploy Stage: the KVM cron does, every 4 hours, building the pinned commit, which
+is why Stage's own auto-deploy is off. The one exception is a `release:major` merged from
+`stage`, which `release.yml` deploys straight away (#525). Setup and secrets:
 `docs/agents/branching.md` (Build version variables). The admin sidebar footer and
 `GET /api/version` show them; until CI sets them the app shows `dev · unknown`.
 
