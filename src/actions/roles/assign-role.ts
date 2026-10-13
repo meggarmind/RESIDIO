@@ -406,6 +406,14 @@ export async function removeRoleFromProfile(
     return { success: false, error: 'Account not found' };
   }
 
+  // Target guard (#503, same rule as #475): the account being changed must not
+  // outrank the caller. The name checks below only covered chairman/super_admin;
+  // this is the rank comparison against the target's CURRENT role.
+  const targetGuard = await assertCanManageTarget(auth.userId!, profileId);
+  if (!targetGuard.ok) {
+    return { success: false, error: targetGuard.error };
+  }
+
   if (profile.role_id) {
     const { data: currentRole } = await supabase
       .from('app_roles')

@@ -4,6 +4,8 @@ import { fetchNewEmails } from './fetch-emails';
 import { parseAllPendingEmails } from './parse-email';
 import { matchEmailTransactions } from './process-email-import';
 import { logAudit } from '@/lib/audit/logger';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 /**
  * Orchestrates the full email import pipeline for manual payment verification.
@@ -12,6 +14,16 @@ import { logAudit } from '@/lib/audit/logger';
  * 3. Matches transactions to residents/wallets
  */
 export async function checkPaymentEmails() {
+    // #503: this calls parseAllPendingEmails and matchEmailTransactions directly,
+    // so it must not lean on fetchNewEmails' own check.
+    const auth = await authorizePermission(PERMISSIONS.EMAIL_IMPORTS_TRIGGER);
+    if (!auth.authorized) {
+        return {
+            success: false,
+            message: auth.error || 'Unauthorized'
+        };
+    }
+
     try {
         console.log('Starting manual payment check...');
 

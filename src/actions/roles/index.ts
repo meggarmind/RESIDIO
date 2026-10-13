@@ -158,6 +158,132 @@ export async function getAllPermissions(): Promise<{
 // =====================================================
 
 /**
+ * Permission-escalation rule (#503), shared by createRoleWithPermissions and
+ * updateRolePermissions: only a super_admin may put a permission on a role that
+ * the caller does not hold themselves; anyone else may grant only a subset of
+ * their own permissions. Otherwise a manage_roles holder could mint or edit a
+ * role carrying permissions they lack and then (with assign_roles) hand it out.
+ * An id that resolves to no permission is refused, and so is a failed lookup.
+ * Returns an error message, or null when the grant is allowed.
+ */
+async function assertCallerMayGrantPermissions(
+  auth: { roleName: string | null; permissions?: string[] },
+  permissionIds: string[]
+): Promise<string | null> {
+  if (permissionIds.length === 0 || auth.roleName === 'super_admin') return null;
+
+  const supabase = await createServerSupabaseClient();
+  const { data: requested, error: lookupError } = await supabase
+    .from('app_permissions')
+    .select('id, name')
+    .in('id', permissionIds);
+
+  if (lookupError) {
+    console.error('[roles] Could not resolve permissions for the grant check:', lookupError);
+    return 'Could not verify the requested permissions';
+  }
+
+  const held = new Set(auth.permissions ?? []);
+  const byId = new Map((requested ?? []).map((p) => [p.id, p.name]));
+  const notAllowed = permissionIds.some((id) => {
+    const permName = byId.get(id);
+    return !permName || !held.has(permName);
+  });
+
+  return notAllowed
+    ? 'Only Super Administrator can grant permissions you do not hold yourself'
+    : null;
+}
+
+/** Values the role form offers; anything else is refused rather than stored. */
+const ROLE_CATEGORIES = ['exco', 'bot', 'staff', 'resident'];
+const ROLE_LEVEL_MIN = 0;
+const ROLE_LEVEL_MAX = 10;
+
+/**
+ * Names no custom role may take, whatever the database says: the two top roles,
+ * plus the legacy names the RLS policies were written against (#503), so a custom
+ * role can never carry a name a policy might key on. System role names are added
+ * at check time from the database.
+ */
+const RESERVED_ROLE_NAMES = [
+  'super_admin',
+  'chairman',
+  'admin',
+  'financial_secretary',
+  'financial_officer',
+  'vice_chairman',
+  'secretary',
+];
+
+/**
+ * Canonical form of a role name for comparison and storage: NFKC (so fullwidth
+ * and compatibility look-alikes fold to ASCII), with zero-width, other format and
+ * control characters removed, then trimmed. Callers lower-case it to compare.
+ */
+function cleanRoleName(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  return raw.normalize('NFKC').replace(/[\p{Cf}\p{Cc}]/gu, '').trim();
+}
+
+/**
+ * Shared name guard for createRole, createRoleWithPermissions (via createRole)
+ * and updateRole. Returns the cleaned name to store, or an error. The reserved
+ * set is the static list above plus every existing is_system_role name, read now;
+ * a failed read refuses rather than allows.
+ */
+async function checkRoleName(
+  raw: unknown
+): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  const name = cleanRoleName(raw);
+  if (!name) {
+    return { ok: false, error: 'Role name is required' };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data: systemRoles, error } = await supabase
+    .from('app_roles')
+    .select('name')
+    .eq('is_system_role', true);
+
+  if (error) {
+    console.error('[roles] Could not read system role names for the name guard:', error);
+    return { ok: false, error: 'Could not verify the role name' };
+  }
+
+  const reserved = new Set([
+    ...RESERVED_ROLE_NAMES,
+    ...(systemRoles ?? []).map((r) => cleanRoleName(r.name).toLowerCase()),
+  ]);
+  if (reserved.has(name.toLowerCase())) {
+    return { ok: false, error: 'That role name is reserved' };
+  }
+
+  return { ok: true, name };
+}
+
+/**
+ * Validates the fields a role form can send. level and category are checked
+ * against what the form offers; there is no rank-by-level concept (authorization
+ * ranks by role name, see role-rank.ts), so this is a type and range check.
+ */
+function checkRoleFields(data: { level?: unknown; category?: unknown }): string | null {
+  if (
+    data.level !== undefined &&
+    (typeof data.level !== 'number' ||
+      !Number.isInteger(data.level) ||
+      data.level < ROLE_LEVEL_MIN ||
+      data.level > ROLE_LEVEL_MAX)
+  ) {
+    return `Level must be a whole number from ${ROLE_LEVEL_MIN} to ${ROLE_LEVEL_MAX}`;
+  }
+  if (data.category !== undefined && !ROLE_CATEGORIES.includes(data.category as string)) {
+    return 'Unknown role category';
+  }
+  return null;
+}
+
+/**
  * Create a new role
  */
 export async function createRole(roleData: AppRoleInsert): Promise<{
@@ -170,12 +296,34 @@ export async function createRole(roleData: AppRoleInsert): Promise<{
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
+  // Name guard (#503): see checkRoleName. The cleaned name is what is stored.
+  const nameCheck = await checkRoleName(roleData.name);
+  if (!nameCheck.ok) {
+    return { success: false, error: nameCheck.error };
+  }
+  const name = nameCheck.name;
+
+  const fieldError = checkRoleFields(roleData);
+  if (fieldError) {
+    return { success: false, error: fieldError };
+  }
+
   const supabase = await createServerSupabaseClient();
 
+  // Fields are copied explicitly rather than spread from the client payload, and
+  // is_system_role is always false (#503): system roles are seeded by migration,
+  // never minted through this action, whatever the client sent.
   const { data, error } = await supabase
     .from('app_roles')
     .insert({
-      ...roleData,
+      name,
+      display_name: roleData.display_name,
+      description: roleData.description,
+      category: roleData.category,
+      level: roleData.level,
+      is_active: roleData.is_active,
+      can_be_assigned_to_resident: roleData.can_be_assigned_to_resident,
+      is_system_role: false,
       created_by: auth.userId,
     })
     .select()
@@ -216,6 +364,18 @@ export async function createRoleWithPermissions(
   data?: AppRole;
   error?: string;
 }> {
+  const auth = await authorizePermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
+  // Permission guard (#503): see assertCallerMayGrantPermissions. Checked before
+  // anything is written, so a refusal leaves no role behind.
+  const grantRefusal = await assertCallerMayGrantPermissions(auth, permissionIds);
+  if (grantRefusal) {
+    return { success: false, error: grantRefusal };
+  }
+
   const created = await createRole(roleData);
   if (!created.success || !created.data) return created;
 
@@ -271,6 +431,12 @@ export async function updateRole(
     return { success: false, error: 'Only Super Administrator can edit system roles' };
   }
 
+  // Own-role guard (#503), mirroring updateRolePermissions: only a super admin may
+  // edit the role they themselves hold.
+  if (auth.roleName !== 'super_admin' && auth.roleId === roleId) {
+    return { success: false, error: 'You cannot edit your own role' };
+  }
+
   // Check if it's a system role
   if (oldRole?.is_system_role) {
     // System roles can only have limited fields updated
@@ -282,6 +448,36 @@ export async function updateRole(
       }
     }
     roleData = updateData as AppRoleUpdate;
+  } else {
+    // Custom role (#503): same validation as createRole, and an explicit field
+    // whitelist so the client payload can never write is_system_role, id,
+    // created_by or anything else. A rename (not offered by the form) must pass
+    // the shared name guard.
+    const incoming = roleData as Record<string, unknown>;
+    const fieldError = checkRoleFields(incoming);
+    if (fieldError) {
+      return { success: false, error: fieldError };
+    }
+
+    const clean: Record<string, unknown> = {};
+    for (const key of [
+      'display_name',
+      'description',
+      'category',
+      'level',
+      'is_active',
+      'can_be_assigned_to_resident',
+    ]) {
+      if (key in incoming) clean[key] = incoming[key];
+    }
+    if ('name' in incoming) {
+      const nameCheck = await checkRoleName(incoming.name);
+      if (!nameCheck.ok) {
+        return { success: false, error: nameCheck.error };
+      }
+      clean.name = nameCheck.name;
+    }
+    roleData = clean as AppRoleUpdate;
   }
 
   const { data, error } = await supabase
@@ -421,6 +617,16 @@ export async function updateRolePermissions(
     .eq('role_id', roleId);
 
   const oldPermIds = oldPerms?.map((p) => p.permission_id) || [];
+
+  // Escalation guard (#503): only permissions being ADDED are checked; keeping or
+  // removing a permission the caller does not hold stays allowed.
+  const grantRefusal = await assertCallerMayGrantPermissions(
+    auth,
+    permissionIds.filter((id) => !oldPermIds.includes(id))
+  );
+  if (grantRefusal) {
+    return { success: false, error: grantRefusal };
+  }
 
   // Delete all existing permissions for this role.
   //

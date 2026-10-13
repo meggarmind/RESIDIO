@@ -316,6 +316,13 @@ export async function toggleImpersonationEnabled(
     return { success: false, error: auth.error || 'Unauthorized' };
   }
 
+  // Super admin only (#503): the doc comment already said so and nothing
+  // enforced it. Enabling impersonation for an account lets it act as other
+  // users, so delegating impersonation.manage_settings must not delegate that.
+  if (auth.roleName !== 'super_admin') {
+    return { success: false, error: 'Only Super Administrator can change impersonation access' };
+  }
+
   const supabase = await createServerSupabaseClient();
 
   // Get profile to verify it exists and is an admin

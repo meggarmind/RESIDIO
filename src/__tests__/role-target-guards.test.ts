@@ -430,6 +430,9 @@ describe('updateRolePermissions', () => {
 
   it("lets a non-super_admin edit another custom role's permissions", async () => {
     seed({ caller: 'treasurer' });
+    // #503: a caller may add only permissions they hold themselves.
+    state.tables.app_permissions = [{ id: 'p2', name: 'x.view' }];
+    state.auth.permissions = ['x.view'];
     const result = await updateRolePermissions(ROLES.auditor.id as string, ['p2']);
     expect(result.success).toBe(true);
     expect(state.tables.role_permissions.map((r) => r.permission_id)).toEqual(['p2']);
