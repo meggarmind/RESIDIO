@@ -6,6 +6,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
 import { paymentFormSchema } from '@/lib/validators/payment';
 import { residentHasHouse } from '@/lib/payments/house-membership';
+import { findLockedFieldChanges, VERIFIED_LOCK_MESSAGE } from '@/lib/payments/verified-lock';
 import { z } from 'zod';
 
 const updatePaymentSchema = paymentFormSchema.partial();
@@ -29,11 +30,22 @@ export async function updatePayment(id: string, data: z.infer<typeof updatePayme
     const supabase = await createServerSupabaseClient();
 
     // Capture the pre-update state so the audit entry records what actually changed
-    const { data: oldRecord } = await supabase
+    const { data: oldRecord, error: fetchError } = await supabase
         .from('payment_records')
         .select('*')
         .eq('id', id)
         .single();
+
+    // Fail closed: without the stored record we cannot tell whether the payment is verified
+    if (fetchError || !oldRecord) {
+        return { error: 'Payment not found', success: false };
+    }
+
+    // #502: a verified payment's amount, payer, property and status are frozen. The form
+    // re-sends the unchanged values, so only a real difference is refused.
+    if (findLockedFieldChanges(oldRecord.is_verified, oldRecord, input).length > 0) {
+        return { error: VERIFIED_LOCK_MESSAGE, success: false };
+    }
 
     // A house must belong to the (possibly changed) resident
     // Only re-validate when the house or the resident actually changes: the edit form always

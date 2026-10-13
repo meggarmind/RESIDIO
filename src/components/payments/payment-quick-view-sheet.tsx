@@ -7,6 +7,7 @@ import { usePayment } from '@/hooks/use-payments';
 import { printReceipt } from '@/lib/print-receipt';
 import { PaymentReceipt } from '@/components/payments/payment-receipt';
 import { EmailReceiptDialog } from '@/components/payments/email-receipt-dialog';
+import { UnverifyPaymentButton } from '@/components/payments/unverify-payment-button';
 import { Button } from '@/components/ui/button';
 import {
     Sheet,
@@ -85,6 +86,7 @@ export function PaymentQuickViewSheet({
                     {payment && !isLoading && (
                         <>
                             <div className="flex flex-wrap items-center justify-end gap-2">
+                                <UnverifyPaymentButton paymentId={payment.id} isVerified={payment.is_verified} />
                                 <EmailReceiptDialog
                                     paymentId={payment.id}
                                     trigger={

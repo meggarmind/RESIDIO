@@ -4,6 +4,7 @@ import { getPayment } from '@/actions/payments/get-payment';
 import { createPayment } from '@/actions/payments/create-payment';
 import { createSplitPayment } from '@/actions/payments/create-split-payment';
 import { updatePayment } from '@/actions/payments/update-payment';
+import { unverifyPayment } from '@/actions/finance/manual-verification';
 import { deletePayment } from '@/actions/payments/delete-payment';
 import { getPaymentStats } from '@/actions/payments/get-payment-stats';
 import { bulkUpdatePayments } from '@/actions/payments/bulk-update-payments';
@@ -72,6 +73,27 @@ export function useUpdatePayment() {
             queryClient.invalidateQueries({ queryKey: ['payments'] });
             queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
             toast.success('Payment updated successfully');
+        },
+        onError: (error) => {
+            toast.error(error.message);
+        },
+    });
+}
+
+export function useUnverifyPayment() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+            const result = await unverifyPayment(id, reason);
+            if (!result.success) throw new Error(result.error || 'Failed to un-verify payment');
+            return result;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['payments'] });
+            queryClient.invalidateQueries({ queryKey: ['payment'] });
+            queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
+            toast.success('Payment un-verified');
         },
         onError: (error) => {
             toast.error(error.message);
