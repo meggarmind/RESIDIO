@@ -3,9 +3,13 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { importWhatsAppOptIns } from '@/actions/whatsapp/identity';
 
 export function OptInImport() {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
   const [value, setValue] = useState('resident_code,phone_number\n');
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -17,6 +21,10 @@ export function OptInImport() {
         ? `${result.data.imported} imported, ${result.data.duplicates} duplicate(s), ${result.data.errors.length} error(s)`
         : result.error);
     });
+  }
+
+  if (!canManage) {
+    return <p className="text-sm text-muted-foreground">You need the WhatsApp manage permission to import opt-ins.</p>;
   }
 
   return (

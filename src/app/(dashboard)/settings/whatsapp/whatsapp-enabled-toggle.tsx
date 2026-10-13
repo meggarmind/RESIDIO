@@ -2,6 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import { Switch } from '@/components/ui/switch';
+import { toast } from 'sonner';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { setWhatsAppEnabled } from '@/actions/whatsapp/pilot';
 
 /**
@@ -14,6 +17,8 @@ import { setWhatsAppEnabled } from '@/actions/whatsapp/pilot';
  * unreadable, so this control is the only way to turn WhatsApp sending on.
  */
 export function WhatsAppEnabledToggle({ initialValue }: { initialValue: boolean }) {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
   const [enabled, setEnabled] = useState(initialValue);
   const [isPending, startTransition] = useTransition();
 
@@ -22,14 +27,17 @@ export function WhatsAppEnabledToggle({ initialValue }: { initialValue: boolean 
     setEnabled(nextValue);
     startTransition(async () => {
       const result = await setWhatsAppEnabled(nextValue);
-      if (!result.success) setEnabled(previousValue);
+      if (!result.success) {
+        setEnabled(previousValue);
+        toast.error(result.error || 'Failed to update WhatsApp channel setting');
+      }
     });
   }
 
   return (
     <Switch
       checked={enabled}
-      disabled={isPending}
+      disabled={isPending || !canManage}
       onCheckedChange={handleChange}
       aria-label="Enable the WhatsApp channel"
     />

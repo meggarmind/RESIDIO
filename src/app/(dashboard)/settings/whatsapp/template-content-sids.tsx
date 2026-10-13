@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { updateWhatsAppTemplateContentSids } from '@/actions/whatsapp/connection';
 import { WHATSAPP_TEMPLATE_NAMES } from '@/lib/whatsapp/templates';
 
@@ -22,6 +24,8 @@ const TEMPLATE_LABELS: Record<string, string> = {
 const TEMPLATE_NAMES = Object.values(WHATSAPP_TEMPLATE_NAMES);
 
 export function TemplateContentSids({ initial }: { initial: Record<string, string> | null }) {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
   const [values, setValues] = useState<Record<string, string>>(() => {
     const seed: Record<string, string> = {};
     for (const name of TEMPLATE_NAMES) {
@@ -62,7 +66,7 @@ export function TemplateContentSids({ initial }: { initial: Record<string, strin
         ))}
       </div>
       <div className="flex items-center gap-3">
-        <Button type="button" size="sm" disabled={isPending} onClick={save}>
+        <Button type="button" size="sm" disabled={isPending || !canManage} onClick={save}>
           Save template content SIDs
         </Button>
         {message && <span className="text-xs text-muted-foreground">{message}</span>}

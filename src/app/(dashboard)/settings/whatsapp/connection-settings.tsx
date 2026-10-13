@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { Input } from '@/components/ui/input';
 import {
   getWhatsAppConnectionStatus,
@@ -54,6 +56,8 @@ export function ConnectionSettings({
   initial: WhatsAppConnectionStatus;
   siteUrl: string;
 }) {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
   const [status, setStatus] = useState(initial);
   const [provider, setProvider] = useState<WhatsAppProviderName>(initial.provider || 'meta');
   const [showForm, setShowForm] = useState(!initial.connected);
@@ -201,17 +205,17 @@ export function ConnectionSettings({
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        {status.connected && !showForm && (
+        {canManage && status.connected && !showForm && (
           <Button type="button" size="sm" variant="outline" disabled={isPending} onClick={() => setShowForm(true)}>
             Replace credentials
           </Button>
         )}
-        {status.connected && (
+        {canManage && status.connected && (
           <Button type="button" size="sm" variant="destructive" disabled={isPending} onClick={disconnect}>
             Disconnect
           </Button>
         )}
-        <Button type="button" size="sm" variant="outline" disabled={isPending} onClick={test}>
+        <Button type="button" size="sm" variant="outline" disabled={isPending || !canManage} onClick={test}>
           Test connection
         </Button>
         {testMessage && <span className="text-xs text-muted-foreground">{testMessage}</span>}
@@ -229,7 +233,7 @@ export function ConnectionSettings({
         </div>
       )}
 
-      {showForm && (
+      {canManage && showForm && (
         <div className="space-y-3 rounded-md border p-3">
           <label className="space-y-1 text-sm">
             <span className="text-muted-foreground">Provider</span>
