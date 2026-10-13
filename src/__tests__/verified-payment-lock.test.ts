@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 type Call = { table: string; payload: unknown };
 const updates: Call[] = [];
 const results: Record<string, unknown> = {};
-const audit = vi.fn(async (..._a: unknown[]) => undefined);
+const audit = vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => undefined);
 
 function makeBuilder(table: string) {
   const b: Record<string, unknown> = {};
@@ -22,7 +22,7 @@ const supabase = {
   auth: { getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } } })) },
 };
 
-const authorize = vi.fn(async (..._a: unknown[]) => ({ authorized: true }));
+const authorize = vi.fn<(...args: unknown[]) => Promise<{ authorized: boolean }>>(async () => ({ authorized: true }));
 vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient: vi.fn(async () => supabase) }));
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: (...a: unknown[]) => authorize(...a) }));
 vi.mock('@/lib/audit/logger', () => ({
