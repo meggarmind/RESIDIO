@@ -112,7 +112,8 @@ export interface MonthlyTrend {
 
 
 export interface EnhancedDashboardStats {
-    financialHealth: FinancialHealthMetrics;
+    /** null when the financial section failed to load; consumers must render an unavailable state. */
+    financialHealth: FinancialHealthMetrics | null;
     invoiceDistribution: InvoiceStatusDistribution;
     securityAlerts: SecurityAlerts;
     developmentLevy: DevelopmentLevyStatus;
@@ -274,12 +275,9 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
 
     return {
         data: {
-            financialHealth: financialData || {
-                totalOutstanding: 0, totalCollected: 0, collectionRate: 0,
-                monthlyRevenue: 0, totalMonthlyRevenue: 0, previousMonthRevenue: 0, revenueChange: 0,
-                totalWalletBalance: 0, portfolioValue: 0, importedBankNetCash: 0, pettyCashBalance: 0,
-                estateCash: 0, walletCredits: 0, overdueAmount: 0, overdueCount: 0
-            },
+            // null (not a zero-filled object) when the section failed, so the UI shows
+            // "unavailable" instead of fabricated 0 revenue / 0% collection.
+            financialHealth: financialData,
             invoiceDistribution: invoiceDistribution || {
                 unpaid: 0, paid: 0, partiallyPaid: 0, overdue: 0, void: 0
             },

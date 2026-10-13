@@ -104,9 +104,9 @@ describe('admin dashboard snapshot contract', () => {
     const now = new Date();
     const cur = now.getMonth() + 1;
     const prev = ((now.getMonth() + 11) % 12) + 1;
-    expect(result.data?.financialHealth.totalMonthlyRevenue).toBe(2_500_000 + cur * 1000);
-    expect(result.data?.financialHealth.monthlyRevenue).toBe(2_000_000 + cur * 1000);
-    expect(result.data?.financialHealth.previousMonthRevenue).toBe(2_000_000 + prev * 1000);
+    expect(result.data?.financialHealth?.totalMonthlyRevenue).toBe(2_500_000 + cur * 1000);
+    expect(result.data?.financialHealth?.monthlyRevenue).toBe(2_000_000 + cur * 1000);
+    expect(result.data?.financialHealth?.previousMonthRevenue).toBe(2_000_000 + prev * 1000);
     expect(result.data?.monthlyTrends).toHaveLength(6);
     expect(result.data?.monthlyTrends[5]).toMatchObject({
       revenue: 2_500_000 + cur * 1000,
@@ -116,7 +116,7 @@ describe('admin dashboard snapshot contract', () => {
     expect(rpc).toHaveBeenCalledTimes(8);
   });
 
-  it('falls back to empty financial health and trends when the payment RPC errors', async () => {
+  it('reports financial health as null and trends as empty when the payment RPC errors', async () => {
     authorizePermission.mockResolvedValue({ authorized: true });
     rpc.mockResolvedValue({ data: null, error: { message: 'rpc failed' } });
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -129,8 +129,7 @@ describe('admin dashboard snapshot contract', () => {
     const result = await getAdminDashboardSnapshot();
 
     expect(result.error).toBeNull();
-    expect(result.data?.financialHealth.totalMonthlyRevenue).toBe(0);
-    expect(result.data?.financialHealth.monthlyRevenue).toBe(0);
+    expect(result.data?.financialHealth).toBeNull();
     expect(result.data?.monthlyTrends).toEqual([]);
     // Unrelated sections are unaffected by the payment failure.
     expect(result.data?.invoiceDistribution).toBeDefined();

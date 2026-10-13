@@ -72,9 +72,9 @@ describe('admin dashboard snapshot payment figures come from the RPC (#215, #459
     const now = new Date();
     const cur = now.getMonth() + 1;
     const prevMonth = ((now.getMonth() + 11) % 12) + 1;
-    expect(data?.financialHealth.totalMonthlyRevenue).toBe(1_000_000 + cur);
-    expect(data?.financialHealth.monthlyRevenue).toBe(500_000 + cur);
-    expect(data?.financialHealth.previousMonthRevenue).toBe(500_000 + prevMonth);
+    expect(data?.financialHealth?.totalMonthlyRevenue).toBe(1_000_000 + cur);
+    expect(data?.financialHealth?.monthlyRevenue).toBe(500_000 + cur);
+    expect(data?.financialHealth?.previousMonthRevenue).toBe(500_000 + prevMonth);
 
     expect(data?.monthlyTrends).toHaveLength(6);
     const last = data!.monthlyTrends[5];
@@ -93,14 +93,13 @@ describe('admin dashboard snapshot payment figures come from the RPC (#215, #459
     expect(selects.filter((s) => s.table === 'payment_records' && s.columns.includes('amount'))).toEqual([]);
   });
 
-  it('falls back to the existing empty financial figures and an empty trend on RPC error, never partial numbers', async () => {
+  it('reports financial health as null (not zeros) and an empty trend on RPC error, never partial numbers', async () => {
     const { client } = makeClient(() => ({ data: null, error: { message: 'boom' } }));
     createServerSupabaseClient.mockResolvedValue(client);
 
     const { data } = await getAdminDashboardSnapshot();
 
-    expect(data?.financialHealth.totalMonthlyRevenue).toBe(0);
-    expect(data?.financialHealth.monthlyRevenue).toBe(0);
+    expect(data?.financialHealth).toBeNull();
     expect(data?.monthlyTrends).toEqual([]);
   });
 
@@ -110,7 +109,7 @@ describe('admin dashboard snapshot payment figures come from the RPC (#215, #459
 
     const { data } = await getAdminDashboardSnapshot();
 
-    expect(data?.financialHealth.totalMonthlyRevenue).toBe(0);
+    expect(data?.financialHealth).toBeNull();
     expect(data?.monthlyTrends).toEqual([]);
   });
 });
