@@ -250,6 +250,12 @@ async function sendViaWhatsApp(
   });
 
   if (!result.success) {
+    // DORMANT while SMS is off (owner decision 2026-10-13): the fallback is
+    // additionally gated on isChannelImplemented('sms'), so it never calls
+    // sendSms and the WhatsApp failure is returned unchanged. It wakes up when
+    // 'sms' is added back to IMPLEMENTED_CHANNELS. The 2026-10-07 decision to
+    // revisit this trigger before Termii is connected still applies.
+    //
     // SMS fallback (owner decision, #401): covers URGENT-priority sends only
     // (announcements today), and only when the active provider is Chatmaid --
     // a bridge with no delivery guarantee and no recovery path for a message
@@ -257,7 +263,8 @@ async function sendViaWhatsApp(
     // receipts (NORMAL priority) are left to fail here so the queue retries
     // them; this must not change Meta/Twilio behaviour at all, so it only
     // fires after the normal WhatsApp send has already failed.
-    const shouldConsiderSmsFallback = item.priority === PRIORITY.URGENT;
+    const shouldConsiderSmsFallback =
+      item.priority === PRIORITY.URGENT && isChannelImplemented('sms');
     if (shouldConsiderSmsFallback) {
       const resolved = await resolveWhatsAppConfig();
       const activeProviderIsChatmaid = resolved.status === 'ok' && resolved.config.provider === 'chatmaid';

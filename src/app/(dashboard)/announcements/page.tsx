@@ -37,6 +37,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { isChannelImplemented } from '@/lib/notifications/types';
 
 type ChannelKey = 'inApp' | 'email' | 'sms' | 'whatsapp';
 
@@ -57,7 +58,7 @@ export default function AnnouncementsPage() {
   const [channels, setChannels] = useState({
     inApp: true,
     email: true,
-    sms: true,
+    sms: isChannelImplemented('sms'),
     whatsapp: false, // Disabled - not yet implemented
   });
   const [showResults, setShowResults] = useState(false);
@@ -91,8 +92,10 @@ export default function AnnouncementsPage() {
       key: 'sms',
       label: 'SMS',
       icon: <MessageSquare className="h-4 w-4" />,
-      enabled: true,
-      description: 'Text message to all resident phone numbers',
+      enabled: isChannelImplemented('sms'),
+      description: isChannelImplemented('sms')
+        ? 'Text message to all resident phone numbers'
+        : 'Unavailable until the SMS provider is connected',
     },
     {
       key: 'whatsapp',
