@@ -8,7 +8,7 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: aa601b6
+residio_verified_commit: cb3c86b
 residio_verified_at: '2026-10-13'
 residio_app_version: '0.4.0'
 ---
@@ -84,7 +84,7 @@ Chatmaid works through a phone that stays paired to the bridge, so the estate's 
 - **Messages are lost while the phone is disconnected.** Anything a resident sends to the number while the bridge is down never reaches Residio, and nothing is recovered when it reconnects. Residents who wrote in during an outage may need to be contacted.
 - **Sending needs the bridge connected.** Before each send, Residio checks that the phone is connected; if it is not, the send fails with a "bridge is disconnected" error. (Residio re-checks at most every 30 seconds.)
 - **Admins are alerted.** When Chatmaid reports the phone disconnected, admins receive an urgent notification linking to **Settings → WhatsApp**; a normal-priority notification follows when it reconnects. Re-pair the phone in the Chatmaid dashboard to restore service.
-- **Urgent messages fall back to SMS.** See the SMS fallback section on the Email and SMS page.
+- **Urgent messages fall back to SMS (currently off until the SMS provider is connected).** See the SMS fallback section on the Email and SMS page.
 - **Human takeover.** If someone on the estate team replies to a resident directly from the phone, the Assistant stays silent in that conversation for 30 minutes so the two do not talk over each other. The resident's messages during that time are still recorded and are not answered later.
 
 ## Turning the channel on

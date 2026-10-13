@@ -11,6 +11,7 @@ import { EmergencyBroadcastEmail } from '@/emails/emergency-broadcast';
 import type { Announcement } from '@/types/database';
 import { whatsappTemplate, WHATSAPP_TEMPLATE_NAMES } from '@/lib/whatsapp';
 import { addToQueue, PRIORITY } from '@/lib/notifications/queue';
+import { isChannelImplemented } from '@/lib/notifications/types';
 
 export interface MultiChannelEmergencyInput {
   title: string;
@@ -154,6 +155,18 @@ async function sendSmsBroadcast(
   content: string,
   summary: string | undefined
 ): Promise<ChannelResult> {
+  // SMS is switched off until the provider is connected (owner decision
+  // 2026-10-13). Report it as a failed channel so the admin sees that nothing
+  // went out; a silent skip or a false success is wrong for an emergency tool.
+  if (!isChannelImplemented('sms')) {
+    return {
+      channel: 'sms',
+      success: false,
+      count: 0,
+      error: 'SMS is disabled until the SMS provider is connected',
+    };
+  }
+
   // Filter residents with valid phone numbers
   const recipientsWithPhone = residents.filter(
     (r) => r.phone_primary && r.phone_primary.length >= 10

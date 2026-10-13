@@ -9,6 +9,7 @@ import { logAudit } from '@/lib/audit/logger';
 import type { VerificationType, SendVerificationResult } from '@/types/database';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { isChannelImplemented } from '@/lib/notifications/types';
 
 // Token expiry in minutes
 const TOKEN_EXPIRY_MINUTES = 30;
@@ -199,6 +200,13 @@ export async function sendEmailVerification(residentId: string): Promise<SendVer
 export async function sendPhoneVerification(residentId: string): Promise<SendVerificationResult> {
   const auth = await authorizePermission(PERMISSIONS.RESIDENTS_VERIFY);
   if (!auth.authorized) return { success: false, message: auth.error || 'Unauthorized' };
+
+  // Owner decision 2026-10-13: contact-verification SMS is off until Termii is connected.
+  // Must run after authorize and before any DB work (no token insert, no rate-limit use).
+  // Re-enable by adding 'sms' to IMPLEMENTED_CHANNELS in src/lib/notifications/types.ts.
+  if (!isChannelImplemented('sms')) {
+    return { success: false, message: 'SMS verification is unavailable until the SMS provider is connected' };
+  }
 
   const supabase = await createServerSupabaseClient();
   const adminClient = createAdminClient();

@@ -1,0 +1,106 @@
+# Encrypted backups of both Supabase projects to a private Cloudflare R2 bucket (#415).
+#
+#   Residio_Prod   nightly  database dump + incremental encrypted storage mirror
+#   Residio_Stage  weekly   database dump + keep-awake query (free projects pause when idle)
+#
+# Plan: docs/deployment/hosting-plan.md "Backup plan". Secrets and the restore runbook:
+# same file, "Backups: secrets, restore runbook". The logic lives in scripts/backup/.
+#
+# Failure is deliberately loud: no continue-on-error anywhere, every script runs with
+# `set -euo pipefail`, and GitHub emails on a failed scheduled run. The job fails while
+# the Supabase project is paused: resume it first.
+#
+# SECURITY NOTE: no untrusted input. workflow_dispatch takes one choice input, passed
+# through an env var. Secrets reach scripts only as environment variables and are never
+# printed; dumps are encrypted with age to a public key before they leave the runner.
+
+name: Backup Database
+
+on:
+  schedule:
+    # Prod, nightly 02:23 UTC. The job `if` below compares against this exact string.
+    - cron: '23 2 * * *'
+    # Stage, weekly on Monday 03:41 UTC. The job `if` below compares against this exact string.
+    - cron: '41 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which database to back up'
+        type: choice
+        options:
+          - prod
+          - stage
+          - both
+        default: prod
+
+permissions:
+  contents: read
+
+jobs:
+  prod:
+    name: Back up Residio_Prod
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '23 2 * * *') ||
+      (github.event_name == 'workflow_dispatch' && inputs.target != 'stage')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: backup-database-prod
+      cancel-in-progress: false
+    env:
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      BACKUP_AGE_PUBLIC_KEY: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
+      DB_URL: ${{ secrets.PROD_DB_URL }}
+      STORAGE_S3_ENDPOINT: ${{ secrets.PROD_STORAGE_S3_ENDPOINT }}
+      STORAGE_S3_REGION: ${{ secrets.PROD_STORAGE_S3_REGION }}
+      STORAGE_S3_ACCESS_KEY_ID: ${{ secrets.PROD_STORAGE_S3_ACCESS_KEY_ID }}
+      STORAGE_S3_SECRET_ACCESS_KEY: ${{ secrets.PROD_STORAGE_S3_SECRET_ACCESS_KEY }}
+      FILES_CRYPT_PASSWORD: ${{ secrets.FILES_CRYPT_PASSWORD }}
+      FILES_CRYPT_PASSWORD2: ${{ secrets.FILES_CRYPT_PASSWORD2 }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install PostgreSQL 17 client, age and rclone
+        run: bash scripts/backup/install-tools.sh
+
+      - name: Dump, encrypt and upload database
+        run: bash scripts/backup/db-backup.sh prod
+
+      - name: Sync storage files to encrypted mirror
+        run: bash scripts/backup/files-sync.sh prod
+
+  stage:
+    name: Back up Residio_Stage
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '41 3 * * 1') ||
+      (github.event_name == 'workflow_dispatch' && inputs.target != 'prod')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: backup-database-stage
+      cancel-in-progress: false
+    env:
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      BACKUP_AGE_PUBLIC_KEY: ${{ secrets.BACKUP_AGE_PUBLIC_KEY }}
+      DB_URL: ${{ secrets.STAGE_DB_URL }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install PostgreSQL 17 client, age and rclone
+        run: bash scripts/backup/install-tools.sh
+
+      # Counts as activity, so the free project does not pause. Runs first: if the
+      # project is paused this fails here with a clear connection error.
+      - name: Keep Residio_Stage awake
+        run: psql --no-psqlrc --no-password --tuples-only --command 'select 1' "$DB_URL"
+
+      - name: Dump, encrypt and upload database
+        run: bash scripts/backup/db-backup.sh stage
