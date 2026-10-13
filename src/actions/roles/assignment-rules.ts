@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { canGrantRole } from '@/lib/auth/role-rank';
 import type {
   RoleAssignmentRule,
   RoleAssignmentRuleWithRole,
@@ -101,6 +102,42 @@ export async function getRulesByResidentRole(): Promise<{
 // =====================================================
 
 /**
+ * Rank guard (#503): a rule that ALLOWS a role is an automatic grant path, so it
+ * may only allow a role the caller could grant themselves (canGrantRole: the two
+ * top roles are super_admin-only, nothing above the caller's own rank). Rules
+ * that disallow a role only narrow what can be granted and are not checked.
+ * An unknown role id is refused rather than assumed harmless.
+ */
+async function assertCanAllowRoles(
+  callerRoleName: string | null | undefined,
+  appRoleIds: string[]
+): Promise<string | null> {
+  if (appRoleIds.length === 0) return null;
+  const unique = Array.from(new Set(appRoleIds));
+
+  const supabase = await createServerSupabaseClient();
+  const { data: roles, error } = await supabase
+    .from('app_roles')
+    .select('id, name')
+    .in('id', unique);
+
+  if (error) {
+    console.error('[assignment-rules] Could not resolve roles for rank check:', error);
+    return 'Could not verify the roles in this rule';
+  }
+
+  const nameById = new Map((roles ?? []).map((r) => [r.id, r.name as string]));
+  for (const id of unique) {
+    const roleName = nameById.get(id);
+    if (!roleName) return 'Role not found';
+    if (!canGrantRole(callerRoleName, roleName)) {
+      return 'You cannot allow a rule to assign a role that you could not assign yourself';
+    }
+  }
+  return null;
+}
+
+/**
  * Update a single rule's is_allowed status
  */
 export async function updateRoleAssignmentRule(
@@ -114,6 +151,11 @@ export async function updateRoleAssignmentRule(
   const auth = await authorizePermission(PERMISSIONS.SYSTEM_MANAGE_ROLES);
   if (!auth.authorized) {
     return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
+  if (isAllowed) {
+    const refusal = await assertCanAllowRoles(auth.roleName, [appRoleId]);
+    if (refusal) return { success: false, error: refusal };
   }
 
   const supabase = await createServerSupabaseClient();
@@ -172,6 +214,12 @@ export async function batchUpdateRoleAssignmentRules(
   if (!auth.authorized) {
     return { success: false, error: auth.error || 'Unauthorized' };
   }
+
+  const refusal = await assertCanAllowRoles(
+    auth.roleName,
+    updates.filter((u) => u.isAllowed).map((u) => u.appRoleId)
+  );
+  if (refusal) return { success: false, error: refusal };
 
   const supabase = await createServerSupabaseClient();
 

@@ -4,6 +4,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { assertCanManageTarget } from '@/lib/auth/role-rank';
 import type { TwoFactorMethod } from '@/types/database';
 import { createHmac } from 'crypto';
 import { otpMatches, readTotpSecret } from '@/lib/auth/two-factor-secrets';
@@ -156,6 +157,13 @@ export async function resetUserTwoFactor(
 
   if (!targetProfile) {
     return { success: false, message: 'User not found' };
+  }
+
+  // Target guard (#475): a 2FA reset is an account-takeover primitive, so the
+  // target must not outrank the caller.
+  const targetGuard = await assertCanManageTarget(auth.userId!, targetUserId);
+  if (!targetGuard.ok) {
+    return { success: false, message: targetGuard.error };
   }
 
   if (!targetProfile.two_factor_enabled) {
