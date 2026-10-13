@@ -1,29 +1,55 @@
 #!/usr/bin/env node
 /**
- * PR claim check.
+ * PR harness-overlap check (formerly the PR claim check).
  *
- * Two harnesses (Claude Code and Codex, on separate lanes per
- * `.github/issue-workflow.json`) can work this repo concurrently. `docs/agents/branching.md`
- * §5 names the remote branch list as the live coordination signal, but that only helps once
- * a branch exists — it does nothing for the window between deciding to take an issue and
- * pushing the first commit, which is exactly when two sessions duplicate work (#297).
+ * Three harnesses work this repo — Claude Code, OpenCode and Codex (`CORE.md` §7) — and they
+ * can be on it concurrently. `docs/agents/branching.md` §5 names the remote branch list as the
+ * live coordination signal, but that only helps once a branch exists; it does nothing for the
+ * window between deciding to take an issue and pushing the first commit, which is exactly when
+ * two sessions duplicate work (#297).
  *
- * The GitHub assignee field is the only signal that closes that window, and as of 2026-09-07
- * it was effectively unused (1 of 86 open issues carried an assignee). This script makes the
- * claim discipline enforceable: a PR whose linked issue has no assignee, or is assigned to
- * someone other than the PR author, fails the build.
+ * ## Why this no longer reads the assignee (#344)
  *
- * Scope correction (see the issue's comment thread, verified 2026-09-07): the repo has
- * exactly one assignable user today, so the "assigned to someone else" branch cannot
- * currently distinguish harnesses — it activates once a second collaborator joins. The
- * "unassigned" case is the one that matters right now and is tested hardest.
+ * It originally did, and gated on it. Two facts killed that rule:
  *
- * The PR author is resolved from the pull request's `author.login` via the GitHub GraphQL
- * API — never from git commit metadata. The commit identity configured for this repo is
- * `meggarmin` (no trailing `d`), which is not the GitHub login `meggarmind`; a commit-based
- * check would fail on every PR.
+ *   1. **All three harnesses authenticate as the same GitHub login**, so the assignee field
+ *      cannot tell them apart — the same reasoning `scripts/harness-label.mjs` opens with.
+ *   2. **There is one human on this project.** The original version deferred its only useful
+ *      branch to a future second collaborator; that collaborator is not coming. With one
+ *      assignable user, `assigned-to-other` was unreachable and `unassigned` was the only
+ *      outcome the check could produce — it failed 10 of its last 15 runs, every one of them
+ *      on an issue nobody had contended for.
  *
- * The linked issue(s) are resolved from:
+ * The harness record lives in repo labels instead (`harness:claude`, `harness:codex`,
+ * `harness:opencode` — `docs/agents/project-board.md`, "Harness labels"), written additively by
+ * `scripts/harness-label.mjs`. So this script reads those.
+ *
+ * ## The rule
+ *
+ * Resolve the PR's own lane from its branch prefix, then look at the linked issues for a
+ * `harness:*` label belonging to a **different** harness. One means another harness has also
+ * worked this issue — the collision #297 was built to catch, and the thing worth knowing.
+ *
+ * The PR's **own** harness label is deliberately ignored. It carries no information (the branch
+ * prefix already implies it), and skipping it makes this check independent of whether
+ * `harness-label.yml` — which writes that same label, on this same PR event — has run yet.
+ *
+ * ## Advisory, not blocking (#344)
+ *
+ * The original was blocking by design, on the reasoning that a non-blocking warning is what let
+ * claim discipline go unenforced in the first place. That reasoning was sound for a discipline
+ * and is wrong for this: an overlap is information for a human, not a defect in the PR, and the
+ * other harness's work may well be the thing you want to build on. A check that failed every PR
+ * taught the opposite of what it intended — the red X became the expected state.
+ *
+ * So the rule paths all exit 0 and surface an overlap as a `::warning::` annotation (visible on
+ * the PR's Checks tab) plus a job summary entry. What still fails loudly, non-zero: a missing
+ * environment variable, an API call that errors, or a PR whose author cannot be resolved. An
+ * unverified check must never read as a pass.
+ *
+ * ## Resolving the linked issues
+ *
+ * Unchanged from the original:
  *   1. The branch name, using the lane prefixes in `.github/issue-workflow.json`
  *      (`branchPrefixes`) — read from that file, never hardcoded, so a new lane can't
  *      silently bypass the check.
@@ -31,14 +57,12 @@
  *      parse of `Closes #n` / `Fixes #n` etc. in the PR body) — this script does not
  *      re-implement that parsing.
  *
- * A PR with no linked issue at all passes (plenty of legitimate PRs have no issue) with a
- * note in the job summary. Unlike `migration-drift.mjs`, this check does NOT auto-assign
- * anything — it reports; a human (or the session itself) claims the issue.
+ * A PR with no linked issue, or on a branch whose prefix names no harness (`feat/`, `chore/`,
+ * bare `fix/`), passes with a note. A harness is never guessed from such a branch — the same
+ * "never guess" rule `harness-label.mjs` applies when deciding what to label.
  *
  * Reached via the GitHub GraphQL API with the workflow's own `GITHUB_TOKEN` — no PAT needed
- * on a public repo. Fails loudly (non-zero exit, clear message) rather than silently passing
- * when required environment variables are missing, the API call fails, or the PR author
- * cannot be resolved — an unverified check must never read as "pass".
+ * on a public repo.
  *
  * Usage:
  *   node scripts/pr-claim-check.mjs [--ci]
@@ -149,69 +173,141 @@ export function resolveIssueNumbers({ branchName, prefixes, closingIssueNumbers 
 }
 
 /**
- * Applies the rule table to one issue: pass when assigned to the PR author, fail (naming
- * the reason) otherwise. `issue` is `{ number, assignees: string[] }` — login names, not
- * full user objects, since that is all the rule needs.
+ * The three lanes that own a `harness:*` label, per `docs/agents/project-board.md`.
+ * `fix` is deliberately absent: it is a lane in `branchPrefixes`, but it is not a harness.
+ *
+ * This vocabulary lives here rather than in `harness-label.mjs` — which is where it reads more
+ * naturally — because both scripts need it and `harness-label.mjs` already imports from this
+ * module. Putting it the other way round would make the two files import each other.
+ * `harness-label.mjs` re-exports both, so its own callers and tests are unaffected.
  */
-export function evaluateIssueClaim(issue, prAuthorLogin) {
-  const { number, assignees = [] } = issue;
+export const HARNESS_LANES = ['claude', 'codex', 'opencode'];
 
-  if (assignees.length === 0) {
-    return {
-      ok: false,
-      number,
-      reason: 'unassigned',
-      message: `Issue #${number} has no assignee. Claim it before opening a PR: gh issue edit ${number} --add-assignee @me`,
-    };
-  }
-
-  if (assignees.includes(prAuthorLogin)) {
-    return { ok: true, number, reason: 'assigned-to-author' };
-  }
-
-  return {
-    ok: false,
-    number,
-    reason: 'assigned-to-other',
-    message:
-      `Issue #${number} is assigned to ${assignees.join(', ')}, not @${prAuthorLogin}. ` +
-      'Coordinate with them rather than reassigning it — the fix here is a conversation, ' +
-      'not `gh issue edit --add-assignee`.',
-  };
-}
-
-/** Applies evaluateIssueClaim to every resolved issue and aggregates the result. */
-export function evaluateClaims(issues, prAuthorLogin) {
-  const results = issues.map((issue) => evaluateIssueClaim(issue, prAuthorLogin));
-  const failures = results.filter((result) => !result.ok);
-  return { ok: failures.length === 0, results, failures };
+/**
+ * Maps a lane name to its repo label, or null when the lane names no harness. Pure.
+ *
+ * Only `claude`, `codex` and `opencode` map to a label. `fix` — and any future non-harness
+ * lane, and null itself — return null so the caller stops rather than inventing a harness.
+ */
+export function labelForLane(lane) {
+  if (!lane) return null;
+  return HARNESS_LANES.includes(lane) ? `harness:${lane}` : null;
 }
 
 /**
- * Turns the resolved issue numbers and their evaluation into the final pass/fail outcome
- * and a human-readable summary. Separated from `main()` so the "no issue resolved" and
- * "all pass" / "some fail" rows of the rule table are testable without any network access.
+ * The `harness:*` labels on an issue that belong to a harness *other* than `ownLane`, sorted.
+ * Pure.
+ *
+ * Two exclusions, both load-bearing:
+ *
+ *   - **Our own label is ignored.** The branch prefix already implies it, so its presence says
+ *     nothing; and `harness-label.yml` writes it on this same PR event, so depending on it
+ *     would make the result a race.
+ *   - **A `harness:`-prefixed label naming no known harness is ignored** (`harness:cursor`,
+ *     say). Same "never guess" rule as `labelForLane`: an unrecognised label is not evidence
+ *     of a fourth harness, it is a typo or an experiment.
  */
-export function decideOutcome(issueNumbers, evaluation) {
-  if (issueNumbers.length === 0) {
+export function foreignHarnessLabels(labels, ownLane) {
+  const own = labelForLane(ownLane);
+
+  return HARNESS_LANES.map((lane) => `harness:${lane}`)
+    .filter((label) => label !== own && (labels ?? []).includes(label))
+    .sort();
+}
+
+/**
+ * Applies the rule table to one issue: an overlap is a foreign harness label, nothing else.
+ * `issue` is `{ number, labels: string[] }` — label names, not full label objects, since that
+ * is all the rule needs.
+ *
+ * Note what is *not* an overlap: an issue carrying no harness label at all. `harness-label.yml`
+ * adds ours on this same event and may not have run yet, and an issue worked before #324 landed
+ * carries nothing. Absence is not evidence here.
+ */
+export function evaluateIssueOverlap(issue, ownLane) {
+  const { number, labels = [] } = issue;
+  const foreignHarnesses = foreignHarnessLabels(labels, ownLane);
+
+  if (foreignHarnesses.length === 0) {
+    return { number, overlap: false, foreignHarnesses: [] };
+  }
+
+  return {
+    number,
+    overlap: true,
+    foreignHarnesses,
+    message:
+      `Issue #${number} also carries ${foreignHarnesses.join(', ')} — another harness has ` +
+      'worked it. Check what it did before duplicating or reverting that work; the labels are ' +
+      'additive and permanent, so this is a record, not a claim to contest.',
+  };
+}
+
+/** Applies evaluateIssueOverlap to every resolved issue and aggregates the result. */
+export function evaluateOverlaps(issues, ownLane) {
+  const results = issues.map((issue) => evaluateIssueOverlap(issue, ownLane));
+  const overlaps = results.filter((result) => result.overlap);
+  return { clean: overlaps.length === 0, results, overlaps };
+}
+
+/**
+ * Turns the resolved lane, issue numbers and their evaluation into warnings and a
+ * human-readable summary. Separated from `main()` so every row of the rule table is testable
+ * without any network access.
+ *
+ * There is no `ok` field and no failing row: this check is advisory (see the docblock). The
+ * caller exits non-zero only for the loud cases in `main()` — missing configuration or an API
+ * that would not answer.
+ */
+export function decideOutcome({ lane, issueNumbers, evaluation }) {
+  if (!labelForLane(lane)) {
+    const why = lane
+      ? `Branch lane \`${lane}\` names no harness (it is a lane, not a harness).`
+      : 'Branch prefix matches no lane in .github/issue-workflow.json.';
     return {
-      ok: true,
-      summary:
-        'No linked issue found in the branch name or the PR\'s closing references. Nothing to verify.',
+      warnings: [],
+      summary: `${why} A harness is never guessed from a branch, so there is nothing to check.`,
     };
   }
 
-  if (evaluation.ok) {
+  if (issueNumbers.length === 0) {
     return {
-      ok: true,
-      summary: `Linked issue(s) assigned to the PR author: ${issueNumbers.map((n) => `#${n}`).join(', ')}.`,
+      warnings: [],
+      summary:
+        "No linked issue found in the branch name or the PR's closing references. Nothing to check.",
+    };
+  }
+
+  const listed = issueNumbers.map((n) => `#${n}`).join(', ');
+
+  if (evaluation.clean) {
+    return {
+      warnings: [],
+      summary: `No other harness has worked the linked issue(s): ${listed}.`,
     };
   }
 
   return {
-    ok: false,
-    summary: evaluation.failures.map((failure) => failure.message).join('\n'),
+    warnings: evaluation.overlaps.map((overlap) => overlap.message),
+    summary: `Another harness has also worked one or more of the linked issue(s): ${listed}.`,
   };
+}
+
+/**
+ * Wraps a message as a GitHub Actions warning annotation, so an overlap is visible on the PR's
+ * Checks tab without failing the job.
+ *
+ * The escaping is not cosmetic: a raw newline ends the workflow command, which would silently
+ * truncate the message to its first line — the exact failure mode this check exists to avoid.
+ * `%` is escaped first, or it would corrupt the escapes that follow it.
+ */
+export function formatWarningAnnotation(message) {
+  const escaped = String(message)
+    .replaceAll('%', '%25')
+    .replaceAll('\r', '%0D')
+    .replaceAll('\n', '%0A');
+
+  return `::warning title=PR claim check::${escaped}`;
 }
 
 async function graphql({ token, query, variables }) {
@@ -262,7 +358,7 @@ export async function fetchPullRequestData({ token, owner, repo, prNumber }) {
           closingIssuesReferences(first: 20) {
             nodes {
               number
-              assignees(first: 10) { nodes { login } }
+              labels(first: 50) { nodes { name } }
             }
           }
         }
@@ -285,18 +381,18 @@ export async function fetchPullRequestData({ token, owner, repo, prNumber }) {
     headRefName: pr.headRefName ?? null,
     closingIssues: (pr.closingIssuesReferences?.nodes ?? []).map((node) => ({
       number: node.number,
-      assignees: (node.assignees?.nodes ?? []).map((assignee) => assignee.login),
+      labels: (node.labels?.nodes ?? []).map((label) => label.name),
     })),
   };
 }
 
-async function fetchIssueAssignees({ token, owner, repo, number }) {
+async function fetchIssueLabels({ token, owner, repo, number }) {
   const query = `
     query($owner: String!, $repo: String!, $number: Int!) {
       repository(owner: $owner, name: $repo) {
         issue(number: $number) {
           number
-          assignees(first: 10) { nodes { login } }
+          labels(first: 50) { nodes { name } }
         }
       }
     }
@@ -311,7 +407,7 @@ async function fetchIssueAssignees({ token, owner, repo, number }) {
 
   return {
     number: issue.number,
-    assignees: (issue.assignees?.nodes ?? []).map((assignee) => assignee.login),
+    labels: (issue.labels?.nodes ?? []).map((label) => label.name),
   };
 }
 
@@ -341,9 +437,9 @@ async function main() {
   const prNumber = Number(prNumberRaw);
   const [owner, repo] = repository.split('/');
 
-  let prefixes;
+  let prefixMap;
   try {
-    prefixes = readBranchPrefixes(issueWorkflowConfigPath);
+    prefixMap = readBranchPrefixMap(issueWorkflowConfigPath);
   } catch (error) {
     console.error(`\npr-claim-check: failed to read lane branch prefixes.\n${error.message}\n`);
     process.exitCode = 1;
@@ -359,66 +455,72 @@ async function main() {
     return;
   }
 
-  if (!pr.authorLogin) {
-    console.error(
-      '\npr-claim-check: could not resolve the pull request author login from the API.\n' +
-        'Failing loudly rather than passing an unverified check.\n',
-    );
-    process.exitCode = 1;
-    return;
-  }
+  // The author is logged for context only. It used to be the rule's entire input, and an
+  // unresolvable author was a hard failure because passing on it would have meant passing an
+  // unverified check. The rule now runs off the branch lane and the issues' labels, so an
+  // absent author login leaves nothing unverified — failing on it would be ceremony inherited
+  // from a rule that is gone.
+  const lane = laneFromBranch(pr.headRefName, prefixMap);
 
-  const closingIssueNumbers = pr.closingIssues.map((issue) => issue.number);
   const issueNumbers = resolveIssueNumbers({
     branchName: pr.headRefName,
-    prefixes,
-    closingIssueNumbers,
+    prefixes: Object.values(prefixMap),
+    closingIssueNumbers: pr.closingIssues.map((issue) => issue.number),
   });
 
-  // closingIssuesReferences already carried assignees for those issues. The
-  // branch-derived issue number might not be among them (e.g. the PR body has no
-  // closing keyword) — fetch it separately in that case.
-  const issuesByNumber = new Map(pr.closingIssues.map((issue) => [issue.number, issue]));
+  // Only fetch what the rule will actually read. A branch naming no harness short-circuits
+  // before any per-issue call: with no lane there is no "foreign" to compare against, so those
+  // requests would be spent on a question we have already declined to answer.
   const issues = [];
 
-  for (const number of issueNumbers) {
-    if (issuesByNumber.has(number)) {
-      issues.push(issuesByNumber.get(number));
-      continue;
-    }
+  if (labelForLane(lane) && issueNumbers.length > 0) {
+    // closingIssuesReferences already carried labels for those issues. The branch-derived
+    // issue number might not be among them (e.g. the PR body has no closing keyword) — fetch
+    // it separately in that case.
+    const issuesByNumber = new Map(pr.closingIssues.map((issue) => [issue.number, issue]));
 
-    try {
-      issues.push(await fetchIssueAssignees({ token, owner, repo, number }));
-    } catch (error) {
-      console.error(`\npr-claim-check: failed to read issue #${number}.\n${error.message}\n`);
-      process.exitCode = 1;
-      return;
+    for (const number of issueNumbers) {
+      if (issuesByNumber.has(number)) {
+        issues.push(issuesByNumber.get(number));
+        continue;
+      }
+
+      try {
+        issues.push(await fetchIssueLabels({ token, owner, repo, number }));
+      } catch (error) {
+        console.error(`\npr-claim-check: failed to read issue #${number}.\n${error.message}\n`);
+        process.exitCode = 1;
+        return;
+      }
     }
   }
 
-  const evaluation = evaluateClaims(issues, pr.authorLogin);
-  const outcome = decideOutcome(issueNumbers, evaluation);
+  const evaluation = issues.length > 0 ? evaluateOverlaps(issues, lane) : null;
+  const outcome = decideOutcome({ lane, issueNumbers, evaluation });
 
-  console.log(`\nPR claim check — author @${pr.authorLogin}, branch \`${pr.headRefName}\`\n`);
+  console.log(
+    `\nPR harness-overlap check — author @${pr.authorLogin ?? '(unresolved)'}, ` +
+      `branch \`${pr.headRefName}\`, lane ${lane ?? '(none)'}\n`,
+  );
   console.log(outcome.summary);
+
+  // The annotation is what actually reaches a human. This job passes, so nobody opens its log.
+  for (const warning of outcome.warnings) {
+    console.log(formatWarningAnnotation(warning));
+  }
+
   console.log('');
 
   if (ci && process.env.GITHUB_STEP_SUMMARY) {
     const { appendFileSync } = await import('node:fs');
-    const lines = ['## PR claim check', ''];
+    const lines = ['## PR harness-overlap check', '', outcome.summary, ''];
 
-    if (issueNumbers.length === 0) {
-      lines.push(
-        "No linked issue was found in the branch name or the PR's closing references. Nothing to verify.",
-        '',
-      );
-    } else {
-      lines.push(`Linked issue(s): ${issueNumbers.map((n) => `#${n}`).join(', ')}`, '');
+    if (evaluation) {
       for (const result of evaluation.results) {
         lines.push(
-          result.ok
-            ? `- #${result.number}: assigned to the PR author (pass)`
-            : `- ${result.message}`,
+          result.overlap
+            ? `- ${result.message}`
+            : `- #${result.number}: no other harness has worked it`,
         );
       }
       lines.push('');
@@ -427,9 +529,18 @@ async function main() {
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n'));
   }
 
-  // Blocking by design, same reasoning as migration-drift.mjs: a non-blocking warning is
-  // exactly what let claim discipline go unenforced in the first place.
-  process.exitCode = outcome.ok ? 0 : 1;
+  // Advisory by design — the deliberate reversal of this script's original stance (#344).
+  //
+  // The version this replaced argued that a non-blocking warning is what let claim discipline
+  // go unenforced in the first place. That is true of a discipline and false of this. An
+  // overlap is a fact about the issue's history, not a defect in the PR, and often the other
+  // harness's work is what you want to build on rather than avoid. Blocking on it would
+  // recreate exactly what made the assignee version useless: a check that is red on arrival,
+  // and therefore ignored.
+  //
+  // process.exitCode is left at 0 here. The non-zero exits above — missing configuration, an
+  // API that would not answer — are the only failures left, and they mean the check did not
+  // run, which is a different thing from the check finding something.
 }
 
 // Only run when executed directly, so the pure functions above stay importable
