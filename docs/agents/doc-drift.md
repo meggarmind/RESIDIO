@@ -73,7 +73,7 @@ Each page renders its stamp beneath the footer: *Verified against Residio v0.4.0
 
 ## CI
 
-`.github/workflows/docs-drift.yml` runs on PRs touching `src/**`, `vercel.json`, or the docs, and writes drifted pages to the job summary. It does not fail the build.
+`.github/workflows/docs-drift.yml` runs on PRs touching `src/**`, `docs/deployment/hosting-plan.md` (a source of the scheduled-jobs page), or the docs, and writes drifted pages to the job summary. It does not fail the build.
 
 It needs `fetch-depth: 0` — the default shallow clone cannot resolve the stored commits.
 

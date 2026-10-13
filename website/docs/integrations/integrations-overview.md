@@ -4,7 +4,7 @@ title: Integrations overview
 sidebar_label: Integrations overview
 description: The external services Residio connects to, who configures them, and how to check that they are working.
 residio_sources:
-  - vercel.json
+  - docs/deployment/hosting-plan.md
   - src/lib/whatsapp/index.ts
   - src/lib/email/index.ts
   - src/lib/sms/index.ts
