@@ -2,13 +2,16 @@
 
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { updateWhatsAppPendingContact } from '@/actions/whatsapp/identity';
 
 export function PendingContactActions({ phoneNumber }: { phoneNumber: string }) {
   const [isPending, startTransition] = useTransition();
   const [residentId, setResidentId] = useState('');
-  const update = (status: 'attached' | 'ignored') => startTransition(() => {
-    void updateWhatsAppPendingContact({ phoneNumber, status, residentId: residentId || undefined });
+  const update = (status: 'attached' | 'ignored') => startTransition(async () => {
+    const result = await updateWhatsAppPendingContact({ phoneNumber, status, residentId: residentId || undefined });
+    if (!result.success) toast.error(result.error || 'Failed to update pending contact');
+    else toast.success(status === 'attached' ? 'Contact attached' : 'Contact ignored');
   });
 
   return (
