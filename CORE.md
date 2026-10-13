@@ -692,6 +692,7 @@ nearly caused a clean branch to be reported as broken.
 ## 16. Reporting and continuity
 
 Branch per issue, commits referencing it, **PR only after a pass. The user does the merging.**
+**Open a pull request for every issue you complete.**
 
 Before opening the PR, the coordinator pushes the branch and runs the real gate against it:
 
