@@ -33,8 +33,23 @@ function createChainableQuery(result: QueryResult = { data: [], error: null, cou
   return query;
 }
 
+// Realistic aggregate keyed on the window's calendar month, so each trend month and the
+// current / previous month produce distinguishable values (#215).
+const rpc = vi.fn();
+const metricsByMonth = (month: number) => ({
+  collected_count: 1200 + month,
+  collected_total: 2_500_000 + month * 1000,
+  verified_total: 2_000_000 + month * 1000,
+  unverified_count: 4,
+  unverified_total: 40_000,
+});
+
 describe('admin dashboard snapshot contract', () => {
   beforeEach(() => {
+    rpc.mockReset();
+    rpc.mockImplementation((_name: string, args: { p_month_start: string }) =>
+      Promise.resolve({ data: metricsByMonth(Number(args.p_month_start.slice(5, 7))), error: null }),
+    );
     authorizePermission.mockReset();
     getCurrentUserPermissions.mockReset();
     getCurrentUserPermissions.mockResolvedValue({ userId: 'user-1', permissions: [] });
@@ -66,6 +81,7 @@ describe('admin dashboard snapshot contract', () => {
 
     createServerSupabaseClient.mockResolvedValue({
       from: mockFrom,
+      rpc,
     });
 
     const result = await getAdminDashboardSnapshot();
@@ -83,6 +99,41 @@ describe('admin dashboard snapshot contract', () => {
     expect(result.data).toHaveProperty('monthlyTrends');
     expect(result.data).toHaveProperty('actionMetrics');
     expect(result.data).toHaveProperty('lastUpdated');
+
+    // Financial health and trends are sourced from the RPC, not from the fallback defaults.
+    const now = new Date();
+    const cur = now.getMonth() + 1;
+    const prev = ((now.getMonth() + 11) % 12) + 1;
+    expect(result.data?.financialHealth.totalMonthlyRevenue).toBe(2_500_000 + cur * 1000);
+    expect(result.data?.financialHealth.monthlyRevenue).toBe(2_000_000 + cur * 1000);
+    expect(result.data?.financialHealth.previousMonthRevenue).toBe(2_000_000 + prev * 1000);
+    expect(result.data?.monthlyTrends).toHaveLength(6);
+    expect(result.data?.monthlyTrends[5]).toMatchObject({
+      revenue: 2_500_000 + cur * 1000,
+      paymentsReceived: 1200 + cur,
+      invoicesGenerated: 5,
+    });
+    expect(rpc).toHaveBeenCalledTimes(8);
+  });
+
+  it('falls back to empty financial health and trends when the payment RPC errors', async () => {
+    authorizePermission.mockResolvedValue({ authorized: true });
+    rpc.mockResolvedValue({ data: null, error: { message: 'rpc failed' } });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    createServerSupabaseClient.mockResolvedValue({
+      from: vi.fn().mockImplementation(() => createChainableQuery({ data: [], error: null, count: 5 })),
+      rpc,
+    });
+
+    const result = await getAdminDashboardSnapshot();
+
+    expect(result.error).toBeNull();
+    expect(result.data?.financialHealth.totalMonthlyRevenue).toBe(0);
+    expect(result.data?.financialHealth.monthlyRevenue).toBe(0);
+    expect(result.data?.monthlyTrends).toEqual([]);
+    // Unrelated sections are unaffected by the payment failure.
+    expect(result.data?.invoiceDistribution).toBeDefined();
   });
 
   it('gracefully handles partial subsystem query failures via fallback defaults', async () => {
@@ -97,6 +148,7 @@ describe('admin dashboard snapshot contract', () => {
 
     createServerSupabaseClient.mockResolvedValue({
       from: mockFrom,
+      rpc,
     });
 
     const result = await getAdminDashboardSnapshot();
