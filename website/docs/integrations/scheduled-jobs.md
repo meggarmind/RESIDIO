@@ -4,14 +4,14 @@ title: Scheduled jobs
 sidebar_label: Scheduled jobs
 description: The automated jobs behind invoicing, reminders, reports, imports, and cleanups — and how to monitor them.
 residio_sources:
-  - vercel.json
+  - docs/deployment/hosting-plan.md
   - src/app/api/cron/**
   - src/app/api/health/cron-status/**
   - src/actions/system/cron-status.ts
   - src/lib/system/cron-status.ts
   - src/app/(dashboard)/system/cron-status/**
-residio_verified_commit: 424143a
-residio_verified_at: '2026-09-03'
+residio_verified_commit: cbbc519
+residio_verified_at: '2026-10-13'
 residio_app_version: '0.4.0'
 ---
 
@@ -39,7 +39,9 @@ Times are in UTC. Adjust for your estate's local time when reasoning about when 
 | Announcement publishing | Hourly | Publishes announcements whose scheduled time has arrived |
 | Email import | Hourly | Reads the connected mailbox for bank alerts and statements |
 
-A late fee job also exists as an endpoint but is not on the platform schedule. If your estate charges late fees, confirm with an engineer how that run is triggered before assuming it is automatic.
+These schedules run as scheduled tasks on the production server only. Test and staging environments run no scheduled jobs, so nothing arrives there on its own and an engineer has to trigger a job by hand.
+
+A late fee job also exists as an endpoint but has never been on the schedule. If your estate charges late fees, confirm with an engineer how that run is triggered before assuming it is automatic.
 
 ## Reading the status page
 

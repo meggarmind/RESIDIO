@@ -69,7 +69,6 @@ docs
 !README.md
 LICENSE
 Residio.code-workspace
-vercel.json
 *.txt
 project_items.json
 ready-for-agent-issues.json

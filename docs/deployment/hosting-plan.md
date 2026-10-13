@@ -42,7 +42,7 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
 └── Coolify (Traefik terminates TLS)
     ├── residio-prod   -> app.<domain>    -> Supabase project Residio_Prod
     ├── residio-stage  -> stage.<domain>  -> Supabase project Residio_Stage
-    └── Scheduled tasks: the 9 cron routes from vercel.json, against prod
+    └── Scheduled tasks: the 9 cron routes (see "Scheduled tasks" below), prod only
 ```
 
 - Builds run on the VPS (8 GB covers Coolify ~1 GB, two app containers ~0.5-1 GB each, and a
@@ -51,6 +51,140 @@ Hostinger KVM 2  (x86, 2 vCPU, 8 GB RAM, 100 GB NVMe)
   (`docker.md`), so prod and stage each get their own build variables in Coolify.
 - Keep the Coolify dashboard off the public internet (firewall rule or VPN) and keep it updated.
 - Keep `.github/workflows/backup-cron-invoices.yml` as the safety net for invoice generation.
+
+---
+
+## Scheduled tasks (#399)
+
+`vercel.json` was the only definition of Residio's schedules and is inert off Vercel, so it has
+been removed. The nine schedules now live as **Coolify scheduled tasks on the `residio-prod`
+application**. Coolify configuration is not in the repo, so this section is the record; if a task
+is changed in Coolify, change it here in the same piece of work.
+
+**Prod only.** `residio-stage` runs no scheduled tasks. Do not create any there: stage has its own
+database, and a second set of jobs would email and message recipients from UAT data. To exercise a
+job against stage, trigger it by hand (below).
+
+### The tasks
+
+Each task: Container = the app container, Frequency = the cron below (UTC), Command = the `node`
+one-liner in the next block. `CRON_SECRET` is already a runtime secret on the application and is
+read from the container's environment by the command, so it is never written into the task.
+
+| Route | Cron (UTC) | Timeout (ms) |
+|---|---|---|
+| `publish-announcements` | `0 * * * *` | 300000 |
+| `fetch-emails` | `0 * * * *` | 300000 |
+| `refresh-payment-cadence` | `0 0 * * *` | 300000 |
+| `whatsapp-retention` | `15 0 * * *` | 60000 |
+| `generate-invoices` | `0 6 * * *` | 300000 |
+| `generate-reports` | `0 6 * * *` | 300000 |
+| `process-report-schedules` | `0 7 * * *` | 300000 |
+| `payment-reminders` | `0 8 * * *` | 120000 |
+| `process-notifications` | `0 9 * * *` | 60000 |
+
+All calls go to `http://127.0.0.1:3000` inside the container, so they do not pass through Traefik
+or Cloudflare. The `AbortSignal.timeout` in the command is therefore the **only** ceiling on a
+run (the routes' `maxDuration` exports are a Vercel directive and do nothing here).
+
+### Commands
+
+`node:*-slim` has neither `curl` nor `wget` (see the `HEALTHCHECK` in `Dockerfile`), so the command
+uses Node's global `fetch`, as the `HEALTHCHECK` does. Each command prints the HTTP status, exits
+**0 on any 2xx**, and exits **1 on a non-2xx, a timeout, or a network error**. A missing
+`CRON_SECRET` sends `Bearer undefined`, which the route rejects with 401, so it also fails the task.
+Only the route and the timeout differ between tasks.
+
+```sh
+# publish-announcements  (0 * * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/publish-announcements',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
+# fetch-emails  (0 * * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/fetch-emails',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
+# refresh-payment-cadence  (0 0 * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/refresh-payment-cadence',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
+# whatsapp-retention  (15 0 * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/whatsapp-retention',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
+# generate-invoices  (0 6 * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/generate-invoices',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
+# generate-reports  (0 6 * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/generate-reports',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
+# process-report-schedules  (0 7 * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/process-report-schedules',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(300000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
+# payment-reminders  (0 8 * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/payment-reminders',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
+# process-notifications  (0 9 * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+```
+
+### Timeouts, and why
+
+| Timeout | Routes | Reason |
+|---|---|---|
+| 300 s | `generate-invoices`, `generate-reports`, `fetch-emails`, `publish-announcements`, `refresh-payment-cadence` | Their declared `maxDuration`, kept as the expected worst case. No margin is added: a run needing more than five minutes should fail loudly. |
+| 300 s | `process-report-schedules` | **Previously undeclared.** It loops over every due schedule and, per schedule, generates the report, renders a PDF, uploads it and sends email (`src/actions/reports/process-schedules.ts`), the same shape of work as `generate-reports`, so it gets the same ceiling. |
+| 120 s | `payment-reminders` | Declared `maxDuration`: multi-channel sends. |
+| 60 s | `process-notifications` | Declared `maxDuration`. |
+| 60 s | `whatsapp-retention` | **Previously undeclared.** Two bulk `DELETE ... WHERE expires_at < cutoff` statements run in parallel (`src/lib/whatsapp/retention.ts`) and nothing else; it runs daily so the backlog is small. Anything near 60 s means something is wrong. |
+
+A timeout aborts the caller, **not** the server-side work: the route handler keeps running in the
+container after the task gives up. Treat a timeout failure as "still running or stuck", and check
+the app logs and the run history before re-triggering anything that creates records.
+
+### Not scheduled: `apply-late-fees`
+
+There are ten cron routes and **nine** schedules. `src/app/api/cron/apply-late-fees` exists and
+authenticates like the others, but it has **never had a `vercel.json` entry** (its handler comment
+says "7 AM UTC daily (configured in vercel.json)"; that was never true), so late fees have never
+run on a schedule in any environment. It is left unscheduled because #399 lists nine schedules.
+Whether to schedule it (the handler's comment suggests `0 7 * * *`) is an owner decision rather
+than an infrastructure one, because it starts charging residents. If the owner says yes, add a
+tenth task with the same command (300000 ms) and update this table.
+
+### Failure visibility (owner, in Coolify)
+
+Enable **scheduled-task failure notifications** to the owner (Coolify: Notifications, enable the
+scheduled-task failure event on a channel that is actually read). Without this a failed job is
+silent from the user side. Each task also records its executions in the application's Scheduled
+Tasks tab; check that after the first run.
+
+### Triggering a job by hand against stage
+
+Stage runs no schedules. App hostnames are DNS-only (decision 14), so there is no Cloudflare 100 s
+cut and `curl` from any machine reaches Traefik directly:
+
+```sh
+curl -fsS -m 300 -H "Authorization: Bearer $STAGE_CRON_SECRET" https://stage.<domain>/api/cron/<route>
+```
+
+`$STAGE_CRON_SECRET` is stage's own `CRON_SECRET`, never prod's. Alternatively open a terminal on
+the stage container in Coolify and run the command above with the route and timeout substituted.
+Stage's `generate-invoices`, `payment-reminders` and `process-notifications` send real messages if
+stage holds real contact details.
+
+### The GitHub Actions safety net
+
+`.github/workflows/backup-cron-invoices.yml` is kept unchanged as the off-host check on
+`generate-invoices` (owner direction 2026-10-10). Reviewed against the public hostname:
+
+- It calls `secrets.APP_URL`, which must be the **prod public `https://` origin**. Because app
+  hostnames are DNS-only there is no Cloudflare proxy in the path and so no 100 s cutoff; Traefik
+  applies no request timeout and the job has `timeout-minutes: 10`. It only calls
+  `generate-invoices` when the health check reports `critical`, so it is normally a no-op.
+- **If the prod app hostname is ever switched to proxied (orange cloud)**, a generation call
+  longer than 100 s returns 524 to the workflow while the work carries on, and the workflow would
+  report failure. Keep the hostname DNS-only.
+- Known limitation, left alone: if the app is entirely unreachable, the health step logs a
+  warning and exits 0, so the run is green. The safety net covers "job missed", not "site down".
+
+---
 
 ## Cost
 
@@ -156,6 +290,108 @@ Weekly: a small query against `Residio_Stage` so it does not pause.
 
 Secrets needed in GitHub: prod (and stage) session-pooler connection string, Supabase storage S3
 credentials, R2 access key / secret / bucket / endpoint, encryption public key or passphrase.
+The exact names and the restore runbook are in the next section.
+
+## Backups: secrets, restore runbook
+
+Implemented by `.github/workflows/backup-database.yml` (#415) and the scripts in
+`scripts/backup/`. Never paste a real value into this file: the repository is public.
+
+| Job | Schedule | What it does |
+|---|---|---|
+| `prod` | nightly 02:23 UTC | `pg_dump -Fc` (PostgreSQL 17 client), `age` encrypt, upload to R2, prune; then incremental storage mirror |
+| `stage` | Mondays 03:41 UTC | `select 1` keep-awake, then the same dump, encrypt, upload, prune (database only) |
+
+Run either by hand from the Actions tab (Backup Database, Run workflow, choose `prod`, `stage` or
+`both`). Layout in the bucket:
+
+```text
+db/<prod|stage>/daily/YYYY-MM-DD.dump.age     newest 30 kept
+db/<prod|stage>/monthly/YYYY-MM.dump.age      newest 12 kept; the first backup of each month is copied here
+files/prod/current/...                        storage mirror, file names and contents encrypted (rclone crypt)
+files/prod/deleted/YYYY-MM-DD/...             files changed or deleted that day (not pruned automatically)
+```
+
+### Secrets to create
+
+GitHub, Settings, Secrets and variables, Actions, **Repository secrets** (not variables):
+
+| Secret | Value |
+|---|---|
+| `PROD_DB_URL` | Residio_Prod (`miyeswqbwarvipdzwqnz`) **session pooler** string, port **5432** (Dashboard, Connect, Session pooler). Not the direct host (IPv6-only), not port 6543 |
+| `STAGE_DB_URL` | Same for Residio_Stage (`kzugmyjjqttardhfejzc`) |
+| `R2_ENDPOINT` | `https://<cloudflare-account-id>.r2.cloudflarestorage.com` |
+| `R2_ACCESS_KEY_ID` | R2 API token, Object Read & Write, scoped to the one bucket |
+| `R2_SECRET_ACCESS_KEY` | The same token's secret |
+| `R2_BUCKET` | Name of the private backup bucket |
+| `BACKUP_AGE_PUBLIC_KEY` | The `age1...` public key (generated below). Public, but kept as a secret so it is not scattered |
+| `PROD_STORAGE_S3_ENDPOINT` | `https://miyeswqbwarvipdzwqnz.storage.supabase.co/storage/v1/s3` (Dashboard, Storage, S3 connection shows the exact URL) |
+| `PROD_STORAGE_S3_REGION` | The project's region as shown on the same page (S3 signing needs it) |
+| `PROD_STORAGE_S3_ACCESS_KEY_ID` | Storage S3 access key (Dashboard, Storage, S3 connection, New access key) |
+| `PROD_STORAGE_S3_SECRET_ACCESS_KEY` | The matching secret |
+| `FILES_CRYPT_PASSWORD` | rclone crypt password: a long random string, **also stored in the password manager** |
+| `FILES_CRYPT_PASSWORD2` | rclone crypt salt: a second long random string, also in the password manager |
+
+Thirteen secrets. Stage has no storage mirror (test data), so no `STAGE_STORAGE_*` secrets.
+The R2 token must not be able to create or delete buckets. Losing `FILES_CRYPT_PASSWORD` or
+`FILES_CRYPT_PASSWORD2` makes the files mirror unreadable: treat both like the age private key.
+
+### Generate the age keypair
+
+On the owner's own machine (not a runner, not a shared host):
+
+```bash
+age-keygen -o residio-backup.agekey
+# prints:  Public key: age1...
+```
+
+1. Put the **whole contents of `residio-backup.agekey`** (the `AGE-SECRET-KEY-...` line) in the
+   password manager, plus a second copy outside GitHub and outside this machine.
+2. Put only the `age1...` public key in the `BACKUP_AGE_PUBLIC_KEY` secret.
+3. Delete the local `residio-backup.agekey` once both copies are confirmed. GitHub never holds
+   the private key, so a leaked runner cannot read the backups, and nobody can decrypt them
+   without the password manager copy.
+
+### Test restore (once, then every few months)
+
+Restore into a throwaway database, never into prod or stage. A local plain PostgreSQL 17 (a
+container is fine: `docker run --rm -e POSTGRES_PASSWORD=scratch -p 54329:5432 postgres:17`)
+or an empty scratch Supabase project both work. This is not the Supabase CLI.
+
+```bash
+# 1. Get the newest dump (rclone remote "r2" configured on your machine, or use the Cloudflare dashboard)
+rclone copy r2:<bucket>/db/prod/daily/<YYYY-MM-DD>.dump.age .
+
+# 2. Decrypt with the private key from the password manager (saved to a temp file, deleted after)
+age -d -i residio-backup.agekey -o restore.dump <YYYY-MM-DD>.dump.age
+
+# 3. The archive must be readable before anything is restored
+pg_restore --list restore.dump | head
+
+# 4. Restore into the scratch database
+createdb -h localhost -p 54329 -U postgres scratch
+pg_restore --no-owner --no-privileges --exit-on-error=false \
+  -h localhost -p 54329 -U postgres -d scratch restore.dump
+
+# 5. Spot-check against the app: row counts of residents, invoices, payments
+psql -h localhost -p 54329 -U postgres -d scratch \
+  -c 'select count(*) from residents' -c 'select count(*) from invoices'
+```
+
+Restoring into plain PostgreSQL reports errors for Supabase-only roles and extensions
+(`anon`, `authenticated`, `pg_graphql`, ...). Those are expected; the `public` schema data is
+what must come back. Delete `restore.dump` and the scratch database afterwards.
+
+For the files mirror, `rclone ls` through a crypt remote built with the same two passwords
+(`rclone config`, type `crypt`, remote `r2:<bucket>/files/prod`) lists and downloads the files.
+
+### Checklist
+
+- [ ] The 13 secrets above exist in GitHub Actions secrets
+- [ ] age keypair generated; private key is in the password manager and one other place outside GitHub
+- [ ] Backup Database run manually for `both`; both jobs green; objects visible in R2
+- [ ] **Owner has run the test restore above once and the data came back. #415 is not done until this is ticked.**
+- [ ] A second test restore is scheduled for three months out
 
 ## KVM setup runbook (Coolify)
 
