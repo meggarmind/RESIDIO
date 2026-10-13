@@ -11,6 +11,8 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import type { EstateEmailSettings } from '@/lib/email/types';
 import { sendSms } from '@/lib/sms/send-sms';
+import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in';
+import { isChannelImplemented } from '@/lib/notifications/types';
 import { getSettingValue } from '@/actions/settings/get-settings';
 import { updateSetting } from '@/actions/settings/update-setting';
 import { logAudit } from '@/lib/audit/logger';
@@ -275,6 +277,11 @@ async function sendReminderToChannels(params: {
 
   // Send via each configured channel
   for (const channel of step.channels) {
+    // SMS is off until Termii is connected: an intentional skip, not an error.
+    // Re-enabling means adding 'sms' to IMPLEMENTED_CHANNELS once its provider
+    // path is operational; the 'sms' case below is kept for that.
+    if (!isChannelImplemented(channel)) continue;
+
     switch (channel) {
       case 'email':
         if (invoice.resident.email) {
@@ -322,6 +329,11 @@ async function sendReminderToChannels(params: {
           });
           if (!prefCheck.shouldSend) {
             results.errors.push(`WhatsApp: ${prefCheck.reason || 'Blocked by preferences'}`);
+            break;
+          }
+
+          if (!(await isWhatsAppOptedIn(invoice.resident.id, invoice.resident.phone_primary))) {
+            results.errors.push('WhatsApp: recipient has not opted in');
             break;
           }
 

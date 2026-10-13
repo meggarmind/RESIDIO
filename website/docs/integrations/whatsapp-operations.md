@@ -8,8 +8,8 @@ residio_sources:
   - src/actions/whatsapp/**
   - src/app/(dashboard)/settings/whatsapp/**
   - src/app/api/whatsapp/**
-residio_verified_commit: de0256b
-residio_verified_at: '2026-10-07'
+residio_verified_commit: aa601b6
+residio_verified_at: '2026-10-13'
 residio_app_version: '0.4.0'
 ---
 
@@ -117,7 +117,7 @@ Moving straight from `Disabled` to `Estate` sends the first real message to ever
 
 ## Consent and opt-ins
 
-A resident only receives WhatsApp messages after an approved consent record exists.
+A resident only receives WhatsApp messages after an approved consent record exists. Invoice reminders and payment confirmations check this when the message is created, so a resident without consent gets no queued message at all (an invoice reminder run reports it as "recipient has not opted in"). The check is repeated at send time.
 
 - **Import opt-ins** loads approved consent records from CSV in bulk.
 - The operations console lists current opt-ins and any pending contacts awaiting confirmation.
