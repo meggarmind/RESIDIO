@@ -7,6 +7,7 @@
  */
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { ilikeAny } from '@/lib/postgrest-filter';
 import type {
   NotificationHistoryEntry,
   HistoryEntryWithDetails,
@@ -238,7 +239,7 @@ export async function searchNotificationHistory(params: {
       template:notification_templates(id, name, display_name, category),
       recipient:residents(id, first_name, last_name, email, phone_primary, resident_code)
     `)
-    .or(`subject.ilike.%${search}%,body_preview.ilike.%${search}%`)
+    .or(ilikeAny(['subject', 'body_preview'], search))
     .order('created_at', { ascending: false })
     .limit(limit);
 

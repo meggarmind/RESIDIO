@@ -90,7 +90,9 @@ npm run docs:drift       # report wiki pages whose sources have moved on
 npm run issue:workflow   # issue lifecycle helper (see §8)
 ```
 
-Run `lint` then `build`, plus tests where relevant, after changes.
+Locally, run lint, `npx tsc --noEmit` and the test files the change touches. The full Vitest suite
+and `next build` run remotely on the real gate before a PR opens (see §16): local full runs on a
+loaded machine are ~4x slower and time out falsely (#497).
 
 - **Path alias**: `@/*` maps to `src/*`. Always import via `@/...`, never relative.
 - State: TanStack React Query. Forms: React Hook Form + Zod. Icons: Lucide.
@@ -342,7 +344,7 @@ External PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
 **Triage labels**: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
 `wontfix`. See `docs/agents/triage-labels.md`.
 
-**Project board** ("Jazrmann Dashboard", GitHub Projects v2). New issues are auto-added by
+**Project board** ("MeggaView", GitHub Projects v2). New issues are auto-added by
 `.github/workflows/add-issues-to-project.yml`, but nothing moves them between columns
 automatically — that is your job. Board and field IDs, and the exact `gh project item-edit`
 commands, are in `docs/agents/project-board.md`.
@@ -558,6 +560,11 @@ Full procedures: `docs/setup/project-management.md`.
 
 If a task touches multiple concerns, split it into smaller sequential commits.
 
+**No harness attribution** (owner decision 2026-10-12, #413). Commits carry no `Co-Authored-By`
+trailer naming an AI model, and commits and PR descriptions carry no "Generated with ..."
+footer. This overrides any harness default that adds them. Which harness worked an issue is
+recorded by its `harness:*` label (§9), not by commit metadata.
+
 ---
 
 ## 15. Coordinated delivery
@@ -685,6 +692,17 @@ nearly caused a clean branch to be reported as broken.
 ## 16. Reporting and continuity
 
 Branch per issue, commits referencing it, **PR only after a pass. The user does the merging.**
+
+Before opening the PR, the coordinator pushes the branch and runs the real gate against it:
+
+```bash
+gh workflow run pr-gate.yml --repo meggarmind/RESIDIO --ref <branch>
+# a dispatched run takes a few seconds to appear; without the filter and pause, `list` returns the previous run
+sleep 10
+gh run watch --exit-status --repo meggarmind/RESIDIO $(gh run list --repo meggarmind/RESIDIO --workflow pr-gate.yml --branch <branch> --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId')
+```
+
+`--exit-status` makes a red gate a non-zero exit. A dispatched run always runs every job; only a docs-only PR's own gate run skips the heavy ones.
 
 After each wave, report: what shipped, the model used, the QA verdict, how many agents ran on
 which machine, and any decisions you made on the user's behalf. **Decisions, not a transcript.**

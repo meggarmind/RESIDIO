@@ -10,6 +10,8 @@ import {
 import { RegistryKpiStrip } from '@/components/dashboard/registry-kpi-strip';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { Can } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 export default function HousesPage() {
   // Use optimized stats query
@@ -27,9 +29,11 @@ export default function HousesPage() {
         description="Manage properties in the estate"
         icon={Home}
         actions={
-          <Button asChild>
-            <Link href="/houses/new"><Plus className="mr-2 h-4 w-4" />Add property</Link>
-          </Button>
+          <Can permission={PERMISSIONS.HOUSES_CREATE}>
+            <Button asChild>
+              <Link href="/houses/new"><Plus className="mr-2 h-4 w-4" />Add property</Link>
+            </Button>
+          </Can>
         }
       />
 

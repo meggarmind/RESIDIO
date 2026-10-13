@@ -7,6 +7,7 @@ import { usePayment } from '@/hooks/use-payments';
 import { printReceipt } from '@/lib/print-receipt';
 import { PaymentReceipt } from '@/components/payments/payment-receipt';
 import { EmailReceiptDialog } from '@/components/payments/email-receipt-dialog';
+import { UnverifyPaymentButton } from '@/components/payments/unverify-payment-button';
 import { Button } from '@/components/ui/button';
 import {
     Sheet,
@@ -16,6 +17,8 @@ import {
     SheetTitle,
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Can } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 interface PaymentQuickViewSheetProps {
     paymentId: string | null;
@@ -54,12 +57,14 @@ export function PaymentQuickViewSheet({
                             </SheetDescription>
                         </div>
                         {paymentId && (
-                            <Button variant="outline" size="sm" asChild>
-                                <Link href={editHref} onClick={() => onOpenChange(false)}>
-                                    <Pencil className="mr-2 h-3.5 w-3.5" />
-                                    Edit
-                                </Link>
-                            </Button>
+                            <Can permission={PERMISSIONS.PAYMENTS_UPDATE}>
+                                <Button variant="outline" size="sm" asChild>
+                                    <Link href={editHref} onClick={() => onOpenChange(false)}>
+                                        <Pencil className="mr-2 h-3.5 w-3.5" />
+                                        Edit
+                                    </Link>
+                                </Button>
+                            </Can>
                         )}
                     </div>
                 </SheetHeader>
@@ -81,6 +86,7 @@ export function PaymentQuickViewSheet({
                     {payment && !isLoading && (
                         <>
                             <div className="flex flex-wrap items-center justify-end gap-2">
+                                <UnverifyPaymentButton paymentId={payment.id} isVerified={payment.is_verified} />
                                 <EmailReceiptDialog
                                     paymentId={payment.id}
                                     trigger={

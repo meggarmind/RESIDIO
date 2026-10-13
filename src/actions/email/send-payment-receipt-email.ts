@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import { embed } from '@/lib/utils';
 import { PaymentReceiptEmail } from '@/emails';
@@ -89,7 +91,7 @@ export async function getPaymentRecipients(paymentId: string): Promise<{
   const { data: housemates } = await supabase
     .from('resident_houses')
     .select(`
-      resident:residents(
+      resident:residents!resident_houses_resident_id_fkey(
         id,
         first_name,
         last_name,
@@ -130,6 +132,11 @@ export async function sendPaymentReceiptEmail(
   recipientEmails: string[],
   options?: { forceUnverified?: boolean }
 ): Promise<SendPaymentReceiptEmailResult> {
+  const auth = await authorizePermission(PERMISSIONS.PAYMENTS_VIEW);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
   if (recipientEmails.length === 0) {
     return { success: false, error: 'No recipients specified' };
   }

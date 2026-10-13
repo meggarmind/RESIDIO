@@ -1,9 +1,10 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import { logAudit } from '@/lib/audit/logger';
 import { updateImportStatus } from './create-import';
-import { createPayment } from '@/actions/payments/create-payment';
+import { createPaymentCore } from '@/lib/payments/create-payment';
 import { createExpense } from '@/actions/expenses/create-expense';
 import { updateExpenseStatus } from '@/actions/expenses/update-expense';
 import type { BankStatementImport, BankStatementRow, PaymentRecord, Expense } from '@/types/database';
@@ -222,24 +223,20 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     };
   }
 
-  // Get rows to process
-  let rowQuery = supabase
-    .from('bank_statement_rows')
-    .select('*')
-    .eq('import_id', import_id)
-    .in('status', ['matched', 'unmatched'])
-    .order('row_number');
-
-  if (skip_unmatched) {
-    rowQuery = supabase
+  // Get rows to process. Paged: a single PostgREST read is capped (1000 rows by default) and a
+  // silently truncated read would mark the import completed with rows untouched (#459).
+  const processableStatuses = skip_unmatched ? ['matched'] : ['matched', 'unmatched'];
+  const { data: rows, error: rowsErrorMessage } = await fetchAllRows((from, to) =>
+    supabase
       .from('bank_statement_rows')
       .select('*')
       .eq('import_id', import_id)
-      .eq('status', 'matched')
-      .order('row_number');
-  }
-
-  const { data: rows, error: rowsError } = await rowQuery;
+      .in('status', processableStatuses)
+      .order('row_number')
+      .order('id')
+      .range(from, to)
+  );
+  const rowsError = rowsErrorMessage ? { message: rowsErrorMessage } : null;
 
   if (rowsError) {
     return {
@@ -508,7 +505,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
           throw new Error('Resident matching required for payment creation');
         }
 
-        const paymentResult = await createPayment({
+        const paymentResult = await createPaymentCore({
           resident_id: row.matched_resident_id,
           amount: row.amount,
           payment_date: new Date(row.transaction_date || new Date()),
@@ -520,7 +517,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
           import_row_id: row.id,
           is_verified: true, // Bank statement imports are auto-verified
           bank_row_id: row.id,
-        });
+        }, { trustedVerification: true });
 
         if (paymentResult.error) {
           throw new Error(paymentResult.error);
@@ -641,7 +638,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 export async function approveImport(import_id: string, notes?: string): Promise<{ error: string | null }> {
   const supabase = await createServerSupabaseClient();
 
-  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_APPROVE);
   if (!auth.authorized) {
     return { error: auth.error || 'Unauthorized' };
   }
@@ -697,7 +694,7 @@ export async function approveImport(import_id: string, notes?: string): Promise<
 export async function rejectImport(import_id: string, reason: string): Promise<{ error: string | null }> {
   const supabase = await createServerSupabaseClient();
 
-  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REVIEW);
+  const auth = await authorizePermission(PERMISSIONS.IMPORTS_REJECT);
   if (!auth.authorized) {
     return { error: auth.error || 'Unauthorized' };
   }

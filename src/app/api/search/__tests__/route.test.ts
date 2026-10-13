@@ -338,7 +338,7 @@ describe('GET /api/search payments-by-resident and house short_name (#115)', () 
     // house_number -- the previous `.ilike('house_number', ...)` call is
     // gone in favour of an `.or()` covering both columns.
     expect(housesByNumberBuilder.or).toHaveBeenCalledWith(
-      expect.stringContaining('short_name.ilike.%IBB-1%')
+      'house_number.ilike."%IBB-1%",short_name.ilike."%IBB-1%"'
     );
   });
 

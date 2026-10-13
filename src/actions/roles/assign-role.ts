@@ -5,7 +5,8 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
-import { sanitizeSearchInput } from '@/lib/utils';
+import { assertCanManageTarget, canGrantRole } from '@/lib/auth/role-rank';
+import { ilikeAny } from '@/lib/postgrest-filter';
 import type { ProfileApprovalStatus } from '@/types/database';
 
 // =====================================================
@@ -49,7 +50,6 @@ export async function searchResidentsForRoleAssignment(
   }
 
   const supabase = await createServerSupabaseClient();
-  const searchPattern = `%${sanitizeSearchInput(query)}%`;
 
   // Search residents by name or email
   // Join with resident_houses to get house information (many-to-many relationship)
@@ -73,7 +73,7 @@ export async function searchResidentsForRoleAssignment(
         )
       )
     `)
-    .or(`first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},email.ilike.${searchPattern}`)
+    .or(ilikeAny(['first_name', 'last_name', 'email'], query))
     .limit(20);
 
   if (error) {
@@ -203,7 +203,6 @@ export async function searchProfilesForRoleAssignment(
   }
 
   const supabase = await createServerSupabaseClient();
-  const searchPattern = `%${sanitizeSearchInput(query)}%`;
 
   const { data: profiles, error } = await supabase
     .from('profiles')
@@ -216,7 +215,7 @@ export async function searchProfilesForRoleAssignment(
       role_id,
       app_roles!profiles_role_id_fkey (name, display_name)
     `)
-    .or(`email.ilike.${searchPattern},full_name.ilike.${searchPattern}`)
+    .or(ilikeAny(['email', 'full_name'], query))
     .limit(20);
 
   if (error) {
@@ -304,14 +303,26 @@ export async function assignRoleToProfile(
     return { success: false, error: 'Cannot assign an inactive role' };
   }
 
-  // Escalation guards: the two highest roles may only be granted by a super
-  // admin. This is the real enforcement — the UI merely mirrors it.
-  if (role.name === 'super_admin' && auth.roleName !== 'super_admin') {
-    return { success: false, error: 'Only Super Administrator can assign the Super Administrator role' };
+  // Target guard (#475): the account being changed must not outrank the caller.
+  // Without this an assign_roles holder could demote a chairman or a non-last
+  // super_admin by "assigning" them an ordinary role.
+  const targetGuard = await assertCanManageTarget(auth.userId!, profileId);
+  if (!targetGuard.ok) {
+    return { success: false, error: targetGuard.error };
   }
 
-  if (role.name === 'chairman' && auth.roleName !== 'super_admin') {
-    return { success: false, error: 'Only Super Administrator can assign the Chairman role' };
+  // Escalation guards: the two highest roles may only be granted by a super
+  // admin. This is the real enforcement — the UI merely mirrors it.
+  if (!canGrantRole(auth.roleName, role.name)) {
+    return {
+      success: false,
+      error:
+        role.name === 'super_admin'
+          ? 'Only Super Administrator can assign the Super Administrator role'
+          : role.name === 'chairman'
+            ? 'Only Super Administrator can assign the Chairman role'
+            : 'You cannot assign a role that outranks your own',
+    };
   }
 
   // Bootstrap invariant (#184): moving the last active super_admin onto another
@@ -393,6 +404,14 @@ export async function removeRoleFromProfile(
 
   if (profileError || !profile) {
     return { success: false, error: 'Account not found' };
+  }
+
+  // Target guard (#503, same rule as #475): the account being changed must not
+  // outrank the caller. The name checks below only covered chairman/super_admin;
+  // this is the rank comparison against the target's CURRENT role.
+  const targetGuard = await assertCanManageTarget(auth.userId!, profileId);
+  if (!targetGuard.ok) {
+    return { success: false, error: targetGuard.error };
   }
 
   if (profile.role_id) {

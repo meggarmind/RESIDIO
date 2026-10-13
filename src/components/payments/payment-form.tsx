@@ -27,7 +27,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { useCreatePayment, useUpdatePayment, useResidentPropertiesForPayment } from '@/hooks/use-payments';
-import { useResidents } from '@/hooks/use-residents';
+import { useResidentOptions } from '@/hooks/use-residents';
+import { getLockedPaymentFields, VERIFIED_LOCK_MESSAGE } from '@/lib/payments/verified-lock';
 import { paymentFormSchema, type PaymentFormData } from '@/lib/validators/payment';
 import type { Database } from '@/types/database.generated';
 import { toast } from 'sonner';
@@ -47,10 +48,12 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
     const createMutation = useCreatePayment();
     const updateMutation = useUpdatePayment();
     // Reduced limit - consider implementing async search for large estates
-    const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 200 });
+    const { data: residentsData, isLoading: residentsLoading } = useResidentOptions();
     const [submitState, setSubmitState] = React.useState<'idle' | 'loading' | 'success'>('idle');
 
     const isEditing = !!initialData;
+    const locked = getLockedPaymentFields(initialData?.is_verified);
+    const isLocked = (f: (typeof locked)[number]) => locked.includes(f);
 
     const form = useForm<PaymentFormData>({
         resolver: zodResolver(paymentFormSchema),
@@ -114,6 +117,13 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-2xl">
 
+                {locked.length > 0 && (
+                    <div role="note" className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                        <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-600" />
+                        <span>{VERIFIED_LOCK_MESSAGE}</span>
+                    </div>
+                )}
+
                 <FormField
                     control={form.control}
                     name="resident_id"
@@ -127,7 +137,7 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                                     form.setValue('house_id', undefined);
                                 }}
                                 defaultValue={field.value}
-                                disabled={isEditing || !!residentId || residentsLoading}
+                                disabled={isEditing || isLocked('resident_id') || !!residentId || residentsLoading}
                             >
                                 <FormControl>
                                     <SelectTrigger>
@@ -221,6 +231,7 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                                     <CurrencyInput
                                         value={field.value}
                                         onValueChange={field.onChange}
+                                        disabled={isLocked('amount')}
                                         placeholder="0.00"
                                     />
                                 </FormControl>
@@ -255,7 +266,7 @@ export function PaymentForm({ initialData, residentId, onSuccess }: PaymentFormP
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Status</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLocked('status')}>
                                     <FormControl>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select status" />

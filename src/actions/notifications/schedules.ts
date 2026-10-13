@@ -16,6 +16,7 @@ import type {
   CreateScheduleInput,
   UpdateScheduleInput,
 } from '@/lib/notifications/types';
+import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 
 /**
  * Get all notification schedules
@@ -358,7 +359,7 @@ export async function getEscalationChain(
       *,
       template:notification_templates(*)
     `)
-    .or(`id.eq.${rootId},parent_schedule_id.eq.${rootId}`)
+    .or(idOrParentFilterStrict('id', 'parent_schedule_id', rootId))
     .order('escalation_sequence');
 
   if (error) {

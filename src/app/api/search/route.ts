@@ -2,6 +2,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getCurrentUserPermissions } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { ilikeAny } from '@/lib/postgrest-filter';
 
 interface ScoredResult {
     _score: number;
@@ -68,7 +69,7 @@ export async function GET(request: Request) {
                 ? supabase
                     .from('residents')
                     .select('id, first_name, last_name, phone_primary, email')
-                    .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,phone_primary.ilike.%${query}%,email.ilike.%${query}%`)
+                    .or(ilikeAny(['first_name', 'last_name', 'phone_primary', 'email'], query))
                     .limit(5)
                 : SKIPPED,
 
@@ -79,7 +80,7 @@ export async function GET(request: Request) {
                 ? supabase
                     .from('houses')
                     .select('id, house_number, short_name, street_id, streets(name)')
-                    .or(`house_number.ilike.%${query}%,short_name.ilike.%${query}%`)
+                    .or(ilikeAny(['house_number', 'short_name'], query))
                     .limit(5)
                 : SKIPPED,
 
@@ -97,7 +98,7 @@ export async function GET(request: Request) {
                 ? supabase
                     .from('payment_records')
                     .select('id, reference_number, amount, resident_id')
-                    .or(`reference_number.ilike.%${query}%`)
+                    .or(ilikeAny(['reference_number'], query))
                     .limit(5)
                 : SKIPPED,
 
@@ -115,7 +116,7 @@ export async function GET(request: Request) {
                 ? supabase
                     .from('residents')
                     .select('id, first_name, last_name')
-                    .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
+                    .or(ilikeAny(['first_name', 'last_name'], query))
                     .limit(10)
                 : SKIPPED,
 

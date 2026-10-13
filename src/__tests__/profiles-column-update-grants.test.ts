@@ -35,6 +35,10 @@ const sql = migration
 
 const GRANTED_COLUMNS = ['dashboard_theme_override', 'portal_theme_override'];
 
+// The source scan reads every file under src/; under machine load it can exceed
+// Vitest's 5s default. Matches the whole-tree scans in module-integration.test.ts.
+const SCAN_TIMEOUT_MS = 60_000;
+
 function listFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const full = path.join(dir, entry);
@@ -86,12 +90,14 @@ describe('profiles column-level UPDATE grants', () => {
         if (declarations.length > 0 && declarations.every((d) => /^(await\s+)?createAdminClient\(/.test(d[1].trim()))) {
           continue;
         }
-        offenders.push(`${path.relative(root, file)} (${match[1]} via ${receiver ?? 'inline client'})`);
+        // POSIX separators, so the expectation below holds on Windows checkouts too.
+        const relative = path.relative(root, file).split(path.sep).join('/');
+        offenders.push(`${relative} (${match[1]} via ${receiver ?? 'inline client'})`);
       }
     }
     // The single permitted session-client writer, reviewed below.
     expect(offenders).toEqual(['src/actions/settings/theme-preferences.ts (update via supabase)']);
-  });
+  }, SCAN_TIMEOUT_MS);
 
   it('the theme-preferences writer updates only the granted columns', () => {
     const source = readFileSync(path.join(root, 'src/actions/settings/theme-preferences.ts'), 'utf8');

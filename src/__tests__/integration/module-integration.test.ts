@@ -50,23 +50,15 @@ const PERMISSION_ALLOWLIST = [
   // re-add an entry here to make this suite pass: that reopens the gap silently,
   // which is the whole failure mode the allowlist exists to make visible.
   //
-  // Two write actions in reports/report-schedules.ts remain unguarded, for
-  // DIFFERENT reasons -- do not collapse them into one justification:
-  //
-  //   markScheduleExecuted  -- genuinely cron-only. Its sole caller is the
-  //     CRON_SECRET-authenticated /api/cron/generate-reports route, which has no
-  //     user session. A hard permission check would break the scheduled path.
-  //
-  //   saveGeneratedReport   -- NOT cron-only, and NOT safe. It is also called
-  //     interactively from src/hooks/use-reports.ts:139. It has no authorization
-  //     check of any kind, and it selects its client from the caller-supplied
-  //     `generation_trigger`, so a caller passing 'scheduled' gets
-  //     createAdminClient() and bypasses RLS. Tracked as its own issue; this
-  //     comment previously claimed it was cron-only, which was wrong.
-  //
-  // The file is NOT allowlisted, because this scan is per-file and the file does
-  // contain permission checks -- which is exactly how the gap above stayed
-  // invisible. That per-file granularity is tracked separately.
+  // reports/report-schedules.ts is fully guarded (#388). saveGeneratedReport now
+  // calls authorizePermission(REPORTS_VIEW_FINANCIAL), deliberately matching the
+  // live RLS INSERT policy on generated_reports, and uses the session client
+  // only. The service-role cron writes (getDueSchedules, markScheduleExecuted,
+  // saveScheduledReport) moved to src/lib/reports/scheduled-report-store.ts: a
+  // plain server lib, not a use-server module, imported only by the
+  // CRON_SECRET-authenticated /api/cron/generate-reports route. It sits outside
+  // this src/actions/** scan by design, so it is not, and must not become, an
+  // allowlist entry.
 
   // ---- Not covered by admin RBAC by design (ownership / service / pre-auth).
   // Do NOT add authorizePermission to these.
@@ -74,7 +66,6 @@ const PERMISSION_ALLOWLIST = [
   // Business-rule authorization: validates the caller is the primary resident.
   'residents/add-household-member.ts',
   // Resident self-service: authorizes via auth.getUser() + resource ownership.
-  'payments/verify-paystack-payment.ts',
   'payments/submit-payment-proof.ts',
   'billing/pay-invoice-with-wallet.ts',
   'billing/pay-multiple-invoices-with-wallet.ts',
@@ -148,6 +139,55 @@ function hasPermissionCheck(content: string): boolean {
 
 function hasAuditLog(content: string): boolean {
   return content.includes('logAudit');
+}
+
+const SRC_DIR = path.join(process.cwd(), 'src');
+
+// Files OUTSIDE src/actions/** that may carry a top-level 'use server'
+// directive. Such a directive makes every export a callable server-action RPC
+// endpoint, but the permission/audit scans above only look at src/actions/**,
+// so a stray directive elsewhere is an unguarded endpoint nobody checks (#409).
+// Exact paths, relative to the repo root. Keep this list minimal.
+const USE_SERVER_OUTSIDE_ACTIONS_ALLOWLIST = [
+  // Exposes only the caller's own permission state (getCurrentUserPermissions,
+  // authorizePermission, authorizeAnyPermission). Out of scope for #409.
+  'src/lib/auth/authorize.ts',
+];
+
+/**
+ * True when the file's leading directive is 'use server' / "use server".
+ * Skips a BOM, whitespace and leading comments; a later mention of the string
+ * (in a comment, a string literal, or a function-level directive) does not count.
+ */
+function hasTopLevelUseServer(content: string): boolean {
+  let rest = content.replace(/^﻿/, '');
+  for (;;) {
+    const trimmed = rest.replace(/^\s+/, '');
+    if (trimmed.startsWith('//')) {
+      const eol = trimmed.indexOf('\n');
+      rest = eol === -1 ? '' : trimmed.slice(eol + 1);
+    } else if (trimmed.startsWith('/*')) {
+      const end = trimmed.indexOf('*/');
+      rest = end === -1 ? '' : trimmed.slice(end + 2);
+    } else {
+      rest = trimmed;
+      break;
+    }
+  }
+  return /^(['"])use server\1(?:\s*;|\s*$|\s*\n|\s*\/\/|\s*\/\*)/.test(rest);
+}
+
+/**
+ * True when any line is a bare 'use server' / "use server" string statement
+ * (optional `;`, optional trailing `//` or block comment). Inside a function
+ * body this makes that one function a callable server-action endpoint (#460);
+ * at the top of a file it is the module directive. Mentions of the words in
+ * other code, longer string literals, or comments do not match.
+ */
+function hasUseServerDirectiveLine(content: string): boolean {
+  return content
+    .split(/\r?\n/)
+    .some((line) => /^\s*(['"])use server\1\s*;?\s*(?:\/\/.*|\/\*.*)?$/.test(line));
 }
 
 function isAllowlisted(file: string, allowlist: string[]): boolean {
@@ -225,6 +265,34 @@ describe('Module Integration Compliance', () => {
       expect(
         violations,
         `Files missing audit logging:\n${violations.join('\n')}\n\nAdd logAudit calls or update AUDIT_ALLOWLIST in test file.`
+      ).toHaveLength(0);
+    }, SCAN_TIMEOUT_MS);
+  });
+
+  describe('Server Action Surface', () => {
+    it("no file outside src/actions should carry a 'use server' directive (module or function level)", async () => {
+      const srcFiles = await glob('**/*.{ts,tsx}', {
+        cwd: SRC_DIR,
+        ignore: ['actions/**'],
+      });
+      const violations: string[] = [];
+
+      for (const file of srcFiles) {
+        const relative = `src/${file.replace(/\\/g, '/')}`;
+        if (USE_SERVER_OUTSIDE_ACTIONS_ALLOWLIST.includes(relative)) continue;
+
+        const content = fs.readFileSync(path.join(SRC_DIR, file), 'utf-8');
+        if (hasTopLevelUseServer(content) || hasUseServerDirectiveLine(content)) {
+          violations.push(relative);
+        }
+      }
+
+      expect(
+        violations,
+        `Files outside src/actions/** with a 'use server' directive (top-level or inside a function):\n${violations.join('\n')}\n\n` +
+          `Every export of such a file is a callable server action that the permission/audit scans never see. ` +
+          `Remove the directive (server-only libraries do not need it), move the actions under src/actions/**, ` +
+          `or add the file to USE_SERVER_OUTSIDE_ACTIONS_ALLOWLIST with a reason.`
       ).toHaveLength(0);
     }, SCAN_TIMEOUT_MS);
   });

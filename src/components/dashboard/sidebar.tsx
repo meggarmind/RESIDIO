@@ -12,6 +12,7 @@ import { useSectionedNavigation } from '@/hooks/use-navigation';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
 import { useSidebarState } from '@/hooks/use-sidebar-state';
 import { useSidebarNavState } from '@/hooks/use-sidebar-nav-state';
+import { getBuildInfo } from '@/lib/version';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface SidebarProps {
@@ -26,6 +27,14 @@ export function Sidebar({ className }: SidebarProps) {
   const { data: pendingCount } = usePendingApprovalsCount();
   const { logoUrl } = useEstateLogo();
   const { isCollapsed, isExpanded, toggleCollapsed, setHoverExpanded } = useSidebarState();
+  const build = getBuildInfo();
+  const buildLabel = `${build.version} · ${build.shortSha}`;
+  const envBadge =
+    build.env === 'staging'
+      ? { text: 'STAGE', variant: 'warning' as const }
+      : build.env === 'development'
+        ? { text: 'DEV', variant: 'info' as const }
+        : null;
 
   // Expandable submenu state. Only menus the reader explicitly toggled are
   // recorded here; a menu they never touched auto-expands while they are
@@ -415,6 +424,39 @@ export function Sidebar({ className }: SidebarProps) {
                 </p>
               </div>
             </Link>
+          )}
+
+          {/* Build identity: which version/commit/environment is running */}
+          {isCollapsed && !isExpanded ? (
+            envBadge && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex justify-center" data-testid="build-info">
+                    <Badge variant={envBadge.variant} className="px-1.5 py-0 text-[10px]">
+                      {envBadge.text}
+                    </Badge>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{buildLabel}</p>
+                </TooltipContent>
+              </Tooltip>
+            )
+          ) : (
+            <div
+              className="flex items-center justify-between gap-2 px-3 text-xs"
+              style={{ color: 'var(--text-muted)' }}
+              data-testid="build-info"
+            >
+              <span className="truncate whitespace-nowrap" title={buildLabel}>
+                {buildLabel}
+              </span>
+              {envBadge && (
+                <Badge variant={envBadge.variant} className="px-1.5 py-0 text-[10px]">
+                  {envBadge.text}
+                </Badge>
+              )}
+            </div>
           )}
         </TooltipProvider>
       </div>

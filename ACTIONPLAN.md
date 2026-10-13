@@ -7,6 +7,10 @@
 Created: 2026-01-08T00:00:00Z
 Status: IN PROGRESS
 
+## Review Programme (2026-10-12) — Active
+
+- [ ] **#447 Admin-dashboard code, query and database review.** Read-only programme, six phases including a dedicated security review (Phase 4); the sequence and its checkboxes live in the issue body, which is the resume point. Findings are filed as separate issues under `CORE.md` §10. Phase 1 (baseline: advisors, `pg_stat_statements`, index and bloat survey) is next.
+
 ## Production Hosting Plan (2026-10-10) — Decided
 
 - [x] Owner decided the hosting plan: **Coolify on one Hostinger KVM 2** running prod and stage, Supabase free plan, nightly encrypted backups to **Cloudflare R2** (30 daily + 12 monthly), Coolify dashboard behind **Cloudflare One**. Overrides #269's 2026-09-19 design where they conflict. Record: `docs/deployment/hosting-plan.md`.

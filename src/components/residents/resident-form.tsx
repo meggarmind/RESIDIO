@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useHousesWithRoles, useHouseResidents } from '@/hooks/use-houses';
-import { useCreateResident, useUpdateResident, useResidents } from '@/hooks/use-residents';
+import { useCreateResident, useUpdateResident, useResidentOptions } from '@/hooks/use-residents';
 import { createResidentBaseSchema, resolveSubmittedCorporateFields, type CreateResidentData, type ResidentFormData, requiresSponsor } from '@/lib/validators/resident';
 import { toast } from 'sonner';
 import type { Resident, ResidentRole, EntityType } from '@/types/database';
@@ -46,7 +46,7 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
   const router = useRouter();
   const { data: housesData, isLoading: housesLoading } = useHousesWithRoles({ limit: 100 });
   // Reduced limit - only used for emergency contact picker in linked mode
-  const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 200 });
+  const { data: residentsData, isLoading: residentsLoading } = useResidentOptions();
   const createMutation = useCreateResident();
   const updateMutation = useUpdateResident();
 

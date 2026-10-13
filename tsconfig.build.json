@@ -1,0 +1,19 @@
+// Type-check scope for `next build` (next.config.ts typescript.tsconfigPath).
+// Tests and tooling are still checked through tsconfig.json; they are left out
+// here because .dockerignore drops scripts/, e2e/ and the test configs from the
+// image's build context (#504).
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "node_modules",
+    "website",
+    "scripts",
+    "e2e",
+    "src/__tests__",
+    "**/__tests__/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "playwright.config.ts",
+    "vitest.config.ts"
+  ]
+}

@@ -3,7 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { sanitizeSearchInput } from '@/lib/utils';
+import { ilikeAny } from '@/lib/postgrest-filter';
 import type { InvoiceWithDetails, InvoiceStatus, InvoiceType } from '@/types/database';
 
 // Note: InvoiceWithDetails is now imported from @/types/database directly where needed
@@ -50,8 +50,7 @@ function applyInvoiceFilters(query: any, params: InvoiceFilterParams): any {
         query = query.eq('house_id', houseId);
     }
     if (search) {
-        const sanitized = sanitizeSearchInput(search);
-        query = query.or(`invoice_number.ilike.%${sanitized}%`);
+        query = query.or(ilikeAny(['invoice_number'], search));
     }
     if (periodFrom) {
         query = query.gte('period_start', periodFrom);

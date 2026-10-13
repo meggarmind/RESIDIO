@@ -1,9 +1,9 @@
 'use server';
 
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
-import { authorizePermission } from '@/lib/auth/authorize';
+import { authorizePermission, authorizeAnyPermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
-import { sanitizeSearchInput } from '@/lib/utils';
+import { eqValue, ilikeContains } from '@/lib/postgrest-filter';
 import type { ResidentWithHouses } from '@/types/database';
 import type { ResidentSearchParams } from '@/lib/validators/resident';
 
@@ -69,8 +69,14 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
 
   // Apply basic filters
   if (search) {
-    const sanitized = sanitizeSearchInput(search);
-    query = query.or(`first_name.ilike.%${sanitized}%,last_name.ilike.%${sanitized}%,resident_code.eq.${search},phone_primary.ilike.%${sanitized}%`);
+    query = query.or(
+      [
+        ilikeContains('first_name', search),
+        ilikeContains('last_name', search),
+        eqValue('resident_code', search),
+        ilikeContains('phone_primary', search),
+      ].join(',')
+    );
   }
   if (status) {
     query = query.eq('account_status', status);
@@ -134,12 +140,51 @@ export async function getResidents(params: Partial<ResidentSearchParams> = {}): 
 }
 
 /**
+ * Slim resident list for dropdowns that only need a name and code (#464).
+ * Skips the nested resident_houses/house/street/house_type join that
+ * getResidents pulls in. Same RESIDENTS_VIEW gate and same RLS-scoped client
+ * as getResidents, so the set of people who can see a resident is unchanged.
+ */
+export async function getResidentOptions(): Promise<{
+  data: Array<{ id: string; first_name: string; last_name: string; resident_code: string }>;
+  error: string | null;
+}> {
+  const auth = await authorizePermission(PERMISSIONS.RESIDENTS_VIEW);
+  if (!auth.authorized) {
+    return { data: [], error: auth.error || 'Unauthorized' };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from('residents')
+    .select('id, first_name, last_name, resident_code')
+    .order('first_name')
+    .order('last_name')
+    .limit(1000);
+
+  return {
+    data: data ?? [],
+    error: error?.message ?? null,
+  };
+}
+
+/**
  * Get all active residents (simple list for dropdowns)
  */
 export async function getActiveResidents(): Promise<{
   data: Array<{ id: string; first_name: string; last_name: string; resident_code: string }>;
   error: string | null;
 }> {
+  // Dropdown source for the expenditure and email-import review pages: allow
+  // exactly the roles that can open those pages (#472).
+  const auth = await authorizeAnyPermission([
+    PERMISSIONS.EXPENDITURE_VIEW,
+    PERMISSIONS.EMAIL_IMPORTS_VIEW,
+  ]);
+  if (!auth.authorized) {
+    return { data: [], error: auth.error || 'Unauthorized' };
+  }
+
   const supabase = createAdminClient();
 
   const { data, error } = await supabase

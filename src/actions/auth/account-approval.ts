@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { isLastActiveSuperAdmin, LAST_SUPER_ADMIN_ERROR } from '@/lib/auth/super-admin-invariant';
+import { assertCanManageTarget } from '@/lib/auth/role-rank';
 import { assignRoleToProfile } from '@/actions/roles/assign-role';
 
 /**
@@ -237,6 +238,19 @@ export async function rejectAccount(
 
   if (profileError || !profile) {
     return { success: false, error: 'Account not found' };
+  }
+
+  // Target guard (#475): rejecting clears role_id, so the target must not
+  // outrank the caller.
+  const targetGuard = await assertCanManageTarget(auth.userId!, profileId);
+  if (!targetGuard.ok) {
+    return { success: false, error: targetGuard.error };
+  }
+
+  // Rejection is the pending queue's action. Aimed at an active, suspended or
+  // already-rejected account it would strip a working account of its role.
+  if (profile.approval_status !== 'pending') {
+    return { success: false, error: 'Only pending accounts can be rejected' };
   }
 
   // Bootstrap invariant (#184). Rejection is not only a pending-queue action:

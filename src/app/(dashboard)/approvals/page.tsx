@@ -36,6 +36,8 @@ import { toast } from 'sonner';
 import { EnhancedPageHeader, EnhancedTableCard } from '@/components/dashboard/enhanced-stat-card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { Can } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const ALL_VALUE = '_all';
 
@@ -69,7 +71,7 @@ export default function ApprovalsPage() {
     });
     const [pageSize, setPageSize] = useState(20);
 
-    const { data, isLoading } = useApprovalRequests({
+    const { data, isLoading, isError, error, refetch } = useApprovalRequests({
         status: statusFilter === ALL_VALUE ? 'all' : statusFilter as ApprovalStatus,
         page: params.page,
         limit: pageSize,
@@ -154,13 +156,14 @@ export default function ApprovalsPage() {
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                     <Input
                                         placeholder="Filter by entity name..."
+                                        aria-label="Filter by entity name"
                                         className="pl-9"
                                         disabled
                                     />
                                 </div>
 
                                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                    <SelectTrigger className="w-[180px]">
+                                    <SelectTrigger className="w-[180px]" aria-label="Filter by status">
                                         <SelectValue placeholder="Filter by status" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -174,7 +177,17 @@ export default function ApprovalsPage() {
                         </div>
                     </div>
 
-                    {data?.data && data.data.length > 0 ? (
+                    {isError ? (
+                        <div role="alert" className="flex flex-col items-center gap-3 py-12 text-center border rounded-xl border-destructive/30 bg-destructive/5">
+                            <p className="text-lg font-medium text-destructive">Could not load approval requests</p>
+                            <p className="text-sm text-muted-foreground">
+                                {error instanceof Error ? error.message : 'Something went wrong.'} The queue may not be empty.
+                            </p>
+                            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                                Retry
+                            </Button>
+                        </div>
+                    ) : data?.data && data.data.length > 0 ? (
                         <div className="rounded-xl border overflow-hidden shadow-soft animate-slide-up">
                             <Table variant="modern">
                                 <TableHeader>
@@ -220,6 +233,7 @@ export default function ApprovalsPage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 {request.status === 'pending' && (
+                                                    <Can permission={PERMISSIONS.APPROVALS_APPROVE_REJECT}>
                                                     <div className="flex gap-2 justify-end">
                                                         <Button
                                                             size="sm"
@@ -240,6 +254,7 @@ export default function ApprovalsPage() {
                                                             Reject
                                                         </Button>
                                                     </div>
+                                                    </Can>
                                                 )}
                                                 {request.status !== 'pending' && request.reviewer && (
                                                     <span className="text-xs text-muted-foreground italic">
@@ -273,7 +288,7 @@ export default function ApprovalsPage() {
                                         setParams(prev => ({ ...prev, page: 1 }));
                                     }}
                                 >
-                                    <SelectTrigger className="h-8 w-[70px] rounded-xl">
+                                    <SelectTrigger className="h-8 w-[70px] rounded-xl" aria-label="Rows per page">
                                         <SelectValue placeholder={pageSize.toString()} />
                                     </SelectTrigger>
                                     <SelectContent>

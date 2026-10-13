@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Search, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { useResidents } from '@/hooks/use-residents';
+import { useResidentOptions } from '@/hooks/use-residents';
 
 export function PaymentFilters() {
     const router = useRouter();
@@ -23,7 +23,7 @@ export function PaymentFilters() {
 
     // Fetch residents for resident filter - limited for performance
     // TODO: Consider implementing async search/combobox for large estates
-    const { data: residentsData } = useResidents({ limit: 500 });
+    const { data: residentsData } = useResidentOptions();
     const residents = residentsData?.data || [];
 
     // Get initial values from URL

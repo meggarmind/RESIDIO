@@ -1,9 +1,17 @@
+import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 
-const supabaseUrl = 'https://kzugmyjjqttardhfejzc.supabase.co';
-const supabaseServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6dWdteWpqcXR0YXJkaGZlanpjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTIzNTM5MywiZXhwIjoyMDgwODExMzkzfQ.2t5OoWDl7RgH1djZi3F6JPOsrQqRv0G18YSMpUtWJfQ';
+dotenv.config({ path: '.env.local' });
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL_CLOUD;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY_CLOUD;
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error(
+    'Missing NEXT_PUBLIC_SUPABASE_URL_CLOUD or SUPABASE_SERVICE_ROLE_KEY_CLOUD. Set them in .env.local.'
+  );
+}
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {

@@ -27,7 +27,7 @@ import {
   useUpdateSecurityContact,
   useSecurityContactCategories,
 } from '@/hooks/use-security';
-import { useResidents } from '@/hooks/use-residents';
+import { useResidentOptions } from '@/hooks/use-residents';
 import { createSecurityContactSchema, type CreateSecurityContactData, type UpdateSecurityContactData } from '@/lib/validators/security-contact';
 import { toast } from 'sonner';
 import type { SecurityContactWithDetails, IdDocumentType } from '@/types/database';
@@ -58,7 +58,7 @@ export function SecurityContactForm({
 
   // Fetch data
   const { data: categories, isLoading: categoriesLoading } = useSecurityContactCategories();
-  const { data: residentsData, isLoading: residentsLoading } = useResidents({ limit: 500 });
+  const { data: residentsData, isLoading: residentsLoading } = useResidentOptions();
   const residents = residentsData?.data || [];
 
   // Mutations

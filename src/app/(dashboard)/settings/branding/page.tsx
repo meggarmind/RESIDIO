@@ -32,9 +32,9 @@ export default function BrandingPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Please upload a PNG, JPG, WebP, or SVG image');
+      toast.error('Please upload a PNG, JPG, or WebP image');
       return;
     }
 
@@ -121,7 +121,7 @@ export default function BrandingPage() {
                 <div>
                   <p className="text-sm font-medium">Upload Logo</p>
                   <p className="text-xs text-muted-foreground">
-                    Supported formats: PNG, JPG, WebP, SVG
+                    Supported formats: PNG, JPG, WebP
                   </p>
                 </div>
 
@@ -129,7 +129,7 @@ export default function BrandingPage() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                    accept="image/png,image/jpeg,image/jpg,image/webp"
                     onChange={handleLogoUpload}
                     className="hidden"
                     id="logo-upload"

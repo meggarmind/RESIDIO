@@ -4,9 +4,22 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { getOrCreateWallet } from './wallet';
 import type { InvoiceStatus } from '@/types/database';
 import { revalidatePath } from 'next/cache';
+import { validateMoneyAmount } from '@/lib/validators/money';
+import { callWalletInvoiceRpc } from '@/lib/billing/wallet-payment-rpc';
+
+type ReverseRpcData = {
+  success?: boolean;
+  error?: string;
+  new_invoice_status?: string;
+  new_amount_paid?: number;
+  old_amount_paid?: number;
+  old_status?: string;
+  invoice_number?: string;
+  new_wallet_balance?: number;
+  old_wallet_balance?: number;
+};
 
 interface ReverseAllocationResult {
   success: boolean;
@@ -52,139 +65,53 @@ export async function reversePaymentAllocation(
   }
 
   // 2. Validate amount
-  if (amountToReverse <= 0) {
+  const amountError = validateMoneyAmount(amountToReverse, { label: 'Reversal amount' });
+  if (amountError) {
     return {
       success: false,
       amountReversed: 0,
       newInvoiceStatus: null,
-      error: 'Reversal amount must be greater than zero',
+      error: amountError,
     };
   }
 
   const supabase = await createServerSupabaseClient();
 
-  // 3. Fetch invoice
-  const { data: invoice, error: fetchError } = await supabase
-    .from('invoices')
-    .select('*')
-    .eq('id', invoiceId)
-    .single();
-
-  if (fetchError || !invoice) {
-    return {
-      success: false,
-      amountReversed: 0,
-      newInvoiceStatus: null,
-      error: 'Invoice not found',
-    };
-  }
-
-  // 4. Validate amount to reverse doesn't exceed amount paid
-  if (invoice.amount_paid < amountToReverse) {
-    return {
-      success: false,
-      amountReversed: 0,
-      newInvoiceStatus: null,
-      error: `Cannot reverse ₦${amountToReverse.toLocaleString()}. Only ₦${invoice.amount_paid.toLocaleString()} has been paid on this invoice.`,
-    };
-  }
-
-  // 5. Calculate new invoice state
-  const newAmountPaid = invoice.amount_paid - amountToReverse;
-  const newStatus: InvoiceStatus =
-    newAmountPaid === 0
-      ? 'unpaid'
-      : newAmountPaid >= invoice.amount_due
-      ? 'paid'
-      : 'partially_paid';
-
-  // 6. Update invoice (reduce amount_paid, update status)
-  const { error: updateError } = await supabase
-    .from('invoices')
-    .update({
-      amount_paid: newAmountPaid,
-      status: newStatus,
-    })
-    .eq('id', invoiceId);
-
-  if (updateError) {
-    return {
-      success: false,
-      amountReversed: 0,
-      newInvoiceStatus: null,
-      error: `Failed to update invoice: ${updateError.message}`,
-    };
-  }
-
-  // 7. Credit wallet (add reversed amount back)
-  const { data: wallet } = await getOrCreateWallet(invoice.resident_id);
-  if (!wallet) {
-    // Rollback invoice update
-    await supabase
-      .from('invoices')
-      .update({
-        amount_paid: invoice.amount_paid,
-        status: invoice.status,
-      })
-      .eq('id', invoiceId);
-
-    return {
-      success: false,
-      amountReversed: 0,
-      newInvoiceStatus: null,
-      error: 'Failed to get resident wallet',
-    };
-  }
-
-  const newWalletBalance = wallet.balance + amountToReverse;
-
-  const { error: walletUpdateError } = await supabase
-    .from('resident_wallets')
-    .update({ balance: newWalletBalance })
-    .eq('id', wallet.id);
-
-  if (walletUpdateError) {
-    // Rollback invoice update
-    await supabase
-      .from('invoices')
-      .update({
-        amount_paid: invoice.amount_paid,
-        status: invoice.status,
-      })
-      .eq('id', invoiceId);
-
-    return {
-      success: false,
-      amountReversed: 0,
-      newInvoiceStatus: null,
-      error: `Failed to credit wallet: ${walletUpdateError.message}`,
-    };
-  }
-
-  // 8. Log wallet transaction
-  await supabase.from('wallet_transactions').insert({
-    wallet_id: wallet.id,
-    type: 'credit',
-    amount: amountToReverse,
-    balance_after: newWalletBalance,
-    reference_type: 'invoice_reversal',
-    reference_id: invoiceId,
-    description: `Payment reversal for invoice ${invoice.invoice_number}`,
+  // 3. Reverse atomically: reverse_invoice_payment_allocation locks the wallet then the
+  // invoice, lowers amount_paid, recomputes status, credits the wallet and writes the
+  // 'invoice_reversal' ledger row in ONE database transaction (no client-side
+  // read-modify-write, no compensating rollback). It re-checks billing.manage_wallets.
+  const { data, error } = await callWalletInvoiceRpc(supabase, 'reverse_invoice_payment_allocation', {
+    p_invoice_id: invoiceId,
+    p_amount: amountToReverse,
   });
+  const result = data as ReverseRpcData | null;
 
-  // 9. Audit log
+  if (error || !result || result.success !== true) {
+    return {
+      success: false,
+      amountReversed: 0,
+      newInvoiceStatus: null,
+      error: error?.message || result?.error || 'Payment reversal failed',
+    };
+  }
+
+  const newStatus = result.new_invoice_status as InvoiceStatus;
+  const newWalletBalance = Number(result.new_wallet_balance);
+
+  // 4. Audit log
   await logAudit({
     action: 'UPDATE',
     entityType: 'invoices',
     entityId: invoiceId,
-    entityDisplay: `Payment reversal: ${invoice.invoice_number}`,
+    entityDisplay: `Payment reversal: ${result.invoice_number}`,
     oldValues: {
-      amount_paid: invoice.amount_paid,
-      status: invoice.status,
-      wallet_balance: wallet.balance,
+      amount_paid: result.old_amount_paid,
+      status: result.old_status,
+      wallet_balance: result.old_wallet_balance,
     },
     newValues: {
-      amount_paid: newAmountPaid,
+      amount_paid: result.new_amount_paid,
       status: newStatus,
       wallet_balance: newWalletBalance,
     },
@@ -195,7 +122,7 @@ export async function reversePaymentAllocation(
     },
   });
 
-  // 10. Revalidate cache
+  // 5. Revalidate cache
   revalidatePath('/billing');
   revalidatePath(`/billing/${invoiceId}`);
   revalidatePath('/residents');

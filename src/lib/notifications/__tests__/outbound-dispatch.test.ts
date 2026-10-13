@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
 import { sendNotification } from '@/lib/notifications/send';
-import { getSettingValueAsService, getSettingResultAsService } from '@/actions/settings/get-settings';
+import { getSettingValueAsService, getSettingResultAsService } from '@/lib/settings/service';
 import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { createAdminClient } from '@/lib/supabase/server';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 
-vi.mock('@/actions/settings/get-settings', () => ({
+vi.mock('@/lib/settings/service', () => ({
   getSettingValueAsService: vi.fn(),
   getSettingResultAsService: vi.fn(),
 }));
@@ -580,7 +580,7 @@ describe('WhatsApp outbound dispatch', () => {
 // query errored" — collapsing both to null made a transient DB error
 // indistinguishable from an unconfigured/absent setting at every call
 // site, which matters once a kill switch fails closed (issue #134).
-// This uses the real (unmocked) get-settings module against the mocked
+// This uses the real (unmocked) settings service module against the mocked
 // admin Supabase client, since the module is otherwise mocked above for
 // the dispatch tests.
 describe('settings read layer (issue #136)', () => {
@@ -590,8 +590,8 @@ describe('settings read layer (issue #136)', () => {
 
   it('distinguishes a query error from an absent row', async () => {
     const { getSettingResultAsService } = await vi.importActual<
-      typeof import('@/actions/settings/get-settings')
-    >('@/actions/settings/get-settings');
+      typeof import('@/lib/settings/service')
+    >('@/lib/settings/service');
 
     vi.mocked(createAdminClient).mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
@@ -620,8 +620,8 @@ describe('settings read layer (issue #136)', () => {
 
   it('resolves a configured value distinctly from both absent and error', async () => {
     const { getSettingResultAsService } = await vi.importActual<
-      typeof import('@/actions/settings/get-settings')
-    >('@/actions/settings/get-settings');
+      typeof import('@/lib/settings/service')
+    >('@/lib/settings/service');
 
     vi.mocked(createAdminClient).mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
