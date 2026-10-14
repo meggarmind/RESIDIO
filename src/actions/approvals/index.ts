@@ -299,8 +299,8 @@ export async function rejectRequest(
     return { success: false, error: 'Request has already been processed' };
   }
 
-  // Update the request status
-  const { error: updateError } = await supabase
+  // Update the request status, guarded on pending so a racing approve is never overwritten
+  const { data: updated, error: updateError } = await supabase
     .from('approval_requests')
     .update({
       status: 'rejected',
@@ -309,10 +309,18 @@ export async function rejectRequest(
       review_notes: notes || null,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', requestId);
+    .eq('id', requestId)
+    .eq('status', 'pending')
+    .select('id')
+    .maybeSingle();
 
   if (updateError) {
     return { success: false, error: updateError.message };
+  }
+
+  // No row back: another approver claimed or rejected it between our read and this write
+  if (!updated) {
+    return { success: false, error: 'Request has already been processed' };
   }
 
   await logAudit({
