@@ -140,7 +140,7 @@ describe('WhatsApp Assistant master switch (#547)', () => {
 
       const result = await handleResidentMessage(message(text), { repository: repo, send, onIdentified });
 
-      expect(result).toMatchObject({ status: 'pending', residentId: null, optedIn: false });
+      expect(result).toEqual({ status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' });
       for (const fn of Object.values(repo)) expect(fn).not.toHaveBeenCalled();
       expect(send).not.toHaveBeenCalled();
       expect(onIdentified).not.toHaveBeenCalled();
