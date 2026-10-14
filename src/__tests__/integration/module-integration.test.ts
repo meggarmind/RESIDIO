@@ -159,7 +159,6 @@ const AUDIT_ALLOWLIST = [
   'security/vehicles.ts::setPrimaryVehicle',
   'security/codes.ts::deactivateExpiredCodes',
   'security/categories.ts::reorderCategories',
-  'security/access-logs.ts::unflagAccess',
   'reports/report-schedules.ts::deleteGeneratedReport',
   'report-subscriptions/update-subscription.ts::createDefaultReportSubscription',
   'reference/transaction-tags.ts::tagImportRow',
