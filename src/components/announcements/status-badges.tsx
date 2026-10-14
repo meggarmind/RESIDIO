@@ -93,7 +93,7 @@ export function TargetAudienceBadge({ audience }: { audience: string }) {
     all: 'All',
     residents: 'Residents',
     owners: 'Owners',
-    tenants: 'Tenants',
+    tenants: 'Renters',
     staff: 'Staff',
   };
 

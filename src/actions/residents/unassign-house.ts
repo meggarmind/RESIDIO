@@ -128,7 +128,7 @@ export async function unassignHouse(
           resident_role: sr.resident_role as ResidentRole,
           event_type: 'move_out' as const,
           event_date: today,
-          notes: 'Removed due to Tenant move-out',
+          notes: 'Removed due to Renter move-out',
           is_current: false,
           created_by: user.id,
         }));
@@ -174,7 +174,7 @@ export async function unassignHouse(
         event_type: 'move_out',
         event_date: today,
         notes: notes || (role === 'tenant'
-          ? `Tenant moved out${cascadeRemovedCount > 0 ? `, ${cascadeRemovedCount} secondary residents also removed` : ''}`
+          ? `Renter moved out${cascadeRemovedCount > 0 ? `, ${cascadeRemovedCount} secondary residents also removed` : ''}`
           : 'Resident moved out'),
         is_current: false,
         created_by: user.id,
@@ -201,7 +201,7 @@ export async function unassignHouse(
       move_out_date: today,
     },
     description: role === 'tenant' && cascadeRemovedCount > 0
-      ? `Tenant unassigned, cascade removed ${cascadeRemovedCount} secondary resident(s)`
+      ? `Renter unassigned, cascade removed ${cascadeRemovedCount} secondary resident(s)`
       : `${role} unassigned from house`,
   });
 

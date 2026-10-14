@@ -14,7 +14,7 @@ type SwapResidentRolesResponse = {
 }
 
 /**
- * Swap roles between a co_resident and the current primary residing resident (Tenant or Resident Landlord).
+ * Swap roles between a co_resident and the current primary residing resident (Renter or Owner-Occupier).
  *
  * This implements the "Promote" feature:
  * - The co_resident is promoted to the primary role (tenant or resident_landlord)
