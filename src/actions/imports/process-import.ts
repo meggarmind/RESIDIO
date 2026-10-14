@@ -779,6 +779,16 @@ export async function submitForApproval(import_id: string): Promise<{ error: str
     return { error: error.message };
   }
 
+  // Audit log (maker step of maker-checker)
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'bank_statement_imports',
+    entityId: import_id,
+    entityDisplay: `Import: ${importData.file_name}`,
+    oldValues: { status: importData.status },
+    newValues: { status: 'awaiting_approval' },
+  });
+
   // Notify admins that an import is awaiting approval
   await notifyAdmins({
     title: 'Bank Import Awaiting Approval',

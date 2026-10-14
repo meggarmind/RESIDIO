@@ -365,6 +365,14 @@ export async function tagImportRow(
     return { error: error.message };
   }
 
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'bank_statement_imports',
+    entityId: rowId,
+    entityDisplay: tagId ? 'Tagged import row' : 'Cleared tag on import row',
+    newValues: { tag_id: tagId, auto_tagged: false },
+  });
+
   return { error: null };
 }
 
@@ -404,7 +412,21 @@ export async function batchTagImportRows(
     return { updated: 0, error: error.message };
   }
 
-  return { updated: count ?? rowIds.length, error: null };
+  // One audit entry per batch (not per row)
+  // audit_logs.entity_id is a uuid column: use the first row id, and skip an
+  // empty batch (nothing changed).
+  const updated = count ?? rowIds.length;
+  if (rowIds.length > 0) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'bank_statement_imports',
+      entityId: rowIds[0],
+      entityDisplay: `${tagId ? 'Tagged' : 'Cleared tag on'} ${updated} import rows`,
+      newValues: { tag_id: tagId, total_count: rowIds.length, updated, row_ids: rowIds.slice(0, 50) },
+    });
+  }
+
+  return { updated, error: null };
 }
 
 // ============================================================

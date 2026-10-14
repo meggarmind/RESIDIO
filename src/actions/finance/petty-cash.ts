@@ -271,6 +271,15 @@ export async function togglePettyCashAccountStatus(
         return { success: false, error: 'Failed to update status' };
     }
 
+    await logAudit({
+        action: isActive ? 'ACTIVATE' : 'DEACTIVATE',
+        entityType: 'petty_cash_accounts',
+        entityId: id,
+        entityDisplay: `Petty Cash ${isActive ? 'Activated' : 'Deactivated'}: ${id}`,
+        oldValues: { is_active: !isActive },
+        newValues: { is_active: isActive },
+    });
+
     revalidatePath('/expenditure');
     return { success: true, error: null };
 }
