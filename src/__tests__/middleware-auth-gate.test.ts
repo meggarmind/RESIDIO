@@ -234,7 +234,7 @@ describe('middleware authentication gate (#104)', () => {
             expect(response.status).toBe(200);
         });
 
-                it('redirects a user without the required permission to /dashboard?error=unauthorized', async () => {
+        it('redirects a user without the required permission to /dashboard?error=unauthorized', async () => {
             supabaseState.accessRows = rows('residents.view');
             expectUnauthorized(await middleware(request(GUARDED_PATH)));
         });
@@ -264,8 +264,11 @@ describe('middleware authentication gate (#104)', () => {
         });
 
         it('does not call the RPC for a route that requires no permission', async () => {
-            const response = await middleware(request('/portal?impersonate=1'));
+            // /dashboard has an empty required list and does not return early,
+            // so only the `requiredPermissions.length > 0` guard keeps the RPC unused.
+            const response = await middleware(request('/dashboard'));
             expect(response.status).toBe(200);
+            expect(response.headers.get('location')).toBeNull();
             expect(supabaseState.rpcCalls).toEqual([]);
         });
 

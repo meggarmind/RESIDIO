@@ -45,6 +45,11 @@ vi.mock('@supabase/ssr', () => ({
         }),
         signOut: async () => ({ error: null }),
       },
+      // Permission lookups go through get_my_access() (#535): a role holding no permissions.
+      rpc: async () => ({
+        data: [{ role_id: 'role-1', role_name: 'super_admin', permission_name: null }],
+        error: null,
+      }),
       from: (table: string) => makeBuilder(table),
     };
   },
