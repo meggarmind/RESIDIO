@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { resolveAccess, toAccessClient } from '@/lib/auth/access';
 import { getAccountStatement } from '@/actions/billing/get-account-statement';
 import { getSettingValue } from '@/actions/settings/get-settings';
 import { AccountStatementPDF } from '@/lib/pdf/account-statement';
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
     // Get user's profile and linked resident
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, role_id')
+      .select('id')
       .eq('id', user.id)
       .single();
 
@@ -85,21 +86,15 @@ export async function GET(request: NextRequest) {
       .eq('profile_id', user.id)
       .single();
 
-    // Check permissions using RBAC system
-    let hasBillingPermission = false;
-    if (profile.role_id) {
-      const { data: rolePerms } = await supabase
-        .from('role_permissions')
-        .select('permission:app_permissions!inner(name)')
-        .eq('role_id', profile.role_id);
-
-      const permissions = (rolePerms as unknown as { permission: { name: string } }[] ?? [])
-        .map((rp) => rp.permission?.name)
-        .filter((name): name is string => name != null);
-
-      // Users with billing.view permission can access any statement
-      hasBillingPermission = permissions.includes('billing.view');
+    // Check permissions through the Access module (single get_my_access() round trip)
+    const access = await resolveAccess(toAccessClient(supabase), { userId: user.id });
+    if (access.status === 'lookup-failed') {
+      console.error('[statements] access lookup failed', { userId: user.id, error: access.error });
     }
+
+    // Users with billing.view permission can access any statement; a failed lookup fails closed
+    const hasBillingPermission =
+      access.status === 'resolved' && access.permissions.includes('billing.view');
 
     // Authorization: User must be the resident OR have billing permissions
     const isOwnStatement = linkedResident?.id === residentId;

@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({
     user: null as { id: string } | null,
     profile: null as Record<string, unknown> | null,
     maintenance: false,
-    rolePermissions: [] as { permission: { name: string } }[],
+    accessRows: [] as { role_id: string; role_name: string; permission_name: string | null }[],
 }));
 
 const exchangeGmailCode = vi.hoisted(() => vi.fn());
@@ -26,6 +26,8 @@ vi.mock('@supabase/ssr', () => ({
             getUser: async () => ({ data: { user: state.user }, error: null }),
             signOut: async () => ({ error: null }),
         },
+        // Permission lookups go through get_my_access() (#535).
+        rpc: async () => ({ data: state.accessRows, error: null }),
         from: (table: string) => {
             const builder = {
                 select: () => builder,
@@ -36,8 +38,6 @@ vi.mock('@supabase/ssr', () => ({
                         : table === 'system_settings'
                             ? { data: { value: state.maintenance }, error: null }
                             : { data: null, error: null },
-                then: (resolve: (v: { data: unknown; error: null }) => unknown) =>
-                    Promise.resolve({ data: state.rolePermissions, error: null }).then(resolve),
             };
             return builder;
         },
@@ -60,7 +60,8 @@ describe('public-origin redirects (#417)', () => {
         state.user = null;
         state.profile = null;
         state.maintenance = false;
-        state.rolePermissions = [];
+        // Default: a role that holds no permissions (single null row).
+        state.accessRows = [{ role_id: 'role-1', role_name: 'super_admin', permission_name: null }];
         exchangeGmailCode.mockReset();
         vi.spyOn(console, 'error').mockImplementation(() => {});
     });
@@ -165,7 +166,7 @@ describe('public-origin redirects (#417)', () => {
         });
 
         it('missing permission is sent to /dashboard?error=unauthorized', async () => {
-            state.rolePermissions = [];
+            state.accessRows = [{ role_id: 'role-1', role_name: 'super_admin', permission_name: null }];
             const target = await run('/residents');
             expect(target.origin).toBe(PUBLIC);
             expect(target.pathname).toBe('/dashboard');
