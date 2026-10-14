@@ -13,6 +13,7 @@ import type { ApprovalRequestType, ApprovalEntityType } from '@/types/database';
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { getApprovalHandler } from '@/lib/approvals/registry';
 
 export async function createApprovalRequest(params: {
   request_type: ApprovalRequestType;
@@ -22,6 +23,22 @@ export async function createApprovalRequest(params: {
   current_values: Record<string, unknown>;
   reason?: string;
 }): Promise<{ success: boolean; request_id?: string; error: string | null }> {
+  // Only types the approvals flow can apply may be filed, and the payload must satisfy the same
+  // schema the apply step re-checks. Rejecting here keeps an unappliable request out of the queue.
+  const handler = getApprovalHandler(params.request_type);
+  if (!handler) {
+    return { success: false, error: `Unsupported approval request type: ${params.request_type}` };
+  }
+  const parsed = handler.schema.safeParse(params.requested_changes);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: `Invalid requested changes for ${params.request_type}: ${parsed.error.issues
+        .map((issue) => (issue.path.length ? `${issue.path.join('.')}: ${issue.message}` : issue.message))
+        .join('; ')}`,
+    };
+  }
+
   const supabase = await createServerSupabaseClient();
 
   const {
