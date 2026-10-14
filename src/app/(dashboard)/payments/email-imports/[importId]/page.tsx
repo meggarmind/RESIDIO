@@ -39,8 +39,6 @@ import {
   ArrowRight,
   Ban,
   Check,
-  Eye,
-  Search,
   Settings,
   User,
   X,
@@ -57,6 +55,8 @@ import { extractSenderName } from '@/lib/email-imports/utils';
 import { getActiveResidents } from '@/actions/residents/get-residents';
 import type { EmailImport, EmailTransaction } from '@/types/database';
 import { useGmailConnectionStatus } from '@/hooks/use-gmail-connection';
+import { Can, useCan } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const CONFIDENCE_COLORS = {
   high: 'bg-green-500',
@@ -82,11 +82,11 @@ export default function EmailImportDetailPage() {
   const queryClient = useQueryClient();
   const importId = params.importId as string;
   const { data: connectionStatus, isLoading: connectionLoading } = useGmailConnectionStatus();
+  const canProcess = useCan(PERMISSIONS.EMAIL_IMPORTS_PROCESS);
 
   const [statusFilter, setStatusFilter] = useState<string>('queued_for_review');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedTransaction, setSelectedTransaction] = useState<EmailTransaction | null>(null);
   const [selectedResidentId, setSelectedResidentId] = useState<string>('');
   const [reviewNotes, setReviewNotes] = useState('');
@@ -396,17 +396,6 @@ export default function EmailImportDetailPage() {
       >
         {/* Integrated Toolbar */}
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
-          {/* Primary Search - flex-1 for maximum visibility */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by description, amount, or resident..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-
           {/* Filter Dropdown */}
           <Select
             value={statusFilter}
@@ -430,27 +419,17 @@ export default function EmailImportDetailPage() {
         </div>
 
         {/* Active Filter Badges */}
-        {(statusFilter !== 'queued_for_review' || searchQuery) && (
+        {statusFilter !== 'queued_for_review' && (
           <div className="flex items-center gap-2 mb-4">
             {statusFilter !== 'queued_for_review' && (
               <Badge variant="secondary" className="gap-1">
                 Status: {STATUS_BADGES[statusFilter as keyof typeof STATUS_BADGES]?.label || statusFilter}
                 <button
+                  aria-label="Clear status filter"
                   onClick={() => {
                     setStatusFilter('queued_for_review');
                     setPage(1);
                   }}
-                  className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            )}
-            {searchQuery && (
-              <Badge variant="secondary" className="gap-1">
-                Search: {searchQuery}
-                <button
-                  onClick={() => setSearchQuery('')}
                   className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                 >
                   <X className="h-3 w-3" />
@@ -463,7 +442,6 @@ export default function EmailImportDetailPage() {
               className="h-6 px-2 text-xs"
               onClick={() => {
                 setStatusFilter('queued_for_review');
-                setSearchQuery('');
                 setPage(1);
               }}
             >
@@ -554,6 +532,7 @@ export default function EmailImportDetailPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       {['queued_for_review', 'pending', 'matched'].includes(tx.status) && (
+                        <Can permission={PERMISSIONS.EMAIL_IMPORTS_PROCESS}>
                         <div className="flex items-center justify-end gap-1">
                           <Button
                             variant="ghost"
@@ -561,6 +540,7 @@ export default function EmailImportDetailPage() {
                             className="h-8 w-8 text-green-600"
                             onClick={() => handleOpenProcessDialog(tx)}
                             title="Process"
+                            aria-label="Process transaction"
                           >
                             <Check className="h-4 w-4" />
                           </Button>
@@ -570,17 +550,12 @@ export default function EmailImportDetailPage() {
                             className="h-8 w-8 text-red-600"
                             onClick={() => handleOpenSkipDialog(tx)}
                             title="Skip"
+                            aria-label="Skip transaction"
                           >
                             <Ban className="h-4 w-4" />
                           </Button>
                         </div>
-                      )}
-                      {!['queued_for_review', 'pending', 'matched'].includes(tx.status) && (
-                        <div className="flex justify-end">
-                          <Button variant="ghost" size="sm" className="h-8 w-8">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        </Can>
                       )}
                     </TableCell>
                   </TableRow>
@@ -592,7 +567,7 @@ export default function EmailImportDetailPage() {
       </EnhancedTableCard>
 
       {/* Pagination Footer */}
-      {transactionsData?.count && transactionsData.count > 0 && (
+      {!!transactionsData?.count && transactionsData.count > 0 && (
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-center">
           {/* Left Section - Settings */}
           <div className="flex items-center gap-4">
@@ -670,7 +645,12 @@ export default function EmailImportDetailPage() {
       )}
 
       {/* Process Dialog */}
-      <Dialog open={isProcessDialogOpen} onOpenChange={setIsProcessDialogOpen}>
+      <Dialog
+        open={isProcessDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseProcessDialog();
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Process Transaction</DialogTitle>
@@ -755,7 +735,7 @@ export default function EmailImportDetailPage() {
             </Button>
             <Button
               onClick={() => processMutation.mutate()}
-              disabled={processMutation.isPending || !selectedResidentId}
+              disabled={!canProcess || processMutation.isPending || !selectedResidentId}
             >
               {processMutation.isPending ? 'Processing...' : 'Create Payment'}
             </Button>
@@ -764,7 +744,12 @@ export default function EmailImportDetailPage() {
       </Dialog>
 
       {/* Skip Dialog */}
-      <Dialog open={isSkipDialogOpen} onOpenChange={setIsSkipDialogOpen}>
+      <Dialog
+        open={isSkipDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseSkipDialog();
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Skip Transaction</DialogTitle>
@@ -803,7 +788,7 @@ export default function EmailImportDetailPage() {
             <Button
               variant="destructive"
               onClick={() => skipMutation.mutate()}
-              disabled={skipMutation.isPending || !skipReason.trim()}
+              disabled={!canProcess || skipMutation.isPending || !skipReason.trim()}
             >
               {skipMutation.isPending ? 'Skipping...' : 'Skip Transaction'}
             </Button>
