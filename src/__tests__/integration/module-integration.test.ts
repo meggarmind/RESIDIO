@@ -159,7 +159,6 @@ const AUDIT_ALLOWLIST = [
   'security/codes.ts::deactivateExpiredCodes',
   'report-subscriptions/update-subscription.ts::createDefaultReportSubscription',
   'payments/check-overdue.ts::checkOverduePayments',
-  'imports/create-import.ts::updateImportStatus',
   'email-imports/create-email-import.ts::updateEmailImportStatus',
   'billing/wallet.ts::getOrCreateWallet',
 ];
