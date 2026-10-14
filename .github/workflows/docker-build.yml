@@ -1,0 +1,60 @@
+name: Docker Build
+
+# Builds the real production image on release and hotfix PRs into `master` (#505).
+#
+# Why: pr-gate.yml runs `next build` on the full checkout, but Coolify builds the Dockerfile
+# against a context trimmed by .dockerignore. A change that passes PR gate can still fail in
+# Docker (stage deploy #38: test files imported scripts/*.mjs, which .dockerignore drops).
+# This job runs the same `docker build` before the merge so that failure is seen on the PR.
+#
+# REPORT-ONLY by owner decision (#505). Do NOT add this check to branch protection: the
+# required check is the single `PR gate` in pr-gate.yml. A red run here is a warning to read
+# before merging a release, not a merge block. Revisit blocking once the run time and failure
+# rate are known.
+#
+# Scope: PRs into `master` only (releases and hotfixes), so the ~4-6 minute build is paid once
+# per release instead of once per feature PR. A break introduced on `stage` is therefore first
+# seen on the release PR. No `paths:` filter, so the check is never skipped on a release.
+#
+# Nothing is pushed or deployed: the image is built and discarded. Build args mirror the
+# Build job in pr-gate.yml, and the Dockerfile supplies its own service-role placeholder.
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build:
+    name: Docker image build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Placeholders only. NEXT_PUBLIC_* values are inlined into the bundle and
+      # env-validation.mjs (run by the Dockerfile) needs a well-formed Supabase URL and key
+      # for the selected mode; nothing contacts Supabase during the build.
+      - name: Build image (not pushed)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_ENV_MODE=cloud
+            NEXT_PUBLIC_SUPABASE_URL_CLOUD=https://placeholder.supabase.co
+            NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD=placeholder-anon-key
