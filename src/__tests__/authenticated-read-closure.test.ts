@@ -21,7 +21,7 @@ import { describe, expect, it } from 'vitest';
 
 const migrationsDir = fileURLToPath(new URL('../../supabase/migrations', import.meta.url));
 
-const RESTRICT_MIGRATION = '20261014100000_restrict_authenticated_read_policies.sql';
+const RESTRICT_MIGRATION = '20261014120000_restrict_authenticated_read_policies.sql';
 
 /** Migrations strictly after this one may not add a new open policy at all. */
 const BASELINE = RESTRICT_MIGRATION;
