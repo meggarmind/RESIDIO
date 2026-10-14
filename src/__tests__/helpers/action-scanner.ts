@@ -13,6 +13,17 @@
  * The detection rules are each a small named function below so a later change
  * (for example an "audited-write module" that makes the guard implicit) only
  * has to touch the one rule it alters.
+ *
+ * Known limits (found by QA on #390; none is a regression against the old scan):
+ *  - A write done only through `.rpc(...)` is not classed as a write, so an
+ *    unguarded RPC-only action passes. About a dozen action files call `.rpc`.
+ *  - A write inside a non-exported helper called from an exported action is not
+ *    seen: neither the guard nor the audit is checked for it.
+ *  - Actions declared as object-literal methods are not discovered.
+ *  - The guard only has to appear as a call before the first database operation;
+ *    a call in a dead branch or an unused nested callback still satisfies it.
+ *  - `.update(` / `.delete(` on a non-database object counts as a write; the
+ *    allowlist is the escape hatch.
  */
 
 import ts from 'typescript';
