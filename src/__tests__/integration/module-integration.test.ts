@@ -156,20 +156,10 @@ const AUDIT_ALLOWLIST = [
 
   // ---- SURFACED BY #390, NOT YET FIXED. Tracked in #556. Remove an entry in the
   // same PR that fixes it; do not add to this block.
-  'security/vehicles.ts::setPrimaryVehicle',
   'security/codes.ts::deactivateExpiredCodes',
-  'security/categories.ts::reorderCategories',
-  'reports/report-schedules.ts::deleteGeneratedReport',
   'report-subscriptions/update-subscription.ts::createDefaultReportSubscription',
-  'reference/transaction-tags.ts::tagImportRow',
-  'reference/transaction-tags.ts::batchTagImportRows',
   'payments/check-overdue.ts::checkOverduePayments',
-  'notes/get-note-history.ts::restoreNoteVersion',
-  'imports/process-import.ts::submitForApproval',
-  'imports/match-residents.ts::matchImportRows',
-  'imports/create-import.ts::createImportRows',
   'imports/create-import.ts::updateImportStatus',
-  'finance/petty-cash.ts::togglePettyCashAccountStatus',
   'email-imports/create-email-import.ts::updateEmailImportStatus',
   'billing/wallet.ts::getOrCreateWallet',
 ];
