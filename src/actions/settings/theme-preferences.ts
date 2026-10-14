@@ -56,25 +56,30 @@ export async function setEstateDefaultTheme(
   const oldTheme = oldSetting?.value as string;
 
   // Update theme
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from('system_settings')
     .update({ value: themeId })
     .eq('category', 'appearance')
-    .eq('key', settingKey);
+    .eq('key', settingKey)
+    .select('id');
 
   if (error) {
     return { data: null, error: error.message };
   }
 
   // Audit log
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'system_settings',
-    entityId: settingKey,
-    entityDisplay: `${context} theme`,
-    oldValues: { theme: oldTheme },
-    newValues: { theme: themeId },
-  });
+  // audit_logs.entity_id is a uuid: use the settings row id; no row, no audit (#594).
+  const settingId = updatedRows?.[0]?.id;
+  if (settingId) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'system_settings',
+      entityId: settingId,
+      entityDisplay: `${context} theme`,
+      oldValues: { key: settingKey, theme: oldTheme },
+      newValues: { key: settingKey, theme: themeId },
+    });
+  }
 
   return { data: themeId, error: null };
 }

@@ -96,25 +96,29 @@ export async function updateSecuritySetting(
     .eq('key', key)
     .single();
 
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from('system_settings')
     .update({ value })
-    .eq('key', key);
+    .eq('key', key)
+    .select('id');
 
   if (error) {
     console.error(`Update security setting "${key}" error:`, error);
     return { success: false, error: 'Failed to update setting' };
   }
 
-  // Audit log
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'system_settings',
-    entityId: key,
-    entityDisplay: `Security Setting: ${key}`,
-    oldValues: { value: oldSetting?.value },
-    newValues: { value },
-  });
+  // Audit log. audit_logs.entity_id is a uuid: use the settings row id, key goes in the label (#594).
+  const settingId = updatedRows?.[0]?.id;
+  if (settingId) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'system_settings',
+      entityId: settingId,
+      entityDisplay: `Security Setting: ${key}`,
+      oldValues: { key, value: oldSetting?.value },
+      newValues: { key, value },
+    });
+  }
 
   revalidatePath('/settings/security');
   return { success: true, error: null };
