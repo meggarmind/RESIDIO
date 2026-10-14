@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -10,6 +10,9 @@ import { describe, expect, it } from 'vitest';
  */
 
 const root = process.cwd();
+
+// A filesystem walk, not a behavioural assertion: give it room under load (#255, #497).
+const SCAN_TIMEOUT_MS = 30_000;
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -31,7 +34,18 @@ describe('createApprovalRequest is not on the server-action surface (#560)', () 
         );
       });
     expect(offenders).toEqual([]);
-  });
+  }, SCAN_TIMEOUT_MS);
+
+  // A wrapper or `export *` would reopen the hole without matching the name above, so also
+  // pin which action files may import the lib function at all: only the two guarded callers.
+  it('only the two guarded callers import the lib function from src/actions/**', () => {
+    const importers = walk(join(root, 'src/actions'))
+      .filter((f) => /\.(ts|tsx)$/.test(f))
+      .filter((f) => /@\/lib\/approvals\/create-approval-request/.test(readFileSync(f, 'utf8')))
+      .map((f) => relative(root, f).split('\\').join('/'))
+      .sort();
+    expect(importers).toEqual(['src/actions/billing/profiles.ts', 'src/actions/houses/update-house.ts']);
+  }, SCAN_TIMEOUT_MS);
 
   it('the lib module has no use-server directive', () => {
     const src = readFileSync(join(root, 'src/lib/approvals/create-approval-request.ts'), 'utf8');
