@@ -1,7 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleResidentMessage } from '@/lib/whatsapp/identity';
 import type { WhatsAppIdentityRepository, WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
+import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
+
+vi.mock('@/lib/whatsapp/master-switch', () => ({
+  isWhatsAppMasterSwitchOn: vi.fn(),
+}));
+
+beforeEach(() => {
+  vi.mocked(isWhatsAppMasterSwitchOn).mockResolvedValue({ on: true });
+});
 
 const resident: WhatsAppResidentIdentity = {
   id: 'resident-1',
@@ -117,5 +126,24 @@ describe('WhatsApp identity and consent', () => {
     expect(result).toMatchObject({ financialEligible: false, accessTier: 'community' });
     expect(send.mock.calls[0]?.[0].body).toContain('announcements and notices');
     expect(send.mock.calls[0]?.[0].body).not.toContain('balance');
+  });
+});
+
+describe('WhatsApp Assistant master switch (#547)', () => {
+  it.each(['absent', 'error', 'disabled'] as const)('does nothing for any message when the switch is off (%s)', async (reason) => {
+    vi.mocked(isWhatsAppMasterSwitchOn).mockResolvedValue({ on: false, reason });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const text of ['hello', 'STOP', 'START', 'LINK 123456', 'YES', '1']) {
+      const repo = repository();
+      const send = vi.fn().mockResolvedValue({ success: true });
+      const onIdentified = vi.fn();
+
+      const result = await handleResidentMessage(message(text), { repository: repo, send, onIdentified });
+
+      expect(result).toMatchObject({ status: 'pending', residentId: null, optedIn: false });
+      for (const fn of Object.values(repo)) expect(fn).not.toHaveBeenCalled();
+      expect(send).not.toHaveBeenCalled();
+      expect(onIdentified).not.toHaveBeenCalled();
+    }
   });
 });
