@@ -148,8 +148,8 @@ disk (#283). `scripts/migration-drift.mjs`, run by `.github/workflows/migration-
 every PR and on a daily schedule, compares each database's applied migration list against
 `supabase/migrations/` on the branch it tracks (Residio_Stage against `stage`, Residio_Prod
 against `master`; a PR against its base branch's database) and fails the build on any divergence
-in either direction — enforcing the pairing so drift cannot silently reaccumulate after the #279
-schema baseline. A PR's own new migrations are reported as pending, not drift, because they are
+in either direction, and on two migration files that share a version prefix (#616) — enforcing the
+pairing so drift cannot silently reaccumulate after the #279 schema baseline. A PR's own new migrations are reported as pending, not drift, because they are
 applied after the merge (§11).
 
 ---
