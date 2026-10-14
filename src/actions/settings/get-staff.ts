@@ -1,8 +1,15 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 export async function getStaff() {
+    // Read action: guarded, not audited. Unauthorized callers get [] (fail closed, and the
+    // return type stays an array for the expenditure page) without touching the database.
+    const auth = await authorizePermission(PERMISSIONS.EXPENDITURE_VIEW);
+    if (!auth.authorized) return [];
+
     const supabase = await createServerSupabaseClient();
 
     const { data, error } = await supabase
