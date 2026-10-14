@@ -58,4 +58,5 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             NEXT_PUBLIC_ENV_MODE=cloud
+            NEXT_PUBLIC_SUPABASE_URL_CLOUD=https://placeholder.supabase.co
             NEXT_PUBLIC_SUPABASE_ANON_KEY_CLOUD=placeholder-anon-key
