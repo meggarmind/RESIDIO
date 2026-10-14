@@ -79,7 +79,6 @@ const PERMISSION_ALLOWLIST = [
   'paystack/webhook-handler.ts',
   // Vercel cron (CRON_SECRET bearer auth, no user session) as well as manual
   // triggers; a hard permission check would break the automated path.
-  'email-imports/parse-email.ts',
   'email-imports/create-email-import.ts',
   'reports/process-schedules.ts',
   'analytics/refresh-payment-cadence-summary.ts',
@@ -118,9 +117,6 @@ const PERMISSION_ALLOWLIST = [
   'report-subscriptions/update-subscription.ts::createDefaultReportSubscription',
   'payments/check-overdue.ts::checkOverduePayments',
   'impersonation/approval.ts::startApprovedImpersonationSession',
-  'email-imports/process-email-import.ts::matchEmailTransactions',
-  'email-imports/gmail-oauth.ts::updateGmailSyncStatus',
-  'approvals/index.ts::createApprovalRequest',
   'billing/wallet.ts::getOrCreateWallet',
 ];
 
@@ -160,7 +156,6 @@ const AUDIT_ALLOWLIST = [
 
   // ---- SURFACED BY #390, NOT YET FIXED. Tracked in #556. Remove an entry in the
   // same PR that fixes it; do not add to this block.
-  'two-factor/backup-codes.ts::regenerateBackupCodes',
   'security/vehicles.ts::setPrimaryVehicle',
   'security/codes.ts::deactivateExpiredCodes',
   'security/categories.ts::reorderCategories',
@@ -176,11 +171,7 @@ const AUDIT_ALLOWLIST = [
   'imports/create-import.ts::createImportRows',
   'imports/create-import.ts::updateImportStatus',
   'finance/petty-cash.ts::togglePettyCashAccountStatus',
-  'email-imports/process-email-import.ts::matchEmailTransactions',
-  'email-imports/parse-email.ts::parseEmailMessage',
-  'email-imports/gmail-oauth.ts::updateGmailSyncStatus',
   'email-imports/create-email-import.ts::updateEmailImportStatus',
-  'approvals/index.ts::createApprovalRequest',
   'billing/wallet.ts::getOrCreateWallet',
 ];
 
