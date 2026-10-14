@@ -108,6 +108,7 @@ describe('Twilio WhatsApp provider', () => {
     expect(result).toEqual({
       success: false,
       error: 'No Twilio Content SID configured for template "unmapped_template"',
+      retryable: false,
     });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -119,6 +120,7 @@ describe('Twilio WhatsApp provider', () => {
     await expect(provider.sendText({ to: '2348000000000', body: 'Hi' })).resolves.toEqual({
       success: false,
       error: 'WhatsApp provider request failed (HTTP 401)',
+      retryable: false,
     });
   });
 
@@ -129,6 +131,7 @@ describe('Twilio WhatsApp provider', () => {
     await expect(provider.sendText({ to: '2348000000000', body: 'Hi' })).resolves.toEqual({
       success: false,
       error: 'WhatsApp provider returned no message ID',
+      retryable: false,
     });
   });
 });

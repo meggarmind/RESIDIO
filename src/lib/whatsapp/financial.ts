@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { getSettingResultAsService } from '@/lib/settings/service';
+import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
@@ -420,6 +421,15 @@ export async function handleFinancialMessage(
   identity: WhatsAppResidentIdentity,
   options: WhatsAppFinancialHandlerOptions
 ): Promise<void> {
+  // Master switch (#547), defence in depth: handleResidentMessage already
+  // checks, but this is exported. Off means no reply, no session or PIN
+  // change, and no disclosure log.
+  const masterSwitch = await isWhatsAppMasterSwitchOn();
+  if (!masterSwitch.on) {
+    console.warn(`WhatsApp financial handler skipped: master switch off (${masterSwitch.reason})`);
+    return;
+  }
+
   if (!identity.financialEligible) {
     await sendFinancialReply(message, 'Your Resident record is connected to the community tier. Financial standing is not available for this role.', options.send);
     return;
