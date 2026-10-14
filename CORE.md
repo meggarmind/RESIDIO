@@ -136,11 +136,10 @@ components rather than using them directly in pages.
 Do **not** run `supabase start`, `supabase db reset`, or any other local CLI command. Apply
 migrations and run queries through the Supabase MCP tools; your harness's file names them.
 
-> **Known defect — do not be misled by `package.json`.** `db:types` and `db:migrate` are
-> currently defined with `--local` (`supabase gen types typescript --local`,
-> `supabase db push --local`), which contradicts this rule. `db:migrate` must never be run.
-> Treat the cloud-only rule as authoritative and the scripts as wrong; the fix is tracked
-> separately.
+`npm run db:types` generates types from the cloud project via `scripts/db-types.mjs` (needs
+`SUPABASE_ACCESS_TOKEN`; `SUPABASE_PROJECT_REF` overrides the default Residio_Stage) and leaves
+the existing file untouched on failure. The local-CLI scripts (`supabase:*` and the old
+migrate script) are now guards that fail loudly (#219).
 
 **Applying a migration and committing its file are two separate acts** — the first happens
 through the Supabase MCP tools, the second through git, and only the first was ever enforced.
