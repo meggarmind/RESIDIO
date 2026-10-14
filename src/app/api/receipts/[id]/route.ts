@@ -9,7 +9,7 @@ import { InvoiceReceiptPDF } from '@/lib/pdf/invoice-receipt';
  * GET /api/receipts/[id]
  *
  * Generates a PDF receipt for a given invoice ID.
- * Only accessible to authenticated users who own the invoice.
+ * Accessible to the resident who owns the invoice and to users holding `payments.view`.
  */
 export async function GET(
   request: NextRequest,
@@ -51,7 +51,7 @@ export async function GET(
     }
 
     // Check permissions using new RBAC system
-    let hasManagePaymentsPermission = false;
+    let hasPaymentsViewPermission = false;
     if (profile.role_id) {
       const { data: rolePerms } = await supabase
         .from('role_permissions')
@@ -62,9 +62,8 @@ export async function GET(
         .map((rp) => rp.permission?.name)
         .filter((name): name is string => name != null);
 
-      // Users with manage_payments or view_payments can access receipts
-      hasManagePaymentsPermission = permissions.includes('manage_payments') ||
-        permissions.includes('view_payments');
+      // Users holding payments.view can access receipts (#530)
+      hasPaymentsViewPermission = permissions.includes('payments.view');
     }
 
     // Fetch the invoice
@@ -80,7 +79,7 @@ export async function GET(
     // Authorization: User must own the invoice OR have payment permissions
     const isOwner = profile.resident_id && invoice.resident?.id === profile.resident_id;
 
-    if (!hasManagePaymentsPermission && !isOwner) {
+    if (!hasPaymentsViewPermission && !isOwner) {
       return NextResponse.json(
         { error: 'Forbidden - You do not have access to this receipt' },
         { status: 403 }
