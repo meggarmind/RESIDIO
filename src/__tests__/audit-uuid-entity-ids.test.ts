@@ -20,6 +20,7 @@ import { updateMaintenanceMode } from '@/actions/settings/update-maintenance-mod
 import { removeEstateLogo } from '@/actions/settings/upload-estate-logo';
 import { pruneSystemData } from '@/actions/system/prune-data';
 import { setWhatsAppForcePin } from '@/actions/whatsapp/identity';
+import { generateRetroactiveLevies } from '@/actions/billing/generate-levies';
 import { updateWhatsAppPilotSettings, promoteWhatsAppPilotToEstate, setWhatsAppEnabled } from '@/actions/whatsapp/pilot';
 
 const { authorizePermission, createServerSupabaseClient, createAdminClient, logAudit, updateSetting, processQueue, calls, results } = vi.hoisted(() => ({
@@ -43,6 +44,8 @@ vi.mock('@/actions/settings/update-setting', () => ({ updateSetting }));
 vi.mock('@/lib/notifications/queue', () => ({ processQueue, PRIORITY: {}, addToQueue: vi.fn(), cancelQueueItem: vi.fn(), retryQueueItem: vi.fn(), getQueueStats: vi.fn(), getQueueItems: vi.fn() }));
 vi.mock('@/lib/notifications', () => ({ renderTemplate: vi.fn(), shouldSendToResident: vi.fn(), generateDeduplicationKey: vi.fn() }));
 vi.mock('@/actions/notifications/templates', () => ({ getTemplate: vi.fn() }));
+vi.mock('@/lib/settings/get-system-setting', () => ({ getSystemSetting: vi.fn().mockResolvedValue(null) }));
+vi.mock('@/lib/billing/wallet-invoice-debit', () => ({ debitWalletForInvoiceAtomic: vi.fn().mockResolvedValue({ success: false, amountDebited: 0 }) }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 const boom = { message: 'boom' };
@@ -234,5 +237,62 @@ describe('batch and row sites', () => {
     delete results['in_app_notifications.delete'];
     await pruneSystemData();
     expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  // QA #594: the write succeeded but the follow-up read/ids came back empty -> no audit, no throw.
+  it('setWhatsAppForcePin does not audit when the update returns no row', async () => {
+    results['system_settings.update'] = { data: [] };
+    expect((await setWhatsAppForcePin(true)).success).toBe(true);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+  it('processNotificationQueue does not audit or throw when processed > 0 but no queue ids are found', async () => {
+    processQueue.mockResolvedValue({ processed: 2, sent: 2, failed: 0, skipped: 0, errors: [] });
+    results['notification_queue.select'] = { data: [] };
+    const res = await processNotificationQueue();
+    expect(res.error).toBeNull();
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+  it('resetSecuritySettingsToDefault does not audit when the updates matched zero rows', async () => {
+    results['system_settings.update'] = { data: [] };
+    expect((await resetSecuritySettingsToDefault()).success).toBe(true);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe('generateRetroactiveLevies batch audit', () => {
+  const batchCalls = () => logAudit.mock.calls.map((c) => c[0]).filter((a) => a.newValues?.batch === 'retroactive-levy-batch');
+  beforeEach(() => {
+    results['houses.select'] = { data: [{ id: uid(30), house_number: '1' }] };
+    results['resident_houses.select'] = { data: { resident_id: uid(31), resident_role: 'tenant' } };
+    results['billing_profiles.select'] = {
+      data: [{ id: uid(32), name: 'Gate levy', target_type: 'house', applicable_roles: null, is_one_time: true, is_development_levy: false, billing_items: [{ id: uid(34), name: 'Fee', amount: 100, frequency: 'one_time', is_mandatory: true }] }],
+    };
+    results['invoices.insert'] = { data: { id: uid(33) } };
+    createServerSupabaseClient.mockImplementation(async () => {
+      const base = makeRecordingSupabase({ results, calls });
+      return {
+        ...base,
+        from(table: string) {
+          const chain = base.from(table) as Record<string, unknown>;
+          // houses is read as a list (retroactive sweep) and as one row (per-house); share one fixture.
+          if (table === 'houses') chain.single = async () => ({ data: { id: uid(30), house_number: '1', number_of_plots: 1 }, error: null });
+          return chain;
+        },
+      };
+    });
+  });
+  it('audits ONCE for the batch with the first created invoice id', async () => {
+    results['invoices.select'] = { data: [{ id: uid(33) }] };
+    const res = await generateRetroactiveLevies();
+    expect(res.generated).toBe(1);
+    expect(batchCalls()).toHaveLength(1);
+    expect(batchCalls()[0]).toMatchObject({ action: 'GENERATE', entityType: 'invoices', entityId: uid(33) });
+    expect(batchCalls()[0].newValues.total_count).toBe(1);
+  });
+  it('writes no batch audit when no created invoice is found', async () => {
+    results['invoices.select'] = { data: [] };
+    const res = await generateRetroactiveLevies();
+    expect(res.generated).toBe(1);
+    expect(batchCalls()).toHaveLength(0);
   });
 });
