@@ -196,6 +196,12 @@ export async function updateSomething(id: string, input: Input) {
 }
 ```
 
+`logAudit` is a thin delegate to the audit recorder (`@/lib/audit/recorder`): it does the single
+`getUser()` and passes the actor on. Explicit `oldValues`, `newValues` and `entityDisplay` are
+written as given; when they are omitted the recorder derives them from `oldRow` / `newRow`. Code
+that already holds the actor may call `recordAudit` directly. Either way an audit failure is logged
+and never fails the action. See `src/lib/audit/README.md`.
+
 **Audit actions available**: `CREATE` / `UPDATE` / `DELETE`; `VERIFY` / `APPROVE` / `REJECT`;
 `ASSIGN` / `UNASSIGN`; `ACTIVATE` / `DEACTIVATE`; `GENERATE` / `ALLOCATE`.
 
@@ -238,16 +244,21 @@ by `module.view` must still filter its buttons by `module.create` / `module.upda
 
 ### Enforcement, and what "green" means
 
-`src/__tests__/integration/module-integration.test.ts` scans `src/actions/**` and fails for any
-write action missing permission or audit, unless the file is listed in its
-`PERMISSION_ALLOWLIST` / `AUDIT_ALLOWLIST`.
+`src/__tests__/integration/module-integration.test.ts` scans `src/actions/**` **per exported
+function** (#390, `src/__tests__/helpers/action-scanner.ts`) and fails for any write action that
+lacks the permission check or the audit call, unless it is listed in `PERMISSION_ALLOWLIST` /
+`AUDIT_ALLOWLIST`. New entries are `path.ts::functionName`; a bare file entry is reserved for the
+permanent ones below.
 
-**The suite passes today, with 42 files allowlisted for permission and 5 for audit** (verified
-2026-09-05). Passing therefore means "no *new* gaps", not "no gaps". Some entries are permanent
-and deliberate: recipient-facing, cron, webhook and pre-auth flows (`payments/*`,
-`billing/pay-*-with-wallet`, `paystack/init+verify+webhook`, `email-imports/*`,
-`two-factor/verify`) cannot take an admin RBAC guard because they authenticate as a resident,
-via `CRON_SECRET`, or by signature verification. **Do not add hard permission checks there.**
+The suite passing means "no *new* gaps", not "no gaps". The allowlists are the live record of the
+known ones, and their sizes change as entries are removed, so the counts are not copied here: read
+the two arrays. Some entries are permanent and deliberate: recipient-facing, cron, webhook and
+pre-auth flows (`payments/submit-payment-proof`, `billing/pay-*-with-wallet`,
+`paystack/initialize-payment`, `paystack/verify-payment`, `paystack/webhook-handler`,
+`email-imports/create-email-import`, `reports/process-schedules`, `two-factor/verify`,
+`auth/register-resident-portal`) cannot take an admin RBAC guard because they authenticate as a
+resident, via `CRON_SECRET`, or by signature verification. **Do not add hard permission checks
+there.** Entries marked "not yet fixed" in that file (#556) are gaps to close, not precedent.
 
 Re-run `npm test` after adding any write action.
 
