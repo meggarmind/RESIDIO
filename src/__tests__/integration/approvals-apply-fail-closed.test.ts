@@ -94,12 +94,18 @@ describe('applyRequestedChanges fails closed on an unhandled request_type', () =
       error: null,
     });
     const updateQuery = createQuery({ data: { id: 'req-2' }, error: null });
+    // The handler reads the entity before writing it (#555).
+    const preReadQuery = createQuery({
+      data: { name: 'Profile 1', effective_date: '2026-01-01' },
+      error: null,
+    });
     const applyQuery = createQuery({ data: null, error: null });
 
     const from = vi
       .fn()
       .mockReturnValueOnce(fetchQuery)
       .mockReturnValueOnce(updateQuery)
+      .mockReturnValueOnce(preReadQuery)
       .mockReturnValueOnce(applyQuery);
 
     createServerSupabaseClient.mockResolvedValue({ from });
@@ -113,6 +119,7 @@ describe('applyRequestedChanges fails closed on an unhandled request_type', () =
     expect(updateQuery.update).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'approved' }),
     );
+    // The entity UPDATE audit is written first (#555), then the APPROVE audit.
     expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({
       action: 'APPROVE',
       entityType: 'approval_requests',

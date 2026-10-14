@@ -228,6 +228,11 @@ describe('Part 2: approvals/index.ts hand-rolled legacy checks', () => {
       // Internal helper invoked by approveRequest after its own guard has
       // already run -- must not carry a second, independently-driftable check.
       applyRequestedChanges: null,
+      // Shared decision-core helpers (#555) used by approveRequest/rejectRequest after their own
+      // guard has run -- they must not carry a second, independently-driftable check.
+      loadPendingRequest: null,
+      reviewFields: null,
+      auditDecision: null,
       // Returns `auth.authorized` directly rather than an early return --
       // pinned separately below.
       canAutoApprove: null,
