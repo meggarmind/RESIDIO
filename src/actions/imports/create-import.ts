@@ -317,62 +317,6 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
 }
 
 // ============================================================
-// Update Import Status
-// ============================================================
-
-type UpdateImportStatusParams = {
-  import_id: string;
-  status: BankStatementImport['status'];
-  matched_rows?: number;
-  created_rows?: number;
-  skipped_rows?: number;
-  error_rows?: number;
-  import_summary?: Record<string, unknown>;
-}
-
-export async function updateImportStatus(params: UpdateImportStatusParams): Promise<{ error: string | null }> {
-  const supabase = await createServerSupabaseClient();
-
-  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
-  if (!auth.authorized) {
-    return { error: auth.error || 'Unauthorized' };
-  }
-
-  const {
-    import_id,
-    status,
-    matched_rows,
-    created_rows,
-    skipped_rows,
-    error_rows,
-    import_summary,
-  } = params;
-
-  const updateData: Record<string, unknown> = { status };
-
-  if (matched_rows !== undefined) updateData.matched_rows = matched_rows;
-  if (created_rows !== undefined) updateData.created_rows = created_rows;
-  if (skipped_rows !== undefined) updateData.skipped_rows = skipped_rows;
-  if (error_rows !== undefined) updateData.error_rows = error_rows;
-  if (import_summary !== undefined) updateData.import_summary = import_summary;
-
-  if (status === 'completed' || status === 'failed') {
-    updateData.completed_at = new Date().toISOString();
-  }
-
-  const { error } = await supabase
-    .from('bank_statement_imports')
-    .update(updateData)
-    .eq('id', import_id);
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  return { error: null };
-}
-
-// ============================================================
 // Delete Import (for cleanup)
 // ============================================================
 
