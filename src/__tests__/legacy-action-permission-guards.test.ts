@@ -225,6 +225,7 @@ describe('Part 2: approvals/index.ts hand-rolled legacy checks', () => {
       getPendingApprovalsCount: 'APPROVALS_VIEW',
       approveRequest: 'APPROVALS_APPROVE_REJECT',
       rejectRequest: 'APPROVALS_APPROVE_REJECT',
+      reapplyApprovedRequest: 'APPROVALS_APPROVE_REJECT',
       // Internal helper invoked by approveRequest after its own guard has
       // already run -- must not carry a second, independently-driftable check.
       applyRequestedChanges: null,
