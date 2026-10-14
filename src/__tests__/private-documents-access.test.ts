@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
  * helpers are locked down.
  */
 
-const FILE = '20261014100000_private_documents_access.sql';
+const FILE = '20261014110000_private_documents_access.sql';
 const migration = readFileSync(
   path.join(fileURLToPath(new URL('../../supabase/migrations', import.meta.url)), FILE),
   'utf8'
