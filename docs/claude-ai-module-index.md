@@ -65,7 +65,6 @@ Payment recording, bulk operations, split payments
 - `bulk-update-payments` - Bulk status updates
 - `create-split-payment` - Split payment across invoices
 - `get-resident-properties-for-payment` - Get properties for payment form
-- `check-overdue` - Check overdue payments
 
 #### security/
 Security contacts, access codes, visitor management
