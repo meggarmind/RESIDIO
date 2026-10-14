@@ -7,7 +7,7 @@
 -- WHY
 --   PostgreSQL row-level security does not apply to TRUNCATE; only the table
 --   privilege gates it. Supabase's default `GRANT ALL ... TO anon, authenticated`
---   left anon holding TRUNCATE on 82 of 96 public tables (measured 2026-10-14 on
+--   left anon holding TRUNCATE on 80 of 96 public tables (authenticated 81) (measured 2026-10-14 on
 --   Residio_Stage and Residio_Prod). Not exploitable today (anon cannot log in,
 --   PostgREST exposes no TRUNCATE, no SECURITY DEFINER function truncates), but
 --   that protection is incidental.
