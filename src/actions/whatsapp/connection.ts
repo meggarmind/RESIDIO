@@ -283,13 +283,16 @@ export async function saveWhatsAppCredentials(
 
   const savedRow = row as { id?: string } | null;
 
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'whatsapp_provider_credentials',
-    entityId: savedRow?.id || 'active',
-    entityDisplay: `WhatsApp ${value.provider} connection`,
-    newValues: auditValues,
-  });
+  // audit_logs.entity_id is a uuid, so with no real id there is nothing to audit against (#594).
+  if (savedRow?.id) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'whatsapp_provider_credentials',
+      entityId: savedRow.id,
+      entityDisplay: `WhatsApp ${value.provider} connection`,
+      newValues: auditValues,
+    });
+  }
 
   invalidateWhatsAppConfigCache();
   revalidatePath('/settings/whatsapp');

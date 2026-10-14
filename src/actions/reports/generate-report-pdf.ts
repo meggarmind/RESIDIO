@@ -27,13 +27,16 @@ export async function generateReportPdf(
     console.error('[generateReportPdf] Archive store failed:', e);
   }
 
-  await logAudit({
-    action: 'CREATE',
-     entityType: 'report_archive',
-    entityId: reportId || 'unknown',
-    entityDisplay: `PDF report: ${params.reportType}`,
-    description: `Generated ${params.reportType} report as PDF`,
-  });
+  // audit_logs.entity_id is a uuid, so with no real id there is nothing to audit against (#594) (archiving failed: no row).
+  if (reportId) {
+    await logAudit({
+      action: 'CREATE',
+      entityType: 'report_archive',
+      entityId: reportId,
+      entityDisplay: `PDF report: ${params.reportType}`,
+      description: `Generated ${params.reportType} report as PDF`,
+    });
+  }
 
   return { data: buffer, reportId, error: null };
 }
