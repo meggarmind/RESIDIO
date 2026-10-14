@@ -265,7 +265,7 @@ describe('#212 (part 1): close anonymous reads on six finance/settings tables', 
   it('does not gate any of these tables on has_permission()', () => {
     // This migration only re-scopes roles; it must not gate any table on a
     // permission as a drive-by. (system_settings was narrowed by key in the
-    // later 20261014130000_system_settings_key_split.sql, #237, which
+    // later 20261014140000_system_settings_key_split.sql, #237, which
     // authenticated-read-closure.test.ts pins.)
     expect(activeStatements).not.toContain('has_permission(');
   });
