@@ -285,6 +285,15 @@ export async function reorderCategories(
     return { success: false, error: errors.join('; ') };
   }
 
+  // One audit entry per reorder call (not per row)
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'security_contact_categories',
+    entityId: 'reorder',
+    entityDisplay: `Reordered ${orderedIds.length} categories`,
+    newValues: { total_count: orderedIds.length, ordered_ids: orderedIds.slice(0, 50) },
+  });
+
   revalidatePath('/security');
   revalidatePath('/settings/security');
 
