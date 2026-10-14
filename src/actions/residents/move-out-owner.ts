@@ -135,7 +135,7 @@ export async function initiateOwnerMoveOut(
     // Get resident details
     const { data: resident, error: residentError } = await supabase
         .from('residents')
-        .select('id, first_name, last_name, resident_code, email, phone_primary, user_id')
+        .select('id, first_name, last_name, resident_code, email, phone_primary, profile_id')
         .eq('id', residentId)
         .single();
 
@@ -144,7 +144,7 @@ export async function initiateOwnerMoveOut(
     }
 
     // Check if user is the resident themselves or admin
-    const isSelfService = resident.user_id === user.id;
+    const isSelfService = resident.profile_id === user.id;
     if (!isSelfService) {
         const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
         if (!auth.authorized) {
@@ -328,19 +328,22 @@ export async function initiateOwnerMoveOut(
     }
 
     // 5. Create in-app notification
-    await adminClient
-        .from('in_app_notifications')
-        .insert({
-            recipient_id: resident.user_id,
-            title: 'Move-Out Clearance Certificate',
-            body: `Your clearance certificate (${certificateNumber}) has been generated. You are now a Property Owner.`,
-            category: 'resident',
-            entity_type: 'clearance_certificate',
-            entity_id: certificate.id,
-            action_url: `/portal/properties/${houseId}`,
-            priority: 'high',
-            metadata: { certificate },
-        });
+    // recipient_id is NOT NULL and FK to profiles.id; a resident without a portal account has none.
+    if (resident.profile_id) {
+        await adminClient
+            .from('in_app_notifications')
+            .insert({
+                recipient_id: resident.profile_id,
+                title: 'Move-Out Clearance Certificate',
+                body: `Your clearance certificate (${certificateNumber}) has been generated. You are now a Property Owner.`,
+                category: 'resident',
+                entity_type: 'clearance_certificate',
+                entity_id: certificate.id,
+                action_url: `/portal/properties/${houseId}`,
+                priority: 'high',
+                metadata: { certificate },
+            });
+    }
 
     // 6. Send email
     if (resident.email) {
