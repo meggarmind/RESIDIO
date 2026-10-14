@@ -405,6 +405,14 @@ export async function deleteGeneratedReport(id: string): Promise<{ success: bool
 
     const supabase = await createServerSupabaseClient();
 
+    // Load the row first so the audit entry records what was deleted
+    // (metadata only; report_data is bulky and is not copied into the log).
+    const { data: existing } = await supabase
+        .from('generated_reports')
+        .select('id, name, report_type, period_start, period_end, version, schedule_id, generation_trigger')
+        .eq('id', id)
+        .maybeSingle();
+
     const { error } = await supabase
         .from('generated_reports')
         .delete()
@@ -414,6 +422,15 @@ export async function deleteGeneratedReport(id: string): Promise<{ success: bool
         console.error('[Reports] Failed to delete generated report:', error);
         return { success: false, error: error.message };
     }
+
+    await logAudit({
+        action: 'DELETE',
+        entityType: 'system_settings',
+        entityId: id,
+        entityDisplay: `Generated Report: ${existing?.name ?? id}`,
+        oldValues: existing ?? undefined,
+        description: 'Deleted generated report from history',
+    });
 
     revalidatePath('/reports');
     return { success: true, error: null };

@@ -67,8 +67,8 @@ function makeSupabase({
         return {
           select: () => ({
             eq: () => ({
-              single: async () => ({
-                data: { id: 'role-1', name: 'super_admin', display_name: 'Super Admin' },
+              maybeSingle: async () => ({
+                data: { display_name: 'Super Admin' },
                 error: null,
               }),
             }),
@@ -84,15 +84,14 @@ function makeSupabase({
           }),
         };
       }
-      return {
-        select: () => ({
-          eq: async () => ({
-            data: [{ permission: { name: 'impersonation.start_session' } }],
-            error: null,
-          }),
-        }),
-      };
+      throw new Error(`unexpected table ${table}`);
     },
+    rpc: async () => ({
+      data: [
+        { role_id: 'role-1', role_name: 'super_admin', permission_name: 'impersonation.start_session' },
+      ],
+      error: null,
+    }),
   };
 }
 

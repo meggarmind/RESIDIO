@@ -139,3 +139,10 @@ _Avoid_: User role (echoes the removed `profiles.role` column)
 **Access**:
 The resolved Role and Permissions for the signed-in user, or the fact that they could not be resolved.
 _Avoid_: Authorization (that word names the check, `authorizePermission()`)
+
+**Audit Entry**:
+One recorded change or administrative action on an entity, attributed to the user who did it; derived from the entity's old and new state.
+_Avoid_: Log line, Audit log (for a single record)
+
+**Audit recorder**:
+The module that builds an Audit Entry from the actor, the entity type and the old and new rows: it computes the diff and the entity's display name, and it never throws.
