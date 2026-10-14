@@ -15,6 +15,8 @@ export interface WhatsAppSendResult {
   success: boolean;
   messageId?: string;
   error?: string;
+  /** Set on failure when the adapter can tell: false = do not retry, true = transient. Absent = unknown. */
+  retryable?: boolean;
 }
 
 export interface WhatsAppInboundMessage {

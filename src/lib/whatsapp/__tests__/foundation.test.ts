@@ -174,6 +174,7 @@ describe('WhatsApp channel foundation', () => {
     await expect(provider.sendText({ to: '2348000000000', body: 'Test message' })).resolves.toEqual({
       success: false,
       error: 'WhatsApp provider request failed (HTTP 401)',
+      retryable: false,
     });
   });
 });

@@ -406,7 +406,7 @@ describe('Chatmaid WhatsApp provider', () => {
 
     const result = await provider.sendText({ to: '+2348000000000', body: 'Hi' });
 
-    expect(result).toEqual({ success: false, error: 'Chatmaid provider request failed' });
+    expect(result).toEqual({ success: false, error: 'Chatmaid provider request failed', retryable: true });
     expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
 
@@ -445,7 +445,7 @@ describe('Chatmaid WhatsApp provider', () => {
 
     const result = await provider.sendText({ to: '+2348000000000', body: 'Hi' });
 
-    expect(result).toEqual({ success: false, error: 'Chatmaid request failed (HTTP 500)' });
+    expect(result).toEqual({ success: false, error: 'Chatmaid request failed (HTTP 500)', retryable: true });
     expect(JSON.stringify(result)).not.toContain(config.apiKey);
   });
 });

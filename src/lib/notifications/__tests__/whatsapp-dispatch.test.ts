@@ -238,7 +238,12 @@ describe('WhatsApp notification dispatch', () => {
       },
       created_at: new Date().toISOString(),
       created_by: null,
-    })).resolves.toEqual({ success: false, error: 'WhatsApp daily outbound limit reached' });
+    })).resolves.toEqual({
+      success: false,
+      error: 'WhatsApp daily outbound limit reached',
+      retryable: true,
+      retryAt: expect.any(String),
+    });
   });
 
   it('rejects WhatsApp sends when the rolling burst cap is reached', async () => {
@@ -260,7 +265,12 @@ describe('WhatsApp notification dispatch', () => {
       scheduled_for: new Date().toISOString(), attempts: 0, max_attempts: 3, last_attempt_at: null, sent_at: null,
       error_message: null, metadata: { whatsapp_template: { name: 'invoice_reminder', languageCode: 'en_US', parameters: ['Ada'] } },
       created_at: new Date().toISOString(), created_by: null,
-    })).resolves.toEqual({ success: false, error: 'WhatsApp outbound burst limit reached' });
+    })).resolves.toEqual({
+      success: false,
+      error: 'WhatsApp outbound burst limit reached',
+      retryable: true,
+      retryAt: expect.any(String),
+    });
   });
 
   it('pauses safely before checking consent or invoking the provider', async () => {
@@ -319,6 +329,7 @@ describe('WhatsApp notification dispatch', () => {
         success: false,
         externalId: undefined,
         error: 'Chatmaid bridge is disconnected',
+        retryable: true,
       });
     });
   });
@@ -367,6 +378,7 @@ describe('WhatsApp notification dispatch', () => {
         success: false,
         externalId: undefined,
         error: 'Chatmaid bridge is disconnected',
+        retryable: true,
       });
     });
 
@@ -385,6 +397,7 @@ describe('WhatsApp notification dispatch', () => {
         success: false,
         externalId: undefined,
         error: 'WhatsApp provider request failed (HTTP 401)',
+        retryable: true,
       });
     });
 
@@ -486,7 +499,12 @@ describe('WhatsApp notification dispatch', () => {
 
       expect(sendWhatsAppTemplate).not.toHaveBeenCalled();
       expect(sendSms).not.toHaveBeenCalled();
-      expect(result).toEqual({ success: false, error: 'WhatsApp outbound burst limit reached' });
+      expect(result).toEqual({
+        success: false,
+        error: 'WhatsApp outbound burst limit reached',
+        retryable: true,
+        retryAt: expect.any(String),
+      });
     });
   });
 
