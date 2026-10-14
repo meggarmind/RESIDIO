@@ -23,6 +23,7 @@
     "issue:monitor": "node scripts/issue-monitor.mjs",
     "db:migrate": "npx supabase db push --local",
     "db:types": "npx supabase gen types typescript --local > src/types/database.generated.ts",
+    "db:reconcile-version": "node scripts/reconcile-migration-version.mjs",
     "docs:drift": "node scripts/docs-drift.mjs",
     "docs:verify": "node scripts/docs-verify.mjs",
     "supabase:status": "npx supabase status",

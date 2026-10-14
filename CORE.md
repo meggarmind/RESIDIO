@@ -469,6 +469,10 @@ Standing rule, not a suggestion:
    correct in intent and still be the direct cause of an open P0.
 4. **Record any deliberately withheld migration twice** — on its issue and in
    the next handoff comment on #412 — so a later reader does not "fix" the gap by applying it.
+5. **Restore the authored version after every apply.** MCP `apply_migration` stamps its own
+   timestamp, which `migration-drift.mjs` reads as two drift entries (#305). Run
+   `npm run db:reconcile-version -- <version> <name>` and execute the printed SQL on the same
+   database via MCP. Never rename the file to match the stamp.
 
 Migrations are **written** by an implementing agent and **never applied** by one. See §16 for
 the rollback-fidelity requirement. Full detail: `docs/agents/migrations-on-merge.md`.
