@@ -478,8 +478,9 @@ Standing rule, not a suggestion:
    correct in intent and still be the direct cause of an open P0.
 4. **Record any deliberately withheld migration twice** — on its issue and in
    the next handoff comment on #412 — so a later reader does not "fix" the gap by applying it.
-5. **Restore the authored version after every apply.** MCP `apply_migration` stamps its own
-   timestamp, which `migration-drift.mjs` reads as two drift entries (#305). Run
+5. **Restoring the authored version is recommended, not required.** MCP `apply_migration` stamps its
+   own timestamp. Since #374 `migration-drift.mjs` pairs by name, so a stamped version is not drift
+   and CI stays green either way (#305). To make the ledger version match the file, run
    `npm run db:reconcile-version -- <version> <name>` and execute the printed SQL on the same
    database via MCP. Never rename the file to match the stamp.
 
