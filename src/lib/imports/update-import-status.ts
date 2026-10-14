@@ -73,14 +73,19 @@ export async function updateImportStatus(params: UpdateImportStatusParams): Prom
   }
 
   // Guard on the status we validated against so a concurrent change cannot slip past the table.
-  const { error } = await supabase
+  // PostgREST reports no error when zero rows match, so ask for the rows back and check.
+  const { data: updated, error } = await supabase
     .from('bank_statement_imports')
     .update(updateData)
     .eq('id', import_id)
-    .eq('status', from);
+    .eq('status', from)
+    .select('id');
 
   if (error) {
     return { error: error.message };
+  }
+  if (!updated || updated.length === 0) {
+    return { error: 'Import status changed concurrently, no update applied' };
   }
 
   return { error: null };

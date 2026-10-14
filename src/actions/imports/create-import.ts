@@ -203,6 +203,21 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
     return { count: 0, error: `An import can contain at most ${MAX_IMPORT_ROWS} rows (received ${rows.length})` };
   }
 
+  // Rows are loaded exactly once, straight after createImport (status 'pending'); the write
+  // below moves it to 'processing'. Any other status means the import is past that point, and
+  // knocking it back to 'processing' would silently void a pending or granted approval.
+  const { data: existing, error: existingError } = await supabase
+    .from('bank_statement_imports')
+    .select('status')
+    .eq('id', import_id)
+    .single();
+  if (existingError || !existing) {
+    return { count: 0, error: 'Import not found' };
+  }
+  if (existing.status !== 'pending') {
+    return { count: 0, error: `Cannot add rows to an import with status: ${existing.status}` };
+  }
+
   // Transform parsed rows to database format
   const dbRows = rows.map((row) => ({
     import_id,

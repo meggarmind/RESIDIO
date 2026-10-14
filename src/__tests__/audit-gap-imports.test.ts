@@ -140,6 +140,10 @@ describe('createImportRows audit (#556)', () => {
       reference: null,
     }));
 
+  beforeEach(() => {
+    results['bank_statement_imports.select'] = { data: { status: 'pending' } };
+  });
+
   it('writes ONE entry with the inserted count, after the inserts', async () => {
     const res = await createImportRows({ import_id: uid(5), rows: parsed(250) } as never);
     expect(res).toEqual({ count: 250, error: null });

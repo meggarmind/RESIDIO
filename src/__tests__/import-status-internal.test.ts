@@ -9,6 +9,7 @@ import {
   updateImportStatus,
 } from '@/lib/imports/update-import-status';
 import { processImport } from '@/actions/imports/process-import';
+import { createImportRows } from '@/actions/imports/create-import';
 import type { ImportStatus } from '@/types/database';
 
 /**
@@ -33,6 +34,9 @@ vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit }));
 vi.mock('@/lib/supabase/fetch-all-rows', () => ({ fetchAllRows }));
 vi.mock('@/lib/notifications/admin-notifier', () => ({ notifyAdmins: vi.fn() }));
+vi.mock('@/actions/reference/transaction-tags', () => ({
+  autoTagTransaction: vi.fn(async () => ({ tag: null, matchedKeyword: null })),
+}));
 
 const SCAN_TIMEOUT_MS = 30_000;
 const root = fileURLToPath(new URL('../..', import.meta.url));
@@ -55,7 +59,18 @@ function exportsName(source: string, name: string): boolean {
   return decl.test(source) || list.test(source);
 }
 
+// Any specifier (alias, relative, dynamic import) naming the lib module.
+const LIB_SPECIFIER = /['"][^'"]*update-import-status['"]/;
+const LIB_REEXPORT = /export\s+(?:type\s+)?(?:\*|\{[^}]*\})\s*(?:as\s+\w+\s*)?from\s*['"][^'"]*update-import-status['"]/;
+
 describe('updateImportStatus is not a server action (#556)', () => {
+  it('no file under src/actions re-exports the lib module (alias or relative, named or star)', () => {
+    const offenders = sourceFiles('src/actions')
+      .filter((f) => LIB_REEXPORT.test(readFileSync(f, 'utf8')))
+      .map(rel);
+    expect(offenders).toEqual([]);
+  }, SCAN_TIMEOUT_MS);
+
   it('scans a non-trivial set of action files', () => {
     expect(sourceFiles('src/actions').length).toBeGreaterThan(20);
   }, SCAN_TIMEOUT_MS);
@@ -75,7 +90,7 @@ describe('updateImportStatus is not a server action (#556)', () => {
 
   it('only the known server-side caller imports the lib module', () => {
     const importers = sourceFiles('src')
-      .filter((f) => /@\/lib\/imports\/update-import-status['"]/.test(readFileSync(f, 'utf8')))
+      .filter((f) => LIB_SPECIFIER.test(readFileSync(f, 'utf8')))
       .map(rel)
       .sort();
     expect(importers).toEqual([...ALLOWED_IMPORTERS].sort());
@@ -88,6 +103,7 @@ beforeEach(() => {
   selects.length = 0;
   for (const k of Object.keys(results)) delete results[k];
   authorizePermission.mockResolvedValue({ authorized: true, userId: 'user-1' });
+  results['bank_statement_imports.update'] = { data: [{ id: uid(1) }] };
   logAudit.mockImplementation(async () => {
     calls.push('audit');
   });
@@ -133,6 +149,95 @@ describe('updateImportStatus transition table (#556)', () => {
     const res = await updateImportStatus({ import_id: uid(1), status: 'completed' });
     expect(res.error).toBe('Import not found');
     expect(calls).toEqual([]);
+  });
+});
+
+describe('updateImportStatus concurrency guard (#556)', () => {
+  it('guards the update on the validated status and asks for the rows back', async () => {
+    const eqs: Array<[string, unknown]> = [];
+    const selectsAfterUpdate: string[] = [];
+    createServerSupabaseClient.mockImplementation(async () => ({
+      from() {
+        let op = '';
+        const chain: Record<string, unknown> = {};
+        chain.select = (cols: string) => {
+          if (op === 'update') selectsAfterUpdate.push(cols);
+          else op = 'select';
+          return chain;
+        };
+        chain.update = () => {
+          op = 'update';
+          return chain;
+        };
+        chain.eq = (col: string, val: unknown) => {
+          if (op === 'update') eqs.push([col, val]);
+          return chain;
+        };
+        const settle = () =>
+          op === 'update' ? { data: [{ id: uid(1) }], error: null } : { data: { status: 'processing' }, error: null };
+        chain.single = async () => settle();
+        chain.then = (res: (v: unknown) => unknown) => Promise.resolve(settle()).then(res);
+        return chain;
+      },
+    }));
+    const res = await updateImportStatus({ import_id: uid(1), status: 'completed' });
+    expect(res.error).toBeNull();
+    expect(eqs).toContainEqual(['id', uid(1)]);
+    expect(eqs).toContainEqual(['status', 'processing']);
+    expect(selectsAfterUpdate).toEqual(['id']);
+  });
+
+  it('returns an error when zero rows were updated (lost race)', async () => {
+    results['bank_statement_imports.select'] = { data: { status: 'processing' } };
+    results['bank_statement_imports.update'] = { data: [] };
+    const res = await updateImportStatus({ import_id: uid(1), status: 'completed' });
+    expect(res.error).toMatch(/changed concurrently/);
+  });
+
+  it('returns ok when one row was updated', async () => {
+    results['bank_statement_imports.select'] = { data: { status: 'processing' } };
+    results['bank_statement_imports.update'] = { data: [{ id: uid(1) }] };
+    const res = await updateImportStatus({ import_id: uid(1), status: 'completed' });
+    expect(res.error).toBeNull();
+  });
+});
+
+describe('createImportRows only accepts a pending import (#556)', () => {
+  const rows = [
+    {
+      row_number: 1,
+      raw_data: {},
+      transaction_date: new Date('2026-01-01'),
+      description: 'x',
+      amount: 10,
+      transaction_type: 'credit',
+      reference: null,
+    },
+  ] as unknown as Parameters<typeof createImportRows>[0]['rows'];
+
+  it('inserts rows and moves pending -> processing', async () => {
+    results['bank_statement_imports.select'] = { data: { status: 'pending' } };
+    const res = await createImportRows({ import_id: uid(1), rows });
+    expect(res.error).toBeNull();
+    expect(res.count).toBe(1);
+    expect(calls).toContain('write:bank_statement_rows.insert');
+    expect(calls).toContain('write:bank_statement_imports.update');
+  });
+
+  for (const status of ['processing', 'awaiting_approval', 'approved', 'rejected', 'completed', 'failed']) {
+    it(`rejects ${status} with no insert and no status write`, async () => {
+      results['bank_statement_imports.select'] = { data: { status } };
+      const res = await createImportRows({ import_id: uid(1), rows });
+      expect(res.error).toMatch(new RegExp(`status: ${status}`));
+      expect(res.count).toBe(0);
+      expect(calls.filter((c) => c.startsWith('write:'))).toEqual([]);
+    });
+  }
+
+  it('rejects an unknown import with no writes', async () => {
+    const res = await createImportRows({ import_id: uid(1), rows });
+    expect(res.error).toBe('Import not found');
+    expect(calls.filter((c) => c.startsWith('write:'))).toEqual([]);
   });
 });
 
