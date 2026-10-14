@@ -35,6 +35,18 @@ describe('verification token attempt limit migration (#556)', () => {
     expect(active).not.toMatch(/attempts \+ 1 > p_max_attempts/);
   });
 
+  it('casts the token type to the enum and adds exactly one per failed attempt', () => {
+    // Text-only checks: nothing here runs SQL. Without the cast `enum = text` errors on every
+    // call (the limit would never work); a wrong increment or default changes the limit.
+    expect(active).toContain('vt.token_type = p_token_type::public.verification_type');
+    expect(active).toContain('SET attempts = vt.attempts + 1');
+    // Every increment in the body is exactly '+ 1' (no other number follows 'vt.attempts + ').
+    const increments = active.match(/vt\.attempts \+ \d+/g) ?? [];
+    expect(increments.length).toBeGreaterThan(0);
+    expect([...new Set(increments)]).toEqual(['vt.attempts + 1']);
+    expect(active).toMatch(/p_max_attempts integer DEFAULT 5(?![0-9])/);
+  });
+
   it('only counts active, unexpired tokens', () => {
     expect(active).toContain('vt.used_at IS NULL');
     expect(active).toContain('vt.expires_at > now()');
