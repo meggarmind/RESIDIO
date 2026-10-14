@@ -228,8 +228,6 @@ describe('Part 2: approvals/index.ts hand-rolled legacy checks', () => {
       // Internal helper invoked by approveRequest after its own guard has
       // already run -- must not carry a second, independently-driftable check.
       applyRequestedChanges: null,
-      // Anyone can submit an approval request; only reviewing one is gated.
-      createApprovalRequest: null,
       // Returns `auth.authorized` directly rather than an early return --
       // pinned separately below.
       canAutoApprove: null,

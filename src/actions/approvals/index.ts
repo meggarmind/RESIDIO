@@ -7,9 +7,7 @@ import type {
   ApprovalRequestWithDetails,
   ApprovalStatus,
   ApprovalRequestType,
-  ApprovalEntityType,
 } from '@/types/database';
-import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -369,72 +367,6 @@ async function applyRequestedChanges(request: ApprovalRequest): Promise<Approval
   }
 
   return { success: true, error: null };
-}
-
-// Create an approval request (called internally by other actions)
-export async function createApprovalRequest(params: {
-  request_type: ApprovalRequestType;
-  entity_type: ApprovalEntityType;
-  entity_id: string;
-  requested_changes: Record<string, unknown>;
-  current_values: Record<string, unknown>;
-  reason?: string;
-}): Promise<{ success: boolean; request_id?: string; error: string | null }> {
-  const supabase = await createServerSupabaseClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: 'Unauthorized' };
-  }
-
-  // Check for existing pending request for the same entity
-  const { data: existing } = await supabase
-    .from('approval_requests')
-    .select('id')
-    .eq('entity_type', params.entity_type)
-    .eq('entity_id', params.entity_id)
-    .eq('request_type', params.request_type)
-    .eq('status', 'pending')
-    .single();
-
-  if (existing) {
-    return {
-      success: false,
-      error: 'A pending approval request already exists for this change',
-    };
-  }
-
-  const { data, error } = await supabase
-    .from('approval_requests')
-    .insert({
-      request_type: params.request_type,
-      entity_type: params.entity_type,
-      entity_id: params.entity_id,
-      requested_changes: params.requested_changes,
-      current_values: params.current_values,
-      reason: params.reason || null,
-      requested_by: user.id,
-    })
-    .select('id')
-    .single();
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  // Notify admins of the new approval request
-  await notifyAdmins({
-    title: 'New Approval Request',
-    body: `A new ${params.request_type.replace(/_/g, ' ')} request has been created and requires review.`,
-    category: 'system',
-    actionUrl: `/approvals?id=${data.id}`,
-    priority: 'normal',
-    requiredPermission: PERMISSIONS.APPROVALS_VIEW,
-  });
-
-  return { success: true, request_id: data.id, error: null };
 }
 
 // Check if user can auto-approve (holds approvals.approve_reject)
