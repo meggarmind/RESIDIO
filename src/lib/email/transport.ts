@@ -28,7 +28,26 @@ export interface ResendTransportParams {
 
 export type ResendTransportResult =
   | { ok: true; id: string | undefined }
-  | { ok: false; error: string };
+  /** `retryable` is present (true) only for a transient failure (#546). */
+  | { ok: false; error: string; retryable?: true };
+
+export interface ResendTransportOptions {
+  /** Sent to Resend as the Idempotency-Key so a retried attempt cannot double-send (#546). */
+  idempotencyKey?: string;
+}
+
+const RETRYABLE_RESEND_ERROR_NAMES = new Set([
+  'rate_limit_exceeded',
+  'application_error',
+  'internal_server_error',
+]);
+
+/** Transient Resend failures: 5xx, 429, 408, or a transient error name. */
+export function isRetryableResendError(error: { statusCode?: number | null; name?: string }): boolean {
+  const status = error.statusCode;
+  if (typeof status === 'number' && (status >= 500 || status === 429 || status === 408)) return true;
+  return typeof error.name === 'string' && RETRYABLE_RESEND_ERROR_NAMES.has(error.name);
+}
 
 /**
  * Send via Resend. Only the properties present on `params` are forwarded.
@@ -36,24 +55,43 @@ export type ResendTransportResult =
  * throws, the exception propagates (sendEmail relies on that; sendViaEmail
  * wraps its own call).
  */
-export async function sendViaResend(params: ResendTransportParams): Promise<ResendTransportResult> {
+export async function sendViaResend(
+  params: ResendTransportParams,
+  options?: ResendTransportOptions
+): Promise<ResendTransportResult> {
   if (!resend) return { ok: false, error: EMAIL_NOT_CONFIGURED_ERROR };
 
   const fromName = (await getSettingValueAsService('email_from_name')) || 'Residio Estate';
   const { to, subject, ...content } = params;
 
   try {
-    const { data, error } = await resend.emails.send({
+    const payload = {
       from: `${fromName} <${emailConfig.fromAddress}>`,
       to,
       replyTo: emailConfig.replyTo,
       subject,
       ...content,
-    } as Parameters<typeof resend.emails.send>[0]);
+    } as Parameters<typeof resend.emails.send>[0];
+    const { data, error } = options?.idempotencyKey
+      ? await resend.emails.send(payload, { idempotencyKey: options.idempotencyKey })
+      : await resend.emails.send(payload);
 
-    if (error) return { ok: false, error: error.message };
+    if (error) {
+      return isRetryableResendError(error)
+        ? { ok: false, error: error.message, retryable: true }
+        : { ok: false, error: error.message };
+    }
     return { ok: true, id: data?.id };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Unknown error sending email' };
+    // A thrown error is a network/timeout failure, so it is treated as
+    // retryable. The idempotency key does NOT make that safe if the first
+    // request actually landed: the next attempt uses attempt + 1, a different
+    // key. The key only protects overlapping runs and a crash before the queue
+    // row is updated (same attempt number, same key).
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Unknown error sending email',
+      retryable: true,
+    };
   }
 }

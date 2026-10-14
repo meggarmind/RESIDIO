@@ -9,6 +9,7 @@ type Filter =
   | { kind: 'eq'; column: string; value: unknown }
   | { kind: 'in'; column: string; values: unknown[] }
   | { kind: 'gte'; column: string; value: unknown }
+  | { kind: 'lte'; column: string; value: unknown }
   | { kind: 'is'; column: string; value: unknown };
 
 export interface FakeSupabaseState {
@@ -37,6 +38,8 @@ export function createFakeSupabase(initial: Record<string, Row[]> = {}) {
           return f.values.includes(v);
         case 'gte':
           return v != null && String(v) >= String(f.value);
+        case 'lte':
+          return v != null && String(v) <= String(f.value);
         case 'is':
           return (v ?? null) === f.value;
       }
@@ -50,6 +53,8 @@ export function createFakeSupabase(initial: Record<string, Row[]> = {}) {
     let upsertKeys: string[] = [];
     let head = false;
     let wantCount = false;
+    const orders: Array<{ column: string; ascending: boolean }> = [];
+    let limitN: number | undefined;
 
     function execute(): { data: unknown; error: null; count?: number } {
       const rows = rowsOf(table);
@@ -69,8 +74,19 @@ export function createFakeSupabase(initial: Record<string, Row[]> = {}) {
         hit.forEach((r) => Object.assign(r, payload));
         return { data: hit, error: null };
       }
+      const sorted = orders.length
+        ? [...hit].sort((a, b) => {
+            for (const o of orders) {
+              const av = String(a[o.column]);
+              const bv = String(b[o.column]);
+              if (av !== bv) return (av < bv ? -1 : 1) * (o.ascending ? 1 : -1);
+            }
+            return 0;
+          })
+        : hit;
+      const limited = limitN === undefined ? sorted : sorted.slice(0, limitN);
       return {
-        data: head ? null : hit,
+        data: head ? null : limited,
         error: null,
         ...(wantCount ? { count: hit.length } : {}),
       };
@@ -108,6 +124,18 @@ export function createFakeSupabase(initial: Record<string, Row[]> = {}) {
     };
     builder.gte = (column: string, value: unknown) => {
       filters.push({ kind: 'gte', column, value });
+      return builder;
+    };
+    builder.lte = (column: string, value: unknown) => {
+      filters.push({ kind: 'lte', column, value });
+      return builder;
+    };
+    builder.order = (column: string, opts?: { ascending?: boolean }) => {
+      orders.push({ column, ascending: opts?.ascending ?? true });
+      return builder;
+    };
+    builder.limit = (n: number) => {
+      limitN = n;
       return builder;
     };
     builder.is = (column: string, value: unknown) => {

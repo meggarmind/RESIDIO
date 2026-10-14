@@ -269,25 +269,30 @@ export async function updateSyncCriteria(criteria: Record<string, unknown>): Pro
 
   const supabase = await createServerSupabaseClient();
 
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from('gmail_oauth_credentials')
     .update({
       sync_criteria: criteria,
     })
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .select('id');
 
   if (error) {
     return { error: error.message };
   }
 
-  // Audit log
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'gmail_oauth_credentials',
-    entityId: 'active',
-    entityDisplay: 'Gmail Sync Criteria',
-    newValues: criteria,
-  });
+  // Audit log. audit_logs.entity_id is a uuid: use the updated credentials row (#594).
+  // No active connection means nothing changed, so nothing to audit.
+  const credentialsId = updatedRows?.[0]?.id;
+  if (credentialsId) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'gmail_oauth_credentials',
+      entityId: credentialsId,
+      entityDisplay: 'Gmail Sync Criteria',
+      newValues: criteria,
+    });
+  }
 
   return { error: null };
 }
