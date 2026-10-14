@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const sql = readFileSync(
-  path.join(root, 'supabase/migrations/20261014120000_get_my_access.sql'),
+  path.join(root, 'supabase/migrations/20261014130000_get_my_access.sql'),
   'utf8',
 )
   .split('\n')
