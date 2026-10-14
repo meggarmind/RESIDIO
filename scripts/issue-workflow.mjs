@@ -34,16 +34,33 @@ export function commandInvocation(command, args, windows = WINDOWS) {
   return { command: binary(command), args };
 }
 
-function run(command, args, cwd, options = {}) {
+// Node's execFileSync defaults to a 1 MiB buffer and throws ENOBUFS beyond it.
+// `gh project item-list` for the board is ~1.1 MB of JSON, so the default made
+// `start` fail. 64 MiB leaves ample headroom.
+export const MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+
+// Failure output is truncated to its tail so a failing command can never dump
+// megabytes into the terminal.
+export const MAX_ERROR_DETAILS_CHARS = 2000;
+
+export function run(command, args, cwd, options = {}) {
+  const maxBuffer = options.maxBuffer ?? MAX_BUFFER_BYTES;
   try {
     return execFileSync(binary(command), args, {
       cwd,
       encoding: 'utf8',
       stdio: options.inherit ? 'inherit' : ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
+      maxBuffer,
     }).trim();
   } catch (error) {
-    const details = [error.stderr, error.stdout].filter(Boolean).join('\n').trim();
+    if (error.code === 'ENOBUFS' || /maxBuffer/i.test(error.message ?? '')) {
+      throw new WorkflowError(`${command} ${args.join(' ')} failed: output exceeded the ${maxBuffer} byte buffer limit`);
+    }
+    let details = [error.stderr, error.stdout].filter(Boolean).join('\n').trim();
+    if (details.length > MAX_ERROR_DETAILS_CHARS) {
+      details = `...(truncated, last ${MAX_ERROR_DETAILS_CHARS} characters)\n${details.slice(-MAX_ERROR_DETAILS_CHARS)}`;
+    }
     throw new WorkflowError(`${command} ${args.join(' ')} failed${details ? `: ${details}` : ''}`);
   }
 }

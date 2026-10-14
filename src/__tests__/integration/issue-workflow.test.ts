@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checksFromArgs, commandInvocation, findStatusOption, isIssueBranch, laneFromArgs, lanePrefixes, lifecycleComment, parseWorktrees, pathsMatch, resolveLanePrefix, slugify, statusName } from '../../../scripts/issue-workflow.mjs';
+import { checksFromArgs, commandInvocation, findStatusOption, isIssueBranch, laneFromArgs, lanePrefixes, lifecycleComment, MAX_ERROR_DETAILS_CHARS, parseWorktrees, pathsMatch, resolveLanePrefix, run, slugify, statusName, WorkflowError } from '../../../scripts/issue-workflow.mjs';
 
 // Mirrors .github/issue-workflow.json. Kept literal so a config change that
 // drops a lane fails here rather than silently narrowing branch matching.
@@ -119,5 +119,42 @@ describe('branch lanes', () => {
   it('rejects --lane without a value instead of swallowing the next flag', () => {
     expect(() => laneFromArgs(['--lane'])).toThrow('--lane requires a lane name');
     expect(() => laneFromArgs(['--lane', '--check'])).toThrow('--lane requires a lane name');
+  });
+});
+
+describe('run output buffering', () => {
+  const MIB = 1024 * 1024;
+  const emit = (bytes: number) => ['-e', `process.stdout.write('x'.repeat(${bytes}))`];
+
+  it('returns output larger than the 1 MiB Node default', () => {
+    const output = run('node', emit(2 * MIB), process.cwd());
+    expect(output.length).toBe(2 * MIB);
+  });
+
+  it('truncates huge output when a command fails', () => {
+    const script = `process.stdout.write('x'.repeat(${2 * MIB})); process.stderr.write('boom'); process.exit(1)`;
+    let message = '';
+    try {
+      run('node', ['-e', script], process.cwd());
+    } catch (error) {
+      expect(error).toBeInstanceOf(WorkflowError);
+      message = (error as Error).message;
+    }
+    expect(message).toContain('failed');
+    expect(message).toContain('boom');
+    expect(message).toContain('truncated');
+    expect(message.length).toBeLessThan(MAX_ERROR_DETAILS_CHARS + 500);
+  });
+
+  it('reports a clear error when output exceeds the buffer', () => {
+    let message = '';
+    try {
+      run('node', emit(4096), process.cwd(), { maxBuffer: 1024 });
+    } catch (error) {
+      expect(error).toBeInstanceOf(WorkflowError);
+      message = (error as Error).message;
+    }
+    expect(message).toContain('exceeded the 1024 byte buffer limit');
+    expect(message).not.toContain('xxxx');
   });
 });
