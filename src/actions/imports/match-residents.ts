@@ -608,14 +608,17 @@ export async function batchUpdateRowStatus(params: BatchUpdateParams): Promise<{
     return { count: 0, error: error.message };
   }
 
-  await logAudit({
-    action: 'BULK_UPDATE',
-    entityType: 'bank_statement_imports',
-    entityId: row_ids[0] ?? 'batch',
-    entityDisplay: `${row_ids.length} statement row(s) set to ${status}`,
-    newValues: { status },
-    metadata: { row_ids, status },
-  });
+  // audit_logs.entity_id is a uuid, so with no real id there is nothing to audit against (#594).
+  if (row_ids[0]) {
+    await logAudit({
+      action: 'BULK_UPDATE',
+      entityType: 'bank_statement_imports',
+      entityId: row_ids[0],
+      entityDisplay: `${row_ids.length} statement row(s) set to ${status}`,
+      newValues: { status },
+      metadata: { row_ids, status },
+    });
+  }
 
   return { count: count ?? row_ids.length, error: null };
 }

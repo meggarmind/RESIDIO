@@ -72,23 +72,28 @@ export async function setResidentPortalEnabled(enabled: boolean): Promise<{ succ
     return { success: false, error: 'Failed to load the resident portal switch' };
   }
 
-  const { error } = await adminClient
+  const { data: saved, error } = await adminClient
     .from('system_settings')
-    .upsert({ key: SETTING_KEY, value: enabled, category: 'general' }, { onConflict: 'key' });
+    .upsert({ key: SETTING_KEY, value: enabled, category: 'general' }, { onConflict: 'key' })
+    .select('id')
+    .single();
 
   if (error) {
     console.error('[setResidentPortalEnabled] Failed to upsert resident_portal_enabled:', error);
     return { success: false, error: 'Failed to update the resident portal switch' };
   }
 
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'system_settings',
-    entityId: SETTING_KEY,
-    entityDisplay: 'Resident portal estate-wide switch',
-    oldValues: { [SETTING_KEY]: previous ? readBoolean(previous.value) : null },
-    newValues: { [SETTING_KEY]: enabled },
-  });
+  // audit_logs.entity_id is a uuid: use the settings row id; no row, no audit (#594).
+  if (saved?.id) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'system_settings',
+      entityId: saved.id,
+      entityDisplay: 'Resident portal estate-wide switch',
+      oldValues: { key: SETTING_KEY, [SETTING_KEY]: previous ? readBoolean(previous.value) : null },
+      newValues: { key: SETTING_KEY, [SETTING_KEY]: enabled },
+    });
+  }
   revalidatePath('/settings/estate-info');
   return { success: true, error: null };
 }

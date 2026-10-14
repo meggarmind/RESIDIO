@@ -19,6 +19,8 @@ vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit }));
 vi.mock('next/cache', () => ({ revalidatePath }));
 
+const SETTING_ROW_ID = '00000000-0000-4000-8000-000000000001';
+
 type Result = { data: unknown; error: unknown };
 
 /**
@@ -51,13 +53,14 @@ function createClient(readResult: Result, writeResult: Result = { data: null, er
         return chain;
       },
       maybeSingle: () => Promise.resolve(result),
+      single: () => Promise.resolve(result),
       update: (values: unknown) => {
         calls.update.push(values);
         return builder(writeResult);
       },
       upsert: (values: unknown, options: unknown) => {
         calls.upsert.push([values, options]);
-        return Promise.resolve(writeResult);
+        return builder(writeResult);
       },
       then: (resolve: (value: Result) => unknown, reject: (reason: unknown) => unknown) =>
         Promise.resolve(result).then(resolve, reject),
@@ -137,7 +140,7 @@ describe('setResidentPortalEnabled', () => {
   });
 
   it('upserts the switch and audits the old and new values', async () => {
-    const { client, calls } = createClient({ data: { value: false }, error: null });
+    const { client, calls } = createClient({ data: { value: false }, error: null }, { data: { id: SETTING_ROW_ID }, error: null });
     createAdminClient.mockReturnValue(client);
 
     const result = await setResidentPortalEnabled(true);
@@ -151,24 +154,25 @@ describe('setResidentPortalEnabled', () => {
       expect.objectContaining({
         action: 'UPDATE',
         entityType: 'system_settings',
-        entityId: 'resident_portal_enabled',
-        oldValues: { resident_portal_enabled: false },
-        newValues: { resident_portal_enabled: true },
+        // audit_logs.entity_id is a uuid: the settings row id, not the key (#594)
+        entityId: SETTING_ROW_ID,
+        oldValues: { key: 'resident_portal_enabled', resident_portal_enabled: false },
+        newValues: { key: 'resident_portal_enabled', resident_portal_enabled: true },
       })
     );
     expect(revalidatePath).toHaveBeenCalledWith('/settings/estate-info');
   });
 
   it('records a missing row as a null old value', async () => {
-    const { client } = createClient({ data: null, error: null });
+    const { client } = createClient({ data: null, error: null }, { data: { id: SETTING_ROW_ID }, error: null });
     createAdminClient.mockReturnValue(client);
 
     await setResidentPortalEnabled(false);
 
     expect(logAudit).toHaveBeenCalledWith(
       expect.objectContaining({
-        oldValues: { resident_portal_enabled: null },
-        newValues: { resident_portal_enabled: false },
+        oldValues: { key: 'resident_portal_enabled', resident_portal_enabled: null },
+        newValues: { key: 'resident_portal_enabled', resident_portal_enabled: false },
       })
     );
   });
@@ -182,6 +186,16 @@ describe('setResidentPortalEnabled', () => {
 
     expect(result).toEqual({ success: false, error: 'Failed to load the resident portal switch' });
     expect(calls.upsert).toEqual([]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('does not audit when the upsert returns no row id', async () => {
+    const { client } = createClient({ data: { value: false }, error: null }, { data: null, error: null });
+    createAdminClient.mockReturnValue(client);
+
+    const result = await setResidentPortalEnabled(true);
+
+    expect(result.success).toBe(true);
     expect(logAudit).not.toHaveBeenCalled();
   });
 

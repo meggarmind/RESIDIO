@@ -39,10 +39,12 @@ describe('audit entityId must be a uuid (#594)', () => {
     );
     const offenders: string[] = [];
     let unverifiable = 0;
+    let bare = 0;
     for (const file of files) {
       const rel = 'src/' + path.relative(ROOT, file).replace(/\\/g, '/');
       const scan = scanEntityIds(rel, fs.readFileSync(file, 'utf8'));
       unverifiable += scan.unverifiable;
+      bare += scan.bareIdentifiers;
       for (const f of scan.findings) {
         if (!ENTITY_ID_ALLOWLIST.includes(`${rel}::${f.text}`)) {
           offenders.push(`${rel}:${f.line} entityId: ${f.text}`);
@@ -50,7 +52,7 @@ describe('audit entityId must be a uuid (#594)', () => {
       }
     }
     // Informational: calls built from spreads/variables cannot be checked statically.
-    console.info(`audit-entity-id: ${unverifiable} unverifiable logAudit call(s)`);
+    console.info(`audit-entity-id: ${unverifiable} unverifiable logAudit call(s), ${bare} bare-identifier entityId(s) not classifiable`);
     expect(offenders).toEqual([]);
   }, 60_000); // parses every action file; slow on a loaded machine
 });
@@ -65,8 +67,44 @@ describe('scanEntityIds', () => {
     expect(scan('await logAudit({ entityId: `batch` });').findings).toHaveLength(1);
     expect(scan('await logAudit({ entityId: `${id}-x` });').findings).toHaveLength(1);
   });
-  it('does not judge a fallback expression', () => {
-    expect(scan(`await logAudit({ entityId: id || 'manual' });`).findings).toEqual([]);
+  it('flags a fallback or conditional with a literal/template branch', () => {
+    expect(scan(`await logAudit({ entityId: id ?? 'x' });`).findings).toHaveLength(1);
+    expect(scan(`await logAudit({ entityId: id || 'manual' });`).findings).toHaveLength(1);
+    expect(scan(`await logAudit({ entityId: data?.id ? data.id : 'none' });`).findings).toHaveLength(1);
+    expect(scan('await logAudit({ entityId: id ?? `${id}:x` });').findings).toHaveLength(1);
+  });
+  it('does not flag a fallback between non-literals', () => {
+    expect(scan(`await logAudit({ entityId: data.a ?? data.b });`).findings).toEqual([]);
+    expect(scan(`await logAudit({ entityId: id ? data.id : crypto.randomUUID() });`).findings).toEqual([]);
+  });
+  it('flags an identifier or property resolving to a same-function literal const', () => {
+    expect(scan(`const key = 'k'; await logAudit({ entityId: key });`).findings).toHaveLength(1);
+    expect(scan('const key = `a-${id}`; await logAudit({ entityId: key });').findings).toHaveLength(1);
+    expect(scan(`const K = { A: 'a' }; await logAudit({ entityId: K.A });`).findings).toHaveLength(1);
+    expect(scan(`const entityId = 'x'; await logAudit({ action: 'X', entityId });`).findings).toHaveLength(1);
+  });
+  it('does not flag identifiers that are not literal consts', () => {
+    expect(scan(`const key = id; await logAudit({ entityId: key });`).findings).toEqual([]);
+    expect(scan(`let key = 'k'; await logAudit({ entityId: key });`).findings).toEqual([]);
+    expect(scan(`const K = { A: id }; await logAudit({ entityId: K.A });`).findings).toEqual([]);
+    expect(scan(`await logAudit({ entityId: other });`).findings).toEqual([]);
+  });
+  it('resolves a module-level literal const', () => {
+    const s = scanEntityIds('x.ts', `const KEY = 'k'; async function f(){ await logAudit({ entityId: KEY }); }`);
+    expect(s.findings).toHaveLength(1);
+  });
+  it('counts unresolved bare identifiers without flagging', () => {
+    const s = scan(`await logAudit({ entityId: id }); await logAudit({ entityId });`);
+    expect(s.findings).toEqual([]);
+    expect(s.bareIdentifiers).toBe(2);
+  });
+  it('sees calls through an aliased import and a member call', () => {
+    const imp = `import { logAudit as audit } from '@/lib/audit/logger';`;
+    expect(scanEntityIds('x.ts', `${imp} async function f(){ await audit({ entityId: 'x' }); }`).findings).toHaveLength(1);
+    const member = `import * as a from '@/lib/audit/logger'; async function f(){ await a.logAudit({ entityId: 'x' }); }`;
+    expect(scanEntityIds('x.ts', member).findings).toHaveLength(1);
+    expect(scanEntityIds('x.ts', `${imp} async function f(id: string){ await audit({ entityId: id }); }`).findings).toEqual([]);
+    expect(scanEntityIds('x.ts', `async function f(){ await audit({ entityId: 'x' }); }`).findings).toEqual([]);
   });
   it('passes identifier, property access, call and shorthand', () => {
     expect(scan(`await logAudit({ entityId: id });`).findings).toEqual([]);

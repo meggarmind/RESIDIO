@@ -85,7 +85,7 @@ export async function exchangeGmailCode(code: string): Promise<{
       .eq('is_active', true);
 
     // Store encrypted credentials
-    const { error: insertError } = await supabase
+    const { data: inserted, error: insertError } = await supabase
       .from('gmail_oauth_credentials')
       .insert({
         email_address: email,
@@ -95,21 +95,25 @@ export async function exchangeGmailCode(code: string): Promise<{
         scopes: GMAIL_SCOPES,
         is_active: true,
         created_by: auth.userId,
-      });
+      })
+      .select('id')
+      .single();
 
     if (insertError) {
       console.error('Failed to store Gmail credentials:', insertError);
       return { data: null, error: 'Failed to store credentials' };
     }
 
-    // Audit log
-    await logAudit({
-      action: 'CREATE',
-      entityType: 'gmail_oauth_credentials',
-      entityId: email,
-      entityDisplay: `Gmail: ${email}`,
-      newValues: { email, scopes: GMAIL_SCOPES },
-    });
+    // Audit log. audit_logs.entity_id is a uuid: use the credentials row id; no row, no audit (#594).
+    if (inserted?.id) {
+      await logAudit({
+        action: 'CREATE',
+        entityType: 'gmail_oauth_credentials',
+        entityId: inserted.id,
+        entityDisplay: `Gmail: ${email}`,
+        newValues: { email, scopes: GMAIL_SCOPES },
+      });
+    }
 
     return { data: { email }, error: null };
   } catch (error) {
