@@ -26,7 +26,7 @@ vi.mock('@/lib/email', () => ({
 }));
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: mocks.sendSms }));
 vi.mock('@/actions/settings/get-settings', () => ({ getSettingValue: vi.fn() }));
-vi.mock('@/actions/settings/update-setting', () => ({ updateSetting: vi.fn() }));
+vi.mock('@/actions/settings/update-setting', () => ({ updateSetting: vi.fn().mockResolvedValue({ data: null, error: null }) }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
 vi.mock('../reminder-config', () => ({
   areRemindersEnabled: vi.fn().mockResolvedValue(true),
