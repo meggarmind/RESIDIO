@@ -25,6 +25,13 @@ session that never opens it. **This duplication is deliberate — do not "dedupl
    `@/lib/audit/logger` after a successful write. `src/__tests__/integration/module-integration.test.ts`
    enforces this. Full contract and the allowlist rationale: `CORE.md` §6.
 
+### Session bookends (not part of the verbatim set)
+
+**Read #412 first, post a handoff comment on it last.** `gh issue view 412 --repo
+meggarmind/RESIDIO --comments` before substantive work; `gh issue comment 412 --repo
+meggarmind/RESIDIO --body-file handoff.md` before you stop, even if you only read or
+coordinated. Never create handoff files. Full rule: `CORE.md` (top block), §14 and §16.
+
 Everything else — commands, stack, layout, design system, branching detail, the board, migration
 rules, the verification protocol, the coordinator protocol — is in `CORE.md`.
 
