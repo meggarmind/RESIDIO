@@ -39,9 +39,16 @@ export function commandInvocation(command, args, windows = WINDOWS) {
 // `start` fail. 64 MiB leaves ample headroom.
 export const MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
-// Failure output is truncated to its tail so a failing command can never dump
-// megabytes into the terminal.
-export const MAX_ERROR_DETAILS_CHARS = 2000;
+// Failure output is truncated per stream, keeping the tail of each, so a failing
+// command can never dump megabytes into the terminal and a huge stdout cannot
+// push the (usually short, more useful) stderr out of the message.
+export const MAX_STDERR_CHARS = 1500;
+export const MAX_STDOUT_CHARS = 500;
+
+function tailOf(text, cap, stream) {
+  if (!text || text.length <= cap) return text;
+  return `...(truncated, last ${cap} characters of ${stream})\n${text.slice(-cap)}`;
+}
 
 export function run(command, args, cwd, options = {}) {
   const maxBuffer = options.maxBuffer ?? MAX_BUFFER_BYTES;
@@ -57,10 +64,10 @@ export function run(command, args, cwd, options = {}) {
     if (error.code === 'ENOBUFS' || /maxBuffer/i.test(error.message ?? '')) {
       throw new WorkflowError(`${command} ${args.join(' ')} failed: output exceeded the ${maxBuffer} byte buffer limit`);
     }
-    let details = [error.stderr, error.stdout].filter(Boolean).join('\n').trim();
-    if (details.length > MAX_ERROR_DETAILS_CHARS) {
-      details = `...(truncated, last ${MAX_ERROR_DETAILS_CHARS} characters)\n${details.slice(-MAX_ERROR_DETAILS_CHARS)}`;
-    }
+    const details = [tailOf(error.stderr, MAX_STDERR_CHARS, 'stderr'), tailOf(error.stdout, MAX_STDOUT_CHARS, 'stdout')]
+      .filter(Boolean)
+      .join('\n')
+      .trim();
     throw new WorkflowError(`${command} ${args.join(' ')} failed${details ? `: ${details}` : ''}`);
   }
 }

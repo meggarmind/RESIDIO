@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checksFromArgs, commandInvocation, findStatusOption, isIssueBranch, laneFromArgs, lanePrefixes, lifecycleComment, MAX_ERROR_DETAILS_CHARS, parseWorktrees, pathsMatch, resolveLanePrefix, run, slugify, statusName, WorkflowError } from '../../../scripts/issue-workflow.mjs';
+import { checksFromArgs, commandInvocation, findStatusOption, isIssueBranch, laneFromArgs, lanePrefixes, lifecycleComment, MAX_STDERR_CHARS, MAX_STDOUT_CHARS, parseWorktrees, pathsMatch, resolveLanePrefix, run, slugify, statusName, WorkflowError } from '../../../scripts/issue-workflow.mjs';
 
 // Mirrors .github/issue-workflow.json. Kept literal so a config change that
 // drops a lane fails here rather than silently narrowing branch matching.
@@ -131,8 +131,10 @@ describe('run output buffering', () => {
     expect(output.length).toBe(2 * MIB);
   });
 
-  it('truncates huge output when a command fails', () => {
-    const script = `process.stdout.write('x'.repeat(${2 * MIB})); process.stderr.write('boom'); process.exit(1)`;
+  it('keeps stderr and the stdout tail when a command fails with huge stdout', () => {
+    // stderr text is built at runtime so it never appears in the command line,
+    // which the error message embeds.
+    const script = `process.stdout.write('a'.repeat(${2 * MIB}) + 'TAILEND'); process.stderr.write(['REAL', 'ERR'].join('')); process.exit(1)`;
     let message = '';
     try {
       run('node', ['-e', script], process.cwd());
@@ -140,10 +142,36 @@ describe('run output buffering', () => {
       expect(error).toBeInstanceOf(WorkflowError);
       message = (error as Error).message;
     }
-    expect(message).toContain('failed');
-    expect(message).toContain('boom');
-    expect(message).toContain('truncated');
-    expect(message.length).toBeLessThan(MAX_ERROR_DETAILS_CHARS + 500);
+    expect(message).toContain('failed: REALERR\n');
+    expect(message).toContain(`(truncated, last ${MAX_STDOUT_CHARS} characters of stdout)`);
+    expect(message.endsWith('a'.repeat(MAX_STDOUT_CHARS - 7) + 'TAILEND')).toBe(true);
+    expect(message.indexOf('REALERR')).toBeLessThan(message.indexOf('characters of stdout'));
+    // Literal bound, not derived from the constants, so raising a cap fails here.
+    expect(message.length).toBeLessThan(3000);
+  });
+
+  it('truncates huge stderr to its tail with its own marker', () => {
+    const script = `process.stderr.write('b'.repeat(${MAX_STDERR_CHARS * 4}) + 'STDERRTAIL'); process.exit(1)`;
+    let message = '';
+    try {
+      run('node', ['-e', script], process.cwd());
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain(`(truncated, last ${MAX_STDERR_CHARS} characters of stderr)`);
+    expect(message.endsWith('b'.repeat(MAX_STDERR_CHARS - 10) + 'STDERRTAIL')).toBe(true);
+    expect(message).not.toContain('of stdout');
+  });
+
+  it('leaves short failure output untruncated in stderr-then-stdout order', () => {
+    const script = `process.stdout.write(['OU', 'T'].join('')); process.stderr.write(['ER', 'R'].join('')); process.exit(1)`;
+    let message = '';
+    try {
+      run('node', ['-e', script], process.cwd());
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toBe(`node -e ${script} failed: ERR\nOUT`);
   });
 
   it('reports a clear error when output exceeds the buffer', () => {
