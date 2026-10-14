@@ -123,3 +123,28 @@ export function extractSenderName(description: string): string | null {
 
     return null;
 }
+
+export interface EmailImportCounts {
+    transactions_extracted?: number | null;
+    transactions_matched?: number | null;
+    transactions_auto_processed?: number | null;
+    transactions_queued?: number | null;
+    transactions_skipped?: number | null;
+    transactions_errored?: number | null;
+}
+
+/**
+ * Imported transactions that are neither matched/auto-processed nor queued,
+ * skipped or errored. Never negative: the counters are written at different
+ * stages and can overlap, so the raw difference can dip below zero.
+ */
+export function getUnmatchedCount(counts: EmailImportCounts): number {
+    const extracted = counts.transactions_extracted ?? 0;
+    const accountedFor =
+        (counts.transactions_matched ?? 0) +
+        (counts.transactions_auto_processed ?? 0) +
+        (counts.transactions_queued ?? 0) +
+        (counts.transactions_skipped ?? 0) +
+        (counts.transactions_errored ?? 0);
+    return Math.max(0, extracted - accountedFor);
+}

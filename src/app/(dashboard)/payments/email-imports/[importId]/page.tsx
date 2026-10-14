@@ -52,7 +52,7 @@ import {
   processSingleTransaction,
   skipTransaction,
 } from '@/actions/email-imports/process-email-import';
-import { extractSenderName } from '@/lib/email-imports/utils';
+import { extractSenderName, getUnmatchedCount } from '@/lib/email-imports/utils';
 import { getActiveResidents } from '@/actions/residents/get-residents';
 import type { EmailImport, EmailTransaction } from '@/types/database';
 import { useGmailConnectionStatus } from '@/hooks/use-gmail-connection';
@@ -350,11 +350,7 @@ export default function EmailImportDetailPage() {
         <Card>
           <CardContent className="pt-4">
             <p className="text-2xl font-bold text-slate-500">
-              {(importData.transactions_extracted || 0) -
-                ((importData.transactions_auto_processed || 0) +
-                  (importData.transactions_queued || 0) +
-                  (importData.transactions_skipped || 0) +
-                  (importData.transactions_errored || 0))}
+              {getUnmatchedCount(importData)}
             </p>
             <p className="text-xs text-muted-foreground">Unmatched</p>
           </CardContent>
