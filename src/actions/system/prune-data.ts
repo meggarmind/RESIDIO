@@ -77,14 +77,18 @@ export async function pruneSystemData() {
         results.success = true;
         revalidatePath('/settings/data-retention');
 
-        await logAudit({
-            action: 'DELETE',
-            entityType: 'system_settings',
-            entityId: 'prune-data',
-            entityDisplay: 'Pruned system data (notifications, audit, search logs)',
-            newValues: results as unknown as Record<string, unknown>,
-            description: `Pruned ${results.notifications} notifications, ${results.auditLogs} audit logs, ${results.searchLogs} search logs`,
-        });
+        // Nothing pruned means nothing changed, so nothing to audit. The prune touches no single
+        // row, so a fresh run uuid identifies this run (audit_logs.entity_id is a uuid) (#594).
+        if (results.notifications + results.auditLogs + results.searchLogs > 0) {
+            await logAudit({
+                action: 'DELETE',
+                entityType: 'system_settings',
+                entityId: globalThis.crypto.randomUUID(),
+                entityDisplay: 'Pruned system data (notifications, audit, search logs)',
+                newValues: { ...results, batch: 'prune-data' } as unknown as Record<string, unknown>,
+                description: `Pruned ${results.notifications} notifications, ${results.auditLogs} audit logs, ${results.searchLogs} search logs`,
+            });
+        }
 
         return { data: results, error: null };
     } catch (error) {

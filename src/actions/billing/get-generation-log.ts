@@ -192,7 +192,7 @@ export async function updateInvoiceGenerationDay(day: number): Promise<{
 
     const { data: existing } = await supabase
         .from('system_settings')
-        .select('value')
+        .select('id, value')
         .eq('key', 'invoice_generation_day')
         .maybeSingle();
 
@@ -205,14 +205,17 @@ export async function updateInvoiceGenerationDay(day: number): Promise<{
         return { success: false, error: error.message };
     }
 
-    await logAudit({
-        action: 'UPDATE',
-        entityType: 'system_settings',
-        entityId: 'invoice_generation_day',
-        entityDisplay: 'Invoice generation day',
-        oldValues: existing ? { value: existing.value } : undefined,
-        newValues: { value: day },
-    });
+    // audit_logs.entity_id is a uuid: use the settings row id; the key goes in entityDisplay/newValues (#594).
+    if (existing?.id) {
+        await logAudit({
+            action: 'UPDATE',
+            entityType: 'system_settings',
+            entityId: existing.id,
+            entityDisplay: 'invoice_generation_day',
+            oldValues: { value: existing.value },
+            newValues: { key: 'invoice_generation_day', value: day },
+        });
+    }
 
     return { success: true, error: null };
 }
@@ -257,7 +260,7 @@ export async function updateAutoGenerateEnabled(enabled: boolean): Promise<{
 
     const { data: existing } = await supabase
         .from('system_settings')
-        .select('value')
+        .select('id, value')
         .eq('key', 'auto_generate_invoices')
         .maybeSingle();
 
@@ -270,14 +273,16 @@ export async function updateAutoGenerateEnabled(enabled: boolean): Promise<{
         return { success: false, error: error.message };
     }
 
-    await logAudit({
-        action: enabled ? 'ACTIVATE' : 'DEACTIVATE',
-        entityType: 'system_settings',
-        entityId: 'auto_generate_invoices',
-        entityDisplay: 'Auto-generate invoices',
-        oldValues: existing ? { value: existing.value } : undefined,
-        newValues: { value: enabled },
-    });
+    if (existing?.id) {
+        await logAudit({
+            action: enabled ? 'ACTIVATE' : 'DEACTIVATE',
+            entityType: 'system_settings',
+            entityId: existing.id,
+            entityDisplay: 'auto_generate_invoices',
+            oldValues: { value: existing.value },
+            newValues: { key: 'auto_generate_invoices', value: enabled },
+        });
+    }
 
     return { success: true, error: null };
 }

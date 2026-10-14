@@ -35,6 +35,20 @@ export async function resetEmailImports(params?: { userId?: string }): Promise<{
         targetImportIds = (importIds || []).map((i: { id: string }) => i.id);
     }
 
+    // Capture what the reset will remove, for the audit row (#594). audit_logs.entity_id
+    // is a uuid, so the first affected import id stands for the batch. Best effort: a
+    // failed read here must not block the reset, it only means no audit row.
+    let auditImportIds = targetImportIds.slice(0, 50);
+    let auditTotalCount = targetImportIds.length;
+    if (!params?.userId) {
+        const { data: allIds, count } = await supabase
+            .from('email_imports')
+            .select('id', { count: 'exact' })
+            .limit(50);
+        auditImportIds = (allIds || []).map((i: { id: string }) => i.id);
+        auditTotalCount = count ?? auditImportIds.length;
+    }
+
     // 2. Break circular dependency: Set payment_id to NULL in email_transactions
     // This allows us to delete payment_records without violating FK from email_transactions -> payment_records
     if (params?.userId) {
@@ -153,13 +167,20 @@ export async function resetEmailImports(params?: { userId?: string }): Promise<{
     }
 
     // Audit log
-    await logAudit({
-        action: 'DELETE',
-        entityType: 'email_imports',
-        entityId: 'ALL',
-        entityDisplay: `Reset Email Imports${params?.userId ? ` for user ${params.userId}` : ''}`,
-        newValues: {},
-    });
+    // Skipped when nothing was removed.
+    if (auditImportIds.length > 0) {
+        await logAudit({
+            action: 'DELETE',
+            entityType: 'email_imports',
+            entityId: auditImportIds[0],
+            entityDisplay: `Reset Email Imports${params?.userId ? ` for user ${params.userId}` : ''}`,
+            newValues: {
+                scope: params?.userId ? 'user' : 'ALL',
+                total_count: auditTotalCount,
+                deleted_ids: auditImportIds,
+            },
+        });
+    }
 
     return { success: true };
 }
