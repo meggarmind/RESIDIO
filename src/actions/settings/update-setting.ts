@@ -61,16 +61,18 @@ export async function updateSetting(key: string, value: unknown): Promise<Update
         return { data: null, error: 'Failed to update setting' };
     }
 
-    // Audit log
-    await logAudit({
-        action: 'UPDATE',
-        entityType: 'system_settings',
-        entityId: key,
-        entityDisplay: key,
-        oldValues: { value: oldSetting?.value },
-        newValues: { value: storageValue },
-        description: `Updated setting: ${key}`,
-    });
+    // Audit log (audit_logs.entity_id is a uuid: use the row id, keep the key as the label)
+    if (data?.id) {
+        await logAudit({
+            action: 'UPDATE',
+            entityType: 'system_settings',
+            entityId: data.id,
+            entityDisplay: key,
+            oldValues: { key, value: oldSetting?.value },
+            newValues: { key, value: storageValue },
+            description: `Updated setting: ${key}`,
+        });
+    }
 
     revalidatePath('/settings');
     revalidatePath('/settings/billing');
@@ -111,6 +113,7 @@ export async function updateSettings(settings: Record<string, unknown>): Promise
 
     const errors: string[] = [];
     const updatedKeys: string[] = [];
+    const updatedIds: string[] = [];
 
     for (const [key, value] of Object.entries(settings)) {
         let storageValue = value;
@@ -120,18 +123,21 @@ export async function updateSettings(settings: Record<string, unknown>): Promise
             storageValue = value.toString();
         }
 
-        const { error } = await supabase
+        const { data: upserted, error } = await supabase
             .from('system_settings')
             .upsert({
                 key,
                 value: storageValue,
                 category: 'general' // Default to general for bulk updates from UI
-            }, { onConflict: 'key' });
+            }, { onConflict: 'key' })
+            .select('id')
+            .single();
 
         if (error) {
             errors.push(`${key}: ${error.message}`);
         } else {
             updatedKeys.push(key);
+            if (upserted?.id) updatedIds.push(upserted.id);
         }
     }
 
@@ -140,7 +146,8 @@ export async function updateSettings(settings: Record<string, unknown>): Promise
     }
 
     // Audit log for bulk update
-    if (updatedKeys.length > 0) {
+    // audit_logs.entity_id is a uuid: use the first updated row's id; skip if none came back
+    if (updatedKeys.length > 0 && updatedIds.length > 0) {
         const oldValues: Record<string, unknown> = {};
         const newValues: Record<string, unknown> = {};
         for (const key of updatedKeys) {
@@ -151,10 +158,10 @@ export async function updateSettings(settings: Record<string, unknown>): Promise
         await logAudit({
             action: 'BULK_UPDATE',
             entityType: 'system_settings',
-            entityId: updatedKeys[0],
+            entityId: updatedIds[0],
             entityDisplay: `Bulk settings update (${updatedKeys.length} settings)`,
             oldValues,
-            newValues,
+            newValues: { ...newValues, keys: updatedKeys, total_count: updatedKeys.length },
             description: `Updated ${updatedKeys.length} settings: ${updatedKeys.join(', ')}`,
         });
     }
@@ -225,11 +232,11 @@ export async function createSetting(
         return { data: null, error: 'Failed to create setting' };
     }
 
-    // Audit log
-    await logAudit({
+    // Audit log (entity_id is a uuid: use the row id)
+    if (data?.id) await logAudit({
         action: 'CREATE',
         entityType: 'system_settings',
-        entityId: key,
+        entityId: data.id,
         entityDisplay: key,
         newValues: { key, value: storageValue, description, category: category || 'general' },
         description: `Created new setting: ${key}`,

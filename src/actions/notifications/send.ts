@@ -98,18 +98,21 @@ export async function sendTemplateNotification(params: {
   });
 
   // Audit log
-  await logAudit({
-    action: result.success ? 'CREATE' : 'REJECT',
-    entityType: 'notification_history',
-    entityId: result.historyId || 'failed',
-    entityDisplay: `${template.display_name} to ${recipient.first_name} ${recipient.last_name}`,
-    newValues: {
-      templateId: template.id,
-      recipientId,
-      channel: template.channel,
-      success: result.success,
-    },
-  });
+  // audit_logs.entity_id is a uuid, so with no real id there is nothing to audit against (#594): a send that left no history row is not audited.
+  if (result.historyId) {
+    await logAudit({
+      action: result.success ? 'CREATE' : 'REJECT',
+      entityType: 'notification_history',
+      entityId: result.historyId,
+      entityDisplay: `${template.display_name} to ${recipient.first_name} ${recipient.last_name}`,
+      newValues: {
+        templateId: template.id,
+        recipientId,
+        channel: template.channel,
+        success: result.success,
+      },
+    });
+  }
 
   return result;
 }
@@ -165,18 +168,21 @@ export async function sendDirectNotification(params: {
   });
 
   // Audit log
-  await logAudit({
-    action: result.success ? 'CREATE' : 'REJECT',
-    entityType: 'notification_history',
-    entityId: result.historyId || 'failed',
-    entityDisplay: `Direct ${channel} to ${recipient.first_name} ${recipient.last_name}`,
-    newValues: {
-      recipientId,
-      channel,
-      subject,
-      success: result.success,
-    },
-  });
+  // audit_logs.entity_id is a uuid, so with no real id there is nothing to audit against (#594): a send that left no history row is not audited.
+  if (result.historyId) {
+    await logAudit({
+      action: result.success ? 'CREATE' : 'REJECT',
+      entityType: 'notification_history',
+      entityId: result.historyId,
+      entityDisplay: `Direct ${channel} to ${recipient.first_name} ${recipient.last_name}`,
+      newValues: {
+        recipientId,
+        channel,
+        subject,
+        success: result.success,
+      },
+    });
+  }
 
   return result;
 }

@@ -149,12 +149,13 @@ export async function updateResidentPreferences(
   try {
     const result = await updatePreferences(inputs);
 
-    if (result.success && result.updated > 0) {
+    // audit_logs.entity_id is a uuid, so with no real id there is nothing to audit against (#594).
+    if (result.success && result.updated > 0 && inputs[0]?.resident_id) {
       // Audit log
       await logAudit({
         action: 'UPDATE',
         entityType: 'notification_preferences',
-        entityId: inputs[0]?.resident_id || 'batch',
+        entityId: inputs[0].resident_id,
         entityDisplay: `Batch update (${result.updated} preferences)`,
         newValues: { count: result.updated },
       });

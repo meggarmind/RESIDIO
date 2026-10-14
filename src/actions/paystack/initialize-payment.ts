@@ -159,14 +159,14 @@ export async function initializePaystackPayment(
   }
 
   // Create pending transaction record
-  const { error: insertError } = await supabase.from('paystack_transactions').insert({
+  const { data: txRow, error: insertError } = await supabase.from('paystack_transactions').insert({
     invoice_id: invoice.id,
     resident_id: resident.id,
     house_id: invoice.house_id,
     reference,
     amount_kobo: nairaToKobo(remainingAmount),
     status: 'pending',
-  });
+  }).select('id').single();
 
   if (insertError) {
     console.error('[Paystack] Failed to create transaction record:', insertError);
@@ -174,18 +174,23 @@ export async function initializePaystackPayment(
   }
 
   // Audit log
-  await logAudit({
-    action: 'CREATE',
-    entityType: 'payments',
-    entityId: reference,
-    entityDisplay: `Paystack payment initiated for ${invoice.invoice_number}`,
-    newValues: {
-      amount: remainingAmount,
-      reference,
-      invoice_id: invoice.id,
-      channel: 'paystack_redirect',
-    },
-  });
+  // audit_logs.entity_id is a uuid: the pending paystack_transactions row stands for the
+  // initiated payment (the Paystack reference is a label, kept in newValues). If the
+  // record was not created there is no row to point at, so no audit (#594).
+  if (txRow?.id) {
+    await logAudit({
+      action: 'CREATE',
+      entityType: 'payments',
+      entityId: txRow.id,
+      entityDisplay: `Paystack payment initiated for ${invoice.invoice_number}`,
+      newValues: {
+        amount: remainingAmount,
+        reference,
+        invoice_id: invoice.id,
+        channel: 'paystack_redirect',
+      },
+    });
+  }
 
   return {
     success: true,

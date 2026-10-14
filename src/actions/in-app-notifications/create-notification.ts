@@ -117,14 +117,17 @@ export async function createBulkNotifications(
     return { count: 0, error: error.message };
   }
 
-  await logAudit({
-    action: 'CREATE',
-    entityType: 'in_app_notifications',
-    entityId: data?.[0]?.id ?? 'bulk',
-    entityDisplay: `${data?.length || 0} notification(s): ${notifications[0]?.title ?? ''}`,
-    newValues: { count: data?.length || 0, category: notifications[0]?.category },
-    metadata: { recipient_count: notifications.length },
-  });
+  // audit_logs.entity_id is a uuid, so with no real id there is nothing to audit against (#594).
+  if (data?.[0]?.id) {
+    await logAudit({
+      action: 'CREATE',
+      entityType: 'in_app_notifications',
+      entityId: data[0].id,
+      entityDisplay: `${data?.length || 0} notification(s): ${notifications[0]?.title ?? ''}`,
+      newValues: { count: data?.length || 0, category: notifications[0]?.category },
+      metadata: { recipient_count: notifications.length },
+    });
+  }
 
   return { count: data?.length || 0, error: null };
 }

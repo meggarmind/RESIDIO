@@ -748,10 +748,12 @@ export async function confirmRenterMoveOut(
   await logAudit({
     action: 'UPDATE',
     entityType: 'clearance_certificate',
-    entityId: certificateNumber,
+    // audit_logs.entity_id is a uuid: the persisted certificate is the pending_move_out
+    // ownership-history row (its number lives in metadata), so use that row's id (#594).
+    entityId: pendingRecord.id,
     entityDisplay: `Confirmed move-out for ${resident?.first_name} ${resident?.last_name}`,
-    oldValues: { status: 'pending_confirmation' },
-    newValues: { status: 'confirmed', confirmed_by: user.id, secondary_removed: secondaryCount },
+    oldValues: { status: 'pending_confirmation', certificate_number: certificateNumber },
+    newValues: { status: 'confirmed', certificate_number: certificateNumber, confirmed_by: user.id, secondary_removed: secondaryCount },
   });
 
   revalidatePath('/houses');

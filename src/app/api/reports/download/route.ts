@@ -70,15 +70,20 @@ export async function GET(request: NextRequest) {
    const buffer = await renderReportPdf(type, result.report.data);
   if (!buffer) return NextResponse.json({ error: 'PDF rendering failed' }, { status: 500 });
 
-  try { await storeReportPdf(type, buffer, auth.userId!); } catch { /* non-critical */ }
+  let archivedId: string | null = null;
+  try { archivedId = await storeReportPdf(type, buffer, auth.userId!); } catch { /* non-critical */ }
 
-  await logAudit({
-    action: 'CREATE',
-     entityType: 'report_archive',
-    entityId: type,
-    entityDisplay: `PDF report: ${type}`,
-    description: `Downloaded ${type} report as PDF`,
-  });
+  // audit_logs.entity_id is a uuid: use the report_archive row id; if archiving failed
+  // there is no row to point at, so no audit (#594).
+  if (archivedId) {
+    await logAudit({
+      action: 'CREATE',
+      entityType: 'report_archive',
+      entityId: archivedId,
+      entityDisplay: `PDF report: ${type}`,
+      description: `Downloaded ${type} report as PDF`,
+    });
+  }
 
   const fileName = `${type}-${new Date().toISOString().split('T')[0]}.pdf`;
    return new NextResponse(new Uint8Array(buffer), {
