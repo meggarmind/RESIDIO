@@ -81,7 +81,12 @@ read from the container's environment by the command, so it is never written int
 | `generate-reports` | `0 6 * * *` | 300000 |
 | `process-report-schedules` | `0 7 * * *` | 300000 |
 | `payment-reminders` | `0 8 * * *` | 120000 |
-| `process-notifications` | `0 9 * * *` | 60000 |
+| `process-notifications` | `*/15 * * * *` | 60000 |
+
+`process-notifications` runs every 15 minutes (#546), not daily: a transient send failure is put
+back on the queue with a backoff of 15 minutes, 1 hour, 6 hours, then 24 hours (or until the
+WhatsApp daily cap resets at 00:00 UTC), and a daily run would pick every retry up a day late. The
+operator changes the schedule in Coolify; no workflow or scheduler file in the repository carries it.
 
 All calls go to `http://127.0.0.1:3000` inside the container, so they do not pass through Traefik
 or Cloudflare. The `AbortSignal.timeout` in the command is therefore the **only** ceiling on a
@@ -120,7 +125,7 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/process-report-schedules',{header
 # payment-reminders  (0 8 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/payment-reminders',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
-# process-notifications  (0 9 * * *)
+# process-notifications  (*/15 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 ```
 
