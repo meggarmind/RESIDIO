@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   ArrowLeft,
   ArrowRight,
@@ -97,7 +98,12 @@ export default function EmailImportDetailPage() {
   const [isSkipDialogOpen, setIsSkipDialogOpen] = useState(false);
 
   // Fetch import details
-  const { data: importData, isLoading: importLoading } = useQuery({
+  const {
+    data: importData,
+    isLoading: importLoading,
+    isError: importIsError,
+    error: importError,
+  } = useQuery({
     queryKey: ['email-import', importId],
     queryFn: async () => {
       const result = await getEmailImport(importId);
@@ -107,7 +113,12 @@ export default function EmailImportDetailPage() {
   });
 
   // Fetch transactions
-  const { data: transactionsData, isLoading: txLoading } = useQuery({
+  const {
+    data: transactionsData,
+    isLoading: txLoading,
+    isError: txIsError,
+    error: txError,
+  } = useQuery({
     queryKey: ['email-transactions', importId, statusFilter, page, pageSize],
     queryFn: async () => {
       const result = await getReviewQueue({
@@ -125,7 +136,11 @@ export default function EmailImportDetailPage() {
   const totalPages = Math.ceil((transactionsData?.count || 0) / pageSize);
 
   // Fetch residents for selection
-  const { data: residents } = useQuery({
+  const {
+    data: residents,
+    isError: residentsIsError,
+    error: residentsError,
+  } = useQuery({
     queryKey: ['residents-list'],
     queryFn: async () => {
       const result = await getActiveResidents();
@@ -234,6 +249,22 @@ export default function EmailImportDetailPage() {
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (importIsError) {
+    return (
+      <div className="space-y-4 py-12 text-center">
+        <Alert variant="destructive" className="mx-auto max-w-xl text-left">
+          <AlertTitle>Failed to load import</AlertTitle>
+          <AlertDescription>
+            {importError instanceof Error ? importError.message : 'An unexpected error occurred.'}
+          </AlertDescription>
+        </Alert>
+        <Button variant="link" onClick={() => router.push('/payments/email-imports')}>
+          Back to imports
+        </Button>
       </div>
     );
   }
@@ -477,6 +508,13 @@ export default function EmailImportDetailPage() {
                     <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
                   </TableRow>
                 ))
+              ) : txIsError ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-destructive" role="alert">
+                    Failed to load transactions
+                    {txError instanceof Error && txError.message ? `: ${txError.message}` : ''}
+                  </TableCell>
+                </TableRow>
               ) : !transactionsData?.data || transactionsData.data.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
@@ -677,7 +715,11 @@ export default function EmailImportDetailPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Assign to Resident</label>
-              <Select value={selectedResidentId} onValueChange={setSelectedResidentId}>
+              <Select
+                value={selectedResidentId}
+                onValueChange={setSelectedResidentId}
+                disabled={residentsIsError}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select resident" />
                 </SelectTrigger>
@@ -689,6 +731,12 @@ export default function EmailImportDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {residentsIsError && (
+                <p className="text-sm text-destructive" role="alert">
+                  Failed to load residents
+                  {residentsError instanceof Error && residentsError.message ? `: ${residentsError.message}` : ''}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
