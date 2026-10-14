@@ -134,17 +134,12 @@ export interface EmailImportCounts {
 }
 
 /**
- * Imported transactions that are neither matched/auto-processed nor queued,
- * skipped or errored. Never negative: the counters are written at different
- * stages and can overlap, so the raw difference can dip below zero.
+ * Imported transactions the matcher could not match to anything. Clamped at 0
+ * because the counters are written at different stages. Manual processing is
+ * not represented in the import-level counters, so it cannot be excluded here.
  */
 export function getUnmatchedCount(counts: EmailImportCounts): number {
     const extracted = counts.transactions_extracted ?? 0;
-    const accountedFor =
-        (counts.transactions_matched ?? 0) +
-        (counts.transactions_auto_processed ?? 0) +
-        (counts.transactions_queued ?? 0) +
-        (counts.transactions_skipped ?? 0) +
-        (counts.transactions_errored ?? 0);
-    return Math.max(0, extracted - accountedFor);
+    const matched = counts.transactions_matched ?? 0;
+    return Math.max(0, extracted - matched);
 }

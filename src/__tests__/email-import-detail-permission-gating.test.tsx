@@ -142,43 +142,30 @@ describe('Email import detail error states (issue #564)', () => {
 });
 
 describe('getUnmatchedCount', () => {
-  it('never returns a negative number when extracted is below the sum of the others', () => {
-    expect(
-      getUnmatchedCount({
-        transactions_extracted: 2,
-        transactions_matched: 2,
-        transactions_auto_processed: 1,
-        transactions_queued: 1,
-        transactions_skipped: 1,
-        transactions_errored: 1,
-      })
-    ).toBe(0);
+  it('is extracted minus matched', () => {
+    expect(getUnmatchedCount({ transactions_extracted: 10, transactions_matched: 7 })).toBe(3);
   });
 
-  it('subtracts matched, auto-processed, queued, skipped and errored', () => {
-    expect(
-      getUnmatchedCount({
-        transactions_extracted: 20,
-        transactions_matched: 2,
-        transactions_auto_processed: 3,
-        transactions_queued: 4,
-        transactions_skipped: 1,
-        transactions_errored: 1,
-      })
-    ).toBe(9);
+  it('never returns a negative number when matched exceeds extracted', () => {
+    expect(getUnmatchedCount({ transactions_extracted: 2, transactions_matched: 5 })).toBe(0);
   });
 
   it('treats null and missing counts as zero', () => {
     expect(getUnmatchedCount({})).toBe(0);
+    expect(getUnmatchedCount({ transactions_extracted: null, transactions_matched: null })).toBe(0);
+    expect(getUnmatchedCount({ transactions_extracted: 4, transactions_matched: null })).toBe(4);
+  });
+
+  it('ignores the processing counters', () => {
     expect(
       getUnmatchedCount({
-        transactions_extracted: 7,
-        transactions_matched: null,
-        transactions_auto_processed: null,
-        transactions_queued: 2,
-        transactions_skipped: null,
-        transactions_errored: undefined,
+        transactions_extracted: 10,
+        transactions_matched: 7,
+        transactions_auto_processed: 5,
+        transactions_queued: 4,
+        transactions_skipped: 3,
+        transactions_errored: 2,
       })
-    ).toBe(5);
+    ).toBe(3);
   });
 });
