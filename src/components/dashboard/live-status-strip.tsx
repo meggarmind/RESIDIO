@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { formatDistance, isSameDay } from 'date-fns';
+import { formatDistance, isSameDay, isValid } from 'date-fns';
 import { Activity, CheckCircle2, CreditCard, ShieldAlert, UserCheck, Zap } from 'lucide-react';
 import { LiveStatusWidget } from '@/components/dashboard/live-status-widget';
 import { ModernSkeleton } from '@/components/dashboard/modern-skeleton';
@@ -24,10 +24,9 @@ const HEADLINES: Record<DayPeriod, string> = {
   evening: "Today's activity",
 };
 
-// Existing routes only (see unified-actions-card.tsx and the app router).
+// Existing routes only. Pending verifications deliberately has no link: /residents has no verification filter.
 const ROUTES = {
-  verifications: '/residents',
-  payments: '/approvals',
+  payments: '/payments',
   securityContacts: '/security/contacts',
 } as const;
 
@@ -80,14 +79,13 @@ export function LiveStatusStrip({
   // Permission-denied audit logs arrive as zero rows: never treat that as "nothing happened".
   const activity = recentActivityUnavailable ? null : recentActivity;
 
-  const latest = activity?.length
-    ? [...activity].sort(
-        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      )[0]
+  const dated = (activity ?? [])
+    .map((a) => ({ a, at: new Date(a.timestamp) }))
+    .filter((x) => isValid(x.at));
+  const latest = dated.length
+    ? dated.reduce((best, x) => (x.at.getTime() > best.at.getTime() ? x : best))
     : null;
-  const todayCount = activity
-    ? activity.filter((a) => isSameDay(new Date(a.timestamp), now)).length
-    : null;
+  const todayCount = activity ? dated.filter((x) => isSameDay(x.at, now)).length : null;
 
   const widgets: { key: string; node: React.ReactNode }[] = [];
   const push = (key: string, node: React.ReactNode, emphasised = false) => {
@@ -121,7 +119,6 @@ export function LiveStatusStrip({
           status={plural(m.pendingResidentVerifications, 'resident', 'residents') + ' awaiting review'}
           variant="warning"
           icon={UserCheck}
-          onClick={go(ROUTES.verifications)}
         />
       );
     }
@@ -175,7 +172,7 @@ export function LiveStatusStrip({
       'today',
       <LiveStatusWidget
         title="Today's activity"
-        status={plural(todayCount, 'event', 'events') + ' today'}
+        status={(todayCount >= 10 ? '10+' : String(todayCount)) + ' recent ' + (todayCount === 1 ? 'event' : 'events') + ' today'}
         icon={Activity}
         className={EMPHASIS}
       />,
@@ -188,7 +185,7 @@ export function LiveStatusStrip({
       'latest',
       <LiveStatusWidget
         title="Latest activity"
-        status={`${latest.description} · ${formatDistance(new Date(latest.timestamp), now, { addSuffix: true })}`}
+        status={`${latest.a.description} · ${formatDistance(latest.at, now, { addSuffix: true })}`}
         icon={Activity}
       />
     );

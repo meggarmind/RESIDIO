@@ -103,7 +103,50 @@ describe('LiveStatusStrip time-of-day framing (#90)', () => {
   it('counts only same-day activity in the evening', () => {
     strip({ now: EVENING });
     // a and b are on the 15th, c is on the 14th.
-    expect(screen.getByText('2 events today')).toBeInTheDocument();
+    expect(screen.getByText('2 recent events today')).toBeInTheDocument();
+  });
+});
+
+describe('LiveStatusStrip edge cases', () => {
+  it('keeps the payments card green with an accurate message when nothing is unverified (afternoon)', () => {
+    strip({
+      actionMetrics: { ...ZERO, pendingResidentVerifications: 1, totalRequiringAttention: 1 },
+      now: AFTERNOON,
+    });
+    const card = screen.getByText('No payments awaiting verification').closest('div.rounded-lg');
+    expect(card?.className).toContain('bg-green-50');
+    expect(card?.className).not.toContain('bg-amber-50');
+  });
+
+  it('renders the zero-payments card in the afternoon but not in the morning', () => {
+    const m = { ...ZERO, expiringSecurityContacts: 1, totalRequiringAttention: 1 };
+    const { unmount } = strip({ actionMetrics: m, now: AFTERNOON });
+    expect(screen.getByText('Unverified payments')).toBeInTheDocument();
+    unmount();
+    strip({ actionMetrics: m, now: MORNING });
+    expect(screen.queryByText('Unverified payments')).not.toBeInTheDocument();
+  });
+
+  it('survives invalid or missing timestamps', () => {
+    const bad = { ...item('x', EVENING), timestamp: 'not-a-date' };
+    const missing = { ...item('y', EVENING), timestamp: undefined as unknown as string };
+    expect(() => strip({ recentActivity: [bad, missing], now: EVENING })).not.toThrow();
+    expect(screen.queryByText('Latest activity')).not.toBeInTheDocument();
+    expect(screen.getByText('0 recent events today')).toBeInTheDocument();
+  });
+
+  it('ignores invalid timestamps when valid ones exist', () => {
+    const bad = { ...item('x', EVENING, 'Broken'), timestamp: 'nope' };
+    strip({ recentActivity: [bad, item('a', at(18, 30), 'Good one')], now: EVENING });
+    expect(screen.getByText(/Good one/)).toBeInTheDocument();
+    expect(screen.queryByText(/Broken/)).not.toBeInTheDocument();
+    expect(screen.getByText('1 recent event today')).toBeInTheDocument();
+  });
+
+  it('caps the evening count at 10+ since the snapshot only holds the latest 10', () => {
+    const ten = Array.from({ length: 10 }, (_, i) => item(String(i), at(10, i)));
+    strip({ recentActivity: ten, now: EVENING });
+    expect(screen.getByText('10+ recent events today')).toBeInTheDocument();
   });
 });
 
@@ -151,11 +194,14 @@ describe('LiveStatusStrip widgets', () => {
   it('navigates to existing routes on click', () => {
     strip({ now: MORNING });
     fireEvent.click(screen.getByText('3 payments to verify'));
-    expect(push).toHaveBeenCalledWith('/approvals');
+    expect(push).toHaveBeenCalledWith('/payments');
     fireEvent.click(screen.getByText('1 contact expiring soon'));
     expect(push).toHaveBeenCalledWith('/security/contacts');
+    // Pending verifications has no verification-filtered route, so it must not link.
+    push.mockClear();
     fireEvent.click(screen.getByText('2 residents awaiting review'));
-    expect(push).toHaveBeenCalledWith('/residents');
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByText('2 residents awaiting review').closest('[role=button]')).toBeNull();
   });
 
   // Mounting /dashboard needs auth + React Query; this fails if the strip's
@@ -165,7 +211,9 @@ describe('LiveStatusStrip widgets', () => {
       resolve(__dirname, '../../../app/(dashboard)/dashboard/page.tsx'),
       'utf-8'
     );
-    expect(page).toContain('<LiveStatusStrip');
+    const block = /<LiveStatusStrip[\s\S]*?\/>/.exec(page)?.[0] ?? '';
+    expect(block).toContain('isUnavailable={isError}');
+    expect(block).toContain('isLoading={isLoading}');
     expect(page).toContain('recentActivityUnavailable={snapshot?.recentActivityUnavailable ?? false}');
   });
 });
