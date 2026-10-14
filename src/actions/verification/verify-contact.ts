@@ -2,10 +2,49 @@
 
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { timingSafeEqual } from 'node:crypto';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import type { VerificationType, VerifyCodeResult, ContactVerificationStatus } from '@/types/database';
+
+const MAX_VERIFICATION_ATTEMPTS = 5;
+
+/** Constant-time comparison; a length mismatch is a plain mismatch, never a throw. */
+function codesMatch(supplied: string, stored: string): boolean {
+  const a = Buffer.from(String(supplied ?? ''));
+  const b = Buffer.from(String(stored ?? '').trim());
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+/**
+ * Minimal typed view of the admin client for the new RPC. The generated types do
+ * not know record_failed_verification_attempt until the migration is applied and
+ * `npm run db:types` is re-run, so the cast is confined to this one wrapper.
+ * remove the cast after db:types regeneration (#556)
+ */
+interface FailedAttemptRpcClient {
+  rpc(
+    name: 'record_failed_verification_attempt',
+    args: { p_resident_id: string; p_token_type: string; p_max_attempts: number }
+  ): PromiseLike<{
+    data: { attempts: number; invalidated: boolean }[] | null;
+    error: unknown;
+  }>;
+}
+
+async function recordFailedAttemptRpc(
+  client: ReturnType<typeof createAdminClient>,
+  residentId: string,
+  tokenType: VerificationType
+) {
+  return (client as unknown as FailedAttemptRpcClient).rpc('record_failed_verification_attempt', {
+    p_resident_id: residentId,
+    p_token_type: tokenType,
+    p_max_attempts: MAX_VERIFICATION_ATTEMPTS,
+  });
+}
 
 /**
  * Verify a contact (email or phone) using an OTP code
@@ -21,23 +60,50 @@ export async function verifyContactToken(
   // Get the current user (for audit logging)
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Find valid, unused token
+  // Find the ACTIVE token for this resident and type. The supplied code is
+  // deliberately NOT part of the query: a wrong guess must find the token so the
+  // attempt can be counted (#556).
   const { data: tokenRecord, error: tokenError } = await adminClient
     .from('verification_tokens')
-    .select('id, resident_id, token_type, target_value, expires_at')
+    .select('id, token, target_value, expires_at')
     .eq('resident_id', residentId)
-    .eq('token', token)
     .eq('token_type', tokenType)
     .is('used_at', null)
-    .single();
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (tokenError || !tokenRecord) {
     return { success: false, message: 'Invalid or expired verification code' };
   }
 
-  // Check if token is expired
+  // Check if token is expired (an expired code is not a guess; do not count it)
   if (new Date(tokenRecord.expires_at) < new Date()) {
     return { success: false, message: 'Verification code has expired. Please request a new one.' };
+  }
+
+  if (!codesMatch(token, tokenRecord.token)) {
+    const { data: outcome, error: rpcError } = await recordFailedAttemptRpc(
+      adminClient,
+      residentId,
+      tokenType
+    );
+    if (rpcError) {
+      // Fail closed: never verify, and report the generic message.
+      console.error('[Verification] Failed to record failed attempt:', {
+        residentId,
+        tokenType,
+        error: rpcError,
+      });
+      return { success: false, message: 'Invalid or expired verification code' };
+    }
+    if (outcome?.some((row) => row.invalidated)) {
+      return {
+        success: false,
+        message: 'Too many incorrect attempts. Please request a new verification code.',
+      };
+    }
+    return { success: false, message: 'Invalid or expired verification code' };
   }
 
   // Get resident details for verification
