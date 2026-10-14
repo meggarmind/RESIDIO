@@ -193,10 +193,30 @@ describe('updateImportStatus audit (#541)', () => {
     expect(calls).toEqual(['write:bank_statement_imports.update', 'audit']);
   });
 
-  it('falls back to a short id when no file name comes back', async () => {
-    results['bank_statement_imports.update'] = { data: [] };
+  it('falls back to a short id when the row has no file name', async () => {
+    results['bank_statement_imports.update'] = { data: [{ file_name: null }] };
     await updateImportStatus({ import_id: uid(5), status: 'processing' });
+    expect(logAudit).toHaveBeenCalledTimes(1);
     expect(logAudit.mock.calls[0][0].entityDisplay).toBe(`Import ${uid(5).slice(0, 8)}`);
+  });
+
+  it('current behaviour: zero matched rows with no error still succeeds and writes one entry with the fallback display', async () => {
+    results['bank_statement_imports.update'] = { data: [] };
+    await expect(updateImportStatus({ import_id: uid(5), status: 'processing' })).resolves.toEqual({ error: null });
+    expect(logAudit).toHaveBeenCalledTimes(1);
+    expect(logAudit.mock.calls[0][0].entityDisplay).toBe(`Import ${uid(5).slice(0, 8)}`);
+  });
+
+  it.each(['completed', 'failed'] as const)('includes a completed_at ISO timestamp for terminal status %s', async (status) => {
+    await updateImportStatus({ import_id: uid(5), status });
+    const { newValues } = logAudit.mock.calls[0][0];
+    expect(typeof newValues.completed_at).toBe('string');
+    expect(new Date(newValues.completed_at).toISOString()).toBe(newValues.completed_at);
+  });
+
+  it('omits completed_at for a non-terminal status', async () => {
+    await updateImportStatus({ import_id: uid(5), status: 'processing' });
+    expect(logAudit.mock.calls[0][0].newValues).not.toHaveProperty('completed_at');
   });
 
   it('does not audit and keeps the error when the update fails', async () => {
