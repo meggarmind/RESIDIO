@@ -1,4 +1,4 @@
-import { resend, emailConfig, isEmailConfigured } from './resend';
+import { getEmailTransportError, sendViaResend } from './transport';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getSettings } from '@/actions/settings/get-settings';
 import { getSettingValueAsService } from '@/lib/settings/service';
@@ -125,59 +125,20 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
   }
 
   // Check if Resend is configured
-  if (!isEmailConfigured() || !resend) {
-    return { success: false, error: 'Email service not configured (missing RESEND_API_KEY)' };
+  const transportError = getEmailTransportError();
+  if (transportError) {
+    return { success: false, error: transportError };
   }
 
-  // Get sender name from settings
-  const fromName = (await getSettingValueAsService('email_from_name')) || 'Residio Estate';
+  const result = await sendViaResend({
+    to: recipients.map(r => r.email),
+    subject: options.subject,
+    react: options.react,
+    attachments: options.attachments,
+  });
 
-  try {
-    const { data, error } = await resend.emails.send({
-      from: `${fromName} <${emailConfig.fromAddress}>`,
-      to: recipients.map(r => r.email),
-      replyTo: emailConfig.replyTo,
-      subject: options.subject,
-      react: options.react,
-      attachments: options.attachments,
-    });
-
-    if (error) {
-      // Log failed attempt for each recipient
-      for (const recipient of recipients) {
-        await logEmail({
-          recipientEmail: recipient.email,
-          recipientName: recipient.name,
-          residentId: recipient.residentId,
-          emailType: options.emailType,
-          subject: options.subject,
-          status: 'failed',
-          errorMessage: error.message,
-          metadata: options.metadata,
-        });
-      }
-      return { success: false, error: error.message };
-    }
-
-    // Log successful send for each recipient
-    for (const recipient of recipients) {
-      await logEmail({
-        recipientEmail: recipient.email,
-        recipientName: recipient.name,
-        residentId: recipient.residentId,
-        emailType: options.emailType,
-        subject: options.subject,
-        resendId: data?.id,
-        status: 'sent',
-        metadata: options.metadata,
-      });
-    }
-
-    return { success: true, resendId: data?.id };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error sending email';
-
-    // Log failed attempt
+  if (!result.ok) {
+    // Log failed attempt for each recipient
     for (const recipient of recipients) {
       await logEmail({
         recipientEmail: recipient.email,
@@ -186,11 +147,26 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
         emailType: options.emailType,
         subject: options.subject,
         status: 'failed',
-        errorMessage,
+        errorMessage: result.error,
         metadata: options.metadata,
       });
     }
-
-    return { success: false, error: errorMessage };
+    return { success: false, error: result.error };
   }
+
+  // Log successful send for each recipient
+  for (const recipient of recipients) {
+    await logEmail({
+      recipientEmail: recipient.email,
+      recipientName: recipient.name,
+      residentId: recipient.residentId,
+      emailType: options.emailType,
+      subject: options.subject,
+      resendId: result.id,
+      status: 'sent',
+      metadata: options.metadata,
+    });
+  }
+
+  return { success: true, resendId: result.id };
 }

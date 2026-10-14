@@ -1,61 +1,64 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import type { AppRoleName } from '@/types/database';
 import type { AuthorizationResult, Permission } from './action-roles';
+import { resolveAccess, toAccessClient, type AccessResult } from './access';
 
 /**
- * Get user's permissions from the new RBAC system.
- * Returns an array of permission strings the user has.
+ * Resolves the current user's Access in one round trip. A failed lookup is
+ * logged here and returned as-is; callers treat it as no access (fail closed).
  */
-async function getUserPermissions(userId: string): Promise<{
-  permissions: string[];
-  roleName: AppRoleName | null;
-  roleId: string | null;
-}> {
+async function resolveCurrentAccess(): Promise<AccessResult> {
   const supabase = await createServerSupabaseClient();
+  const access = await resolveAccess(toAccessClient(supabase));
+  if (access.status === 'lookup-failed') {
+    console.error('[Authorize] access lookup failed', {
+      userId: access.userId,
+      error: access.error,
+    });
+  }
+  return access;
+}
 
-  // Get user's role_id
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('role_id')
-    .eq('id', userId)
-    .single();
+/**
+ * Shared body of the authorize* functions: authenticate, resolve Access, then
+ * apply `isAllowed` to the permission set. `denial` is the exact error string.
+ */
+async function authorizeWith(
+  isAllowed: (permissions: string[]) => boolean,
+  denial: string
+): Promise<AuthorizationResult> {
+  const access = await resolveCurrentAccess();
 
-  if (error || !profile?.role_id) {
-    return { permissions: [], roleName: null, roleId: null };
+  if (access.status === 'no-access' && access.userId === null) {
+    return {
+      authorized: false,
+      userId: null,
+      roleName: null,
+      roleId: null,
+      permissions: [],
+      error: 'Unauthorized: Not authenticated',
+    };
   }
 
-  // Get role details
-  const { data: roleData } = await supabase
-    .from('app_roles')
-    .select('id, name')
-    .eq('id', profile.role_id)
-    .single();
-
-  // Get permission IDs for this role
-  const { data: rolePerms } = await supabase
-    .from('role_permissions')
-    .select('permission_id')
-    .eq('role_id', profile.role_id);
-
-  const permissionIds = rolePerms?.map((rp) => rp.permission_id) || [];
-
-  // Get permission names
-  let permissions: string[] = [];
-  if (permissionIds.length > 0) {
-    const { data: permsData } = await supabase
-      .from('app_permissions')
-      .select('name')
-      .in('id', permissionIds);
-    permissions = permsData?.map((p) => p.name) || [];
+  if (access.status !== 'resolved') {
+    return {
+      authorized: false,
+      userId: access.userId,
+      roleName: null,
+      roleId: null,
+      permissions: [],
+      error: denial,
+    };
   }
 
-  return {
-    permissions,
-    roleName: roleData?.name as AppRoleName | null,
-    roleId: profile.role_id,
-  };
+  const { userId, roleName, roleId, permissions } = access;
+
+  if (!isAllowed(permissions)) {
+    return { authorized: false, userId, roleName, roleId, permissions, error: denial };
+  }
+
+  return { authorized: true, userId, roleName, roleId, permissions, error: null };
 }
 
 /**
@@ -64,28 +67,22 @@ async function getUserPermissions(userId: string): Promise<{
  *
  * For endpoints (e.g. global search) that must independently filter several
  * result categories, each gated by a different permission -- calling
- * `authorizePermission()` once per category would re-run the profile/role/
- * permission lookup that many times. This fetches it once; callers check
- * `permissions.includes(...)` per category themselves. `userId` is `null`
- * when there is no authenticated user, which callers should treat as a hard
- * "no access at all", not merely "no permissions".
+ * `authorizePermission()` once per category would re-run the lookup that many
+ * times. This fetches it once; callers check `permissions.includes(...)` per
+ * category themselves. `userId` is `null` when there is no authenticated user,
+ * which callers should treat as a hard "no access at all", not merely "no
+ * permissions".
  */
 export async function getCurrentUserPermissions(): Promise<{
   userId: string | null;
   permissions: string[];
 }> {
-  const supabase = await createServerSupabaseClient();
+  const access = await resolveCurrentAccess();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { userId: null, permissions: [] };
-  }
-
-  const { permissions } = await getUserPermissions(user.id);
-  return { userId: user.id, permissions };
+  return {
+    userId: access.userId,
+    permissions: access.status === 'resolved' ? access.permissions : [],
+  };
 }
 
 /**
@@ -98,47 +95,10 @@ export async function getCurrentUserPermissions(): Promise<{
 export async function authorizePermission(
   requiredPermission: Permission
 ): Promise<AuthorizationResult> {
-  const supabase = await createServerSupabaseClient();
-
-  // Check if user is authenticated
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return {
-      authorized: false,
-      userId: null,
-      roleName: null,
-      roleId: null,
-      permissions: [],
-      error: 'Unauthorized: Not authenticated',
-    };
-  }
-
-  // Get user's permissions
-  const { permissions, roleName, roleId } = await getUserPermissions(user.id);
-
-  // Check if user has the required permission
-  if (!permissions.includes(requiredPermission)) {
-    return {
-      authorized: false,
-      userId: user.id,
-      roleName,
-      roleId,
-      permissions,
-      error: `Unauthorized: Missing permission '${requiredPermission}'`,
-    };
-  }
-
-  return {
-    authorized: true,
-    userId: user.id,
-    roleName,
-    roleId,
-    permissions,
-    error: null,
-  };
+  return authorizeWith(
+    (permissions) => permissions.includes(requiredPermission),
+    `Unauthorized: Missing permission '${requiredPermission}'`
+  );
 }
 
 /**
@@ -151,45 +111,8 @@ export async function authorizePermission(
 export async function authorizeAnyPermission(
   requiredPermissions: Permission[]
 ): Promise<AuthorizationResult> {
-  const supabase = await createServerSupabaseClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return {
-      authorized: false,
-      userId: null,
-      roleName: null,
-      roleId: null,
-      permissions: [],
-      error: 'Unauthorized: Not authenticated',
-    };
-  }
-
-  const { permissions, roleName, roleId } = await getUserPermissions(user.id);
-
-  // Check if user has ANY of the required permissions
-  const hasAnyPermission = requiredPermissions.some(p => permissions.includes(p));
-
-  if (!hasAnyPermission) {
-    return {
-      authorized: false,
-      userId: user.id,
-      roleName,
-      roleId,
-      permissions,
-      error: `Unauthorized: Missing required permissions. Need one of: ${requiredPermissions.join(', ')}`,
-    };
-  }
-
-  return {
-    authorized: true,
-    userId: user.id,
-    roleName,
-    roleId,
-    permissions,
-    error: null,
-  };
+  return authorizeWith(
+    (permissions) => requiredPermissions.some((p) => permissions.includes(p)),
+    `Unauthorized: Missing required permissions. Need one of: ${requiredPermissions.join(', ')}`
+  );
 }
