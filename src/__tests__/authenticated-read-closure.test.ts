@@ -22,7 +22,7 @@ import { describe, expect, it } from 'vitest';
 const migrationsDir = fileURLToPath(new URL('../../supabase/migrations', import.meta.url));
 
 const RESTRICT_MIGRATION = '20261014120000_restrict_authenticated_read_policies.sql';
-const KEY_SPLIT_MIGRATION = '20261014130000_system_settings_key_split.sql';
+const KEY_SPLIT_MIGRATION = '20261014140000_system_settings_key_split.sql';
 
 /**
  * Keys of system_settings readable by every signed-in user (owner decision
