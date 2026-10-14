@@ -7,7 +7,7 @@ This module provides a comprehensive, extensible audit logging system for tracki
 1. **Minimal Friction** - Easy to add audit logging to any server action with a single function call
 2. **Extensible** - New entity types can be added without schema changes
 3. **Immutable** - Audit logs cannot be modified or deleted (append-only)
-4. **Fail-Safe** - Audit failures don't break main operations
+4. **Fail-Safe** - Audit failures don't break main operations (see [The audit recorder](#the-audit-recorder))
 5. **Type-Safe** - Full TypeScript support with defined action and entity types
 
 ## Quick Start
@@ -118,6 +118,35 @@ const description = formatChangeDescription(['first_name', 'email']);
 // Returns: "Changed first_name, email"
 ```
 
+## The audit recorder
+
+`src/lib/audit/recorder.ts` holds the audit recorder. It builds one Audit Entry (see `CONTEXT.md`) and writes it to `audit_logs`. `logAudit` is the entry point server actions call; the recorder is what it delegates to.
+
+```typescript
+import { recordAudit } from '@/lib/audit/recorder';
+
+const { recorded } = await recordAudit(
+  { action: 'UPDATE', entityType: 'houses', entityId: id, oldRow, newRow },
+  { userId: auth.userId }, // the actor comes from the caller
+);
+```
+
+`recordAudit(entry, actor, sink?)` returns `{ recorded: boolean }`.
+
+**How the entry is built**
+
+- **Diff.** When `oldRow` and `newRow` are both given, `getChangedValues` computes the old and new values, so only changed fields are stored. With only one of them, that row is stored whole. Explicit `oldValues` / `newValues` are written exactly as given and win over anything derived from rows (this is what legacy `logAudit` callers rely on).
+- **Entity display.** An explicit `entityDisplay` wins. Otherwise `resolveEntityDisplay` looks at `newRow` (or `oldRow` when there is no `newRow`) and takes the first non-empty string among the candidate fields listed for that entity type in `ENTITY_DISPLAY_FIELDS`; a nested list of fields is joined with a space (for example a resident's `first_name` and `last_name`). If nothing resolves, `entity_display` is stored as `null`.
+- **Actor.** The recorder takes the actor from the caller (`{ userId }`) and never looks the user up. A missing `userId` logs `[Audit] Cannot log audit: No authenticated user` and returns `{ recorded: false }`.
+
+**The sink.** The recorder writes through an `AuditSink` (`insert(row)` returning `{ error }`). When none is passed it uses `createAuditSink()`, which inserts into `audit_logs` with the admin client, so the write does not depend on the actor's RLS context. Tests pass their own in-memory sink instead of touching a database; `fakeSink` in `src/lib/audit/__tests__/recorder.test.ts` is the example (it is a local test helper, not an exported module).
+
+**How `logAudit` relates to it.** `logAudit` (`logger.ts`) is a thin delegate and remains the contract server actions use (`CORE.md` section 6). It makes exactly one `supabase.auth.getUser()` call and passes the resulting id to `recordAudit` as the actor. Reach for `recordAudit` directly only when the code already holds the actor.
+
+**Failure policy: fail-safe.** `recordAudit` never throws. A missing actor, a sink error or an unexpected exception all return `{ recorded: false }` and the action being audited carries on. Failures are logged with an `[Audit] ...` prefix and an object of `{ entityType, entityId, action, error }`. Because the failure is only logged, a `recorded: false` result is the only signal that an entry was lost.
+
+**Not supported: system and sessionless actors.** An Audit Entry needs a user id. Cron, webhook and pre-auth flows have none, so their writes cannot be audited through the recorder; this is tracked in #538. The scanner's `AUDIT_ALLOWLIST` lists those flows.
+
 ## Available Action Types
 
 | Action | Description | When to Use |
@@ -154,6 +183,8 @@ const description = formatChangeDescription(['first_name', 'email']);
 | `security_contacts` | Security contact list (Phase 6) |
 | `profiles` | User profile management |
 
+The table above is a sample, not the full list. `AuditEntityType` in `src/types/database.ts` is the source of truth.
+
 ## Adding New Entity Types
 
 To add a new entity type for future modules:
@@ -175,7 +206,9 @@ To add a new entity type for future modules:
    };
    ```
 
-3. Start using `logAudit` in your server actions with the new entity type.
+3. Add an entry for it in `ENTITY_DISPLAY_FIELDS` in `src/lib/audit/recorder.ts` (the fields that name the entity, or `['name', 'title', 'display_name']` as the default). `ENTITY_DISPLAY_FIELDS` and `AUDIT_ENTITY_LABELS` are both typed `Record<AuditEntityType, ...>`, so `npx tsc --noEmit` fails until both have the new member.
+
+4. Start using `logAudit` in your server actions with the new entity type.
 
 ## Examples
 
@@ -330,9 +363,9 @@ The audit logs system is designed to preserve historical records even when user 
 
 ## Security Considerations
 
-1. **RLS Policies**: Only admin and chairman can SELECT audit logs
+1. **RLS Policies**: SELECT follows the `settings.view_audit_logs` permission (see Viewing Audit Logs)
 2. **Immutability**: No UPDATE or DELETE policies exist (append-only)
-3. **All authenticated users can INSERT** (via server actions)
+3. **No INSERT policy**: the "Authenticated users can insert audit logs" policy was dropped in `20261012200000_drop_forged_insert_policies.sql` (#471), so clients cannot insert. Entries are written by the recorder's admin-client sink, which bypasses RLS
 4. **No sensitive data**: Avoid logging passwords, tokens, or PII in values
 5. **Deleted Profiles**: Audit trail is preserved with `ON DELETE SET NULL` on actor_id
 
