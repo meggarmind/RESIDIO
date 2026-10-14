@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { ChatmaidWhatsAppConfig } from '@/lib/whatsapp/config';
 import type { WhatsAppProvider } from '@/lib/whatsapp/provider';
+import { isRetryableHttpStatus } from '@/lib/whatsapp/retry';
 import type {
   WhatsAppSendResult,
   WhatsAppTemplateMessage,
@@ -277,6 +278,7 @@ export function createChatmaidWhatsAppProvider(
       return {
         success: false,
         error: `WhatsApp message exceeds Chatmaid's ${CHATMAID_MAX_CONTENT_LENGTH}-character limit (${content.length} characters)`,
+        retryable: false,
       };
     }
 
@@ -303,7 +305,7 @@ export function createChatmaidWhatsAppProvider(
         }),
       });
     } catch {
-      return { success: false, error: 'Chatmaid provider request failed' };
+      return { success: false, error: 'Chatmaid provider request failed', retryable: true };
     }
 
     if (response.status === 404) {
@@ -321,6 +323,7 @@ export function createChatmaidWhatsAppProvider(
           retryAfter !== undefined
             ? `Chatmaid rate limit exceeded, retry after ${retryAfter}s`
             : 'Chatmaid rate limit exceeded',
+        retryable: true,
       };
     }
 
@@ -331,14 +334,14 @@ export function createChatmaidWhatsAppProvider(
         (typeof body?.error === 'string' && body.error) ||
         (messages.length > 0 ? messages.map(String).join('; ') : null) ||
         `Chatmaid request failed (HTTP ${response.status})`;
-      return { success: false, error };
+      return { success: false, error, retryable: isRetryableHttpStatus(response.status) };
     }
 
     const body = await safeJson(response);
     const nestedData = body?.data as Record<string, unknown> | undefined;
     const messageId = (nestedData?.id ?? body?.id) as string | undefined;
     if (!messageId) {
-      return { success: false, error: 'Chatmaid provider returned no message ID' };
+      return { success: false, error: 'Chatmaid provider returned no message ID', retryable: false };
     }
 
     return { success: true, messageId: String(messageId) };

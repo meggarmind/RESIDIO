@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { TwilioWhatsAppConfig } from '@/lib/whatsapp/config';
 import type { WhatsAppProvider } from '@/lib/whatsapp/provider';
+import { isRetryableHttpStatus } from '@/lib/whatsapp/retry';
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 
 const TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01';
@@ -67,6 +68,7 @@ export function createTwilioWhatsAppProvider(
       return {
         success: false as const,
         error: `WhatsApp provider request failed (HTTP ${response.status})`,
+        retryable: isRetryableHttpStatus(response.status),
       };
     }
 
@@ -75,6 +77,7 @@ export function createTwilioWhatsAppProvider(
       return {
         success: false as const,
         error: 'WhatsApp provider returned no message ID',
+        retryable: false,
       };
     }
 
@@ -99,6 +102,7 @@ export function createTwilioWhatsAppProvider(
         return {
           success: false,
           error: `No Twilio Content SID configured for template "${message.templateName}"`,
+          retryable: false,
         };
       }
 

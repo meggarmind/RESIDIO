@@ -32,6 +32,10 @@ import { resolveWhatsAppConfig } from '@/lib/whatsapp/config';
 import { evaluateSendPolicy, createSendPolicyFacts } from '@/lib/whatsapp/send-policy';
 import { sendSms } from '@/lib/sms/send-sms';
 import { PRIORITY } from '@/lib/notifications/queue';
+import { nextUtcMidnight, resolveBurstWindowMinutes, retryDelayMs } from './retry';
+
+/** `sendImmediate` builds a pseudo queue item with this id; it has no queue row. */
+const IMMEDIATE_ITEM_ID = 'immediate';
 
 /**
  * Channel-specific sender function signature
@@ -78,19 +82,27 @@ async function sendViaEmail(
   }
 
   try {
-    const result = await sendViaResend({
-      to: item.recipient_email,
-      subject: item.subject || 'Notification',
-      // Prefer HTML if available, otherwise use plain text
-      ...(item.html_body
-        ? { html: item.html_body }
-        : { text: item.body }),
-    });
+    const result = await sendViaResend(
+      {
+        to: item.recipient_email,
+        subject: item.subject || 'Notification',
+        // Prefer HTML if available, otherwise use plain text
+        ...(item.html_body
+          ? { html: item.html_body }
+          : { text: item.body }),
+      },
+      // One key per queue item and attempt, so a retry after a timeout whose
+      // first request actually landed cannot send the email twice (#546).
+      item.id === IMMEDIATE_ITEM_ID
+        ? undefined
+        : { idempotencyKey: `${item.id}:${item.attempts + 1}` }
+    );
 
     if (!result.ok) {
       return {
         success: false,
         error: result.error,
+        ...(result.retryable ? { retryable: true } : {}),
       };
     }
 
@@ -102,6 +114,7 @@ async function sendViaEmail(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error sending email',
+      retryable: true,
     };
   }
 }
@@ -137,7 +150,20 @@ async function sendViaWhatsApp(
     },
     createSendPolicyFacts()
   );
+  if (decision.outcome === 'defer') {
+    // Note: a deferred send still consumes one attempt, so 5 consecutive capped
+    // UTC days (or a long burst backlog) exhaust max_attempts and fail the row.
+    // A cap is transient: try again when it can have cleared (#546).
+    return {
+      success: false,
+      error: decision.message,
+      retryable: true,
+      retryAt: (await resolveDeferRetryAt(decision.reason)).toISOString(),
+    };
+  }
   if (decision.outcome !== 'allow') {
+    // `refuse` is a policy verdict (kill switch, rollout, consent, template,
+    // zero cap, unverifiable state): retrying cannot change it.
     return { success: false, error: decision.message };
   }
 
@@ -214,7 +240,22 @@ async function sendViaWhatsApp(
     success: result.success,
     externalId: result.messageId,
     error: result.error,
+    // Providers that cannot tell leave `retryable` unset, which for a
+    // transport failure means transient (#546).
+    ...(!result.success && (result.retryable ?? true) ? { retryable: true } : {}),
   };
+}
+
+/** When a Send Policy `defer` should be retried: next UTC midnight for the daily cap, one burst window for the burst cap. */
+async function resolveDeferRetryAt(reason: string): Promise<Date> {
+  const now = new Date();
+  if (reason === 'burst_limit_reached') {
+    const windowMinutes = resolveBurstWindowMinutes(
+      await getSettingValueAsService('whatsapp_outbound_burst_window_minutes')
+    );
+    return new Date(now.getTime() + windowMinutes * 60 * 1000);
+  }
+  return nextUtcMidnight(now);
 }
 
 /**
@@ -277,6 +318,16 @@ export async function sendAndRecordNotification(
   // Determine history status
   const historyStatus: HistoryStatus = result.success ? 'sent' : 'failed';
 
+  // A transient failure with attempts left goes back to 'pending' for a later
+  // run instead of ending as 'failed' (#546). The attempt's own history row is
+  // still written as 'failed'. Unclassified failures are NOT retryable.
+  const attemptNumber = item.attempts + 1;
+  const willRetry =
+    !result.success && result.retryable === true && attemptNumber < item.max_attempts;
+  const retryAt = willRetry
+    ? result.retryAt ?? new Date(Date.now() + retryDelayMs(attemptNumber)).toISOString()
+    : null;
+
   // The Chatmaid WhatsApp -> SMS fallback (#401) delivers over a different
   // channel than the queue item was written for. `sendViaWhatsApp` marks
   // that with `metadata.deliveredVia`; when it's set, this is the ONE
@@ -310,6 +361,7 @@ export async function sendAndRecordNotification(
         deduplication_key: item.deduplication_key,
         queue_priority: item.priority,
         queue_attempts: item.attempts + 1,
+        ...(willRetry ? { will_retry: true, retry_at: retryAt } : {}),
       },
       sent_at: result.success ? new Date().toISOString() : null,
     })
@@ -321,7 +373,7 @@ export async function sendAndRecordNotification(
   }
 
   // Update queue item status
-  const queueUpdateStatus = result.success ? 'sent' : 'failed';
+  const queueUpdateStatus = result.success ? 'sent' : willRetry ? 'pending' : 'failed';
   const { error: queueError } = await supabase
     .from('notification_queue')
     .update({
@@ -330,6 +382,7 @@ export async function sendAndRecordNotification(
       last_attempt_at: new Date().toISOString(),
       sent_at: result.success ? new Date().toISOString() : null,
       error_message: result.error || null,
+      ...(retryAt ? { scheduled_for: retryAt } : {}),
     })
     .eq('id', item.id);
 
@@ -343,7 +396,9 @@ export async function sendAndRecordNotification(
   if (candidateId) {
     const { error: candidateError } = await supabase
       .from('invoice_generation_candidates')
-      .update({ email_status: queueUpdateStatus })
+      // invoice_generation_candidates has no 'pending'; 'queued' is its
+      // equivalent, and a requeued item is still waiting to be sent.
+      .update({ email_status: willRetry ? 'queued' : queueUpdateStatus })
       .eq('id', candidateId);
     if (candidateError) {
       console.error('[Notifications] Failed to update invoice email status:', candidateError);

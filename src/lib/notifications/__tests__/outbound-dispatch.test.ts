@@ -171,7 +171,12 @@ describe('WhatsApp outbound dispatch', () => {
       })
     );
 
-    expect(result).toEqual({ success: false, error: 'WhatsApp daily outbound limit reached' });
+    expect(result).toEqual({
+      success: false,
+      error: 'WhatsApp daily outbound limit reached',
+      retryable: true,
+      retryAt: expect.any(String),
+    });
   });
 
   it('rejects sends when the cap setting is zero', async () => {
@@ -364,6 +369,7 @@ describe('WhatsApp outbound dispatch', () => {
       success: false,
       error: 'Meta API rate limit exceeded',
       externalId: undefined,
+      retryable: true,
     });
   });
 
@@ -521,7 +527,12 @@ describe('WhatsApp outbound dispatch', () => {
       })
     );
 
-    expect(result).toEqual({ success: false, error: 'WhatsApp daily outbound limit reached' });
+    expect(result).toEqual({
+      success: false,
+      error: 'WhatsApp daily outbound limit reached',
+      retryable: true,
+      retryAt: expect.any(String),
+    });
   });
 
   it('honours a cron-path configured daily cap above the compiled-in default (500, not truncated to 100)', async () => {
