@@ -285,14 +285,18 @@ export async function reorderCategories(
     return { success: false, error: errors.join('; ') };
   }
 
-  // One audit entry per reorder call (not per row)
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'security_contact_categories',
-    entityId: 'reorder',
-    entityDisplay: `Reordered ${orderedIds.length} categories`,
-    newValues: { total_count: orderedIds.length, ordered_ids: orderedIds.slice(0, 50) },
-  });
+  // One audit entry per reorder call (not per row). audit_logs.entity_id is a
+  // uuid column, so use the first category id, not a sentinel string. An empty
+  // batch changed nothing and is not audited.
+  if (orderedIds.length > 0) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'security_contact_categories',
+      entityId: orderedIds[0],
+      entityDisplay: `Reordered ${orderedIds.length} categories`,
+      newValues: { total_count: orderedIds.length, ordered_ids: orderedIds.slice(0, 50) },
+    });
+  }
 
   revalidatePath('/security');
   revalidatePath('/settings/security');

@@ -413,14 +413,18 @@ export async function batchTagImportRows(
   }
 
   // One audit entry per batch (not per row)
+  // audit_logs.entity_id is a uuid column: use the first row id, and skip an
+  // empty batch (nothing changed).
   const updated = count ?? rowIds.length;
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'bank_statement_imports',
-    entityId: 'batch-tag',
-    entityDisplay: `${tagId ? 'Tagged' : 'Cleared tag on'} ${updated} import rows`,
-    newValues: { tag_id: tagId, total_count: rowIds.length, updated, row_ids: rowIds.slice(0, 50) },
-  });
+  if (rowIds.length > 0) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'bank_statement_imports',
+      entityId: rowIds[0],
+      entityDisplay: `${tagId ? 'Tagged' : 'Cleared tag on'} ${updated} import rows`,
+      newValues: { tag_id: tagId, total_count: rowIds.length, updated, row_ids: rowIds.slice(0, 50) },
+    });
+  }
 
   return { updated, error: null };
 }

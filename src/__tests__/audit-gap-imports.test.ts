@@ -4,7 +4,7 @@
  * only after its write succeeded; the bulk ones write ONE entry per call.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { makeRecordingSupabase, type QueryResult } from '@/__tests__/helpers/recording-supabase';
+import { makeRecordingSupabase, expectUuidEntityId, uid, type QueryResult } from '@/__tests__/helpers/recording-supabase';
 import { submitForApproval } from '@/actions/imports/process-import';
 import { matchImportRows } from '@/actions/imports/match-residents';
 import { createImportRows } from '@/actions/imports/create-import';
@@ -30,7 +30,7 @@ vi.mock('@/actions/reference/transaction-tags', () => ({
 }));
 vi.mock('@/lib/matching', () => ({
   createMatcher: () => ({
-    match: () => ({ resident_id: 'res-1', confidence: 'high', method: 'exact', matched_value: 'x' }),
+    match: () => ({ resident_id: uid(9), confidence: 'high', method: 'exact', matched_value: 'x' }),
   }),
 }));
 vi.mock('@/actions/imports/process-import', async (importOriginal) => ({
@@ -56,18 +56,19 @@ beforeEach(() => {
 
 describe('submitForApproval audit (#556)', () => {
   beforeEach(() => {
-    results['bank_statement_imports.select'] = { data: { id: 'imp-1', file_name: 'jan.csv', status: 'processing' } };
+    results['bank_statement_imports.select'] = { data: { id: uid(5), file_name: 'jan.csv', status: 'processing' } };
   });
 
   it('audits the status change after the update', async () => {
-    const res = await submitForApproval('imp-1');
+    const res = await submitForApproval(uid(5));
     expect(res.error).toBeNull();
     expect(logAudit).toHaveBeenCalledTimes(1);
+    expectUuidEntityId(logAudit);
     expect(logAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'UPDATE',
         entityType: 'bank_statement_imports',
-        entityId: 'imp-1',
+        entityId: uid(5),
         newValues: { status: 'awaiting_approval' },
       })
     );
@@ -76,21 +77,21 @@ describe('submitForApproval audit (#556)', () => {
 
   it('does not audit when the update fails', async () => {
     results['bank_statement_imports.update'] = { error: boom };
-    const res = await submitForApproval('imp-1');
+    const res = await submitForApproval(uid(5));
     expect(res.error).toBe('boom');
     expect(logAudit).not.toHaveBeenCalled();
   });
 
   it('does not audit when the import is not in processing status', async () => {
-    results['bank_statement_imports.select'] = { data: { id: 'imp-1', file_name: 'jan.csv', status: 'approved' } };
-    await submitForApproval('imp-1');
+    results['bank_statement_imports.select'] = { data: { id: uid(5), file_name: 'jan.csv', status: 'approved' } };
+    await submitForApproval(uid(5));
     expect(logAudit).not.toHaveBeenCalled();
   });
 });
 
 describe('matchImportRows audit (#556)', () => {
   const rows = Array.from({ length: 60 }, (_, i) => ({
-    id: `row-${i}`,
+    id: uid(300 + i),
     description: 'Payment',
     amount: 100,
     reference: null,
@@ -101,11 +102,12 @@ describe('matchImportRows audit (#556)', () => {
 
   it('writes ONE bounded entry for the whole run, after the writes', async () => {
     fetchAllRows.mockResolvedValue({ data: rows, error: null });
-    const res = await matchImportRows('imp-1');
+    const res = await matchImportRows(uid(5));
     expect(res.error).toBeNull();
     expect(logAudit).toHaveBeenCalledTimes(1);
+    expectUuidEntityId(logAudit);
     const arg = logAudit.mock.calls[0][0];
-    expect(arg).toMatchObject({ action: 'UPDATE', entityType: 'bank_statement_imports', entityId: 'imp-1' });
+    expect(arg).toMatchObject({ action: 'UPDATE', entityType: 'bank_statement_imports', entityId: uid(5) });
     expect(arg.newValues).toMatchObject({ total_count: 60, matched_count: 60, unmatched_count: 0 });
     expect(arg.newValues.row_ids).toHaveLength(50);
     expect(calls.at(-1)).toBe('audit');
@@ -114,14 +116,14 @@ describe('matchImportRows audit (#556)', () => {
 
   it('does not audit when the rows cannot be loaded', async () => {
     fetchAllRows.mockResolvedValue({ data: null, error: 'load failed' });
-    const res = await matchImportRows('imp-1');
+    const res = await matchImportRows(uid(5));
     expect(res.error).toBe('load failed');
     expect(logAudit).not.toHaveBeenCalled();
   });
 
   it('does not audit when there is nothing to match', async () => {
     fetchAllRows.mockResolvedValue({ data: [], error: null });
-    await matchImportRows('imp-1');
+    await matchImportRows(uid(5));
     expect(logAudit).not.toHaveBeenCalled();
   });
 });
@@ -139,14 +141,15 @@ describe('createImportRows audit (#556)', () => {
     }));
 
   it('writes ONE entry with the inserted count, after the inserts', async () => {
-    const res = await createImportRows({ import_id: 'imp-1', rows: parsed(250) } as never);
+    const res = await createImportRows({ import_id: uid(5), rows: parsed(250) } as never);
     expect(res).toEqual({ count: 250, error: null });
     expect(logAudit).toHaveBeenCalledTimes(1);
+    expectUuidEntityId(logAudit);
     expect(logAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'CREATE',
         entityType: 'bank_statement_imports',
-        entityId: 'imp-1',
+        entityId: uid(5),
         newValues: expect.objectContaining({ rows_created: 250 }),
       })
     );
@@ -155,7 +158,7 @@ describe('createImportRows audit (#556)', () => {
 
   it('does not audit when an insert fails', async () => {
     results['bank_statement_rows.insert'] = { error: boom };
-    const res = await createImportRows({ import_id: 'imp-1', rows: parsed(3) } as never);
+    const res = await createImportRows({ import_id: uid(5), rows: parsed(3) } as never);
     expect(res.count).toBe(0);
     expect(logAudit).not.toHaveBeenCalled();
   }, 15000);

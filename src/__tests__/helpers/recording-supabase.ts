@@ -13,8 +13,10 @@ export function makeRecordingSupabase(opts: {
   results: Record<string, QueryResult>;
   calls: string[];
   user?: { id: string } | null;
+  /** Receives `<table>:<columns>` for every select() call. */
+  selects?: string[];
 }) {
-  const { results, calls } = opts;
+  const { results, calls, selects } = opts;
   const user = opts.user === undefined ? { id: 'user-1' } : opts.user;
 
   return {
@@ -29,7 +31,8 @@ export function makeRecordingSupabase(opts: {
         return { data: r.data ?? null, error: r.error ?? null, count: r.count ?? null };
       };
       for (const m of ['select', 'insert', 'update', 'delete', 'upsert']) {
-        chain[m] = () => {
+        chain[m] = (...args: unknown[]) => {
+          if (m === 'select') selects?.push(`${table}:${String(args[0] ?? '*')}`);
           if (!op) op = m;
           return chain;
         };
@@ -45,3 +48,16 @@ export function makeRecordingSupabase(opts: {
     },
   };
 }
+
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** audit_logs.entity_id is uuid NOT NULL; logAudit swallows insert errors, so a non-uuid id silently logs nothing. */
+export function expectUuidEntityId(logAudit: { mock: { calls: unknown[][] } }, callIndex = 0) {
+  const arg = logAudit.mock.calls[callIndex][0] as { entityId?: unknown };
+  if (typeof arg.entityId !== 'string' || !UUID_RE.test(arg.entityId)) {
+    throw new Error(`audit entityId is not a uuid: ${String(arg.entityId)}`);
+  }
+}
+
+/** Deterministic uuid-shaped id for tests. */
+export const uid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
