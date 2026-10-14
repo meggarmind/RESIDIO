@@ -113,10 +113,7 @@ const PERMISSION_ALLOWLIST = [
 
   // ---- SURFACED BY #390, NOT YET FIXED. Tracked in #556. Remove an entry in the
   // same PR that fixes it; do not add to this block.
-  'security/codes.ts::deactivateExpiredCodes',
   'report-subscriptions/update-subscription.ts::createDefaultReportSubscription',
-  'payments/check-overdue.ts::checkOverduePayments',
-  'impersonation/approval.ts::startApprovedImpersonationSession',
   'billing/wallet.ts::getOrCreateWallet',
 ];
 
@@ -156,9 +153,7 @@ const AUDIT_ALLOWLIST = [
 
   // ---- SURFACED BY #390, NOT YET FIXED. Tracked in #556. Remove an entry in the
   // same PR that fixes it; do not add to this block.
-  'security/codes.ts::deactivateExpiredCodes',
   'report-subscriptions/update-subscription.ts::createDefaultReportSubscription',
-  'payments/check-overdue.ts::checkOverduePayments',
   'imports/create-import.ts::updateImportStatus',
   'email-imports/create-email-import.ts::updateEmailImportStatus',
   'billing/wallet.ts::getOrCreateWallet',
