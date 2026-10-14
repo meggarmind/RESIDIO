@@ -7,6 +7,15 @@ this file, whatever tool it is running under — Claude Code, Codex, OpenCode, o
 how a particular tool spawns an isolated sub-agent. They do not carry policy. If a rule about
 what this project does or forbids lives anywhere, it lives here.
 
+> **Session bookends — every session, every harness, no exceptions.**
+> **First:** read the handoff record — `gh issue view 412 --repo meggarmind/RESIDIO --comments`
+> (newest last) — before any substantive work.
+> **Last:** post a new handoff comment on **#412** before you stop — `gh issue comment 412
+> --repo meggarmind/RESIDIO --body-file handoff.md` — even if you were not asked, even if you
+> only read, coordinated or reviewed, and even if the work was abandoned (say so). A session that
+> ends without it has left nothing for the next one. Content and format: §14 and §16. Do not
+> create separate handoff files.
+
 ---
 
 ## 1. Non-negotiables
@@ -538,7 +547,10 @@ Four records, four distinct jobs. Keep them in their lanes:
 | `SESSION_STATE.md` | frozen archive (as of 2026-10-07): read-only history, never appended |
 
 Issue #412 is read before substantive work and gets a new comment before finishing, whether or
-not you were asked. Record what was actually performed, decisions taken, verification results,
+not you were asked (the bookends block at the top of this file). **The session that talks to the
+user posts it** — a dispatched sub-agent never does; the coordinator folds its results into the
+coordinator's own comment. A session that coordinates, reviews or only reads still posts one, saying
+so. Record what was actually performed, decisions taken, verification results,
 known failures and remaining work. **Do not create separate handoff files.**
 
 ```bash

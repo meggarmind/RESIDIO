@@ -74,6 +74,22 @@ Every `agent()` call inside a workflow script sets `model` explicitly, per the t
 | `to-issues` | decompose an initiative into vertical-slice issues (`CORE.md` §10) |
 | `/security-review` | security review of pending changes on the branch |
 
+## Session handoff (#412)
+
+`CORE.md` (top block, §14, §16) requires every session to read #412 first and post a handoff
+comment on it last. This is how Claude Code does it:
+
+- **Start:** before the first substantive tool call, run `gh issue view 412 --repo
+  meggarmind/RESIDIO --comments` (Bash). Invoke `task-observer` at the same point.
+- **End:** before you stop — including after `end_session`/`pause_session`, a finished PR, or an
+  abandoned task — write the comment to a scratchpad file and post it with `gh issue comment 412
+  --repo meggarmind/RESIDIO --body-file <file>`. Use the scratchpad directory, never a file in the
+  repo (`CORE.md` §14: no handoff files).
+- **Who posts:** only the session talking to the user. `Agent`/`Workflow` sub-agents never post; put
+  their results in your comment. A session that was only a peer for `SendMessage` coordination
+  still posts a short one.
+- Do not rely on the user reminding you, and do not wait for a keyphrase.
+
 ## Memory
 
 The account-level memory system is a persistent, cross-session record of project facts and how
