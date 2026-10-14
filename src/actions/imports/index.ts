@@ -62,7 +62,6 @@ export {
 export {
   createImport,
   createImportRows,
-  updateImportStatus,
   deleteImport,
 } from './create-import';
 

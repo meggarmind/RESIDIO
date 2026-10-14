@@ -3,7 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import { logAudit } from '@/lib/audit/logger';
-import { updateImportStatus } from './create-import';
+import { updateImportStatus } from '@/lib/imports/update-import-status';
 import { createPaymentCore } from '@/lib/payments/create-payment';
 import { createExpense } from '@/actions/expenses/create-expense';
 import { updateExpenseStatus } from '@/actions/expenses/update-expense';
@@ -252,12 +252,16 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
   }
 
   if (!rows || rows.length === 0) {
-    await updateImportStatus({
+    const emptyRun = await updateImportStatus({
       import_id,
       status: 'completed',
       created_rows: 0,
       skipped_rows: importData.total_rows,
     });
+
+    if (emptyRun.error) {
+      console.error('processImport: failed to mark empty import completed', import_id, emptyRun.error);
+    }
 
     return {
       success: true,
@@ -555,7 +559,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 
   // Update import final status
   const finalStatus = result.success ? 'completed' : 'failed';
-  await updateImportStatus({
+  const finalWrite = await updateImportStatus({
     import_id,
     status: finalStatus,
     created_rows: result.created_count,
@@ -568,6 +572,9 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
       errors: result.errors.slice(0, 10), // Store first 10 errors
     },
   });
+  if (finalWrite.error) {
+    console.error('processImport: failed to write final import status', import_id, finalWrite.error);
+  }
 
   // Audit log
   await logAudit({
