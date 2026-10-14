@@ -69,9 +69,11 @@ merging. Five migrations sat in exactly this state and were reconciled on
 2026-09-02 (#138, now closed); the ledger and `master` agree again.
 
 **`apply_migration` assigns its own version.** The Supabase MCP tool takes only a
-name and a query and stamps the ledger with its own execution timestamp, so every
-cloud apply otherwise creates two drift entries (#305). **After every apply,
-restore the authored version** — do not rename the file, because the PR, issue and
+name and a query and stamps the ledger with its own execution timestamp. Since #374
+`migration-drift.mjs` pairs by name, so this is **not drift** and CI stays green without
+any follow-up (#305, verified on Residio_Stage 2026-10-14). **Restoring the authored
+version is recommended**, so the ledger and the file agree for the version-ordering trap
+above and for anything keyed on version. Do not rename the file, because the PR, issue and
 handoff records already name it:
 
 ```bash

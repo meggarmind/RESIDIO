@@ -11,6 +11,12 @@ import { describe, it, expect } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import { glob } from 'glob';
+import {
+  analyzeProject,
+  findViolations,
+  type FileAnalysis,
+  type Violation,
+} from '../helpers/action-scanner';
 
 const ACTIONS_DIR = path.join(process.cwd(), 'src/actions');
 
@@ -20,21 +26,19 @@ const GENERAL_EXCEPTIONS = [
   'helpers.ts',
 ];
 
-// Files that start with these prefixes are read-only
-const READ_ONLY_PREFIXES = ['get-', 'check-', 'search-', 'list-', 'fetch-'];
-
 // Files that don't need audit logging (read-only or export operations)
 const AUDIT_ONLY_EXCEPTIONS = [...GENERAL_EXCEPTIONS, 'export.ts', 'export-'];
 
-// Patterns that indicate a write operation
-const WRITE_PATTERNS = [
-  '.insert(',
-  '.update(',
-  '.delete(',
-  '.upsert(',
-];
-
 // Known gaps that are still allowlisted.
+//
+// The scan is per ACTION (#390): every exported async function that writes is
+// judged on its own, parsed with the TypeScript AST (see
+// src/__tests__/helpers/action-scanner.ts). An entry is
+// `relative/path.ts::functionName`. A bare `relative/path.ts` entry exempts
+// every function in the file; that form is reserved for the permanent,
+// deliberate entries below (self-service, cron, webhook, pre-auth). New entries
+// MUST be file::function. There is no filename-prefix exemption: a file named
+// get-*.ts that writes is checked like any other (#458).
 //
 // These lists are enforcement holes, not documentation: anything named here is
 // exempt from the checks below. Keep them minimal and prune an entry as soon as
@@ -85,6 +89,39 @@ const PERMISSION_ALLOWLIST = [
   // Read operations whose only write is their own access log / read receipt.
   'documents/download-document.ts',
   'announcements/read-receipts.ts',
+
+  // ---- Own-rows self-service and by-design exemptions (#390 triage, #556).
+  // These authenticate with getUser() and restrict every write to the caller's own
+  // rows, so an admin RBAC permission would be wrong.
+  'settings/theme-preferences.ts::setUserThemeOverride',
+  'report-subscriptions/update-subscription.ts::updateMyReportSubscription',
+  'in-app-notifications/update-notification.ts::markNotificationAsRead',
+  'in-app-notifications/update-notification.ts::markAllNotificationsAsRead',
+  'in-app-notifications/update-notification.ts::deleteNotification',
+  'in-app-notifications/update-notification.ts::deleteReadNotifications',
+  // Admin ending or logging against their own impersonation session (ownership checked).
+  'impersonation/index.ts::endImpersonationSession',
+  'impersonation/index.ts::logImpersonationPageView',
+  // Guarded through canImpersonate(), which calls authorizePermission() before the
+  // first read; the scanner does not follow permission delegation.
+  'impersonation/index.ts::startImpersonationSession',
+  // Dual-mode (self-service or admin): the row is read first to decide which, and
+  // non-owners are forced through HOUSES_ASSIGN_RESIDENT before any write.
+  'residents/move-out-renter.ts::initiateRenterMoveOut',
+  'residents/move-out-owner.ts::initiateOwnerMoveOut',
+  // Token-authenticated, pre-auth. Its missing attempt limit is tracked in #556.
+  'verification/verify-contact.ts::verifyContactToken',
+
+  // ---- SURFACED BY #390, NOT YET FIXED. Tracked in #556. Remove an entry in the
+  // same PR that fixes it; do not add to this block.
+  'security/codes.ts::deactivateExpiredCodes',
+  'report-subscriptions/update-subscription.ts::createDefaultReportSubscription',
+  'payments/check-overdue.ts::checkOverduePayments',
+  'impersonation/approval.ts::startApprovedImpersonationSession',
+  'email-imports/process-email-import.ts::matchEmailTransactions',
+  'email-imports/gmail-oauth.ts::updateGmailSyncStatus',
+  'approvals/index.ts::createApprovalRequest',
+  'billing/wallet.ts::getOrCreateWallet',
 ];
 
 const AUDIT_ALLOWLIST = [
@@ -107,38 +144,82 @@ const AUDIT_ALLOWLIST = [
   // Per-resident read tracking. Auditing every announcement view would flood
   // the audit log without recording an administrative decision.
   'announcements/read-receipts.ts',
+
+  // ---- Own-rows self-service or self-trail (#390 triage, #556).
+  'report-subscriptions/update-subscription.ts::updateMyReportSubscription',
+  'in-app-notifications/update-notification.ts::markNotificationAsRead',
+  'in-app-notifications/update-notification.ts::markAllNotificationsAsRead',
+  'in-app-notifications/update-notification.ts::deleteNotification',
+  'in-app-notifications/update-notification.ts::deleteReadNotifications',
+  // The page_views write is itself the impersonation audit trail.
+  'impersonation/index.ts::logImpersonationPageView',
+  // Setup and disable-code steps touch only the caller's own 2FA state; the confirm
+  // and disable steps that change what is enabled do audit.
+  'two-factor/setup.ts::initiateTwoFactorSetup',
+  'two-factor/disable.ts::requestDisableCode',
+
+  // ---- SURFACED BY #390, NOT YET FIXED. Tracked in #556. Remove an entry in the
+  // same PR that fixes it; do not add to this block.
+  'two-factor/backup-codes.ts::regenerateBackupCodes',
+  'security/vehicles.ts::setPrimaryVehicle',
+  'security/codes.ts::deactivateExpiredCodes',
+  'security/categories.ts::reorderCategories',
+  'security/access-logs.ts::unflagAccess',
+  'reports/report-schedules.ts::deleteGeneratedReport',
+  'report-subscriptions/update-subscription.ts::createDefaultReportSubscription',
+  'reference/transaction-tags.ts::tagImportRow',
+  'reference/transaction-tags.ts::batchTagImportRows',
+  'payments/check-overdue.ts::checkOverduePayments',
+  'notes/get-note-history.ts::restoreNoteVersion',
+  'imports/process-import.ts::submitForApproval',
+  'imports/match-residents.ts::matchImportRows',
+  'imports/create-import.ts::createImportRows',
+  'imports/create-import.ts::updateImportStatus',
+  'finance/petty-cash.ts::togglePettyCashAccountStatus',
+  'email-imports/process-email-import.ts::matchEmailTransactions',
+  'email-imports/parse-email.ts::parseEmailMessage',
+  'email-imports/gmail-oauth.ts::updateGmailSyncStatus',
+  'email-imports/create-email-import.ts::updateEmailImportStatus',
+  'approvals/index.ts::createApprovalRequest',
+  'billing/wallet.ts::getOrCreateWallet',
 ];
 
-function isReadOnlyFile(filename: string): boolean {
-  const basename = path.basename(filename);
-  return (
-    GENERAL_EXCEPTIONS.includes(basename) ||
-    READ_ONLY_PREFIXES.some((prefix) => basename.startsWith(prefix))
-  );
+/** Files that carry no actions to check at all (type and helper modules). */
+function isGeneralException(filename: string): boolean {
+  return GENERAL_EXCEPTIONS.includes(path.basename(filename));
 }
 
+/** Files exempt from the audit check: general exceptions plus export modules. */
 function isAuditException(filename: string): boolean {
   const basename = path.basename(filename);
-  return (
-    AUDIT_ONLY_EXCEPTIONS.some((ex) => basename.includes(ex)) ||
-    READ_ONLY_PREFIXES.some((prefix) => basename.startsWith(prefix))
-  );
+  return AUDIT_ONLY_EXCEPTIONS.some((ex) => basename.includes(ex));
 }
 
-function isWriteOperation(content: string): boolean {
-  return WRITE_PATTERNS.some((pattern) => content.includes(pattern));
-}
+/**
+ * Parse every file under src/actions/** once and share the result between the
+ * permission and audit tests. The whole project is parsed (not just write
+ * files) because audit delegation follows calls into other action files.
+ */
+let scanPromise: Promise<{ project: Map<string, FileAnalysis>; violations: Violation[] }> | null =
+  null;
 
-function hasPermissionCheck(content: string): boolean {
-  return (
-    content.includes('authorizePermission') ||
-    content.includes('authorizeAction') ||
-    content.includes('authorizeAnyPermission')
-  );
-}
-
-function hasAuditLog(content: string): boolean {
-  return content.includes('logAudit');
+function scanActions() {
+  scanPromise ??= (async () => {
+    const actionFiles = await glob('**/*.ts', { cwd: ACTIONS_DIR });
+    const sources: Record<string, string> = {};
+    for (const file of actionFiles) {
+      sources[file.replace(/\\/g, '/')] = fs.readFileSync(path.join(ACTIONS_DIR, file), 'utf-8');
+    }
+    const project = analyzeProject(sources);
+    const violations = findViolations(project, {
+      permissionAllowlist: PERMISSION_ALLOWLIST,
+      auditAllowlist: AUDIT_ALLOWLIST,
+      skipPermission: isGeneralException,
+      skipAudit: isAuditException,
+    });
+    return { project, violations };
+  })();
+  return scanPromise;
 }
 
 const SRC_DIR = path.join(process.cwd(), 'src');
@@ -190,12 +271,6 @@ function hasUseServerDirectiveLine(content: string): boolean {
     .some((line) => /^\s*(['"])use server\1\s*;?\s*(?:\/\/.*|\/\*.*)?$/.test(line));
 }
 
-function isAllowlisted(file: string, allowlist: string[]): boolean {
-  // Normalize path separators
-  const normalizedFile = file.replace(/\\/g, '/');
-  return allowlist.some((allowed) => normalizedFile.includes(allowed));
-}
-
 /**
  * These two tests walk every file under `src/actions/**` and read each one.
  * On an idle machine that takes ~3.8s and ~1.1s against vitest's 5s default,
@@ -208,63 +283,31 @@ const SCAN_TIMEOUT_MS = 60_000;
 
 describe('Module Integration Compliance', () => {
   describe('Permission Checks', () => {
-    it('all write actions should use authorizePermission', async () => {
-      const actionFiles = await glob('**/*.ts', { cwd: ACTIONS_DIR });
-      const violations: string[] = [];
-
-      for (const file of actionFiles) {
-        // Skip read-only and exception files
-        if (isReadOnlyFile(file)) continue;
-
-        // Skip allowlisted files (known gaps)
-        if (isAllowlisted(file, PERMISSION_ALLOWLIST)) continue;
-
-        const fullPath = path.join(ACTIONS_DIR, file);
-        const content = fs.readFileSync(fullPath, 'utf-8');
-
-        // Check if it's a write operation
-        if (!isWriteOperation(content)) continue;
-
-        // Check for permission check
-        if (!hasPermissionCheck(content)) {
-          violations.push(`src/actions/${file}`);
-        }
-      }
+    it('all write actions should use authorizePermission before touching the database', async () => {
+      const { violations: all } = await scanActions();
+      const violations = all
+        .filter((v) => v.check !== 'audit-missing')
+        .map((v) => `src/actions/${v.id} (${v.check})`);
 
       expect(
         violations,
-        `Files missing permission checks:\n${violations.join('\n')}\n\nAdd permission checks or update PERMISSION_ALLOWLIST in test file.`
+        `Write actions missing a permission check, or checking it after the first database operation:\n${violations.join('\n')}\n\n` +
+          `Call authorizePermission() before the first database operation, or add 'path.ts::functionName' to PERMISSION_ALLOWLIST in test file.`
       ).toHaveLength(0);
     }, SCAN_TIMEOUT_MS);
   });
 
   describe('Audit Logging', () => {
-    it('all write actions should use logAudit', async () => {
-      const actionFiles = await glob('**/*.ts', { cwd: ACTIONS_DIR });
-      const violations: string[] = [];
-
-      for (const file of actionFiles) {
-        // Skip read-only and exception files
-        if (isAuditException(file)) continue;
-
-        // Skip allowlisted files (known gaps)
-        if (isAllowlisted(file, AUDIT_ALLOWLIST)) continue;
-
-        const fullPath = path.join(ACTIONS_DIR, file);
-        const content = fs.readFileSync(fullPath, 'utf-8');
-
-        // Check if it's a write operation
-        if (!isWriteOperation(content)) continue;
-
-        // Check for audit logging
-        if (!hasAuditLog(content)) {
-          violations.push(`src/actions/${file}`);
-        }
-      }
+    it('all write actions should use logAudit (or delegate to an action that does)', async () => {
+      const { violations: all } = await scanActions();
+      const violations = all
+        .filter((v) => v.check === 'audit-missing')
+        .map((v) => `src/actions/${v.id}`);
 
       expect(
         violations,
-        `Files missing audit logging:\n${violations.join('\n')}\n\nAdd logAudit calls or update AUDIT_ALLOWLIST in test file.`
+        `Write actions missing audit logging:\n${violations.join('\n')}\n\n` +
+          `Add logAudit calls or add 'path.ts::functionName' to AUDIT_ALLOWLIST in test file.`
       ).toHaveLength(0);
     }, SCAN_TIMEOUT_MS);
   });
@@ -301,8 +344,8 @@ describe('Module Integration Compliance', () => {
     it('should report current gap counts for visibility', () => {
       // This test always passes but logs the current state
       console.log('\n📊 Integration Gap Summary:');
-      console.log(`   Permission gaps: ${PERMISSION_ALLOWLIST.length} files`);
-      console.log(`   Audit gaps: ${AUDIT_ALLOWLIST.length} files`);
+      console.log(`   Permission gaps: ${PERMISSION_ALLOWLIST.length} entries`);
+      console.log(`   Audit gaps: ${AUDIT_ALLOWLIST.length} entries`);
       console.log('\n   Remove items from allowlists as they are fixed.\n');
 
       // Track progress over time - these should decrease
