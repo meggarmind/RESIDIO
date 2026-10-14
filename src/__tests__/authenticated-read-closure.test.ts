@@ -22,6 +22,35 @@ import { describe, expect, it } from 'vitest';
 const migrationsDir = fileURLToPath(new URL('../../supabase/migrations', import.meta.url));
 
 const RESTRICT_MIGRATION = '20261014120000_restrict_authenticated_read_policies.sql';
+const KEY_SPLIT_MIGRATION = '20261014130000_system_settings_key_split.sql';
+
+/**
+ * Keys of system_settings readable by every signed-in user (owner decision
+ * 2026-10-14, #237). Every other key requires settings.view. Adding a key here
+ * is a deliberate, reviewed act: it exposes the value to residents.
+ */
+const SYSTEM_SETTINGS_PUBLIC_KEYS = [
+  'maintenance_mode',
+  'maintenance_message',
+  'resident_portal_enabled',
+  'dashboard_theme',
+  'portal_theme',
+  'estate_name',
+  'estate_logo_url',
+  'estate_address',
+  'estate_email',
+  'estate_phone',
+  'estate_facebook_url',
+  'estate_instagram_url',
+  'estate_twitter_url',
+  'estate_website_url',
+  'security_gate_phone',
+  'estate_manager_phone',
+  'estate_manager_name',
+  'disable_ai_assistant',
+  'ai_assistant_greeting_enabled',
+  'assistant_name',
+];
 
 /** Migrations strictly after this one may not add a new open policy at all. */
 const BASELINE = RESTRICT_MIGRATION;
@@ -36,8 +65,6 @@ const ALLOWED_OPEN_READS: Record<string, string> = {
   notification_templates: 'Declared reference data (#237): message templates, readable by any signed-in user.',
   notification_schedules: 'Declared reference data (#237): reminder schedule definitions, readable by any signed-in user.',
   security_contact_categories: 'Declared reference data (#237): dropdown of contact categories.',
-  system_settings:
-    'PENDING owner decision (#237). Read by src/middleware.ts on nearly every request (maintenance_mode); not declared reference data, not restricted. Do not treat as accepted.',
 };
 
 /** The eight tables this slice restricts, with the permission each now requires. */
@@ -162,7 +189,7 @@ describe('#237: no USING (true) read policy for signed-in users beyond the allow
     }
   });
 
-  it('the five declared reference tables and pending system_settings are exactly the allowlist', () => {
+  it('the five declared reference tables are exactly the allowlist', () => {
     expect(Object.keys(ALLOWED_OPEN_READS).sort()).toEqual(
       [
         'billing_items',
@@ -170,7 +197,6 @@ describe('#237: no USING (true) read policy for signed-in users beyond the allow
         'notification_schedules',
         'notification_templates',
         'security_contact_categories',
-        'system_settings',
       ].sort()
     );
   });
@@ -228,5 +254,58 @@ describe('#237: the eight restricted tables', () => {
         new RegExp(`-- CREATE POLICY "[^"]+"\\n-- {3}ON public\\.${table} FOR SELECT TO authenticated\\n-- {3}USING \\(true\\);`)
       );
     }
+  });
+});
+
+describe('#237: system_settings key split', () => {
+  const policies = [...live.values()].filter(
+    (p) => p.table === 'system_settings' && (p.cmd === 'SELECT' || p.cmd === 'ALL')
+  );
+
+  it('is no longer open to every signed-in user', () => {
+    expect(openTables.has('system_settings')).toBe(false);
+  });
+
+  it('has exactly one read policy, the key-split one, permissive and TO authenticated', () => {
+    // A second permissive read policy would OR with this one and void the split.
+    expect(policies.map((p) => `${p.name}@${p.file}`)).toEqual([
+      `system_settings_select_policy@${KEY_SPLIT_MIGRATION}`,
+    ]);
+    expect(policies[0].cmd).toBe('SELECT');
+    expect(policies[0].restrictive).toBe(false);
+    expect(policies[0].roles.trim()).toBe('authenticated');
+  });
+
+  it('allows exactly the declared public keys, OR has_permission(settings.view)', () => {
+    const using = policies[0].using ?? '';
+    const array = using.match(/^key = ANY \(ARRAY\[([^\]]*)\]\) OR public\.has_permission\('settings\.view'\)$/);
+    expect(array, `unexpected predicate shape: ${using}`).not.toBeNull();
+    const keys = [...array![1].matchAll(/'([^']+)'/g)].map((m) => m[1]);
+    expect([...keys].sort()).toEqual([...SYSTEM_SETTINGS_PUBLIC_KEYS].sort());
+  });
+
+  it('settings.view is seeded by an earlier migration', () => {
+    // has_permission() returns false silently for an unknown name, which would
+    // deny every admin as well.
+    const others = files
+      .filter((f) => f < KEY_SPLIT_MIGRATION)
+      .map((f) => readFileSync(path.join(migrationsDir, f), 'utf8'))
+      .join('\n');
+    expect(others).toContain("('settings.view',");
+  });
+
+  it('touches only the SELECT policy, in one transaction, with an exact rollback', () => {
+    const body = readMigration(KEY_SPLIT_MIGRATION);
+    expect(body.match(/DROP POLICY/g) ?? []).toHaveLength(1);
+    expect(body.match(/CREATE POLICY/g) ?? []).toHaveLength(1);
+    expect(body).toContain('DROP POLICY IF EXISTS "system_settings_select_policy" ON public.system_settings;');
+
+    const raw = readFileSync(path.join(migrationsDir, KEY_SPLIT_MIGRATION), 'utf8').replace(/\r\n/g, '\n');
+    expect((raw.match(/^BEGIN;$/gm) ?? []).length).toBe(1);
+    expect((raw.match(/^COMMIT;$/gm) ?? []).length).toBe(1);
+    const rollback = raw.slice(raw.indexOf('-- ROLLBACK'), raw.indexOf('\nBEGIN;'));
+    expect(rollback).toContain(
+      '-- CREATE POLICY "system_settings_select_policy"\n--   ON public.system_settings FOR SELECT TO authenticated\n--   USING (true);'
+    );
   });
 });

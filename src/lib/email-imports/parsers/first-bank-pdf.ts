@@ -21,7 +21,7 @@ if (typeof globalThis.DOMMatrix === 'undefined') {
 
 import type { ParsedEmailTransaction } from '@/types/database';
 import { parseFirstBankAmount, parseFirstBankDate } from '@/lib/parsers/bank-formats/firstbank';
-import { getPasswordByAccountLast4 } from '@/actions/email-imports/bank-passwords';
+import { getPasswordByAccountLast4 } from '@/lib/email-imports/bank-passwords';
 
 type PdfTextItem = {
   transform: number[];
@@ -445,7 +445,7 @@ export async function parseFirstBankPdf(
 
       // If no password found or primary failed, try ALL stored passwords
       if (!password) {
-        const { getAllBankPasswords } = await import('@/actions/email-imports/bank-passwords');
+        const { getAllBankPasswords } = await import('@/lib/email-imports/bank-passwords');
         const { data: allPasswords } = await getAllBankPasswords();
 
         if (allPasswords && allPasswords.length > 0) {
