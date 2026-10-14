@@ -59,6 +59,7 @@ describe('evaluateSendPolicy', () => {
       const d = await evaluateSendPolicy(baseInput, makeFacts({ enabled: { status: 'absent' } }));
       expect(d).toMatchObject({
         outcome: 'refuse',
+        reason: 'whatsapp_not_enabled',
         message: 'WhatsApp is not enabled in system settings',
       });
     });
@@ -70,6 +71,7 @@ describe('evaluateSendPolicy', () => {
       );
       expect(d).toMatchObject({
         outcome: 'refuse',
+        reason: 'whatsapp_enablement_unverified',
         message: 'WhatsApp enablement could not be verified',
       });
     });
@@ -81,6 +83,7 @@ describe('evaluateSendPolicy', () => {
       );
       expect(d).toMatchObject({
         outcome: 'refuse',
+        reason: 'whatsapp_disabled',
         message: 'WhatsApp notifications are disabled in system settings',
       });
     });
@@ -395,5 +398,116 @@ describe('evaluateSendPolicy', () => {
       await evaluateSendPolicy({ ...baseInput, metadata: null }, facts);
       expect(facts.isApprovedTemplateName).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('evaluateSendPolicy mutation gaps (#549)', () => {
+  it('falls back to the default daily cap of 100 for a fractional setting', async () => {
+    const d = await evaluateSendPolicy(
+      baseInput,
+      makeFacts({
+        settings: { whatsapp_outbound_daily_cap: 1.5 },
+        dailyCount: { count: 99, failed: false },
+      })
+    );
+    expect(d.outcome).toBe('allow');
+  });
+
+  it('falls back to the default burst cap of 20 for a fractional setting', async () => {
+    const d = await evaluateSendPolicy(
+      baseInput,
+      makeFacts({
+        settings: { whatsapp_outbound_burst_cap: 1.5 },
+        burstCount: { count: 19, failed: false },
+      })
+    );
+    expect(d.outcome).toBe('allow');
+    const at20 = await evaluateSendPolicy(
+      baseInput,
+      makeFacts({
+        settings: { whatsapp_outbound_burst_cap: 1.5 },
+        burstCount: { count: 20, failed: false },
+      })
+    );
+    expect(at20).toMatchObject({ outcome: 'defer', reason: 'burst_limit_reached' });
+  });
+
+  it('falls back to the default burst cap of 20 for a non-number setting', async () => {
+    const d = await evaluateSendPolicy(
+      baseInput,
+      makeFacts({
+        settings: { whatsapp_outbound_burst_cap: '5' },
+        burstCount: { count: 19, failed: false },
+      })
+    );
+    expect(d.outcome).toBe('allow');
+  });
+
+  it('falls back to a 10-minute burst window for a fractional setting', async () => {
+    const facts = makeFacts({ settings: { whatsapp_outbound_burst_window_minutes: 1.5 } });
+    await evaluateSendPolicy(baseInput, facts);
+    expect(facts.countWhatsAppSentSince).toHaveBeenNthCalledWith(2, '2026-10-14T12:20:00.000Z');
+  });
+
+  it('treats a null daily count as zero', async () => {
+    const d = await evaluateSendPolicy(
+      baseInput,
+      makeFacts({
+        settings: { whatsapp_outbound_daily_cap: 1 },
+        dailyCount: { count: null, failed: false },
+      })
+    );
+    expect(d.outcome).toBe('allow');
+  });
+
+  it('treats a null burst count as zero', async () => {
+    const d = await evaluateSendPolicy(
+      baseInput,
+      makeFacts({
+        settings: { whatsapp_outbound_burst_cap: 1 },
+        burstCount: { count: null, failed: false },
+      })
+    );
+    expect(d.outcome).toBe('allow');
+  });
+
+  it('refuses (does not throw) when whatsapp_template is null', async () => {
+    const d = await evaluateSendPolicy(
+      { ...baseInput, metadata: { whatsapp_template: null } },
+      makeFacts()
+    );
+    expect(d).toMatchObject({
+      outcome: 'refuse',
+      message: 'WhatsApp proactive sends require an approved template',
+    });
+  });
+
+  it('defaults an empty-string languageCode to en_US', async () => {
+    const d = await evaluateSendPolicy(
+      {
+        ...baseInput,
+        metadata: { whatsapp_template: { name: 'invoice_reminder', languageCode: '' } },
+      },
+      makeFacts()
+    );
+    expect(d).toMatchObject({ outcome: 'allow', template: { languageCode: 'en_US' } });
+  });
+
+  it('reads both burst settings before a zero burst cap refuses, and never counts', async () => {
+    const facts = makeFacts({ settings: { whatsapp_outbound_burst_cap: 0 } });
+    const d = await evaluateSendPolicy(baseInput, facts);
+    expect(d).toMatchObject({ outcome: 'refuse', reason: 'burst_cap_zero' });
+    expect(facts.getNumberSetting).toHaveBeenCalledWith('whatsapp_outbound_burst_cap');
+    expect(facts.getNumberSetting).toHaveBeenCalledWith('whatsapp_outbound_burst_window_minutes');
+    // Only the daily count ran; the burst count was never queried.
+    expect(facts.countWhatsAppSentSince).toHaveBeenCalledTimes(1);
+  });
+
+  it('computes the daily window from the facts clock, not the real date', async () => {
+    const facts = makeFacts();
+    facts.now.mockReturnValue(new Date('2031-03-05T23:59:59.999Z'));
+    await evaluateSendPolicy(baseInput, facts);
+    expect(facts.countWhatsAppSentSince).toHaveBeenNthCalledWith(1, '2031-03-05T00:00:00.000Z');
+    expect(facts.countWhatsAppSentSince).toHaveBeenNthCalledWith(2, '2031-03-05T23:49:59.999Z');
   });
 });
