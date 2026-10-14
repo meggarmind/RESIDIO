@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeRecordingSupabase, expectUuidEntityId, uid, type QueryResult } from '@/__tests__/helpers/recording-supabase';
 import { submitForApproval } from '@/actions/imports/process-import';
 import { matchImportRows } from '@/actions/imports/match-residents';
-import { createImportRows } from '@/actions/imports/create-import';
+import { createImportRows, updateImportStatus } from '@/actions/imports/create-import';
 
 const { authorizePermission, createServerSupabaseClient, logAudit, fetchAllRows, checkDuplicate, calls, results } =
   vi.hoisted(() => ({
@@ -166,4 +166,73 @@ describe('createImportRows audit (#556)', () => {
     expect(res.count).toBe(0);
     expect(logAudit).not.toHaveBeenCalled();
   }, 15000);
+});
+
+describe('updateImportStatus audit (#541)', () => {
+  beforeEach(() => {
+    results['bank_statement_imports.update'] = { data: [{ file_name: 'jan.csv' }] };
+  });
+
+  it('writes ONE entry after the update, with only the supplied fields', async () => {
+    const res = await updateImportStatus({
+      import_id: uid(5),
+      status: 'failed',
+      matched_rows: 3,
+      import_summary: { big: 'payload' },
+    });
+    expect(res).toEqual({ error: null });
+    expect(logAudit).toHaveBeenCalledTimes(1);
+    expectUuidEntityId(logAudit);
+    const arg = logAudit.mock.calls[0][0];
+    expect(arg).toMatchObject({
+      action: 'UPDATE',
+      entityType: 'bank_statement_imports',
+      entityId: uid(5),
+      entityDisplay: 'jan.csv',
+      description: 'Import status set to failed',
+    });
+    expect(arg.newValues).toMatchObject({ status: 'failed', matched_rows: 3 });
+    expect(arg.newValues).not.toHaveProperty('import_summary');
+    expect(arg.newValues).not.toHaveProperty('created_rows');
+    expect(calls).toEqual(['write:bank_statement_imports.update', 'audit']);
+  });
+
+  it('falls back to a short id when the row has no file name', async () => {
+    results['bank_statement_imports.update'] = { data: [{ file_name: null }] };
+    await updateImportStatus({ import_id: uid(5), status: 'processing' });
+    expect(logAudit).toHaveBeenCalledTimes(1);
+    expect(logAudit.mock.calls[0][0].entityDisplay).toBe(`Import ${uid(5).slice(0, 8)}`);
+  });
+
+  it('current behaviour: zero matched rows with no error still succeeds and writes one entry with the fallback display', async () => {
+    results['bank_statement_imports.update'] = { data: [] };
+    await expect(updateImportStatus({ import_id: uid(5), status: 'processing' })).resolves.toEqual({ error: null });
+    expect(logAudit).toHaveBeenCalledTimes(1);
+    expect(logAudit.mock.calls[0][0].entityDisplay).toBe(`Import ${uid(5).slice(0, 8)}`);
+  });
+
+  it.each(['completed', 'failed'] as const)('includes a completed_at ISO timestamp for terminal status %s', async (status) => {
+    await updateImportStatus({ import_id: uid(5), status });
+    const { newValues } = logAudit.mock.calls[0][0];
+    expect(typeof newValues.completed_at).toBe('string');
+    expect(new Date(newValues.completed_at).toISOString()).toBe(newValues.completed_at);
+  });
+
+  it('omits completed_at for a non-terminal status', async () => {
+    await updateImportStatus({ import_id: uid(5), status: 'processing' });
+    expect(logAudit.mock.calls[0][0].newValues).not.toHaveProperty('completed_at');
+  });
+
+  it('does not audit and keeps the error when the update fails', async () => {
+    results['bank_statement_imports.update'] = { error: boom };
+    await expect(updateImportStatus({ import_id: uid(5), status: 'failed' })).resolves.toEqual({ error: 'boom' });
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('does not audit when unauthorized', async () => {
+    authorizePermission.mockResolvedValue({ authorized: false, error: 'Forbidden' });
+    await expect(updateImportStatus({ import_id: uid(5), status: 'failed' })).resolves.toEqual({ error: 'Forbidden' });
+    expect(logAudit).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
+  });
 });
