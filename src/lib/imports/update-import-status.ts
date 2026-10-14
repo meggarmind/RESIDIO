@@ -5,7 +5,8 @@
  * guarded only by IMPORTS_CREATE that accepted any status, so a creator could jump an import
  * straight to 'awaiting_approval' or 'completed' and skip the maker-checker flow. It is now
  * internal. Callers are server actions that have already passed their own authorizePermission()
- * guard (processImport: IMPORTS_REVIEW) and audit the event themselves. See #556 item 5.
+ * guard (processImport: IMPORTS_REVIEW). The helper audits each successful status change itself
+ * (UPDATE); a caller's own entry (processImport's GENERATE) is a separate event. See #556 item 5.
  *
  * Only the transitions this helper is actually used for are allowed. Other lifecycle steps
  * (pending -> processing, processing -> awaiting_approval, awaiting_approval -> approved/rejected)
@@ -13,6 +14,7 @@
  */
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { logAudit } from '@/lib/audit/logger';
 import type { BankStatementImport, ImportStatus } from '@/types/database';
 
 export const IMPORT_STATUS_TRANSITIONS: Readonly<Record<ImportStatus, readonly ImportStatus[]>> = {
@@ -79,7 +81,7 @@ export async function updateImportStatus(params: UpdateImportStatusParams): Prom
     .update(updateData)
     .eq('id', import_id)
     .eq('status', from)
-    .select('id');
+    .select('id, file_name');
 
   if (error) {
     return { error: error.message };
@@ -87,6 +89,18 @@ export async function updateImportStatus(params: UpdateImportStatusParams): Prom
   if (!updated || updated.length === 0) {
     return { error: 'Import status changed concurrently, no update applied' };
   }
+
+  // import_summary is left out of the audit entry: it can be large
+  const auditValues = { ...updateData };
+  delete auditValues.import_summary;
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'bank_statement_imports',
+    entityId: import_id,
+    entityDisplay: updated[0]?.file_name || `Import ${import_id.slice(0, 8)}`,
+    newValues: auditValues,
+    description: `Import status set to ${status}`,
+  });
 
   return { error: null };
 }

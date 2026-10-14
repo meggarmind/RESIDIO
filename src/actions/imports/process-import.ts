@@ -261,15 +261,6 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 
     if (emptyRun.error) {
       console.error('processImport: failed to mark empty import completed', import_id, emptyRun.error);
-    } else {
-      await logAudit({
-        action: 'GENERATE',
-        entityType: 'bank_statement_imports',
-        entityId: import_id,
-        entityDisplay: `Import: ${importData.file_name}`,
-        oldValues: { status: importData.status },
-        newValues: { status: 'completed', created_payments: 0, skipped_rows: importData.total_rows },
-      });
     }
 
     return {

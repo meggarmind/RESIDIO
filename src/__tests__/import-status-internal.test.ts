@@ -123,7 +123,7 @@ describe('updateImportStatus transition table (#556)', () => {
       results['bank_statement_imports.select'] = { data: { status: from } };
       const res = await updateImportStatus({ import_id: uid(1), status: to });
       expect(res.error).toBeNull();
-      expect(calls).toEqual(['write:bank_statement_imports.update']);
+      expect(calls).toEqual(['write:bank_statement_imports.update', 'audit']);
     });
   }
 
@@ -184,7 +184,7 @@ describe('updateImportStatus concurrency guard (#556)', () => {
     expect(res.error).toBeNull();
     expect(eqs).toContainEqual(['id', uid(1)]);
     expect(eqs).toContainEqual(['status', 'processing']);
-    expect(selectsAfterUpdate).toEqual(['id']);
+    expect(selectsAfterUpdate).toEqual(['id, file_name']);
   });
 
   it('returns an error when zero rows were updated (lost race)', async () => {

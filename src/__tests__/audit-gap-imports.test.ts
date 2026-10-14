@@ -7,7 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeRecordingSupabase, expectUuidEntityId, uid, type QueryResult } from '@/__tests__/helpers/recording-supabase';
 import { submitForApproval } from '@/actions/imports/process-import';
 import { matchImportRows } from '@/actions/imports/match-residents';
-import { createImportRows, updateImportStatus } from '@/actions/imports/create-import';
+import { createImportRows } from '@/actions/imports/create-import';
+import { updateImportStatus } from '@/lib/imports/update-import-status';
 
 const { authorizePermission, createServerSupabaseClient, logAudit, fetchAllRows, checkDuplicate, calls, results } =
   vi.hoisted(() => ({
@@ -170,7 +171,8 @@ describe('createImportRows audit (#556)', () => {
 
 describe('updateImportStatus audit (#541)', () => {
   beforeEach(() => {
-    results['bank_statement_imports.update'] = { data: [{ file_name: 'jan.csv' }] };
+    results['bank_statement_imports.select'] = { data: { status: 'processing' } };
+    results['bank_statement_imports.update'] = { data: [{ id: uid(5), file_name: 'jan.csv' }] };
   });
 
   it('writes ONE entry after the update, with only the supplied fields', async () => {
@@ -198,30 +200,34 @@ describe('updateImportStatus audit (#541)', () => {
   });
 
   it('falls back to a short id when the row has no file name', async () => {
-    results['bank_statement_imports.update'] = { data: [{ file_name: null }] };
-    await updateImportStatus({ import_id: uid(5), status: 'processing' });
+    results['bank_statement_imports.update'] = { data: [{ id: uid(5), file_name: null }] };
+    await updateImportStatus({ import_id: uid(5), status: 'completed' });
     expect(logAudit).toHaveBeenCalledTimes(1);
     expect(logAudit.mock.calls[0][0].entityDisplay).toBe(`Import ${uid(5).slice(0, 8)}`);
   });
 
-  it('current behaviour: zero matched rows with no error still succeeds and writes one entry with the fallback display', async () => {
+  it('zero matched rows (lost race) is an error, writes no audit entry', async () => {
     results['bank_statement_imports.update'] = { data: [] };
-    await expect(updateImportStatus({ import_id: uid(5), status: 'processing' })).resolves.toEqual({ error: null });
-    expect(logAudit).toHaveBeenCalledTimes(1);
-    expect(logAudit.mock.calls[0][0].entityDisplay).toBe(`Import ${uid(5).slice(0, 8)}`);
+    const res = await updateImportStatus({ import_id: uid(5), status: 'completed' });
+    expect(res.error).toMatch(/changed concurrently/);
+    expect(logAudit).not.toHaveBeenCalled();
   });
 
-  it.each(['completed', 'failed'] as const)('includes a completed_at ISO timestamp for terminal status %s', async (status) => {
+  it.each([
+    ['processing', 'completed'],
+    ['processing', 'failed'],
+    ['awaiting_approval', 'completed'],
+    ['approved', 'failed'],
+  ] as const)('includes a completed_at ISO timestamp for %s -> %s', async (from, status) => {
+    results['bank_statement_imports.select'] = { data: { status: from } };
     await updateImportStatus({ import_id: uid(5), status });
     const { newValues } = logAudit.mock.calls[0][0];
     expect(typeof newValues.completed_at).toBe('string');
     expect(new Date(newValues.completed_at).toISOString()).toBe(newValues.completed_at);
   });
 
-  it('omits completed_at for a non-terminal status', async () => {
-    await updateImportStatus({ import_id: uid(5), status: 'processing' });
-    expect(logAudit.mock.calls[0][0].newValues).not.toHaveProperty('completed_at');
-  });
+  // The old 'omits completed_at for a non-terminal status' case is dropped: every transition the
+  // lib allows now ends in completed or failed, so no non-terminal target exists to test.
 
   it('does not audit and keeps the error when the update fails', async () => {
     results['bank_statement_imports.update'] = { error: boom };
@@ -229,9 +235,9 @@ describe('updateImportStatus audit (#541)', () => {
     expect(logAudit).not.toHaveBeenCalled();
   });
 
-  it('does not audit when unauthorized', async () => {
-    authorizePermission.mockResolvedValue({ authorized: false, error: 'Forbidden' });
-    await expect(updateImportStatus({ import_id: uid(5), status: 'failed' })).resolves.toEqual({ error: 'Forbidden' });
+  it('does not audit when the transition is rejected', async () => {
+    const res = await updateImportStatus({ import_id: uid(5), status: 'awaiting_approval' });
+    expect(res.error).toMatch(/Invalid import status transition/);
     expect(logAudit).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
   });
