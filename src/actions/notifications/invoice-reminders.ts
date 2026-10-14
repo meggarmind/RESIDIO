@@ -186,17 +186,24 @@ export async function processInvoiceReminders(): Promise<ProcessRemindersResult>
   }
 
   // Update last run timestamp
-  await updateSetting('invoice_reminder_last_run', new Date().toISOString());
+  const { data: lastRunSetting } = await updateSetting('invoice_reminder_last_run', new Date().toISOString());
 
-  // Audit log
-  await logAudit({
-    action: 'GENERATE',
-    entityType: 'system_settings',
-    entityId: 'invoice_reminders',
-    entityDisplay: 'Invoice Reminder Batch',
-    description: `Processed ${result.processed} invoices, sent ${result.sent.email} emails, ${result.sent.sms} SMS`,
-    metadata: JSON.parse(JSON.stringify(result)),
-  });
+  // Audit log. audit_logs.entity_id is a uuid: use the system_settings row id that
+  // was just written; the label stays in entityDisplay/metadata (#594).
+  if (lastRunSetting?.id) {
+    await logAudit({
+      action: 'GENERATE',
+      entityType: 'system_settings',
+      entityId: lastRunSetting.id,
+      entityDisplay: 'Invoice Reminder Batch',
+      description: `Processed ${result.processed} invoices, sent ${result.sent.email} emails, ${result.sent.sms} SMS`,
+      metadata: {
+        batch: 'invoice_reminders',
+        setting_key: 'invoice_reminder_last_run',
+        ...JSON.parse(JSON.stringify(result)),
+      },
+    });
+  }
 
   return result;
 }

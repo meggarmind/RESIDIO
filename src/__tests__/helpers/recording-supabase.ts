@@ -37,7 +37,7 @@ export function makeRecordingSupabase(opts: {
           return chain;
         };
       }
-      for (const m of ['eq', 'in', 'or', 'order', 'limit', 'range', 'neq', 'is', 'gte', 'lte']) {
+      for (const m of ['eq', 'in', 'or', 'order', 'limit', 'range', 'neq', 'is', 'gte', 'lte', 'gt', 'lt', 'not']) {
         chain[m] = () => chain;
       }
       chain.single = async () => settle();
