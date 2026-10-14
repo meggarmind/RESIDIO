@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import type { NoteVersion, EntityNoteWithRelations } from '@/types/database';
+import { logAudit } from '@/lib/audit/logger';
 import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 
 type GetNoteHistoryResponse = {
@@ -236,6 +237,7 @@ export async function restoreNoteVersion(
   const currentNote = currentVersions?.[0];
   const nextVersion = (currentNote?.version || 1) + 1;
 
+  // NOTE (#556): not atomic
   // Mark current version as not current
   if (currentNote) {
     await supabase
@@ -281,6 +283,15 @@ export async function restoreNoteVersion(
     console.error('Error restoring note version:', insertError);
     return { data: null, error: 'Failed to restore note version' };
   }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'entity_notes',
+    entityId: restoredNote.id,
+    entityDisplay: `Restored note version ${versionToRestore}${versionData.title ? `: ${versionData.title}` : ''}`,
+    oldValues: { current_version: currentNote?.version ?? null },
+    newValues: { restored_from_version: versionToRestore, new_version: nextVersion, root_note_id: rootNoteId },
+  });
 
   return { data: restoredNote as EntityNoteWithRelations, error: null };
 }
