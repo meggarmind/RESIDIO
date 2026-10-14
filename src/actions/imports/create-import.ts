@@ -360,14 +360,27 @@ export async function updateImportStatus(params: UpdateImportStatusParams): Prom
     updateData.completed_at = new Date().toISOString();
   }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('bank_statement_imports')
     .update(updateData)
-    .eq('id', import_id);
+    .eq('id', import_id)
+    .select('file_name');
 
   if (error) {
     return { error: error.message };
   }
+
+  // import_summary is left out of the audit entry: it can be large
+  const auditValues = { ...updateData };
+  delete auditValues.import_summary;
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'bank_statement_imports',
+    entityId: import_id,
+    entityDisplay: updated?.[0]?.file_name || `Import ${import_id.slice(0, 8)}`,
+    newValues: auditValues,
+    description: `Import status set to ${status}`,
+  });
 
   return { error: null };
 }
