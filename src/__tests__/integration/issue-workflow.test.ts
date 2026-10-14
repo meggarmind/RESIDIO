@@ -134,7 +134,7 @@ describe('run output buffering', () => {
   it('keeps stderr and the stdout tail when a command fails with huge stdout', () => {
     // stderr text is built at runtime so it never appears in the command line,
     // which the error message embeds.
-    const script = `process.stdout.write('a'.repeat(${2 * MIB}) + 'TAILEND'); process.stderr.write(['REAL', 'ERR'].join('')); process.exit(1)`;
+    const script = `process.stdout.write('a'.repeat(${2 * MIB}) + 'TAILEND'); process.stderr.write(['REAL', 'ERR'].join('')); process.exitCode = 1`;
     let message = '';
     try {
       run('node', ['-e', script], process.cwd());
