@@ -9,6 +9,7 @@ import { AppRoleName } from '@/types/database';
 import { getServerSession } from '@/actions/auth/get-server-session';
 import { clearAdminReadCache } from '@/lib/offline/admin-read-cache';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { resolveAccess, toAccessClient } from '@/lib/auth/access';
 import {
   canSeeImpersonationLink as canSeeImpersonationLinkRule,
   canSeeSelfPortalLinks as canSeeSelfPortalLinksRule,
@@ -17,8 +18,8 @@ import {
 import { fetchPortalAccessOverride, fetchResidentPortalEnabled } from '@/lib/auth/portal-visibility-fetch';
 
 // Profile as the app sees it. The legacy `role` column is gone (#193):
-// every role and permission decision reads role_id -> app_roles ->
-// role_permissions, surfaced here as role_name/role_display_name/permissions.
+// every role and permission decision reads role_id -> the Access module
+// (get_my_access RPC, #536), surfaced here as role_name/role_display_name/permissions.
 interface Profile {
   id: string;
   email: string;
@@ -336,7 +337,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!profileData) return;
 
     // Fetch role details and permissions
-    let appRole: { id: string; name: string; display_name: string } | null = null;
+    let roleName: string | null = null;
+    let roleDisplayName: string | null = null;
     let permissions: string[] = [];
     // Gates whether this profile snapshot is safe to write to the 5-minute
     // session cache. Deliberately explicit rather than inferred from
@@ -358,34 +360,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (effectiveRoleId) {
       console.log('[AuthProvider] Fetching role/permissions for:', effectiveRoleId);
-      // Run both queries in parallel since they only depend on role_id
+      // The Access module (#534/#536) resolves role and permissions in one
+      // RPC; the display name is not in that RPC, so it is looked up in
+      // parallel. Both race the same 15s timeout.
       try {
-        const [roleResult, permissionsResult] = await Promise.race([
+        const [access, displayResult] = await Promise.race([
           Promise.all([
-            // Fetch role details
+            resolveAccess(toAccessClient(supabase), { userId }),
             supabase
               .from('app_roles')
-              .select('id, name, display_name')
+              .select('display_name')
               .eq('id', effectiveRoleId)
-              .single(),
-            // Fetch permissions with nested select (combines 2 queries into 1)
-            supabase
-              .from('role_permissions')
-              .select('permission:app_permissions!inner(name)')
-              .eq('role_id', effectiveRoleId),
+              .maybeSingle(),
           ]),
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error('RBAC fetch timeout')), 15000))
         ]);
 
-        appRole = roleResult.data;
-        // Extract permission names from nested result
-        permissions = (permissionsResult.data ?? [])
-          .map((rp) => {
-            // Supabase types the to-one embed as an array; normalize for both shapes
-            const perm = Array.isArray(rp.permission) ? rp.permission[0] : rp.permission;
-            return perm?.name;
-          })
-          .filter((name): name is string => name != null);
+        if (access.status === 'resolved') {
+          permissions = access.permissions;
+          roleName = access.roleName;
+          if (displayResult.error) {
+            // Cosmetic only: the permissions are good, so this is not unsafe.
+            console.error('[AuthProvider] Role display name lookup failed:', displayResult.error);
+          } else {
+            roleDisplayName = displayResult.data?.display_name || null;
+          }
+        } else if (access.status === 'lookup-failed') {
+          console.error('[AuthProvider] RBAC fetch failed:', access.error);
+          toastReason = 'rbac';
+          cacheUnsafe = true;
+        }
+        // 'no-access' is a legitimate state: empty permissions, cached normally.
       } catch (err) {
         console.error('[AuthProvider] RBAC fetch failed or timed out:', err);
         toastReason = 'rbac';
@@ -398,8 +403,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: profileData.email,
       full_name: profileData.full_name,
       role_id: profileData.role_id,
-      role_name: appRole?.name as AppRoleName | null,
-      role_display_name: appRole?.display_name || null,
+      role_name: roleName as AppRoleName | null,
+      role_display_name: roleDisplayName,
       permissions,
       resident_id: profileData.resident_id,
     };
