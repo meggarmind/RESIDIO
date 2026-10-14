@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { supabaseConfig } from '@/lib/supabase/config';
 import { ROUTE_PERMISSIONS, Permission, extractRole, isAdminRole } from '@/lib/auth/action-roles';
+import { resolveAccess, toAccessClient } from '@/lib/auth/access';
 import { getPublicOrigin } from '@/lib/http/public-origin';
 import { TWO_FACTOR_COOKIE, getSessionIdFromAccessToken, verifyTwoFactorMarker } from '@/lib/auth/two-factor-marker';
 import type { ProfileApprovalStatus } from '@/types/database';
@@ -288,19 +289,11 @@ export async function middleware(request: NextRequest) {
                 return NextResponse.redirect(redirectUrl);
             }
 
-            const { data: rolePerms } = await supabase
-                .from('role_permissions')
-                .select(`
-          permission:app_permissions!inner(name)
-        `)
-                .eq('role_id', profile.role_id);
-
-            const userPermissions = (rolePerms ?? [])
-                .map((rp) => {
-                    const perm = Array.isArray(rp.permission) ? rp.permission[0] : rp.permission;
-                    return perm?.name;
-                })
-                .filter((name): name is string => name != null);
+            const access = await resolveAccess(toAccessClient(supabase), { userId: user.id });
+            if (access.status === 'lookup-failed') {
+                console.error('[middleware] access lookup failed', { userId: user.id, error: access.error });
+            }
+            const userPermissions = access.status === 'resolved' ? access.permissions : [];
 
             const hasPermission = requiredPermissions.some(p => userPermissions.includes(p));
 
