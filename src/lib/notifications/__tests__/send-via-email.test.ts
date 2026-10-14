@@ -115,7 +115,7 @@ describe('sendViaEmail (through sendNotification)', () => {
       replyTo: 'reply@test.example',
       subject: 'Subject line',
       text: 'Plain body',
-    });
+    }, { idempotencyKey: 'queue-email:1' });
     expect(Object.keys(mocks.send.mock.calls[0][0])).not.toContain('html');
   });
 
@@ -151,11 +151,13 @@ describe('sendViaEmail (through sendNotification)', () => {
     expect(await sendNotification(buildEmailItem())).toEqual({
       success: false,
       error: 'network down',
+      retryable: true,
     });
     mocks.send.mockRejectedValueOnce('boom');
     expect(await sendNotification(buildEmailItem())).toEqual({
       success: false,
       error: 'Unknown error sending email',
+      retryable: true,
     });
   });
 
@@ -165,7 +167,7 @@ describe('sendViaEmail (through sendNotification)', () => {
       return null;
     });
     const result = await sendNotification(buildEmailItem());
-    expect(result).toEqual({ success: false, error: 'settings down' });
+    expect(result).toEqual({ success: false, error: 'settings down', retryable: true });
     expect(mocks.send).not.toHaveBeenCalled();
   });
 });

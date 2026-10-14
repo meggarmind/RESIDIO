@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { canPerformWhatsAppFinancialLookup, composeStatementAnswer, handleFinancialMessage } from '@/lib/whatsapp/financial';
 import type {
   FinancialAnswer,
@@ -8,6 +8,15 @@ import type {
 import type { WhatsAppInboundMessage } from '@/lib/whatsapp/types';
 import type { WhatsAppResidentIdentity } from '@/lib/whatsapp/identity';
 import { getSettingResultAsService } from '@/lib/settings/service';
+import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
+
+vi.mock('@/lib/whatsapp/master-switch', () => ({
+  isWhatsAppMasterSwitchOn: vi.fn(),
+}));
+
+beforeEach(() => {
+  vi.mocked(isWhatsAppMasterSwitchOn).mockResolvedValue({ on: true });
+});
 
 vi.mock('@/lib/whatsapp/rollout', () => ({
   isWhatsAppRecipientAllowed: vi.fn().mockResolvedValue(true),
@@ -255,5 +264,20 @@ describe('WhatsApp financial lookup cap', () => {
     vi.mocked(getSettingResultAsService).mockResolvedValue({ status: 'error', message: 'connection reset' });
 
     expect(await canPerformWhatsAppFinancialLookup()).toBe(false);
+  });
+});
+
+describe('WhatsApp financial master switch (#547)', () => {
+  it.each(['absent', 'error', 'disabled'] as const)('sends nothing, changes nothing, logs no disclosure when off (%s)', async (reason) => {
+    vi.mocked(isWhatsAppMasterSwitchOn).mockResolvedValue({ on: false, reason });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const repo = repository();
+    const send = vi.fn().mockResolvedValue({ success: true });
+
+    await handleFinancialMessage(message('PIN 1234'), identity, { repository: repo, optedIn: true, send });
+
+    expect(send).not.toHaveBeenCalled();
+    expect(repo.logDisclosure).not.toHaveBeenCalled();
+    for (const fn of Object.values(repo)) expect(fn).not.toHaveBeenCalled();
   });
 });
