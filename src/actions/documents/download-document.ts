@@ -1,6 +1,8 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authorizePermission } from '@/lib/auth/authorize';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 type DownloadUrlResponse = {
   url: string | null;
@@ -14,6 +16,11 @@ type DownloadUrlResponse = {
 export async function getDocumentDownloadUrl(
   documentId: string
 ): Promise<DownloadUrlResponse> {
+  const auth = await authorizePermission(PERMISSIONS.DOCUMENTS_VIEW);
+  if (!auth.authorized) {
+    return { url: null, error: auth.error || 'Unauthorized' };
+  }
+
   const supabase = await createServerSupabaseClient();
 
   // Get current user
@@ -62,6 +69,11 @@ export async function getDocumentDownloadUrl(
 export async function getDocumentViewUrl(
   documentId: string
 ): Promise<DownloadUrlResponse> {
+  const auth = await authorizePermission(PERMISSIONS.DOCUMENTS_VIEW);
+  if (!auth.authorized) {
+    return { url: null, error: auth.error || 'Unauthorized' };
+  }
+
   const supabase = await createServerSupabaseClient();
 
   // Get current user
@@ -109,6 +121,13 @@ export async function getDocumentDownloadUrls(
 ): Promise<{ urls: Record<string, string>; errors: Record<string, string> }> {
   const urls: Record<string, string> = {};
   const errors: Record<string, string> = {};
+
+  const auth = await authorizePermission(PERMISSIONS.DOCUMENTS_VIEW);
+  if (!auth.authorized) {
+    const message = auth.error || 'Unauthorized';
+    for (const id of documentIds) errors[id] = message;
+    return { urls, errors };
+  }
 
   await Promise.all(
     documentIds.map(async (id) => {
