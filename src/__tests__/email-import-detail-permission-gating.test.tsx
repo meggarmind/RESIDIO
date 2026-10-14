@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@testing-library/jest-dom/vitest';
 
@@ -37,6 +37,30 @@ vi.mock('@/actions/residents/get-residents', () => ({
 vi.mock('@/contexts/visual-theme-context', () => ({
   useVisualTheme: () => ({ themeId: 'default' }),
 }));
+// Radix unmounts closed dialog content, which hides stale state. Render the
+// content always, with data-open, and let a button drive onOpenChange(false)
+// (what Escape / outside-click do), so close handling is observable.
+vi.mock('@/components/ui/dialog', () => ({
+  Dialog: ({
+    open,
+    onOpenChange,
+    children,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    children: React.ReactNode;
+  }) => (
+    <div data-testid="dialog" data-open={String(open)}>
+      {children}
+      <button aria-label="mock-escape" onClick={() => onOpenChange(false)} />
+    </div>
+  ),
+  DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
+  DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
+}));
 vi.mock('@/hooks/use-gmail-connection', () => ({
   useGmailConnectionStatus: () => ({ data: undefined, isLoading: false }),
 }));
@@ -66,24 +90,30 @@ const QUEUED_TX = {
   transaction_type: 'credit',
   transaction_date: '2026-10-01',
   match_confidence: 'low',
-  matched_resident_id: null,
+  matched_resident_id: 'res-1',
   residents: null,
 };
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  // A fresh element each time, so React does not bail out of the re-render.
+  const tree = () => (
     <QueryClientProvider client={client}>
       <EmailImportDetailPage />
     </QueryClientProvider>
   );
+  const result = render(tree());
+  return { ...result, rerenderPage: () => result.rerender(tree()) };
 }
 
 beforeEach(() => {
   mocks.permissions = [];
   mocks.getEmailImport.mockResolvedValue({ data: IMPORT_ROW, error: null });
   mocks.getReviewQueue.mockResolvedValue({ data: [QUEUED_TX], count: 1, error: null });
-  mocks.getActiveResidents.mockResolvedValue({ data: [], error: null });
+  mocks.getActiveResidents.mockResolvedValue({
+    data: [{ id: 'res-1', first_name: 'Ada', last_name: 'Obi', resident_code: 'R-001' }],
+    error: null,
+  });
 });
 afterEach(() => cleanup());
 
@@ -103,6 +133,106 @@ describe('Email import detail permission gating (issue #564)', () => {
 
     expect(await screen.findByRole('button', { name: 'Process transaction' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Skip transaction' })).toBeInTheDocument();
+  });
+});
+
+describe('Email import detail dialogs (issue #564)', () => {
+  // Only email_imports.process: the dialog submits must key off that permission
+  // itself, not off the route's view permission.
+  const PROCESS_ONLY = [PERMISSIONS.EMAIL_IMPORTS_PROCESS];
+  const dialogs = () => screen.getAllByTestId('dialog');
+
+  async function openProcessDialog() {
+    fireEvent.click(await screen.findByRole('button', { name: 'Process transaction' }));
+    await waitFor(() => expect(dialogs()[0]).toHaveAttribute('data-open', 'true'));
+  }
+  async function openSkipDialog() {
+    fireEvent.click(await screen.findByRole('button', { name: 'Skip transaction' }));
+    await waitFor(() => expect(dialogs()[1]).toHaveAttribute('data-open', 'true'));
+    fireEvent.change(screen.getByPlaceholderText(/Duplicate, Not a payment/), {
+      target: { value: 'duplicate' },
+    });
+  }
+
+  it('enables the Process submit for a holder of email_imports.process, disables it once revoked', async () => {
+    mocks.permissions = PROCESS_ONLY;
+    const { rerenderPage } = renderPage();
+    await openProcessDialog();
+
+    expect(screen.getByRole('button', { name: 'Create Payment' })).toBeEnabled();
+
+    mocks.permissions = [];
+    rerenderPage();
+    expect(screen.getByRole('button', { name: 'Create Payment' })).toBeDisabled();
+  });
+
+  it('enables the Skip submit for a holder of email_imports.process, disables it once revoked', async () => {
+    mocks.permissions = PROCESS_ONLY;
+    const { rerenderPage } = renderPage();
+    await openSkipDialog();
+
+    expect(screen.getByRole('button', { name: 'Skip Transaction' })).toBeEnabled();
+
+    mocks.permissions = [];
+    rerenderPage();
+    expect(screen.getByRole('button', { name: 'Skip Transaction' })).toBeDisabled();
+  });
+
+  it('clears the Process dialog state when it is closed by Escape / outside click', async () => {
+    mocks.permissions = PROCESS_ONLY;
+    renderPage();
+    await openProcessDialog();
+
+    const process = within(dialogs()[0]);
+    fireEvent.change(process.getByPlaceholderText(/Add notes about this transaction/), {
+      target: { value: 'some notes' },
+    });
+    expect(process.getByText('NIP TRANSFER FROM JOHN DOE')).toBeInTheDocument();
+
+    fireEvent.click(process.getByLabelText('mock-escape'));
+
+    await waitFor(() => expect(dialogs()[0]).toHaveAttribute('data-open', 'false'));
+    expect(process.getByPlaceholderText(/Add notes about this transaction/)).toHaveValue('');
+    expect(process.queryByText('NIP TRANSFER FROM JOHN DOE')).not.toBeInTheDocument();
+    expect(process.getByRole('button', { name: 'Create Payment' })).toBeDisabled();
+  });
+
+  it('clears the Skip dialog state when it is closed by Escape / outside click', async () => {
+    mocks.permissions = PROCESS_ONLY;
+    renderPage();
+    await openSkipDialog();
+
+    const skip = within(dialogs()[1]);
+    expect(skip.getByText('NIP TRANSFER FROM JOHN DOE')).toBeInTheDocument();
+
+    fireEvent.click(skip.getByLabelText('mock-escape'));
+
+    await waitFor(() => expect(dialogs()[1]).toHaveAttribute('data-open', 'false'));
+    expect(skip.getByPlaceholderText(/Duplicate, Not a payment/)).toHaveValue('');
+    expect(skip.queryByText('NIP TRANSFER FROM JOHN DOE')).not.toBeInTheDocument();
+  });
+
+  it('disables the resident select and shows an alert when residents fail to load', async () => {
+    mocks.permissions = PROCESS_ONLY;
+    mocks.getActiveResidents.mockResolvedValue({ data: null, error: 'residents down' });
+    renderPage();
+    await openProcessDialog();
+
+    expect(await screen.findByText(/Failed to load residents: residents down/)).toHaveAttribute(
+      'role',
+      'alert'
+    );
+    expect(within(dialogs()[0]).getByRole('combobox')).toBeDisabled();
+  });
+
+  it('leaves the resident select enabled when residents load', async () => {
+    mocks.permissions = PROCESS_ONLY;
+    renderPage();
+    await openProcessDialog();
+
+    await waitFor(() => expect(mocks.getActiveResidents).toHaveBeenCalled());
+    expect(screen.queryByText(/Failed to load residents/)).not.toBeInTheDocument();
+    expect(within(dialogs()[0]).getByRole('combobox')).toBeEnabled();
   });
 });
 
@@ -134,10 +264,16 @@ describe('Email import detail error states (issue #564)', () => {
 
   it('does not render a bare 0 when there are no transactions', async () => {
     mocks.getReviewQueue.mockResolvedValue({ data: [], count: 0, error: null });
-    renderPage();
+    const { container } = renderPage();
 
     expect(await screen.findByText('No transactions found in this status')).toBeInTheDocument();
     expect(screen.queryByText(/Rows per page/)).not.toBeInTheDocument();
+    // `count && ...` with count 0 leaks a bare "0" text node into the page root.
+    const root = container.firstElementChild as HTMLElement;
+    const strayText = Array.from(root.childNodes)
+      .filter((n) => n.nodeType === Node.TEXT_NODE)
+      .map((n) => n.textContent?.trim());
+    expect(strayText).not.toContain('0');
   });
 });
 

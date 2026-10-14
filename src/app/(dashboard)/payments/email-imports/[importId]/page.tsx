@@ -567,28 +567,28 @@ export default function EmailImportDetailPage() {
                     <TableCell className="text-right">
                       {['queued_for_review', 'pending', 'matched'].includes(tx.status) && (
                         <Can permission={PERMISSIONS.EMAIL_IMPORTS_PROCESS}>
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 text-green-600"
-                            onClick={() => handleOpenProcessDialog(tx)}
-                            title="Process"
-                            aria-label="Process transaction"
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 text-red-600"
-                            onClick={() => handleOpenSkipDialog(tx)}
-                            title="Skip"
-                            aria-label="Skip transaction"
-                          >
-                            <Ban className="h-4 w-4" />
-                          </Button>
-                        </div>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 text-green-600"
+                              onClick={() => handleOpenProcessDialog(tx)}
+                              title="Process"
+                              aria-label="Process transaction"
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 text-red-600"
+                              onClick={() => handleOpenSkipDialog(tx)}
+                              title="Skip"
+                              aria-label="Skip transaction"
+                            >
+                              <Ban className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </Can>
                       )}
                     </TableCell>
