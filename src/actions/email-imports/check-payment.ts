@@ -1,8 +1,8 @@
 'use server';
 
 import { fetchNewEmails } from './fetch-emails';
-import { parseAllPendingEmails } from './parse-email';
-import { matchEmailTransactions } from './process-email-import';
+import { parseAllPendingEmails } from '@/lib/email-imports/parse-email';
+import { matchEmailTransactions } from '@/lib/email-imports/process-email-matching';
 import { logAudit } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';

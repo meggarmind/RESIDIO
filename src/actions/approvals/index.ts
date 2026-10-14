@@ -7,9 +7,7 @@ import type {
   ApprovalRequestWithDetails,
   ApprovalStatus,
   ApprovalRequestType,
-  ApprovalEntityType,
 } from '@/types/database';
-import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -299,8 +297,8 @@ export async function rejectRequest(
     return { success: false, error: 'Request has already been processed' };
   }
 
-  // Update the request status
-  const { error: updateError } = await supabase
+  // Update the request status, guarded on pending so a racing approve is never overwritten
+  const { data: updated, error: updateError } = await supabase
     .from('approval_requests')
     .update({
       status: 'rejected',
@@ -309,10 +307,18 @@ export async function rejectRequest(
       review_notes: notes || null,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', requestId);
+    .eq('id', requestId)
+    .eq('status', 'pending')
+    .select('id')
+    .maybeSingle();
 
   if (updateError) {
     return { success: false, error: updateError.message };
+  }
+
+  // No row back: another approver claimed or rejected it between our read and this write
+  if (!updated) {
+    return { success: false, error: 'Request has already been processed' };
   }
 
   await logAudit({
@@ -369,72 +375,6 @@ async function applyRequestedChanges(request: ApprovalRequest): Promise<Approval
   }
 
   return { success: true, error: null };
-}
-
-// Create an approval request (called internally by other actions)
-export async function createApprovalRequest(params: {
-  request_type: ApprovalRequestType;
-  entity_type: ApprovalEntityType;
-  entity_id: string;
-  requested_changes: Record<string, unknown>;
-  current_values: Record<string, unknown>;
-  reason?: string;
-}): Promise<{ success: boolean; request_id?: string; error: string | null }> {
-  const supabase = await createServerSupabaseClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, error: 'Unauthorized' };
-  }
-
-  // Check for existing pending request for the same entity
-  const { data: existing } = await supabase
-    .from('approval_requests')
-    .select('id')
-    .eq('entity_type', params.entity_type)
-    .eq('entity_id', params.entity_id)
-    .eq('request_type', params.request_type)
-    .eq('status', 'pending')
-    .single();
-
-  if (existing) {
-    return {
-      success: false,
-      error: 'A pending approval request already exists for this change',
-    };
-  }
-
-  const { data, error } = await supabase
-    .from('approval_requests')
-    .insert({
-      request_type: params.request_type,
-      entity_type: params.entity_type,
-      entity_id: params.entity_id,
-      requested_changes: params.requested_changes,
-      current_values: params.current_values,
-      reason: params.reason || null,
-      requested_by: user.id,
-    })
-    .select('id')
-    .single();
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  // Notify admins of the new approval request
-  await notifyAdmins({
-    title: 'New Approval Request',
-    body: `A new ${params.request_type.replace(/_/g, ' ')} request has been created and requires review.`,
-    category: 'system',
-    actionUrl: `/approvals?id=${data.id}`,
-    priority: 'normal',
-    requiredPermission: PERMISSIONS.APPROVALS_VIEW,
-  });
-
-  return { success: true, request_id: data.id, error: null };
 }
 
 // Check if user can auto-approve (holds approvals.approve_reject)
