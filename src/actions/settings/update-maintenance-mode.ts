@@ -45,15 +45,17 @@ export async function updateMaintenanceMode(
       }
     }
 
-    // Audit log
-    await logAudit({
-      action: 'UPDATE',
-      entityType: 'system_settings',
-      entityId: 'maintenance_mode',
-      entityDisplay: 'System Maintenance Mode',
-      oldValues: { enabled: !enabled },
-      newValues: { enabled, message: message || null },
-    });
+    // Audit log. audit_logs.entity_id is a uuid: use the settings row id (#594).
+    if (modeResult.data?.id) {
+      await logAudit({
+        action: 'UPDATE',
+        entityType: 'system_settings',
+        entityId: modeResult.data.id,
+        entityDisplay: 'System Maintenance Mode',
+        oldValues: { enabled: !enabled },
+        newValues: { key: 'maintenance_mode', enabled, message: message || null },
+      });
+    }
 
     return { success: true };
   } catch (error) {

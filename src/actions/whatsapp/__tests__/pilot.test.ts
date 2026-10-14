@@ -10,6 +10,7 @@ vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/lib/auth/action-roles', () => ({ PERMISSIONS: { WHATSAPP_MANAGE: 'whatsapp.manage' } }));
 
+const ROW_ID = '55555555-5555-4555-8555-555555555555'; // audit entity_id is a uuid (#594)
 const authorized = { authorized: true, userId: 'admin-1', error: null };
 
 function query(result: { data?: unknown; error?: unknown }) {
@@ -36,12 +37,12 @@ describe('WhatsApp pilot promotion', () => {
 
   it('promotes only an active pilot and records the estate-wide transition', async () => {
     const current = query({ data: { value: 'pilot' }, error: null });
-    const update = query({ data: null, error: null });
+    const update = query({ data: [{ id: ROW_ID }], error: null });
     vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValueOnce(current).mockReturnValueOnce(update) } as never);
 
     await expect(promoteWhatsAppPilotToEstate()).resolves.toEqual({ success: true, error: null });
     expect(update.update).toHaveBeenCalledWith({ value: 'estate' });
-    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'ACTIVATE', oldValues: { whatsapp_rollout_mode: 'pilot' } }));
+    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'ACTIVATE', entityType: 'system_settings', entityId: ROW_ID, oldValues: { whatsapp_rollout_mode: 'pilot' } }));
   });
 
   it('refuses an estate-wide promotion when no pilot is active', async () => {
@@ -72,7 +73,7 @@ describe('updateWhatsAppPilotSettings', () => {
     vi.mocked(authorizePermission).mockResolvedValue(authorized as never);
     vi.mocked(logAudit).mockResolvedValue(undefined);
     chain = Object.assign(query({ data: null, error: null }), {
-      upsert: vi.fn().mockResolvedValue({ error: null }),
+      upsert: vi.fn().mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [{ id: ROW_ID }], error: null }) }),
     });
     vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as never);
   });
@@ -101,7 +102,7 @@ describe('updateWhatsAppPilotSettings', () => {
     expect(byKey.whatsapp_rollout_mode).toBe('pilot');
     expect(byKey.whatsapp_session_retention_days).toBe('1');
     expect(byKey.whatsapp_processed_message_retention_days).toBe('2');
-    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'UPDATE', entityType: 'system_settings' }));
+    expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'UPDATE', entityType: 'system_settings', entityId: ROW_ID }));
   });
 
   it('rejects an unknown mode', async () => {
