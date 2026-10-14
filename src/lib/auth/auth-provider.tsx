@@ -383,7 +383,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Cosmetic only: the permissions are good, so this is not unsafe.
             console.error('[AuthProvider] Role display name lookup failed:', displayResult.error);
           } else {
-            roleDisplayName = displayResult.data?.display_name ?? null;
+            roleDisplayName = displayResult.data?.display_name || null;
           }
         } else if (access.status === 'lookup-failed') {
           console.error('[AuthProvider] RBAC fetch failed:', access.error);

@@ -28,6 +28,7 @@ const PROFILE_ROW = {
 type RpcResult = { data: unknown; error: { message: string } | null };
 
 let supabaseClient: unknown;
+const getUser = vi.fn(async () => ({ data: { user: AUTH_USER } }));
 
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => supabaseClient }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/dashboard' }));
@@ -54,7 +55,7 @@ function makeSupabase({
     auth: {
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
       getSession: async () => ({ data: { session: { user: AUTH_USER } } }),
-      getUser: async () => ({ data: { user: AUTH_USER } }),
+      getUser,
     },
     from: (table: string) => {
       if (table === 'profiles') {
@@ -114,6 +115,7 @@ describe('AuthProvider resolves permissions through the Access module (#536)', (
   beforeEach(() => {
     sessionStorage.clear();
     toastError.mockClear();
+    getUser.mockClear();
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
@@ -129,6 +131,29 @@ describe('AuthProvider resolves permissions through the Access module (#536)', (
     expect(screen.getByTestId('role').textContent).toBe('super_admin');
     expect(cached()?.permissions).toEqual(['residents.view', 'residents.create']);
     expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('passes the known userId to resolveAccess, so permission resolution makes no extra getUser() call', async () => {
+    // On this happy path the provider itself never calls auth.getUser()
+    // (only the getSession-timeout and profiles-error paths do), so any call
+    // here would come from resolveAccess() looking the user up again.
+    mount(makeSupabase({ rpc: async () => rows('residents.view') }));
+
+    await waitFor(() => expect(screen.getByTestId('perms').textContent).toBe('residents.view'));
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
+  it('an empty-string role display name is normalised to null', async () => {
+    mount(
+      makeSupabase({
+        rpc: async () => rows('residents.view'),
+        displayName: { data: { display_name: '' }, error: null },
+      })
+    );
+
+    await waitFor(() => expect(screen.getByTestId('perms').textContent).toBe('residents.view'));
+    expect(screen.getByTestId('display').textContent).toBe('null');
+    expect(cached()?.role_display_name).toBeNull();
   });
 
   it('role display name comes from the app_roles lookup, role name from the Access result', async () => {
