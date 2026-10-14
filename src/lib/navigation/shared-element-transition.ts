@@ -93,14 +93,19 @@ export async function navigateWithSharedElement({
   sourceEl.style.viewTransitionName = name;
   root.dataset[SHARED_TRANSITION_ATTR] = 'true';
 
+  let pushed = false;
   try {
     const transition = start.call(document, () => {
+      pushed = true;
       push(href);
       return waitForPath(href);
     });
     await transition.finished;
   } catch {
-    // An aborted/skipped transition still leaves navigation intact.
+    // An aborted/skipped transition still leaves navigation intact. If the
+    // API threw before running our callback, navigate plainly so the click
+    // is never swallowed.
+    if (!pushed) push(href);
   } finally {
     sourceEl.style.viewTransitionName = '';
     document

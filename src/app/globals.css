@@ -980,7 +980,7 @@
 
 /* Shared-element navigation (View Transitions API, see
    src/lib/navigation/shared-element-transition.ts) */
-::view-transition-group(*) {
+html[data-shared-transition] ::view-transition-group(*) {
   animation-duration: 300ms;
   animation-timing-function: ease-out;
 }
