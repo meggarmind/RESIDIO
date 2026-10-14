@@ -68,6 +68,14 @@ _Avoid_: Matching (when ambiguous with payment matching)
 A recorded consent binding a Resident's channel address to WhatsApp messaging. Captured in-chat during the PIN-link flow and enforceable in the notification engine's outbound path.
 _Avoid_: Subscription (when ambiguous with report subscriptions), consent (vague)
 
+**Send Policy**:
+The ordered checks an outbound WhatsApp message must pass before it reaches a Provider: kill switch, rollout audience, caps, WhatsApp Opt-in and template approval.
+_Avoid_: Guardrail (ADR-0001 uses it for the Assistant's financial limits)
+
+**Send Decision**:
+The result of applying the Send Policy: allow, refuse with a reason, or defer with a reason.
+_Avoid_: Verdict
+
 **Financial Standing**:
 The resident-visible summary of outstanding invoices, last payment, statement, next due, and wallet balance as surfaced by the WhatsApp Assistant's structured menu.
 _Avoid_: Account status, balance (when used alone)
