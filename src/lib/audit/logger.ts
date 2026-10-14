@@ -1,5 +1,6 @@
-import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
-import type { AuditAction, AuditEntityType, AuditLogInsert } from '@/types/database';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import type { AuditAction, AuditEntityType } from '@/types/database';
+import { recordAudit } from './recorder';
 
 // Re-export helper functions for backwards compatibility
 export { getChangedValues, getChangedFields, formatChangeDescription } from './helpers';
@@ -58,36 +59,8 @@ export async function logAudit(options: LogAuditOptions): Promise<void> {
     const supabase = await createServerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-      console.error('[Audit] Cannot log audit: No authenticated user');
-      return;
-    }
-
-    // Use admin client to ensure insert succeeds (RLS allows insert for authenticated users)
-    const adminClient = createAdminClient();
-
-    const auditEntry: AuditLogInsert = {
-      actor_id: user.id,
-      action: options.action,
-      entity_type: options.entityType,
-      entity_id: options.entityId,
-      entity_display: options.entityDisplay || null,
-      old_values: options.oldValues || null,
-      new_values: options.newValues || null,
-      description: options.description || null,
-      metadata: options.metadata || null,
-      ip_address: null, // Could be populated from request headers in future
-      user_agent: null, // Could be populated from request headers in future
-    };
-
-    const { error } = await adminClient
-      .from('audit_logs')
-      .insert(auditEntry);
-
-    if (error) {
-      // Log error but don't throw - audit failures shouldn't break main operations
-      console.error('[Audit] Failed to log audit event:', error.message);
-    }
+    // recordAudit logs the missing-session case and never throws on write failures.
+    await recordAudit(options, { userId: user?.id ?? null });
   } catch (error) {
     // Catch any unexpected errors to ensure audit logging never breaks main operations
     console.error('[Audit] Unexpected error:', error);
