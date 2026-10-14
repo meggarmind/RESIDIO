@@ -11,8 +11,9 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { updateEmailImportStatus, getEmailImport } from './create-email-import';
-import { parseAllPendingEmails } from './parse-email';
-import { matchEmailTransactions, processEmailTransactions } from './process-email-import';
+import { parseAllPendingEmails } from '@/lib/email-imports/parse-email';
+import { processEmailTransactions } from './process-email-import';
+import { matchEmailTransactions } from '@/lib/email-imports/process-email-matching';
 
 // ============================================================
 // Cancel Import

@@ -131,3 +131,11 @@ _Avoid_: Plugin, connector, third-party
 **Provider**:
 The vendor implementing a single Integration — Meta or Twilio for WhatsApp. An Integration may be served by several interchangeable Providers.
 _Avoid_: Integration (when referring to the vendor), vendor, backend
+
+**Role**:
+The named bundle of Permissions a user holds; its only name is `app_roles.name` (ADR-0007).
+_Avoid_: User role (echoes the removed `profiles.role` column)
+
+**Access**:
+The resolved Role and Permissions for the signed-in user, or the fact that they could not be resolved.
+_Avoid_: Authorization (that word names the check, `authorizePermission()`)

@@ -123,3 +123,23 @@ export function extractSenderName(description: string): string | null {
 
     return null;
 }
+
+export interface EmailImportCounts {
+    transactions_extracted?: number | null;
+    transactions_matched?: number | null;
+    transactions_auto_processed?: number | null;
+    transactions_queued?: number | null;
+    transactions_skipped?: number | null;
+    transactions_errored?: number | null;
+}
+
+/**
+ * Imported transactions the matcher could not match to anything. Clamped at 0
+ * because the counters are written at different stages. Manual processing is
+ * not represented in the import-level counters, so it cannot be excluded here.
+ */
+export function getUnmatchedCount(counts: EmailImportCounts): number {
+    const extracted = counts.transactions_extracted ?? 0;
+    const matched = counts.transactions_matched ?? 0;
+    return Math.max(0, extracted - matched);
+}

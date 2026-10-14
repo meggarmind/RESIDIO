@@ -16,7 +16,7 @@
  * behavior remains shared across channels.
  */
 
-import { resend, emailConfig, isEmailConfigured } from '@/lib/email/resend';
+import { getEmailTransportError, sendViaResend } from '@/lib/email/transport';
 import { getSettingValueAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 import type {
@@ -61,10 +61,11 @@ async function sendViaEmail(
   }
 
   // Check if Resend is configured
-  if (!isEmailConfigured() || !resend) {
+  const transportError = getEmailTransportError();
+  if (transportError) {
     return {
       success: false,
-      error: 'Email service not configured (missing RESEND_API_KEY)',
+      error: transportError,
     };
   }
 
@@ -77,14 +78,8 @@ async function sendViaEmail(
   }
 
   try {
-    // Get sender name from settings
-    const fromName = (await getSettingValueAsService('email_from_name')) || 'Residio Estate';
-
-    // Send via Resend
-    const { data, error } = await resend.emails.send({
-      from: `${fromName} <${emailConfig.fromAddress}>`,
+    const result = await sendViaResend({
       to: item.recipient_email,
-      replyTo: emailConfig.replyTo,
       subject: item.subject || 'Notification',
       // Prefer HTML if available, otherwise use plain text
       ...(item.html_body
@@ -92,16 +87,16 @@ async function sendViaEmail(
         : { text: item.body }),
     });
 
-    if (error) {
+    if (!result.ok) {
       return {
         success: false,
-        error: error.message,
+        error: result.error,
       };
     }
 
     return {
       success: true,
-      externalId: data?.id,
+      externalId: result.id,
     };
   } catch (error) {
     return {

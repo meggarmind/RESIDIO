@@ -1,10 +1,12 @@
-'use server';
-
 /**
- * Email Parsing Actions
+ * Email Parsing (service-role library, NOT a server action)
  *
  * Parses email messages to extract transactions.
  * Handles both inline transaction alerts and PDF attachments.
+ *
+ * Deliberately has no server-action directive and no auth: it uses the service-role
+ * client and is only called by the CRON_SECRET cron route, fetch-emails and guarded
+ * actions. Exporting it from a server-action file would make it a public endpoint (#561).
  */
 
 import { createAdminClient } from '@/lib/supabase/server';
@@ -14,7 +16,7 @@ import {
   parseFirstBankPdf,
   extractAccountNumber,
 } from '@/lib/email-imports/parsers/first-bank-pdf';
-import { updateEmailImportStatus } from './create-email-import';
+import { updateEmailImportStatus } from '@/actions/email-imports/create-email-import';
 import type {
   EmailMessage,
   EmailTransaction,

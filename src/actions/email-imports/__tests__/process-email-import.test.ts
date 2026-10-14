@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-    matchEmailTransactions,
-    processEmailTransactions
-} from '../process-email-import';
+import { processEmailTransactions } from '../process-email-import';
+import { matchEmailTransactions } from '@/lib/email-imports/process-email-matching';
 import { createAdminClient, createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { createPayment } from '@/actions/payments/create-payment';
