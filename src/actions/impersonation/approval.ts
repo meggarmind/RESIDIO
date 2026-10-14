@@ -7,7 +7,6 @@ import { logAudit } from '@/lib/audit/logger';
 import type {
   ApprovalRequest,
   ImpersonationApprovalData,
-  ImpersonationSessionWithDetails,
 } from '@/types/database';
 
 // =====================================================
@@ -171,122 +170,7 @@ export async function checkApprovedImpersonation(
   expiresAt?: string;
 }> {
   // No approved request of this type can exist, so approval is never granted.
-  // This keeps startApprovedImpersonationSession() failing closed.
   return { hasApproval: false };
-}
-
-/**
- * Start impersonation session after approval
- * Wrapper that validates approval before starting
- */
-export async function startApprovedImpersonationSession(
-  residentId: string,
-  approvalRequestId: string
-): Promise<{
-  success: boolean;
-  data?: ImpersonationSessionWithDetails;
-  error?: string;
-}> {
-  // Verify approval is valid
-  const approval = await checkApprovedImpersonation(residentId);
-
-  if (!approval.hasApproval) {
-    return { success: false, error: 'No valid approval found. Please submit a new request.' };
-  }
-
-  // Start the session with 'approved' type
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { success: false, error: 'Not authenticated' };
-  }
-
-  // Get resident details
-  const { data: resident } = await supabase
-    .from('residents')
-    .select(`
-      id,
-      first_name,
-      last_name,
-      resident_code,
-      resident_houses!resident_houses_resident_id_fkey (
-        house:houses (
-          id,
-          address,
-          short_name
-        )
-      )
-    `)
-    .eq('id', residentId)
-    .single();
-
-  if (!resident) {
-    return { success: false, error: 'Resident not found' };
-  }
-
-  // Create session with approval reference
-  const { data: session, error: sessionError } = await supabase
-    .from('impersonation_sessions')
-    .insert({
-      admin_profile_id: user.id,
-      impersonated_resident_id: residentId,
-      session_type: 'approved',
-      approval_request_id: approvalRequestId,
-    })
-    .select()
-    .single();
-
-  if (sessionError) {
-    return { success: false, error: sessionError.message };
-  }
-
-  // Get admin profile
-  const { data: adminProfile } = await supabase
-    .from('profiles')
-    .select('id, full_name, email')
-    .eq('id', user.id)
-    .single();
-
-  // Log audit event
-  await logAudit({
-    action: 'CREATE',
-    entityType: 'impersonation_sessions',
-    entityId: session.id,
-    entityDisplay: `${resident.first_name} ${resident.last_name}`,
-    newValues: {
-      resident_id: residentId,
-      resident_name: `${resident.first_name} ${resident.last_name}`,
-      session_type: 'approved',
-      approval_request_id: approvalRequestId,
-    },
-  });
-
-  // Build response
-  const residentHouse = (resident.resident_houses as unknown as Array<{ house: { id: string; address: string; short_name: string | null } }>)?.[0]?.house;
-
-  return {
-    success: true,
-    data: {
-      ...session,
-      admin: {
-        id: adminProfile?.id || user.id,
-        full_name: adminProfile?.full_name || 'Unknown',
-        email: adminProfile?.email || '',
-      },
-      resident: {
-        id: resident.id,
-        first_name: resident.first_name,
-        last_name: resident.last_name,
-        resident_code: resident.resident_code,
-      },
-      house: residentHouse ? {
-        id: residentHouse.id,
-        address: residentHouse.address,
-        short_name: residentHouse.short_name,
-      } : null,
-    },
-  };
 }
 
 /**
