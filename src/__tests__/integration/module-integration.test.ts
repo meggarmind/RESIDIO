@@ -89,6 +89,39 @@ const PERMISSION_ALLOWLIST = [
   // Read operations whose only write is their own access log / read receipt.
   'documents/download-document.ts',
   'announcements/read-receipts.ts',
+
+  // ---- Own-rows self-service and by-design exemptions (#390 triage, #556).
+  // These authenticate with getUser() and restrict every write to the caller's own
+  // rows, so an admin RBAC permission would be wrong.
+  'settings/theme-preferences.ts::setUserThemeOverride',
+  'report-subscriptions/update-subscription.ts::updateMyReportSubscription',
+  'in-app-notifications/update-notification.ts::markNotificationAsRead',
+  'in-app-notifications/update-notification.ts::markAllNotificationsAsRead',
+  'in-app-notifications/update-notification.ts::deleteNotification',
+  'in-app-notifications/update-notification.ts::deleteReadNotifications',
+  // Admin ending or logging against their own impersonation session (ownership checked).
+  'impersonation/index.ts::endImpersonationSession',
+  'impersonation/index.ts::logImpersonationPageView',
+  // Guarded through canImpersonate(), which calls authorizePermission() before the
+  // first read; the scanner does not follow permission delegation.
+  'impersonation/index.ts::startImpersonationSession',
+  // Dual-mode (self-service or admin): the row is read first to decide which, and
+  // non-owners are forced through HOUSES_ASSIGN_RESIDENT before any write.
+  'residents/move-out-renter.ts::initiateRenterMoveOut',
+  'residents/move-out-owner.ts::initiateOwnerMoveOut',
+  // Token-authenticated, pre-auth. Its missing attempt limit is tracked in #556.
+  'verification/verify-contact.ts::verifyContactToken',
+
+  // ---- SURFACED BY #390, NOT YET FIXED. Tracked in #556. Remove an entry in the
+  // same PR that fixes it; do not add to this block.
+  'security/codes.ts::deactivateExpiredCodes',
+  'report-subscriptions/update-subscription.ts::createDefaultReportSubscription',
+  'payments/check-overdue.ts::checkOverduePayments',
+  'impersonation/approval.ts::startApprovedImpersonationSession',
+  'email-imports/process-email-import.ts::matchEmailTransactions',
+  'email-imports/gmail-oauth.ts::updateGmailSyncStatus',
+  'approvals/index.ts::createApprovalRequest',
+  'billing/wallet.ts::getOrCreateWallet',
 ];
 
 const AUDIT_ALLOWLIST = [
@@ -111,6 +144,44 @@ const AUDIT_ALLOWLIST = [
   // Per-resident read tracking. Auditing every announcement view would flood
   // the audit log without recording an administrative decision.
   'announcements/read-receipts.ts',
+
+  // ---- Own-rows self-service or self-trail (#390 triage, #556).
+  'report-subscriptions/update-subscription.ts::updateMyReportSubscription',
+  'in-app-notifications/update-notification.ts::markNotificationAsRead',
+  'in-app-notifications/update-notification.ts::markAllNotificationsAsRead',
+  'in-app-notifications/update-notification.ts::deleteNotification',
+  'in-app-notifications/update-notification.ts::deleteReadNotifications',
+  // The page_views write is itself the impersonation audit trail.
+  'impersonation/index.ts::logImpersonationPageView',
+  // Setup and disable-code steps touch only the caller's own 2FA state; the confirm
+  // and disable steps that change what is enabled do audit.
+  'two-factor/setup.ts::initiateTwoFactorSetup',
+  'two-factor/disable.ts::requestDisableCode',
+
+  // ---- SURFACED BY #390, NOT YET FIXED. Tracked in #556. Remove an entry in the
+  // same PR that fixes it; do not add to this block.
+  'two-factor/backup-codes.ts::regenerateBackupCodes',
+  'security/vehicles.ts::setPrimaryVehicle',
+  'security/codes.ts::deactivateExpiredCodes',
+  'security/categories.ts::reorderCategories',
+  'security/access-logs.ts::unflagAccess',
+  'reports/report-schedules.ts::deleteGeneratedReport',
+  'report-subscriptions/update-subscription.ts::createDefaultReportSubscription',
+  'reference/transaction-tags.ts::tagImportRow',
+  'reference/transaction-tags.ts::batchTagImportRows',
+  'payments/check-overdue.ts::checkOverduePayments',
+  'notes/get-note-history.ts::restoreNoteVersion',
+  'imports/process-import.ts::submitForApproval',
+  'imports/match-residents.ts::matchImportRows',
+  'imports/create-import.ts::createImportRows',
+  'imports/create-import.ts::updateImportStatus',
+  'finance/petty-cash.ts::togglePettyCashAccountStatus',
+  'email-imports/process-email-import.ts::matchEmailTransactions',
+  'email-imports/parse-email.ts::parseEmailMessage',
+  'email-imports/gmail-oauth.ts::updateGmailSyncStatus',
+  'email-imports/create-email-import.ts::updateEmailImportStatus',
+  'approvals/index.ts::createApprovalRequest',
+  'billing/wallet.ts::getOrCreateWallet',
 ];
 
 /** Files that carry no actions to check at all (type and helper modules). */
