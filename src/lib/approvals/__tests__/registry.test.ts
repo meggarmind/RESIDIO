@@ -81,6 +81,15 @@ describe('getApprovalHandler', () => {
     expect(schema.safeParse({ number_of_plots: 1.5 }).success).toBe(false);
     expect(schema.safeParse({ number_of_plots: '2' }).success).toBe(false);
   });
+
+  it('billing schema accepts a valid date string only', () => {
+    const schema = getApprovalHandler('billing_profile_effective_date')!.schema;
+    expect(schema.safeParse({ effective_date: '2026-10-01' }).success).toBe(true);
+    expect(schema.safeParse({ effective_date: '' }).success).toBe(false);
+    expect(schema.safeParse({}).success).toBe(false);
+    expect(schema.safeParse({ effective_date: 20261001 }).success).toBe(false);
+    expect(schema.safeParse({ effective_date: 'not-a-date' }).success).toBe(false);
+  });
 });
 
 describe('approveRequest applies through the registry', () => {
@@ -162,6 +171,68 @@ describe('approveRequest applies through the registry', () => {
     expect(from).toHaveBeenCalledTimes(4); // fetch, claim, pre-read, release: no entity write
     expect(queries[2].update).not.toHaveBeenCalled();
     expect(releaseQ.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending' }));
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['empty plots', 0],
+    ['negative plots', -1],
+  ])('right key but bad house value (%s) is released with an Invalid requested changes error', async (_n, v) => {
+    const { from, queries } = setup(requestRow({ requested_changes: { number_of_plots: v } }), [releaseOk]);
+
+    const result = await approveRequest('req-1');
+
+    expect(result.error).toMatch(/^Invalid requested changes for house_plots_change/);
+    expect(from).toHaveBeenCalledTimes(3);
+    expect(queries[2].update).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending' }));
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('right key but bad billing value is released with an Invalid requested changes error', async () => {
+    const { from, queries } = setup(
+      requestRow({
+        request_type: 'billing_profile_effective_date',
+        entity_id: 'profile-1',
+        entity_type: 'billing_profile',
+        requested_changes: { effective_date: 'not-a-date' },
+      }),
+      [releaseOk],
+    );
+
+    const result = await approveRequest('req-1');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/^Invalid requested changes for billing_profile_effective_date/);
+    expect(from).toHaveBeenCalledTimes(3); // fetch, claim, release: no entity read or write
+    expect(queries[2].update).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending' }));
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['an error', { data: null, error: { message: 'read boom' } }],
+    ['no row', { data: null, error: null }],
+    [
+      'an error alongside a row',
+      { data: { name: 'Levy', effective_date: '2026-01-01' }, error: { message: 'read boom' } },
+    ],
+  ])('a billing pre-read returning %s fails the apply, releases, and writes nothing', async (_n, preRead) => {
+    const { from, queries } = setup(
+      requestRow({
+        request_type: 'billing_profile_effective_date',
+        entity_id: 'profile-1',
+        entity_type: 'billing_profile',
+        requested_changes: { effective_date: '2026-10-01' },
+      }),
+      [preRead, releaseOk],
+    );
+
+    const result = await approveRequest('req-1');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Failed to read billing profile');
+    expect(from).toHaveBeenCalledTimes(4); // fetch, claim, pre-read, release: no write
+    expect(queries[2].update).not.toHaveBeenCalled();
+    expect(queries[3].update).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending' }));
     expect(logAudit).not.toHaveBeenCalled();
   });
 
