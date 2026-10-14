@@ -17,7 +17,7 @@
  */
 
 import { resend, emailConfig, isEmailConfigured } from '@/lib/email/resend';
-import { getSettingValueAsService, getSettingResultAsService } from '@/lib/settings/service';
+import { getSettingValueAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 import type {
   NotificationChannel,
@@ -27,13 +27,9 @@ import type {
 } from './types';
 import { isChannelImplemented } from './types';
 import { truncateForPreview } from './templates';
-import {
-  isApprovedWhatsAppTemplateName,
-  sendWhatsAppTemplate,
-} from '@/lib/whatsapp';
+import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { resolveWhatsAppConfig } from '@/lib/whatsapp/config';
-import { normalizePhoneNumber } from '@/lib/sms/termii';
-import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
+import { evaluateSendPolicy, createSendPolicyFacts } from '@/lib/whatsapp/send-policy';
 import { sendSms } from '@/lib/sms/send-sms';
 import { PRIORITY } from '@/lib/notifications/queue';
 
@@ -136,117 +132,25 @@ async function sendViaSms(
 async function sendViaWhatsApp(
   item: NotificationQueueItem
 ): Promise<SendNotificationResult> {
-  // Runs from cron/queue processing with no authenticated user — must use
-  // the service-role read (see #136), or this kill switch does nothing
-  // under cron regardless of what's configured.
-  //
-  // Fails CLOSED (#134): an absent row or a read error must BLOCK sending,
-  // not allow it. `getSettingValueAsService` collapses "no row" and "query
-  // errored" to `null`, and `null !== false` used to let every send through
-  // whenever the setting was unconfigured or unreadable — i.e. by default,
-  // since nothing writes this row until an admin visits the WhatsApp
-  // settings page. `getSettingResultAsService` keeps the three cases apart
-  // so 'absent' and 'error' can each be blocked with a distinct message —
-  // an operator needs to know "nobody has turned this on" apart from "we
-  // could not check", since the fix for each is different.
-  const whatsappEnabledResult = await getSettingResultAsService('whatsapp_enabled');
-  if (whatsappEnabledResult.status === 'absent') {
-    return { success: false, error: 'WhatsApp is not enabled in system settings' };
-  }
-  if (whatsappEnabledResult.status === 'error') {
-    return { success: false, error: 'WhatsApp enablement could not be verified' };
-  }
-  if (whatsappEnabledResult.value !== true) {
-    return { success: false, error: 'WhatsApp notifications are disabled in system settings' };
-  }
-
-  if (!item.recipient_phone) {
-    return { success: false, error: 'No recipient phone number provided' };
-  }
-
-  if (!(await isWhatsAppRecipientAllowed(item.recipient_id))) {
-    return { success: false, error: 'WhatsApp recipient is outside the active rollout audience' };
-  }
-
-  // Service-role read (see #136) — under cron, the RLS-bound getSettingValue
-  // always returns null here, so the configured cap silently fell back to
-  // the compiled-in default of 100 in either direction (lower or higher).
-  const configuredDailyCap = await getSettingValueAsService('whatsapp_outbound_daily_cap');
-  const dailyCap = typeof configuredDailyCap === 'number' && Number.isInteger(configuredDailyCap)
-    ? configuredDailyCap
-    : 100;
-  if (dailyCap <= 0) {
-    return { success: false, error: 'WhatsApp outbound notifications are capped at zero' };
-  }
-
-  const startOfDay = new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  const { count: sentToday, error: capError } = await createAdminClient()
-    .from('notification_history')
-    .select('id', { count: 'exact', head: true })
-    .eq('channel', 'whatsapp')
-    .eq('status', 'sent')
-    .gte('sent_at', startOfDay.toISOString());
-
-  if (capError) {
-    return { success: false, error: 'Unable to verify WhatsApp outbound limit' };
-  }
-  if ((sentToday || 0) >= dailyCap) {
-    return { success: false, error: 'WhatsApp daily outbound limit reached' };
-  }
-
-  // Service-role reads (see #136) — same cap fallback problem as the daily
-  // cap above.
-  const configuredBurstCap = await getSettingValueAsService('whatsapp_outbound_burst_cap');
-  const burstCap = typeof configuredBurstCap === 'number' && Number.isInteger(configuredBurstCap) ? configuredBurstCap : 20;
-  const configuredBurstWindow = await getSettingValueAsService('whatsapp_outbound_burst_window_minutes');
-  const burstWindow = typeof configuredBurstWindow === 'number' && Number.isInteger(configuredBurstWindow) && configuredBurstWindow > 0 ? configuredBurstWindow : 10;
-  if (burstCap <= 0) return { success: false, error: 'WhatsApp outbound burst limit reached' };
-  const burstStart = new Date(Date.now() - burstWindow * 60 * 1000).toISOString();
-  const { count: sentInBurst, error: burstError } = await createAdminClient()
-    .from('notification_history')
-    .select('id', { count: 'exact', head: true })
-    .eq('channel', 'whatsapp')
-    .eq('status', 'sent')
-    .gte('sent_at', burstStart);
-  if (burstError) return { success: false, error: 'Unable to verify WhatsApp burst limit' };
-  if ((sentInBurst || 0) >= burstCap) return { success: false, error: 'WhatsApp outbound burst limit reached' };
-
-  const normalizedRecipientPhone = normalizePhoneNumber(item.recipient_phone);
-
-  const { data: optIn, error: optInError } = await createAdminClient()
-    .from('whatsapp_optins')
-    .select('id')
-    .eq('resident_id', item.recipient_id)
-    .eq('phone_number', normalizedRecipientPhone)
-    .eq('opted_in', true)
-    .maybeSingle();
-
-  if (optInError) {
-    return { success: false, error: 'Unable to verify WhatsApp consent' };
-  }
-
-  if (!optIn) {
-    return { success: false, error: 'WhatsApp recipient has not opted in' };
-  }
-
-  const whatsappTemplate = item.metadata?.whatsapp_template;
-  if (typeof whatsappTemplate !== 'object' || whatsappTemplate === null) {
-    return { success: false, error: 'WhatsApp proactive sends require an approved template' };
-  }
-
-  const templateName = (whatsappTemplate as Record<string, unknown>).name;
-  if (!isApprovedWhatsAppTemplateName(templateName)) {
-    return { success: false, error: 'WhatsApp template is not approved for proactive delivery' };
+  // Pre-send checks (kill switch, rollout, caps, opt-in, template) live in the
+  // Send Policy module; anything other than 'allow' stops here.
+  const decision = await evaluateSendPolicy(
+    {
+      recipientId: item.recipient_id,
+      recipientPhone: item.recipient_phone,
+      metadata: item.metadata,
+    },
+    createSendPolicyFacts()
+  );
+  if (decision.outcome !== 'allow') {
+    return { success: false, error: decision.message };
   }
 
   const result = await sendWhatsAppTemplate({
-    to: normalizedRecipientPhone,
-    templateName: String(templateName),
-    languageCode: String((whatsappTemplate as Record<string, unknown>).languageCode || 'en_US'),
-    parameters: Array.isArray((whatsappTemplate as Record<string, unknown>).parameters)
-      ? ((whatsappTemplate as Record<string, unknown>).parameters as unknown[]).map(String)
-      : [],
+    to: decision.normalizedPhone,
+    templateName: decision.template.name,
+    languageCode: decision.template.languageCode,
+    parameters: decision.template.parameters,
   });
 
   if (!result.success) {
@@ -271,7 +175,7 @@ async function sendViaWhatsApp(
 
       if (activeProviderIsChatmaid) {
         const smsResult = await sendSms({
-          to: { phone: item.recipient_phone, residentId: item.recipient_id },
+          to: { phone: item.recipient_phone as string, residentId: item.recipient_id },
           message: item.body,
           smsType: 'notification',
           metadata: {
