@@ -5,9 +5,9 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * Issue #383 part B. Structural assertions over the migration: nothing here
- * connects to a database. They prove the migration as written replaces both
- * the documents SELECT policy and the storage download policy, and that the
- * helpers are locked down.
+ * connects to a database. The migration adds two RESTRICTIVE SELECT policies
+ * (documents table and storage.objects) and leaves the live permissive
+ * policies alone.
  */
 
 const FILE = '20261014110000_private_documents_access.sql';
@@ -18,12 +18,12 @@ const migration = readFileSync(
 
 const activeSql = migration.match(/^BEGIN;[\s\S]*?^COMMIT;/m)?.[0] ?? '';
 const active = activeSql.replace(/--[^\n]*/g, '');
-const rollback = migration.slice(migration.indexOf('-- ROLLBACK:'), migration.indexOf('\nBEGIN;'));
+const rollback = migration.slice(migration.indexOf('-- ROLLBACK'), migration.indexOf('\nBEGIN;'));
 
 function policyBlock(name: string): string {
   const start = active.indexOf(`CREATE POLICY "${name}"`);
   if (start === -1) return '';
-  return active.slice(start, active.indexOf('\n  );', start) + 5);
+  return active.slice(start, active.indexOf(';', start) + 1);
 }
 
 function fnBlock(name: string): string {
@@ -33,8 +33,12 @@ function fnBlock(name: string): string {
   return active.slice(start, end + 3);
 }
 
-const DOC_POLICY = 'Users can view documents based on permissions';
-const STORAGE_POLICY = 'Users can download documents from storage';
+const DOC_POLICY = 'Private documents visible to linked resident or editors';
+const STORAGE_POLICY = 'Document files follow document visibility';
+const LIVE_POLICIES = [
+  'Users can view documents based on permissions',
+  'Users can download documents from storage',
+];
 
 describe('#383 part B private documents migration', () => {
   it('runs in a transaction', () => {
@@ -44,23 +48,32 @@ describe('#383 part B private documents migration', () => {
   it.each([
     [DOC_POLICY, 'public.documents'],
     [STORAGE_POLICY, 'storage.objects'],
-  ])('replaces "%s" idempotently on %s', (policy, table) => {
+  ])('adds RESTRICTIVE SELECT policy "%s" on %s idempotently', (policy, table) => {
     expect(active).toContain(`DROP POLICY IF EXISTS "${policy}" ON ${table};`);
-    expect(policyBlock(policy)).toContain(`ON ${table} FOR SELECT TO authenticated`);
+    expect(policyBlock(policy)).toContain(`ON ${table} AS RESTRICTIVE FOR SELECT TO authenticated`);
   });
 
-  it('documents policy keeps the live predicate and adds the private check', () => {
-    const block = policyBlock(DOC_POLICY);
-    expect(block).toContain('is_archived = false');
-    expect(block).toContain("ap.name = 'documents.view'");
-    expect(block).toContain('is_resident_accessible = true');
-    expect(block).toContain('can_view_private_document(documents.resident_id, documents.house_id)');
+  it('documents restriction calls the private-visibility helper', () => {
+    expect(policyBlock(DOC_POLICY)).toContain(
+      'USING (public.can_view_private_document(resident_id, house_id))'
+    );
   });
 
-  it('storage policy is scoped to the bucket and maps object to document', () => {
-    const block = policyBlock(STORAGE_POLICY);
-    expect(block).toContain("bucket_id = 'documents'");
-    expect(block).toContain('can_read_document_file(name)');
+  it('storage restriction lets other buckets through and gates the documents bucket', () => {
+    expect(policyBlock(STORAGE_POLICY)).toContain(
+      "USING (bucket_id <> 'documents' OR public.can_read_document_file(name))"
+    );
+  });
+
+  it.each(LIVE_POLICIES)('does not drop or recreate the live policy "%s"', (live) => {
+    expect(active).not.toContain(live);
+    expect(active).not.toMatch(/DROP POLICY[^;]*Users can (view|download)/);
+  });
+
+  it('only creates restrictive policies', () => {
+    const creates = active.match(/CREATE POLICY[^;]*;/g) ?? [];
+    expect(creates).toHaveLength(2);
+    for (const c of creates) expect(c).toContain('AS RESTRICTIVE');
   });
 
   it('private helper encodes linked resident, active house and documents.update', () => {
@@ -68,6 +81,7 @@ describe('#383 part B private documents migration', () => {
     expect(fn).toContain('pr.resident_id = p_resident_id');
     expect(fn).toContain('rh.house_id = p_house_id');
     expect(fn).toContain('rh.is_active = true');
+    expect(fn).toContain("pr.approval_status = 'active'");
     expect(fn).toContain("has_permission('documents.update')");
   });
 
@@ -104,18 +118,18 @@ describe('#383 part B private documents migration', () => {
     expect(active).not.toMatch(/GRANT[^;]*\sTO\s[^;]*\b(anon|PUBLIC)\b/i);
   });
 
-  it('does not name security_officer or hardcode role names in the new logic', () => {
+  it('names no roles at all in executable SQL', () => {
     expect(active).not.toContain('security_officer');
-    const helpers = fnBlock('can_view_private_document') + fnBlock('can_read_document_file');
-    expect(helpers).not.toMatch(/\bar\.name|app_roles|get_my_role/);
-    expect(policyBlock(STORAGE_POLICY)).not.toMatch(/app_roles|\bar\.name/);
+    expect(active).not.toMatch(/app_roles|\bar\.name|get_my_role|\br\.name/);
   });
 
-  it('rollback restores both live policies and drops both helpers', () => {
-    expect(rollback).toContain(`-- CREATE POLICY "${DOC_POLICY}"`);
-    expect(rollback).toContain(`-- CREATE POLICY "${STORAGE_POLICY}"`);
-    expect(rollback).toContain("ar.name <> 'resident'");
-    expect(rollback).toContain("ap.name = 'documents.view'");
+  it('rollback drops both restrictive policies and both helpers', () => {
+    expect(rollback).toContain(
+      `DROP POLICY IF EXISTS "${DOC_POLICY}" ON public.documents;`
+    );
+    expect(rollback).toContain(
+      `DROP POLICY IF EXISTS "${STORAGE_POLICY}" ON storage.objects;`
+    );
     expect(rollback).toContain('DROP FUNCTION IF EXISTS public.can_read_document_file(text);');
     expect(rollback).toContain(
       'DROP FUNCTION IF EXISTS public.can_view_private_document(uuid, uuid);'

@@ -10,24 +10,38 @@
 --     (2) holders of documents.update (has_permission('documents.update')).
 --   A row with BOTH resident_id and house_id null behaves exactly as today.
 --
+-- DESIGN: RESTRICTIVE POLICIES, LIVE POLICIES UNTOUCHED
+--   The live permissive SELECT policies are NOT dropped, recreated or restated:
+--     public.documents   "Users can view documents based on permissions"
+--     storage.objects    "Users can download documents from storage"
+--   Restating the documents policy would copy its role-name comparisons into a
+--   new migration, which the hardcoded-role-name ratchet forbids; rewriting them
+--   is owned by #213. Instead two RESTRICTIVE SELECT policies are added.
+--   Postgres combines policies as (any PERMISSIVE passes) AND (every RESTRICTIVE
+--   passes), so a row or file is visible only if BOTH the live policy and the new
+--   restriction pass. The live policies keep admitting exactly whom they admit
+--   today; the restriction can only remove access, never add it.
+--
 -- WHO LOSES ACCESS
 --   security_officer and any other role holding only documents.view lose every
 --   private row and its file (they keep all non-private documents). Holders of
---   documents.update and the linked resident keep access. No role name is
---   hardcoded (#213); the decision follows permissions.
+--   documents.update and the linked resident keep whatever the live policies
+--   already gave them. No role name is used; the decision follows permissions.
 --
 -- TWO POLICIES, NOT ONE
---   The issue body named only public.documents. The storage policy "Users can
---   download documents from storage" admits ANY documents.view holder to ANY
---   object in the bucket, and signed URLs are minted with the caller's JWT, so
---   fixing the table alone would leave private files downloadable. Both are
---   replaced here.
+--   The issue body named only public.documents. The live storage policy admits
+--   ANY documents.view holder to ANY object in the bucket, and signed URLs are
+--   minted with the caller's JWT, so restricting the table alone would leave
+--   private files downloadable.
+--   A restrictive policy on storage.objects applies to EVERY bucket, so the
+--   storage restriction opens with `bucket_id <> 'documents' OR ...` and other
+--   buckets pass untouched.
 --   Storage mapping: documents.file_path = storage.objects.name. Both upload
 --   paths in src/actions/documents/upload-document.ts write the same bucket-
 --   relative filePath to storage and to documents.file_path.
---   DECISION TO CONFIRM: a storage object with NO matching documents row is
---   readable only by documents.update holders (an orphan; fail closed).
---   If several rows share a file_path, every one of them must pass.
+--   DECISION TO CONFIRM: a storage object in the documents bucket with NO
+--   matching documents row is readable only by documents.update holders (an
+--   orphan; fail closed). If several rows share a file_path, every one must pass.
 --
 -- HELPERS
 --   Both are SECURITY DEFINER STABLE with search_path pinned, so the policies do
@@ -35,52 +49,10 @@
 --   (a subquery under the caller's RLS could silently deny). EXECUTE is granted
 --   to authenticated only; revoked from PUBLIC and anon.
 --
--- LIVE-POLICY DISCREPANCY (CORE #228: live state is the truth)
---   Written against the policies measured on Residio_Stage on 2026-10-14, which
---   may differ from earlier migration files. The replacement and the rollback
---   below are expressed against the live definitions.
---
--- ROLLBACK:
+-- ROLLBACK (nothing live is replaced, so nothing else to restore):
 -- BEGIN;
--- DROP POLICY IF EXISTS "Users can view documents based on permissions" ON public.documents;
--- CREATE POLICY "Users can view documents based on permissions"
---   ON public.documents FOR SELECT TO authenticated
---   USING (
---     (is_archived = false) AND (
---       EXISTS (
---         SELECT 1 FROM profiles p
---           JOIN role_permissions rp ON rp.role_id = p.role_id
---           JOIN app_permissions ap ON ap.id = rp.permission_id
---           JOIN app_roles ar ON ar.id = p.role_id
---         WHERE p.id = auth.uid() AND ap.name = 'documents.view' AND ar.name <> 'resident'
---       )
---       OR EXISTS (
---         SELECT 1 FROM profiles p
---           JOIN role_permissions rp ON rp.role_id = p.role_id
---           JOIN app_permissions ap ON ap.id = rp.permission_id
---           JOIN app_roles ar ON ar.id = p.role_id
---         WHERE p.id = auth.uid() AND ap.name = 'documents.view' AND ar.name = 'resident'
---           AND (
---             documents.category_id IS NULL
---             OR EXISTS (
---               SELECT 1 FROM document_categories dc
---               WHERE dc.id = documents.category_id AND dc.is_resident_accessible = true
---             )
---           )
---       )
---     )
---   );
--- DROP POLICY IF EXISTS "Users can download documents from storage" ON storage.objects;
--- CREATE POLICY "Users can download documents from storage"
---   ON storage.objects FOR SELECT TO authenticated
---   USING (
---     (bucket_id = 'documents') AND EXISTS (
---       SELECT 1 FROM profiles p
---         JOIN role_permissions rp ON rp.role_id = p.role_id
---         JOIN app_permissions ap ON ap.id = rp.permission_id
---       WHERE p.id = auth.uid() AND ap.name = 'documents.view'
---     )
---   );
+-- DROP POLICY IF EXISTS "Private documents visible to linked resident or editors" ON public.documents;
+-- DROP POLICY IF EXISTS "Document files follow document visibility" ON storage.objects;
 -- DROP FUNCTION IF EXISTS public.can_read_document_file(text);
 -- DROP FUNCTION IF EXISTS public.can_view_private_document(uuid, uuid);
 -- COMMIT;
@@ -144,43 +116,14 @@ REVOKE EXECUTE ON FUNCTION public.can_read_document_file(text) FROM PUBLIC, anon
 GRANT EXECUTE ON FUNCTION public.can_view_private_document(uuid, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.can_read_document_file(text) TO authenticated;
 
-DROP POLICY IF EXISTS "Users can view documents based on permissions" ON public.documents;
-CREATE POLICY "Users can view documents based on permissions"
-  ON public.documents FOR SELECT TO authenticated
-  USING (
-    (
-      (is_archived = false) AND (
-        EXISTS (
-          SELECT 1 FROM profiles p
-            JOIN role_permissions rp ON rp.role_id = p.role_id
-            JOIN app_permissions ap ON ap.id = rp.permission_id
-            JOIN app_roles ar ON ar.id = p.role_id
-          WHERE p.id = auth.uid() AND ap.name = 'documents.view' AND ar.name <> 'resident'
-        )
-        OR EXISTS (
-          SELECT 1 FROM profiles p
-            JOIN role_permissions rp ON rp.role_id = p.role_id
-            JOIN app_permissions ap ON ap.id = rp.permission_id
-            JOIN app_roles ar ON ar.id = p.role_id
-          WHERE p.id = auth.uid() AND ap.name = 'documents.view' AND ar.name = 'resident'
-            AND (
-              documents.category_id IS NULL
-              OR EXISTS (
-                SELECT 1 FROM document_categories dc
-                WHERE dc.id = documents.category_id AND dc.is_resident_accessible = true
-              )
-            )
-        )
-      )
-    )
-    AND public.can_view_private_document(documents.resident_id, documents.house_id)
-  );
+DROP POLICY IF EXISTS "Private documents visible to linked resident or editors" ON public.documents;
+CREATE POLICY "Private documents visible to linked resident or editors"
+  ON public.documents AS RESTRICTIVE FOR SELECT TO authenticated
+  USING (public.can_view_private_document(resident_id, house_id));
 
-DROP POLICY IF EXISTS "Users can download documents from storage" ON storage.objects;
-CREATE POLICY "Users can download documents from storage"
-  ON storage.objects FOR SELECT TO authenticated
-  USING (
-    (bucket_id = 'documents') AND public.can_read_document_file(name)
-  );
+DROP POLICY IF EXISTS "Document files follow document visibility" ON storage.objects;
+CREATE POLICY "Document files follow document visibility"
+  ON storage.objects AS RESTRICTIVE FOR SELECT TO authenticated
+  USING (bucket_id <> 'documents' OR public.can_read_document_file(name));
 
 COMMIT;
