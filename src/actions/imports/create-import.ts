@@ -301,6 +301,15 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
     .update({ status: 'processing' })
     .eq('id', import_id);
 
+  // One audit entry per call (not per row)
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'bank_statement_imports',
+    entityId: import_id,
+    entityDisplay: `Import rows: ${totalInserted}`,
+    newValues: { rows_created: totalInserted, status: 'processing' },
+  });
+
   return {
     count: totalInserted,
     error: null,
