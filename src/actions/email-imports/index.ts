@@ -17,8 +17,6 @@ export {
   getBankAccountsWithPasswordStatus,
   setBankAccountPassword,
   removeBankAccountPassword,
-  getDecryptedPassword,
-  getPasswordByAccountLast4,
   type BankAccountWithPassword,
 } from './bank-passwords';
 
