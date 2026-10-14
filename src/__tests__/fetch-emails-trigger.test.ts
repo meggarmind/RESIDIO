@@ -18,11 +18,13 @@ vi.mock('@/lib/logger', () => ({
 vi.mock('@/actions/email-imports/gmail-oauth', () => ({
   getGmailConnectionStatus: mocks.getGmailConnectionStatus,
 }));
-vi.mock('@/actions/email-imports/parse-email', () => ({
+vi.mock('@/lib/email-imports/parse-email', () => ({
   parseAllPendingEmails: mocks.parseAllPendingEmails,
 }));
-vi.mock('@/actions/email-imports/process-email-import', () => ({
+vi.mock('@/lib/email-imports/process-email-matching', () => ({
   matchEmailTransactions: vi.fn(),
+}));
+vi.mock('@/actions/email-imports/process-email-import', () => ({
   processEmailTransactions: vi.fn(),
 }));
 

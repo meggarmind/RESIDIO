@@ -21,10 +21,11 @@ import {
   extractAttachments,
 } from '@/lib/email-imports/gmail-client';
 import { storeEmailAttachments } from '@/lib/email-imports/store-attachments';
-import { updateGmailSyncStatus } from '@/actions/email-imports/gmail-oauth';
+import { updateGmailSyncStatus } from '@/lib/email-imports/gmail-sync-status';
 import { createEmailImport, updateEmailImportStatus } from '@/actions/email-imports/create-email-import';
-import { parseAllPendingEmails } from '@/actions/email-imports/parse-email';
-import { matchEmailTransactions, processEmailTransactions } from '@/actions/email-imports/process-email-import';
+import { parseAllPendingEmails } from '@/lib/email-imports/parse-email';
+import { processEmailTransactions } from '@/actions/email-imports/process-email-import';
+import { matchEmailTransactions } from '@/lib/email-imports/process-email-matching';
 import type { EmailImportTrigger, FetchEmailsOptions, FetchEmailsResult, EmailMessage, GmailSyncCriteria } from '@/types/database';
 
 // ============================================================
