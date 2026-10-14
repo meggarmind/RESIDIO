@@ -8,7 +8,7 @@
  */
 
 import { parseFirstBankPdf, isPdfEncrypted } from '@/lib/email-imports/parsers/first-bank-pdf';
-import { getDecryptedPassword } from '@/actions/email-imports/bank-passwords';
+import { getDecryptedPassword } from '@/lib/email-imports/bank-passwords';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import {
