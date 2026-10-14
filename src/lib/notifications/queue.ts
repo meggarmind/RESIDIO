@@ -14,6 +14,7 @@ import type {
 } from './types';
 import { shouldQueue, generateDeduplicationKey } from './deduplication';
 import { sendAndRecordNotification } from './send';
+import { DEFAULT_MAX_ATTEMPTS } from './retry';
 
 /**
  * Default priority levels
@@ -85,6 +86,7 @@ export async function addToQueue(
       deduplication_key: deduplicationKey,
       dedup_window_minutes: input.dedup_window_minutes,
       scheduled_for: input.scheduled_for?.toISOString() ?? new Date().toISOString(),
+      max_attempts: input.max_attempts ?? DEFAULT_MAX_ATTEMPTS,
       metadata: input.metadata,
     })
     .select('id')
@@ -139,6 +141,7 @@ export async function addBatchToQueue(
     status: string;
     deduplication_key: string | undefined;
     scheduled_for: string;
+    max_attempts: number;
     metadata: Record<string, unknown> | undefined;
   }> = [];
   const errors: string[] = [];
@@ -182,6 +185,7 @@ export async function addBatchToQueue(
       status: 'pending',
       deduplication_key: deduplicationKey,
       scheduled_for: item.scheduled_for?.toISOString() ?? new Date().toISOString(),
+      max_attempts: item.max_attempts ?? DEFAULT_MAX_ATTEMPTS,
       metadata: item.metadata,
     });
   }

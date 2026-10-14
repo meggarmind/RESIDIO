@@ -186,7 +186,9 @@ The same `Dockerfile` runs unchanged. What moves is where the values come from.
    container network, carrying `CRON_SECRET` in the `Authorization` header. The nine schedules
    (formerly `vercel.json`, now removed) are recorded in `hosting-plan.md`, "Scheduled tasks". Note that `src/lib/auth/cron-auth.ts` fails **closed** in
    production when `CRON_SECRET` is unset — a production container without it has no working
-   scheduled jobs, and no error at boot to tell you.
+   scheduled jobs, and no error at boot to tell you. `process-notifications` is the exception to the
+   once-a-day pattern: it runs `*/15 * * * *` so queued retries are picked up (#546). The operator
+   applies that schedule in Coolify; it is not set anywhere in the repository.
 6. **Two applications, one host.** Prod and stage are separate Coolify applications on the same
    KVM, each with its own build variables (so its own build), its own runtime secrets and its
    own hostname. A stage image cannot be promoted to prod; rebuild from the same commit.
