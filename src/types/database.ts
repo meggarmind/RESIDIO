@@ -1418,6 +1418,12 @@ export interface ApprovalRequest {
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_notes: string | null;
+  /**
+   * When the approved change was actually applied (#557). Null on an approved row means the
+   * apply never completed. The generated types pick this column up after `db:types` is rerun
+   * against the cloud database, hence optional here.
+   */
+  applied_at?: string | null;
   created_at: string;
   updated_at: string;
 }

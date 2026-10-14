@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useApprovalRequests, useApproveRequest, useRejectRequest } from '@/hooks/use-approvals';
+import {
+    useApprovalRequests,
+    useApproveRequest,
+    useRejectRequest,
+    useReapplyApprovedRequest,
+} from '@/hooks/use-approvals';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +34,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Check, X, Clock, CheckCircle, XCircle, ArrowRight, Eye, Loader2, ArrowLeft, Search } from 'lucide-react';
+import { Check, X, Clock, CheckCircle, XCircle, ArrowRight, Eye, Loader2, ArrowLeft, Search, AlertTriangle, RotateCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { APPROVAL_REQUEST_TYPE_LABELS } from '@/types/database';
 import type { ApprovalStatus, ApprovalRequestWithDetails } from '@/types/database';
@@ -39,6 +44,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Can } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { isStuckApproval } from '@/lib/approvals/stuck';
 
 const ALL_VALUE = '_all';
 
@@ -47,6 +53,23 @@ const STATUS_BADGES: Record<ApprovalStatus, { label: string; variant: 'default' 
     approved: { label: 'Approved', variant: 'default' },
     rejected: { label: 'Rejected', variant: 'destructive' },
 };
+
+// Own component so the mutation (and its pending state) exists only on rows that need it.
+function ReapplyButton({ requestId }: { requestId: string }) {
+    const reapplyMutation = useReapplyApprovedRequest();
+    return (
+        <Button
+            size="sm"
+            variant="outline"
+            disabled={reapplyMutation.isPending}
+            onClick={() => reapplyMutation.mutate({ requestId })}
+            className="h-8 rounded-lg mb-1"
+        >
+            <RotateCw className="h-4 w-4 mr-1" />
+            Re-apply
+        </Button>
+    );
+}
 
 export default function ApprovalsPage() {
     const [statusFilter, setStatusFilter] = useState<string>('pending');
@@ -222,6 +245,12 @@ export default function ApprovalsPage() {
                                                     {request.status === 'rejected' && <XCircle className="h-3 w-3 mr-1" />}
                                                     {STATUS_BADGES[request.status].label}
                                                 </Badge>
+                                                {isStuckApproval(request) && (
+                                                    <Badge variant="destructive" className="ml-2 whitespace-nowrap">
+                                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                                        Approved, not applied
+                                                    </Badge>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 {request.status === 'pending' && (
@@ -246,6 +275,11 @@ export default function ApprovalsPage() {
                                                             Reject
                                                         </Button>
                                                     </div>
+                                                    </Can>
+                                                )}
+                                                {isStuckApproval(request) && (
+                                                    <Can permission={PERMISSIONS.APPROVALS_APPROVE_REJECT}>
+                                                        <ReapplyButton requestId={request.id} />
                                                     </Can>
                                                 )}
                                                 {request.status !== 'pending' && request.reviewer && (

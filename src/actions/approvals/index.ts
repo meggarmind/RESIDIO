@@ -12,6 +12,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getApprovalHandler } from '@/lib/approvals/registry';
+import { isStuckApproval } from '@/lib/approvals/stuck';
 
 // Response types
 interface GetApprovalRequestsResponse {
@@ -300,7 +301,98 @@ export async function approveRequest(
     return applyResult;
   }
 
+  // Record that the change landed. A failure here must not fail the approval: the change is
+  // applied, and a row left without applied_at looks stuck, which reapplyApprovedRequest
+  // resolves idempotently.
+  const appliedAt = new Date().toISOString();
+  const { error: appliedError } = await supabase
+    .from('approval_requests')
+    .update({ applied_at: appliedAt, updated_at: appliedAt })
+    .eq('id', requestId)
+    .eq('status', 'approved');
+  if (appliedError) {
+    console.error(
+      `Failed to record applied_at for approval request ${requestId} (change was applied; it may show as stuck):`,
+      appliedError
+    );
+  }
+
   await auditDecision('APPROVE', request, 'approved', auth.userId!, notes);
+
+  return { success: true, error: null };
+}
+
+// Re-apply an approved request whose change was never applied (#557): the process died between
+// the claim and the apply, or the release after a failed apply also failed. The apply is
+// idempotent because it writes the requested value. The maker-checker rule is not re-checked:
+// the approval already happened.
+export async function reapplyApprovedRequest(requestId: string): Promise<ApprovalActionResponse> {
+  const supabase = await createServerSupabaseClient();
+
+  const auth = await authorizePermission(PERMISSIONS.APPROVALS_APPROVE_REJECT);
+  if (!auth.authorized) {
+    return { success: false, error: auth.error || 'Unauthorized' };
+  }
+
+  const { data: request, error: fetchError } = await supabase
+    .from('approval_requests')
+    .select('*')
+    .eq('id', requestId)
+    .single();
+
+  if (fetchError || !request) {
+    return { success: false, error: 'Request not found' };
+  }
+
+  if (request.status !== 'approved') {
+    return { success: false, error: 'Only an approved request can be re-applied' };
+  }
+
+  if (request.applied_at) {
+    return { success: false, error: 'This request has already been applied' };
+  }
+
+  // A request approved moments ago may still be mid-apply; applying it again could double up.
+  if (!isStuckApproval(request)) {
+    return {
+      success: false,
+      error: 'This approval is still being applied; try again in a few minutes',
+    };
+  }
+
+  const applyResult = await applyRequestedChanges(request);
+  if (!applyResult.success) {
+    return applyResult;
+  }
+
+  // Guarded on applied_at being null so two concurrent re-applies cannot both succeed.
+  const appliedAt = new Date().toISOString();
+  const { data: marked, error: markError } = await supabase
+    .from('approval_requests')
+    .update({ applied_at: appliedAt, updated_at: appliedAt })
+    .eq('id', requestId)
+    .eq('status', 'approved')
+    .is('applied_at', null)
+    .select('id')
+    .maybeSingle();
+
+  if (markError) {
+    return { success: false, error: markError.message };
+  }
+
+  if (!marked) {
+    return { success: false, error: 'This request has already been applied' };
+  }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'approval_requests',
+    entityId: requestId,
+    entityDisplay: `${request.request_type} approval request`,
+    description: 'Re-applied an approved request that had not been applied',
+    oldValues: { applied_at: null },
+    newValues: { applied_at: appliedAt },
+  });
 
   return { success: true, error: null };
 }
