@@ -203,7 +203,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     );
   }, [activeResidents]);
 
-  // Validation 3: Check if resident landlord exists specifically
+  // Validation 3: Check if owner-occupier exists specifically
   const hasResidentLandlord = useMemo(() => {
     return activeResidents.some(rh => rh.resident_role === 'resident_landlord');
   }, [activeResidents]);
@@ -213,7 +213,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     return activeResidents.some(rh => rh.resident_role === 'tenant');
   }, [activeResidents]);
 
-  // Check if resident landlord or tenant exists (for hiding move-in date)
+  // Check if owner-occupier or renter exists (for hiding move-in date)
   const hasResidentLandlordOrTenant = hasResidentLandlord || hasTenant;
 
   // Get the primary residing resident (tenant or resident_landlord) for promote functionality
@@ -303,7 +303,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     }
   };
 
-  // Handle moving out resident landlord (converts to non-resident landlord)
+  // Handle moving out owner-occupier (converts to property owner)
   const handleMoveOutLandlord = async (residentId: string) => {
     try {
       const result = await moveOutMutation.mutateAsync({
@@ -318,7 +318,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
       }
       setMoveOutDialogResident(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to move out landlord');
+      toast.error(error instanceof Error ? error.message : 'Failed to move out owner');
     }
   };
 

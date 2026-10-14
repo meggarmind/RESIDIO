@@ -25,7 +25,7 @@ type UnassignHouseResponse = {
  *
  * When a tenant is removed:
  * 1. All secondary residents (co_resident, household_member, domestic_staff, caretaker) are also removed
- * 2. Non-resident landlord (if exists) remains
+ * 2. Property Owner (if exists) remains
  * 3. House state becomes "Vacant - Landlord assigned" or "Vacant"
  */
 export async function unassignHouse(
