@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
  * must restore every original verbatim. Nothing here connects to a database.
  */
 
-const MIGRATION = '20261014170000_wrap_auth_calls_in_rls_policies.sql';
+const MIGRATION = '20261014170500_wrap_auth_calls_in_rls_policies.sql';
 const migrationPath = path.join(
   fileURLToPath(new URL('../../supabase/migrations', import.meta.url)),
   MIGRATION

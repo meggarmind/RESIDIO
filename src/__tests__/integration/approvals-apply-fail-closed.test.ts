@@ -100,13 +100,15 @@ describe('applyRequestedChanges fails closed on an unhandled request_type', () =
       error: null,
     });
     const applyQuery = createQuery({ data: null, error: null });
+    const appliedAtQuery = createQuery({ data: null, error: null }); // applied_at update (#557)
 
     const from = vi
       .fn()
       .mockReturnValueOnce(fetchQuery)
       .mockReturnValueOnce(updateQuery)
       .mockReturnValueOnce(preReadQuery)
-      .mockReturnValueOnce(applyQuery);
+      .mockReturnValueOnce(applyQuery)
+      .mockReturnValueOnce(appliedAtQuery);
 
     createServerSupabaseClient.mockResolvedValue({ from });
 
