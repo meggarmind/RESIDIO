@@ -146,3 +146,7 @@ _Avoid_: Log line, Audit log (for a single record)
 
 **Audit recorder**:
 The module that builds an Audit Entry from the actor, the entity type and the old and new rows: it computes the diff and the entity's display name, and it never throws.
+
+**System Action Log**:
+The record of what an automated, sessionless process (a cron run or a webhook) did, visible only to super administrators. Distinct from an Audit Entry, which attributes a change to a signed-in user.
+_Avoid_: Audit log (that names the user-attributed record)

@@ -159,22 +159,27 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
   }
 
   // Update last run timestamp
-  await updateSetting('email_last_reminder_run', new Date().toISOString());
+  const { data: lastRunSetting } = await updateSetting('email_last_reminder_run', new Date().toISOString());
 
-  // Audit log
-  await logAudit({
-    action: 'GENERATE',
-    entityType: 'system_settings',
-    entityId: 'payment_reminders',
-    entityDisplay: 'Payment Reminder Batch',
-    description: `Sent ${result.sent} reminders, ${result.skipped} skipped, ${result.failed} failed`,
-    metadata: {
-      sent: result.sent,
-      skipped: result.skipped,
-      failed: result.failed,
-      errors: result.errors,
-    },
-  });
+  // Audit log. audit_logs.entity_id is a uuid: use the system_settings row id that
+  // was just written; the label stays in entityDisplay/metadata (#594).
+  if (lastRunSetting?.id) {
+    await logAudit({
+      action: 'GENERATE',
+      entityType: 'system_settings',
+      entityId: lastRunSetting.id,
+      entityDisplay: 'Payment Reminder Batch',
+      description: `Sent ${result.sent} reminders, ${result.skipped} skipped, ${result.failed} failed`,
+      metadata: {
+        batch: 'payment_reminders',
+        setting_key: 'email_last_reminder_run',
+        sent: result.sent,
+        skipped: result.skipped,
+        failed: result.failed,
+        errors: result.errors,
+      },
+    });
+  }
 
   return result;
 }

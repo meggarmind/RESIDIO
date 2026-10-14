@@ -112,15 +112,15 @@ export async function sendWhatsAppTemplate(
     // Stored credentials exist but cannot be used. Do not fall through to a
     // generic "not configured" -- that sends an admin looking for a missing
     // setting when the real cause is an unreadable one.
-    return { success: false, error: `WhatsApp credentials are unusable: ${resolved.reason}` };
+    return { success: false, error: `WhatsApp credentials are unusable: ${resolved.reason}`, retryable: false };
   }
 
   if (resolved && resolved.status !== 'ok') {
-    return { success: false, error: 'WhatsApp service is not configured' };
+    return { success: false, error: 'WhatsApp service is not configured', retryable: false };
   }
 
   if (resolved && !isProviderSupported(resolved.config)) {
-    return { success: false, error: 'WhatsApp provider is not supported yet' };
+    return { success: false, error: 'WhatsApp provider is not supported yet', retryable: false };
   }
 
   const config = resolved ? resolved.config : null;
@@ -128,6 +128,6 @@ export async function sendWhatsAppTemplate(
   try {
     return await (provider || resolveProvider(config!)).sendTemplate(message);
   } catch {
-    return { success: false, error: 'WhatsApp provider request failed' };
+    return { success: false, error: 'WhatsApp provider request failed', retryable: true };
   }
 }
