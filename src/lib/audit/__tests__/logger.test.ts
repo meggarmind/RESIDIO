@@ -31,8 +31,8 @@ describe('logAudit', () => {
       entityType: 'houses',
       entityId: 'house-1',
       entityDisplay: '12A',
-      oldValues: { a: 1 },
-      newValues: { a: 2 },
+      oldValues: { a: 1, b: 9 },
+      newValues: { a: 2, b: 9 },
       description: 'changed',
       metadata: { k: 'v' },
     });
@@ -46,8 +46,8 @@ describe('logAudit', () => {
       entity_type: 'houses',
       entity_id: 'house-1',
       entity_display: '12A',
-      old_values: { a: 1 },
-      new_values: { a: 2 },
+      old_values: { a: 1, b: 9 },
+      new_values: { a: 2, b: 9 },
       description: 'changed',
       metadata: { k: 'v' },
       ip_address: null,
@@ -70,7 +70,11 @@ describe('logAudit', () => {
     await expect(
       logAudit({ action: 'CREATE', entityType: 'houses', entityId: 'h' })
     ).resolves.toBeUndefined();
-    expect(errorSpy).toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[Audit]'),
+      expect.objectContaining({ entityType: 'houses', entityId: 'h', action: 'CREATE', error: 'denied' })
+    );
+    expect(String(errorSpy.mock.calls[0][0])).toMatch(/^\[Audit\]/);
   });
 
   it('does not throw when the insert throws', async () => {
