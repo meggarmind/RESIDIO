@@ -54,7 +54,8 @@ async function load(options: Options) {
 
 const FORBIDDEN = { error: 'Forbidden - You do not have access to this statement' };
 
-describe('GET /api/statements authorization', () => {
+// The first dynamic import of the route is slow on a cold or loaded runner.
+describe('GET /api/statements authorization', { timeout: 15000 }, () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
