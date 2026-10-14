@@ -50,6 +50,11 @@ describe('get_my_access migration (static)', () => {
     expect(where).not.toContain('ap.is_active');
   });
 
+  it('inner-joins app_roles to profiles', () => {
+    expect(sql).toContain('JOIN app_roles ar ON ar.id = pr.role_id');
+    expect(sql).not.toContain('LEFT JOIN app_roles');
+  });
+
   it('does not filter on app_roles.is_active', () => {
     expect(sql).not.toContain('ar.is_active');
     expect(sql).not.toMatch(/app_roles\.is_active/);

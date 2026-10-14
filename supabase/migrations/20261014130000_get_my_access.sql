@@ -7,10 +7,12 @@
 -- the caller must be the signed-in user (auth.uid()) and their profile must be
 -- approved ('active'). A user who is not approved, or has no role, gets zero rows.
 --
--- Shape: one row per active permission of the role. A role that has no
--- permissions (or only inactive ones) still returns exactly one row with a NULL
--- permission_name, so "role resolved, no permissions" is distinguishable from
--- "no access" (zero rows). app_roles.is_active is deliberately NOT filtered:
+-- Shape: one row per active permission of the role. A role with no active
+-- permissions (none granted, or every grant inactive) returns rows whose
+-- permission_name is all NULL (one row if nothing is granted, one per inactive
+-- grant otherwise). The TypeScript module filters nulls and de-duplicates, so
+-- the role still resolves with an empty permission list; zero rows means no
+-- access. app_roles.is_active is deliberately NOT filtered:
 -- the existing application code never did.
 
 CREATE OR REPLACE FUNCTION public.get_my_access()
