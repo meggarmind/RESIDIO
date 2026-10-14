@@ -154,7 +154,6 @@ const AUDIT_ALLOWLIST = [
   // ---- SURFACED BY #390, NOT YET FIXED. Tracked in #556. Remove an entry in the
   // same PR that fixes it; do not add to this block.
   'report-subscriptions/update-subscription.ts::createDefaultReportSubscription',
-  'imports/create-import.ts::updateImportStatus',
   'email-imports/create-email-import.ts::updateEmailImportStatus',
   'billing/wallet.ts::getOrCreateWallet',
 ];

@@ -45,6 +45,7 @@ export async function backfillOwnershipHistory(): Promise<BackfillResult> {
     moveOutEventsCreated: 0,
     errors: [] as string[],
   };
+  const backfilledHouseIds: string[] = [];
 
   try {
     // Get all houses
@@ -138,6 +139,8 @@ export async function backfillOwnershipHistory(): Promise<BackfillResult> {
             summary.moveOutEventsCreated++;
           }
 
+          if (!backfilledHouseIds.includes(house.id)) backfilledHouseIds.push(house.id);
+
           // Log audit for each backfilled event
           await logAudit({
             action: 'GENERATE',
@@ -167,14 +170,18 @@ export async function backfillOwnershipHistory(): Promise<BackfillResult> {
 
     // Log summary audit if any events were created
     const totalCreated = summary.ownershipEndEventsCreated + summary.moveOutEventsCreated;
-    if (totalCreated > 0) {
+    if (totalCreated > 0 && backfilledHouseIds.length > 0) {
+      // audit_logs.entity_id is a uuid: the first backfilled house stands for the run (#594).
       await logAudit({
         action: 'GENERATE',
         entityType: 'houses',
-        entityId: 'backfill-summary',
+        entityId: backfilledHouseIds[0],
         entityDisplay: 'Ownership History Backfill',
         description: `Backfill completed: ${totalCreated} history event(s) created`,
         metadata: {
+          batch: 'backfill-summary',
+          total_count: totalCreated,
+          house_ids: backfilledHouseIds.slice(0, 50),
           houses_processed: summary.housesProcessed,
           ownership_end_events: summary.ownershipEndEventsCreated,
           move_out_events: summary.moveOutEventsCreated,
