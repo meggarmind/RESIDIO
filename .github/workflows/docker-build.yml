@@ -23,8 +23,6 @@ on:
   pull_request:
     branches: [master]
   workflow_dispatch:
-  push:
-    branches: ['claude/issue-505-**']
 
 permissions:
   contents: read
