@@ -147,14 +147,18 @@ export async function resetSecuritySettingsToDefault(): Promise<UpdateSecuritySe
   };
 
   const errors: string[] = [];
+  const resetRowIds: string[] = [];
   for (const [key, value] of Object.entries(defaults)) {
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from('system_settings')
       .update({ value })
-      .eq('key', key);
+      .eq('key', key)
+      .select('id');
 
     if (error) {
       errors.push(`${key}: ${error.message}`);
+    } else {
+      resetRowIds.push(...(updated ?? []).map((r) => r.id));
     }
   }
 
@@ -162,14 +166,17 @@ export async function resetSecuritySettingsToDefault(): Promise<UpdateSecuritySe
     return { success: false, error: errors.join('; ') };
   }
 
-  // Audit log
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'system_settings',
-    entityId: 'security_settings_reset',
-    entityDisplay: 'Security Settings Reset to Defaults',
-    newValues: defaults,
-  });
+  // Audit log. audit_logs.entity_id is a uuid: the first reset settings row stands for
+  // the batch (#594). No rows updated means nothing changed, so no audit.
+  if (resetRowIds.length > 0) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'system_settings',
+      entityId: resetRowIds[0],
+      entityDisplay: 'Security Settings Reset to Defaults',
+      newValues: { ...defaults, batch: 'security_settings_reset', total_count: resetRowIds.length, setting_ids: resetRowIds.slice(0, 50) },
+    });
+  }
 
   revalidatePath('/settings/security');
   return { success: true, error: null };

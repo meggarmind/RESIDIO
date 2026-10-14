@@ -169,7 +169,7 @@ export async function updateRoleAssignmentRule(
     .single();
 
   // Upsert the rule
-  const { error } = await supabase
+  const { data: savedRule, error } = await supabase
     .from('role_assignment_rules')
     .upsert({
       resident_role: residentRole,
@@ -178,21 +178,26 @@ export async function updateRoleAssignmentRule(
       created_by: oldRule ? oldRule.created_by : auth.userId,
     }, {
       onConflict: 'resident_role,app_role_id',
-    });
+    })
+    .select('id')
+    .single();
 
   if (error) {
     return { success: false, error: error.message };
   }
 
-  // Audit log
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'role_assignment_rules',
-    entityId: `${residentRole}-${appRoleId}`,
-    entityDisplay: `${residentRole} → role assignment`,
-    oldValues: oldRule ? { is_allowed: oldRule.is_allowed } : undefined,
-    newValues: { is_allowed: isAllowed },
-  });
+  // Audit log. audit_logs.entity_id is a uuid: use the rule row id; the role pair
+  // goes in entityDisplay/newValues (#594).
+  if (savedRule?.id) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'role_assignment_rules',
+      entityId: savedRule.id,
+      entityDisplay: `${residentRole} → role assignment`,
+      oldValues: oldRule ? { is_allowed: oldRule.is_allowed } : undefined,
+      newValues: { is_allowed: isAllowed, resident_role: residentRole, app_role_id: appRoleId },
+    });
+  }
 
   return { success: true };
 }
@@ -224,7 +229,7 @@ export async function batchUpdateRoleAssignmentRules(
   const supabase = await createServerSupabaseClient();
 
   // Perform upserts
-  const { error } = await supabase
+  const { data: savedRules, error } = await supabase
     .from('role_assignment_rules')
     .upsert(
       updates.map((u) => ({
@@ -234,20 +239,25 @@ export async function batchUpdateRoleAssignmentRules(
         created_by: auth.userId,
       })),
       { onConflict: 'resident_role,app_role_id' }
-    );
+    )
+    .select('id');
 
   if (error) {
     return { success: false, error: error.message };
   }
 
-  // Audit log
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'role_assignment_rules',
-    entityId: 'batch',
-    entityDisplay: `Batch update (${updates.length} rules)`,
-    newValues: { updates },
-  });
+  // Audit log. audit_logs.entity_id is a uuid: the first written rule row stands for the
+  // batch (#594). An empty batch changed nothing, so it is not audited.
+  const ruleIds = (savedRules ?? []).map((r) => r.id);
+  if (ruleIds.length > 0) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'role_assignment_rules',
+      entityId: ruleIds[0],
+      entityDisplay: `Batch update (${updates.length} rules)`,
+      newValues: { total_count: updates.length, rule_ids: ruleIds.slice(0, 50), updates },
+    });
+  }
 
   return { success: true };
 }

@@ -92,12 +92,14 @@ export async function uploadEstateLogo(formData: FormData): Promise<UploadLogoRe
     .getPublicUrl(filePath);
 
   // Update or insert the setting
-  const { error: settingError } = await supabase
+  const { data: savedSetting, error: settingError } = await supabase
     .from('system_settings')
     .upsert(
       { key: 'estate_logo_url', value: publicUrl, category: 'general' },
       { onConflict: 'key' }
-    );
+    )
+    .select('id')
+    .single();
 
   if (settingError) {
     console.error('Setting update error:', settingError);
@@ -120,14 +122,17 @@ export async function uploadEstateLogo(formData: FormData): Promise<UploadLogoRe
     }
   }
 
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'system_settings',
-    entityId: 'estate_logo_url',
-    entityDisplay: 'Estate logo',
-    oldValues: { value: currentSetting?.value ?? null },
-    newValues: { value: publicUrl },
-  });
+  // audit_logs.entity_id is a uuid: use the settings row id; the key goes in newValues (#594).
+  if (savedSetting?.id) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'system_settings',
+      entityId: savedSetting.id,
+      entityDisplay: 'Estate logo',
+      oldValues: { value: currentSetting?.value ?? null },
+      newValues: { key: 'estate_logo_url', value: publicUrl },
+    });
+  }
 
   revalidatePath('/settings');
   revalidatePath('/');
@@ -152,7 +157,7 @@ export async function removeEstateLogo(): Promise<{ success: boolean; error: str
   // Get current logo URL
   const { data: currentSetting } = await supabase
     .from('system_settings')
-    .select('value')
+    .select('id, value')
     .eq('key', 'estate_logo_url')
     .single();
 
@@ -185,10 +190,10 @@ export async function removeEstateLogo(): Promise<{ success: boolean; error: str
   await logAudit({
     action: 'DELETE',
     entityType: 'system_settings',
-    entityId: 'estate_logo_url',
+    entityId: currentSetting.id,
     entityDisplay: 'Estate logo',
-    oldValues: { value: currentSetting?.value ?? null },
-    newValues: { value: '' },
+    oldValues: { value: currentSetting.value },
+    newValues: { key: 'estate_logo_url', value: '' },
   });
 
   revalidatePath('/settings');
