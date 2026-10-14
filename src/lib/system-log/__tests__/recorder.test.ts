@@ -126,6 +126,11 @@ describe('redactSummary', () => {
     });
   });
 
+  it('redacts keys that match exactly one alternative of the key pattern', () => {
+    const out = redactSummary({ body: 'b', raw: 'r', client_secret: 's', count: 1, id: 'a' });
+    expect(out).toEqual({ body: '[redacted]', raw: '[redacted]', client_secret: '[redacted]', count: 1, id: 'a' });
+  });
+
   it('truncates strings to 200 characters', () => {
     const out = redactSummary({ s: 'x'.repeat(300), short: 'ok' });
     expect((out.s as string).length).toBe(200);

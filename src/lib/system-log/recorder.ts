@@ -6,7 +6,12 @@ import { createAdminClient } from '@/lib/supabase/server';
  * to a signed-in user.
  *
  * Summaries MUST contain counts and ids only. Redaction below is a safety net, not a licence
- * to pass request bodies, payloads or user data. Like the audit recorder, `recordSystemAction`
+ * to pass request bodies, payloads or user data.
+ *
+ * Limits of the safety net: it is NOT exhaustive. The key pattern does not catch `pwd`, `passwd`,
+ * `credential`, `jwt` or a bare `key`. `Date`, `Map` and `Set` values collapse to `{}`. And
+ * `error_message` is truncated but NOT scanned for secrets, so callers must pass already-sanitised
+ * messages, and counts and ids only in summaries. Like the audit recorder, `recordSystemAction`
  * never throws: logging must not break the job being logged.
  *
  * Deliberately NOT a 'use server' module.
