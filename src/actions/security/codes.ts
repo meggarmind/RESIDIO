@@ -417,27 +417,6 @@ export async function getAccessCodeByCode(code: string): Promise<AccessCodeRespo
   return { data, error: null };
 }
 
-/**
- * Deactivates all expired codes (called by cron or manually)
- */
-export async function deactivateExpiredCodes(): Promise<{ count: number; error: string | null }> {
-  const supabase = await createServerSupabaseClient();
-
-  const { data, error } = await supabase
-    .from('access_codes')
-    .update({ is_active: false })
-    .eq('is_active', true)
-    .lt('valid_until', new Date().toISOString())
-    .select('id');
-
-  if (error) {
-    console.error('Deactivate expired codes error:', error);
-    return { count: 0, error: 'Failed to deactivate expired codes' };
-  }
-
-  return { count: data?.length || 0, error: null };
-}
-
 // ============================================================
 // Time-Limited Access Codes for Visiting Domestic Staff
 // ============================================================
