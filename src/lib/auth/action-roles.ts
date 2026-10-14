@@ -109,6 +109,7 @@ export const PERMISSIONS = {
   SYSTEM_MANAGE_DATA_RETENTION: 'system.manage_data_retention',
   SYSTEM_VIEW_ALL_SETTINGS: 'system.view_all_settings',
   SYSTEM_MONITOR: 'system.monitor',
+  SYSTEM_VIEW_SYSTEM_LOG: 'system.view_system_log',
 
   // Documents Module (Phase 15)
   DOCUMENTS_VIEW: 'documents.view',
