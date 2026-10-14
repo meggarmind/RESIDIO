@@ -196,12 +196,18 @@ describe('approveRequest maker-checker and pending guard (#473)', () => {
   const applyFailureSetup = (releaseResult: unknown) => {
     const fetchQ = createQuery({ data: requestRow(), error: null });
     const claimQ = createQuery({ data: { id: 'req-1' }, error: null });
+    // The handler reads the entity before writing it (#555); that pre-read succeeds here.
+    const preReadQ = createQuery({
+      data: { name: 'Profile 1', effective_date: '2026-01-01' },
+      error: null,
+    });
     const applyQ = createQuery({ data: null, error: { message: 'boom' } });
     const releaseQ = createQuery(releaseResult);
     const from = vi
       .fn()
       .mockReturnValueOnce(fetchQ)
       .mockReturnValueOnce(claimQ)
+      .mockReturnValueOnce(preReadQ)
       .mockReturnValueOnce(applyQ)
       .mockReturnValueOnce(releaseQ);
     createServerSupabaseClient.mockResolvedValue({ from });
