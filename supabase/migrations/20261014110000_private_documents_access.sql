@@ -100,6 +100,7 @@ AS $$
     OR EXISTS (
       SELECT 1 FROM public.profiles pr
       WHERE pr.id = auth.uid()
+        AND pr.approval_status = 'active'
         AND pr.resident_id IS NOT NULL
         AND (
           pr.resident_id = p_resident_id
