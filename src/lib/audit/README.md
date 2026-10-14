@@ -143,9 +143,9 @@ const { recorded } = await recordAudit(
 
 **How `logAudit` relates to it.** `logAudit` (`logger.ts`) is a thin delegate and remains the contract server actions use (`CORE.md` section 6). It makes exactly one `supabase.auth.getUser()` call and passes the resulting id to `recordAudit` as the actor. Reach for `recordAudit` directly only when the code already holds the actor.
 
-**Failure policy: fail-safe.** `recordAudit` never throws. A missing actor, a sink error or an unexpected exception all return `{ recorded: false }` and the action being audited carries on. Failures are logged with an `[Audit] ...` prefix and an object of `{ entityType, entityId, action, error }`. Because the failure is only logged, a `recorded: false` result is the only signal that an entry was lost.
+**Failure policy: fail-safe.** `recordAudit` never throws. A missing actor, a sink error or an unexpected exception all return `{ recorded: false }` and the action being audited carries on. Failures are logged with an `[Audit] ...` prefix: a missing actor logs a plain message, and a sink error or unexpected exception logs an object of `{ entityType, entityId, action, error }`. Because the failure is only logged, a `recorded: false` result is the only signal that an entry was lost.
 
-**Not supported: system and sessionless actors.** An Audit Entry needs a user id. Cron, webhook and pre-auth flows have none, so their writes cannot be audited through the recorder; this is tracked in #538. The scanner's `AUDIT_ALLOWLIST` lists those flows.
+**Not supported: system and sessionless actors.** An Audit Entry needs a user id. Cron, webhook and pre-auth flows have none, so their writes cannot be audited through the recorder; this is tracked in #538. The scanner's `AUDIT_ALLOWLIST` lists the pre-auth and cron flows that cannot be audited this way (for example `auth/register-resident-portal`, `two-factor/verify` and `analytics/refresh-payment-cadence-summary`).
 
 ## Available Action Types
 
