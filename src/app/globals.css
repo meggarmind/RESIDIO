@@ -977,3 +977,18 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Shared-element navigation (View Transitions API, see
+   src/lib/navigation/shared-element-transition.ts) */
+::view-transition-group(*) {
+  animation-duration: 300ms;
+  animation-timing-function: ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
