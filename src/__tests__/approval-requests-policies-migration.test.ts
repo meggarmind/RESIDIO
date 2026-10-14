@@ -62,6 +62,39 @@ describe('approval_requests policies migration (static)', () => {
     }
   });
 
+  it('drops each policy before creating it', () => {
+    for (const name of [UPDATE_NAME, SELECT_NAME]) {
+      const drop = sql.indexOf(`DROP POLICY IF EXISTS "${name}"`);
+      const create = sql.indexOf(`CREATE POLICY "${name}"`);
+      expect(drop).toBeGreaterThanOrEqual(0);
+      expect(create).toBeGreaterThanOrEqual(0);
+      expect(drop).toBeLessThan(create);
+    }
+  });
+
+  it('keeps both policies PERMISSIVE on public.approval_requests', () => {
+    const upd = createStatement(UPDATE_NAME);
+    const sel = createStatement(SELECT_NAME);
+    expect(upd).toContain('AS PERMISSIVE FOR UPDATE');
+    expect(sel).toContain('AS PERMISSIVE FOR SELECT');
+    expect(upd).toContain('ON public.approval_requests');
+    expect(sel).toContain('ON public.approval_requests');
+  });
+
+  it('contains no grants, ALTERs or RLS changes, and exactly 2 DROP + 2 CREATE statements', () => {
+    expect(sql).not.toMatch(/\bGRANT\b/i);
+    expect(sql).not.toMatch(/\bREVOKE\b/i);
+    expect(sql).not.toMatch(/\bALTER\b/i);
+    expect(sql).not.toMatch(/DISABLE ROW LEVEL SECURITY/i);
+    const statements = sql
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    expect(statements).toHaveLength(4);
+    expect(statements.filter((s) => s.startsWith('DROP POLICY IF EXISTS'))).toHaveLength(2);
+    expect(statements.filter((s) => s.startsWith('CREATE POLICY'))).toHaveLength(2);
+  });
+
   it('touches exactly two policies and leaves INSERT and own-row SELECT alone', () => {
     expect(sql).not.toContain('Users can create their own approval requests');
     expect(sql).not.toContain('Users can view their own approval requests');
