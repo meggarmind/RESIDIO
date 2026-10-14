@@ -92,24 +92,21 @@ function makeSupabase({ profilesFail }: { profilesFail: boolean }) {
         return {
           select: () => ({
             eq: () => ({
-              single: async () => ({
-                data: { id: 'role-1', name: 'super_admin', display_name: 'Super Admin' },
+              maybeSingle: async () => ({
+                data: { display_name: 'Super Admin' },
                 error: null,
               }),
             }),
           }),
         };
       }
-      // role_permissions -- awaited directly off .eq(), no .single()
-      return {
-        select: () => ({
-          eq: async () => ({
-            data: [{ permission: { name: 'residents.view' } }],
-            error: null,
-          }),
-        }),
-      };
+      throw new Error(`unexpected table ${table}`);
     },
+    // Permissions come from the get_my_access() RPC (#536).
+    rpc: async () => ({
+      data: [{ role_id: 'role-1', role_name: 'super_admin', permission_name: 'residents.view' }],
+      error: null,
+    }),
   };
 }
 

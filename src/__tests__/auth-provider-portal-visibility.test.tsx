@@ -42,6 +42,9 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
 const { AuthProvider, useAuth } = await import('@/lib/auth/auth-provider');
 
 function makeSupabase(initialUserId: string) {
+  // get_my_access() takes no argument (it reads auth.uid()), so the fake
+  // answers for whichever user's profile row was read most recently.
+  let currentUserId = initialUserId;
   return {
     auth: {
       onAuthStateChange: (cb: NonNullable<typeof authListener>) => {
@@ -56,7 +59,9 @@ function makeSupabase(initialUserId: string) {
         return {
           select: () => ({
             eq: (_col: string, id: string) => ({
-              single: async () => ({
+              single: async () => {
+                currentUserId = id;
+                return {
                 data: {
                   id,
                   email: `${id}@residio.test`,
@@ -65,7 +70,8 @@ function makeSupabase(initialUserId: string) {
                   resident_id: users[id].residentId,
                 },
                 error: null,
-              }),
+              };
+              },
               maybeSingle: () => users[id].override,
             }),
           }),
@@ -74,9 +80,9 @@ function makeSupabase(initialUserId: string) {
       if (table === 'app_roles') {
         return {
           select: () => ({
-            eq: (_c: string, roleId: string) => ({
-              single: async () => ({
-                data: { id: roleId, name: 'super_admin', display_name: 'Super Admin' },
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: { display_name: 'Super Admin' },
                 error: null,
               }),
             }),
@@ -92,14 +98,20 @@ function makeSupabase(initialUserId: string) {
           }),
         };
       }
-      // role_permissions
+      throw new Error(`unexpected table ${table}`);
+    },
+    // get_my_access(): one row per permission; a role with none is one row
+    // with permission_name null.
+    rpc: async () => {
+      const perms = users[currentUserId].permissions;
+      const rows = perms.length > 0 ? perms : [null];
       return {
-        select: () => ({
-          eq: async (_c: string, roleId: string) => ({
-            data: users[roleId.replace('role-', '')].permissions.map((name) => ({ permission: { name } })),
-            error: null,
-          }),
-        }),
+        data: rows.map((permission_name) => ({
+          role_id: `role-${currentUserId}`,
+          role_name: 'super_admin',
+          permission_name,
+        })),
+        error: null,
       };
     },
   };
