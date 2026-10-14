@@ -94,7 +94,7 @@ describe('getApprovalHandler', () => {
 
 describe('approveRequest applies through the registry', () => {
   it('house_plots_change: writes the house, audits the entity UPDATE, then APPROVE', async () => {
-    const { queries } = setup(requestRow(), [houseRead, { data: null, error: null }]);
+    const { queries } = setup(requestRow(), [houseRead, { data: null, error: null }, { data: null, error: null }]); // last: applied_at update (#557)
     const writeQ = queries[3];
 
     const result = await approveRequest('req-1');
@@ -127,7 +127,11 @@ describe('approveRequest applies through the registry', () => {
         entity_type: 'billing_profile',
         requested_changes: { effective_date: '2026-10-01' },
       }),
-      [{ data: { name: 'Levy', effective_date: '2026-01-01' }, error: null }, { data: null, error: null }],
+      [
+        { data: { name: 'Levy', effective_date: '2026-01-01' }, error: null },
+        { data: null, error: null },
+        { data: null, error: null }, // applied_at update (#557)
+      ],
     );
 
     const result = await approveRequest('req-1');
