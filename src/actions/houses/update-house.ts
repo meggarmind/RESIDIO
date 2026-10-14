@@ -6,7 +6,8 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { revalidatePath } from 'next/cache';
 import type { HouseWithStreet } from '@/types/database';
 import type { HouseFormData } from '@/lib/validators/house';
-import { createApprovalRequest, canAutoApprove } from '@/actions/approvals';
+import { canAutoApprove } from '@/actions/approvals';
+import { createApprovalRequest } from '@/lib/approvals/create-approval-request';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
 
 type UpdateHouseResponse = {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { approveRequest } from '@/actions/approvals';
+import { approveRequest, rejectRequest } from '@/actions/approvals';
 import { approveLateFeeWaiver } from '@/actions/billing/late-fee-waivers';
 
 const { createServerSupabaseClient, authorizePermission, logAudit } = vi.hoisted(() => ({
@@ -243,5 +243,85 @@ describe('approveRequest maker-checker and pending guard (#473)', () => {
 
     expect(result.success).toBe(false);
     expect(from).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('rejectRequest pending guard (#554)', () => {
+  /** Like real PostgREST for a zero-row match: single() errors, maybeSingle() yields null. */
+  function createStrictQuery() {
+    const q = createQuery({ data: null, error: null });
+    q.single = vi
+      .fn()
+      .mockResolvedValue({ data: null, error: { message: 'JSON object requested, multiple (or no) rows returned' } });
+    q.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    return q;
+  }
+
+  const requestRow = (over: Record<string, unknown> = {}) => ({
+    id: 'req-1',
+    request_type: 'billing_profile_effective_date',
+    status: 'pending',
+    requested_by: 'maker-1',
+    ...over,
+  });
+
+  it('rejects a pending request with a status-guarded update and one REJECT audit', async () => {
+    const fetchQ = createQuery({ data: requestRow(), error: null });
+    const updateQ = createQuery({ data: { id: 'req-1' }, error: null });
+    const from = vi.fn().mockReturnValueOnce(fetchQ).mockReturnValueOnce(updateQ);
+    createServerSupabaseClient.mockResolvedValue({ from });
+
+    const result = await rejectRequest('req-1', 'no thanks');
+
+    expect(result).toEqual({ success: true, error: null });
+    expect(updateQ.eq).toHaveBeenCalledWith('status', 'pending');
+    expect(updateQ.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'rejected',
+        reviewed_by: 'approver-1',
+        review_notes: 'no thanks',
+      }),
+    );
+    expect(logAudit).toHaveBeenCalledTimes(1);
+    expect(logAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'REJECT', entityType: 'approval_requests' }),
+    );
+  });
+
+  it('reports a lost race without auditing', async () => {
+    const fetchQ = createQuery({ data: requestRow(), error: null });
+    const updateQ = createStrictQuery(); // 0 rows matched
+    const from = vi.fn().mockReturnValueOnce(fetchQ).mockReturnValueOnce(updateQ);
+    createServerSupabaseClient.mockResolvedValue({ from });
+
+    const result = await rejectRequest('req-1');
+
+    expect(updateQ.eq).toHaveBeenCalledWith('status', 'pending');
+    expect(result).toEqual({ success: false, error: 'Request has already been processed' });
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('returns the DB error and does not audit when the update fails', async () => {
+    const fetchQ = createQuery({ data: requestRow(), error: null });
+    const updateQ = createQuery({ data: null, error: { message: 'boom' } });
+    const from = vi.fn().mockReturnValueOnce(fetchQ).mockReturnValueOnce(updateQ);
+    createServerSupabaseClient.mockResolvedValue({ from });
+
+    const result = await rejectRequest('req-1');
+
+    expect(result).toEqual({ success: false, error: 'boom' });
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('refuses an already-processed request without updating', async () => {
+    const fetchQ = createQuery({ data: requestRow({ status: 'approved' }), error: null });
+    const from = vi.fn().mockReturnValueOnce(fetchQ);
+    createServerSupabaseClient.mockResolvedValue({ from });
+
+    const result = await rejectRequest('req-1');
+
+    expect(result).toEqual({ success: false, error: 'Request has already been processed' });
+    expect(from).toHaveBeenCalledTimes(1);
+    expect(logAudit).not.toHaveBeenCalled();
   });
 });

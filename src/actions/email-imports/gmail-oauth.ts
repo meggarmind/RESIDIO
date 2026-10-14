@@ -257,33 +257,6 @@ export async function disconnectGmail(): Promise<{ error: string | null }> {
 }
 
 // ============================================================
-// Update Last Sync Status
-// ============================================================
-
-export async function updateGmailSyncStatus(params: {
-  status: 'success' | 'error' | 'partial';
-  message?: string;
-  emailsCount?: number;
-}): Promise<{ error: string | null }> {
-  const supabase = await createServerSupabaseClient();
-
-  const { error } = await supabase
-    .from('gmail_oauth_credentials')
-    .update({
-      last_sync_at: new Date().toISOString(),
-      last_sync_status: params.status,
-      last_sync_message: params.message || null,
-      last_sync_emails_count: params.emailsCount ?? 0,
-    })
-    .eq('is_active', true);
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  return { error: null };
-}
-// ============================================================
 // Update Sync Criteria
 // ============================================================
 

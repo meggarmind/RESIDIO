@@ -107,57 +107,6 @@ export async function generateBackupCodes(
 }
 
 /**
- * Regenerate backup codes (simpler version, requires 2FA to be enabled)
- */
-export async function regenerateBackupCodes(): Promise<{
-  success: boolean;
-  message: string;
-  codes?: string[];
-}> {
-  const auth = await authorizePermission(PERMISSIONS.TWO_FACTOR_ENABLE);
-  if (!auth.authorized) {
-    return { success: false, message: auth.error || 'Unauthorized' };
-  }
-
-  const supabase = await createServerSupabaseClient();
-  const adminClient = createAdminClient();
-
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return { success: false, message: 'Not authenticated' };
-  }
-
-  // Check if 2FA is enabled
-  const { data: profile } = await adminClient
-    .from('profiles')
-    .select('two_factor_enabled, two_factor_method')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile || !profile.two_factor_enabled) {
-    return { success: false, message: '2FA must be enabled to regenerate backup codes' };
-  }
-
-  // Generate new backup codes
-  const codes = await generateAndStoreBackupCodes(user.id);
-
-  // Log the regeneration
-  await adminClient.from('two_factor_audit_log').insert({
-    profile_id: user.id,
-    action: 'secret_regenerated',
-    method: profile.two_factor_method,
-    metadata: { backup_codes_regenerated: codes.length },
-  });
-
-  return {
-    success: true,
-    message: 'New backup codes generated. Save these codes securely.',
-    codes,
-  };
-}
-
-/**
  * Get count of remaining backup codes
  */
 export async function getBackupCodesCount(): Promise<{

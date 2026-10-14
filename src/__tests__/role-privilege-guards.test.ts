@@ -101,8 +101,8 @@ vi.mock('@/lib/auth/super-admin-invariant', () => ({
   LAST_SUPER_ADMIN_ERROR: 'last super admin',
 }));
 vi.mock('@/actions/email-imports/fetch-emails', () => ({ fetchNewEmails: state.fetchNewEmails }));
-vi.mock('@/actions/email-imports/parse-email', () => ({ parseAllPendingEmails: state.parseAllPendingEmails }));
-vi.mock('@/actions/email-imports/process-email-import', () => ({
+vi.mock('@/lib/email-imports/parse-email', () => ({ parseAllPendingEmails: state.parseAllPendingEmails }));
+vi.mock('@/lib/email-imports/process-email-matching', () => ({
   matchEmailTransactions: state.matchEmailTransactions,
 }));
 

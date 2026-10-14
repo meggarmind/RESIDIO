@@ -3,11 +3,11 @@ import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { createLogger } from '@/lib/logger';
 import { getGmailConnectionStatus } from '@/actions/email-imports/gmail-oauth';
 import { runEmailFetch } from '@/lib/email-imports/fetch-emails';
-import { parseAllPendingEmails } from '@/actions/email-imports/parse-email';
+import { parseAllPendingEmails } from '@/lib/email-imports/parse-email';
 import {
-  matchEmailTransactions,
   processEmailTransactions,
 } from '@/actions/email-imports/process-email-import';
+import { matchEmailTransactions } from '@/lib/email-imports/process-email-matching';
 
 const log = createLogger('[Cron:EmailFetch]');
 
