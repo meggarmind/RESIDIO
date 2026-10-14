@@ -1,6 +1,7 @@
 import { createHash, randomInt } from 'node:crypto';
 import { normalizePhoneNumber } from '@/lib/sms/termii';
 import { createAdminClient } from '@/lib/supabase/server';
+import { isWhatsAppMasterSwitchOn } from '@/lib/whatsapp/master-switch';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/provider';
 import type { WhatsAppInboundMessage, WhatsAppTextMessage } from '@/lib/whatsapp/types';
 
@@ -297,6 +298,18 @@ export async function handleResidentMessage(
   message: WhatsAppInboundMessage,
   options: WhatsAppIdentityHandlerOptions
 ): Promise<WhatsAppIdentityResult> {
+  // Master switch (#547): when off the Assistant does nothing for an inbound
+  // message -- no lookup, no pending-contact row, no state change, no reply.
+  // This must stay the first read/write. The webhook still answers 200 (this
+  // returns normally) and the processed-message store has already marked the
+  // message handled, so messages received while the switch is off are NOT
+  // replayed when it is turned back on. That is the accepted consequence.
+  const masterSwitch = await isWhatsAppMasterSwitchOn();
+  if (!masterSwitch.on) {
+    console.warn(`WhatsApp Assistant inbound ignored: master switch off (${masterSwitch.reason})`);
+    return { status: 'pending', residentId: null, optedIn: false, financialEligible: false, accessTier: 'community' };
+  }
+
   const phoneNumber = normalizePhoneNumber(message.from);
   const text = message.text?.trim() || '';
   const linked = await options.repository.findLinkedResidents(phoneNumber);
