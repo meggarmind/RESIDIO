@@ -87,6 +87,9 @@ read from the container's environment by the command, so it is never written int
 back on the queue with a backoff of 15 minutes, 1 hour, 6 hours, then 24 hours (or until the
 WhatsApp daily cap resets at 00:00 UTC), and a daily run would pick every retry up a day late. The
 operator changes the schedule in Coolify; no workflow or scheduler file in the repository carries it.
+The route purges old `sent`/`cancelled` queue rows (older than 30 days) only in the 00:00-00:04 UTC
+run, which the old daily 09:00 schedule never hit, so the 15-minute schedule starts that purge for
+the first time.
 
 All calls go to `http://127.0.0.1:3000` inside the container, so they do not pass through Traefik
 or Cloudflare. The `AbortSignal.timeout` in the command is therefore the **only** ceiling on a

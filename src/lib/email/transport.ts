@@ -83,8 +83,11 @@ export async function sendViaResend(
     }
     return { ok: true, id: data?.id };
   } catch (e) {
-    // A thrown error is a network/timeout failure: the request may not have
-    // reached Resend, and the idempotency key makes a repeat safe either way.
+    // A thrown error is a network/timeout failure, so it is treated as
+    // retryable. The idempotency key does NOT make that safe if the first
+    // request actually landed: the next attempt uses attempt + 1, a different
+    // key. The key only protects overlapping runs and a crash before the queue
+    // row is updated (same attempt number, same key).
     return {
       ok: false,
       error: e instanceof Error ? e.message : 'Unknown error sending email',

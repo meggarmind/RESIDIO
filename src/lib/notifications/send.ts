@@ -151,6 +151,8 @@ async function sendViaWhatsApp(
     createSendPolicyFacts()
   );
   if (decision.outcome === 'defer') {
+    // Note: a deferred send still consumes one attempt, so 5 consecutive capped
+    // UTC days (or a long burst backlog) exhaust max_attempts and fail the row.
     // A cap is transient: try again when it can have cleared (#546).
     return {
       success: false,
