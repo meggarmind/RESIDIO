@@ -1,5 +1,6 @@
 'use server';
 
+import { randomInt } from 'node:crypto';
 import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { sendVerificationSms } from '@/lib/sms/send-sms';
 import { sendEmail } from '@/lib/email/send-email';
@@ -18,10 +19,11 @@ const TOKEN_EXPIRY_MINUTES = 30;
 const MAX_TOKENS_PER_HOUR = 3;
 
 /**
- * Generate a random 6-digit OTP
+ * Generate a uniformly random 6-digit OTP from a CSPRNG (Math.random is predictable).
+ * Zero-padded: the token column accepts any 6 digits (^[0-9]{6}$).
  */
 function generateOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return randomInt(0, 1_000_000).toString().padStart(6, '0');
 }
 
 /**
