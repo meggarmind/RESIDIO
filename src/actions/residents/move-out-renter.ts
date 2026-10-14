@@ -224,7 +224,7 @@ export async function initiateRenterMoveOut(
   // Get resident details
   const { data: resident, error: residentError } = await supabase
     .from('residents')
-    .select('id, first_name, last_name, resident_code, email, phone_primary, user_id')
+    .select('id, first_name, last_name, resident_code, email, phone_primary, profile_id')
     .eq('id', residentId)
     .single();
 
@@ -233,7 +233,7 @@ export async function initiateRenterMoveOut(
   }
 
   // Check if user is the resident themselves (self-service) or admin
-  const isSelfService = resident.user_id === user.id;
+  const isSelfService = resident.profile_id === user.id;
   if (!isSelfService) {
     const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
     if (!auth.authorized) {
@@ -397,20 +397,24 @@ export async function initiateRenterMoveOut(
   }
 
   // Create in-app notification for the renter
-  await adminClient
-    .from('in_app_notifications')
-    .insert({
-      recipient_id: resident.user_id,
-      title: 'Move-Out Clearance Certificate',
-      body: `Your clearance certificate (${certificateNumber}) has been generated. Valid until ${validUntil.toLocaleDateString()}.`,
-      category: 'resident',
-      entity_type: 'clearance_certificate',
-      entity_id: certificate.id,
-      action_url: `/portal/properties/${houseId}`,
-      priority: 'high',
-      metadata: { certificate },
-    });
+  // recipient_id is NOT NULL and FK to profiles.id; a resident without a portal account has none.
+  if (resident.profile_id) {
+    await adminClient
+      .from('in_app_notifications')
+      .insert({
+        recipient_id: resident.profile_id,
+        title: 'Move-Out Clearance Certificate',
+        body: `Your clearance certificate (${certificateNumber}) has been generated. Valid until ${validUntil.toLocaleDateString()}.`,
+        category: 'resident',
+        entity_type: 'clearance_certificate',
+        entity_id: certificate.id,
+        action_url: `/portal/properties/${houseId}`,
+        priority: 'high',
+        metadata: { certificate },
+      });
+  }
 
+  // NOTE (#585): user_roles does not exist and residents.user_id does not exist, so this notifies nobody. Left as is pending an owner decision on who should be notified.
   // Get CSO and Finance users for notifications
   const { data: csoUsers } = await supabase
     .from('user_roles')
@@ -554,7 +558,7 @@ export async function confirmRenterMoveOut(
   // Get resident details
   const { data: resident } = await supabase
     .from('residents')
-    .select('first_name, last_name, resident_code, user_id')
+    .select('first_name, last_name, resident_code, profile_id')
     .eq('id', residentId)
     .single();
 
@@ -728,15 +732,17 @@ export async function confirmRenterMoveOut(
   }
 
   // Notify the renter
-  await adminClient
-    .from('in_app_notifications')
-    .insert({
-      recipient_id: resident?.user_id,
-      title: 'Move-Out Confirmed',
-      body: `Your move-out has been confirmed by security. You are no longer associated with the property.`,
-      category: 'resident',
-      priority: 'high',
-    });
+  if (resident?.profile_id) {
+    await adminClient
+      .from('in_app_notifications')
+      .insert({
+        recipient_id: resident.profile_id,
+        title: 'Move-Out Confirmed',
+        body: `Your move-out has been confirmed by security. You are no longer associated with the property.`,
+        category: 'resident',
+        priority: 'high',
+      });
+  }
 
   // Audit log
   await logAudit({
