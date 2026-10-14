@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { DashboardSkeleton } from '@/components/dashboard/dashboard-skeleton';
 import { UnifiedActionsCard } from '@/components/dashboard/unified-actions-card';
 import { useSmartSuggestions } from '@/hooks/use-smart-suggestions';
+import { LiveStatusStrip } from '@/components/dashboard/live-status-strip';
 import { ModernStatsCards } from '@/components/dashboard/modern-stats-cards';
 import { ModernFinancialHealth } from '@/components/dashboard/modern-financial-health';
 import { ModernPendingPayments } from '@/components/dashboard/modern-pending-payments';
@@ -35,6 +36,14 @@ function DashboardContent() {
         <div className="space-y-6" data-dashboard-state="ready">
             <OfflineAdminBanner isStale={isStaleSnapshot} savedAt={snapshotSavedAt} />
             <NavigationStateHandler unauthorized={navigationState.unauthorized} />
+
+            <LiveStatusStrip
+              actionMetrics={snapshot?.actionMetrics ?? null}
+              recentActivity={snapshot?.recentActivity ?? null}
+              recentActivityUnavailable={snapshot?.recentActivityUnavailable ?? false}
+              isLoading={isLoading}
+              isUnavailable={isError}
+            />
 
             <ModernStatsCards
               financialHealth={snapshot?.financialHealth ?? null}
