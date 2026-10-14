@@ -163,6 +163,15 @@ describe('failure classification', () => {
     await expect(sendNotification(emailItem)).resolves.toMatchObject({ success: false, retryable: true });
   });
 
+  it.each([
+    ['5xx with an unlisted name', { message: 'x', statusCode: 503, name: 'service_unavailable' }],
+    ['429 with a non-retryable name', { message: 'x', statusCode: 429, name: 'daily_quota_exceeded' }],
+    ['500 with a validation name', { message: 'x', statusCode: 500, name: 'validation_error' }],
+  ])('email: Resend %s is retryable by status alone', async (_label, error) => {
+    mocks.resendSend.mockResolvedValue({ data: null, error });
+    await expect(sendNotification(emailItem)).resolves.toMatchObject({ success: false, retryable: true });
+  });
+
   it('email: a thrown network error is retryable', async () => {
     mocks.resendSend.mockRejectedValue(new Error('fetch failed'));
     await expect(sendNotification(emailItem)).resolves.toMatchObject({ success: false, retryable: true });
@@ -321,6 +330,19 @@ describe('sendAndRecordNotification requeue', () => {
     });
   });
 
+  it('still requeues on the last slot before the final attempt (attempt 4 of 5)', async () => {
+    mocks.resendSend.mockResolvedValue({ data: null, error: transient });
+    const fake = useFake({ notification_queue: [queueRow({ attempts: 3 })], notification_history: [] });
+
+    await sendAndRecordNotification(asItem(queueRow({ attempts: 3 })));
+
+    expect(fake.state.tables.notification_queue[0]).toMatchObject({
+      status: 'pending',
+      attempts: 4,
+      scheduled_for: new Date(NOW.getTime() + 24 * HOUR).toISOString(),
+    });
+  });
+
   it('marks failed on the final attempt', async () => {
     mocks.resendSend.mockResolvedValue({ data: null, error: transient });
     const fake = useFake({ notification_queue: [queueRow({ attempts: 4 })], notification_history: [] });
@@ -432,6 +454,25 @@ describe('processQueue picks requeued items up only when due', () => {
     expect(mocks.resendSend.mock.calls[1][1]).toEqual({ idempotencyKey: 'queue-1:2' });
     expect(fake.state.tables.notification_queue[0]).toMatchObject({ status: 'sent', attempts: 2 });
     expect(fake.state.tables.notification_history).toHaveLength(2);
+  });
+});
+
+describe('processQueue exhausted-row guard', () => {
+  it('fails a pending row with attempts >= max_attempts without sending it', async () => {
+    const fake = useFake({
+      notification_queue: [queueRow({ attempts: 5, max_attempts: 5 })],
+      notification_history: [],
+    });
+
+    const result = await processQueue();
+
+    expect(result).toMatchObject({ processed: 1, sent: 0, failed: 1 });
+    expect(result.errors).toEqual([{ queueId: 'queue-1', error: 'Max attempts exceeded' }]);
+    expect(mocks.resendSend).not.toHaveBeenCalled();
+    expect(fake.state.tables.notification_queue[0]).toMatchObject({
+      status: 'failed',
+      error_message: 'Max attempts exceeded',
+    });
   });
 });
 

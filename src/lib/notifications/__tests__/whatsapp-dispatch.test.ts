@@ -386,6 +386,8 @@ describe('WhatsApp notification dispatch', () => {
       vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
         success: false,
         error: 'WhatsApp provider request failed (HTTP 401)',
+        // The real Meta/Twilio adapters flag a 401 as non-retryable.
+        retryable: false,
       });
       vi.mocked(resolveWhatsAppConfig).mockResolvedValue(metaConfigResult);
       vi.mocked(sendSms).mockResolvedValue({ success: true, messageId: 'termii-should-not-be-used' });
@@ -397,8 +399,8 @@ describe('WhatsApp notification dispatch', () => {
         success: false,
         externalId: undefined,
         error: 'WhatsApp provider request failed (HTTP 401)',
-        retryable: true,
       });
+      expect(result.retryable).toBeUndefined();
     });
 
     it('does not fall back to SMS when the Chatmaid WhatsApp send already succeeded', async () => {
