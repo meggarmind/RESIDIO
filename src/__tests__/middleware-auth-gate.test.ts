@@ -30,7 +30,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const supabaseState = vi.hoisted(() => ({
     user: null as { id: string } | null,
     profile: null as Record<string, unknown> | null,
-    rolePermissions: [] as { permission: { name: string } }[],
+    accessRows: [] as { role_id: string; role_name: string; permission_name: string | null }[],
+    accessError: null as { message: string } | null,
+    rpcCalls: [] as string[],
+    getUserCalls: 0,
 }));
 
 vi.mock('@supabase/ssr', () => ({
@@ -45,19 +48,26 @@ vi.mock('@supabase/ssr', () => ({
 
         return {
             auth: {
-                getUser: async () => ({ data: { user: supabaseState.user }, error: null }),
+                getUser: async () => {
+                    supabaseState.getUserCalls += 1;
+                    return { data: { user: supabaseState.user }, error: null };
+                },
                 signOut: async () => ({ error: null }),
             },
+            // Guarded-route permission lookups go through the Access module's
+            // get_my_access() RPC (#535): one row per permission, or a single
+            // row with permission_name null for a role that holds none.
+            rpc: async (fn: string) => {
+                supabaseState.rpcCalls.push(fn);
+                return supabaseState.accessError
+                    ? { data: null, error: supabaseState.accessError }
+                    : { data: supabaseState.accessRows, error: null };
+            },
             from: (table: string) => {
-                // The role_permissions lookup is awaited on the builder itself
-                // rather than via .single(), so the builder is thenable too.
                 const builder = {
                     select: () => builder,
                     eq: () => builder,
                     single: () => single(table),
-                    then: (
-                        resolve: (value: { data: unknown; error: null }) => unknown,
-                    ) => Promise.resolve({ data: supabaseState.rolePermissions, error: null }).then(resolve),
                 };
                 return builder;
             },
@@ -129,7 +139,10 @@ describe('middleware authentication gate (#104)', () => {
     beforeEach(() => {
         supabaseState.user = null;
         supabaseState.profile = null;
-        supabaseState.rolePermissions = [];
+        supabaseState.accessRows = [];
+        supabaseState.accessError = null;
+        supabaseState.rpcCalls = [];
+        supabaseState.getUserCalls = 0;
     });
 
     describe('unauthenticated', () => {
@@ -177,6 +190,96 @@ describe('middleware authentication gate (#104)', () => {
         it.each(ROUTES_FROM_ISSUE_104)('does not send an active admin on %s to /login', async (pathname) => {
             const response = await middleware(request(pathname));
             expect(redirectsToLogin(response), `${pathname} bounced an authenticated user to /login`).toBe(false);
+        });
+    });
+
+    describe('permission resolution through the Access module (#535)', () => {
+        // /personnel requires VENDORS_VIEW; /portal requires nothing.
+        const GUARDED_PATH = '/personnel';
+        const REQUIRED = 'view_vendors';
+
+        beforeEach(() => {
+            supabaseState.user = { id: 'user-1' };
+            supabaseState.profile = {
+                role_id: 'role-1',
+                resident_id: null,
+                approval_status: 'active',
+                app_roles: { name: 'super_admin', category: 'admin' },
+            };
+        });
+
+        const rows = (...names: (string | null)[]) =>
+            names.map((permission_name) => ({ role_id: 'role-1', role_name: 'super_admin', permission_name }));
+
+        function expectUnauthorized(response: Response) {
+            expect(response.status).toBe(307);
+            const target = new URL(response.headers.get('location') as string);
+            expect(target.pathname).toBe('/dashboard');
+            expect(target.searchParams.get('error')).toBe('unauthorized');
+        }
+
+        it('lets a user holding the required permission through', async () => {
+            supabaseState.accessRows = rows(REQUIRED, 'residents.view');
+            const response = await middleware(request(GUARDED_PATH));
+            expect(response.headers.get('location')).toBeNull();
+            expect(response.status).toBe(200);
+            expect(supabaseState.rpcCalls).toEqual(['get_my_access']);
+        });
+
+        it('lets through a user holding any one of several required permissions', async () => {
+            // /reports accepts any of three report permissions.
+            supabaseState.accessRows = rows('reports.view_security');
+            const response = await middleware(request('/reports'));
+            expect(response.headers.get('location')).toBeNull();
+            expect(response.status).toBe(200);
+        });
+
+                it('redirects a user without the required permission to /dashboard?error=unauthorized', async () => {
+            supabaseState.accessRows = rows('residents.view');
+            expectUnauthorized(await middleware(request(GUARDED_PATH)));
+        });
+
+        it('redirects a role with no permissions at all (single null row)', async () => {
+            supabaseState.accessRows = rows(null);
+            expectUnauthorized(await middleware(request(GUARDED_PATH)));
+        });
+
+        it('redirects when the lookup returns zero rows (no-access)', async () => {
+            supabaseState.accessRows = [];
+            expectUnauthorized(await middleware(request(GUARDED_PATH)));
+        });
+
+        it('fails closed and logs when the RPC errors (lookup-failed)', async () => {
+            supabaseState.accessError = { message: 'rpc exploded' };
+            const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+            try {
+                expectUnauthorized(await middleware(request(GUARDED_PATH)));
+                expect(spy).toHaveBeenCalledWith('[middleware] access lookup failed', {
+                    userId: 'user-1',
+                    error: 'rpc exploded',
+                });
+            } finally {
+                spy.mockRestore();
+            }
+        });
+
+        it('does not call the RPC for a route that requires no permission', async () => {
+            const response = await middleware(request('/portal?impersonate=1'));
+            expect(response.status).toBe(200);
+            expect(supabaseState.rpcCalls).toEqual([]);
+        });
+
+        it('does not call the RPC when the profile has no role_id, and redirects', async () => {
+            supabaseState.profile = { ...supabaseState.profile, role_id: null };
+            expectUnauthorized(await middleware(request(GUARDED_PATH)));
+            expect(supabaseState.rpcCalls).toEqual([]);
+        });
+
+        it("performs no getUser() beyond the middleware's own", async () => {
+            supabaseState.accessRows = rows(REQUIRED);
+            await middleware(request(GUARDED_PATH));
+            expect(supabaseState.rpcCalls).toEqual(['get_my_access']);
+            expect(supabaseState.getUserCalls).toBe(1);
         });
     });
 });
