@@ -31,7 +31,8 @@ import {
 } from '@/components/ui/table';
 import { Check, X, Clock, CheckCircle, XCircle, ArrowRight, Eye, Loader2, ArrowLeft, Search } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { ApprovalStatus, ApprovalRequestType, ApprovalRequestWithDetails } from '@/types/database';
+import { APPROVAL_REQUEST_TYPE_LABELS } from '@/types/database';
+import type { ApprovalStatus, ApprovalRequestWithDetails } from '@/types/database';
 import { toast } from 'sonner';
 import { EnhancedPageHeader, EnhancedTableCard } from '@/components/dashboard/enhanced-stat-card';
 import { Input } from '@/components/ui/input';
@@ -40,15 +41,6 @@ import { Can } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const ALL_VALUE = '_all';
-
-// Only the values the `approval_request_type` Postgres enum actually holds. The
-// ten phantom entries this map used to carry could never appear in a row (#107);
-// widening the enum is tracked as #306.
-const REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
-    billing_profile_effective_date: 'Billing Profile Effective Date',
-    house_plots_change: 'House Plots Change',
-    late_fee_waiver: 'Late Fee Waiver',
-};
 
 const STATUS_BADGES: Record<ApprovalStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
     pending: { label: 'Pending', variant: 'secondary' },
@@ -206,7 +198,7 @@ export default function ApprovalsPage() {
                                         <TableRow key={request.id} className="hover:bg-gray-50 dark:hover:bg-[#0F172A]">
                                             <TableCell>
                                                 <span className="text-sm font-medium">
-                                                    {REQUEST_TYPE_LABELS[request.request_type] || request.request_type}
+                                                    {APPROVAL_REQUEST_TYPE_LABELS[request.request_type] || request.request_type}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
@@ -382,7 +374,7 @@ export default function ApprovalsPage() {
                                 <div className="text-sm">
                                     <span className="text-muted-foreground">Type:</span>{' '}
                                     <span className="font-medium">
-                                        {REQUEST_TYPE_LABELS[actionDialog.request.request_type] || actionDialog.request.request_type}
+                                        {APPROVAL_REQUEST_TYPE_LABELS[actionDialog.request.request_type] || actionDialog.request.request_type}
                                     </span>
                                 </div>
                                 {actionDialog.request.reason && (
