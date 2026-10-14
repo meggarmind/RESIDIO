@@ -54,7 +54,7 @@ npm run test:e2e         # Playwright (e2e tests)
 ### Additional Commands
 
 ```bash
-npm run db:types         # Regenerate TypeScript types from cloud schema
+npm run db:types         # Regenerate types from cloud schema (needs SUPABASE_ACCESS_TOKEN)
 npx tsx scripts/test-pdf-import.ts   # PDF import infrastructure test CLI
 ```
 
