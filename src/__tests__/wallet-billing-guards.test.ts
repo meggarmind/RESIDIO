@@ -18,6 +18,7 @@ import { debitWalletForInvoiceAtomic } from '@/lib/billing/wallet-invoice-debit'
 const RESIDENT = '11111111-1111-4111-8111-111111111111';
 const INVOICE = '22222222-2222-4222-8222-222222222222';
 const WALLET = '33333333-3333-4333-8333-333333333333';
+const SETTING = '44444444-4444-4444-8444-444444444444'; // system_settings row id (audit entity_id is a uuid, #594)
 
 type Call = { table: string; op: 'select' | 'update' | 'insert'; payload?: unknown };
 
@@ -168,7 +169,7 @@ describe('billing automation settings actions', () => {
 
     it('updateInvoiceGenerationDay writes and audits when authorised', async () => {
         authorizePermission.mockResolvedValue({ authorized: true });
-        const { client, calls } = fakeClient({ tables: { system_settings: { value: '2' } } });
+        const { client, calls } = fakeClient({ tables: { system_settings: { id: SETTING, value: '2' } } });
         createServerSupabaseClient.mockResolvedValue(client);
 
         const result = await updateInvoiceGenerationDay(5);
@@ -177,7 +178,8 @@ describe('billing automation settings actions', () => {
         expect(writes(calls)).toEqual([{ table: 'system_settings', op: 'update', payload: { value: '5' } }]);
         expect(logAudit.mock.calls[0][0]).toMatchObject({
             entityType: 'system_settings',
-            entityId: 'invoice_generation_day',
+            entityId: SETTING,
+            entityDisplay: 'invoice_generation_day',
             oldValues: { value: '2' },
             newValues: { value: 5 },
         });
@@ -193,10 +195,10 @@ describe('billing automation settings actions', () => {
 
     it('updateAutoGenerateEnabled writes and audits when authorised, and skips audit on DB error', async () => {
         authorizePermission.mockResolvedValue({ authorized: true });
-        const ok = fakeClient({ tables: { system_settings: { value: true } } });
+        const ok = fakeClient({ tables: { system_settings: { id: SETTING, value: true } } });
         createServerSupabaseClient.mockResolvedValue(ok.client);
         expect(await updateAutoGenerateEnabled(false)).toEqual({ success: true, error: null });
-        expect(logAudit.mock.calls[0][0]).toMatchObject({ action: 'DEACTIVATE', entityId: 'auto_generate_invoices' });
+        expect(logAudit.mock.calls[0][0]).toMatchObject({ action: 'DEACTIVATE', entityId: SETTING, entityDisplay: 'auto_generate_invoices' });
 
         logAudit.mockClear();
         const bad = fakeClient({ updateError: { system_settings: { message: 'denied' } } });

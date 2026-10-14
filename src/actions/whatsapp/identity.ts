@@ -120,6 +120,7 @@ export async function importWhatsAppOptIns(
   }
 
   const insertedIds = new Set<string>();
+  const optinRowIds: string[] = [];
   const now = new Date().toISOString();
 
   for (const { residentCode, phoneNumber } of parsed.rows) {
@@ -132,29 +133,40 @@ export async function importWhatsAppOptIns(
       result.duplicates += 1;
       continue;
     }
-    const { error } = await adminClient.from('whatsapp_optins').insert({
+    const { data: optin, error } = await adminClient.from('whatsapp_optins').insert({
       resident_id: residentId,
       phone_number: phoneNumber,
       opted_in: true,
       source: 'admin_import',
       opted_in_at: now,
-    });
+    }).select('id').single();
     if (error) {
       result.errors.push(`Failed to import ${residentCode}: ${error.message}`);
       continue;
     }
     insertedIds.add(residentId);
+    if (optin?.id) optinRowIds.push(optin.id);
     result.imported += 1;
   }
 
   if (result.imported > 0) {
-    await logAudit({
-      action: 'CREATE',
-      entityType: 'whatsapp_optins',
-      entityId: 'bulk-import',
-      entityDisplay: `WhatsApp opt-in bulk import`,
-      newValues: { imported: result.imported, duplicates: result.duplicates, errors: result.errors.length },
-    });
+    // audit_logs.entity_id is a uuid: the first created opt-in row stands for the import (#594).
+    if (optinRowIds.length > 0) {
+      await logAudit({
+        action: 'CREATE',
+        entityType: 'whatsapp_optins',
+        entityId: optinRowIds[0],
+        entityDisplay: `WhatsApp opt-in bulk import`,
+        newValues: {
+          batch: 'bulk-import',
+          total_count: result.imported,
+          optin_ids: optinRowIds.slice(0, 50),
+          imported: result.imported,
+          duplicates: result.duplicates,
+          errors: result.errors.length,
+        },
+      });
+    }
     revalidatePath('/settings/whatsapp');
   }
 
@@ -327,23 +339,27 @@ export async function setWhatsAppForcePin(enabled: boolean): Promise<ActionResul
     .select('value')
     .eq('key', 'whatsapp_force_pin')
     .maybeSingle();
-  const { error } = await adminClient
+  const { data: updatedRows, error } = await adminClient
     .from('system_settings')
     .update({ value: enabled.toString() })
-    .eq('key', 'whatsapp_force_pin');
+    .eq('key', 'whatsapp_force_pin')
+    .select('id');
 
   if (error) {
     return { success: false, data: null, error: 'Failed to update WhatsApp PIN policy' };
   }
 
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'system_settings',
-    entityId: 'whatsapp_force_pin',
-    entityDisplay: 'WhatsApp force-PIN policy',
-    oldValues: { value: oldSetting?.value },
-    newValues: { value: enabled },
-  });
+  // audit_logs.entity_id is a uuid: use the settings row id; the key goes in newValues (#594).
+  if (updatedRows?.[0]?.id) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'system_settings',
+      entityId: updatedRows[0].id,
+      entityDisplay: 'WhatsApp force-PIN policy',
+      oldValues: { value: oldSetting?.value },
+      newValues: { key: 'whatsapp_force_pin', value: enabled },
+    });
+  }
   revalidatePath('/settings/whatsapp');
 
   return { success: true, data: enabled, error: null };

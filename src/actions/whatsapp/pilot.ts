@@ -120,18 +120,28 @@ export async function updateWhatsAppPilotSettings(input: PilotSettings): Promise
     whatsapp_session_retention_days: String(input.sessionRetentionDays),
     whatsapp_processed_message_retention_days: String(input.processedMessageRetentionDays),
   };
-  const { error } = await createAdminClient().from('system_settings').upsert(
+  const { data: savedRows, error } = await createAdminClient().from('system_settings').upsert(
     Object.entries(values).map(([key, value]) => ({ key, value, category: 'notifications' })),
     { onConflict: 'key' }
-  );
+  ).select('id');
   if (error) return { success: false, error: 'Failed to update WhatsApp pilot settings' };
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'system_settings',
-    entityId: 'whatsapp_rollout',
-    entityDisplay: 'WhatsApp rollout controls',
-    newValues: { ...values, whatsapp_pilot_resident_ids: input.residentIds.length },
-  });
+  // audit_logs.entity_id is a uuid: the first written settings row stands for the group (#594).
+  const savedIds = (savedRows ?? []).map((r) => r.id);
+  if (savedIds.length > 0) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'system_settings',
+      entityId: savedIds[0],
+      entityDisplay: 'WhatsApp rollout controls',
+      newValues: {
+        ...values,
+        whatsapp_pilot_resident_ids: input.residentIds.length,
+        group: 'whatsapp_rollout',
+        total_count: savedIds.length,
+        setting_ids: savedIds.slice(0, 50),
+      },
+    });
+  }
   revalidatePath('/settings/whatsapp');
   return { success: true, error: null };
 }
@@ -149,16 +159,23 @@ export async function promoteWhatsAppPilotToEstate(): Promise<{ success: boolean
   if (readError) return { success: false, error: 'Unable to verify the current WhatsApp rollout mode' };
   if (current?.value !== 'pilot') return { success: false, error: 'Only an active pilot can be promoted estate-wide' };
 
-  const { error } = await client.from('system_settings').update({ value: 'estate' }).eq('key', 'whatsapp_rollout_mode');
+  const { data: promoted, error } = await client
+    .from('system_settings')
+    .update({ value: 'estate' })
+    .eq('key', 'whatsapp_rollout_mode')
+    .select('id');
   if (error) return { success: false, error: 'Failed to promote WhatsApp rollout' };
-  await logAudit({
-    action: 'ACTIVATE',
-    entityType: 'system_settings',
-    entityId: 'whatsapp_rollout',
-    entityDisplay: 'WhatsApp pilot promoted estate-wide',
-    oldValues: { whatsapp_rollout_mode: 'pilot' },
-    newValues: { whatsapp_rollout_mode: 'estate' },
-  });
+  // audit_logs.entity_id is a uuid: use the whatsapp_rollout_mode settings row id (#594).
+  if (promoted?.[0]?.id) {
+    await logAudit({
+      action: 'ACTIVATE',
+      entityType: 'system_settings',
+      entityId: promoted[0].id,
+      entityDisplay: 'WhatsApp pilot promoted estate-wide',
+      oldValues: { whatsapp_rollout_mode: 'pilot' },
+      newValues: { whatsapp_rollout_mode: 'estate' },
+    });
+  }
   revalidatePath('/settings/whatsapp');
   return { success: true, error: null };
 }
@@ -212,20 +229,25 @@ export async function setWhatsAppEnabled(enabled: boolean): Promise<{ success: b
     .eq('key', 'whatsapp_enabled')
     .maybeSingle();
 
-  const { error } = await adminClient
+  const { data: saved, error } = await adminClient
     .from('system_settings')
-    .upsert({ key: 'whatsapp_enabled', value: enabled.toString(), category: 'whatsapp' }, { onConflict: 'key' });
+    .upsert({ key: 'whatsapp_enabled', value: enabled.toString(), category: 'whatsapp' }, { onConflict: 'key' })
+    .select('id')
+    .single();
 
   if (error) return { success: false, error: 'Failed to update the WhatsApp master switch' };
 
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'system_settings',
-    entityId: 'whatsapp_enabled',
-    entityDisplay: 'WhatsApp master on/off switch',
-    oldValues: { whatsapp_enabled: previous?.value ?? null },
-    newValues: { whatsapp_enabled: enabled },
-  });
+  // audit_logs.entity_id is a uuid: use the settings row id (#594).
+  if (saved?.id) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'system_settings',
+      entityId: saved.id,
+      entityDisplay: 'WhatsApp master on/off switch',
+      oldValues: { whatsapp_enabled: previous?.value ?? null },
+      newValues: { key: 'whatsapp_enabled', whatsapp_enabled: enabled },
+    });
+  }
   revalidatePath('/settings/whatsapp');
   return { success: true, error: null };
 }
