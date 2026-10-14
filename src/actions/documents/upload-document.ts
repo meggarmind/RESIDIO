@@ -254,6 +254,9 @@ export async function uploadDocumentVersion(
       file_size_bytes: file.size,
       mime_type: file.type,
       category_id: parentDoc.category_id,
+      // A version inherits the parent's privacy: either column set makes the document private (#383, #553)
+      resident_id: parentDoc.resident_id,
+      house_id: parentDoc.house_id,
       uploaded_by: user.id,
       version: nextVersion,
       parent_document_id: parentDocumentId,
