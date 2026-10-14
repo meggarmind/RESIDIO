@@ -46,15 +46,17 @@ export async function updateEmailDebugMode(
       }
     }
 
-    // Audit log
-    await logAudit({
-      action: 'UPDATE',
-      entityType: 'system_settings',
-      entityId: 'email_debug_mode',
-      entityDisplay: 'Email Debug Mode',
-      oldValues: { enabled: !enabled },
-      newValues: { enabled, recipient: recipient || null },
-    });
+    // Audit log. audit_logs.entity_id is a uuid: use the settings row id (#594).
+    if (modeResult.data?.id) {
+      await logAudit({
+        action: 'UPDATE',
+        entityType: 'system_settings',
+        entityId: modeResult.data.id,
+        entityDisplay: 'Email Debug Mode',
+        oldValues: { enabled: !enabled },
+        newValues: { key: 'email_debug_mode', enabled, recipient: recipient || null },
+      });
+    }
 
     return { success: true };
   } catch (error) {

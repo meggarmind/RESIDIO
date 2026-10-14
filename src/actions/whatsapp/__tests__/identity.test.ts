@@ -18,6 +18,7 @@ vi.mock('@/lib/auth/action-roles', () => ({
   PERMISSIONS: { WHATSAPP_MANAGE: 'whatsapp.manage', WHATSAPP_VIEW: 'whatsapp.view' },
 }));
 
+const ROW_ID = '55555555-5555-4555-8555-555555555555'; // audit entity_id is a uuid (#594)
 const authorized = { authorized: true, userId: 'admin-1', error: null };
 const denied = { authorized: false, userId: null, error: 'Forbidden' };
 
@@ -73,7 +74,7 @@ describe('WhatsApp identity write actions', () => {
     it('imports known codes, skips duplicates and reports unknown codes', async () => {
       const residents = query({ data: [{ id: 'r1', resident_code: 'RES001' }, { id: 'r2', resident_code: 'RES002' }], error: null });
       const existing = query({ data: [{ resident_id: 'r2' }], error: null });
-      const insert = query({ data: null, error: null });
+      const insert = query({ data: { id: ROW_ID }, error: null });
       const from = clientWith(residents, existing, insert);
 
       const result = await importWhatsAppOptIns(`${CSV}RES001,+2348000000001\nRES002,+2348000000002\nRES999,+2348000000003`);
@@ -87,8 +88,8 @@ describe('WhatsApp identity write actions', () => {
       expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({
         action: 'CREATE',
         entityType: 'whatsapp_optins',
-        entityId: 'bulk-import',
-        newValues: expect.objectContaining({ imported: 1, duplicates: 1 }),
+        entityId: ROW_ID,
+        newValues: expect.objectContaining({ batch: 'bulk-import', imported: 1, duplicates: 1 }),
       }));
     });
 
@@ -226,7 +227,7 @@ describe('WhatsApp identity write actions', () => {
   describe('setWhatsAppForcePin', () => {
     it('updates the setting and audits old and new values', async () => {
       const read = query({ data: { value: 'false' }, error: null });
-      const update = query();
+      const update = query({ data: [{ id: ROW_ID }], error: null });
       clientWith(read, update);
       const result = await setWhatsAppForcePin(true);
       expect(result).toEqual({ success: true, data: true, error: null });
@@ -235,9 +236,9 @@ describe('WhatsApp identity write actions', () => {
       expect(logAudit).toHaveBeenCalledWith(expect.objectContaining({
         action: 'UPDATE',
         entityType: 'system_settings',
-        entityId: 'whatsapp_force_pin',
+        entityId: ROW_ID,
         oldValues: { value: 'false' },
-        newValues: { value: true },
+        newValues: { key: 'whatsapp_force_pin', value: true },
       }));
     });
 
