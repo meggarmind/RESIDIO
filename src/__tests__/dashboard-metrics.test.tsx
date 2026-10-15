@@ -60,6 +60,10 @@ describe('trustworthy dashboard financial states', () => {
     expect(unavailable).toContain('Financial metrics unavailable');
     expect(zero).not.toContain('Financial metrics unavailable');
     expect(zero).toContain('Resident Wallet Credits');
+    // A real zero renders its amount; a null renders no amount section at all.
+    expect(zero).toContain('₦0');
+    expect(unavailable).not.toContain('Resident Wallet Credits');
+    expect(unavailable).not.toContain('₦0');
   });
 
   it('labels populated values as invoice status counts', () => {
@@ -95,7 +99,8 @@ describe('trustworthy dashboard action states', () => {
     );
 
     expect(markup).toContain('Need Attention');
-    expect(markup).not.toContain('All Clear');
+    expect(markup).toContain('6');
+    expect(markup).not.toContain('0 items need attention');
   });
 
   it('distinguishes zero actions from unavailable action metrics', () => {
