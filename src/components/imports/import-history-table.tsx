@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -32,10 +33,14 @@ import {
   Download,
   FileText,
   AlertTriangle,
+  Trash2,
 } from 'lucide-react';
 import { useImports, useBankAccounts } from '@/hooks/use-imports';
 import { formatDistanceToNow } from 'date-fns';
 import { getStatusBadge } from '@/components/imports/import-status-badge';
+import { DeleteImportDialog, canDeleteImport } from '@/components/imports/delete-import-dialog';
+import { useCan } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const ALL_VALUE = '_all';
 
@@ -50,6 +55,14 @@ export function ImportHistoryTable({ onViewDetails }: ImportHistoryTableProps) {
   const [accountFilter, setAccountFilter] = useState<string>(ALL_VALUE);
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; fileName: string } | null>(null);
+  const router = useRouter();
+  const canDelete = useCan(PERMISSIONS.IMPORTS_CREATE);
+
+  const openDetails = (importId: string) => {
+    if (onViewDetails) onViewDetails(importId);
+    else router.push(`/payments/import/${importId}`);
+  };
 
   const { data: importsData, isLoading } = useImports({
     status: statusFilter === ALL_VALUE ? undefined : (statusFilter as ImportStatus),
@@ -161,7 +174,19 @@ export function ImportHistoryTable({ onViewDetails }: ImportHistoryTableProps) {
               </TableRow>
             ) : (
               filteredImports.map((imp) => (
-                <TableRow key={imp.id}>
+                <TableRow
+                  key={imp.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  tabIndex={0}
+                  onClick={() => openDetails(imp.id)}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      openDetails(imp.id);
+                    }
+                  }}
+                >
                   <TableCell>
                     <div>
                       <p className="font-medium">{imp.file_name}</p>
@@ -192,7 +217,11 @@ export function ImportHistoryTable({ onViewDetails }: ImportHistoryTableProps) {
                         : '--'}
                     </span>
                   </TableCell>
-                  <TableCell>
+                  {/* Menu events bubble through the portal; keep them off the row. */}
+                  <TableCell
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" aria-label="Open actions menu">
@@ -201,7 +230,7 @@ export function ImportHistoryTable({ onViewDetails }: ImportHistoryTableProps) {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
-                          onClick={() => onViewDetails?.(imp.id)}
+                          onClick={() => openDetails(imp.id)}
                         >
                           <Eye className="h-4 w-4 mr-2" />
                           View Details
@@ -210,6 +239,15 @@ export function ImportHistoryTable({ onViewDetails }: ImportHistoryTableProps) {
                           <DropdownMenuItem>
                             <Download className="h-4 w-4 mr-2" />
                             Download Summary
+                          </DropdownMenuItem>
+                        )}
+                        {canDelete && canDeleteImport(imp.status) && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteTarget({ id: imp.id, fileName: imp.file_name })}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
@@ -247,6 +285,17 @@ export function ImportHistoryTable({ onViewDetails }: ImportHistoryTableProps) {
             </Button>
           </div>
         </div>
+      )}
+
+      {deleteTarget && (
+        <DeleteImportDialog
+          importId={deleteTarget.id}
+          fileName={deleteTarget.fileName}
+          open
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null);
+          }}
+        />
       )}
     </div>
   );
