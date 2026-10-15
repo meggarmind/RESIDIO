@@ -192,6 +192,26 @@ stage holds real contact details.
 - Known limitation, left alone: if the app is entirely unreachable, the health step logs a
   warning and exits 0, so the run is green. The safety net covers "job missed", not "site down".
 
+#### Parameters and preflight (#623)
+
+The workflow runs once per GitHub Environment (`stage`, `production`). A preflight
+(`scripts/backup-cron-preflight.mjs`) runs first: if the environment's parameters are missing
+it skips the environment (green) and emails the sys_admin through Resend, naming the missing
+parameters but never their values. It is held (schedule commented out, `# STATUS: HELD` in the
+workflow header) until these exist:
+
+| Where | Secret | Value |
+| --- | --- | --- |
+| Environment `stage`, and again on `production` | `APP_URL` | public `https://` origin of that deployment, no path |
+| Environment `stage`, and again on `production` | `CRON_SECRET` | that deployment's `CRON_SECRET` |
+| Repository | `ALERT_RESEND_API_KEY` | dedicated Resend key for alerts |
+| Repository | `ALERT_EMAIL_FROM` | verified sender address |
+| Repository | `ALERT_EMAIL_TO` | sys_admin address (comma-separated for several) |
+
+To release: create the secrets, uncomment `schedule:`, set the marker to `# STATUS: ACTIVE`,
+enable the workflow. If the alert secrets are also missing the preflight fails the run, so the
+problem is not silent.
+
 ---
 
 ## Cost
