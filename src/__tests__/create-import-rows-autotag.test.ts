@@ -41,6 +41,7 @@ type Entry = {
   vals?: Record<string, unknown>;
   eqs: Array<[string, unknown]>;
   ins: Array<[string, unknown]>;
+  orders: string[];
 };
 
 let log: Entry[];
@@ -52,7 +53,7 @@ function makeSupabase() {
   return {
     auth: { getUser: async () => ({ data: { user: { id: 'user-1' } }, error: null }) },
     from(table: string) {
-      const entry: Entry = { table, op: '', eqs: [], ins: [] };
+      const entry: Entry = { table, op: '', eqs: [], ins: [], orders: [] };
       log.push(entry);
       const chain: Record<string, unknown> = {};
       const setOp = (op: string) => {
@@ -83,7 +84,10 @@ function makeSupabase() {
         entry.ins.push([c, v]);
         return chain;
       };
-      chain.order = () => chain;
+      chain.order = (c: string) => {
+        entry.orders.push(c);
+        return chain;
+      };
       const settle = () => {
         if (table === 'transaction_tags') {
           const type = entry.eqs.find(([c]) => c === 'transaction_type')?.[1] as string;
@@ -214,6 +218,38 @@ describe('tag assignment is identical to per-row autoTagTransaction semantics (#
     expect(findMatchingTag(null, 'x').tag).toBeNull();
     expect(findMatchingTag(credit, 'diesel').tag).toBeNull(); // debit keyword never tags credit
     expect(findMatchingTag(TAGS.debit as never, 'diesel').tag?.id).toBe('d-fuel');
+  });
+});
+
+describe('createImportRows tag lookup and chunking (#649)', () => {
+  it('loads only active tags, ordered by sort_order then name', async () => {
+    await createImportRows({ import_id: uid(1), rows: makeRows(3) } as never);
+    const queries = tagQueries();
+    expect(queries.length).toBeGreaterThan(0);
+    for (const q of queries) {
+      expect(q.eqs).toContainEqual(['is_active', true]);
+      expect(q.orders).toEqual(['sort_order', 'name']);
+    }
+  });
+
+  it('splits a tag with more than 200 rows into chunks of at most 200 that cover every row once', async () => {
+    const rows = Array.from({ length: 450 }, (_, i) => ({
+      row_number: i + 1,
+      raw_data: {},
+      transaction_date: null,
+      description: 'Annual SECURITY DUES payment',
+      amount: null,
+      transaction_type: 'credit',
+      reference: null,
+    }));
+    await createImportRows({ import_id: uid(1), rows } as never);
+    const updates = rowUpdates();
+    expect(updates).toHaveLength(3);
+    const sent = updates.flatMap((u) => u.ins.find(([c]) => c === 'row_number')?.[1] as number[]);
+    for (const u of updates) {
+      expect((u.ins.find(([c]) => c === 'row_number')?.[1] as number[]).length).toBeLessThanOrEqual(200);
+    }
+    expect(sent.slice().sort((a, b) => a - b)).toEqual(rows.map((r) => r.row_number));
   });
 });
 
