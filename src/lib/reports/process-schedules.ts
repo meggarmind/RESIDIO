@@ -1,7 +1,15 @@
-'use server';
+/**
+ * Server-only processing of due report schedules (cron path).
+ *
+ * Deliberately NOT a server-action module (no directive): this runs on the admin
+ * (service-role) client with no authorization of its own, so it must never be reachable as a
+ * client-callable server action. Sole caller is the CRON_SECRET-authenticated route
+ * `/api/cron/process-report-schedules`, which is responsible for authentication. See #483 (and
+ * #388 for the same pattern).
+ */
 
 import { createAdminClient } from '@/lib/supabase/server';
-import { generateReport } from '@/actions/reports/report-engine';
+import { generateReportWithClient } from '@/lib/reports/report-generator';
 import { renderReportPdf } from '@/lib/pdf/reports/renderer';
 import { sendEmail } from '@/lib/email/send-email';
 import { logAudit } from '@/lib/audit/logger';
@@ -42,7 +50,7 @@ export async function processDueSchedules(): Promise<{ processed: number; failed
          paymentStatus: 'all',
       };
 
-      const result = await generateReport(params);
+      const result = await generateReportWithClient(supabase, params);
        if (result.error || !result.report) { failed++; errors.push(`Schedule ${schedule.id}: ${result.error || 'No data'}`); continue; }
 
        const buffer = await renderReportPdf(schedule.report_type, result.report.data);

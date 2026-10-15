@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { processDueSchedules } from '@/actions/reports/process-schedules';
+import { processDueSchedules } from '@/lib/reports/process-schedules';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 
 export const dynamic = 'force-dynamic';
