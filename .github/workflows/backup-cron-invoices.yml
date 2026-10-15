@@ -39,6 +39,9 @@ on:
   workflow_dispatch:
     # Allow manual trigger for testing
 
+permissions:
+  contents: read
+
 jobs:
   check-and-generate:
     name: check-and-generate (${{ matrix.environment }})

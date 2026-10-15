@@ -86,4 +86,31 @@ describe('backup cron workflow guard (#623)', () => {
     expect(bodies.length).toBeGreaterThan(0);
     for (const body of bodies) expect(body).not.toMatch(/secrets\./);
   });
+
+  it('lets a failed preflight (the alert) fail the job visibly', () => {
+    const code = codeLines(text).join('\n');
+    expect(code).not.toMatch(/continue-on-error/);
+    expect(code).not.toMatch(/\|\|\s*true/);
+  });
+
+  it('never interpolates any expression into run: text', () => {
+    for (const body of runBodies(text)) expect(body).not.toContain('${{');
+  });
+
+  it('passes APP_URL and CRON_SECRET from the environment to the steps', () => {
+    const code = codeLines(text).join('\n');
+    expect(code).toMatch(/^\s+APP_URL: \$\{\{ secrets\.APP_URL \}\}$/m);
+    expect(code).toMatch(/^\s+CRON_SECRET: \$\{\{ secrets\.CRON_SECRET \}\}$/m);
+  });
+
+  it('is triggered only by schedule and manual dispatch', () => {
+    const code = codeLines(text).join('\n');
+    expect(code).toMatch(/^on:\n(\s+workflow_dispatch:\n|\s+schedule:\n)/m);
+    expect(code).not.toMatch(/^\s+(push|pull_request|pull_request_target|workflow_run):/m);
+  });
+
+  it('grants the token read-only contents access', () => {
+    const code = codeLines(text).join('\n');
+    expect(code).toMatch(/^permissions:\n\s+contents: read$/m);
+  });
 });

@@ -54,8 +54,29 @@ describe('checkParameters', () => {
     }
   });
 
-  it('accepts a bare origin with or without a trailing slash', () => {
-    expect(checkParameters('stage', { ...good, APP_URL: 'https://stage.example.com/' }).ok).toBe(true);
+  // The workflow appends `/api/...` to the raw value, so a value that merely normalises
+  // to an origin still breaks the call (`https://host//api/...` gets a 308 that curl
+  // does not follow, and the run goes green without generating anything).
+  it('rejects values that only normalise to an origin', () => {
+    for (const url of [
+      'https://stage.example.com/',
+      'https:stage.example.com',
+      'https:/stage.example.com',
+      'https:///stage.example.com',
+      'https://stage.example.com?',
+      'https://stage.example.com#',
+      'https://stage.example.com\n',
+      ' https://stage.example.com',
+      'https://@stage.example.com',
+      'HTTPS://stage.example.com',
+    ]) {
+      expect(checkParameters('stage', { ...good, APP_URL: url }).missing, JSON.stringify(url)).toEqual(['APP_URL']);
+    }
+  });
+
+  it('accepts a bare https origin, with a port if given', () => {
+    expect(checkParameters('stage', { ...good, APP_URL: 'https://stage.example.com' }).ok).toBe(true);
+    expect(checkParameters('stage', { ...good, APP_URL: 'https://stage.example.com:8443' }).ok).toBe(true);
   });
 });
 

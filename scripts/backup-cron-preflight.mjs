@@ -26,26 +26,22 @@ function isBlank(value) {
   return typeof value !== 'string' || value.trim() === '';
 }
 
-/** True when value is an https origin with no path, query or fragment. */
+/**
+ * True only when value is already exactly an https origin (scheme, host, optional
+ * port; no path, trailing slash, query, fragment, credentials or surrounding
+ * whitespace). The workflow appends `/api/...` to the RAW value, so anything that
+ * only normalises to an origin (`https://host/` becomes `https://host//api/...`,
+ * which Next.js answers with a 308 that curl does not follow) must be rejected.
+ */
 export function isHttpsOrigin(value) {
   if (isBlank(value)) return false;
   let url;
   try {
-    url = new URL(value.trim());
+    url = new URL(value);
   } catch {
     return false;
   }
-  return (
-    url.protocol === 'https:' &&
-    url.hostname !== '' &&
-    url.pathname === '/' &&
-    !url.search &&
-    !url.hash &&
-    !url.username &&
-    !url.password &&
-    // Belt and braces: nothing may follow the host's optional trailing slash.
-    !/^https:\/\/[^/]+\/.+/.test(value.trim())
-  );
+  return url.protocol === 'https:' && url.hostname !== '' && url.origin === value;
 }
 
 /**

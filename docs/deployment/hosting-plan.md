@@ -179,10 +179,11 @@ stage holds real contact details.
 
 ### The GitHub Actions safety net
 
-`.github/workflows/backup-cron-invoices.yml` is kept unchanged as the off-host check on
-`generate-invoices` (owner direction 2026-10-10). Reviewed against the public hostname:
+`.github/workflows/backup-cron-invoices.yml` is the off-host check on `generate-invoices`
+(owner direction 2026-10-10; per-environment and preflight-guarded since #623, see below).
+Reviewed against the public hostname:
 
-- It calls `secrets.APP_URL`, which must be the **prod public `https://` origin**. Because app
+- It calls each environment's `APP_URL` secret, which must be that deployment's **public `https://` origin** (no trailing slash or path). Because app
   hostnames are DNS-only there is no Cloudflare proxy in the path and so no 100 s cutoff; Traefik
   applies no request timeout and the job has `timeout-minutes: 10`. It only calls
   `generate-invoices` when the health check reports `critical`, so it is normally a no-op.
