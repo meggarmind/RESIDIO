@@ -15,7 +15,7 @@ residio_app_version: '0.4.0'
 
 # Gmail import and bank feeds
 
-Residio gets bank data into the system through two routes: an automated Gmail connection that reads bank alerts and statement attachments, and manual file upload from **Transactions → Import Statement**. Both land in the same review queue, and neither posts a payment without review.
+Residio gets bank data into the system through two routes: an automated Gmail connection that reads bank alerts and statement attachments, and manual file upload from **Transactions → Import Statement**. Gmail items land in the email review queue, while an uploaded statement is submitted for approval and processed from its own import page under **Transactions → Import History**. Neither posts a payment without review.
 
 For the day-to-day payment workflow, see [Payments and statement imports](../finance/payments-and-imports). This page covers the connection itself.
 
