@@ -668,18 +668,23 @@ export async function approveImport(import_id: string, notes?: string): Promise<
     return { error: 'Import is not awaiting approval' };
   }
 
-  // Update status
-  const { error } = await supabase
+  // Update status, guarded on the status checked above so a racing request cannot overwrite it
+  const { data: updated, error } = await supabase
     .from('bank_statement_imports')
     .update({
       status: 'approved',
       approved_by: user?.id,
       approved_at: new Date().toISOString(),
     })
-    .eq('id', import_id);
+    .eq('id', import_id)
+    .eq('status', 'awaiting_approval')
+    .select('id');
 
   if (error) {
     return { error: error.message };
+  }
+  if (!updated || updated.length === 0) {
+    return { error: 'Import status changed, please refresh and try again' };
   }
 
   // Audit log
@@ -721,8 +726,8 @@ export async function rejectImport(import_id: string, reason: string): Promise<{
     return { error: 'Import is not awaiting approval' };
   }
 
-  // Update status
-  const { error } = await supabase
+  // Update status, guarded on the status checked above so a racing request cannot overwrite it
+  const { data: updated, error } = await supabase
     .from('bank_statement_imports')
     .update({
       status: 'rejected',
@@ -731,10 +736,15 @@ export async function rejectImport(import_id: string, reason: string): Promise<{
         rejection_reason: reason,
       },
     })
-    .eq('id', import_id);
+    .eq('id', import_id)
+    .eq('status', 'awaiting_approval')
+    .select('id');
 
   if (error) {
     return { error: error.message };
+  }
+  if (!updated || updated.length === 0) {
+    return { error: 'Import status changed, please refresh and try again' };
   }
 
   // Audit log
@@ -776,14 +786,19 @@ export async function submitForApproval(import_id: string): Promise<{ error: str
     return { error: 'Import must be in processing status to submit for approval' };
   }
 
-  // Update status
-  const { error } = await supabase
+  // Update status, guarded on the status checked above so a racing request cannot overwrite it
+  const { data: updated, error } = await supabase
     .from('bank_statement_imports')
     .update({ status: 'awaiting_approval' })
-    .eq('id', import_id);
+    .eq('id', import_id)
+    .eq('status', 'processing')
+    .select('id');
 
   if (error) {
     return { error: error.message };
+  }
+  if (!updated || updated.length === 0) {
+    return { error: 'Import status changed, please refresh and try again' };
   }
 
   // Audit log (maker step of maker-checker)
