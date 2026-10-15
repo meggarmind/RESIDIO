@@ -721,6 +721,12 @@ nearly caused a clean branch to be reported as broken.
 - the work uncovers a defect outside its scope — **file it as its own issue rather than
   absorbing it**, so a security fix is never hidden inside a refactor
 
+**Unattended runs.** Inside a run of the autonomous delivery runbook
+(`docs/agents/autonomous-delivery.md`, owner decision 2026-10-15, #625), once its start gate is
+confirmed, this list becomes *decide from precedent, log, or park*: the run answers what the
+owner's recorded decisions and these docs settle, parks the rest for the owner, and writes every
+decision to `docs/decisions/autopilot/`. Nothing else in this file is relaxed.
+
 ---
 
 ## 16. Reporting and continuity
