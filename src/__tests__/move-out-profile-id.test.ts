@@ -5,7 +5,7 @@
  * Covered: the whole initiate flow for a leaving-estate renter and an owner-occupier,
  * against a recording mock client. confirmRenterMoveOut's notification.
  * Not covered: confirm's moving-within-estate branch, the cancel path, and the
- * staff-notification block (left untouched, see #585).
+ * staff-notification block (see move-out-staff-notify.test.ts, #626).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initiateRenterMoveOut, confirmRenterMoveOut } from '@/actions/residents/move-out-renter';
