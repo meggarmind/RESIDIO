@@ -53,7 +53,7 @@ function FinancialDashboardContent() {
   const { data: financialHealth, isLoading: fhLoading } = useDashboardFinancialHealth();
   const { data: invoiceDist } = useDashboardInvoiceDistribution();
   const { data: quickStats } = useDashboardQuickStats();
-  const { data: invoiceAging } = useOverdueInvoiceAging();
+  const { data: invoiceAging, isLoading: agingLoading, isError: agingError } = useOverdueInvoiceAging();
 
   // Trailing 12-month range for the Revenue vs Expenses trend chart
   const { startDate, endDate } = useMemo(() => {
@@ -122,7 +122,11 @@ function FinancialDashboardContent() {
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" />Invoice Aging</CardTitle></CardHeader>
         <CardContent>
-          {invoiceAging?.length ? (
+          {agingLoading ? (
+            <Skeleton className="h-36 w-full" />
+          ) : agingError ? (
+            <p className="text-sm text-muted-foreground">Invoice aging unavailable</p>
+          ) : invoiceAging?.length ? (
             <div className="flex h-36 items-end gap-1" aria-label="Exact days overdue histogram">
               {invoiceAging.map(({ daysOverdue, count }) => (
                 <div key={daysOverdue} className="flex min-w-6 flex-1 flex-col items-center gap-1">
