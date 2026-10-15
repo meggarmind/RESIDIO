@@ -210,7 +210,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     };
   }
 
-  if (!['processing', 'awaiting_approval', 'approved'].includes(importData.status)) {
+  if (importData.status !== 'approved') {
     return {
       success: false,
       created_count: 0,
@@ -218,7 +218,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
       created_expenses_count: 0,
       skipped_count: 0,
       error_count: 1,
-      errors: [{ row_id: '', error: `Cannot process import with status: ${importData.status}` }],
+      errors: [{ row_id: '', error: `Cannot process import with status: ${importData.status}. Only approved imports can be processed.` }],
       import_id,
     };
   }
