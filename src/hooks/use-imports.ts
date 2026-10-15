@@ -543,8 +543,9 @@ export function useApproveImport() {
       if (result.error) throw new Error(result.error);
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['imports'] });
+      queryClient.invalidateQueries({ queryKey: ['import', variables.importId] });
       queryClient.invalidateQueries({ queryKey: ['import-stats'] });
       toast.success('Import approved');
     },
@@ -563,8 +564,9 @@ export function useRejectImport() {
       if (result.error) throw new Error(result.error);
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: ['imports'] });
+      queryClient.invalidateQueries({ queryKey: ['import', variables.importId] });
       queryClient.invalidateQueries({ queryKey: ['import-stats'] });
       toast.success('Import rejected');
     },
@@ -583,8 +585,10 @@ export function useSubmitForApproval() {
       if (result.error) throw new Error(result.error);
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (_result, importId) => {
       queryClient.invalidateQueries({ queryKey: ['imports'] });
+      queryClient.invalidateQueries({ queryKey: ['import', importId] });
+      queryClient.invalidateQueries({ queryKey: ['import-stats'] });
       toast.success('Import submitted for approval');
     },
     onError: (error) => {
