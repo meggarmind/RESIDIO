@@ -63,15 +63,28 @@ describe('trustworthy dashboard financial states', () => {
 
   it('distinguishes unavailable financial metrics from zero values', () => {
     const unavailable = renderToStaticMarkup(<ModernFinancialHealth financialHealth={null} />);
-    const zero = renderToStaticMarkup(<ModernFinancialHealth financialHealth={{ ...financialHealth, totalOutstanding: 0, monthlyRevenue: 0, overdueAmount: 0, walletCredits: 0 }} />);
 
     expect(unavailable).toContain('Financial metrics unavailable');
-    expect(zero).not.toContain('Financial metrics unavailable');
-    expect(zero).toContain('Resident Wallet Credits');
-    // A real zero renders its amount; a null renders no amount section at all.
-    expect(zero).toContain('<span data-testid="counter">₦0</span>');
     expect(unavailable).not.toContain('Resident Wallet Credits');
-    expect(unavailable).not.toContain('₦0');
+    expect(unavailable).not.toContain('data-testid="counter"');
+  });
+
+  // Each field is zeroed on its own, so a zero elsewhere cannot satisfy the assertion.
+  it.each([
+    ['Unpaid Invoice Balance', 'totalOutstanding'],
+    ['Verified Payments This Month', 'monthlyRevenue'],
+    ['Overdue Invoice Balance', 'overdueAmount'],
+    ['Resident Wallet Credits', 'walletCredits'],
+  ] as const)('renders a real zero for %s, and the real value otherwise', (label, field) => {
+    const firstCounterAfter = (markup: string) =>
+      new RegExp(`${label}(?:(?!data-testid="counter").)*?data-testid="counter">([^<]*)<`, 's').exec(markup)?.[1];
+
+    const zero = renderToStaticMarkup(<ModernFinancialHealth financialHealth={{ ...financialHealth, [field]: 0 }} />);
+    const nonZero = renderToStaticMarkup(<ModernFinancialHealth financialHealth={{ ...financialHealth, [field]: 5 }} />);
+
+    expect(zero).not.toContain('Financial metrics unavailable');
+    expect(firstCounterAfter(zero)).toBe('₦0');
+    expect(firstCounterAfter(nonZero)).toBe('₦5');
   });
 
   it('labels populated values as invoice status counts', () => {
