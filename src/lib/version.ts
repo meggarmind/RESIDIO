@@ -28,3 +28,19 @@ export function getBuildInfo(): BuildInfo {
 
   return { version, sha, shortSha: sha === 'unknown' ? 'unknown' : sha.slice(0, 7), env };
 }
+
+export interface BuildLabel {
+  /** What the sidebar shows: `v1.0.0+341` past a release, otherwise the version as-is. */
+  short: string;
+  /** The full identity, for the tooltip. Never repeats the commit hash. */
+  full: string;
+}
+
+// `<tag>-<commits>-g<sha>`, as resolveVersion in scripts/coolify-version.mjs emits it.
+const DESCRIBED = /^(v\d+\.\d+\.\d+)-(\d+)-g([0-9a-f]+)$/;
+
+export function formatBuildLabel({ version, shortSha }: Pick<BuildInfo, 'version' | 'shortSha'>): BuildLabel {
+  const described = DESCRIBED.exec(version);
+  if (described) return { short: `${described[1]}+${described[2]}`, full: version };
+  return { short: version, full: `${version} · ${shortSha}` };
+}
