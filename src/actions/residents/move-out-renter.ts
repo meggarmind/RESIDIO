@@ -9,6 +9,7 @@ import { getResidentIndebtedness } from '@/actions/billing/get-invoices';
 import { getOrCreateWallet } from '@/actions/billing/wallet';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import { sendEmail } from '@/lib/email/send-email';
+import { MOVE_OUT_NOTIFY_ROLES } from '@/lib/residents/move-out-recipients';
 import type { ResidentRole } from '@/types/database';
 
 // Supabase embeds a to-one join (street:streets(...)) as an object at runtime but
@@ -414,45 +415,49 @@ export async function initiateRenterMoveOut(
       });
   }
 
-  // NOTE (#585): user_roles does not exist and residents.user_id does not exist, so this notifies nobody. Left as is pending an owner decision on who should be notified.
-  // Get CSO and Finance users for notifications
-  const { data: csoUsers } = await supabase
-    .from('user_roles')
-    .select('user_id')
-    .eq('role', 'cso');
+  // Notify staff holding the move-out roles (#626). Recipients are profile ids
+  // (in_app_notifications.recipient_id is an FK to profiles.id). Admin client: a
+  // self-service initiator cannot read other profiles. Never fails the move-out.
+  try {
+    const { data: roleRows, error: roleError } = await adminClient
+      .from('app_roles')
+      .select('id')
+      .in('name', [...MOVE_OUT_NOTIFY_ROLES]);
 
-  const { data: financeUsers } = await supabase
-    .from('user_roles')
-    .select('user_id')
-    .eq('role', 'finance_officer');
+    if (roleError) {
+      console.error('[moveOutRenter] Staff role lookup failed:', roleError);
+    } else if (roleRows && roleRows.length > 0) {
+      const { data: staffProfiles, error: profileError } = await adminClient
+        .from('profiles')
+        .select('id')
+        .in('role_id', roleRows.map((r) => r.id))
+        .eq('approval_status', 'active');
 
-  // Get resident IDs for these users
-  const userIds = [
-    ...(csoUsers || []).map((u) => u.user_id),
-    ...(financeUsers || []).map((u) => u.user_id),
-  ];
+      if (profileError) {
+        console.error('[moveOutRenter] Staff profile lookup failed:', profileError);
+      } else if (staffProfiles && staffProfiles.length > 0) {
+        const staffNotifications = staffProfiles.map((p) => ({
+          recipient_id: p.id,
+          title: 'Renter Move-Out Initiated',
+          body: `${resident.first_name} ${resident.last_name} (${resident.resident_code}) has initiated move-out from ${houseAddress}. Certificate: ${certificateNumber}`,
+          category: 'admin',
+          entity_type: 'clearance_certificate',
+          entity_id: certificate.id,
+          action_url: `/houses/${houseId}`,
+          priority: 'normal' as const,
+          metadata: { certificate },
+        }));
 
-  if (userIds.length > 0) {
-    const { data: staffResidents } = await supabase
-      .from('residents')
-      .select('id, user_id')
-      .in('user_id', userIds);
-
-    if (staffResidents && staffResidents.length > 0) {
-      const notifications = staffResidents.map((sr) => ({
-        recipient_id: sr.user_id,
-        title: 'Renter Move-Out Initiated',
-        body: `${resident.first_name} ${resident.last_name} (${resident.resident_code}) has initiated move-out from ${houseAddress}. Certificate: ${certificateNumber}`,
-        category: 'admin',
-        entity_type: 'clearance_certificate',
-        entity_id: certificate.id,
-        action_url: `/houses/${houseId}`,
-        priority: 'normal' as const,
-        metadata: { certificate },
-      }));
-
-      await adminClient.from('in_app_notifications').insert(notifications);
+        const { error: notifyError } = await adminClient
+          .from('in_app_notifications')
+          .insert(staffNotifications);
+        if (notifyError) {
+          console.error('[moveOutRenter] Staff notification insert failed:', notifyError);
+        }
+      }
     }
+  } catch (err) {
+    console.error('[moveOutRenter] Staff notification failed:', err);
   }
 
   // Send email to the renter
