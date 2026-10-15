@@ -141,7 +141,7 @@ describe('compareMigrations', () => {
     expect(result.appliedNotOnDisk).toContain('20260101000000');
   });
 
-  it('handles duplicate version prefixes without crashing, and surfaces them separately from drift', () => {
+  it('handles duplicate version prefixes without crashing, and fails on them with no other drift (#616)', () => {
     const local = localFixture({
       '20260811130000': [
         '20260811130000_a_first_migration.sql',
@@ -152,12 +152,15 @@ describe('compareMigrations', () => {
 
     const result = compareMigrations(local, applied);
 
-    // Two files, one applied version: not drift in either direction.
+    // Two files, one applied version: not drift in either direction...
     expect(result.appliedNotOnDisk).toEqual([]);
     expect(result.fileNotApplied).toEqual([]);
-    expect(isClean(result)).toBe(true);
 
-    // But it is still worth a warning: exactly one duplicate group, naming both files.
+    // ...but the duplicate alone fails the check: two files sharing a version can never
+    // both be reconciled, and it otherwise surfaces only after one is applied (#616).
+    expect(isClean(result)).toBe(false);
+
+    // Exactly one duplicate group, naming both files.
     expect(result.duplicateVersions).toEqual([
       [
         '20260811130000',
@@ -337,7 +340,8 @@ describe('compareMigrations', () => {
       expect(result.fileNotApplied).toEqual([]);
       expect(result.appliedNotOnDisk).toEqual([]);
       expect(result.duplicateVersions).toHaveLength(1);
-      expect(isClean(result)).toBe(true);
+      // Name matching clears the version; the duplicate itself still fails (#616).
+      expect(isClean(result)).toBe(false);
     });
   });
 });
@@ -443,6 +447,22 @@ describe('exemptPendingFromPr (#427)', () => {
     const exempted = exemptPendingFromPr(result, new Set(['20261011000000', '20250101000000']));
 
     expect(exempted.appliedNotOnDisk).toEqual(['20250101000000']);
+    expect(isClean(exempted)).toBe(false);
+  });
+
+  it('never exempts a duplicate version prefix, even when both files are the PR\'s own (#616)', () => {
+    // The #607/#577 shape: two new migrations authored with one version. Their shared
+    // version is pending, so the exemption empties fileNotApplied; the duplicate must
+    // still fail, because after the merge only one of them can ever be reconciled.
+    const local = localFixture({
+      '20261011000000': ['20261011000000_first_new.sql', '20261011000000_second_new.sql'],
+    });
+    const result = compareMigrations(local, appliedFixture([]));
+    const exempted = exemptPendingFromPr(result, new Set(['20261011000000']));
+
+    expect(exempted.fileNotApplied).toEqual([]);
+    expect(exempted.pendingFromPr).toEqual(['20261011000000']);
+    expect(exempted.duplicateVersions).toHaveLength(1);
     expect(isClean(exempted)).toBe(false);
   });
 });
