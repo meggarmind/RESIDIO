@@ -234,6 +234,14 @@ describe('computeCronStatus invoice-generation job (#638)', () => {
       expect((await invoiceJob()).status).toBe('warning');
     });
 
+    it('reads off, not a cancellation warning, when the switch is off and only a cron run was cancelled', async () => {
+      state.autoGenerate = false;
+      state.runs = [run('cancelled', '2026-10-01')];
+      const job = await invoiceJob();
+      expect(job.status).toBe('healthy');
+      expect(job.message).toContain('Automatic generation is off');
+    });
+
     it('stays Critical after the day when the switch is on and no run exists', async () => {
       state.autoGenerate = true;
       expect((await invoiceJob()).status).toBe('critical');
