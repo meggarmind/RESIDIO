@@ -79,7 +79,7 @@ export default function ImportDetailPage() {
           <h1 className="text-2xl font-semibold truncate">{importRecord.file_name}</h1>
           <p className="text-muted-foreground text-sm">
             {bankAccount
-              ? `${bankAccount.bank_name} · ${bankAccount.account_number}`
+              ? `${bankAccount.bank_name} · ••••${String(bankAccount.account_number ?? '').slice(-4)}`
               : importRecord.bank_name || 'Unknown bank account'}
             {' · '}
             {importRecord.created_by_user?.full_name
