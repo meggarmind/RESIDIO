@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -51,6 +51,22 @@ describe('source-level invariants (#483)', () => {
     const dir = fileURLToPath(path('actions/reports'));
     for (const file of readdirSync(dir).filter((f) => /\.tsx?$/.test(f))) {
       expect(read(`actions/reports/${file}`), file).not.toMatch(/export[^;]*processDueSchedules/);
+    }
+  });
+
+  // The generator takes any client and checks nothing. A one-line re-export from a
+  // 'use server' module would publish it as a client-callable endpoint.
+  it('no server-action module under actions/ exposes generateReportWithClient', () => {
+    const walk = (dir: string): string[] =>
+      readdirSync(dir).flatMap((name) => {
+        const full = `${dir}/${name}`;
+        return statSync(full).isDirectory() ? walk(full) : /\.tsx?$/.test(name) ? [full] : [];
+      });
+    for (const file of walk(fileURLToPath(path('actions')))) {
+      const src = readFileSync(file, 'utf8');
+      expect(src, file).not.toMatch(/export[^;]*generateReportWithClient/);
+      // Only erased `export type { ... } from` re-exports may point at the generator module.
+      expect(src, file).not.toMatch(/export\s+(?!type)(\*|\{[^}]*\})\s+from\s+['"]@\/lib\/reports\/report-generator['"]/);
     }
   });
 
@@ -164,5 +180,43 @@ describe('/api/cron/generate-reports', () => {
     vi.doUnmock('@/lib/reports/report-generator');
     vi.doUnmock('@/lib/auth/cron-auth');
     vi.doUnmock('@/lib/reports/scheduled-report-store');
+  });
+});
+
+describe('processDueSchedules (/api/cron/process-report-schedules)', () => {
+  it('generates with the admin client and does not authorize', async () => {
+    vi.resetModules();
+    const adminClient: Record<string, unknown> = {};
+    const schedule = {
+      id: 's1',
+      report_type: 'invoice_aging',
+      period_preset: 'last_month',
+      frequency: 'monthly',
+      bank_account_ids: [],
+      recipients: [],
+      configuration: {},
+    };
+    const chain: Record<string, unknown> = {};
+    for (const method of ['select', 'eq', 'lte']) chain[method] = () => chain;
+    chain.order = async () => ({ data: [schedule], error: null });
+    adminClient.from = () => chain;
+    mocks.createAdminClient.mockReturnValue(adminClient);
+    mocks.generateReportWithClient.mockResolvedValue({ success: false, error: 'stop here' });
+    vi.doMock('@/lib/reports/report-generator', () => ({
+      generateReportWithClient: mocks.generateReportWithClient,
+    }));
+    vi.doMock('@/lib/pdf/reports/renderer', () => ({ renderReportPdf: vi.fn() }));
+    vi.doMock('@/lib/email/send-email', () => ({ sendEmail: vi.fn() }));
+    vi.doMock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
+    const { processDueSchedules } = await import('@/lib/reports/process-schedules');
+    const result = await processDueSchedules();
+    expect(result.failed).toBe(1);
+    expect(mocks.generateReportWithClient).toHaveBeenCalledTimes(1);
+    expect(mocks.generateReportWithClient.mock.calls[0][0]).toBe(adminClient);
+    expect(mocks.authorizePermission).not.toHaveBeenCalled();
+    vi.doUnmock('@/lib/reports/report-generator');
+    vi.doUnmock('@/lib/pdf/reports/renderer');
+    vi.doUnmock('@/lib/email/send-email');
+    vi.doUnmock('@/lib/audit/logger');
   });
 });
