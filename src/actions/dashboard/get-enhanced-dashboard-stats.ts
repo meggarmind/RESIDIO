@@ -461,42 +461,42 @@ async function fetchFinancialHealth(
 }
 
 async function fetchInvoiceDistribution(supabase: SupabaseClient): Promise<InvoiceStatusDistribution> {
-    // Use parallel COUNT queries instead of fetching all invoices
-    // This is ~100x faster for large invoice tables
+    // One RPC (get_dashboard_invoice_status_counts, SECURITY INVOKER so RLS applies as the caller)
+    // returns the six raw counts the old head-count queries produced; the netting below is
+    // unchanged.
     //
     // `overdue` is not its own status column value — it is derived as
     // (unpaid OR partially_paid) AND due_date < today. That makes it a
     // subset of the `unpaid` / `partially_paid` buckets, not a sibling of
     // them. To keep the five returned buckets a genuine partition of the
-    // invoice table (no invoice counted twice), we query the overdue
-    // subset separately PER STATUS and subtract each slice out of its own
+    // invoice table (no invoice counted twice), the overdue subset is
+    // counted PER STATUS and each slice is subtracted out of its own
     // bucket below, rather than lumping both statuses into one overdue
     // count and subtracting it from just one bucket.
+    //
+    // `today` is deliberately the same UTC date string the previous implementation computed
+    // (toISOString), not the DB CURRENT_DATE, so the overdue boundary does not move.
     const today = new Date().toISOString().split('T')[0];
-    const results = await Promise.all([
-        supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'unpaid'),
-        supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'paid'),
-        supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'partially_paid'),
-        supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'unpaid').lt('due_date', today),
-        supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'partially_paid').lt('due_date', today),
-        supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('status', 'void'),
-    ]);
-    const error = results.find((result) => result.error)?.error;
+    const { data, error } = await supabase.rpc('get_dashboard_invoice_status_counts', { p_today: today });
     if (error) throw error;
-    const [unpaid, paid, partiallyPaid, overdueUnpaid, overduePartiallyPaid, voided] = results;
+    if (!data) throw new Error('get_dashboard_invoice_status_counts returned no data');
 
-    const overdueUnpaidCount = overdueUnpaid.count ?? 0;
-    const overduePartiallyPaidCount = overduePartiallyPaid.count ?? 0;
+    const unpaid = Number(data.unpaid) || 0;
+    const paid = Number(data.paid) || 0;
+    const partiallyPaid = Number(data.partially_paid) || 0;
+    const voided = Number(data.void) || 0;
+    const overdueUnpaidCount = Number(data.overdue_unpaid) || 0;
+    const overduePartiallyPaidCount = Number(data.overdue_partially_paid) || 0;
 
     // Net each bucket down to its non-overdue remainder so the five
     // buckets returned here sum to the true invoice total instead of
     // double-counting the overdue subset.
     return {
-        unpaid: Math.max(0, (unpaid.count ?? 0) - overdueUnpaidCount),
-        paid: paid.count ?? 0,
-        partiallyPaid: Math.max(0, (partiallyPaid.count ?? 0) - overduePartiallyPaidCount),
+        unpaid: Math.max(0, unpaid - overdueUnpaidCount),
+        paid,
+        partiallyPaid: Math.max(0, partiallyPaid - overduePartiallyPaidCount),
         overdue: overdueUnpaidCount + overduePartiallyPaidCount,
-        void: voided.count ?? 0
+        void: voided
     };
 }
 
@@ -744,32 +744,42 @@ async function fetchMonthlyTrends(supabase: SupabaseClient, now: Date): Promise<
         return { monthStart, monthEnd, monthName };
     });
 
-    // Fetch all months in parallel (12 queries → 1 round trip)
-    // This is ~6x faster than sequential fetching
-    const results = await Promise.all(
-        monthRanges.map(async ({ monthStart, monthEnd, monthName }) => {
-            // Run both reads for this month in parallel
-            const [metrics, invoicesResult] = await Promise.all([
-                fetchPaymentMetrics(supabase, monthStart, monthEnd),
-                supabase
-                    .from('invoices')
-                    .select('*', { count: 'exact', head: true })
-                    .gte('created_at', monthStart.toISOString())
-                    .lte('created_at', monthEnd.toISOString()),
-            ]);
+    // Payment metrics: one RPC per month (6). Invoice counts: ONE RPC for all six windows
+    // (get_dashboard_monthly_invoice_counts), so invoicesGenerated no longer costs 6 more queries.
+    const [paymentMetrics, invoiceCounts] = await Promise.all([
+        Promise.all(monthRanges.map(({ monthStart, monthEnd }) => fetchPaymentMetrics(supabase, monthStart, monthEnd))),
+        fetchMonthlyInvoiceCounts(supabase, monthRanges),
+    ]);
 
-            const revenue = metrics.collected_total;
+    return monthRanges.map(({ monthName }, i) => ({
+        month: monthName,
+        revenue: paymentMetrics[i].collected_total,
+        invoicesGenerated: invoiceCounts[i],
+        paymentsReceived: paymentMetrics[i].collected_count,
+    }));
+}
 
-            return {
-                month: monthName,
-                revenue,
-                invoicesGenerated: invoicesResult.count ?? 0,
-                paymentsReceived: metrics.collected_count,
-            };
-        })
-    );
-
-    return results;
+/**
+ * Invoices created per month window (inclusive bounds, as the old per-month count used) in one
+ * RPC. Returns one count per window in input order, zero for months with no rows or missing from
+ * the result. Throws on RPC error so callers never render partial numbers.
+ */
+async function fetchMonthlyInvoiceCounts(
+    supabase: SupabaseClient,
+    ranges: Array<{ monthStart: Date; monthEnd: Date }>
+): Promise<number[]> {
+    const { data, error } = await supabase.rpc('get_dashboard_monthly_invoice_counts', {
+        p_month_starts: ranges.map((r) => r.monthStart.toISOString()),
+        p_month_ends: ranges.map((r) => r.monthEnd.toISOString()),
+    });
+    if (error) throw error;
+    if (!Array.isArray(data)) throw new Error('get_dashboard_monthly_invoice_counts returned no data');
+    const counts = ranges.map(() => 0);
+    for (const row of data as Array<{ idx: number; count: number }>) {
+        const i = Number(row.idx) - 1;
+        if (i >= 0 && i < counts.length) counts[i] = Number(row.count) || 0;
+    }
+    return counts;
 }
 
 // ─────────────────────────────────────────────────────────────────
