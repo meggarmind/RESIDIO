@@ -139,7 +139,8 @@ Exactly `CORE.md` §15 and §16, with no shortcuts:
 7. Once merged (`gh pr view <n> --json state,mergedAt`): apply its migrations to Residio_Stage,
    verify by name in the database's applied list, and restore the authored version
    (`CORE.md` §11 rules 2, 5, 6). If applying fails, that item's migration is parked: record it
-   as withheld on the issue and in the #412 handoff (`CORE.md` §11 rule 4). Board → **Done**. If any wiki page under `website/docs`
+   as withheld on the issue and in the #412 handoff (`CORE.md` §11 rule 4).
+8. Clean up the item (§9) as soon as it is merged and its migrations are verified. Board → **Done**. If any wiki page under `website/docs`
    describes the changed code, update and re-stamp it in the same PR (`CORE.md` §12).
 
 ## 6. Waves, checkpoints, and stopping
@@ -177,6 +178,41 @@ Every question the run answered for itself, and every park, is recorded twice:
 3. A final checkpoint on each input parent.
 4. A handoff comment on #412 (`CORE.md` §14, §16): what shipped, applied versus merged, what was
    parked and why, decisions the next session must not re-litigate, worktrees left in place.
-5. Clean up worktrees of merged branches. Say which ones you left and why.
+5. The cleanup sweep (§9). Say what was removed and what was left, and why.
 6. A final report: shipped, parked (each with the one question the owner must answer), skipped,
    created versus closed issues and the net (`CORE.md` §10 rule 5), agents per machine.
+
+## 9. Cleanup of done issues
+
+Stale worktrees and branches read to the next session as live work (`CORE.md` §16), so the run
+removes its own as it goes. **Scope: issues in the run's tree that are done**, meaning the issue is
+closed or its PR is merged. That covers items this run delivered and items found already done.
+
+**Per item, right after §5 step 7**, and again **as a sweep at end of run** over every done issue
+in the tree:
+
+1. **Sub-agent worktrees.** Remove every worktree that the run's implementer and QA agents used
+   for the item, along with their local branches.
+2. **Integration worktree.** `git worktree remove .worktrees/issue-<n>`, then
+   `git branch -D <branch>`. A squash merge leaves the branch looking unmerged to git, which is
+   why `-D` is used, and also why the PR state below is the test.
+3. **Remote branch.** Delete it (`git push origin --delete <branch>`) if GitHub's
+   delete-on-merge has not already done so.
+4. `git worktree prune` and `git fetch --prune` once the sweep is finished.
+
+Remove something only when **every** one of these holds. If any fails, leave it in place and
+record the reason in the run log:
+
+- The branch's PR is `MERGED` (`gh pr view <branch> --json state,headRefOid`), or the issue was
+  closed as already done and the branch has no commits beyond `origin/stage`.
+- The branch tip equals the merged PR's `headRefOid`. A commit pushed after the merge is unshipped
+  work and must not be deleted.
+- The worktree has no uncommitted or untracked changes (`git -C <path> status --porcelain` is
+  empty).
+- No session is working in it. Another local session's worktree or branch belongs to that
+  session, even when its issue is done. Remove only what this run created, plus worktrees for done
+  issues that no listed session claims.
+- It is not `stage`, `master`, `gh-pages`, or the branch checked out in the main checkout.
+
+Parked and skipped items keep their branches and worktrees. A parked branch is the evidence the
+owner will need.

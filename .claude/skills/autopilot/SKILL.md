@@ -49,6 +49,7 @@ Arguments: `$ARGUMENTS` — issue numbers. None given: ask for them in the gate.
 | board / labels / PRs | `gh` exactly as `docs/agents/project-board.md` and `CORE.md` §16 give them |
 | decision log | write the run file with `Write` in a worktree on `chore/autopilot-log-<date>` |
 | handoff | `gh issue comment 412 --body-file <scratchpad file>` — never a file in the repo |
+| cleanup (runbook §9) | for `Agent` worktrees under `.claude/worktrees/`, use `git worktree remove` plus `git branch -D` under the same safety checks (an agent's worktree that has changes is kept automatically). Run the end-of-run sweep from the main checkout's git, never from inside a worktree being removed. |
 | task list | `mcp__ccd_turn__update_plan`, one step per wave plus gate and close-out |
 
 Commits and PR bodies carry **no** `Co-Authored-By` trailer and no "Generated with" footer

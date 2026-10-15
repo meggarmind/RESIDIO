@@ -41,6 +41,11 @@ Release PR: #<n>, label `release:<x>` — <one-line reason>.
 - **Evidence:** <links>
 - **Blocked dependants:** #n, #n
 
+## Cleanup
+
+- Removed: <worktree paths, local branches, remote branches>
+- Kept: <path / branch> — <uncommitted changes | commits after merge | claimed by <session> | parked>
+
 ## Skipped
 
 - #n — <closed | portal | claimed by <branch> | ready-for-human | wontfix>
