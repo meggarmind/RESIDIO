@@ -73,10 +73,18 @@ describe('verification token attempt limit migration (#556)', () => {
     expect(active).not.toMatch(/\bDROP\b/i);
   });
 
-  it('sorts after every other migration', () => {
+  it('has a version no other migration shares, and sorts after the migration that creates the table', () => {
+    // Was "sorts after every other migration", which fails as soon as any later
+    // migration lands (#615 did). What matters is a unique version and that the table
+    // already exists when this one runs.
     const files = readdirSync(migrationsDir)
       .filter((f) => f.endsWith('.sql'))
       .sort();
-    expect(files.at(-1)).toBe(MIGRATION_FILE);
+    const version = MIGRATION_FILE.split('_')[0];
+    expect(files.filter((f) => f.startsWith(`${version}_`))).toEqual([MIGRATION_FILE]);
+
+    const created = files.find((f) => f.includes('add_contact_verification'));
+    expect(created).toBeDefined();
+    expect(files.indexOf(MIGRATION_FILE)).toBeGreaterThan(files.indexOf(created!));
   });
 });
