@@ -113,6 +113,7 @@ describe('cron generate-invoices route catch-up (#638)', () => {
 
   it('skips when auto-generation is disabled, even after the day', async () => {
     setToday(17);
+    mocks.activeRuns = [{ id: 'run-q', status: 'queued' }];
     mocks.getInvoiceCronSettings.mockResolvedValue({ autoGenerate: false, generationDay: 5 });
     const body = await (await GET(request)).json();
     expect(body).toMatchObject({ skipped: true, reason: 'Auto-generation is disabled' });
@@ -134,10 +135,23 @@ describe('cron generate-invoices route catch-up (#638)', () => {
 
   it('returns 500 and prepares nothing when the settings cannot be read (fail closed)', async () => {
     setToday(17);
+    mocks.activeRuns = [{ id: 'run-q', status: 'queued' }];
     mocks.getInvoiceCronSettings.mockRejectedValue(new Error('settings unreadable'));
     const res = await GET(request);
     expect(res.status).toBe(500);
     expect((await res.json()).error).toBe('settings unreadable');
+    expect(mocks.prepareInvoiceGenerationRunCore).not.toHaveBeenCalled();
+    expect(mocks.processInvoiceGenerationRunChunk).not.toHaveBeenCalled();
+  });
+
+  // The helper uses the service-role client: nothing may be read before the caller is authenticated.
+  it('returns the auth failure and reads no settings for an unauthenticated request', async () => {
+    setToday(17);
+    mocks.activeRuns = [{ id: 'run-q', status: 'queued' }];
+    mocks.verifyCronAuth.mockReturnValue(new Response(null, { status: 401 }));
+    const res = await GET(request);
+    expect(res.status).toBe(401);
+    expect(mocks.getInvoiceCronSettings).not.toHaveBeenCalled();
     expect(mocks.prepareInvoiceGenerationRunCore).not.toHaveBeenCalled();
     expect(mocks.processInvoiceGenerationRunChunk).not.toHaveBeenCalled();
   });

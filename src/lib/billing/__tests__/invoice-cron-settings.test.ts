@@ -36,6 +36,9 @@ describe('getInvoiceCronSettings (#641)', () => {
     [7, 7],
     ['7', 7],
     ['"7"', 7],
+    [null, 2],
+    [0, 2],
+    ['abc', 2],
   ])('parses day %j as %i', async (raw, expected) => {
     mocks.result = { data: rows(true, raw), error: null };
     expect((await getInvoiceCronSettings()).generationDay).toBe(expected);
@@ -46,6 +49,7 @@ describe('getInvoiceCronSettings (#641)', () => {
     ['true', true],
     [false, false],
     ['false', false],
+    [null, false],
   ])('parses auto-generate %j as %s', async (raw, expected) => {
     mocks.result = { data: rows(raw, 2), error: null };
     expect((await getInvoiceCronSettings()).autoGenerate).toBe(expected);
