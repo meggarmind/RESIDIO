@@ -185,6 +185,20 @@ type CreateImportRowsParams = {
   rows: ParsedRow[];
 }
 
+// Keep the statement all-or-nothing: remove rows already stored for this import
+async function rollbackImportRows(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  import_id: string
+): Promise<void> {
+  const { error: cleanupError } = await supabase
+    .from('bank_statement_rows')
+    .delete()
+    .eq('import_id', import_id);
+  if (cleanupError) {
+    console.error('[createImportRows] Failed to roll back partial insert:', cleanupError);
+  }
+}
+
 export async function createImportRows(params: CreateImportRowsParams): Promise<CreateImportRowsResponse> {
   const supabase = await createServerSupabaseClient();
 
@@ -253,14 +267,7 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
         }
       });
     } catch (err) {
-      // Keep the statement all-or-nothing: remove rows already stored for this import
-      const { error: cleanupError } = await supabase
-        .from('bank_statement_rows')
-        .delete()
-        .eq('import_id', import_id);
-      if (cleanupError) {
-        console.error('[createImportRows] Failed to roll back partial insert:', cleanupError);
-      }
+      await rollbackImportRows(supabase, import_id);
       return {
         count: 0,
         error: `Failed to insert rows ${i + 1}-${i + batch.length} after 3 retries: ${err instanceof Error ? err.message : 'Unknown error'}`,
@@ -310,11 +317,22 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
     }
   }
 
-  // Update import session status
-  await supabase
+  // Update import session status, guarded on the 'pending' status read above so a concurrent
+  // change cannot be overwritten. PostgREST reports no error when zero rows match, so ask for
+  // the rows back. A failed or lost write rolls the inserted rows back, as a failed insert does.
+  const { data: statusUpdated, error: statusError } = await supabase
     .from('bank_statement_imports')
     .update({ status: 'processing' })
-    .eq('id', import_id);
+    .eq('id', import_id)
+    .eq('status', 'pending')
+    .select('id');
+  if (statusError || !statusUpdated || statusUpdated.length === 0) {
+    await rollbackImportRows(supabase, import_id);
+    return {
+      count: 0,
+      error: statusError ? statusError.message : 'Import status changed, please refresh and try again',
+    };
+  }
 
   // One audit entry per call (not per row)
   await logAudit({
