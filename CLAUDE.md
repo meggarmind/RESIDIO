@@ -71,6 +71,7 @@ Every `agent()` call inside a workflow script sets `model` explicitly, per the t
 | --- | --- |
 | `session-roles` | activate the Rex/Quinn arrangement in a fresh session |
 | `task-observer` | session-scoped pattern-watching; can graduate a repeated correction into a documented skill. Invoke at the start of any multi-step, tool-using task in this repo |
+| `autopilot` | `/autopilot <n> [n…]` — unattended delivery of a parent issue or issue list (`docs/agents/autonomous-delivery.md`). Invoking it is the Workflow opt-in for that run |
 | `to-issues` | decompose an initiative into vertical-slice issues (`CORE.md` §10) |
 | `/security-review` | security review of pending changes on the branch |
 
