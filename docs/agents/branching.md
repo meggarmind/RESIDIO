@@ -103,7 +103,8 @@ Since 2026-10-11 (owner decision, #420) `stage` is the **leading integration bra
 ```
 feature branch --PR--> stage   (Coolify residio-stage, stage.<domain>, Residio_Stage: UAT)
 stage --PR "Release vX.Y.Z" (merge commit)--> master   (Coolify residio-prod, app.<domain>, Residio_Prod)
-hotfix: branch from master --PR--> master, then merge master back into stage
+after EVERY release and hotfix: sync PR (branch cut from stage, master merged in) --> stage
+hotfix: branch from master --PR--> master, then the sync PR above
 ```
 
 - **Feature and fix branches start from `origin/stage` and their PRs target `stage`.**
@@ -121,8 +122,27 @@ hotfix: branch from master --PR--> master, then merge master back into stage
   Stage to the PR's head commit and queues a deploy, unless `stage` has already moved past it
   (then the cron deploys the newer commit). Other labels, and major hotfixes from other
   branches, deploy nothing. Prod is never deployed from CI.
-- **A hotfix branches from `master` and targets `master`.** Merge `master` back into `stage`
-  in its own PR straight after, so the fix is not lost at the next release.
+- **After every release, sync `master` back into `stage`** in its own PR, before the next
+  release. Both branches require "up to date before merging" (`strict`), and a merge-commit
+  release leaves `master` with a merge commit `stage` lacks, so the next release PR reads
+  BEHIND and cannot merge (first seen on the v1.1.0 release, PR #660, fixed by #663). Do it from
+  a branch **cut from `stage`**, not from `master`:
+
+  ```bash
+  git fetch origin
+  git switch -c chore/sync-master-into-stage origin/stage
+  git merge --no-ff origin/master        # after a plain release: clean, no file changes
+  git diff --stat origin/stage HEAD      # expect empty; the merged tree equals stage's tree
+  git push -u origin chore/sync-master-into-stage
+  # open a PR into stage and merge it with a MERGE COMMIT, never a squash
+  ```
+
+  A PR *from* `master` into `stage` cannot be used: it is itself behind `stage`, so it can
+  never satisfy `stage`'s up-to-date rule. A squash would not put `master` into `stage`'s
+  ancestry, which is the whole point.
+- **A hotfix branches from `master` and targets `master`.** Sync `master` back into `stage`
+  the same way straight after, so the fix is not lost at the next release (this time the merge
+  carries the fix, so it is not an empty merge).
 - **Both branches require the `PR gate` check** (`.github/workflows/pr-gate.yml`) and a PR.
   PRs into `master` also run the **`Security gate`** check (below). Docs-only PRs (`*.md`, `*.mdx`,
   `docs/**`) skip lint, typecheck, test and build; the gate also runs on pushes to `stage` to seed
