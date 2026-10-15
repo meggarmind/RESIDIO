@@ -14,6 +14,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { BankStatementRow } from '@/types/database';
+import { formatCalendarDate } from '@/lib/utils/calendar-date';
 
 interface RowDetailsDialogProps {
   open: boolean;
@@ -72,7 +73,7 @@ export function RowDetailsDialog({
                   <span className="text-sm font-medium">Date:</span>
                   <span className="text-sm">
                     {row.transaction_date
-                      ? new Date(row.transaction_date).toLocaleDateString('en-NG', {
+                      ? formatCalendarDate(row.transaction_date, 'en-NG', {
                           weekday: 'short',
                           year: 'numeric',
                           month: 'long',

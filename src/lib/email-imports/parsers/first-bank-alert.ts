@@ -20,6 +20,7 @@
  */
 
 import type { ParsedEmailTransaction } from '@/types/database';
+import { calendarDate } from '@/lib/utils/calendar-date';
 
 // ============================================================
 // HTML Stripping Utility
@@ -127,7 +128,7 @@ function parseDate(dateStr: string): Date | null {
   if (ddmmyyyy) {
     const [, day, month, year] = ddmmyyyy;
     const fullYear = year.length === 2 ? `20${year}` : year;
-    return new Date(parseInt(fullYear), parseInt(month) - 1, parseInt(day));
+    return calendarDate(parseInt(fullYear), parseInt(month), parseInt(day));
   }
 
   // DD-MMM-YYYY (e.g., 15-Dec-2024)
@@ -140,7 +141,7 @@ function parseDate(dateStr: string): Date | null {
     };
     const month = months[monthStr.toLowerCase()];
     if (month !== undefined) {
-      return new Date(parseInt(year), month, parseInt(day));
+      return calendarDate(parseInt(year), month + 1, parseInt(day));
     }
   }
 
@@ -400,7 +401,7 @@ function parseStructuredAlert(body: string, subject?: string | null): ParsedEmai
       };
       const month = months[monthStr.toLowerCase()];
       if (month !== undefined) {
-        date = new Date(2000 + parseInt(year), month, parseInt(day));
+        date = calendarDate(2000 + parseInt(year), month + 1, parseInt(day));
       }
     }
   }

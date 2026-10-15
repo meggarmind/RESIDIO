@@ -44,6 +44,7 @@ import { getPettyCashAccounts } from '@/actions/finance/petty-cash';
 import { getExpenseCategories } from '@/actions/expenses/get-expense-categories';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { formatCalendarDate } from '@/lib/utils/calendar-date';
 import type { BankStatementRow, Resident } from '@/types/database';
 import type { ManualMatchParams } from '@/actions/imports/types';
 
@@ -233,7 +234,7 @@ export function ManualMatchDialog({
           <div className="p-3 bg-muted/50 rounded-lg text-sm border">
             <p className="font-medium truncate">{row.description}</p>
             <div className="flex gap-3 text-muted-foreground mt-1 text-xs">
-              <span>{row.transaction_date ? new Date(row.transaction_date).toLocaleDateString() : 'No Date'}</span>
+              <span>{row.transaction_date ? formatCalendarDate(row.transaction_date) : 'No Date'}</span>
               <span>•</span>
               <span>Ref: {row.reference || 'N/A'}</span>
             </div>
