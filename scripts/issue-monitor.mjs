@@ -19,6 +19,8 @@ function run(command, args, cwd = process.cwd()) {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
+      // The Project item list alone passes the 1 MiB default, which truncates the JSON.
+      maxBuffer: 64 * 1024 * 1024,
     }).trim();
   } catch (error) {
     const details = [error.stderr, error.stdout].filter(Boolean).join('\n').trim();
@@ -49,9 +51,45 @@ function issueList(config, cwd) {
 
 function issueView(config, issueNumber, cwd) {
   return ghJson(config, [
-    'issue', 'view', String(issueNumber), '--comments',
-    '--json', 'number,title,state,url,closedAt,updatedAt,labels,comments,body,closedByPullRequestsReferences',
+    // `comments` is already a --json field; gh >= 2.x rejects --comments alongside --json.
+    'issue', 'view', String(issueNumber),
+    '--json', 'number,title,state,stateReason,url,closedAt,updatedAt,labels,comments,body,closedByPullRequestsReferences',
   ], cwd);
+}
+
+// Commit subjects on the default branch. Integration evidence has to survive branch
+// deletion, and a closed issue often has neither a live branch nor a closing PR
+// (#162), so the durable record is the history itself. Throws rather than returning
+// an empty list: an unreadable history would silently flag every closed issue.
+function defaultBranchSubjects(config, cwd) {
+  const branch = config.defaultBranch ?? 'master';
+  const output = run('git', ['log', `origin/${branch}`, '--format=%s'], cwd);
+  return output ? output.split('\n') : [];
+}
+
+/**
+ * Issue numbers that commit subjects on the default branch show as integrated (#162).
+ *
+ * Only forms this repository actually writes are accepted, each anchored:
+ *   - `Merge #164: ...`                      (local merges into an integration branch)
+ *   - `... (#164)` / `fix(#164): ...`        (the commit-references-issue convention)
+ *   - `Merge pull request #198 from o/claude/issue-164-slug`  (issue number in the branch)
+ * A bare mention (`drop stale #306 pointer`) is not evidence, and a revert is the
+ * opposite of it. PR numbers also land in the set (`... (#617)`), which is harmless:
+ * issues and PRs share one number space, so a PR number is never an issue's number.
+ */
+export function mergedIssueNumbers(subjects) {
+  const found = new Set();
+  for (const raw of subjects) {
+    const subject = String(raw ?? '').trim();
+    if (!subject || /^Revert\b/i.test(subject)) continue;
+    const local = subject.match(/^Merge #(\d+)\b/);
+    if (local) found.add(Number(local[1]));
+    for (const match of subject.matchAll(/\(#(\d+)\)/g)) found.add(Number(match[1]));
+    const branch = subject.match(/^Merge pull request #\d+ from \S+?\/(?:[A-Za-z0-9_.-]+\/)?issue[-/](\d+)-/);
+    if (branch) found.add(Number(branch[1]));
+  }
+  return found;
 }
 
 // The board is shared across repositories, so issue numbers collide: a card for
@@ -182,21 +220,30 @@ function issueItem(items, issueNumber) {
   return items.find((item) => Number(item.content?.number ?? item.number) === Number(issueNumber)) ?? null;
 }
 
-function integrationEvidence(issue, pullRequestsForIssue, marker = DEFAULT_MONITOR_MARKER) {
+function integrationEvidence(issue, pullRequestsForIssue, marker = DEFAULT_MONITOR_MARKER, mergedIssues = new Set()) {
   const lifecycle = (issue.comments ?? []).some((comment) => {
     const body = String(comment.body ?? '');
     return !isMonitorComment(comment, marker) && body.includes('Integration: merged into');
   });
-  return lifecycle || pullRequestsForIssue.some((pullRequest) => Boolean(pullRequest.mergedAt) || pullRequest.state === 'MERGED');
+  return lifecycle
+    || mergedIssues.has(Number(issue.number))
+    || pullRequestsForIssue.some((pullRequest) => Boolean(pullRequest.mergedAt) || pullRequest.state === 'MERGED');
 }
 
-export function detectFindings({ issue, status, config, branchNames = /** @type {string[]} */ ([]), commits = [], pullRequests: allPullRequests = [], timeline: timelineEvents = [], worktrees = [], now = new Date() }) {
+// Closed as "not planned" (or a duplicate): nothing was meant to be integrated.
+function closedWithoutWork(issue) {
+  return ['NOT_PLANNED', 'DUPLICATE'].includes(String(issue.stateReason ?? '').toUpperCase());
+}
+
+export function detectFindings({ issue, status, config, branchNames = /** @type {string[]} */ ([]), commits = [], pullRequests: allPullRequests = [], timeline: timelineEvents = [], worktrees = [], mergedIssues = new Set(), now = new Date() }) {
   const monitor = config.monitor ?? {};
   const marker = monitor.commentMarker ?? DEFAULT_MONITOR_MARKER;
   const issueLabels = labels(issue);
   const issueBranches = matchingBranches(config, issue.number, branchNames);
   const linkedNumbers = new Set((issue.closedByPullRequestsReferences ?? []).map((pullRequest) => Number(pullRequest.number)));
-  const issuePullRequests = allPullRequests.filter((pullRequest) => issueBranches.includes(pullRequest.headRefName) || linkedNumbers.has(Number(pullRequest.number)));
+  // A PR belongs to the issue by its head branch name, not by that branch still existing:
+  // merged branches are deleted, and keying on live branches dropped every merged PR (#162).
+  const issuePullRequests = allPullRequests.filter((pullRequest) => matchingBranches(config, issue.number, [String(pullRequest.headRefName ?? '')]).length > 0 || linkedNumbers.has(Number(pullRequest.number)));
   const issueCommits = commits.filter((commit) => issueBranches.includes(commit.branch));
   const activity = qualifyingActivity(issue, { marker, timeline: timelineEvents, commits: issueCommits, pullRequests: issuePullRequests });
   const executionEvidence = issueBranches.length > 0 || issuePullRequests.some((pullRequest) => pullRequest.state === 'OPEN' || pullRequest.state === 'MERGED') || worktrees.some((worktree) => worktree.issueNumber === Number(issue.number));
@@ -207,7 +254,7 @@ export function detectFindings({ issue, status, config, branchNames = /** @type 
   if (status === 'In review' && issueBranches.length === 0 && issuePullRequests.length === 0) findings.push({ condition: 'in-review-missing-evidence', kind: 'inconsistent', recommendation: 'Restore the issue branch or link the pull request before continuing review.' });
   if (issue.state === 'CLOSED' && status !== 'Done') findings.push({ condition: 'closed-not-done', kind: 'inconsistent', recommendation: 'Reconcile the closed issue and Project status with the project owner.' });
   if (status === 'Done' && issue.state === 'OPEN') findings.push({ condition: 'done-still-open', kind: 'inconsistent', recommendation: 'Close the issue only after confirming the integration evidence.' });
-  if (status === 'Done' && !integrationEvidence(issue, issuePullRequests, marker)) findings.push({ condition: 'done-no-integration', kind: 'inconsistent', recommendation: 'Verify the merge or add durable integration evidence before accepting Done.' });
+  if (status === 'Done' && !closedWithoutWork(issue) && !integrationEvidence(issue, issuePullRequests, marker, mergedIssues)) findings.push({ condition: 'done-no-integration', kind: 'inconsistent', recommendation: 'Verify the merge or add durable integration evidence before accepting Done.' });
   const suppressed = issueLabels.has(monitor.pausedLabel ?? 'workflow:paused');
   return {
     issue: Number(issue.number),
@@ -319,6 +366,7 @@ export function runMonitor(config, cwd = process.cwd(), options = {}) {
   }
   const allBranches = branches(config, cwd);
   const pullRequestsForRepo = pullRequests(config, cwd);
+  const mergedIssues = mergedIssueNumbers(defaultBranchSubjects(config, cwd));
   const results = [];
   const failures = [];
   for (const summary of issueSummaries) {
@@ -330,7 +378,7 @@ export function runMonitor(config, cwd = process.cwd(), options = {}) {
       if (!status) throw new WorkflowError(`Issue #${summary.number} has no Project status.`);
       const issueBranches = matchingBranches(config, summary.number, allBranches);
       const commits = issueBranches.map((branch) => branchCommit(config, branch, cwd)).filter(Boolean);
-      const result = detectFindings({ issue, status, config, branchNames: allBranches, commits, pullRequests: pullRequestsForRepo, timeline: timeline(config, summary.number, cwd), now });
+      const result = detectFindings({ issue, status, config, branchNames: allBranches, commits, pullRequests: pullRequestsForRepo, timeline: timeline(config, summary.number, cwd), mergedIssues, now });
       results.push(result);
       if (alertActions(result, options.dryRun).length > 0) {
         for (const finding of result.findings) writeFinding(config, cwd, issue, result, finding, now);
