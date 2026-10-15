@@ -10,13 +10,16 @@ const state = vi.hoisted(() => ({
   fromCalls: [] as string[],
 }));
 
-/** Minimal chainable fake that really applies neq / in / contains / order / limit. */
+/** Minimal chainable fake that really applies eq / neq / in / contains / order / limit. */
 function makeBuilder(table: string) {
   let rows: Row[] = table === 'invoice_generation_runs' ? [...state.runs] : [];
   const builder: Record<string, unknown> = {};
   const self = () => builder;
   builder.select = self;
-  builder.eq = self;
+  builder.eq = (col: string, val: unknown) => {
+    rows = rows.filter((r) => r[col] === val);
+    return builder;
+  };
   builder.not = self;
   builder.lte = self;
   builder.neq = (col: string, val: unknown) => {
@@ -147,11 +150,22 @@ describe('computeCronStatus invoice-generation job (#638)', () => {
     expect(job.lastRun).toBe('2026-08-01T06:00:00.000Z');
   });
 
-  it('does not count a cancelled run as having run', async () => {
+  it('does not count a cancelled run as having run, but warns instead of reading Critical', async () => {
     state.runs = [run('cancelled', '2026-10-01')];
     const job = await invoiceJob();
-    expect(job.status).toBe('critical');
+    expect(job.status).toBe('warning');
+    expect(job.message).toContain('cancelled');
     expect(job.lastRun).toBeNull();
+  });
+
+  it('a cancelled run from an earlier month does not soften the current Critical', async () => {
+    state.runs = [run('cancelled', '2026-09-01')];
+    expect((await invoiceJob()).status).toBe('critical');
+  });
+
+  it('a cancelled manual run does not soften Critical (the cron route would still create one)', async () => {
+    state.runs = [run('cancelled', '2026-10-01', { scope: { trigger: 'manual', targetMonth: '2026-10-01' } })];
+    expect((await invoiceJob()).status).toBe('critical');
   });
 
   it.each(['draft', 'awaiting_approval'])('does not count a %s run as having run', async (status) => {

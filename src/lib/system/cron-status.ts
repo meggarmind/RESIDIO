@@ -73,6 +73,7 @@ export async function computeCronStatus(): Promise<HealthResponse> {
     //   latest run completed              -> healthy
     //   latest run completed_with_errors  -> warning
     //   latest run queued / processing    -> healthy ("in progress")
+    //   only a cancelled cron run this month -> warning (the route will not recreate it)
     //   no such run, today < configured day  -> healthy ("Waiting for day N")
     //   no such run, today >= configured day -> critical ("OVERDUE")
     //   runs table unreadable             -> unknown (the only remaining use of
@@ -95,6 +96,15 @@ export async function computeCronStatus(): Promise<HealthResponse> {
         .in('status', ['completed', 'completed_with_errors', 'queued', 'processing'])
         .contains('scope', { targetMonth: period })
         .order('requested_at', { ascending: false })
+        .limit(1);
+
+    // A cron run an admin cancelled this month holds for the month (the cron route
+    // will not recreate it), so "no run" would be a misleading Critical.
+    const { data: cancelledRuns } = await supabase
+        .from('invoice_generation_runs')
+        .select('status')
+        .eq('status', 'cancelled')
+        .contains('scope', { trigger: 'cron', targetMonth: period })
         .limit(1);
 
     const { data: lastRuns } = await supabase
@@ -124,6 +134,9 @@ export async function computeCronStatus(): Promise<HealthResponse> {
     } else if (monthRun) {
         invoiceStatus = 'healthy';
         invoiceMessage = `Generation for ${period.slice(0, 7)} is in progress`;
+    } else if (cancelledRuns && cancelledRuns.length > 0) {
+        invoiceStatus = 'warning';
+        invoiceMessage = `The scheduled run for ${period.slice(0, 7)} was cancelled and will not be recreated this month; generate it manually if it is still needed`;
     } else if (currentDay < configuredDay) {
         invoiceStatus = 'healthy';
         invoiceMessage = `Waiting for day ${configuredDay} (today is day ${currentDay})`;

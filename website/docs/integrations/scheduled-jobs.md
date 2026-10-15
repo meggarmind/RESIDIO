@@ -77,7 +77,7 @@ Treat this as a known reporting fault, not an outage. It is being tracked for re
 4. If the job is genuinely not running, escalate to an engineer. Job scheduling is a deployment concern, not a dashboard setting.
 5. Only after that, consider a manual run of the equivalent action.
 
-Invoice generation catches up: the daily run generates the month's invoices on the configured day or on any later day of that month if the month has no scheduled run yet, and a scheduled run that an administrator cancelled is not recreated that month. The Invoice generation card reads the real run history, so it is Critical only when the month has no run after the configured day.
+Invoice generation catches up: the daily run generates the month's invoices on the configured day or on any later day of that month if the month has no scheduled run yet, and a scheduled run that an administrator cancelled is not recreated that month. The Invoice generation card reads the real run history, so it is Critical only when the month has no run after the configured day; if the scheduled run was cancelled it shows a warning instead and is not recreated.
 
 :::warning[Manual runs can duplicate]
 Generating invoices manually while the scheduled run is merely delayed produces two sets. Confirm the job status first, and check the run history before triggering anything by hand.

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import {
     currentMonthPeriod,
+    findReusableInvoiceGenerationRun,
     prepareInvoiceGenerationRunCore,
     processInvoiceGenerationRunToCompletion,
 } from '@/lib/billing/invoice-generation-run-service';
@@ -144,5 +145,39 @@ describe('processInvoiceGenerationRunToCompletion', () => {
         expect(outcome.processed).toBe(150);
         expect(outcome.capped).toBe(true);
         expect(chunkMock).toHaveBeenCalledTimes(3);
+    });
+});
+
+describe('findReusableInvoiceGenerationRun (#638)', () => {
+    function recordingClient() {
+        const calls: Array<[string, unknown[]]> = [];
+        const builder: Record<string, unknown> = {};
+        for (const method of ['select', 'contains', 'neq', 'order', 'limit']) {
+            builder[method] = (...args: unknown[]) => {
+                calls.push([method, args]);
+                return builder;
+            };
+        }
+        builder.maybeSingle = () => Promise.resolve({ data: null, error: null });
+        createAdminClientMock.mockReturnValue({ from: () => builder });
+        return calls;
+    }
+
+    beforeEach(() => createAdminClientMock.mockReset());
+
+    it('ignores cancelled runs by default', async () => {
+        const calls = recordingClient();
+        await findReusableInvoiceGenerationRun('cron', '2026-10-01');
+        expect(calls).toContainEqual(['contains', ['scope', { trigger: 'cron', targetMonth: '2026-10-01' }]]);
+        expect(calls).toContainEqual(['neq', ['status', 'cancelled']]);
+    });
+
+    // The cron route relies on this: without it an admin-cancelled run is recreated by
+    // the next daily call and bills the houses the cancelled run had not reached.
+    it('keeps cancelled runs visible when includeCancelled is set', async () => {
+        const calls = recordingClient();
+        await findReusableInvoiceGenerationRun('cron', '2026-10-01', { includeCancelled: true });
+        expect(calls.some(([method]) => method === 'neq')).toBe(false);
+        expect(calls).toContainEqual(['contains', ['scope', { trigger: 'cron', targetMonth: '2026-10-01' }]]);
     });
 });
