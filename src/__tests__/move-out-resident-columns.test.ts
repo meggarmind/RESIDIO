@@ -10,12 +10,6 @@ import { describe, expect, it } from 'vitest';
 const ROOT = process.cwd();
 const FILES = ['src/actions/residents/move-out-renter.ts', 'src/actions/residents/move-out-owner.ts'];
 
-/**
- * The staff-notification block in move-out-renter.ts still selects residents.user_id.
- * It is left as-is pending an owner decision (#585). Remove this exemption when fixed.
- */
-const KNOWN_BROKEN = ['id, user_id'];
-
 function read(rel: string): string {
   return readFileSync(join(ROOT, rel), 'utf8');
 }
@@ -43,7 +37,7 @@ describe('move-out actions select only real residents columns (#585)', () => {
   });
 
   it.each(FILES)('%s selects only existing columns', (file) => {
-    const selects = residentsSelects(read(file)).filter((s) => !KNOWN_BROKEN.includes(s));
+    const selects = residentsSelects(read(file));
     expect(selects.length).toBeGreaterThan(0);
     for (const select of selects) {
       for (const col of select.split(',').map((c) => c.trim())) {
