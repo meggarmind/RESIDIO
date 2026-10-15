@@ -34,10 +34,19 @@ describe('dashboard invoice aggregates migration (#215)', () => {
     expect(active).not.toMatch(/due_date <= p_today/);
   });
 
-  it('returns every raw bucket the caller nets', () => {
-    for (const key of ['unpaid', 'paid', 'partially_paid', 'void', 'overdue_unpaid', 'overdue_partially_paid']) {
-      expect(active).toContain(`'${key}'`);
+  it('returns every raw bucket the caller nets, each counting its own status', () => {
+    for (const key of ['unpaid', 'paid', 'partially_paid', 'void']) {
+      expect(active).toContain(`'${key}', COUNT(*) FILTER (WHERE status = '${key}')`);
     }
+    expect(active).toContain("'overdue_unpaid', COUNT(*) FILTER (WHERE status = 'unpaid' AND due_date < p_today)");
+    expect(active).toContain(
+      "'overdue_partially_paid', COUNT(*) FILTER (WHERE status = 'partially_paid' AND due_date < p_today)"
+    );
+  });
+
+  it('pairs each window start with its own end by ordinal', () => {
+    expect(active).toContain('ON e.idx = m.idx');
+    expect(active).not.toMatch(/e\.idx = m\.idx \+/);
   });
 
   it('uses inclusive month bounds on created_at (matches the old .gte/.lte pair)', () => {
