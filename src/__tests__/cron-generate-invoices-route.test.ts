@@ -98,7 +98,17 @@ describe('cron generate-invoices route catch-up (#638)', () => {
     mocks.findReusableInvoiceGenerationRun.mockResolvedValue({ id: 'run-0', status: 'completed' });
     const body = await (await GET(request)).json();
     expect(body.prepared).toMatchObject({ skipped: true, runId: 'run-0' });
-    expect(mocks.findReusableInvoiceGenerationRun).toHaveBeenCalledWith('cron', '2026-10-01');
+    expect(mocks.findReusableInvoiceGenerationRun).toHaveBeenCalledWith('cron', '2026-10-01', { includeCancelled: true });
+    expect(mocks.prepareInvoiceGenerationRunCore).not.toHaveBeenCalled();
+  });
+
+  // A cancelled cron run must hold for the month: the guard ignored cancelled runs, so
+  // every later daily call recreated it and billed the houses it had not reached.
+  it('does not recreate a cron run an admin cancelled earlier this month', async () => {
+    setToday(17);
+    mocks.findReusableInvoiceGenerationRun.mockResolvedValue({ id: 'run-0', status: 'cancelled' });
+    const body = await (await GET(request)).json();
+    expect(body.prepared).toMatchObject({ skipped: true, runId: 'run-0', reason: 'Run for this period was cancelled' });
     expect(mocks.prepareInvoiceGenerationRunCore).not.toHaveBeenCalled();
   });
 

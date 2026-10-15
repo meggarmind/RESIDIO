@@ -28,8 +28,10 @@ export const maxDuration = 300;
  * 1. Every invocation may advance the newest queued/processing run by ONE
  *    bounded chunk (<= 50 candidates) via the idempotent RPC.
  * 2. On or after the configured generation day (so a missed day is caught up
- *    later in the month), and only when no run exists for the current month, it prepares a current-month estate-wide run with
- *    wallet allocation, resident emails, and late fees disabled.
+ *    later in the month), and only when no cron run (cancelled ones included, so a
+ *    cancel holds for the month) exists for the current month, it prepares a
+ *    current-month estate-wide run with wallet allocation, resident emails, and
+ *    late fees disabled.
  *
  * Authentication: Bearer token matching CRON_SECRET env var (timing-safe)
  */
@@ -75,9 +77,9 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ skipped: true, reason: `Before generation day (today: ${dayOfMonth}, configured: ${configuredDay})`, ...response });
         }
 
-        const existing = await findReusableInvoiceGenerationRun('cron', period);
+        const existing = await findReusableInvoiceGenerationRun('cron', period, { includeCancelled: true });
         if (existing) {
-            response.prepared = { skipped: true, runId: existing.id, status: existing.status, reason: 'Run already exists for this period' };
+            response.prepared = { skipped: true, runId: existing.id, status: existing.status, reason: existing.status === 'cancelled' ? 'Run for this period was cancelled' : 'Run already exists for this period' };
             return NextResponse.json({ success: true, ...response });
         }
 
