@@ -494,6 +494,11 @@ Standing rule, not a suggestion:
    `npm run db:reconcile-version -- <version> <name>` and execute the printed SQL on the same
    database via MCP. Never rename the file to match the stamp.
 
+6. **Auto-merged PRs (§16) do not change this.** The coordinator confirms the merge completed
+   (`gh pr view <n> --json state,mergedAt`), then applies and verifies the PR's migrations
+   immediately. Unlike a hand-merged PR, nothing prompts this step, so it is the coordinator's
+   job to notice the merge. Escalate to the owner only when applying fails.
+
 Migrations are **written** by an implementing agent and **never applied** by one. See §16 for
 the rollback-fidelity requirement. Full detail: `docs/agents/migrations-on-merge.md`.
 
@@ -720,8 +725,25 @@ nearly caused a clean branch to be reported as broken.
 
 ## 16. Reporting and continuity
 
-Branch per issue, commits referencing it, **PR only after a pass. The user does the merging.**
+Branch per issue, commits referencing it, **PR only after a pass.**
 **Open a pull request for every issue you complete.**
+
+**Who merges** (owner decision 2026-10-15). Repo auto-merge is enabled. The user merges only
+release PRs (`stage` → `master`) and hotfix PRs into `master`. Every other PR — feature and fix PRs
+into `stage` — the coordinator arms for auto-merge once the real gate (below) and QA (§15) have
+passed:
+
+```bash
+gh pr merge <n> --repo meggarmind/RESIDIO --auto --squash   # GitHub merges when `PR gate` is green
+```
+
+- Arm it only after QA is PASS or PASS WITH NOTES. GitHub cannot see the QA verdict, so arming is
+  the coordinator's assertion that it passed. A FAIL or an unresolved §15 stop-and-ask condition
+  means do not arm.
+- A PR that adds migrations is armed like any other, but the coordinator then owns §11 rule 2:
+  once it merges, apply the migrations to Residio_Stage and verify by name, without being asked.
+  Report only if that fails, so the owner can fix the blocker or apply by hand.
+- Never arm auto-merge on a PR into `master`, and never merge one on the owner's behalf.
 
 Before opening the PR, the coordinator pushes the branch and runs the real gate against it:
 
