@@ -13,7 +13,8 @@
 --   column-restricted read, because nothing needs resident read access.
 --
 -- WHO IS AFFECTED
---   Residents and anon lose all read access to verification_tokens. No application
+--   Logged-in residents lose read access to their own verification_tokens rows (anon
+--   never matched the policy: auth.uid() is null for it). No application
 --   code is affected: every `.from('verification_tokens')` call under src/ uses the
 --   admin (service-role) client, and the service-role policy "Service role can manage
 --   verification tokens" (FOR ALL) is kept. With RLS enabled and no matching policy,

@@ -14,7 +14,8 @@ function sql(file: string): string {
 
 /** Policy name, quoted or bare. */
 const NAME = '("[^"]+"|[A-Za-z_][A-Za-z0-9_]*)';
-const TABLE = '(?:public\\.)?verification_tokens\\b';
+// Optional schema and optional double quotes; the lookahead keeps `verification_tokens_archive` out.
+const TABLE = '(?:"?public"?\\.)?"?verification_tokens"?(?![A-Za-z0-9_])';
 const unquote = (n: string) => n.replace(/^"|"$/g, '');
 
 /**
