@@ -31,7 +31,7 @@ let updates: Array<Record<string, unknown>>;
 let eqs: Array<[string, unknown]>;
 let currentStatus: string;
 let submittedBy: string | null | undefined;
-let actingUser: string;
+let actingUser: string | null;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -42,7 +42,7 @@ beforeEach(() => {
   actingUser = ME;
   authorizePermission.mockImplementation(async () => ({ authorized: true, userId: actingUser }));
   createServerSupabaseClient.mockImplementation(async () => ({
-    auth: { getUser: async () => ({ data: { user: { id: actingUser } }, error: null }) },
+    auth: { getUser: async () => ({ data: { user: actingUser ? { id: actingUser } : null }, error: null }) },
     from() {
       let op = '';
       const chain: Record<string, unknown> = {};
@@ -119,6 +119,17 @@ describe('approveImport self-approval rule (#628)', () => {
     const res = await approveImport(uid(1));
     expect(res.error).toBeNull();
     expect(updates).toHaveLength(1);
+  });
+
+  it('fails closed when the approver cannot be identified, whatever submitted_by is', async () => {
+    actingUser = null;
+    for (const sub of ['user-someone', null]) {
+      submittedBy = sub;
+      const res = await approveImport(uid(1), 'ok');
+      expect(res.error).toBe('Unauthorized');
+    }
+    expect(updates).toHaveLength(0);
+    expect(logAudit).not.toHaveBeenCalled();
   });
 
   it('approves a row that does not carry the column at all', async () => {

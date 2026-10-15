@@ -671,6 +671,14 @@ export async function approveImport(import_id: string, notes?: string): Promise<
   // Get current user
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Fail closed (#628): without an identity the self-approval rule cannot be evaluated, so
+  // no approval may proceed. authorizePermission already rejects this case; this keeps the
+  // rule safe if that ever changes.
+  const approverId = user?.id ?? auth.userId ?? null;
+  if (!approverId) {
+    return { error: 'Unauthorized' };
+  }
+
   // Get import
   const { data: importData, error: fetchError } = await supabase
     .from('bank_statement_imports')
@@ -689,7 +697,6 @@ export async function approveImport(import_id: string, notes?: string): Promise<
   // Maker != checker (#628): the submitter may not approve their own import. A null
   // submitted_by is a legacy row from before the column existed (none exist on Stage or Prod
   // today) and is allowed through, since there is no submitter to compare with.
-  const approverId = user?.id ?? auth.userId ?? null;
   const submittedBy = readSubmittedBy(importData);
   if (submittedBy !== null && submittedBy === approverId) {
     return { error: 'You submitted this import, so a different approver is required' };
