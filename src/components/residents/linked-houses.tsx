@@ -195,7 +195,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
     const handleUnassign = async (houseId: string, role: ResidentRole, action: 'move-out' | 'transfer' | 'remove') => {
         const actionCopy: Record<typeof action, string> = {
             'move-out': role === 'resident_landlord'
-                ? 'mark this owner-occupier as moved out (they will become a non-resident landlord)'
+                ? 'mark this owner-occupier as moved out (they will become a property owner)'
                 : 'process this move-out',
             'transfer': 'transfer this property (give up ownership)',
             'remove': 'remove this house assignment',
@@ -382,7 +382,7 @@ export function LinkedHouses({ resident }: LinkedHousesProps) {
                                             onClick={() => handleUnassign(rh.house.id, rh.resident_role, 'move-out')}
                                             className="text-muted-foreground hover:text-orange-600 h-7 text-xs"
                                             disabled={unassignMutation.isPending}
-                                            aria-label="Move out (become non-resident landlord)"
+                                            aria-label="Move out (become property owner)"
                                         >
                                             <LogOut className="h-3.5 w-3.5 mr-1" />
                                             Move Out

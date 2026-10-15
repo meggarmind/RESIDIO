@@ -88,7 +88,7 @@ export default function BillingSettingsPage() {
                             <div className="space-y-0.5">
                                 <Label htmlFor="bill_vacant_houses">Bill Vacant Houses</Label>
                                 <p className="text-sm text-muted-foreground">
-                                    Bill non-resident landlords for vacant properties
+                                    Bill property owners for vacant properties
                                 </p>
                             </div>
                             <Switch
@@ -105,7 +105,7 @@ export default function BillingSettingsPage() {
                             <div className="space-y-0.5">
                                 <Label htmlFor="bill_under_renovation_houses">Bill Houses Under Renovation</Label>
                                 <p className="text-sm text-muted-foreground">
-                                    Bill non-resident landlords for properties under renovation
+                                    Bill property owners for properties under renovation
                                 </p>
                             </div>
                             <Switch
@@ -122,7 +122,7 @@ export default function BillingSettingsPage() {
                             <div className="space-y-0.5">
                                 <Label htmlFor="bill_under_construction_houses">Bill Houses Under Construction</Label>
                                 <p className="text-sm text-muted-foreground">
-                                    Bill non-resident landlords for properties under construction
+                                    Bill property owners for properties under construction
                                 </p>
                             </div>
                             <Switch

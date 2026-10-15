@@ -2295,7 +2295,7 @@ export const TARGET_AUDIENCE_LABELS: Record<TargetAudience, string> = {
   all: 'All Residents',
   residents: 'All Residents',
   owners: 'Property Owners',
-  tenants: 'Tenants Only',
+  tenants: 'Renters Only',
   staff: 'Staff Only',
 };
 
