@@ -136,7 +136,8 @@ describe('Sidebar build info (#421)', () => {
     stubStaging();
     vi.stubEnv('NEXT_PUBLIC_APP_VERSION', 'v0.5.0-341-ga1b2c3d');
     render(<Sidebar />);
-    expect(screen.queryByText('v0.5.0+341')).not.toBeNull();
+    // Focusable, so keyboard users can open the tooltip carrying the full version.
+    expect(screen.getByText('v0.5.0+341').getAttribute('tabindex')).toBe('0');
     expect(screen.queryByText('v0.5.0-341-ga1b2c3d')).not.toBeNull();
     expect(screen.queryByText(/· a1b2c3d/)).toBeNull();
   });

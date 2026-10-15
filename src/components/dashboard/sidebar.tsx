@@ -450,7 +450,7 @@ export function Sidebar({ className }: SidebarProps) {
             >
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="truncate whitespace-nowrap" tabIndex={0} aria-label={buildLabel.full}>
+                  <span className="truncate whitespace-nowrap" tabIndex={0}>
                     {buildLabel.short}
                   </span>
                 </TooltipTrigger>
