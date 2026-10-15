@@ -5,14 +5,24 @@ type Row = Record<string, unknown>;
 
 const state = vi.hoisted(() => ({
   runs: [] as Array<Record<string, unknown>>,
-  configuredDay: 5,
+  configuredDay: 5 as unknown,
+  autoGenerate: true as unknown,
+  settingsError: null as { message: string } | null,
   runsError: null as { message: string } | null,
   fromCalls: [] as string[],
 }));
 
 /** Minimal chainable fake that really applies eq / neq / in / contains / order / limit. */
 function makeBuilder(table: string) {
-  let rows: Row[] = table === 'invoice_generation_runs' ? [...state.runs] : [];
+  let rows: Row[] =
+    table === 'invoice_generation_runs'
+      ? [...state.runs]
+      : table === 'system_settings'
+        ? [
+            { key: 'invoice_generation_day', value: state.configuredDay },
+            { key: 'auto_generate_invoices', value: state.autoGenerate },
+          ]
+        : [];
   const builder: Record<string, unknown> = {};
   const self = () => builder;
   builder.select = self;
@@ -52,7 +62,12 @@ function makeBuilder(table: string) {
     resolve({
       data: rows,
       count: 0,
-      error: table === 'invoice_generation_runs' ? state.runsError : null,
+      error:
+        table === 'invoice_generation_runs'
+          ? state.runsError
+          : table === 'system_settings'
+            ? state.settingsError
+            : null,
     });
   return builder;
 }
@@ -92,6 +107,8 @@ beforeEach(() => {
   vi.useFakeTimers();
   state.runs = [];
   state.configuredDay = 5;
+  state.autoGenerate = true;
+  state.settingsError = null;
   state.runsError = null;
   state.fromCalls = [];
   setToday(17);
@@ -188,5 +205,60 @@ describe('computeCronStatus invoice-generation job (#638)', () => {
     await invoiceJob();
     expect(state.fromCalls).toContain('invoice_generation_runs');
     expect(state.fromCalls).not.toContain('invoice_generation_log');
+  });
+
+  describe('automatic generation switched off (#646)', () => {
+    it('is healthy, not Critical, after the day when the switch is off and no run exists', async () => {
+      state.autoGenerate = false;
+      const job = await invoiceJob();
+      expect(job.status).toBe('healthy');
+      expect(job.message).toContain('Automatic generation is off');
+    });
+
+    it.each(['false', 'FALSE', null])('treats the stored switch value %j as off, as the cron does', async (value) => {
+      state.autoGenerate = value;
+      expect((await invoiceJob()).status).toBe('healthy');
+    });
+
+    it('still reports a completed month normally when the switch is off', async () => {
+      state.autoGenerate = false;
+      state.runs = [run('completed', '2026-10-01')];
+      const job = await invoiceJob();
+      expect(job.status).toBe('healthy');
+      expect(job.message).toContain('10 created');
+    });
+
+    it('still reports a failed month when the switch is off', async () => {
+      state.autoGenerate = false;
+      state.runs = [run('completed_with_errors', '2026-10-01', { failed_count: 3 })];
+      expect((await invoiceJob()).status).toBe('warning');
+    });
+
+    it('reads off, not a cancellation warning, when the switch is off and only a cron run was cancelled', async () => {
+      state.autoGenerate = false;
+      state.runs = [run('cancelled', '2026-10-01')];
+      const job = await invoiceJob();
+      expect(job.status).toBe('healthy');
+      expect(job.message).toContain('Automatic generation is off');
+    });
+
+    it('stays Critical after the day when the switch is on and no run exists', async () => {
+      state.autoGenerate = true;
+      expect((await invoiceJob()).status).toBe('critical');
+    });
+
+    it('is unknown when the settings cannot be read (never a guess)', async () => {
+      state.settingsError = { message: 'boom' };
+      const job = await invoiceJob();
+      expect(job.status).toBe('unknown');
+      expect(job.message).toContain('settings');
+    });
+
+    it('parses the generation day like the cron: a quoted day string is honoured', async () => {
+      state.configuredDay = '"20"';
+      const job = await invoiceJob();
+      expect(job.status).toBe('healthy');
+      expect(job.message).toContain('Waiting for day 20');
+    });
   });
 });
