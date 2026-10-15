@@ -13,8 +13,15 @@ on:
   # closures. Enabling the sweep first would label correctly-closed issues and
   # teach everyone to ignore the label.
   #
-  # Re-enable by uncommenting, once `done-no-integration` no longer fires on a
-  # cleanly merged issue. Verify with a dispatch at dry_run=true first.
+  # #162 fixed the monitor: it now pairs PRs by head-branch name (not by a branch
+  # that has since been deleted), reads integration evidence from the default
+  # branch history (hence fetch-depth: 0 below), and does not expect integration
+  # on NOT_PLANNED/DUPLICATE closures. A dry run measured 35 -> 15
+  # `done-no-integration`; the 15 left are umbrella/PRD parents and small items
+  # with no traceable integration. The schedule STAYS HELD until the owner
+  # decides how those 15 are to be treated.
+  #
+  # Re-enable by uncommenting. Verify with a dispatch at dry_run=true first.
   # Tracking: see the follow-up issue referenced from #69.
   #
   # schedule:
@@ -44,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 1
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
