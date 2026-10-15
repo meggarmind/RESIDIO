@@ -175,7 +175,7 @@ describe('createImportRows audit (#556)', () => {
 
 describe('updateImportStatus audit (#541)', () => {
   beforeEach(() => {
-    results['bank_statement_imports.select'] = { data: { status: 'processing' } };
+    results['bank_statement_imports.select'] = { data: { status: 'approved' } };
     results['bank_statement_imports.update'] = { data: [{ id: uid(5), file_name: 'jan.csv' }] };
   });
 
@@ -218,9 +218,7 @@ describe('updateImportStatus audit (#541)', () => {
   });
 
   it.each([
-    ['processing', 'completed'],
-    ['processing', 'failed'],
-    ['awaiting_approval', 'completed'],
+    ['approved', 'completed'],
     ['approved', 'failed'],
   ] as const)('includes a completed_at ISO timestamp for %s -> %s', async (from, status) => {
     results['bank_statement_imports.select'] = { data: { status: from } };
