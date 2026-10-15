@@ -17,7 +17,7 @@ type TransferOwnershipResponse = {
 /**
  * Transfer property ownership from one owner to another.
  *
- * This handles ownership changes for Non-Resident Landlords and Developers:
+ * This handles ownership changes for Property Owners and Developers:
  * - The current owner's assignment is deactivated
  * - A new owner's assignment is created/activated
  * - Full history is recorded in house_ownership_history

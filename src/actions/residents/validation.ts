@@ -12,9 +12,9 @@ type ValidationResult = {
 /**
  * Validates if a resident role can be assigned to a house based on existing residents.
  * Enforces:
- * 1. Single Owner Policy: Only one owner (Resident Landlord, Non-Resident Landlord, Developer) per house.
+ * 1. Single Owner Policy: Only one owner (Owner-Occupier, Property Owner, Developer) per house.
  * 2. Single Renter Policy: Only one Renter per house.
- * 3. Mutual Exclusivity: Owner-Occupier (Resident Landlord) cannot coexist with Renter.
+ * 3. Mutual Exclusivity: Owner-Occupier (resident_landlord) cannot coexist with Renter.
  */
 export async function validateHouseAssignment(
     supabase: SupabaseClient,
@@ -74,7 +74,7 @@ export async function validateHouseAssignment(
     }
 
     // 2. Owner-Occupier vs Renter Conflict
-    // Case A: Adding Owner-Occupier (resident_landlord) checks for existing Tenant
+    // Case A: Adding Owner-Occupier (resident_landlord) checks for existing Renter
     if (newRole === 'resident_landlord') {
         const existingTenant = existingResidents.find(r => r.resident_role === 'tenant');
         if (existingTenant) {

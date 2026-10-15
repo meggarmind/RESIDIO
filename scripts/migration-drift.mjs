@@ -88,10 +88,10 @@ export function normalizeMigrationName(identifier) {
 }
 
 /**
- * Reads `supabase/migrations/` and groups filenames by version. Two files can
- * legitimately share a version prefix (a duplicate-timestamp typo, or two migrations
- * authored in the same second) — the repo has 147 files across 145 distinct versions
- * today. Callers must not crash on that; it is surfaced as its own warning instead.
+ * Reads `supabase/migrations/` and groups filenames by version. Two files can end up
+ * sharing a version prefix (a duplicate-timestamp typo, or two migrations authored in
+ * the same second). Callers must not crash on that; `compareMigrations` reports it as
+ * `duplicateVersions`, which `isClean` treats as a failure (#616).
  */
 export function readLocalMigrations(dir) {
   const byVersion = new Map();
@@ -205,10 +205,22 @@ export function compareMigrations(localByVersion, appliedEntries) {
   return { appliedNotOnDisk, fileNotApplied, duplicateVersions };
 }
 
-/** True when nothing diverges (duplicates are a warning, not drift on their own). */
+/**
+ * True when nothing diverges. A duplicate version prefix on disk fails on its own
+ * (#616): `schema_migrations.version` is unique, so two files sharing a prefix can never
+ * both be reconciled, and the collision otherwise only surfaces after one is applied.
+ */
 export function isClean(result) {
-  return result.appliedNotOnDisk.length === 0 && result.fileNotApplied.length === 0;
+  return (
+    result.appliedNotOnDisk.length === 0 &&
+    result.fileNotApplied.length === 0 &&
+    result.duplicateVersions.length === 0
+  );
 }
+
+export const DUPLICATE_PREFIX_HINT =
+  'Renumber one file to a free version (`ls supabase/migrations | grep <prefix>`); ' +
+  'two files sharing a version can never both be reconciled against the database.';
 
 /**
  * Versions a pull request adds (#427): every file for that version is absent from
@@ -376,11 +388,11 @@ async function main() {
   }
 
   if (result.duplicateVersions.length) {
-    console.log(`Warning — duplicate version prefixes on disk (${result.duplicateVersions.length}):`);
+    console.log(`Duplicate version prefixes on disk (${result.duplicateVersions.length}):`);
     for (const [version, files] of result.duplicateVersions) {
       console.log(`  ${version}: ${files.join(', ')}`);
     }
-    console.log('');
+    console.log(`${DUPLICATE_PREFIX_HINT}\n`);
   }
 
   if (clean) {
@@ -392,7 +404,8 @@ async function main() {
   } else {
     console.log(
       `DRIFT DETECTED: ${result.appliedNotOnDisk.length} applied-without-file, ` +
-        `${result.fileNotApplied.length} file-without-applied.\n`,
+        `${result.fileNotApplied.length} file-without-applied, ` +
+        `${result.duplicateVersions.length} duplicate-version-prefix.\n`,
     );
   }
 
@@ -427,7 +440,7 @@ async function main() {
     }
 
     if (result.duplicateVersions.length) {
-      lines.push('### Duplicate version prefixes on disk', '');
+      lines.push('### Duplicate version prefixes on disk', '', DUPLICATE_PREFIX_HINT, '');
       for (const [version, files] of result.duplicateVersions) {
         lines.push(`- \`${version}\`: ${files.map((f) => `\`${f}\``).join(', ')}`);
       }

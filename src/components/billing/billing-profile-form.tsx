@@ -205,7 +205,7 @@ export function BillingProfileForm({ onSuccess }: { onSuccess?: () => void }) {
                                     <div className="space-y-1 leading-none">
                                         <FormLabel>This is a Development Levy</FormLabel>
                                         <FormDescription>
-                                            Development Levies are a flat fee per house and only apply to property owners (landlords/developers).
+                                            Development Levies are a flat fee per house and only apply to property owners (owners/developers).
                                             Can be set as the &quot;Current&quot; Development Levy for new houses.
                                         </FormDescription>
                                     </div>
