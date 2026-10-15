@@ -179,10 +179,11 @@ stage holds real contact details.
 
 ### The GitHub Actions safety net
 
-`.github/workflows/backup-cron-invoices.yml` is kept unchanged as the off-host check on
-`generate-invoices` (owner direction 2026-10-10). Reviewed against the public hostname:
+`.github/workflows/backup-cron-invoices.yml` is the off-host check on `generate-invoices`
+(owner direction 2026-10-10; per-environment and preflight-guarded since #623, see below).
+Reviewed against the public hostname:
 
-- It calls `secrets.APP_URL`, which must be the **prod public `https://` origin**. Because app
+- It calls each environment's `APP_URL` secret, which must be that deployment's **public `https://` origin** (no trailing slash or path). Because app
   hostnames are DNS-only there is no Cloudflare proxy in the path and so no 100 s cutoff; Traefik
   applies no request timeout and the job has `timeout-minutes: 10`. It only calls
   `generate-invoices` when the health check reports `critical`, so it is normally a no-op.
@@ -191,6 +192,26 @@ stage holds real contact details.
   report failure. Keep the hostname DNS-only.
 - Known limitation, left alone: if the app is entirely unreachable, the health step logs a
   warning and exits 0, so the run is green. The safety net covers "job missed", not "site down".
+
+#### Parameters and preflight (#623)
+
+The workflow runs once per GitHub Environment (`stage`, `production`). A preflight
+(`scripts/backup-cron-preflight.mjs`) runs first: if the environment's parameters are missing
+it skips the environment (green) and emails the sys_admin through Resend, naming the missing
+parameters but never their values. It is held (schedule commented out, `# STATUS: HELD` in the
+workflow header) until these exist:
+
+| Where | Secret | Value |
+| --- | --- | --- |
+| Environment `stage`, and again on `production` | `APP_URL` | public `https://` origin of that deployment, no path |
+| Environment `stage`, and again on `production` | `CRON_SECRET` | that deployment's `CRON_SECRET` |
+| Repository | `ALERT_RESEND_API_KEY` | dedicated Resend key for alerts |
+| Repository | `ALERT_EMAIL_FROM` | verified sender address |
+| Repository | `ALERT_EMAIL_TO` | sys_admin address (comma-separated for several) |
+
+To release: create the secrets, uncomment `schedule:`, set the marker to `# STATUS: ACTIVE`,
+enable the workflow. If the alert secrets are also missing the preflight fails the run, so the
+problem is not silent.
 
 ---
 

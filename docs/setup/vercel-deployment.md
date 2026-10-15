@@ -134,7 +134,7 @@ In your GitHub repository, go to **Settings > Secrets and variables > Actions** 
 | `APP_URL` | Your deployed Vercel URL (e.g., `https://residio.vercel.app`) |
 | `CRON_SECRET` | Same value as Vercel's `CRON_SECRET` |
 
-The workflow file is at `.github/workflows/backup-cron-invoices.yml`.
+The workflow file is at `.github/workflows/backup-cron-invoices.yml`. Since #623 it reads these as secrets of the `stage` and `production` GitHub Environments (not repository secrets); see `docs/deployment/hosting-plan.md`.
 
 ## Migration Drift Check (Required)
 
