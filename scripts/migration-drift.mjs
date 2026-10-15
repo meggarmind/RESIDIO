@@ -30,6 +30,15 @@
  * (CORE.md §11), so a file the PR itself adds is expected to be unapplied. Versions
  * whose files are all absent from the base ref are reported as pending rather than
  * as drift. Everything else, including applied-without-file, still fails.
+ *
+ * `--baseline-cutoff <14-digit version>` is for Residio_Prod ONLY (#436). Prod's ledger
+ * was built from the #279 schema baseline: 34 `baseline_s01..s13` rows stand in for every
+ * migration file up to the baseline, so a strict comparison there reports 34
+ * applied-without-file and 211 file-without-applied forever. With the flag, applied rows
+ * named `^baseline_s\d` with a `20260907` version and files at or before the cutoff are
+ * listed as covered by the baseline instead of drift. Everything after the baseline is
+ * still compared one to one. Without the flag (Residio_Stage, which has no baseline rows)
+ * the check is exactly as strict as before. A malformed cutoff fails loudly.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -252,6 +261,55 @@ export function exemptPendingFromPr(result, addedVersions) {
   };
 }
 
+/** Applied rows the #279 baseline wrote: named `baseline_s<NN>_...` and stamped 20260907. */
+const BASELINE_ROW_NAME = /^baseline_s\d/;
+const BASELINE_ROW_VERSION_PREFIX = '20260907';
+
+/**
+ * Validates `--baseline-cutoff`. Absent or empty means "no exemption" (null). Anything
+ * else must be exactly 14 digits; a typo throws rather than silently disabling or
+ * widening the exemption on a blocking guard.
+ */
+export function parseBaselineCutoff(raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (typeof raw !== 'string' || !/^\d{14}$/.test(raw)) {
+    throw new Error(
+      `Invalid --baseline-cutoff ${JSON.stringify(raw)}: expected a 14-digit migration version such as 20260907000000.`,
+    );
+  }
+  return raw;
+}
+
+/**
+ * Residio_Prod only (#436). Moves what the #279 baseline covers out of the reportable
+ * lists into `coveredByBaseline`:
+ *   - appliedNotOnDisk: only versions whose applied row(s) are ALL named `^baseline_s\d`
+ *     AND carry a `20260907` version, so a rogue row with that name but another date, or
+ *     any other row stamped 20260907, is still drift;
+ *   - fileNotApplied: only versions <= cutoff (14-digit string compare).
+ * `duplicateVersions` is never touched, and inputs are not mutated.
+ */
+export function exemptBaseline(result, appliedEntries, cutoff) {
+  const isBaselineRow = (entry) =>
+    typeof entry.name === 'string' &&
+    BASELINE_ROW_NAME.test(entry.name) &&
+    entry.version.startsWith(BASELINE_ROW_VERSION_PREFIX);
+
+  const covered = (version) => {
+    const rows = appliedEntries.filter((entry) => entry.version === version);
+    return rows.length > 0 && rows.every(isBaselineRow);
+  };
+
+  const rows = result.appliedNotOnDisk.filter(covered);
+  const files = result.fileNotApplied.filter((version) => version <= cutoff);
+  return {
+    ...result,
+    appliedNotOnDisk: result.appliedNotOnDisk.filter((version) => !rows.includes(version)),
+    fileNotApplied: result.fileNotApplied.filter((version) => !files.includes(version)),
+    coveredByBaseline: { rows, files },
+  };
+}
+
 /** Migration filenames on `ref`, via git. Throws if the ref cannot be read. */
 function migrationFilesAt(ref) {
   const output = execFileSync(
@@ -348,6 +406,15 @@ async function main() {
     return;
   }
 
+  let baselineCutoff;
+  try {
+    baselineCutoff = parseBaselineCutoff(argValue('--baseline-cutoff') ?? undefined);
+  } catch (error) {
+    console.error(`\nmigration-drift: ${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
   const baseRef = argValue('--base-ref');
   let result = { ...compareMigrations(localByVersion, appliedMigrations), pendingFromPr: [] };
   if (baseRef) {
@@ -362,6 +429,13 @@ async function main() {
     }
     result = exemptPendingFromPr(result, versionsAddedSince(localByVersion, baseFiles));
   }
+  // After the PR exemption on purpose: the PR's own files are already out of
+  // fileNotApplied (reported as pending), so a backdated file added by a PR is never
+  // relabelled as baseline-covered.
+  if (baselineCutoff) {
+    result = exemptBaseline(result, appliedMigrations, baselineCutoff);
+  }
+  const covered = result.coveredByBaseline ?? { rows: [], files: [] };
   const clean = isClean(result);
   const target = process.env.DRIFT_TARGET ? ` (${process.env.DRIFT_TARGET})` : '';
 
@@ -373,6 +447,12 @@ async function main() {
     console.log(`Added by this pull request, not applied yet — expected, applied after merge (${result.pendingFromPr.length}):`);
     for (const v of result.pendingFromPr) console.log(`  ${v}`);
     console.log('');
+  }
+
+  if (covered.rows.length || covered.files.length) {
+    console.log(
+      `Covered by the #279 baseline - expected (${covered.rows.length} applied rows, ${covered.files.length} files); compared only up to ${baselineCutoff}.\n`,
+    );
   }
 
   if (result.appliedNotOnDisk.length) {
@@ -437,6 +517,13 @@ async function main() {
       lines.push('### Added by this pull request, applied after merge (not drift)', '');
       for (const v of result.pendingFromPr) lines.push(`- \`${v}\``);
       lines.push('');
+    }
+
+    if (covered.rows.length || covered.files.length) {
+      lines.push(
+        `### Covered by the #279 baseline - expected (${covered.rows.length} applied rows, ${covered.files.length} files; not drift)`,
+        '',
+      );
     }
 
     if (result.duplicateVersions.length) {

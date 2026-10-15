@@ -150,7 +150,7 @@ every PR and on a daily schedule, compares each database's applied migration lis
 against `master`; a PR against its base branch's database) and fails the build on any divergence
 in either direction, and on two migration files that share a version prefix (#616) — enforcing the
 pairing so drift cannot silently reaccumulate after the #279 schema baseline. A PR's own new migrations are reported as pending, not drift, because they are
-applied after the merge (§11).
+applied after the merge (§11). Residio_Prod's ledger comes from the #279 baseline, so its 34 `baseline_s*` rows and the 211 files at or before `20260907000000` are exempted by an explicit `--baseline-cutoff` flag on the Prod runs only, and everything after the baseline is still compared one to one.
 
 ---
 
