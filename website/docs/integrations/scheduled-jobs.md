@@ -10,7 +10,7 @@ residio_sources:
   - src/actions/system/cron-status.ts
   - src/lib/system/cron-status.ts
   - src/app/(dashboard)/system/cron-status/**
-residio_verified_commit: fa851df
+residio_verified_commit: 998f69e
 residio_verified_at: '2026-10-15'
 residio_app_version: '0.4.0'
 ---
