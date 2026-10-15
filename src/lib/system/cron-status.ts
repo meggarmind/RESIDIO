@@ -1,4 +1,5 @@
 import { currentMonthPeriod } from '@/lib/billing/invoice-generation-run-service';
+import { getInvoiceCronSettings } from '@/lib/billing/invoice-cron-settings';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export interface CronJobStatus {
@@ -73,18 +74,24 @@ export async function computeCronStatus(): Promise<HealthResponse> {
     //   latest run completed              -> healthy
     //   latest run completed_with_errors  -> warning
     //   latest run queued / processing    -> healthy ("in progress")
+    //   switch off and no such run        -> healthy ("Automatic generation is off") (#646)
     //   only a cancelled cron run this month -> warning (the route will not recreate it)
     //   no such run, today < configured day  -> healthy ("Waiting for day N")
     //   no such run, today >= configured day -> critical ("OVERDUE")
     //   runs table unreadable             -> unknown (the only remaining use of
     //                                        'unknown'; we cannot say either way)
-    const { data: genDaySetting } = await supabase
-        .from('system_settings')
-        .select('value')
-        .eq('key', 'invoice_generation_day')
-        .single();
-
-    const configuredDay = genDaySetting?.value ?? 2;
+    // Same reader the cron route uses (#641), so status and cron cannot disagree about
+    // the generation day or the off switch. An unreadable setting is "unknown", never a guess.
+    let settingsError = false;
+    let configuredDay = 2;
+    let autoGenerate = true;
+    try {
+        const settings = await getInvoiceCronSettings();
+        configuredDay = settings.generationDay;
+        autoGenerate = settings.autoGenerate;
+    } catch {
+        settingsError = true;
+    }
     const currentDay = now.getDate();
     const period = currentMonthPeriod(now);
     const RUN_COLUMNS = 'status, requested_at, completed_at, created_count, skipped_count, failed_count';
@@ -122,9 +129,9 @@ export async function computeCronStatus(): Promise<HealthResponse> {
     let invoiceStatus: 'healthy' | 'warning' | 'critical' | 'unknown';
     let invoiceMessage: string;
 
-    if (monthRunsError) {
+    if (monthRunsError || settingsError) {
         invoiceStatus = 'unknown';
-        invoiceMessage = 'Could not read invoice generation runs';
+        invoiceMessage = monthRunsError ? 'Could not read invoice generation runs' : 'Could not read invoice generation settings';
     } else if (monthRun?.status === 'completed') {
         invoiceStatus = 'healthy';
         invoiceMessage = `Generated for ${period.slice(0, 7)}: ${monthRun.created_count} created, ${monthRun.skipped_count} skipped`;
@@ -134,6 +141,9 @@ export async function computeCronStatus(): Promise<HealthResponse> {
     } else if (monthRun) {
         invoiceStatus = 'healthy';
         invoiceMessage = `Generation for ${period.slice(0, 7)} is in progress`;
+    } else if (!autoGenerate) {
+        invoiceStatus = 'healthy';
+        invoiceMessage = `Automatic generation is off: no scheduled run is expected for ${period.slice(0, 7)}; generate invoices manually`;
     } else if (cancelledRuns && cancelledRuns.length > 0) {
         invoiceStatus = 'warning';
         invoiceMessage = `The scheduled run for ${period.slice(0, 7)} was cancelled and will not be recreated this month; generate it manually if it is still needed`;
