@@ -25,6 +25,17 @@ interface EnhancedStatCardProps {
 }
 
 /**
+ * Font size that lets a long value (e.g. a currency total) shrink to fit the
+ * card's width instead of overflowing, while short values keep text-3xl.
+ * 0.65em per character was measured to fit currency strings in the theme fonts.
+ * Requires the value's parent to be an `@container`.
+ */
+export function statValueFontSize(value: string | number): string {
+  const chars = Math.max(String(value).length, 1);
+  return `min(1.875rem, calc(100cqi / ${+(chars * 0.65).toFixed(2)}))`;
+}
+
+/**
  * Enhanced Stat Card Component
  *
  * Theme-aware stat card with gradient accents and improved visual hierarchy.
@@ -181,11 +192,7 @@ export function EnhancedStatCard({
                 colors.valueColor,
                 isModern && 'text-gray-900 dark:text-white'
               )}
-              // Long figures (e.g. currency totals) shrink to fit the card width
-              // instead of overflowing; short values keep the text-3xl size.
-              style={{
-                fontSize: `min(1.875rem, calc(100cqi / ${Math.max(String(value).length, 1) * 0.85}))`,
-              }}
+              style={{ fontSize: statValueFontSize(value) }}
             >
               {value}
             </div>
