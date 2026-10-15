@@ -4,41 +4,80 @@
 # It runs daily and checks if invoice generation is needed for the current month.
 # If the scheduled run failed to generate invoices, this will trigger generation.
 #
-# SECURITY NOTE: This workflow only uses repository secrets (APP_URL, CRON_SECRET)
-# and does not process any untrusted user input.
+# STATUS: HELD until the hosting setup (#262) is complete and the stage and
+# production GitHub Environments each hold APP_URL and CRON_SECRET. The workflow
+# is also disabled in Actions (`gh workflow disable`), which is Actions state and
+# can be reversed by anyone; src/__tests__/integration/backup-cron-workflow.test.ts
+# is the repo-side guard. It fails if this marker says HELD while an uncommented
+# `schedule:` exists, so while HELD the schedule is commented out. To release:
+# create the per-environment secrets, uncomment `schedule:`, change the marker line
+# above to `# STATUS: ACTIVE`, then enable the workflow in Actions.
+# The marker only keeps the file self-consistent; GitHub cannot refuse an enable.
+# If parameters are missing at run time the preflight skips that environment (a
+# green skip) and emails the sys_admin instead of failing the run.
+#
+# Parameters (GitHub Environments `stage` and `production`, environment secrets):
+#   APP_URL      the public https origin of that deployment, no path
+#   CRON_SECRET  the CRON_SECRET configured on that deployment
+# Alerting (repository secrets, used only when parameters are missing):
+#   ALERT_RESEND_API_KEY, ALERT_EMAIL_FROM, ALERT_EMAIL_TO
+#
+# TODO: if the app hosts sit behind Cloudflare Access, the curl calls below need
+# the CF_ACCESS_* headers. Unverified; confirm when the hosting setup is done.
+#
+# SECURITY NOTE: This workflow only uses environment and repository secrets and
+# does not process any untrusted user input. Secrets reach scripts through `env:`
+# and are never interpolated into `run:` text.
 
 name: Backup Cron - Invoice Generation
 
 on:
-  schedule:
-    # Run at 7 AM UTC daily (1 hour after the scheduled run at 6 AM)
-    - cron: '0 7 * * *'
+  # HELD: schedule stays commented out until STATUS above is ACTIVE; restore it then.
+  # schedule:
+  #   # Run at 7 AM UTC daily (1 hour after the scheduled run at 6 AM)
+  #   - cron: '0 7 * * *'
   workflow_dispatch:
     # Allow manual trigger for testing
 
-env:
-  APP_URL: ${{ secrets.APP_URL }}
-  CRON_SECRET: ${{ secrets.CRON_SECRET }}
-
 jobs:
   check-and-generate:
+    name: check-and-generate (${{ matrix.environment }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [stage, production]
+    environment: ${{ matrix.environment }}
+    env:
+      APP_URL: ${{ secrets.APP_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
 
     steps:
-      - name: Check if secrets are configured
-        run: |
-          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
-            echo "::error::Required secrets APP_URL and CRON_SECRET are not configured"
-            echo "Please configure these secrets in your repository settings:"
-            echo "  - APP_URL: Your deployed production URL (the public https origin)"
-            echo "  - CRON_SECRET: The same CRON_SECRET configured in production"
-            exit 1
-          fi
-          echo "Secrets configured correctly"
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      # Skips the rest of the job (green) when parameters are missing, and emails
+      # the sys_admin. Fails only if that alert itself cannot be sent.
+      - name: Preflight parameters
+        id: preflight
+        env:
+          ALERT_RESEND_API_KEY: ${{ secrets.ALERT_RESEND_API_KEY }}
+          ALERT_EMAIL_FROM: ${{ secrets.ALERT_EMAIL_FROM }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          TARGET_ENVIRONMENT: ${{ matrix.environment }}
+        run: node scripts/backup-cron-preflight.mjs "$TARGET_ENVIRONMENT"
 
       - name: Check cron health status
         id: health-check
+        if: steps.preflight.outputs.ok == 'true'
         run: |
           echo "Checking cron health at ${APP_URL}/api/health/cron-status"
 
@@ -74,7 +113,7 @@ jobs:
           fi
 
       - name: Trigger backup invoice generation
-        if: steps.health-check.outputs.needs_generation == 'true'
+        if: steps.preflight.outputs.ok == 'true' && steps.health-check.outputs.needs_generation == 'true'
         run: |
           echo "Triggering backup invoice generation..."
 
@@ -104,10 +143,14 @@ jobs:
           fi
 
       - name: Log status
-        if: always()
+        if: always() && steps.preflight.outputs.ok == 'true'
+        env:
+          INVOICE_STATUS: ${{ steps.health-check.outputs.invoice_status }}
+          NEEDS_GENERATION: ${{ steps.health-check.outputs.needs_generation }}
+          TARGET_ENVIRONMENT: ${{ matrix.environment }}
         run: |
-          echo "=== Backup Cron Summary ==="
+          echo "=== Backup Cron Summary ($TARGET_ENVIRONMENT) ==="
           echo "Date: $(date -u)"
-          echo "Invoice Status: ${{ steps.health-check.outputs.invoice_status }}"
-          echo "Generation Needed: ${{ steps.health-check.outputs.needs_generation }}"
+          echo "Invoice Status: $INVOICE_STATUS"
+          echo "Generation Needed: $NEEDS_GENERATION"
           echo "=========================="
