@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDueSchedules, markScheduleExecuted, saveScheduledReport } from '@/lib/reports/scheduled-report-store';
-import { generateReport } from '@/actions/reports/report-engine';
+import { generateReportWithClient } from '@/lib/reports/report-generator';
+import { createAdminClient } from '@/lib/supabase/server';
 import { getDateRangeFromPreset, type ReportRequestFormData } from '@/lib/validators/reports';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 
@@ -21,6 +22,9 @@ export async function GET(request: NextRequest) {
     console.log('[ReportsCron] Checking for due report schedules');
 
     try {
+        // No session on a cron request: generate with the admin client (route is CRON_SECRET-authed)
+        const adminClient = createAdminClient();
+
         // Get all schedules that are due
         const { data: dueSchedules, error: fetchError } = await getDueSchedules();
 
@@ -59,7 +63,7 @@ export async function GET(request: NextRequest) {
                 const dateRange = getDateRangeFromPreset(schedule.period_preset || 'last_month');
 
                 // Generate the report
-                const reportResult = await generateReport({
+                const reportResult = await generateReportWithClient(adminClient, {
                     reportType: (schedule.report_type === 'indebtedness_detail' ? 'indebtedness_summary' : schedule.report_type as string) as ReportRequestFormData['reportType'],
                     periodPreset: schedule.period_preset || 'last_month',
                     startDate: dateRange.startDate,

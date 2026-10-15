@@ -266,13 +266,8 @@ describe('Part 2: report-engine.ts checkReportAccess', () => {
   it('pins which permission every top-level declaration requires', () => {
     expect(extractPermissionGuards(reportEngineSource)).toEqual({
       checkReportAccess: 'REPORTS_VIEW_FINANCIAL',
-      generateFinancialOverview: null,
-      generateCollectionReport: null,
-      generateInvoiceAging: null,
-      generateTransactionLog: null,
-      generateDebtorsReport: null,
-      generateIndebtednessReport: null,
-      generateDevelopmentLevyReport: null,
+      // The seven generators moved to lib/reports/report-generator.ts (#483), which is
+      // deliberately authorization-free; see report-generator-session-free.test.ts.
       // Delegates its authorization entirely to checkReportAccess(),
       // verified below -- must not carry a second, independently-driftable
       // check of its own.
