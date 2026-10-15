@@ -373,7 +373,50 @@ async function fetchAppliedMigrations({ accessToken, projectRef }) {
   return rows.map(mapAppliedRow);
 }
 
+/**
+ * Reads `--baseline-cutoff`. Absent means no exemption (null). Present with no usable
+ * value (bare flag, empty `=`, or a malformed value) THROWS: a flag that was passed must
+ * never silently mean "strict" or "lenient".
+ */
+export function baselineCutoffFromArgs(args) {
+  const present = args.some((a) => a === '--baseline-cutoff' || a.startsWith('--baseline-cutoff='));
+  if (!present) return null;
+  let raw = null;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--baseline-cutoff') raw = args[i + 1] ?? null;
+    else if (args[i].startsWith('--baseline-cutoff=')) raw = args[i].slice('--baseline-cutoff='.length);
+  }
+  if (raw === null || raw === '') {
+    throw new Error('--baseline-cutoff was passed without a value: expected a 14-digit migration version.');
+  }
+  return parseBaselineCutoff(raw);
+}
+
+/**
+ * The exemption sequence, in one tested place. The PR exemption runs FIRST so a file the
+ * PR adds (even one backdated to <= the cutoff) is already out of `fileNotApplied` and
+ * reported as pending; the baseline exemption can then never relabel it as covered.
+ * `addedVersions` null/undefined skips the PR step; `baselineCutoff` null skips baseline.
+ */
+export function applyExemptions(result, { appliedEntries, addedVersions, baselineCutoff }) {
+  let out = result;
+  if (addedVersions) out = exemptPendingFromPr(out, addedVersions);
+  if (baselineCutoff) out = exemptBaseline(out, appliedEntries, baselineCutoff);
+  return out;
+}
+
 async function main() {
+  // Validate the flag before anything else (env check, network): a typo must fail
+  // loudly and first.
+  let baselineCutoff;
+  try {
+    baselineCutoff = baselineCutoffFromArgs(process.argv.slice(2));
+  } catch (error) {
+    console.error(`\nmigration-drift: ${error.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
   const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
   const projectRef = process.env.SUPABASE_PROJECT_REF;
 
@@ -406,17 +449,8 @@ async function main() {
     return;
   }
 
-  let baselineCutoff;
-  try {
-    baselineCutoff = parseBaselineCutoff(argValue('--baseline-cutoff') ?? undefined);
-  } catch (error) {
-    console.error(`\nmigration-drift: ${error.message}\n`);
-    process.exitCode = 1;
-    return;
-  }
-
   const baseRef = argValue('--base-ref');
-  let result = { ...compareMigrations(localByVersion, appliedMigrations), pendingFromPr: [] };
+  let addedVersions = null;
   if (baseRef) {
     let baseFiles;
     try {
@@ -427,14 +461,12 @@ async function main() {
       process.exitCode = 1;
       return;
     }
-    result = exemptPendingFromPr(result, versionsAddedSince(localByVersion, baseFiles));
+    addedVersions = versionsAddedSince(localByVersion, baseFiles);
   }
-  // After the PR exemption on purpose: the PR's own files are already out of
-  // fileNotApplied (reported as pending), so a backdated file added by a PR is never
-  // relabelled as baseline-covered.
-  if (baselineCutoff) {
-    result = exemptBaseline(result, appliedMigrations, baselineCutoff);
-  }
+  const result = applyExemptions(
+    { ...compareMigrations(localByVersion, appliedMigrations), pendingFromPr: [] },
+    { appliedEntries: appliedMigrations, addedVersions, baselineCutoff },
+  );
   const covered = result.coveredByBaseline ?? { rows: [], files: [] };
   const clean = isClean(result);
   const target = process.env.DRIFT_TARGET ? ` (${process.env.DRIFT_TARGET})` : '';

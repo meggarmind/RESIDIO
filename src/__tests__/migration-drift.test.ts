@@ -1,6 +1,9 @@
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  applyExemptions,
+  baselineCutoffFromArgs,
   compareMigrations,
   exemptBaseline,
   exemptPendingFromPr,
@@ -594,6 +597,89 @@ describe('parseBaselineCutoff (#436)', () => {
       expect(() => parseBaselineCutoff(raw)).toThrow(/--baseline-cutoff/);
     },
   );
+});
+
+describe('applyExemptions (#436)', () => {
+  const local = localFixture({
+    '20260801000000': ['20260801000000_backdated.sql'],
+    '20251206223732': ['20251206223732_old.sql'],
+  });
+  const applied = [baselineRow('20260907155325')];
+  const base = () => ({ ...compareMigrations(local, applied), pendingFromPr: [] as string[] });
+
+  it('reports a PR-added file at or below the cutoff as pending, not baseline-covered', () => {
+    const out = applyExemptions(base(), {
+      appliedEntries: applied,
+      addedVersions: new Set(['20260801000000']),
+      baselineCutoff: CUTOFF,
+    });
+
+    expect(out.pendingFromPr).toEqual(['20260801000000']);
+    expect(out.coveredByBaseline.files).toEqual(['20251206223732']);
+    expect(out.coveredByBaseline.files).not.toContain('20260801000000');
+    expect(out.fileNotApplied).toEqual([]);
+  });
+
+  it('equals exemptBaseline alone when only the cutoff is given', () => {
+    const out = applyExemptions(base(), { appliedEntries: applied, addedVersions: null, baselineCutoff: CUTOFF });
+    expect(out).toEqual(exemptBaseline(base(), applied, CUTOFF));
+  });
+
+  it('equals exemptPendingFromPr alone when only addedVersions is given', () => {
+    const added = new Set(['20260801000000']);
+    const out = applyExemptions(base(), { appliedEntries: applied, addedVersions: added, baselineCutoff: null });
+    expect(out).toEqual(exemptPendingFromPr(base(), added));
+  });
+
+  it('returns the result unchanged with neither', () => {
+    const input = base();
+    const out = applyExemptions(input, { appliedEntries: applied, addedVersions: null, baselineCutoff: null });
+    expect(out).toBe(input);
+  });
+
+  it('does not mutate its inputs', () => {
+    const input = base();
+    const added = new Set(['20260801000000']);
+    const before = JSON.stringify(input);
+    const appliedBefore = JSON.stringify(applied);
+    applyExemptions(input, { appliedEntries: applied, addedVersions: added, baselineCutoff: CUTOFF });
+
+    expect(JSON.stringify(input)).toBe(before);
+    expect(JSON.stringify(applied)).toBe(appliedBefore);
+    expect([...added]).toEqual(['20260801000000']);
+  });
+});
+
+describe('baselineCutoffFromArgs (#436)', () => {
+  it('is null when the flag is absent', () => {
+    expect(baselineCutoffFromArgs(['--ci'])).toBeNull();
+  });
+
+  it('reads both spellings', () => {
+    expect(baselineCutoffFromArgs(['--baseline-cutoff', CUTOFF])).toBe(CUTOFF);
+    expect(baselineCutoffFromArgs([`--baseline-cutoff=${CUTOFF}`])).toBe(CUTOFF);
+  });
+
+  it.each([[['--baseline-cutoff']], [['--baseline-cutoff=']], [['--baseline-cutoff', '--ci']], [['--baseline-cutoff', 'garbage']]])(
+    'throws when the flag is passed without a valid value: %j',
+    (args) => {
+      expect(() => baselineCutoffFromArgs(args)).toThrow(/baseline-cutoff/);
+    },
+  );
+});
+
+describe('migration-drift CLI (#436)', () => {
+  it('rejects a malformed cutoff before it checks the environment', () => {
+    const run = spawnSync(
+      process.execPath,
+      [path.resolve(__dirname, '../../scripts/migration-drift.mjs'), '--baseline-cutoff', 'garbage'],
+      { env: {} as NodeJS.ProcessEnv, encoding: 'utf8' },
+    );
+
+    expect(run.status).toBe(1);
+    expect(run.stderr).toMatch(/baseline-cutoff/);
+    expect(run.stderr).not.toMatch(/SUPABASE_ACCESS_TOKEN/);
+  });
 });
 
 describe('baseline ratchet (#436)', () => {
