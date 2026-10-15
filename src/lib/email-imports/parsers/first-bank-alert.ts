@@ -408,9 +408,13 @@ function parseStructuredAlert(body: string, subject?: string | null): ParsedEmai
   // Helper to find value after a key
   const findValue = (keyPattern: RegExp): string | null => {
     for (let i = 0; i < lines.length; i++) {
-      if (keyPattern.test(lines[i])) {
+      // The key must be a whole word: not inside "Updated"/"Validated" (no letter before), and
+      // not "Date" of "Date/Time" (no slash after). A digit or letter may follow, because a
+      // minified table is stripped to "Date/Time12-Jan-26 ..." or "Narrationdues" with the label glued to its value.
+      const bounded = new RegExp(String.raw`(?<![A-Za-z])(?:${keyPattern.source})(?!/)`, 'i');
+      if (bounded.test(lines[i])) {
         // Value could be on the same line (Key: Value) or next line
-        const sameLineMatch = lines[i].match(new RegExp(String.raw`${keyPattern.source}(?![\w/])[:\s]*(.+)`, 'i'));
+        const sameLineMatch = lines[i].match(new RegExp(String.raw`${bounded.source}[:\s]*(.+)`, 'i'));
         if (sameLineMatch && sameLineMatch[1] && sameLineMatch[1].trim().length > 1) {
           return sameLineMatch[1].trim();
         }

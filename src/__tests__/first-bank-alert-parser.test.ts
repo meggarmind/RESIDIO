@@ -190,3 +190,37 @@ describe.each(ZONES)('alert dates in %s', (tz) => {
     });
   });
 });
+
+describe('(D1) labels glued to their values, and key word boundaries', () => {
+  const minifiedTable =
+    '<table><tr><td>Date/Time</td><td>12-Jan-26 03:40 PM</td></tr><tr><td>Account Number</td><td>2021234725</td></tr>' +
+    '<tr><td>Amount</td><td>15,000.00 DR</td></tr><tr><td>Narration</td><td>dues</td></tr></table>';
+
+  it('minified HTML table (every cell glued after tag stripping)', () => {
+    const parsed = parseFirstBankAlert(minifiedTable, SUBJECT)!;
+    expect(parsed).not.toBeNull();
+    expect(toCalendarDateString(parsed.transactionDate!)).toBe('2026-01-12');
+    expect(parsed.transactionType).toBe('debit');
+    expect(parsed.amount).toBe(15000);
+    expect(parsed.description).toBe('dues');
+  });
+  it('glued Date/Time and Amount lines', () => {
+    const text = ['Date/Time12-Jan-26 03:40 PM', 'Account Number2021234725', 'Amount15,000.00 CR', 'Narrationdues'].join('\n');
+    const parsed = parseFirstBankAlert(text, SUBJECT)!;
+    expect(toCalendarDateString(parsed.transactionDate!)).toBe('2026-01-12');
+    expect(parsed.amount).toBe(15000);
+    expect(parsed.transactionType).toBe('credit');
+  });
+  it('lowercase keys, colon and label-then-next-line layouts', () => {
+    const lower = ['date/time: 12-Jan-26 03:40 PM', 'amount: 15,000.00 CR'].join('\n');
+    expect(dayOf(lower)).toBe('2026-01-12');
+    expect(dayOf(['date/time', '12-Jan-26 03:40 PM', 'amount', '15,000.00 CR'].join('\n'))).toBe('2026-01-12');
+  });
+  it('Updated / Validated lines are not the Date key', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const text = ['Updated 2026-01-01', 'Validated', 'Amount', '15,000.00 CR', 'Date/Time', '12-Jan-26 03:40 PM'].join('\n');
+    expect(dayOf(text)).toBe('2026-01-12');
+    // With no real date line at all, those lines must not supply one.
+    expect(dayOf(['Updated 2026-01-01', 'Validated', 'Amount', '15,000.00 CR'].join('\n'))).toBeNull();
+  });
+});
