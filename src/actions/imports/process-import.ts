@@ -642,6 +642,24 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 // Approve Import (for approval workflow)
 // ============================================================
 
+/**
+ * submitted_by / submitted_at (#628) are not in the generated types until the migration is
+ * applied and `npm run db:types` is re-run, so the typed client would reject them. The cast is
+ * confined to these two helpers.
+ * remove after db:types regeneration (#628)
+ */
+function submissionColumns(userId: string | null) {
+  return {
+    status: 'awaiting_approval' as const,
+    submitted_by: userId,
+    submitted_at: new Date().toISOString(),
+  };
+}
+
+function readSubmittedBy(importRow: object): string | null {
+  return (importRow as { submitted_by?: string | null }).submitted_by ?? null;
+}
+
 export async function approveImport(import_id: string, notes?: string): Promise<{ error: string | null }> {
   const supabase = await createServerSupabaseClient();
 
@@ -666,6 +684,15 @@ export async function approveImport(import_id: string, notes?: string): Promise<
 
   if (importData.status !== 'awaiting_approval') {
     return { error: 'Import is not awaiting approval' };
+  }
+
+  // Maker != checker (#628): the submitter may not approve their own import. A null
+  // submitted_by is a legacy row from before the column existed (none exist on Stage or Prod
+  // today) and is allowed through, since there is no submitter to compare with.
+  const approverId = user?.id ?? auth.userId ?? null;
+  const submittedBy = readSubmittedBy(importData);
+  if (submittedBy !== null && submittedBy === approverId) {
+    return { error: 'You submitted this import, so a different approver is required' };
   }
 
   // Update status, guarded on the status checked above so a racing request cannot overwrite it
@@ -702,6 +729,8 @@ export async function approveImport(import_id: string, notes?: string): Promise<
 // ============================================================
 // Reject Import (for approval workflow)
 // ============================================================
+// Deliberately NOT subject to the self-approval rule (#628): a submitter may withdraw their
+// own submission by rejecting it.
 
 export async function rejectImport(import_id: string, reason: string): Promise<{ error: string | null }> {
   const supabase = await createServerSupabaseClient();
@@ -789,7 +818,7 @@ export async function submitForApproval(import_id: string): Promise<{ error: str
   // Update status, guarded on the status checked above so a racing request cannot overwrite it
   const { data: updated, error } = await supabase
     .from('bank_statement_imports')
-    .update({ status: 'awaiting_approval' })
+    .update(submissionColumns(auth.userId))
     .eq('id', import_id)
     .eq('status', 'processing')
     .select('id');
