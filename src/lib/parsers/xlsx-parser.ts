@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import type { ColumnMapping } from '@/types/database';
 import type { ParsedRow } from '@/lib/validators/import';
 import { getBankParser, detectBankFormat } from './bank-formats';
+import { calendarDateFromLocal } from '@/lib/utils/calendar-date';
 
 /** Largest spreadsheet accepted for parsing (bounds prototype-pollution/ReDoS exposure and memory). */
 export const MAX_XLSX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -432,7 +433,7 @@ function processParseResults(
 /**
  * Parse Excel serial date to JavaScript Date
  */
-function parseExcelDate(value: unknown): Date | null {
+export function parseExcelDate(value: unknown): Date | null {
   if (value === null || value === undefined) {
     return null;
   }
@@ -445,16 +446,20 @@ function parseExcelDate(value: unknown): Date | null {
   // If a number (Excel serial date)
   if (typeof value === 'number') {
     // Excel dates are days since 1900-01-01 (with a bug for 1900 leap year)
-    const excelEpoch = new Date(1899, 11, 30);
+    // UTC arithmetic from the 1899-12-30 epoch (absorbs Excel's 1900 leap-year bug for
+    // dates after March 1900); the fractional time-of-day part is dropped.
+    const excelEpoch = Date.UTC(1899, 11, 30);
     const msPerDay = 24 * 60 * 60 * 1000;
-    const date = new Date(excelEpoch.getTime() + value * msPerDay);
+    const date = new Date(excelEpoch + Math.floor(value) * msPerDay);
     return isNaN(date.getTime()) ? null : date;
   }
 
   // If a string, try parsing
   if (typeof value === 'string') {
     const date = new Date(value);
-    return isNaN(date.getTime()) ? null : date;
+    if (isNaN(date.getTime())) return null;
+    // A date-only ISO string is read as UTC midnight already; anything else as local time.
+    return /^\d{4}-\d{2}-\d{2}$/.test(value.trim()) ? date : calendarDateFromLocal(date);
   }
 
   return null;

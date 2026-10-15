@@ -1,11 +1,18 @@
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  applyExemptions,
+  baselineCutoffFromArgs,
   compareMigrations,
+  exemptBaseline,
   exemptPendingFromPr,
   isClean,
   mapAppliedRow,
   MANAGEMENT_API_QUERY,
   normalizeMigrationName,
+  parseBaselineCutoff,
+  readLocalMigrations,
   versionOf,
   versionsAddedSince,
 } from '../../scripts/migration-drift.mjs';
@@ -464,5 +471,226 @@ describe('exemptPendingFromPr (#427)', () => {
     expect(exempted.pendingFromPr).toEqual(['20261011000000']);
     expect(exempted.duplicateVersions).toHaveLength(1);
     expect(isClean(exempted)).toBe(false);
+  });
+});
+
+const CUTOFF = '20260907000000';
+const baselineRow = (version: string, name = 'baseline_s01_extensions') => ({ version, name });
+
+describe('exemptBaseline (#436)', () => {
+  it('exempts baseline rows and files at or before the cutoff, leaving a clean result', () => {
+    const local = localFixture({
+      '20251206223732': ['20251206223732_old.sql'],
+      [CUTOFF]: [`${CUTOFF}_last_absorbed.sql`],
+    });
+    const applied = [baselineRow('20260907155325'), baselineRow('20260907193054', 'baseline_s13_comments')];
+    const exempted = exemptBaseline(compareMigrations(local, applied), applied, CUTOFF);
+
+    expect(exempted.appliedNotOnDisk).toEqual([]);
+    expect(exempted.fileNotApplied).toEqual([]);
+    expect(exempted.coveredByBaseline).toEqual({
+      rows: ['20260907155325', '20260907193054'],
+      files: ['20251206223732', CUTOFF],
+    });
+    expect(isClean(exempted)).toBe(true);
+  });
+
+  it('still reports a post-baseline file that was never applied', () => {
+    const local = localFixture({ '20260907010000': ['20260907010000_new.sql'] });
+    const exempted = exemptBaseline(compareMigrations(local, []), [], CUTOFF);
+
+    expect(exempted.fileNotApplied).toEqual(['20260907010000']);
+    expect(isClean(exempted)).toBe(false);
+  });
+
+  it('still reports a post-baseline applied row with no file', () => {
+    const applied = [{ version: '20261001000000', name: 'orphan_change' }];
+    const exempted = exemptBaseline(compareMigrations(new Map(), applied), applied, CUTOFF);
+
+    expect(exempted.appliedNotOnDisk).toEqual(['20261001000000']);
+    expect(isClean(exempted)).toBe(false);
+  });
+
+  it('still reports a baseline-named row whose version is not 20260907', () => {
+    const applied = [baselineRow('20261001000000')];
+    const exempted = exemptBaseline(compareMigrations(new Map(), applied), applied, CUTOFF);
+
+    expect(exempted.appliedNotOnDisk).toEqual(['20261001000000']);
+    expect(exempted.coveredByBaseline.rows).toEqual([]);
+  });
+
+  it('still reports a non-baseline-named row that has a 20260907 version', () => {
+    const applied = [
+      { version: '20260907160000', name: 'something_else' },
+      { version: '20260907170000', name: null },
+    ];
+    const exempted = exemptBaseline(compareMigrations(new Map(), applied), applied, CUTOFF);
+
+    expect(exempted.appliedNotOnDisk).toEqual(['20260907160000', '20260907170000']);
+    expect(isClean(exempted)).toBe(false);
+  });
+
+  it('exempts a file exactly at the cutoff but not one version above it', () => {
+    const local = localFixture({
+      [CUTOFF]: [`${CUTOFF}_at.sql`],
+      '20260907000001': ['20260907000001_above.sql'],
+    });
+    const exempted = exemptBaseline(compareMigrations(local, []), [], CUTOFF);
+
+    expect(exempted.coveredByBaseline.files).toEqual([CUTOFF]);
+    expect(exempted.fileNotApplied).toEqual(['20260907000001']);
+  });
+
+  it('never exempts a duplicate version prefix, even at or before the cutoff', () => {
+    const local = localFixture({
+      '20260101000000': ['20260101000000_a.sql', '20260101000000_b.sql'],
+    });
+    const exempted = exemptBaseline(compareMigrations(local, []), [], CUTOFF);
+
+    expect(exempted.fileNotApplied).toEqual([]);
+    expect(exempted.duplicateVersions).toHaveLength(1);
+    expect(isClean(exempted)).toBe(false);
+  });
+
+  it('does not mutate its inputs', () => {
+    const local = localFixture({ '20251206223732': ['20251206223732_old.sql'] });
+    const applied = [baselineRow('20260907155325')];
+    const result = compareMigrations(local, applied);
+    const resultBefore = JSON.stringify(result);
+    const appliedBefore = JSON.stringify(applied);
+    exemptBaseline(result, applied, CUTOFF);
+
+    expect(JSON.stringify(result)).toBe(resultBefore);
+    expect(JSON.stringify(applied)).toBe(appliedBefore);
+    expect(result).not.toHaveProperty('coveredByBaseline');
+  });
+
+  it("leaves the PR's own pending files as pending when the PR exemption runs first", () => {
+    // A backdated PR file (version <= cutoff) is the PR's own: it must be reported as
+    // pending, not relabelled as baseline-covered.
+    const local = localFixture({ '20260801000000': ['20260801000000_backdated.sql'] });
+    const result = { ...compareMigrations(local, []), pendingFromPr: [] as string[] };
+    const exempted = exemptBaseline(
+      exemptPendingFromPr(result, new Set(['20260801000000'])),
+      [],
+      CUTOFF,
+    );
+
+    expect(exempted.pendingFromPr).toEqual(['20260801000000']);
+    expect(exempted.coveredByBaseline.files).toEqual([]);
+  });
+});
+
+describe('parseBaselineCutoff (#436)', () => {
+  it('accepts a 14-digit version', () => {
+    expect(parseBaselineCutoff('20260907000000')).toBe('20260907000000');
+  });
+
+  it('returns null when absent or empty', () => {
+    expect(parseBaselineCutoff(undefined)).toBeNull();
+    expect(parseBaselineCutoff('')).toBeNull();
+  });
+
+  it.each(['2026-09-07', '2026090700000', '202609070000000', 'abcdefghijklmn', '20260907000000 '])(
+    'throws on malformed value %j',
+    (raw) => {
+      expect(() => parseBaselineCutoff(raw)).toThrow(/--baseline-cutoff/);
+    },
+  );
+});
+
+describe('applyExemptions (#436)', () => {
+  const local = localFixture({
+    '20260801000000': ['20260801000000_backdated.sql'],
+    '20251206223732': ['20251206223732_old.sql'],
+  });
+  const applied = [baselineRow('20260907155325')];
+  const base = () => ({ ...compareMigrations(local, applied), pendingFromPr: [] as string[] });
+
+  it('reports a PR-added file at or below the cutoff as pending, not baseline-covered', () => {
+    const out = applyExemptions(base(), {
+      appliedEntries: applied,
+      addedVersions: new Set(['20260801000000']),
+      baselineCutoff: CUTOFF,
+    });
+
+    expect(out.pendingFromPr).toEqual(['20260801000000']);
+    expect(out.coveredByBaseline.files).toEqual(['20251206223732']);
+    expect(out.coveredByBaseline.files).not.toContain('20260801000000');
+    expect(out.fileNotApplied).toEqual([]);
+  });
+
+  it('equals exemptBaseline alone when only the cutoff is given', () => {
+    const out = applyExemptions(base(), { appliedEntries: applied, addedVersions: null, baselineCutoff: CUTOFF });
+    expect(out).toEqual(exemptBaseline(base(), applied, CUTOFF));
+  });
+
+  it('equals exemptPendingFromPr alone when only addedVersions is given', () => {
+    const added = new Set(['20260801000000']);
+    const out = applyExemptions(base(), { appliedEntries: applied, addedVersions: added, baselineCutoff: null });
+    expect(out).toEqual(exemptPendingFromPr(base(), added));
+  });
+
+  it('returns the result unchanged with neither', () => {
+    const input = base();
+    const out = applyExemptions(input, { appliedEntries: applied, addedVersions: null, baselineCutoff: null });
+    expect(out).toBe(input);
+  });
+
+  it('does not mutate its inputs', () => {
+    const input = base();
+    const added = new Set(['20260801000000']);
+    const before = JSON.stringify(input);
+    const appliedBefore = JSON.stringify(applied);
+    applyExemptions(input, { appliedEntries: applied, addedVersions: added, baselineCutoff: CUTOFF });
+
+    expect(JSON.stringify(input)).toBe(before);
+    expect(JSON.stringify(applied)).toBe(appliedBefore);
+    expect([...added]).toEqual(['20260801000000']);
+  });
+});
+
+describe('baselineCutoffFromArgs (#436)', () => {
+  it('is null when the flag is absent', () => {
+    expect(baselineCutoffFromArgs(['--ci'])).toBeNull();
+  });
+
+  it('reads both spellings', () => {
+    expect(baselineCutoffFromArgs(['--baseline-cutoff', CUTOFF])).toBe(CUTOFF);
+    expect(baselineCutoffFromArgs([`--baseline-cutoff=${CUTOFF}`])).toBe(CUTOFF);
+  });
+
+  it.each([[['--baseline-cutoff']], [['--baseline-cutoff=']], [['--baseline-cutoff', '--ci']], [['--baseline-cutoff', 'garbage']]])(
+    'throws when the flag is passed without a valid value: %j',
+    (args) => {
+      expect(() => baselineCutoffFromArgs(args)).toThrow(/baseline-cutoff/);
+    },
+  );
+});
+
+describe('migration-drift CLI (#436)', () => {
+  it('rejects a malformed cutoff before it checks the environment', () => {
+    const run = spawnSync(
+      process.execPath,
+      [path.resolve(__dirname, '../../scripts/migration-drift.mjs'), '--baseline-cutoff', 'garbage'],
+      { env: {} as NodeJS.ProcessEnv, encoding: 'utf8' },
+    );
+
+    expect(run.status).toBe(1);
+    expect(run.stderr).toMatch(/baseline-cutoff/);
+    expect(run.stderr).not.toMatch(/SUPABASE_ACCESS_TOKEN/);
+  });
+});
+
+describe('baseline ratchet (#436)', () => {
+  it('has exactly 211 migration versions at or before the baseline cutoff', () => {
+    const versions = [...readLocalMigrations(path.resolve(__dirname, '../../supabase/migrations')).keys()];
+    const atOrBefore = versions.filter((v) => v <= CUTOFF);
+
+    // On Residio_Prod, --baseline-cutoff silently exempts every unapplied file at or
+    // before 20260907000000. A new migration file backdated into that range would hide
+    // there. New migrations must be dated AFTER the cutoff; do not bump this number to
+    // make the test pass unless the baseline itself legitimately changed.
+    expect(atOrBefore).toHaveLength(211);
   });
 });

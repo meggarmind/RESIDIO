@@ -6,6 +6,7 @@
  */
 
 import type { BankFormatConfig, ColumnMapping } from '@/types/database';
+import { calendarDate, calendarDateFromLocal } from '@/lib/utils/calendar-date';
 
 // FirstBank default column mapping
 // Note: Column names may vary slightly between statement types
@@ -139,7 +140,7 @@ export function parseFirstBankDate(value: unknown): Date | null {
   const ddmmyyyy = strValue.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (ddmmyyyy) {
     const [, day, month, year] = ddmmyyyy;
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const date = calendarDate(parseInt(year), parseInt(month), parseInt(day));
     if (!isNaN(date.getTime())) return date;
   }
 
@@ -153,7 +154,7 @@ export function parseFirstBankDate(value: unknown): Date | null {
     };
     const month = months[monthStr.toLowerCase()];
     if (month !== undefined) {
-      const date = new Date(parseInt(year), month, parseInt(day));
+      const date = calendarDate(parseInt(year), month + 1, parseInt(day));
       if (!isNaN(date.getTime())) return date;
     }
   }
@@ -162,13 +163,14 @@ export function parseFirstBankDate(value: unknown): Date | null {
   const yyyymmdd = strValue.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
   if (yyyymmdd) {
     const [, year, month, day] = yyyymmdd;
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const date = calendarDate(parseInt(year), parseInt(month), parseInt(day));
     if (!isNaN(date.getTime())) return date;
   }
 
   // Fallback to native Date parsing
   const fallbackDate = new Date(strValue);
-  return isNaN(fallbackDate.getTime()) ? null : fallbackDate;
+  // The string carries no zone, so it was read as local time: keep its local calendar day.
+  return isNaN(fallbackDate.getTime()) ? null : calendarDateFromLocal(fallbackDate);
 }
 
 /**
