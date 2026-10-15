@@ -67,6 +67,7 @@ import { RowDetailsDialog } from './row-details-dialog';
 import { ImportBreakdown } from './import-breakdown';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { formatCalendarDate, toCalendarDateString } from '@/lib/utils/calendar-date';
 import type { ParsedRow } from '@/lib/validators/import';
 import type { BankStatementRow, ColumnMapping, TransactionTag, TransactionTagColor } from '@/types/database';
 import type { CreateImportParams } from '@/actions/imports/types';
@@ -230,8 +231,9 @@ export function ImportPreview({
             .sort((a, b) => a.getTime() - b.getTime());
 
           if (dates.length > 0) {
-            importParams.period_start = dates[0].toISOString().split('T')[0];
-            importParams.period_end = dates[dates.length - 1].toISOString().split('T')[0];
+            // Parsed dates are calendar days held at 00:00 UTC; read them back in UTC.
+            importParams.period_start = toCalendarDateString(dates[0]);
+            importParams.period_end = toCalendarDateString(dates[dates.length - 1]);
           }
         }
 
@@ -773,7 +775,7 @@ export function ImportPreview({
                         {/* Date + Type indicator */}
                         <TableCell className="px-1">
                           <div className="flex flex-col">
-                            <span>{row.transaction_date ? new Date(row.transaction_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '--'}</span>
+                            <span>{row.transaction_date ? formatCalendarDate(row.transaction_date, 'en-GB', { day: '2-digit', month: 'short' }) : '--'}</span>
                             <span className={cn("text-[9px] font-semibold", isCredit ? "text-green-600" : isDebit ? "text-red-600" : "text-muted-foreground")}>
                               {isCredit ? 'CR' : isDebit ? 'DR' : '--'}
                             </span>

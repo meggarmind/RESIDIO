@@ -23,6 +23,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { detectFirstBankColumns, parseFirstBankDate, parseFirstBankAmount, FIRSTBANK_COLUMNS } from '@/lib/parsers/bank-formats';
 import type { ParsedRow } from '@/lib/validators/import';
+import { formatCalendarDate } from '@/lib/utils/calendar-date';
 
 // Local interface for UI column mapping (different from database ColumnMapping)
 // Uses dual withdrawal/deposit columns for Nigerian bank statements
@@ -336,7 +337,7 @@ export function ColumnMapper({ headers, rawData, onComplete, onBack }: ColumnMap
                   <TableCell className="font-mono text-sm">{row.rowNum}</TableCell>
                   <TableCell>
                     {row.date ? (
-                      new Date(row.date).toLocaleDateString()
+                      formatCalendarDate(row.date)
                     ) : (
                       <span className="text-muted-foreground">--</span>
                     )}
