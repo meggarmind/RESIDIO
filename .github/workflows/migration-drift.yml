@@ -9,6 +9,10 @@ name: Migration Drift
 # (between releases Residio_Stage is legitimately ahead of Residio_Prod), so every run
 # picks the database for the branch it checks. A missing variable fails the job loudly;
 # it never falls back to the other database.
+#
+# Residio_Prod's ledger comes from the #279 baseline (34 `baseline_s*` rows standing in for
+# every file up to 20260907000000), so only Prod runs pass --baseline-cutoff (#436).
+# Residio_Stage has no baseline rows and stays strictly checked.
 
 on:
   pull_request:
@@ -70,11 +74,11 @@ jobs:
           # through to the Stage ref when the Prod variable is empty, which would check
           # a master PR against the wrong database and pass.
           case "${BASE_REF}" in
-            master) export SUPABASE_PROJECT_REF="${REF_PROD}" DRIFT_TARGET="Residio_Prod" ;;
-            stage)  export SUPABASE_PROJECT_REF="${REF_STAGE}" DRIFT_TARGET="Residio_Stage" ;;
+            master) export SUPABASE_PROJECT_REF="${REF_PROD}" DRIFT_TARGET="Residio_Prod" BASELINE_CUTOFF="20260907000000" ;;
+            stage)  export SUPABASE_PROJECT_REF="${REF_STAGE}" DRIFT_TARGET="Residio_Stage" BASELINE_CUTOFF="" ;;
             *) echo "::error::Unexpected base branch '${BASE_REF}'"; exit 1 ;;
           esac
-          node scripts/migration-drift.mjs --ci --base-ref "${BASE_SHA}"
+          node scripts/migration-drift.mjs --ci --base-ref "${BASE_SHA}" ${BASELINE_CUTOFF:+--baseline-cutoff "$BASELINE_CUTOFF"}
 
   # Scheduled and manual runs check each branch against its own database. Both
   # directions count as drift here.
@@ -89,9 +93,11 @@ jobs:
           - branch: stage
             database: Residio_Stage
             ref_var: SUPABASE_PROJECT_REF_STAGE
+            baseline_cutoff: ''
           - branch: master
             database: Residio_Prod
             ref_var: SUPABASE_PROJECT_REF_PROD
+            baseline_cutoff: '20260907000000'
     steps:
       - name: Check out ${{ matrix.branch }}
         uses: actions/checkout@v5
@@ -108,4 +114,5 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars[matrix.ref_var] }}
           DRIFT_TARGET: ${{ matrix.database }}
-        run: node scripts/migration-drift.mjs --ci
+          BASELINE_CUTOFF: ${{ matrix.baseline_cutoff }}
+        run: node scripts/migration-drift.mjs --ci ${BASELINE_CUTOFF:+--baseline-cutoff "$BASELINE_CUTOFF"}
