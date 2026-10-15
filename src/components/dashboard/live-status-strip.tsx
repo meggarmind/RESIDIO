@@ -165,6 +165,17 @@ export function LiveStatusStrip({
         period === 'morning'
       );
     }
+  } else {
+    // Failed/timed-out action metrics are not "nothing needs attention".
+    push(
+      'attention-unavailable',
+      <LiveStatusWidget
+        title="Needs attention"
+        status="Attention status unavailable"
+        variant="default"
+        icon={ShieldAlert}
+      />
+    );
   }
 
   if (period === 'evening' && todayCount !== null) {
