@@ -159,7 +159,7 @@ export function EnhancedStatCard({
           <Icon className={cn('h-5 w-5', colors.iconColor)} />
         </div>
       </CardHeader>
-      <CardContent className="pb-5">
+      <CardContent className="@container pb-5">
         {isLoading ? (
           <div className="space-y-3">
             <Skeleton className={cn(
@@ -175,11 +175,18 @@ export function EnhancedStatCard({
           </div>
         ) : (
           <>
-            <div className={cn(
-              'text-3xl font-bold tracking-tight',
-              colors.valueColor,
-              isModern && 'text-gray-900 dark:text-white'
-            )}>
+            <div
+              className={cn(
+                'text-3xl font-bold tracking-tight tabular-nums whitespace-nowrap',
+                colors.valueColor,
+                isModern && 'text-gray-900 dark:text-white'
+              )}
+              // Long figures (e.g. currency totals) shrink to fit the card width
+              // instead of overflowing; short values keep the text-3xl size.
+              style={{
+                fontSize: `min(1.875rem, calc(100cqi / ${Math.max(String(value).length, 1) * 0.85}))`,
+              }}
+            >
               {value}
             </div>
             {description && (
