@@ -98,7 +98,7 @@ function FinancialDashboardContent() {
             <Clock className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold tabular-nums">{fhLoading ? <Skeleton className="h-8 w-12" /> : invoiceDist?.overdue ?? 0}</div>
+            <div className="text-2xl font-bold tabular-nums">{fhLoading ? <Skeleton className="h-8 w-12" /> : invoiceDist ? invoiceDist.overdue : '-'}</div>
             <div className="text-xs text-muted-foreground">{fhLoading ? <Skeleton className="h-3 w-24 mt-1" /> : `${formatCurrency(financialHealth?.overdueAmount ?? 0)} total`}</div>
           </CardContent>
         </Card>

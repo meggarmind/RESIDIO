@@ -9,6 +9,14 @@ vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
 }));
 
+// AnimatedCounter renders its initial 0 on the server and counts up in an effect, so static
+// markup never contains the target value. Render the value directly to assert on it.
+vi.mock('@/components/ui/animated-counter', () => ({
+  AnimatedCounter: ({ value, prefix = '', suffix = '' }: { value: number; prefix?: string; suffix?: string }) => (
+    <span data-testid="counter">{`${prefix}${value}${suffix}`}</span>
+  ),
+}));
+
 const financialHealth: FinancialHealthMetrics = {
   totalOutstanding: 125000,
   totalCollected: 500000,
@@ -61,7 +69,7 @@ describe('trustworthy dashboard financial states', () => {
     expect(zero).not.toContain('Financial metrics unavailable');
     expect(zero).toContain('Resident Wallet Credits');
     // A real zero renders its amount; a null renders no amount section at all.
-    expect(zero).toContain('₦0');
+    expect(zero).toContain('<span data-testid="counter">₦0</span>');
     expect(unavailable).not.toContain('Resident Wallet Credits');
     expect(unavailable).not.toContain('₦0');
   });
@@ -99,7 +107,7 @@ describe('trustworthy dashboard action states', () => {
     );
 
     expect(markup).toContain('Need Attention');
-    expect(markup).toContain('6');
+    expect(markup).toContain('<span data-testid="counter">6</span>');
     expect(markup).not.toContain('0 items need attention');
   });
 
