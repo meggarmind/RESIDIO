@@ -1,5 +1,6 @@
 'use server';
 
+import { cache } from 'react';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { AuthorizationResult, Permission } from './action-roles';
 import { resolveAccess, toAccessClient, type AccessResult } from './access';
@@ -7,8 +8,15 @@ import { resolveAccess, toAccessClient, type AccessResult } from './access';
 /**
  * Resolves the current user's Access in one round trip. A failed lookup is
  * logged here and returned as-is; callers treat it as no access (fail closed).
+ *
+ * Memoized per request with React `cache()` (#215): several authorize* calls in
+ * one server request share a single `get_my_access` round trip. `cache()` is
+ * scoped to the current request, so nothing is shared across requests or users.
+ * Keep this module-private (a 'use server' file may only export async
+ * functions) and never replace it with a module-level Map or TTL.
+ * Caveat: within one request a role/permission change is not re-read.
  */
-async function resolveCurrentAccess(): Promise<AccessResult> {
+const resolveCurrentAccess = cache(async (): Promise<AccessResult> => {
   const supabase = await createServerSupabaseClient();
   const access = await resolveAccess(toAccessClient(supabase));
   if (access.status === 'lookup-failed') {
@@ -18,7 +26,7 @@ async function resolveCurrentAccess(): Promise<AccessResult> {
     });
   }
   return access;
-}
+});
 
 /**
  * Shared body of the authorize* functions: authenticate, resolve Access, then
