@@ -9,12 +9,15 @@ import { resolveAccess, toAccessClient, type AccessResult } from './access';
  * Resolves the current user's Access in one round trip. A failed lookup is
  * logged here and returned as-is; callers treat it as no access (fail closed).
  *
- * Memoized per request with React `cache()` (#215): several authorize* calls in
- * one server request share a single `get_my_access` round trip. `cache()` is
- * scoped to the current request, so nothing is shared across requests or users.
+ * Memoized with React `cache()` (#215): authorize* calls made during one page,
+ * layout or component render share a single `get_my_access` round trip.
+ * `cache()` is scoped to the current render request, so nothing is shared across
+ * requests or users. Server actions and route handlers run outside React's
+ * request storage, so there `cache()` does not memoize and every call re-reads
+ * (which is why access-changing flows never see a stale result).
  * Keep this module-private (a 'use server' file may only export async
  * functions) and never replace it with a module-level Map or TTL.
- * Caveat: within one request a role/permission change is not re-read.
+ * Caveat: during one render a role/permission change is not re-read.
  */
 const resolveCurrentAccess = cache(async (): Promise<AccessResult> => {
   const supabase = await createServerSupabaseClient();
