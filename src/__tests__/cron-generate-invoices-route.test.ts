@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { NextRequest } from 'next/server';
 import { GET } from '@/app/api/cron/generate-invoices/route';
 
 const mocks = vi.hoisted(() => ({
   verifyCronAuth: vi.fn(),
-  getInvoiceGenerationDay: vi.fn(),
-  getAutoGenerateEnabled: vi.fn(),
+  getInvoiceCronSettings: vi.fn(),
   findReusableInvoiceGenerationRun: vi.fn(),
   prepareInvoiceGenerationRunCore: vi.fn(),
   processInvoiceGenerationRunChunk: vi.fn(),
@@ -13,9 +14,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/cron-auth', () => ({ verifyCronAuth: mocks.verifyCronAuth }));
-vi.mock('@/actions/billing/get-generation-log', () => ({
-  getInvoiceGenerationDay: mocks.getInvoiceGenerationDay,
-  getAutoGenerateEnabled: mocks.getAutoGenerateEnabled,
+vi.mock('@/lib/billing/invoice-cron-settings', () => ({
+  getInvoiceCronSettings: mocks.getInvoiceCronSettings,
 }));
 vi.mock('@/lib/billing/invoice-generation-run-service', () => ({
   currentMonthPeriod: () => '2026-10-01',
@@ -51,8 +51,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   mocks.activeRuns = [];
   mocks.verifyCronAuth.mockReturnValue(null);
-  mocks.getAutoGenerateEnabled.mockResolvedValue({ data: true });
-  mocks.getInvoiceGenerationDay.mockResolvedValue({ data: 5 });
+  mocks.getInvoiceCronSettings.mockResolvedValue({ autoGenerate: true, generationDay: 5 });
   mocks.findReusableInvoiceGenerationRun.mockResolvedValue(null);
   mocks.prepareInvoiceGenerationRunCore.mockResolvedValue({ data: { id: 'run-1', candidateCount: 3 } });
   mocks.processInvoiceGenerationRunChunk.mockResolvedValue({ processed: 3, run: { status: 'completed' } });
@@ -114,9 +113,41 @@ describe('cron generate-invoices route catch-up (#638)', () => {
 
   it('skips when auto-generation is disabled, even after the day', async () => {
     setToday(17);
-    mocks.getAutoGenerateEnabled.mockResolvedValue({ data: false });
+    mocks.getInvoiceCronSettings.mockResolvedValue({ autoGenerate: false, generationDay: 5 });
     const body = await (await GET(request)).json();
     expect(body).toMatchObject({ skipped: true, reason: 'Auto-generation is disabled' });
     expect(mocks.prepareInvoiceGenerationRunCore).not.toHaveBeenCalled();
+    expect(mocks.processInvoiceGenerationRunChunk).not.toHaveBeenCalled();
+  });
+
+  it('honours a configured day of 10 (skips on 9, prepares on 10)', async () => {
+    mocks.getInvoiceCronSettings.mockResolvedValue({ autoGenerate: true, generationDay: 10 });
+    setToday(9);
+    const before = await (await GET(request)).json();
+    expect(before.reason).toBe('Before generation day (today: 9, configured: 10)');
+    expect(mocks.prepareInvoiceGenerationRunCore).not.toHaveBeenCalled();
+    setToday(10);
+    const on = await (await GET(request)).json();
+    expect(on.success).toBe(true);
+    expect(mocks.prepareInvoiceGenerationRunCore).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns 500 and prepares nothing when the settings cannot be read (fail closed)', async () => {
+    setToday(17);
+    mocks.getInvoiceCronSettings.mockRejectedValue(new Error('settings unreadable'));
+    const res = await GET(request);
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe('settings unreadable');
+    expect(mocks.prepareInvoiceGenerationRunCore).not.toHaveBeenCalled();
+    expect(mocks.processInvoiceGenerationRunChunk).not.toHaveBeenCalled();
+  });
+
+  // The bug (#641): session-scoped actions in a cron path read zero rows and returned defaults.
+  it('does not import the session-scoped billing actions', () => {
+    const src = readFileSync(
+      resolve(process.cwd(), 'src/app/api/cron/generate-invoices/route.ts'),
+      'utf8'
+    );
+    expect(src).not.toMatch(/@\/actions\/billing\/get-generation-log/);
   });
 });
