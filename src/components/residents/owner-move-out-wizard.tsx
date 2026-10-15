@@ -320,7 +320,7 @@ export function OwnerMoveOutWizard({
                             <Alert>
                                 <Building2 className="h-4 w-4" />
                                 <AlertDescription>
-                                    After this move-out, you will be converted to a <strong>Property Owner</strong> (non-resident landlord). You will retain ownership but no longer reside at the property.
+                                    After this move-out, you will be converted to a <strong>Property Owner</strong>. You will retain ownership but no longer reside at the property.
                                 </AlertDescription>
                             </Alert>
 

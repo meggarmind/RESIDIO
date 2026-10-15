@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, memo, useCallback, useMemo } from 'react';
+import { useState, memo, useCallback, useMemo, useEffect, useRef } from 'react';
+import { getLastSharedElementName, isSharedTransitionActive, navigateWithSharedElement } from '@/lib/navigation/shared-element-transition';
 import { useDebounce } from '@/hooks/use-debounce';
 import { usePersistedState } from '@/hooks/use-persisted-state';
 import Link from 'next/link';
@@ -47,7 +48,7 @@ const ALL_VALUE = '_all';
 
 // Memoized row component to prevent unnecessary re-renders
 // This significantly improves performance for large resident lists
-const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview }: { resident: ResidentWithHouses; onNavigate: (id: string) => void; onPreview: (id: string) => void }) {
+const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview }: { resident: ResidentWithHouses; onNavigate: (id: string, el: HTMLElement | null, event: React.MouseEvent) => void; onPreview: (id: string) => void }) {
   // Show first active house assignment
   const activeHouse = resident.resident_houses?.find((rh) => rh.is_active);
   const address = activeHouse
@@ -56,10 +57,24 @@ const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview 
   const activeAssignments = resident.resident_houses?.filter((rh) => rh.is_active) ?? [];
   const uniqueActiveRoles = Array.from(new Set(activeAssignments.map((rh) => rh.resident_role)));
 
+  // Reverse shared-element transition: when returning from this resident's
+  // detail page, name this row so the header morphs back into it. Only while a
+  // shared transition is active; the helper clears the name afterwards.
+  const rowRef = useRef<HTMLTableRowElement>(null);
+  useEffect(() => {
+    const el = rowRef.current;
+    const name = `resident-${resident.id}`;
+    if (el && isSharedTransitionActive() && getLastSharedElementName() === name) {
+      el.style.viewTransitionName = name;
+      el.dataset.sharedTarget = 'true';
+    }
+  }, [resident.id]);
+
   return (
     <TableRow
+      ref={rowRef}
       className="cursor-pointer hover:bg-muted/50 transition-colors"
-      onClick={() => onNavigate(resident.id)}
+      onClick={(event) => onNavigate(resident.id, event.currentTarget, event)}
     >
       <TableCell>
         <span className="font-mono text-sm bg-muted px-2 py-1 rounded">
@@ -163,8 +178,14 @@ export function ResidentsTable() {
     setPage(1);
   }, [setPage, setSortBy, setSortOrder, sortBy]);
 
-  const handleNavigate = useCallback((id: string) => {
-    router.push(`/residents/${id}`);
+  const handleNavigate = useCallback((id: string, el: HTMLElement | null, event: React.MouseEvent) => {
+    void navigateWithSharedElement({
+      push: (href) => router.push(href),
+      href: `/residents/${id}`,
+      sourceEl: el,
+      name: `resident-${id}`,
+      event,
+    });
   }, [router]);
 
    
