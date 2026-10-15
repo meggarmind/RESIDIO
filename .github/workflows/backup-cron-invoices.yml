@@ -140,6 +140,19 @@ jobs:
             ERRORS=$(echo "$BODY" | jq -r '.errors // "unknown"' 2>/dev/null)
 
             echo "Generated: $GENERATED, Skipped: $SKIPPED, Errors: $ERRORS"
+
+            # The route answers 200 with skipped=true when it declined to act. The
+            # health check said critical, so a skip must not pass silently (#638).
+            # Only "auto-generation disabled" is an expected, deliberate skip.
+            IS_SKIPPED=$(echo "$BODY" | jq -r '.skipped // false' 2>/dev/null)
+            if [ "$IS_SKIPPED" = "true" ]; then
+              REASON=$(echo "$BODY" | jq -r '.reason // "no reason given"' 2>/dev/null)
+              echo "::warning::Backup generation was skipped while status is critical: $REASON"
+              if [ "$REASON" != "Auto-generation is disabled" ]; then
+                echo "::error::Invoice generation is overdue but the nudge was skipped: $REASON"
+                exit 1
+              fi
+            fi
           else
             echo "::error::Backup invoice generation failed with HTTP $HTTP_CODE"
             exit 1

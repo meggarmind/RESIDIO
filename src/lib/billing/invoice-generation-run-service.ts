@@ -110,17 +110,24 @@ export async function prepareInvoiceGenerationRunCore(
     };
 }
 
-/** Find the newest non-cancelled run for a trigger + target month, if any. */
+/**
+ * Find the newest run for a trigger + target month, if any. Cancelled runs are
+ * ignored unless `includeCancelled` is set: the cron catch-up (#638) sets it, so a
+ * run an admin cancelled stays cancelled for the rest of the month instead of being
+ * recreated by the next daily call.
+ */
 export async function findReusableInvoiceGenerationRun(
     trigger: InvoiceGenerationTrigger,
-    targetMonth: string
+    targetMonth: string,
+    options: { includeCancelled?: boolean } = {}
 ): Promise<InvoiceGenerationRunRow | null> {
     const supabase = createAdminClient();
-    const { data } = await supabase
+    let query = supabase
         .from('invoice_generation_runs')
         .select('*')
-        .contains('scope', { trigger, targetMonth })
-        .neq('status', 'cancelled')
+        .contains('scope', { trigger, targetMonth });
+    if (!options.includeCancelled) query = query.neq('status', 'cancelled');
+    const { data } = await query
         .order('requested_at', { ascending: false })
         .limit(1)
         .maybeSingle();

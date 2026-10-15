@@ -10,8 +10,8 @@ residio_sources:
   - src/actions/system/cron-status.ts
   - src/lib/system/cron-status.ts
   - src/app/(dashboard)/system/cron-status/**
-residio_verified_commit: cbbc519
-residio_verified_at: '2026-10-13'
+residio_verified_commit: fa851df
+residio_verified_at: '2026-10-15'
 residio_app_version: '0.4.0'
 ---
 
@@ -63,7 +63,7 @@ The status page judges each job against a frequency it declares internally, and 
 | Job | Status page expects | Actually scheduled |
 |---|---|---|
 | Notification processing | Every 5 minutes | Daily, 09:00 |
-| Invoice generation | Monthly, on a set day | Daily, 06:00 |
+| Invoice generation | Monthly, from a set day | Daily, 06:00 |
 
 The practical effect is that **notification processing reports Critical almost permanently**, because it is measured against a five-minute window it was never scheduled to meet. Read that particular card against the queue itself rather than the badge: if **System → Notification Queue** is draining daily, the job is working.
 
@@ -76,6 +76,8 @@ Treat this as a known reporting fault, not an outage. It is being tracked for re
 3. Check the downstream surface — the notification queue, the import list, the invoice list — to see how much is outstanding.
 4. If the job is genuinely not running, escalate to an engineer. Job scheduling is a deployment concern, not a dashboard setting.
 5. Only after that, consider a manual run of the equivalent action.
+
+Invoice generation catches up: the daily run generates the month's invoices on the configured day or on any later day of that month if the month has no scheduled run yet, and a scheduled run that an administrator cancelled is not recreated that month. The Invoice generation card reads the real run history, so it is Critical only when the month has no run after the configured day; if the scheduled run was cancelled it shows a warning instead and is not recreated.
 
 :::warning[Manual runs can duplicate]
 Generating invoices manually while the scheduled run is merely delayed produces two sets. Confirm the job status first, and check the run history before triggering anything by hand.
