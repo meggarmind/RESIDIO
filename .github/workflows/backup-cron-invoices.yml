@@ -25,9 +25,6 @@
 # Alerting (repository secrets, used only when parameters are missing):
 #   ALERT_RESEND_API_KEY, ALERT_EMAIL_FROM, ALERT_EMAIL_TO
 #
-# TODO: if the app hosts sit behind Cloudflare Access, the curl calls below need
-# the CF_ACCESS_* headers. Unverified; confirm when the hosting setup is done.
-#
 # SECURITY NOTE: This workflow only uses environment and repository secrets and
 # does not process any untrusted user input. Secrets reach scripts through `env:`
 # and are never interpolated into `run:` text.
