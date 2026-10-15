@@ -85,6 +85,13 @@ worktree path `.worktrees/issue-<n>` is lane-independent.
 > `origin/stage`, which branch protection forbids; it never opens a PR, and it merges with no
 > migrations check. See the note in `CORE.md` §8. Land work by PR instead.
 
+## Unattended runs
+
+To deliver a parent issue or an issue list without the owner watching, follow
+`docs/agents/autonomous-delivery.md` from its start gate onward. Codex and OpenCode have no
+session listing: present the gate with "no other sessions detectable from this harness", and
+treat `git ls-remote --heads origin` as the only claim check.
+
 ## OpenCode
 
 `.opencode/agent/meggar-review.md` defines `meggar-review`, a subagent that reviews
