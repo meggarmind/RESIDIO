@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { uid } from '@/__tests__/helpers/recording-supabase';
+import { createImportRows } from '@/actions/imports/create-import';
 import { approveImport, rejectImport, submitForApproval } from '@/actions/imports/process-import';
 
 /**
@@ -35,12 +36,14 @@ type Rec = {
 let rec: Rec;
 let currentStatus: string;
 let updateRows: unknown[];
+let updateError: { message: string } | null;
 
 beforeEach(() => {
   vi.clearAllMocks();
   rec = { writes: [], updates: [], eqs: [], selectsAfterUpdate: [] };
   currentStatus = 'awaiting_approval';
   updateRows = [{ id: uid(1) }];
+  updateError = null;
   authorizePermission.mockResolvedValue({ authorized: true, userId: 'user-1' });
   logAudit.mockImplementation(async () => {
     rec.writes.push('audit');
@@ -63,14 +66,28 @@ beforeEach(() => {
         rec.updates.push(vals);
         return chain;
       };
+      chain.insert = () => {
+        op = 'insert';
+        return chain;
+      };
+      chain.delete = () => {
+        op = 'delete';
+        return chain;
+      };
       chain.eq = (col: string, val: unknown) => {
         if (op === 'update') rec.eqs.push([col, val]);
         return chain;
       };
       const settle = () => {
+        if (op === 'insert' || op === 'delete') {
+          rec.writes.push(`write:${table}.${op}`);
+          return { data: null, error: null };
+        }
         if (op === 'update') {
           rec.writes.push(`write:${table}.update`);
-          return { data: updateRows, error: null };
+          // Only the bank_statement_imports status write is under test; tag updates just succeed.
+          if (table !== 'bank_statement_imports') return { data: null, error: null };
+          return { data: updateRows, error: updateError };
         }
         return { data: { id: uid(1), file_name: 'jan.csv', status: currentStatus, import_summary: {} }, error: null };
       };
@@ -146,6 +163,16 @@ for (const c of CASES) {
       expect(rec.writes).toEqual(['write:bank_statement_imports.update']);
     });
 
+    it('returns a database error unchanged, with no audit and no notification', async () => {
+      updateError = { message: 'db exploded' };
+      updateRows = [];
+      const res = await c.run();
+      expect(res.error).toBe('db exploded');
+      expect(logAudit).not.toHaveBeenCalled();
+      expect(notifyAdmins).not.toHaveBeenCalled();
+      expect(rec.writes).toEqual(['write:bank_statement_imports.update']);
+    });
+
     for (const status of c.wrongStatuses) {
       it(`still rejects current status ${status} with no write`, async () => {
         currentStatus = status;
@@ -157,3 +184,63 @@ for (const c of CASES) {
     }
   });
 }
+
+describe('createImportRows status guard (#627)', () => {
+  const rows = [
+    {
+      row_number: 1,
+      raw_data: {},
+      transaction_date: new Date('2026-01-01'),
+      description: 'x',
+      amount: 10,
+      transaction_type: 'credit',
+      reference: null,
+    },
+  ] as unknown as Parameters<typeof createImportRows>[0]['rows'];
+
+  beforeEach(() => {
+    currentStatus = 'pending';
+  });
+
+  it('happy path inserts, moves pending -> processing and audits once', async () => {
+    const res = await createImportRows({ import_id: uid(1), rows });
+    expect(res.error).toBeNull();
+    expect(res.count).toBe(1);
+    expect(rec.writes).toEqual(['write:bank_statement_rows.insert', 'write:bank_statement_imports.update', 'audit']);
+    expect(rec.updates[0]).toEqual({ status: 'processing' });
+  });
+
+  it('conditions the status update on pending and asks for the rows back', async () => {
+    await createImportRows({ import_id: uid(1), rows });
+    expect(rec.eqs).toContainEqual(['id', uid(1)]);
+    expect(rec.eqs).toContainEqual(['status', 'pending']);
+    expect(rec.selectsAfterUpdate).toEqual(['id']);
+  });
+
+  it('zero rows updated: error, count 0, inserted rows rolled back, no audit', async () => {
+    updateRows = [];
+    const res = await createImportRows({ import_id: uid(1), rows });
+    expect(res).toEqual({ count: 0, error: RACE_ERROR });
+    expect(rec.writes).toEqual([
+      'write:bank_statement_rows.insert',
+      'write:bank_statement_imports.update',
+      'write:bank_statement_rows.delete',
+    ]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('database error on the status write: error returned, rows rolled back, no audit', async () => {
+    updateError = { message: 'db exploded' };
+    const res = await createImportRows({ import_id: uid(1), rows });
+    expect(res).toEqual({ count: 0, error: 'db exploded' });
+    expect(rec.writes).toContain('write:bank_statement_rows.delete');
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('still rejects a non-pending import with no write', async () => {
+    currentStatus = 'processing';
+    const res = await createImportRows({ import_id: uid(1), rows });
+    expect(res.error).toMatch(/Cannot add rows to an import with status: processing/);
+    expect(rec.writes).toEqual([]);
+  });
+});

@@ -145,6 +145,8 @@ describe('createImportRows audit (#556)', () => {
 
   beforeEach(() => {
     results['bank_statement_imports.select'] = { data: { status: 'pending' } };
+    // The status write is conditional (#627): the update must report the row it changed.
+    results['bank_statement_imports.update'] = { data: [{ id: uid(5) }] };
   });
 
   it('writes ONE entry with the inserted count, after the inserts', async () => {
