@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,18 +12,16 @@ import { ArrowLeft, Upload, Table, Users, CheckCircle, Loader2 } from 'lucide-re
 import { StatementUpload } from '@/components/imports/statement-upload';
 import { ColumnMapper } from '@/components/imports/column-mapper';
 import { ImportConfirmation } from '@/components/imports/import-confirmation';
-import { ImportResults } from '@/components/imports/import-results';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import type { ParsedRow } from '@/lib/validators/import';
-import type { ProcessImportResult } from '@/actions/imports/types';
 
 const ImportPreview = dynamic(
   () => import('@/components/imports/import-preview').then((m) => ({ default: m.ImportPreview })),
   { loading: () => <Skeleton className="h-96 w-full rounded-xl" />, ssr: false }
 );
 
-type WizardStep = 'upload' | 'mapping' | 'review' | 'confirm' | 'results';
+type WizardStep = 'upload' | 'mapping' | 'review' | 'confirm';
 
 // UI column mapping for the wizard (dual Withdrawal/Deposit columns for Nigerian bank statements)
 interface UIColumnMapping {
@@ -44,10 +43,10 @@ interface ImportState {
   columnMapping: UIColumnMapping | null;
   parsedRows: ParsedRow[];
   importId: string | null;
-  processResult: ProcessImportResult | null;
 }
 
 export default function ImportWizardPage() {
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState<WizardStep>('upload');
   const [importState, setImportState] = useState<ImportState>({
     file: null,
@@ -59,7 +58,6 @@ export default function ImportWizardPage() {
     columnMapping: null,
     parsedRows: [],
     importId: null,
-    processResult: null,
   });
 
   const handleUploadComplete = useCallback((data: {
@@ -96,29 +94,9 @@ export default function ImportWizardPage() {
     setCurrentStep('confirm');
   }, []);
 
-  const handleProcessComplete = useCallback((result: ProcessImportResult) => {
-    setImportState(prev => ({
-      ...prev,
-      processResult: result,
-    }));
-    setCurrentStep('results');
-  }, []);
-
-  const handleStartOver = useCallback(() => {
-    setImportState({
-      file: null,
-      fileType: 'csv',
-      bankAccountId: '',
-      transactionFilter: 'credit',
-      rawData: [],
-      headers: [],
-      columnMapping: null,
-      parsedRows: [],
-      importId: null,
-      processResult: null,
-    });
-    setCurrentStep('upload');
-  }, []);
+  const handleSubmitted = useCallback((importId: string) => {
+    router.push(`/payments/import/${importId}`);
+  }, [router]);
 
   const goBack = useCallback(() => {
     switch (currentStep) {
@@ -142,7 +120,6 @@ export default function ImportWizardPage() {
       case 'mapping': return 2;
       case 'review': return 3;
       case 'confirm': return 4;
-      case 'results': return 5;
     }
   };
 
@@ -165,14 +142,17 @@ export default function ImportWizardPage() {
         <div>
           <h1 className="text-3xl font-bold">Import Bank Statement</h1>
           <p className="text-muted-foreground">
-            Import payments from a bank statement file
+            Upload a bank statement and submit it for approval
           </p>
         </div>
+        <Button variant="outline" className="ml-auto" asChild>
+          <Link href="/payments/imports">Import history</Link>
+        </Button>
       </div>
 
       {/* Progress Steps */}
       <div className="flex items-center justify-between max-w-3xl mx-auto">
-        {(['upload', 'mapping', 'review', 'confirm', 'results'] as WizardStep[]).map((step, index) => (
+        {(['upload', 'mapping', 'review', 'confirm'] as WizardStep[]).map((step, index) => (
           <div key={step} className="flex items-center">
             <div className="flex flex-col items-center">
               <motion.div
@@ -205,11 +185,10 @@ export default function ImportWizardPage() {
                 {step === 'upload' && 'Upload'}
                 {step === 'mapping' && 'Mapping'}
                 {step === 'review' && 'Review'}
-                {step === 'confirm' && 'Confirm'}
-                {step === 'results' && 'Results'}
+                {step === 'confirm' && 'Submit'}
               </span>
             </div>
-            {index < 4 && (
+            {index < 3 && (
               <motion.div
                 initial={false}
                 animate={{
@@ -295,37 +274,17 @@ export default function ImportWizardPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5" />
-                Confirm Import
+                Submit for Approval
               </CardTitle>
               <CardDescription>
-                Review the import summary before processing
+                Review the import summary and submit it for approval. Payments are created only after approval and processing.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <ImportConfirmation
                 importId={importState.importId!}
-                onComplete={handleProcessComplete}
+                onSubmitted={handleSubmitted}
                 onBack={goBack}
-              />
-            </CardContent>
-          </>
-        )}
-
-        {currentStep === 'results' && (
-          <>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5" />
-                Import Results
-              </CardTitle>
-              <CardDescription>
-                Your import has been processed
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ImportResults
-                result={importState.processResult!}
-                onStartOver={handleStartOver}
               />
             </CardContent>
           </>
