@@ -26,11 +26,12 @@ The dashboard is your operating picture for the estate. Start here before openin
 
 ## Read the page in this order
 
-1. **Collection:** compare the collected amount with the expected invoice total.
-2. **Action Needed:** open approvals when the count is non-zero. This is the fastest way to find blocked work.
-3. **Financial Health:** scan outstanding, overdue, monthly revenue, and wallet credit values.
-4. **Payments Traffic:** use the status counts to decide whether to inspect billing or payments.
-5. **Recent activity:** confirm recent changes are expected and traceable. If your role cannot
+1. **Live status strip:** the band at the top changes with the time of day. In the morning it leads with what needs attention today, in the afternoon with payments awaiting verification, and in the evening with how much happened today. Each item links to where you resolve it. If your role cannot view audit logs, the latest-activity item is left out rather than shown empty.
+2. **Collection:** compare the collected amount with the expected invoice total.
+3. **Action Needed:** open approvals when the count is non-zero. This is the fastest way to find blocked work.
+4. **Financial Health:** scan outstanding, overdue, monthly revenue, and wallet credit values.
+5. **Payments Traffic:** use the status counts to decide whether to inspect billing or payments.
+6. **Recent activity:** confirm recent changes are expected and traceable. If your role cannot
    view audit logs, this card says so rather than showing an empty list — ask an administrator
    for the "view audit logs" permission if you need it.
 
