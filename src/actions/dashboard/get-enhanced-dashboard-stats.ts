@@ -114,10 +114,12 @@ export interface MonthlyTrend {
 export interface EnhancedDashboardStats {
     /** null when the financial section failed to load; consumers must render an unavailable state. */
     financialHealth: FinancialHealthMetrics | null;
-    invoiceDistribution: InvoiceStatusDistribution;
+    /** null when the invoice-distribution query failed or timed out; consumers must render an unavailable state. */
+    invoiceDistribution: InvoiceStatusDistribution | null;
     securityAlerts: SecurityAlerts;
     developmentLevy: DevelopmentLevyStatus;
-    quickStats: QuickStats;
+    /** null when the quick-stats query failed or timed out; consumers must render an unavailable state. */
+    quickStats: QuickStats | null;
     recentActivity: RecentActivityItem[];
     /**
      * True when `recentActivity` is empty because the viewer's role cannot read
@@ -125,7 +127,8 @@ export interface EnhancedDashboardStats {
      */
     recentActivityUnavailable: boolean;
     monthlyTrends: MonthlyTrend[];
-    actionMetrics: DashboardActionMetrics;
+    /** null when the action-metrics query failed or timed out; consumers must not render "All clear" or zero. */
+    actionMetrics: DashboardActionMetrics | null;
     lastUpdated: string;
 }
 
@@ -275,12 +278,10 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
 
     return {
         data: {
-            // null (not a zero-filled object) when the section failed, so the UI shows
-            // "unavailable" instead of fabricated 0 revenue / 0% collection.
+            // null (not a zero-filled object) when a section failed, so the UI shows
+            // "unavailable" instead of fabricated 0 revenue / 0% collection / "All clear".
             financialHealth: financialData,
-            invoiceDistribution: invoiceDistribution || {
-                unpaid: 0, paid: 0, partiallyPaid: 0, overdue: 0, void: 0
-            },
+            invoiceDistribution,
             securityAlerts: securityData || {
                 expiringCodesCount: 0, expiredCodesCount: 0, suspendedContactsCount: 0,
                 recentFlaggedEntries: 0, expiringCodes: []
@@ -289,23 +290,14 @@ async function getStatsWithTimeout(supabase: SupabaseClient): Promise<{ data: En
                 totalLeviesGenerated: 0, totalLevyAmount: 0, paidLevyAmount: 0,
                 pendingLevyAmount: 0, housesWithPendingLevy: 0
             },
-            quickStats: quickStatsData || {
-                totalHouses: 0, occupiedHouses: 0, vacantHouses: 0,
-                totalResidents: 0, activeResidents: 0, pendingVerification: 0,
-                totalSecurityContacts: 0, activeSecurityContacts: 0
-            },
+            quickStats: quickStatsData,
             recentActivity: activityData?.items ?? [],
             // A timeout/throw leaves `activityData` null; that is a failure, not
             // a permission denial, so the card falls back to its empty state
             // rather than claiming the viewer's role is at fault.
             recentActivityUnavailable: activityData?.permissionDenied ?? false,
             monthlyTrends: trendsData || [],
-            actionMetrics: actionMetricsData || {
-                pendingResidentVerifications: 0,
-                unverifiedPayments: 0,
-                expiringSecurityContacts: 0,
-                totalRequiringAttention: 0
-            },
+            actionMetrics: actionMetricsData,
             lastUpdated: now.toISOString()
         },
         error: null

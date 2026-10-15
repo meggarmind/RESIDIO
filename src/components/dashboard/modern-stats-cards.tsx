@@ -81,7 +81,7 @@ function HealthStat({ title, percentage, label }: { title: string; percentage: n
   );
 }
 
-function ActionStat({ title, count, label, secondaryLabel }: { title: string; count: number; label: string; secondaryLabel: string }) {
+function ActionStat({ title, count, label, secondaryLabel }: { title: string; count: number | null; label: string; secondaryLabel: string }) {
   return (
     <div className="flex h-full flex-col rounded-xl border bg-card p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
@@ -90,7 +90,11 @@ function ActionStat({ title, count, label, secondaryLabel }: { title: string; co
       </div>
       <div className="flex flex-1 flex-col items-center justify-center py-2">
         <span className="mb-1 text-4xl font-bold">
-          <AnimatedCounter value={count} duration={800} />
+          {count === null ? (
+            <span aria-label="Unavailable" className="text-muted-foreground">&mdash;</span>
+          ) : (
+            <AnimatedCounter value={count} duration={800} />
+          )}
         </span>
         <span className="mb-2 text-[11px] font-medium text-foreground/80">{label}</span>
         <p className="w-full border-t border-muted/50 pt-2 text-center text-[10px] text-muted-foreground">
@@ -283,12 +287,12 @@ export function ModernStatsCards({
   }
 
   const collectionRate = Math.round(financialHealth.collectionRate);
-  const pendingActions = actionMetrics?.totalRequiringAttention ?? 0;
-  const actionDetails = areActionMetricsUnavailable
+  // A null/absent actionMetrics means the query failed: never present it as zero items.
+  const actionMetricsUnavailable = areActionMetricsUnavailable || !actionMetrics;
+  const pendingActions = actionMetricsUnavailable ? null : actionMetrics.totalRequiringAttention;
+  const actionDetails = actionMetricsUnavailable || !actionMetrics
     ? 'Attention status unavailable'
-    : actionMetrics
-      ? `${actionMetrics.unverifiedPayments} unverified payments • ${actionMetrics.pendingResidentVerifications} resident verifications • ${actionMetrics.expiringSecurityContacts} expiring contacts`
-      : '0 items need attention';
+    : `${actionMetrics.unverifiedPayments} unverified payments • ${actionMetrics.pendingResidentVerifications} resident verifications • ${actionMetrics.expiringSecurityContacts} expiring contacts`;
 
   return (
     <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 animate-fade-in-up">

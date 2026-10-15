@@ -58,6 +58,8 @@ beforeEach(() => {
 describe('submitForApproval audit (#556)', () => {
   beforeEach(() => {
     results['bank_statement_imports.select'] = { data: { id: uid(5), file_name: 'jan.csv', status: 'processing' } };
+    // The status write is now conditional (#627): the update must report the row it changed.
+    results['bank_statement_imports.update'] = { data: [{ id: uid(5) }] };
   });
 
   it('audits the status change after the update', async () => {
@@ -143,6 +145,8 @@ describe('createImportRows audit (#556)', () => {
 
   beforeEach(() => {
     results['bank_statement_imports.select'] = { data: { status: 'pending' } };
+    // The status write is conditional (#627): the update must report the row it changed.
+    results['bank_statement_imports.update'] = { data: [{ id: uid(5) }] };
   });
 
   it('writes ONE entry with the inserted count, after the inserts', async () => {

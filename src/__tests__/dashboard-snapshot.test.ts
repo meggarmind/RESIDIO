@@ -162,4 +162,62 @@ describe('admin dashboard snapshot contract', () => {
       expiringCodes: [],
     });
   });
+  // #101 criterion 3: a failed section is "unavailable" (null), never a zero-filled object
+  // the UI would render as a genuine "All clear" / "0 items" / "No invoices recorded".
+  describe('failed sub-queries are reported as null, not zeros (#101)', () => {
+    async function snapshotWith(from: (table: string) => unknown) {
+      authorizePermission.mockResolvedValue({ authorized: true });
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      createServerSupabaseClient.mockResolvedValue({ from: vi.fn(from), rpc });
+      const result = await getAdminDashboardSnapshot();
+      expect(result.error).toBeNull();
+      return result.data!;
+    }
+    const ok = () => createChainableQuery({ data: [], error: null, count: 2 });
+
+    it('reports actionMetrics as null when its payment_records query throws', async () => {
+      const data = await snapshotWith((table) => {
+        if (table === 'payment_records') throw new Error('payment_records failed');
+        return ok();
+      });
+      expect(data.actionMetrics).toBeNull();
+      expect(data.quickStats).not.toBeNull();
+      expect(data.invoiceDistribution).not.toBeNull();
+    });
+
+    it('reports quickStats as null when its houses query throws', async () => {
+      const data = await snapshotWith((table) => {
+        if (table === 'houses') throw new Error('houses failed');
+        return ok();
+      });
+      expect(data.quickStats).toBeNull();
+      expect(data.actionMetrics).not.toBeNull();
+      expect(data.invoiceDistribution).not.toBeNull();
+    });
+
+    it('reports invoiceDistribution as null when a status count errors', async () => {
+      const data = await snapshotWith((table) => {
+        if (table !== 'invoices') return ok();
+        const q = ok() as Record<string, unknown>;
+        const eq = q.eq as (...a: unknown[]) => unknown;
+        q.eq = vi.fn((col: string, val: string) => {
+          if (col === 'status' && val === 'void') {
+            return createChainableQuery({ data: undefined, error: new Error('void count failed'), count: null });
+          }
+          return eq(col, val);
+        });
+        return q;
+      });
+      expect(data.invoiceDistribution).toBeNull();
+      expect(data.quickStats).not.toBeNull();
+      expect(data.actionMetrics).not.toBeNull();
+    });
+
+    it('keeps a genuine zero as a zero object, distinct from null', async () => {
+      const data = await snapshotWith(() => createChainableQuery({ data: [], error: null, count: 0 }));
+      expect(data.invoiceDistribution).toEqual({ unpaid: 0, paid: 0, partiallyPaid: 0, overdue: 0, void: 0 });
+      expect(data.actionMetrics).toMatchObject({ totalRequiringAttention: 0 });
+      expect(data.quickStats).toMatchObject({ totalHouses: 0 });
+    });
+  });
 });

@@ -9,6 +9,14 @@ vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
 }));
 
+// AnimatedCounter renders its initial 0 on the server and counts up in an effect, so static
+// markup never contains the target value. Render the value directly to assert on it.
+vi.mock('@/components/ui/animated-counter', () => ({
+  AnimatedCounter: ({ value, prefix = '', suffix = '' }: { value: number; prefix?: string; suffix?: string }) => (
+    <span data-testid="counter">{`${prefix}${value}${suffix}`}</span>
+  ),
+}));
+
 const financialHealth: FinancialHealthMetrics = {
   totalOutstanding: 125000,
   totalCollected: 500000,
@@ -55,11 +63,28 @@ describe('trustworthy dashboard financial states', () => {
 
   it('distinguishes unavailable financial metrics from zero values', () => {
     const unavailable = renderToStaticMarkup(<ModernFinancialHealth financialHealth={null} />);
-    const zero = renderToStaticMarkup(<ModernFinancialHealth financialHealth={{ ...financialHealth, totalOutstanding: 0, monthlyRevenue: 0, overdueAmount: 0, walletCredits: 0 }} />);
 
     expect(unavailable).toContain('Financial metrics unavailable');
+    expect(unavailable).not.toContain('Resident Wallet Credits');
+    expect(unavailable).not.toContain('data-testid="counter"');
+  });
+
+  // Each field is zeroed on its own, so a zero elsewhere cannot satisfy the assertion.
+  it.each([
+    ['Unpaid Invoice Balance', 'totalOutstanding'],
+    ['Verified Payments This Month', 'monthlyRevenue'],
+    ['Overdue Invoice Balance', 'overdueAmount'],
+    ['Resident Wallet Credits', 'walletCredits'],
+  ] as const)('renders a real zero for %s, and the real value otherwise', (label, field) => {
+    const firstCounterAfter = (markup: string) =>
+      new RegExp(`${label}(?:(?!data-testid="counter").)*?data-testid="counter">([^<]*)<`, 's').exec(markup)?.[1];
+
+    const zero = renderToStaticMarkup(<ModernFinancialHealth financialHealth={{ ...financialHealth, [field]: 0 }} />);
+    const nonZero = renderToStaticMarkup(<ModernFinancialHealth financialHealth={{ ...financialHealth, [field]: 5 }} />);
+
     expect(zero).not.toContain('Financial metrics unavailable');
-    expect(zero).toContain('Resident Wallet Credits');
+    expect(firstCounterAfter(zero)).toBe('₦0');
+    expect(firstCounterAfter(nonZero)).toBe('₦5');
   });
 
   it('labels populated values as invoice status counts', () => {
@@ -95,7 +120,8 @@ describe('trustworthy dashboard action states', () => {
     );
 
     expect(markup).toContain('Need Attention');
-    expect(markup).not.toContain('All Clear');
+    expect(markup).toContain('<span data-testid="counter">6</span>');
+    expect(markup).not.toContain('0 items need attention');
   });
 
   it('distinguishes zero actions from unavailable action metrics', () => {

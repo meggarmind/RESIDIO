@@ -7,9 +7,10 @@ residio_sources:
   - src/app/(dashboard)/payments/**
   - src/actions/payments/**
   - src/actions/imports/**
+  - src/components/imports/**
   - src/lib/parsers/**
-residio_verified_commit: 93ed5d0
-residio_verified_at: '2026-08-29'
+residio_verified_commit: 5912d9d
+residio_verified_at: '2026-10-15'
 residio_app_version: '0.4.0'
 ---
 
@@ -29,11 +30,17 @@ Use **Transactions** for individual payment records and **Import Statement** for
 
 ## Import a statement
 
+An uploaded statement never posts payments on its own. It is submitted, approved by a user with approval rights, and only then processed.
+
 1. Open **Transactions → Import Statement**.
 2. Upload the approved statement file.
 3. Review parsed rows and duplicate warnings.
 4. Correct categorization or matching issues in the preview.
-5. Commit only after the total and row count match the source statement.
+5. Check that the total and row count match the source statement, then choose **Submit for approval**. This needs the `imports.review` permission and opens the import's page.
+6. An approver opens the import (from the **Import History** page, using the **Needs approval** filter, or from the "Bank Import Awaiting Approval" notification) and chooses **Approve**, or **Reject** with a required reason. Approve needs `imports.approve`; Reject needs `imports.reject`.
+7. Once approved, anyone with `imports.review` opens the import, picks the processing options (mode, skip duplicates, skip unmatched) and chooses **Process payments**. Payments are created and wallets credited only at this step.
+
+A rejected import keeps its reason on the import page and creates no payments. Approvers and reviewers can open the import pages without `imports.create`.
 
 ## Verify pending payments
 

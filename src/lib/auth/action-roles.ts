@@ -199,7 +199,14 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/residents': [PERMISSIONS.RESIDENTS_VIEW],
   '/houses': [PERMISSIONS.HOUSES_VIEW],
   '/payments': [PERMISSIONS.PAYMENTS_VIEW],
-  '/payments/import': [PERMISSIONS.IMPORTS_CREATE],
+  // Any import permission reaches the wizard, the history list and /payments/import/[id]
+  // (longest-startsWith match): approvers and reviewers need not hold imports.create.
+  '/payments/import': [
+    PERMISSIONS.IMPORTS_CREATE,
+    PERMISSIONS.IMPORTS_REVIEW,
+    PERMISSIONS.IMPORTS_APPROVE,
+    PERMISSIONS.IMPORTS_REJECT,
+  ],
   '/payments/email-imports': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/billing': [PERMISSIONS.BILLING_VIEW],
   '/security': [PERMISSIONS.SECURITY_VIEW],

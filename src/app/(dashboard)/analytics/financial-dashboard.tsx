@@ -78,7 +78,7 @@ function FinancialDashboardContent() {
             <TrendingUp className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fhLoading ? <Skeleton className="h-8 w-16" /> : `${(financialHealth?.collectionRate ?? 0).toFixed(1)}%`}</div>
+            <div className="text-2xl font-bold">{fhLoading ? <Skeleton className="h-8 w-16" /> : financialHealth ? `${financialHealth.collectionRate.toFixed(1)}%` : '-'}</div>
           </CardContent>
         </Card>
 
@@ -88,7 +88,7 @@ function FinancialDashboardContent() {
             <AlertCircle className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold tabular-nums">{fhLoading ? <Skeleton className="h-8 w-24" /> : formatCurrency(financialHealth?.totalOutstanding ?? 0)}</div>
+            <div className="text-2xl font-bold tabular-nums">{fhLoading ? <Skeleton className="h-8 w-24" /> : financialHealth ? formatCurrency(financialHealth.totalOutstanding) : '-'}</div>
           </CardContent>
         </Card>
 
@@ -98,8 +98,8 @@ function FinancialDashboardContent() {
             <Clock className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold tabular-nums">{fhLoading ? <Skeleton className="h-8 w-12" /> : invoiceDist?.overdue ?? 0}</div>
-            <div className="text-xs text-muted-foreground">{fhLoading ? <Skeleton className="h-3 w-24 mt-1" /> : `${formatCurrency(financialHealth?.overdueAmount ?? 0)} total`}</div>
+            <div className="text-2xl font-bold tabular-nums">{fhLoading ? <Skeleton className="h-8 w-12" /> : invoiceDist ? invoiceDist.overdue : '-'}</div>
+            <div className="text-xs text-muted-foreground">{fhLoading ? <Skeleton className="h-3 w-24 mt-1" /> : financialHealth ? `${formatCurrency(financialHealth.overdueAmount)} total` : 'Amount unavailable'}</div>
           </CardContent>
         </Card>
 
@@ -109,7 +109,7 @@ function FinancialDashboardContent() {
             <Wallet className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold tabular-nums">{fhLoading ? <Skeleton className="h-8 w-28" /> : formatCurrency(financialHealth?.portfolioValue ?? 0)}</div>
+            <div className="text-2xl font-bold tabular-nums">{fhLoading ? <Skeleton className="h-8 w-28" /> : financialHealth ? formatCurrency(financialHealth.portfolioValue) : '-'}</div>
           </CardContent>
         </Card>
       </div>
