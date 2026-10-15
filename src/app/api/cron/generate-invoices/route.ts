@@ -27,8 +27,8 @@ export const maxDuration = 300;
  * Conservative behavior:
  * 1. Every invocation may advance the newest queued/processing run by ONE
  *    bounded chunk (<= 50 candidates) via the idempotent RPC.
- * 2. Only on the configured generation day, and only when no run exists for
- *    the current month, it prepares a current-month estate-wide run with
+ * 2. On or after the configured generation day (so a missed day is caught up
+ *    later in the month), and only when no run exists for the current month, it prepares a current-month estate-wide run with
  *    wallet allocation, resident emails, and late fees disabled.
  *
  * Authentication: Bearer token matching CRON_SECRET env var (timing-safe)
@@ -65,13 +65,14 @@ export async function GET(request: NextRequest) {
             log.info('Advanced invoice generation run', response.advanced as Record<string, unknown>);
         }
 
-        // Prepare a current-month run only on the configured generation day
+        // Prepare a current-month run on or after the configured generation day
+        // (catch-up: billing is by month, so a missed day must not skip the month).
         const genDayResult = await getInvoiceGenerationDay();
         const configuredDay = genDayResult.data;
         const dayOfMonth = new Date().getDate();
-        if (dayOfMonth !== configuredDay) {
-            log.info(`Not generation day (today: ${dayOfMonth}, configured: ${configuredDay})`);
-            return NextResponse.json({ skipped: true, reason: `Not generation day (today: ${dayOfMonth}, configured: ${configuredDay})`, ...response });
+        if (dayOfMonth < configuredDay) {
+            log.info(`Before generation day (today: ${dayOfMonth}, configured: ${configuredDay})`);
+            return NextResponse.json({ skipped: true, reason: `Before generation day (today: ${dayOfMonth}, configured: ${configuredDay})`, ...response });
         }
 
         const existing = await findReusableInvoiceGenerationRun('cron', period);
