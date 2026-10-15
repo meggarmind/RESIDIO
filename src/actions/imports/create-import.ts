@@ -185,6 +185,20 @@ type CreateImportRowsParams = {
   rows: ParsedRow[];
 }
 
+// Keep the statement all-or-nothing: remove rows already stored for this import
+async function rollbackImportRows(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  import_id: string
+): Promise<void> {
+  const { error: cleanupError } = await supabase
+    .from('bank_statement_rows')
+    .delete()
+    .eq('import_id', import_id);
+  if (cleanupError) {
+    console.error('[createImportRows] Failed to roll back partial insert:', cleanupError);
+  }
+}
+
 export async function createImportRows(params: CreateImportRowsParams): Promise<CreateImportRowsResponse> {
   const supabase = await createServerSupabaseClient();
 
@@ -201,6 +215,21 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
 
   if (rows.length > MAX_IMPORT_ROWS) {
     return { count: 0, error: `An import can contain at most ${MAX_IMPORT_ROWS} rows (received ${rows.length})` };
+  }
+
+  // Rows are loaded exactly once, straight after createImport (status 'pending'); the write
+  // below moves it to 'processing'. Any other status means the import is past that point, and
+  // knocking it back to 'processing' would silently void a pending or granted approval.
+  const { data: existing, error: existingError } = await supabase
+    .from('bank_statement_imports')
+    .select('status')
+    .eq('id', import_id)
+    .single();
+  if (existingError || !existing) {
+    return { count: 0, error: 'Import not found' };
+  }
+  if (existing.status !== 'pending') {
+    return { count: 0, error: `Cannot add rows to an import with status: ${existing.status}` };
   }
 
   // Transform parsed rows to database format
@@ -238,14 +267,7 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
         }
       });
     } catch (err) {
-      // Keep the statement all-or-nothing: remove rows already stored for this import
-      const { error: cleanupError } = await supabase
-        .from('bank_statement_rows')
-        .delete()
-        .eq('import_id', import_id);
-      if (cleanupError) {
-        console.error('[createImportRows] Failed to roll back partial insert:', cleanupError);
-      }
+      await rollbackImportRows(supabase, import_id);
       return {
         count: 0,
         error: `Failed to insert rows ${i + 1}-${i + batch.length} after 3 retries: ${err instanceof Error ? err.message : 'Unknown error'}`,
@@ -295,72 +317,36 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
     }
   }
 
-  // Update import session status
-  await supabase
+  // Update import session status, guarded on the 'pending' status read above so a concurrent
+  // change cannot be overwritten. PostgREST reports no error when zero rows match, so ask for
+  // the rows back. A failed or lost write rolls the inserted rows back, as a failed insert does.
+  const { data: statusUpdated, error: statusError } = await supabase
     .from('bank_statement_imports')
     .update({ status: 'processing' })
-    .eq('id', import_id);
+    .eq('id', import_id)
+    .eq('status', 'pending')
+    .select('id');
+  if (statusError || !statusUpdated || statusUpdated.length === 0) {
+    await rollbackImportRows(supabase, import_id);
+    return {
+      count: 0,
+      error: statusError ? statusError.message : 'Import status changed, please refresh and try again',
+    };
+  }
+
+  // One audit entry per call (not per row)
+  await logAudit({
+    action: 'CREATE',
+    entityType: 'bank_statement_imports',
+    entityId: import_id,
+    entityDisplay: `Import rows: ${totalInserted}`,
+    newValues: { rows_created: totalInserted, status: 'processing' },
+  });
 
   return {
     count: totalInserted,
     error: null,
   };
-}
-
-// ============================================================
-// Update Import Status
-// ============================================================
-
-type UpdateImportStatusParams = {
-  import_id: string;
-  status: BankStatementImport['status'];
-  matched_rows?: number;
-  created_rows?: number;
-  skipped_rows?: number;
-  error_rows?: number;
-  import_summary?: Record<string, unknown>;
-}
-
-export async function updateImportStatus(params: UpdateImportStatusParams): Promise<{ error: string | null }> {
-  const supabase = await createServerSupabaseClient();
-
-  const auth = await authorizePermission(PERMISSIONS.IMPORTS_CREATE);
-  if (!auth.authorized) {
-    return { error: auth.error || 'Unauthorized' };
-  }
-
-  const {
-    import_id,
-    status,
-    matched_rows,
-    created_rows,
-    skipped_rows,
-    error_rows,
-    import_summary,
-  } = params;
-
-  const updateData: Record<string, unknown> = { status };
-
-  if (matched_rows !== undefined) updateData.matched_rows = matched_rows;
-  if (created_rows !== undefined) updateData.created_rows = created_rows;
-  if (skipped_rows !== undefined) updateData.skipped_rows = skipped_rows;
-  if (error_rows !== undefined) updateData.error_rows = error_rows;
-  if (import_summary !== undefined) updateData.import_summary = import_summary;
-
-  if (status === 'completed' || status === 'failed') {
-    updateData.completed_at = new Date().toISOString();
-  }
-
-  const { error } = await supabase
-    .from('bank_statement_imports')
-    .update(updateData)
-    .eq('id', import_id);
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  return { error: null };
 }
 
 // ============================================================

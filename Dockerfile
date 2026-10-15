@@ -87,31 +87,19 @@ ENV NEXT_PUBLIC_ENV_MODE=${NEXT_PUBLIC_ENV_MODE} \
     NEXT_PUBLIC_APP_ENV=${NEXT_PUBLIC_APP_ENV}
 # ---- END BUILD-TIME PUBLIC VALUES --------------------------------------------
 
-# ---- BUILD-TIME PLACEHOLDER, NOT A CREDENTIAL --------------------------------
-# `next build` prerenders 120 pages, and /expenditure constructs a Supabase
-# service-role client while doing so (src/lib/supabase/config.ts reads the
-# SUFFIXED name chosen by NEXT_PUBLIC_ENV_MODE). With the variable unset the
-# constructor throws "Your project's URL and Key are required to create a
-# Supabase client!" and the export step aborts the build.
-#
-# This is a literal, hardcoded non-secret. It is deliberately NOT an ARG, so a
-# real service-role key cannot be passed in at build time and recorded in
-# `docker history`. Nothing contacts Supabase during the build. The runner is a
-# separate stage and does not inherit this ENV, so the real key reaches the app
-# only through runtime environment, exactly as docs/deployment/docker.md
-# requires. The Build job in .github/workflows/pr-gate.yml does the same thing
-# for the same reason.
-#
-# A page needing an admin client at prerender time is an application defect,
-# not a deployment one -- tracked separately. When it is fixed, delete this.
-ENV SUPABASE_SERVICE_ROLE_KEY_CLOUD=build-time-placeholder-not-a-credential
-# ---- END BUILD-TIME PLACEHOLDER ----------------------------------------------
-
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+# Fail the build, naming every problem, when a NEXT_PUBLIC_* value Next inlines into
+# the client bundle is missing or malformed (#396). Checks only the Supabase URL and
+# anon key for the selected NEXT_PUBLIC_ENV_MODE. It does NOT check the service-role
+# key, so the build needs no service-role value at all (#370). The same file is reused at start-up in
+# the runner stage; the copy's name is what switches its CLI mode on.
+COPY src/lib/config/env-validation.mjs ./preflight-env.mjs
+RUN node preflight-env.mjs --build
 
 # `output: 'standalone'` in next.config.ts produces .next/standalone.
 RUN npm run build
@@ -137,6 +125,7 @@ RUN mkdir -p /app/.next && chown -R node:node /app
 COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/preflight-env.mjs ./preflight-env.mjs
 
 USER node
 
@@ -154,4 +143,8 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/',{redirect:'manual'}).then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "server.js"]
+# Validate the runtime environment BEFORE server.js binds its port (#396): a missing or
+# malformed strict variable exits non-zero naming all of them, and the container never
+# starts listening. `exec` keeps node as PID 1 so SIGTERM still reaches the server.
+# (src/instrumentation.ts repeats the check, but Next calls it only after the port is bound.)
+CMD ["sh", "-c", "node preflight-env.mjs && exec node server.js"]

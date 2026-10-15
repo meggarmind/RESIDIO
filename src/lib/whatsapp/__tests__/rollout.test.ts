@@ -64,4 +64,70 @@ describe('WhatsApp rollout targeting', () => {
     expect(await isWhatsAppRecipientAllowed('resident-1')).toBe(false);
     expect(createAdminClient).not.toHaveBeenCalled();
   });
+
+  describe('pilot street targeting', () => {
+    function pilotSettings(residentIds: string[], streetId: string | undefined) {
+      vi.mocked(getSettingResultAsService).mockImplementation(async (key) => {
+        if (key === 'whatsapp_rollout_mode') return { status: 'ok', value: 'pilot' };
+        if (key === 'whatsapp_pilot_resident_ids') return { status: 'ok', value: JSON.stringify(residentIds) };
+        if (key === 'whatsapp_pilot_street_id') return streetId ? { status: 'ok', value: streetId } : { status: 'absent' };
+        return { status: 'absent' };
+      });
+    }
+
+    function assignments(result: { data?: unknown; error?: unknown }) {
+      const chain = {} as Record<string, ReturnType<typeof vi.fn>>;
+      chain.select = vi.fn().mockReturnValue(chain);
+      chain.eq = vi.fn().mockReturnValue(chain);
+      chain.then = vi.fn((resolve: (value: unknown) => unknown) => Promise.resolve(resolve(result)));
+      const from = vi.fn().mockReturnValue(chain);
+      vi.mocked(createAdminClient).mockReturnValue({ from } as never);
+      return { chain, from };
+    }
+
+    it('allows a resident whose active house is on the pilot street', async () => {
+      pilotSettings([], 'street-1');
+      const { chain, from } = assignments({ data: [{ house: { street_id: 'street-1' } }], error: null });
+      expect(await isWhatsAppRecipientAllowed('resident-1')).toBe(true);
+      expect(from).toHaveBeenCalledWith('resident_houses');
+      expect(chain.eq).toHaveBeenCalledWith('resident_id', 'resident-1');
+      expect(chain.eq).toHaveBeenCalledWith('is_active', true);
+    });
+
+    it('allows a match when the house join comes back as an array', async () => {
+      pilotSettings([], 'street-1');
+      assignments({ data: [{ house: [{ street_id: 'street-1' }] }], error: null });
+      expect(await isWhatsAppRecipientAllowed('resident-1')).toBe(true);
+    });
+
+    it('denies a resident whose house is on a different street', async () => {
+      pilotSettings([], 'street-1');
+      assignments({ data: [{ house: { street_id: 'street-2' } }], error: null });
+      expect(await isWhatsAppRecipientAllowed('resident-1')).toBe(false);
+    });
+
+    it('denies a resident with no active house assignment', async () => {
+      pilotSettings([], 'street-1');
+      assignments({ data: [], error: null });
+      expect(await isWhatsAppRecipientAllowed('resident-1')).toBe(false);
+    });
+
+    it('denies a resident who is not in a non-empty resident-id list and has no street target', async () => {
+      pilotSettings(['resident-2', 'resident-3'], undefined);
+      expect(await isWhatsAppRecipientAllowed('resident-1')).toBe(false);
+      expect(createAdminClient).not.toHaveBeenCalled();
+    });
+
+    it('denies a resident outside a non-empty id list whose street also does not match', async () => {
+      pilotSettings(['resident-2'], 'street-1');
+      assignments({ data: [{ house: { street_id: 'street-9' } }], error: null });
+      expect(await isWhatsAppRecipientAllowed('resident-1')).toBe(false);
+    });
+
+    it('fails closed when the street lookup errors', async () => {
+      pilotSettings([], 'street-1');
+      assignments({ data: [{ house: { street_id: 'street-1' } }], error: { message: 'boom' } });
+      expect(await isWhatsAppRecipientAllowed('resident-1')).toBe(false);
+    });
+  });
 });

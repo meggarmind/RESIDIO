@@ -57,9 +57,9 @@ export function useUserRoles(): UserRolesHook {
         const hasResident = activeHouses.some((rh) => residentRoles.includes(rh.resident_role));
 
         // Mixed role if they have capabilities in both domains
-        // Example: Resident Landlord (lives in one, owns it) -> fits both, but often just needs One View
+        // Example: Owner-Occupier (lives in one, owns it) -> fits both, but often just needs One View
         // BUT checking the spec: 
-        // "Resident Landlord living in A and owning B & C" -> Mixed Role.
+        // "Owner-Occupier living in A and owning B & C" -> Mixed Role.
         // So we check if they have multiple properties OR conflicting role types?
         // Let's stick to the Spec:
         // "My Home" = Live-in properties. "My Portfolio" = Owned properties.

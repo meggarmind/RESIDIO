@@ -101,6 +101,11 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
               <ul className={cn('space-y-1', isModern && 'space-y-2')}>
                 {section.items.map((item) => {
                   const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  // Children arrive already permission-filtered from the shared hook.
+                  // A child sharing its parent's href is the same destination: skip it.
+                  const children = (item.children ?? []).filter(
+                    (child) => child.href !== item.href
+                  );
                   return (
                     <li key={item.id}>
                       <Link
@@ -126,6 +131,40 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
                         <item.icon className={cn('h-4 w-4', isModern && 'h-5 w-5')} />
                         <span className="truncate">{item.mobileLabel ?? item.title}</span>
                       </Link>
+                      {children.length > 0 && (
+                        <ul
+                          className={cn(
+                            'ml-5 mt-1 space-y-1 border-l pl-2',
+                            isModern && 'border-[#334155]'
+                          )}
+                        >
+                          {children.map((child) => {
+                            const isChildActive = pathname === child.href;
+                            return (
+                              <li key={child.id}>
+                                <Link
+                                  href={child.href}
+                                  onClick={() => onOpenChange(false)}
+                                  aria-current={isChildActive ? 'page' : undefined}
+                                  className={cn(
+                                    'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                    isModern
+                                      ? isChildActive
+                                        ? 'bg-[#0EA5E9]/10 text-[#0EA5E9]'
+                                        : 'text-gray-300 hover:bg-[#334155] hover:text-white'
+                                      : isChildActive
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                                  )}
+                                >
+                                  <child.icon className="h-3.5 w-3.5" />
+                                  <span className="truncate">{child.mobileLabel ?? child.title}</span>
+                                </Link>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </li>
                   );
                 })}

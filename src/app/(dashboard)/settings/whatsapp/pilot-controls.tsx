@@ -3,6 +3,8 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { promoteWhatsAppPilotToEstate, updateWhatsAppPilotSettings } from '@/actions/whatsapp/pilot';
 import type { WhatsAppRolloutMode } from '@/lib/whatsapp/rollout';
 
@@ -17,6 +19,8 @@ export function PilotControls({ initial }: { initial: {
   sessionRetentionDays: number;
   processedMessageRetentionDays: number;
 } }) {
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission(PERMISSIONS.WHATSAPP_MANAGE);
   const [mode, setMode] = useState(initial.mode);
   const [residentIds, setResidentIds] = useState(initial.residentIds.join(','));
   const [streetId, setStreetId] = useState(initial.streetId);
@@ -65,7 +69,7 @@ export function PilotControls({ initial }: { initial: {
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Session retention (days)</span><Input type="number" min="1" max="30" value={sessionRetentionDays} onChange={(event) => setSessionRetentionDays(event.target.value)} /></label>
         <label className="space-y-1 text-sm"><span className="text-muted-foreground">Processed message retention (days)</span><Input type="number" min="1" max="30" value={processedMessageRetentionDays} onChange={(event) => setProcessedMessageRetentionDays(event.target.value)} /></label>
       </div>
-      <div className="flex items-center gap-3"><Button type="button" size="sm" disabled={isPending} onClick={save}>Save rollout controls</Button>{mode === 'pilot' ? <Button type="button" size="sm" variant="outline" disabled={isPending} onClick={promote}>Promote estate-wide</Button> : null}{message ? <span className="text-xs text-muted-foreground">{message}</span> : null}</div>
+      <div className="flex items-center gap-3"><Button type="button" size="sm" disabled={isPending || !canManage} onClick={save}>Save rollout controls</Button>{mode === 'pilot' ? <Button type="button" size="sm" variant="outline" disabled={isPending || !canManage} onClick={promote}>Promote estate-wide</Button> : null}{message ? <span className="text-xs text-muted-foreground">{message}</span> : null}</div>
     </div>
   );
 }

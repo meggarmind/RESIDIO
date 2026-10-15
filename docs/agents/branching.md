@@ -116,7 +116,11 @@ hotfix: branch from master --PR--> master, then merge master back into stage
   `scripts/release-version.mjs`). On merge, `.github/workflows/release.yml` pushes the next
   `vX.Y.Z` tag on the merge commit, counted from the last tag. No label, an unknown label or
   `release:none` pushes nothing; two different release labels fail the run without tagging. A
-  `release:*` label on a PR into `stage` does nothing.
+  `release:*` label on a PR into `stage` does nothing. A `release:major` release PR from `stage`
+  also deploys residio-stage immediately (#525): after the tag, the `stage-deploy` job pins
+  Stage to the PR's head commit and queues a deploy, unless `stage` has already moved past it
+  (then the cron deploys the newer commit). Other labels, and major hotfixes from other
+  branches, deploy nothing. Prod is never deployed from CI.
 - **A hotfix branches from `master` and targets `master`.** Merge `master` back into `stage`
   in its own PR straight after, so the fix is not lost at the next release.
 - **Both branches require the `PR gate` check** (`.github/workflows/pr-gate.yml`) and a PR.
@@ -142,7 +146,7 @@ git log --oneline origin/master..origin/stage
 
 ```
 feature PR --> stage     PR gate (lint, typecheck, vitest, build; skipped for docs-only)
-                          -> Coolify residio-stage deploys, UAT on Residio_Stage
+                          -> KVM cron deploys residio-stage within 4 hours (builds the pinned commit), UAT on Residio_Stage
 Release PR stage --> master
                           PR gate + Security gate
                           -> merge commit, apply migrations to Residio_Prod (migrations-on-merge.md)
@@ -187,7 +191,11 @@ application's build variables, so the build knows what it is. The version is the
 release commit. Otherwise it is the newest `vX.Y.Z` tag whose second parent (the `stage` commit
 that release merged) the commit has reached: `v0.5.0` on that commit, `v0.5.0-3-gabc1234` three
 commits later. Plain `git describe` would be wrong on `stage`, because release tags sit on
-`master` merge commits that `stage` never contains. On every push to `stage` it sets them on `residio-stage` **and triggers its deploy**. On
+`master` merge commits that `stage` never contains. On every push to `stage` it sets them on `residio-stage` **and pins that application's commit
+to the same SHA, but does not deploy**: the KVM cron deploys Stage every 4 hours (`17 */4 * * *`
+UTC) through the Coolify API, and an API deploy builds the pinned commit, so the build always
+matches the variables CI last wrote. The exception is a `release:major` release from `stage`
+(#525): `release.yml` calls it with `deploy: true`, and it also queues the deploy at once. On
 every new release tag, `release.yml` calls it to set them on `residio-prod` **only**: Prod is
 still deployed by hand after migrations, and that build picks the values up. Until it is set
 up, the workflow logs a notice naming the missing secrets and passes. Owner setup, once:
@@ -195,8 +203,8 @@ up, the workflow logs a notice naming the missing secrets and passes. Owner setu
 1. **Cloudflare Zero Trust**: create a service token and add a **Service Auth** policy for
    `coolify.<domain>/api*`. The API stays behind Access; only `/webhooks` is bypassed.
 2. **Coolify**: create an API token with write and deploy rights, and switch **auto-deploy off
-   on `residio-stage`** (Prod's is already off). Otherwise Coolify builds before the variables
-   are set and Stage shows the previous version; every Stage run raises a warning as a reminder.
+   on `residio-stage`** (Prod's is already off). Otherwise Coolify builds on push, before the variables
+   are set and the commit is pinned, and Stage shows the previous version.
 3. **GitHub Actions secrets**: `COOLIFY_BASE_URL` (`https://coolify.<domain>`),
    `COOLIFY_API_TOKEN`, `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`,
    `COOLIFY_APP_UUID_STAGE`, `COOLIFY_APP_UUID_PROD`.

@@ -6,6 +6,7 @@ import {
   hoursSince,
   isMonitorComment,
   matchingBranches,
+  mergedIssueNumbers,
   monitorComment,
   parseArgs,
   qualifyingActivity,
@@ -145,5 +146,82 @@ describe('issue monitor helpers', () => {
     // A draft card carries no URL, and a look-alike host or path must not pass.
     expect(belongsToRepository({ content: { number: 13 } }, repository)).toBe(false);
     expect(belongsToRepository(card('https://github.com/evil/meggarmind/RESIDIO/issues/13'), repository)).toBe(false);
+  });
+});
+
+// #162: done-no-integration fired on cleanly closed issues. Each case below is a shape
+// measured on the live board, not an invented one.
+describe('done-no-integration evidence (#162)', () => {
+  const done = (overrides = {}, extra = {}) =>
+    detectFindings({ issue: issue({ number: 64, state: 'CLOSED', ...overrides }), status: 'Done', config, now, ...extra });
+  const conditions = (result: { findings: Array<{ condition: string }> }) => result.findings.map((finding) => finding.condition);
+  const mergedPr = (number: number, headRefName: string) => ({ number, headRefName, state: 'MERGED', mergedAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z' });
+
+  it('counts a merged PR whose head branch has since been deleted', () => {
+    // branchNames is the LIVE remote list; a merged branch is gone from it. #383 was
+    // flagged because PRs were only paired to an issue through live branches.
+    const result = done({}, { branchNames: [], pullRequests: [mergedPr(544, 'codex/issue-64-document-download-guard')] });
+    expect(conditions(result)).not.toContain('done-no-integration');
+    expect(result.pullRequests).toEqual([544]);
+  });
+
+  it('does not pair a merged PR from a different issue whose number shares a prefix', () => {
+    const result = done({}, { pullRequests: [mergedPr(9, 'codex/issue-640-other')] });
+    expect(conditions(result)).toContain('done-no-integration');
+    expect(result.pullRequests).toEqual([]);
+  });
+
+  it('does not count an unmerged PR as integration', () => {
+    const open = { number: 9, headRefName: 'codex/issue-64-wip', state: 'OPEN', mergedAt: null, updatedAt: '2026-08-01T00:00:00Z' };
+    expect(conditions(done({}, { pullRequests: [open] }))).toContain('done-no-integration');
+  });
+
+  it('accepts integration shown by the default branch history', () => {
+    expect(conditions(done({}, { mergedIssues: new Set([64]) }))).not.toContain('done-no-integration');
+    expect(conditions(done({}, { mergedIssues: new Set([65]) }))).toContain('done-no-integration');
+  });
+
+  it.each(['NOT_PLANNED', 'DUPLICATE'])('does not expect integration when the issue was closed as %s', (stateReason) => {
+    expect(conditions(done({ stateReason }))).not.toContain('done-no-integration');
+  });
+
+  it('still flags a COMPLETED closure with no evidence of any kind', () => {
+    expect(conditions(done({ stateReason: 'COMPLETED' }))).toContain('done-no-integration');
+  });
+});
+
+describe('mergedIssueNumbers (#162)', () => {
+  it('reads the three subject forms this repository writes', () => {
+    const found = mergedIssueNumbers([
+      'Merge #164: scope global search to what the caller may actually see',
+      'feat(db): add db:reconcile-version to restore authored migration version (#305)',
+      'fix(#225): assert the migration sorts after its predecessors',
+      'Merge pull request #528 from meggarmind/claude/issue-344-claim-check-harness-labels-v2',
+      'Merge pull request #12 from meggarmind/fix/issue-77-thing',
+    ]);
+    expect([...found].sort((a, b) => a - b)).toEqual([77, 164, 225, 305, 344]);
+  });
+
+  it('does not treat a PR number in a merge subject as an issue reached through the branch', () => {
+    // "#198" here is the PR; the issue is 344. 198 is in the set only via the PR's own
+    // number, which is harmless because issues and PRs never share a number.
+    const found = mergedIssueNumbers(['Merge pull request #198 from meggarmind/feature-without-issue-number']);
+    expect(found.has(198)).toBe(false);
+  });
+
+  it('ignores bare mentions, reverts and look-alike numbers', () => {
+    const found = mergedIssueNumbers([
+      'docs: drop stale #306 pointer from ApprovalRequestType comment',
+      'test: flaky drop-has-security-permission test (pre-existing #255)',
+      'Revert "fix(ci): gate PR claim check on harness labels (#344)"',
+      'fix: something (#1640)',
+      'docs: note about Merge #7 in prose',
+    ]);
+    expect(found.has(306)).toBe(false);
+    expect(found.has(255)).toBe(false);
+    expect(found.has(344)).toBe(false);
+    expect(found.has(164)).toBe(false);
+    expect(found.has(7)).toBe(false);
+    expect(found.has(1640)).toBe(true);
   });
 });

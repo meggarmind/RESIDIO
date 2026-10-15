@@ -68,6 +68,14 @@ _Avoid_: Matching (when ambiguous with payment matching)
 A recorded consent binding a Resident's channel address to WhatsApp messaging. Captured in-chat during the PIN-link flow and enforceable in the notification engine's outbound path.
 _Avoid_: Subscription (when ambiguous with report subscriptions), consent (vague)
 
+**Send Policy**:
+The ordered checks an outbound WhatsApp message must pass before it reaches a Provider: kill switch, rollout audience, caps, WhatsApp Opt-in and template approval.
+_Avoid_: Guardrail (ADR-0001 uses it for the Assistant's financial limits)
+
+**Send Decision**:
+The result of applying the Send Policy: allow, refuse with a reason, or defer with a reason.
+_Avoid_: Verdict
+
 **Financial Standing**:
 The resident-visible summary of outstanding invoices, last payment, statement, next due, and wallet balance as surfaced by the WhatsApp Assistant's structured menu.
 _Avoid_: Account status, balance (when used alone)
@@ -123,3 +131,22 @@ _Avoid_: Plugin, connector, third-party
 **Provider**:
 The vendor implementing a single Integration — Meta or Twilio for WhatsApp. An Integration may be served by several interchangeable Providers.
 _Avoid_: Integration (when referring to the vendor), vendor, backend
+
+**Role**:
+The named bundle of Permissions a user holds; its only name is `app_roles.name` (ADR-0007).
+_Avoid_: User role (echoes the removed `profiles.role` column)
+
+**Access**:
+The resolved Role and Permissions for the signed-in user, or the fact that they could not be resolved.
+_Avoid_: Authorization (that word names the check, `authorizePermission()`)
+
+**Audit Entry**:
+One recorded change or administrative action on an entity, attributed to the user who did it; derived from the entity's old and new state.
+_Avoid_: Log line, Audit log (for a single record)
+
+**Audit recorder**:
+The module that builds an Audit Entry from the actor, the entity type and the old and new rows: it computes the diff and the entity's display name, and it never throws.
+
+**System Action Log**:
+The record of what an automated, sessionless process (a cron run or a webhook) did, visible only to super administrators. Distinct from an Audit Entry, which attributes a change to a signed-in user.
+_Avoid_: Audit log (that names the user-attributed record)

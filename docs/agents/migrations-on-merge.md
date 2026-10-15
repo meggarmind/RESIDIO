@@ -68,11 +68,21 @@ branch's lowest new version against the ledger's highest applied version before
 merging. Five migrations sat in exactly this state and were reconciled on
 2026-09-02 (#138, now closed); the ledger and `master` agree again.
 
-**`apply_migration` assigns its own version.** The Supabase MCP tool records the
-migration under a timestamp it chooses, not your filename. After applying
-through it, filename and ledger disagree. Reconcile one to the other — renaming
-the file is usually right, since the ledger records what actually ran — and say
-in your report which side you changed.
+**`apply_migration` assigns its own version.** The Supabase MCP tool takes only a
+name and a query and stamps the ledger with its own execution timestamp. Since #374
+`migration-drift.mjs` pairs by name, so this is **not drift** and CI stays green without
+any follow-up (#305, verified on Residio_Stage 2026-10-14). **Restoring the authored
+version is recommended**, so the ledger and the file agree for the version-ordering trap
+above and for anything keyed on version. Do not rename the file, because the PR, issue and
+handoff records already name it:
+
+```bash
+npm run db:reconcile-version -- <authored-version> <name>   # prints SQL; refuses if no such file
+```
+
+Run the printed SQL on the same database through `mcp__supabase__execute_sql`, then
+confirm with `list_migrations` that the authored version is present and the stray
+stamp is gone. Do not bulk-rewrite historical rows; that is #283/#279 work.
 
 **Some migrations must not be applied.** Correct intent is not sufficient. A
 migration can be well-written, well-commented, fix a real bug, and still be the

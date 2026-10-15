@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useApprovalRequests, useApproveRequest, useRejectRequest } from '@/hooks/use-approvals';
+import {
+    useApprovalRequests,
+    useApproveRequest,
+    useRejectRequest,
+    useReapplyApprovedRequest,
+} from '@/hooks/use-approvals';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,32 +34,42 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Check, X, Clock, CheckCircle, XCircle, ArrowRight, Eye, Loader2, ArrowLeft, Search } from 'lucide-react';
+import { Check, X, Clock, CheckCircle, XCircle, ArrowRight, Eye, Loader2, ArrowLeft, Search, AlertTriangle, RotateCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { ApprovalStatus, ApprovalRequestType, ApprovalRequestWithDetails } from '@/types/database';
+import { APPROVAL_REQUEST_TYPE_LABELS } from '@/types/database';
+import type { ApprovalStatus, ApprovalRequestWithDetails } from '@/types/database';
 import { toast } from 'sonner';
 import { EnhancedPageHeader, EnhancedTableCard } from '@/components/dashboard/enhanced-stat-card';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Can } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { isStuckApproval } from '@/lib/approvals/stuck';
 
 const ALL_VALUE = '_all';
-
-// Only the values the `approval_request_type` Postgres enum actually holds. The
-// ten phantom entries this map used to carry could never appear in a row (#107);
-// widening the enum is tracked as #306.
-const REQUEST_TYPE_LABELS: Record<ApprovalRequestType, string> = {
-    billing_profile_effective_date: 'Billing Profile Effective Date',
-    house_plots_change: 'House Plots Change',
-    late_fee_waiver: 'Late Fee Waiver',
-};
 
 const STATUS_BADGES: Record<ApprovalStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
     pending: { label: 'Pending', variant: 'secondary' },
     approved: { label: 'Approved', variant: 'default' },
     rejected: { label: 'Rejected', variant: 'destructive' },
 };
+
+// Own component so the mutation (and its pending state) exists only on rows that need it.
+function ReapplyButton({ requestId }: { requestId: string }) {
+    const reapplyMutation = useReapplyApprovedRequest();
+    return (
+        <Button
+            size="sm"
+            variant="outline"
+            disabled={reapplyMutation.isPending}
+            onClick={() => reapplyMutation.mutate({ requestId })}
+            className="h-8 rounded-lg mb-1"
+        >
+            <RotateCw className="h-4 w-4 mr-1" />
+            Re-apply
+        </Button>
+    );
+}
 
 export default function ApprovalsPage() {
     const [statusFilter, setStatusFilter] = useState<string>('pending');
@@ -206,7 +221,7 @@ export default function ApprovalsPage() {
                                         <TableRow key={request.id} className="hover:bg-gray-50 dark:hover:bg-[#0F172A]">
                                             <TableCell>
                                                 <span className="text-sm font-medium">
-                                                    {REQUEST_TYPE_LABELS[request.request_type] || request.request_type}
+                                                    {APPROVAL_REQUEST_TYPE_LABELS[request.request_type] || request.request_type}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
@@ -230,6 +245,12 @@ export default function ApprovalsPage() {
                                                     {request.status === 'rejected' && <XCircle className="h-3 w-3 mr-1" />}
                                                     {STATUS_BADGES[request.status].label}
                                                 </Badge>
+                                                {isStuckApproval(request) && (
+                                                    <Badge variant="destructive" className="ml-2 whitespace-nowrap">
+                                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                                        Approved, not applied
+                                                    </Badge>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 {request.status === 'pending' && (
@@ -254,6 +275,11 @@ export default function ApprovalsPage() {
                                                             Reject
                                                         </Button>
                                                     </div>
+                                                    </Can>
+                                                )}
+                                                {isStuckApproval(request) && (
+                                                    <Can permission={PERMISSIONS.APPROVALS_APPROVE_REJECT}>
+                                                        <ReapplyButton requestId={request.id} />
                                                     </Can>
                                                 )}
                                                 {request.status !== 'pending' && request.reviewer && (
@@ -382,7 +408,7 @@ export default function ApprovalsPage() {
                                 <div className="text-sm">
                                     <span className="text-muted-foreground">Type:</span>{' '}
                                     <span className="font-medium">
-                                        {REQUEST_TYPE_LABELS[actionDialog.request.request_type] || actionDialog.request.request_type}
+                                        {APPROVAL_REQUEST_TYPE_LABELS[actionDialog.request.request_type] || actionDialog.request.request_type}
                                     </span>
                                 </div>
                                 {actionDialog.request.reason && (

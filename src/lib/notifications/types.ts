@@ -363,6 +363,8 @@ export interface QueueNotificationInput {
   scheduled_for?: Date;
   deduplication_key?: string;
   dedup_window_minutes?: number;
+  /** Total send attempts allowed; defaults to DEFAULT_MAX_ATTEMPTS (#546). */
+  max_attempts?: number;
   metadata?: Record<string, unknown>;
 }
 
@@ -409,6 +411,14 @@ export interface SendNotificationResult {
   historyId?: string;
   externalId?: string;
   error?: string;
+  /**
+   * True only for a transient failure that is safe to attempt again (provider
+   * 5xx/429/408, network error, Send Policy `defer`). Absent means NOT
+   * retryable: an unclassified failure must never risk a duplicate send (#546).
+   */
+  retryable?: boolean;
+  /** ISO time before which a retry is pointless (e.g. next UTC midnight for a daily cap). */
+  retryAt?: string;
   /**
    * Sender-supplied detail merged into the history row's `metadata` column
    * (see `sendAndRecordNotification`). Currently only set by the Chatmaid
@@ -556,7 +566,7 @@ export const DEFAULT_REMINDER_SCHEDULE: Omit<ReminderScheduleConfig, 'id' | 'cre
       id: 'step-1-before',
       daysFromDue: -1,
       escalationLevel: 'urgent',
-      channels: ['email', 'sms'],
+      channels: ['email'],
       isActive: true,
       priority: 3,
     },
@@ -564,7 +574,7 @@ export const DEFAULT_REMINDER_SCHEDULE: Omit<ReminderScheduleConfig, 'id' | 'cre
       id: 'step-due-date',
       daysFromDue: 0,
       escalationLevel: 'final',
-      channels: ['email', 'sms'],
+      channels: ['email'],
       isActive: true,
       priority: 2,
     },
@@ -572,7 +582,7 @@ export const DEFAULT_REMINDER_SCHEDULE: Omit<ReminderScheduleConfig, 'id' | 'cre
       id: 'step-1-after',
       daysFromDue: 1,
       escalationLevel: 'overdue',
-      channels: ['email', 'sms'],
+      channels: ['email'],
       isActive: true,
       priority: 1,
     },
@@ -580,7 +590,7 @@ export const DEFAULT_REMINDER_SCHEDULE: Omit<ReminderScheduleConfig, 'id' | 'cre
       id: 'step-3-after',
       daysFromDue: 3,
       escalationLevel: 'overdue',
-      channels: ['email', 'sms'],
+      channels: ['email'],
       isActive: true,
       priority: 1,
     },
@@ -588,7 +598,7 @@ export const DEFAULT_REMINDER_SCHEDULE: Omit<ReminderScheduleConfig, 'id' | 'cre
       id: 'step-7-after',
       daysFromDue: 7,
       escalationLevel: 'overdue',
-      channels: ['email', 'sms'],
+      channels: ['email'],
       isActive: true,
       priority: 1,
     },

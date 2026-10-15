@@ -203,7 +203,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     );
   }, [activeResidents]);
 
-  // Validation 3: Check if resident landlord exists specifically
+  // Validation 3: Check if owner-occupier exists specifically
   const hasResidentLandlord = useMemo(() => {
     return activeResidents.some(rh => rh.resident_role === 'resident_landlord');
   }, [activeResidents]);
@@ -213,7 +213,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     return activeResidents.some(rh => rh.resident_role === 'tenant');
   }, [activeResidents]);
 
-  // Check if resident landlord or tenant exists (for hiding move-in date)
+  // Check if owner-occupier or renter exists (for hiding move-in date)
   const hasResidentLandlordOrTenant = hasResidentLandlord || hasTenant;
 
   // Get the primary residing resident (tenant or resident_landlord) for promote functionality
@@ -303,7 +303,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
     }
   };
 
-  // Handle moving out resident landlord (converts to non-resident landlord)
+  // Handle moving out owner-occupier (converts to property owner)
   const handleMoveOutLandlord = async (residentId: string) => {
     try {
       const result = await moveOutMutation.mutateAsync({
@@ -312,13 +312,13 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
       });
       const movedOut = result.movedOutResidents;
       if (movedOut && movedOut > 0) {
-        toast.success(`Resident Landlord converted to Non-Resident Landlord. ${movedOut} secondary resident(s) also removed.`);
+        toast.success(`Owner-Occupier converted to Property Owner. ${movedOut} secondary resident(s) also removed.`);
       } else {
-        toast.success('Resident Landlord converted to Non-Resident Landlord');
+        toast.success('Owner-Occupier converted to Property Owner');
       }
       setMoveOutDialogResident(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to move out landlord');
+      toast.error(error instanceof Error ? error.message : 'Failed to move out owner');
     }
   };
 
@@ -836,7 +836,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {/* Move Out button for Resident Landlord - now uses wizard with clearance */}
+                        {/* Move Out button for Owner-Occupier - now uses wizard with clearance */}
                         {showMoveOutButton && (
                           <Button
                             variant="outline"
@@ -851,7 +851,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                           </Button>
                         )}
 
-                        {/* Move Out Wizard button for Tenant */}
+                        {/* Move Out Wizard button for Renter */}
                         {showTenantMoveOutButton && (
                           <Button
                             variant="outline"
@@ -866,7 +866,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                           </Button>
                         )}
 
-                        {/* Promote button for Co-Resident */}
+                        {/* Promote button for Occupant */}
                         {showPromoteButton && (
                           <Button
                             variant="ghost"
@@ -897,7 +897,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                           </Button>
                         )}
 
-                        {/* Remove button for Tenant and Secondary roles */}
+                        {/* Remove button for Renter and Secondary roles */}
                         {showRemoveButton && (
                           <Button
                             variant="ghost"
@@ -915,7 +915,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                           </Button>
                         )}
 
-                        {/* Transfer button for Non-Resident Landlord/Developer */}
+                        {/* Transfer button for Property Owner/Developer */}
                         {showTransferButton && (
                           <Button
                             variant="outline"
@@ -928,7 +928,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                           </Button>
                         )}
 
-                        {/* Remove Ownership button for Non-Resident Landlord/Developer */}
+                        {/* Remove Ownership button for Property Owner/Developer */}
                         {canAssignResident && (role === 'non_resident_landlord' || role === 'developer') && (
                           <Button
                             variant="outline"
@@ -1106,7 +1106,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                 {removeDialogResident?.role === 'tenant' && secondaryResidents.length > 0 ? (
                   <>
                     <span className="block mb-3">
-                      Removing <strong>{removeDialogResident?.name}</strong> (Tenant) will also remove
+                      Removing <strong>{removeDialogResident?.name}</strong> (Renter) will also remove
                       the following <strong>{secondaryResidents.length}</strong> secondary resident(s):
                     </span>
                     <ul className="list-disc list-inside mb-3 text-sm">
@@ -1157,13 +1157,13 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
               {secondaryResidents.length > 0 && (
                 <AlertTriangle className="h-5 w-5 text-amber-500" />
               )}
-              Move Out - Convert to Non-Resident Landlord
+              Move Out - Convert to Property Owner
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
                 <span className="block mb-3">
                   <strong>{moveOutDialogResident?.name}</strong> will no longer reside at this property
-                  but will retain ownership as a Non-Resident Landlord.
+                  but will retain ownership as a Property Owner.
                 </span>
                 {secondaryResidents.length > 0 && (
                   <>
@@ -1299,7 +1299,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                   </p>
                   <p className="mb-3">
                     <strong>{primaryResidingResident.resident.first_name} {primaryResidingResident.resident.last_name}</strong>{' '}
-                    will be demoted to <strong>Co-Resident</strong>.
+                    will be demoted to <strong>Occupant</strong>.
                   </p>
                   <p className="text-sm text-muted-foreground">
                     This is a role swap - both residents will remain at this house with their roles exchanged.
@@ -1344,7 +1344,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                   <SelectValue placeholder="Select new owner type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="non_resident_landlord">Non-Resident Landlord</SelectItem>
+                  <SelectItem value="non_resident_landlord">Property Owner</SelectItem>
                   <SelectItem value="developer">Developer</SelectItem>
                 </SelectContent>
               </Select>
@@ -1435,7 +1435,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Move Out Wizard for Tenants */}
+      {/* Move Out Wizard for Renters */}
       {moveOutWizardResident && house && (
         <MoveOutWizard
           open={!!moveOutWizardResident}

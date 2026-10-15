@@ -3,7 +3,8 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { billingProfileSchema, type BillingProfileData } from '@/lib/validators/billing';
-import { createApprovalRequest, canAutoApprove } from '@/actions/approvals';
+import { canAutoApprove } from '@/actions/approvals';
+import { createApprovalRequest } from '@/lib/approvals/create-approval-request';
 import { logAudit, getChangedValues } from '@/lib/audit/logger';
 import type { BillingProfileWithItems } from '@/types/database';
 import { authorizePermission } from '@/lib/auth/authorize';

@@ -6,7 +6,6 @@ import {
   initiateTwoFactorSetup,
   confirmTwoFactorSetup,
   disableTwoFactor,
-  regenerateBackupCodes,
   getBackupCodesCount,
   requestDisableCode,
   getAllTwoFactorPolicies,
@@ -170,25 +169,6 @@ export function useRequestDisableCode() {
       const result = await requestDisableCode();
       if (!result.success) throw new Error(result.message);
       return result;
-    },
-  });
-}
-
-/**
- * Hook to regenerate backup codes
- */
-export function useRegenerateBackupCodes() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async () => {
-      const result = await regenerateBackupCodes();
-      if (!result.success) throw new Error(result.message);
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.backupCodes });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.status });
     },
   });
 }

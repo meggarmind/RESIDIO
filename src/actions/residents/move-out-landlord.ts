@@ -14,7 +14,7 @@ type MoveOutLandlordResponse = {
 }
 
 /**
- * Move out a Resident Landlord from a house
+ * Move out an Owner-Occupier from a house
  *
  * This action:
  * 1. Converts the resident_landlord to non_resident_landlord (still owns, doesn't reside)

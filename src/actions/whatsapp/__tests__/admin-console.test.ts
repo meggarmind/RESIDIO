@@ -23,6 +23,23 @@ function chain(result: QueryResult) {
   return query;
 }
 
+/** Splits a PostgREST select string into its top-level columns/embeds, ignoring commas inside parentheses. */
+function topLevelColumns(select: string) {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of select) {
+    if (char === '(') depth += 1;
+    if (char === ')') depth -= 1;
+    if (char === ',' && depth === 0) {
+      parts.push(current.trim());
+      current = '';
+    } else current += char;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
 describe('WhatsApp operations console actions', () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -41,9 +58,15 @@ describe('WhatsApp operations console actions', () => {
     clientMock.mockReturnValue({ from: vi.fn().mockReturnValueOnce(session).mockReturnValueOnce(disclosure) } as never);
     const sessions = await getWhatsAppSessions();
     const disclosures = await getWhatsAppDisclosureLogs();
-    expect(sessions.data?.[0]).not.toHaveProperty('amount');
+    expect(sessions.data?.[0]).toEqual(expect.objectContaining({ current_node: 'menu' }));
     expect(disclosures.data?.[0]).toEqual(expect.objectContaining({ menu_item: 'balance' }));
-    expect(disclosures.data?.[0]).not.toHaveProperty('amount');
+    // The projection is defined by the column list the action selects, not by the mocked rows.
+    const financial = /amount|balance|outstanding|paid|owed|wallet|invoice|price|total/i;
+    for (const query of [session, disclosure]) {
+      const columns = topLevelColumns(String(query.select.mock.calls[0][0]));
+      expect(columns.length).toBeGreaterThan(5);
+      expect(columns.filter((column) => financial.test(column))).toEqual([]);
+    }
   });
 
   it('aggregates health counters from existing WhatsApp records', async () => {

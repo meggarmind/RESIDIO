@@ -225,11 +225,15 @@ describe('Part 2: approvals/index.ts hand-rolled legacy checks', () => {
       getPendingApprovalsCount: 'APPROVALS_VIEW',
       approveRequest: 'APPROVALS_APPROVE_REJECT',
       rejectRequest: 'APPROVALS_APPROVE_REJECT',
+      reapplyApprovedRequest: 'APPROVALS_APPROVE_REJECT',
       // Internal helper invoked by approveRequest after its own guard has
       // already run -- must not carry a second, independently-driftable check.
       applyRequestedChanges: null,
-      // Anyone can submit an approval request; only reviewing one is gated.
-      createApprovalRequest: null,
+      // Shared decision-core helpers (#555) used by approveRequest/rejectRequest after their own
+      // guard has run -- they must not carry a second, independently-driftable check.
+      loadPendingRequest: null,
+      reviewFields: null,
+      auditDecision: null,
       // Returns `auth.authorized` directly rather than an early return --
       // pinned separately below.
       canAutoApprove: null,
@@ -262,13 +266,8 @@ describe('Part 2: report-engine.ts checkReportAccess', () => {
   it('pins which permission every top-level declaration requires', () => {
     expect(extractPermissionGuards(reportEngineSource)).toEqual({
       checkReportAccess: 'REPORTS_VIEW_FINANCIAL',
-      generateFinancialOverview: null,
-      generateCollectionReport: null,
-      generateInvoiceAging: null,
-      generateTransactionLog: null,
-      generateDebtorsReport: null,
-      generateIndebtednessReport: null,
-      generateDevelopmentLevyReport: null,
+      // The seven generators moved to lib/reports/report-generator.ts (#483), which is
+      // deliberately authorization-free; see report-generator-session-free.test.ts.
       // Delegates its authorization entirely to checkReportAccess(),
       // verified below -- must not carry a second, independently-driftable
       // check of its own.

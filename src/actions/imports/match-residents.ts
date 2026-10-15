@@ -277,6 +277,20 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
     .update({ matched_rows: matchedCount })
     .eq('id', import_id);
 
+  // One audit entry per bulk match run (not per row)
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'bank_statement_imports',
+    entityId: import_id,
+    entityDisplay: `Auto-matched ${rows.length} import rows`,
+    newValues: {
+      total_count: rows.length,
+      matched_count: matchedCount,
+      unmatched_count: unmatchedCount,
+      row_ids: rows.slice(0, 50).map((r) => r.id),
+    },
+  });
+
   return {
     results,
     matched_count: matchedCount,
@@ -594,14 +608,17 @@ export async function batchUpdateRowStatus(params: BatchUpdateParams): Promise<{
     return { count: 0, error: error.message };
   }
 
-  await logAudit({
-    action: 'BULK_UPDATE',
-    entityType: 'bank_statement_imports',
-    entityId: row_ids[0] ?? 'batch',
-    entityDisplay: `${row_ids.length} statement row(s) set to ${status}`,
-    newValues: { status },
-    metadata: { row_ids, status },
-  });
+  // audit_logs.entity_id is a uuid, so with no real id there is nothing to audit against (#594).
+  if (row_ids[0]) {
+    await logAudit({
+      action: 'BULK_UPDATE',
+      entityType: 'bank_statement_imports',
+      entityId: row_ids[0],
+      entityDisplay: `${row_ids.length} statement row(s) set to ${status}`,
+      newValues: { status },
+      metadata: { row_ids, status },
+    });
+  }
 
   return { count: count ?? row_ids.length, error: null };
 }

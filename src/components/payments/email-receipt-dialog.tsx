@@ -171,7 +171,7 @@ export function EmailReceiptDialog({ paymentId, trigger }: EmailReceiptDialogPro
                   </div>
                 )}
 
-                {/* Co-Residents */}
+                {/* Occupants */}
                 {recipients?.coResidents && recipients.coResidents.length > 0 && (
                   <>
                     {recipients.mainResident && (

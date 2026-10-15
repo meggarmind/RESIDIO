@@ -246,7 +246,7 @@ export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 // from the `approval_request_type` Postgres enum again. This union previously
 // declared thirteen members, ten of which never existed in any migration --
 // every insert carrying one was rejected by Postgres at runtime (#107).
-// Widening it is a database change, tracked as #306; do not add literals here.
+// Widening it needs an enum migration; the extra workflows were dropped by owner decision (#306).
 export type ApprovalRequestType = GeneratedDatabase['public']['Enums']['approval_request_type'];
 
 // Labels for approval request types
@@ -1418,6 +1418,12 @@ export interface ApprovalRequest {
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_notes: string | null;
+  /**
+   * When the approved change was actually applied (#557). Null on an approved row means the
+   * apply never completed. The generated types pick this column up after `db:types` is rerun
+   * against the cloud database, hence optional here.
+   */
+  applied_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -2289,7 +2295,7 @@ export const TARGET_AUDIENCE_LABELS: Record<TargetAudience, string> = {
   all: 'All Residents',
   residents: 'All Residents',
   owners: 'Property Owners',
-  tenants: 'Tenants Only',
+  tenants: 'Renters Only',
   staff: 'Staff Only',
 };
 

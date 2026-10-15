@@ -10,7 +10,6 @@ export {
   exchangeGmailCode,
   getGmailConnectionStatus,
   disconnectGmail,
-  updateGmailSyncStatus,
 } from './gmail-oauth';
 
 // Bank Account Passwords
@@ -18,8 +17,6 @@ export {
   getBankAccountsWithPasswordStatus,
   setBankAccountPassword,
   removeBankAccountPassword,
-  getDecryptedPassword,
-  getPasswordByAccountLast4,
   type BankAccountWithPassword,
 } from './bank-passwords';
 
@@ -35,12 +32,10 @@ export {
 export { fetchNewEmails } from './fetch-emails';
 export { resetEmailImports } from './reset-email-imports';
 
-// Email Parsing
-export { parseEmailMessage, parseAllPendingEmails } from './parse-email';
-
 // Transaction Processing
+// (parseEmailMessage, parseAllPendingEmails, matchEmailTransactions and
+// updateGmailSyncStatus live in src/lib/email-imports/ - service-role, not actions; #561)
 export {
-  matchEmailTransactions,
   processEmailTransactions,
   processSingleTransaction,
   skipTransaction,

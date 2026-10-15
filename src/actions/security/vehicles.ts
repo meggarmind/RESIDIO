@@ -430,6 +430,15 @@ export async function setPrimaryVehicle(
     return { data: null, error: 'Failed to set primary vehicle' };
   }
 
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'visitor_vehicles',
+    entityId: vehicleId,
+    entityDisplay: `Set primary vehicle${updatedVehicle?.plate_number ? `: ${updatedVehicle.plate_number}` : ''}`,
+    oldValues: { is_primary: false },
+    newValues: { is_primary: true, contact_id: vehicle.contact_id },
+  });
+
   revalidatePath('/security');
   revalidatePath('/security/contacts');
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { IMPLEMENTED_CHANNELS } from '@/lib/notifications/types';
+import { IMPLEMENTED_CHANNELS, isChannelImplemented } from '@/lib/notifications/types';
 import { PRIORITY } from '@/lib/notifications/queue';
 import { sendNotification, sendAndRecordNotification } from '@/lib/notifications/send';
 import { getSettingValueAsService, getSettingResultAsService } from '@/lib/settings/service';
@@ -24,6 +24,13 @@ vi.mock('@/lib/whatsapp', () => ({
 vi.mock('@/lib/whatsapp/config', () => ({
   resolveWhatsAppConfig: vi.fn(),
 }));
+
+// SMS is off by default (IMPLEMENTED_CHANNELS has no 'sms'). Wrap the real
+// predicate so the dormant fallback tests can switch SMS on explicitly.
+vi.mock('@/lib/notifications/types', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/notifications/types')>();
+  return { ...actual, isChannelImplemented: vi.fn(actual.isChannelImplemented) };
+});
 
 vi.mock('@/lib/sms/send-sms', () => ({
   sendSms: vi.fn(),
@@ -98,8 +105,19 @@ function buildQueueItem(overrides: Partial<Parameters<typeof sendNotification>[0
 }
 
 describe('WhatsApp notification dispatch', () => {
-  beforeEach(() => {
+  let realIsChannelImplemented: typeof isChannelImplemented;
+  function switchSmsOn() {
+    vi.mocked(isChannelImplemented).mockImplementation(
+      (channel) => channel === 'sms' || realIsChannelImplemented(channel)
+    );
+  }
+
+  beforeEach(async () => {
     vi.clearAllMocks();
+    realIsChannelImplemented = (
+      await vi.importActual<typeof import('@/lib/notifications/types')>('@/lib/notifications/types')
+    ).isChannelImplemented;
+    vi.mocked(isChannelImplemented).mockImplementation(realIsChannelImplemented);
     vi.mocked(getSettingValueAsService).mockResolvedValue(true);
     // whatsapp_enabled is read via getSettingResultAsService (#134, fail
     // closed) — default it 'ok'/true so this gate doesn't block sends this
@@ -220,7 +238,12 @@ describe('WhatsApp notification dispatch', () => {
       },
       created_at: new Date().toISOString(),
       created_by: null,
-    })).resolves.toEqual({ success: false, error: 'WhatsApp daily outbound limit reached' });
+    })).resolves.toEqual({
+      success: false,
+      error: 'WhatsApp daily outbound limit reached',
+      retryable: true,
+      retryAt: expect.any(String),
+    });
   });
 
   it('rejects WhatsApp sends when the rolling burst cap is reached', async () => {
@@ -242,7 +265,12 @@ describe('WhatsApp notification dispatch', () => {
       scheduled_for: new Date().toISOString(), attempts: 0, max_attempts: 3, last_attempt_at: null, sent_at: null,
       error_message: null, metadata: { whatsapp_template: { name: 'invoice_reminder', languageCode: 'en_US', parameters: ['Ada'] } },
       created_at: new Date().toISOString(), created_by: null,
-    })).resolves.toEqual({ success: false, error: 'WhatsApp outbound burst limit reached' });
+    })).resolves.toEqual({
+      success: false,
+      error: 'WhatsApp outbound burst limit reached',
+      retryable: true,
+      retryAt: expect.any(String),
+    });
   });
 
   it('pauses safely before checking consent or invoking the provider', async () => {
@@ -285,7 +313,30 @@ describe('WhatsApp notification dispatch', () => {
     });
   });
 
+  describe('SMS fallback is dormant while SMS is off (owner decision 2026-10-13)', () => {
+    it('never calls sendSms for an URGENT Chatmaid failure and returns the plain WhatsApp failure', async () => {
+      vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
+        success: false,
+        error: 'Chatmaid bridge is disconnected',
+      });
+      vi.mocked(resolveWhatsAppConfig).mockResolvedValue(chatmaidConfigResult);
+      vi.mocked(sendSms).mockResolvedValue({ success: true, messageId: 'termii-should-not-be-used' });
+
+      const result = await sendNotification(buildQueueItem());
+
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        success: false,
+        externalId: undefined,
+        error: 'Chatmaid bridge is disconnected',
+        retryable: true,
+      });
+    });
+  });
+
   describe('SMS fallback for URGENT sends on a failed Chatmaid provider (#401)', () => {
+    beforeEach(switchSmsOn);
+
     it('falls back to SMS when an URGENT WhatsApp send fails and the active provider is Chatmaid', async () => {
       vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
         success: false,
@@ -327,6 +378,7 @@ describe('WhatsApp notification dispatch', () => {
         success: false,
         externalId: undefined,
         error: 'Chatmaid bridge is disconnected',
+        retryable: true,
       });
     });
 
@@ -334,6 +386,8 @@ describe('WhatsApp notification dispatch', () => {
       vi.mocked(sendWhatsAppTemplate).mockResolvedValue({
         success: false,
         error: 'WhatsApp provider request failed (HTTP 401)',
+        // The real Meta/Twilio adapters flag a 401 as non-retryable.
+        retryable: false,
       });
       vi.mocked(resolveWhatsAppConfig).mockResolvedValue(metaConfigResult);
       vi.mocked(sendSms).mockResolvedValue({ success: true, messageId: 'termii-should-not-be-used' });
@@ -346,6 +400,7 @@ describe('WhatsApp notification dispatch', () => {
         externalId: undefined,
         error: 'WhatsApp provider request failed (HTTP 401)',
       });
+      expect(result.retryable).toBeUndefined();
     });
 
     it('does not fall back to SMS when the Chatmaid WhatsApp send already succeeded', async () => {
@@ -446,11 +501,18 @@ describe('WhatsApp notification dispatch', () => {
 
       expect(sendWhatsAppTemplate).not.toHaveBeenCalled();
       expect(sendSms).not.toHaveBeenCalled();
-      expect(result).toEqual({ success: false, error: 'WhatsApp outbound burst limit reached' });
+      expect(result).toEqual({
+        success: false,
+        error: 'WhatsApp outbound burst limit reached',
+        retryable: true,
+        retryAt: expect.any(String),
+      });
     });
   });
 
   describe('recording SMS-fallback history rows (#401 QA fix)', () => {
+    beforeEach(switchSmsOn);
+
     function buildSupabaseMock(optIn: { id: string } | null = { id: 'optin-1' }) {
       const insertMock = vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({

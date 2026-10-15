@@ -1,5 +1,6 @@
 import type { MetaWhatsAppConfig } from '@/lib/whatsapp/config';
 import type { WhatsAppProvider } from '@/lib/whatsapp/provider';
+import { isRetryableHttpStatus } from '@/lib/whatsapp/retry';
 
 interface MetaSendResponse {
   messages?: Array<{ id?: string }>;
@@ -36,6 +37,7 @@ export function createMetaWhatsAppProvider(
         return {
           success: false,
           error: `WhatsApp provider request failed (HTTP ${response.status})`,
+          retryable: isRetryableHttpStatus(response.status),
         };
       }
 
@@ -46,6 +48,7 @@ export function createMetaWhatsAppProvider(
         return {
           success: false,
           error: 'WhatsApp provider returned no message ID',
+          retryable: false,
         };
       }
 
@@ -83,6 +86,7 @@ export function createMetaWhatsAppProvider(
         return {
           success: false,
           error: `WhatsApp provider request failed (HTTP ${response.status})`,
+          retryable: isRetryableHttpStatus(response.status),
         };
       }
 
@@ -90,7 +94,7 @@ export function createMetaWhatsAppProvider(
       const messageId = data.messages?.[0]?.id;
       return messageId
         ? { success: true, messageId }
-        : { success: false, error: 'WhatsApp provider returned no message ID' };
+        : { success: false, error: 'WhatsApp provider returned no message ID', retryable: false };
     },
   };
 }

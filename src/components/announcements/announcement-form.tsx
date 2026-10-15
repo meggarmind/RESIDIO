@@ -259,7 +259,7 @@ export function AnnouncementForm({
                           <SelectItem value="all">All</SelectItem>
                           <SelectItem value="residents">Residents Only</SelectItem>
                           <SelectItem value="owners">Owners Only</SelectItem>
-                          <SelectItem value="tenants">Tenants Only</SelectItem>
+                          <SelectItem value="tenants">Renters Only</SelectItem>
                           <SelectItem value="staff">Staff Only</SelectItem>
                         </SelectContent>
                       </Select>

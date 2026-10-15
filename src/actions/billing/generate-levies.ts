@@ -368,6 +368,7 @@ export async function generateRetroactiveLevies(): Promise<LevyGenerationResult>
         }
 
         log.info(`Processing retroactive levies for ${houses?.length || 0} houses`);
+        const batchStartedAt = new Date().toISOString();
 
         for (const house of houses || []) {
             const houseResult = await generateLeviesForHouse(house.id);
@@ -380,19 +381,37 @@ export async function generateRetroactiveLevies(): Promise<LevyGenerationResult>
 
         // Audit log for bulk operation
         if (result.generated > 0) {
-            await logAudit({
-                action: 'GENERATE',
-                entityType: 'invoices',
-                entityId: 'retroactive-levy-batch',
-                entityDisplay: `Retroactive Levies - ${result.generated} generated`,
-                newValues: {
-                    houses_processed: houses?.length || 0,
-                    generated_count: result.generated,
-                    skipped_count: result.skipped,
-                    error_count: result.errors.length,
-                },
-                description: `Retroactive levy generation: ${result.generated} levies across ${houses?.length || 0} houses`,
-            });
+            // audit_logs.entity_id is a uuid: the first invoice this run created stands for
+            // the batch (#594). Best effort; no invoice found means no audit row.
+            let batchQuery = supabase
+                .from('invoices')
+                .select('id')
+                .eq('invoice_type', 'LEVY')
+                .gte('created_at', batchStartedAt)
+                .order('created_at', { ascending: true })
+                .limit(50);
+            if (auth.userId) batchQuery = batchQuery.eq('created_by', auth.userId);
+            const { data: batchInvoices } = await batchQuery;
+            const batchInvoiceIds = (batchInvoices || []).map((i: { id: string }) => i.id);
+
+            if (batchInvoiceIds.length > 0) {
+                await logAudit({
+                    action: 'GENERATE',
+                    entityType: 'invoices',
+                    entityId: batchInvoiceIds[0],
+                    entityDisplay: `Retroactive Levies - ${result.generated} generated`,
+                    newValues: {
+                        batch: 'retroactive-levy-batch',
+                        total_count: result.generated,
+                        invoice_ids: batchInvoiceIds,
+                        houses_processed: houses?.length || 0,
+                        generated_count: result.generated,
+                        skipped_count: result.skipped,
+                        error_count: result.errors.length,
+                    },
+                    description: `Retroactive levy generation: ${result.generated} levies across ${houses?.length || 0} houses`,
+                });
+            }
         }
 
     } catch (error) {

@@ -9,6 +9,7 @@ import { getResidentIndebtedness } from '@/actions/billing/get-invoices';
 import { getOrCreateWallet } from '@/actions/billing/wallet';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import { sendEmail } from '@/lib/email/send-email';
+import { MOVE_OUT_NOTIFY_ROLES } from '@/lib/residents/move-out-recipients';
 import type { ResidentRole } from '@/types/database';
 
 // Supabase embeds a to-one join (street:streets(...)) as an object at runtime but
@@ -147,7 +148,7 @@ export async function getAvailableHousesForMoveIn(excludeHouseId?: string): Prom
   // A house can accept a renter if:
   // 1. It has no Owner-Occupier (resident_landlord)
   // 2. It has no existing Renter (tenant)
-  // 3. It has a Non-Resident Landlord (owner who doesn't live there)
+  // 3. It has a Property Owner (owner who doesn't live there)
 
   const result = houses
     ?.filter((h) => h.id !== excludeHouseId)
@@ -224,7 +225,7 @@ export async function initiateRenterMoveOut(
   // Get resident details
   const { data: resident, error: residentError } = await supabase
     .from('residents')
-    .select('id, first_name, last_name, resident_code, email, phone_primary, user_id')
+    .select('id, first_name, last_name, resident_code, email, phone_primary, profile_id')
     .eq('id', residentId)
     .single();
 
@@ -233,7 +234,7 @@ export async function initiateRenterMoveOut(
   }
 
   // Check if user is the resident themselves (self-service) or admin
-  const isSelfService = resident.user_id === user.id;
+  const isSelfService = resident.profile_id === user.id;
   if (!isSelfService) {
     const auth = await authorizePermission(PERMISSIONS.HOUSES_ASSIGN_RESIDENT);
     if (!auth.authorized) {
@@ -397,58 +398,66 @@ export async function initiateRenterMoveOut(
   }
 
   // Create in-app notification for the renter
-  await adminClient
-    .from('in_app_notifications')
-    .insert({
-      recipient_id: resident.user_id,
-      title: 'Move-Out Clearance Certificate',
-      body: `Your clearance certificate (${certificateNumber}) has been generated. Valid until ${validUntil.toLocaleDateString()}.`,
-      category: 'resident',
-      entity_type: 'clearance_certificate',
-      entity_id: certificate.id,
-      action_url: `/portal/properties/${houseId}`,
-      priority: 'high',
-      metadata: { certificate },
-    });
-
-  // Get CSO and Finance users for notifications
-  const { data: csoUsers } = await supabase
-    .from('user_roles')
-    .select('user_id')
-    .eq('role', 'cso');
-
-  const { data: financeUsers } = await supabase
-    .from('user_roles')
-    .select('user_id')
-    .eq('role', 'finance_officer');
-
-  // Get resident IDs for these users
-  const userIds = [
-    ...(csoUsers || []).map((u) => u.user_id),
-    ...(financeUsers || []).map((u) => u.user_id),
-  ];
-
-  if (userIds.length > 0) {
-    const { data: staffResidents } = await supabase
-      .from('residents')
-      .select('id, user_id')
-      .in('user_id', userIds);
-
-    if (staffResidents && staffResidents.length > 0) {
-      const notifications = staffResidents.map((sr) => ({
-        recipient_id: sr.user_id,
-        title: 'Renter Move-Out Initiated',
-        body: `${resident.first_name} ${resident.last_name} (${resident.resident_code}) has initiated move-out from ${houseAddress}. Certificate: ${certificateNumber}`,
-        category: 'admin',
+  // recipient_id is NOT NULL and FK to profiles.id; a resident without a portal account has none.
+  if (resident.profile_id) {
+    await adminClient
+      .from('in_app_notifications')
+      .insert({
+        recipient_id: resident.profile_id,
+        title: 'Move-Out Clearance Certificate',
+        body: `Your clearance certificate (${certificateNumber}) has been generated. Valid until ${validUntil.toLocaleDateString()}.`,
+        category: 'resident',
         entity_type: 'clearance_certificate',
         entity_id: certificate.id,
-        action_url: `/houses/${houseId}`,
-        priority: 'normal' as const,
+        action_url: `/portal/properties/${houseId}`,
+        priority: 'high',
         metadata: { certificate },
-      }));
+      });
+  }
 
-      await adminClient.from('in_app_notifications').insert(notifications);
+  // Notify staff holding the move-out roles (#626). Recipients are profile ids
+  // (in_app_notifications.recipient_id is an FK to profiles.id). Admin client: a
+  // self-service initiator cannot read other profiles. Never fails the move-out.
+  try {
+    const { data: roleRows, error: roleError } = await adminClient
+      .from('app_roles')
+      .select('id')
+      .in('name', [...MOVE_OUT_NOTIFY_ROLES]);
+
+    if (roleError) {
+      console.error('[moveOutRenter] Staff role lookup failed:', roleError);
+    } else if (roleRows && roleRows.length > 0) {
+      const { data: staffProfiles, error: profileError } = await adminClient
+        .from('profiles')
+        .select('id')
+        .in('role_id', roleRows.map((r) => r.id))
+        .eq('approval_status', 'active');
+
+      if (profileError) {
+        console.error('[moveOutRenter] Staff profile lookup failed:', profileError);
+      } else if (staffProfiles && staffProfiles.length > 0) {
+        const staffNotifications = staffProfiles.map((p) => ({
+          recipient_id: p.id,
+          title: 'Renter Move-Out Initiated',
+          body: `${resident.first_name} ${resident.last_name} (${resident.resident_code}) has initiated move-out from ${houseAddress}. Certificate: ${certificateNumber}`,
+          category: 'admin',
+          entity_type: 'clearance_certificate',
+          entity_id: certificate.id,
+          action_url: `/houses/${houseId}`,
+          priority: 'normal' as const,
+          metadata: { certificate },
+        }));
+
+        const { error: notifyError } = await adminClient
+          .from('in_app_notifications')
+          .insert(staffNotifications);
+        if (notifyError) {
+          console.error('[moveOutRenter] Staff notification insert failed:', notifyError);
+        }
+      }
     }
+  } catch (err) {
+    console.error('[moveOutRenter] Staff notification failed:', err);
   }
 
   // Send email to the renter
@@ -554,7 +563,7 @@ export async function confirmRenterMoveOut(
   // Get resident details
   const { data: resident } = await supabase
     .from('residents')
-    .select('first_name, last_name, resident_code, user_id')
+    .select('first_name, last_name, resident_code, profile_id')
     .eq('id', residentId)
     .single();
 
@@ -728,24 +737,28 @@ export async function confirmRenterMoveOut(
   }
 
   // Notify the renter
-  await adminClient
-    .from('in_app_notifications')
-    .insert({
-      recipient_id: resident?.user_id,
-      title: 'Move-Out Confirmed',
-      body: `Your move-out has been confirmed by security. You are no longer associated with the property.`,
-      category: 'resident',
-      priority: 'high',
-    });
+  if (resident?.profile_id) {
+    await adminClient
+      .from('in_app_notifications')
+      .insert({
+        recipient_id: resident.profile_id,
+        title: 'Move-Out Confirmed',
+        body: `Your move-out has been confirmed by security. You are no longer associated with the property.`,
+        category: 'resident',
+        priority: 'high',
+      });
+  }
 
   // Audit log
   await logAudit({
     action: 'UPDATE',
     entityType: 'clearance_certificate',
-    entityId: certificateNumber,
+    // audit_logs.entity_id is a uuid: the persisted certificate is the pending_move_out
+    // ownership-history row (its number lives in metadata), so use that row's id (#594).
+    entityId: pendingRecord.id,
     entityDisplay: `Confirmed move-out for ${resident?.first_name} ${resident?.last_name}`,
-    oldValues: { status: 'pending_confirmation' },
-    newValues: { status: 'confirmed', confirmed_by: user.id, secondary_removed: secondaryCount },
+    oldValues: { status: 'pending_confirmation', certificate_number: certificateNumber },
+    newValues: { status: 'confirmed', certificate_number: certificateNumber, confirmed_by: user.id, secondary_removed: secondaryCount },
   });
 
   revalidatePath('/houses');

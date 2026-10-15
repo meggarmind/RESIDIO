@@ -16,8 +16,8 @@
  * behavior remains shared across channels.
  */
 
-import { resend, emailConfig, isEmailConfigured } from '@/lib/email/resend';
-import { getSettingValueAsService, getSettingResultAsService } from '@/lib/settings/service';
+import { getEmailTransportError, sendViaResend } from '@/lib/email/transport';
+import { getSettingValueAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 import type {
   NotificationChannel,
@@ -27,15 +27,15 @@ import type {
 } from './types';
 import { isChannelImplemented } from './types';
 import { truncateForPreview } from './templates';
-import {
-  isApprovedWhatsAppTemplateName,
-  sendWhatsAppTemplate,
-} from '@/lib/whatsapp';
+import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { resolveWhatsAppConfig } from '@/lib/whatsapp/config';
-import { normalizePhoneNumber } from '@/lib/sms/termii';
-import { isWhatsAppRecipientAllowed } from '@/lib/whatsapp/rollout';
+import { evaluateSendPolicy, createSendPolicyFacts } from '@/lib/whatsapp/send-policy';
 import { sendSms } from '@/lib/sms/send-sms';
 import { PRIORITY } from '@/lib/notifications/queue';
+import { nextUtcMidnight, resolveBurstWindowMinutes, retryDelayMs } from './retry';
+
+/** `sendImmediate` builds a pseudo queue item with this id; it has no queue row. */
+const IMMEDIATE_ITEM_ID = 'immediate';
 
 /**
  * Channel-specific sender function signature
@@ -65,10 +65,11 @@ async function sendViaEmail(
   }
 
   // Check if Resend is configured
-  if (!isEmailConfigured() || !resend) {
+  const transportError = getEmailTransportError();
+  if (transportError) {
     return {
       success: false,
-      error: 'Email service not configured (missing RESEND_API_KEY)',
+      error: transportError,
     };
   }
 
@@ -81,36 +82,39 @@ async function sendViaEmail(
   }
 
   try {
-    // Get sender name from settings
-    const fromName = (await getSettingValueAsService('email_from_name')) || 'Residio Estate';
+    const result = await sendViaResend(
+      {
+        to: item.recipient_email,
+        subject: item.subject || 'Notification',
+        // Prefer HTML if available, otherwise use plain text
+        ...(item.html_body
+          ? { html: item.html_body }
+          : { text: item.body }),
+      },
+      // One key per queue item and attempt, so a retry after a timeout whose
+      // first request actually landed cannot send the email twice (#546).
+      item.id === IMMEDIATE_ITEM_ID
+        ? undefined
+        : { idempotencyKey: `${item.id}:${item.attempts + 1}` }
+    );
 
-    // Send via Resend
-    const { data, error } = await resend.emails.send({
-      from: `${fromName} <${emailConfig.fromAddress}>`,
-      to: item.recipient_email,
-      replyTo: emailConfig.replyTo,
-      subject: item.subject || 'Notification',
-      // Prefer HTML if available, otherwise use plain text
-      ...(item.html_body
-        ? { html: item.html_body }
-        : { text: item.body }),
-    });
-
-    if (error) {
+    if (!result.ok) {
       return {
         success: false,
-        error: error.message,
+        error: result.error,
+        ...(result.retryable ? { retryable: true } : {}),
       };
     }
 
     return {
       success: true,
-      externalId: data?.id,
+      externalId: result.id,
     };
   } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error sending email',
+      retryable: true,
     };
   }
 }
@@ -136,120 +140,47 @@ async function sendViaSms(
 async function sendViaWhatsApp(
   item: NotificationQueueItem
 ): Promise<SendNotificationResult> {
-  // Runs from cron/queue processing with no authenticated user — must use
-  // the service-role read (see #136), or this kill switch does nothing
-  // under cron regardless of what's configured.
-  //
-  // Fails CLOSED (#134): an absent row or a read error must BLOCK sending,
-  // not allow it. `getSettingValueAsService` collapses "no row" and "query
-  // errored" to `null`, and `null !== false` used to let every send through
-  // whenever the setting was unconfigured or unreadable — i.e. by default,
-  // since nothing writes this row until an admin visits the WhatsApp
-  // settings page. `getSettingResultAsService` keeps the three cases apart
-  // so 'absent' and 'error' can each be blocked with a distinct message —
-  // an operator needs to know "nobody has turned this on" apart from "we
-  // could not check", since the fix for each is different.
-  const whatsappEnabledResult = await getSettingResultAsService('whatsapp_enabled');
-  if (whatsappEnabledResult.status === 'absent') {
-    return { success: false, error: 'WhatsApp is not enabled in system settings' };
+  // Pre-send checks (kill switch, rollout, caps, opt-in, template) live in the
+  // Send Policy module; anything other than 'allow' stops here.
+  const decision = await evaluateSendPolicy(
+    {
+      recipientId: item.recipient_id,
+      recipientPhone: item.recipient_phone,
+      metadata: item.metadata,
+    },
+    createSendPolicyFacts()
+  );
+  if (decision.outcome === 'defer') {
+    // Note: a deferred send still consumes one attempt, so 5 consecutive capped
+    // UTC days (or a long burst backlog) exhaust max_attempts and fail the row.
+    // A cap is transient: try again when it can have cleared (#546).
+    return {
+      success: false,
+      error: decision.message,
+      retryable: true,
+      retryAt: (await resolveDeferRetryAt(decision.reason)).toISOString(),
+    };
   }
-  if (whatsappEnabledResult.status === 'error') {
-    return { success: false, error: 'WhatsApp enablement could not be verified' };
-  }
-  if (whatsappEnabledResult.value !== true) {
-    return { success: false, error: 'WhatsApp notifications are disabled in system settings' };
-  }
-
-  if (!item.recipient_phone) {
-    return { success: false, error: 'No recipient phone number provided' };
-  }
-
-  if (!(await isWhatsAppRecipientAllowed(item.recipient_id))) {
-    return { success: false, error: 'WhatsApp recipient is outside the active rollout audience' };
-  }
-
-  // Service-role read (see #136) — under cron, the RLS-bound getSettingValue
-  // always returns null here, so the configured cap silently fell back to
-  // the compiled-in default of 100 in either direction (lower or higher).
-  const configuredDailyCap = await getSettingValueAsService('whatsapp_outbound_daily_cap');
-  const dailyCap = typeof configuredDailyCap === 'number' && Number.isInteger(configuredDailyCap)
-    ? configuredDailyCap
-    : 100;
-  if (dailyCap <= 0) {
-    return { success: false, error: 'WhatsApp outbound notifications are capped at zero' };
-  }
-
-  const startOfDay = new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  const { count: sentToday, error: capError } = await createAdminClient()
-    .from('notification_history')
-    .select('id', { count: 'exact', head: true })
-    .eq('channel', 'whatsapp')
-    .eq('status', 'sent')
-    .gte('sent_at', startOfDay.toISOString());
-
-  if (capError) {
-    return { success: false, error: 'Unable to verify WhatsApp outbound limit' };
-  }
-  if ((sentToday || 0) >= dailyCap) {
-    return { success: false, error: 'WhatsApp daily outbound limit reached' };
-  }
-
-  // Service-role reads (see #136) — same cap fallback problem as the daily
-  // cap above.
-  const configuredBurstCap = await getSettingValueAsService('whatsapp_outbound_burst_cap');
-  const burstCap = typeof configuredBurstCap === 'number' && Number.isInteger(configuredBurstCap) ? configuredBurstCap : 20;
-  const configuredBurstWindow = await getSettingValueAsService('whatsapp_outbound_burst_window_minutes');
-  const burstWindow = typeof configuredBurstWindow === 'number' && Number.isInteger(configuredBurstWindow) && configuredBurstWindow > 0 ? configuredBurstWindow : 10;
-  if (burstCap <= 0) return { success: false, error: 'WhatsApp outbound burst limit reached' };
-  const burstStart = new Date(Date.now() - burstWindow * 60 * 1000).toISOString();
-  const { count: sentInBurst, error: burstError } = await createAdminClient()
-    .from('notification_history')
-    .select('id', { count: 'exact', head: true })
-    .eq('channel', 'whatsapp')
-    .eq('status', 'sent')
-    .gte('sent_at', burstStart);
-  if (burstError) return { success: false, error: 'Unable to verify WhatsApp burst limit' };
-  if ((sentInBurst || 0) >= burstCap) return { success: false, error: 'WhatsApp outbound burst limit reached' };
-
-  const normalizedRecipientPhone = normalizePhoneNumber(item.recipient_phone);
-
-  const { data: optIn, error: optInError } = await createAdminClient()
-    .from('whatsapp_optins')
-    .select('id')
-    .eq('resident_id', item.recipient_id)
-    .eq('phone_number', normalizedRecipientPhone)
-    .eq('opted_in', true)
-    .maybeSingle();
-
-  if (optInError) {
-    return { success: false, error: 'Unable to verify WhatsApp consent' };
-  }
-
-  if (!optIn) {
-    return { success: false, error: 'WhatsApp recipient has not opted in' };
-  }
-
-  const whatsappTemplate = item.metadata?.whatsapp_template;
-  if (typeof whatsappTemplate !== 'object' || whatsappTemplate === null) {
-    return { success: false, error: 'WhatsApp proactive sends require an approved template' };
-  }
-
-  const templateName = (whatsappTemplate as Record<string, unknown>).name;
-  if (!isApprovedWhatsAppTemplateName(templateName)) {
-    return { success: false, error: 'WhatsApp template is not approved for proactive delivery' };
+  if (decision.outcome !== 'allow') {
+    // `refuse` is a policy verdict (kill switch, rollout, consent, template,
+    // zero cap, unverifiable state): retrying cannot change it.
+    return { success: false, error: decision.message };
   }
 
   const result = await sendWhatsAppTemplate({
-    to: normalizedRecipientPhone,
-    templateName: String(templateName),
-    languageCode: String((whatsappTemplate as Record<string, unknown>).languageCode || 'en_US'),
-    parameters: Array.isArray((whatsappTemplate as Record<string, unknown>).parameters)
-      ? ((whatsappTemplate as Record<string, unknown>).parameters as unknown[]).map(String)
-      : [],
+    to: decision.normalizedPhone,
+    templateName: decision.template.name,
+    languageCode: decision.template.languageCode,
+    parameters: decision.template.parameters,
   });
 
   if (!result.success) {
+    // DORMANT while SMS is off (owner decision 2026-10-13): the fallback is
+    // additionally gated on isChannelImplemented('sms'), so it never calls
+    // sendSms and the WhatsApp failure is returned unchanged. It wakes up when
+    // 'sms' is added back to IMPLEMENTED_CHANNELS. The 2026-10-07 decision to
+    // revisit this trigger before Termii is connected still applies.
+    //
     // SMS fallback (owner decision, #401): covers URGENT-priority sends only
     // (announcements today), and only when the active provider is Chatmaid --
     // a bridge with no delivery guarantee and no recovery path for a message
@@ -257,14 +188,15 @@ async function sendViaWhatsApp(
     // receipts (NORMAL priority) are left to fail here so the queue retries
     // them; this must not change Meta/Twilio behaviour at all, so it only
     // fires after the normal WhatsApp send has already failed.
-    const shouldConsiderSmsFallback = item.priority === PRIORITY.URGENT;
+    const shouldConsiderSmsFallback =
+      item.priority === PRIORITY.URGENT && isChannelImplemented('sms');
     if (shouldConsiderSmsFallback) {
       const resolved = await resolveWhatsAppConfig();
       const activeProviderIsChatmaid = resolved.status === 'ok' && resolved.config.provider === 'chatmaid';
 
       if (activeProviderIsChatmaid) {
         const smsResult = await sendSms({
-          to: { phone: item.recipient_phone, residentId: item.recipient_id },
+          to: { phone: item.recipient_phone as string, residentId: item.recipient_id },
           message: item.body,
           smsType: 'notification',
           metadata: {
@@ -308,7 +240,22 @@ async function sendViaWhatsApp(
     success: result.success,
     externalId: result.messageId,
     error: result.error,
+    // Providers that cannot tell leave `retryable` unset, which for a
+    // transport failure means transient (#546).
+    ...(!result.success && (result.retryable ?? true) ? { retryable: true } : {}),
   };
+}
+
+/** When a Send Policy `defer` should be retried: next UTC midnight for the daily cap, one burst window for the burst cap. */
+async function resolveDeferRetryAt(reason: string): Promise<Date> {
+  const now = new Date();
+  if (reason === 'burst_limit_reached') {
+    const windowMinutes = resolveBurstWindowMinutes(
+      await getSettingValueAsService('whatsapp_outbound_burst_window_minutes')
+    );
+    return new Date(now.getTime() + windowMinutes * 60 * 1000);
+  }
+  return nextUtcMidnight(now);
 }
 
 /**
@@ -371,6 +318,16 @@ export async function sendAndRecordNotification(
   // Determine history status
   const historyStatus: HistoryStatus = result.success ? 'sent' : 'failed';
 
+  // A transient failure with attempts left goes back to 'pending' for a later
+  // run instead of ending as 'failed' (#546). The attempt's own history row is
+  // still written as 'failed'. Unclassified failures are NOT retryable.
+  const attemptNumber = item.attempts + 1;
+  const willRetry =
+    !result.success && result.retryable === true && attemptNumber < item.max_attempts;
+  const retryAt = willRetry
+    ? result.retryAt ?? new Date(Date.now() + retryDelayMs(attemptNumber)).toISOString()
+    : null;
+
   // The Chatmaid WhatsApp -> SMS fallback (#401) delivers over a different
   // channel than the queue item was written for. `sendViaWhatsApp` marks
   // that with `metadata.deliveredVia`; when it's set, this is the ONE
@@ -404,6 +361,7 @@ export async function sendAndRecordNotification(
         deduplication_key: item.deduplication_key,
         queue_priority: item.priority,
         queue_attempts: item.attempts + 1,
+        ...(willRetry ? { will_retry: true, retry_at: retryAt } : {}),
       },
       sent_at: result.success ? new Date().toISOString() : null,
     })
@@ -415,7 +373,7 @@ export async function sendAndRecordNotification(
   }
 
   // Update queue item status
-  const queueUpdateStatus = result.success ? 'sent' : 'failed';
+  const queueUpdateStatus = result.success ? 'sent' : willRetry ? 'pending' : 'failed';
   const { error: queueError } = await supabase
     .from('notification_queue')
     .update({
@@ -424,6 +382,7 @@ export async function sendAndRecordNotification(
       last_attempt_at: new Date().toISOString(),
       sent_at: result.success ? new Date().toISOString() : null,
       error_message: result.error || null,
+      ...(retryAt ? { scheduled_for: retryAt } : {}),
     })
     .eq('id', item.id);
 
@@ -437,7 +396,9 @@ export async function sendAndRecordNotification(
   if (candidateId) {
     const { error: candidateError } = await supabase
       .from('invoice_generation_candidates')
-      .update({ email_status: queueUpdateStatus })
+      // invoice_generation_candidates has no 'pending'; 'queued' is its
+      // equivalent, and a requeued item is still waiting to be sent.
+      .update({ email_status: willRetry ? 'queued' : queueUpdateStatus })
       .eq('id', candidateId);
     if (candidateError) {
       console.error('[Notifications] Failed to update invoice email status:', candidateError);

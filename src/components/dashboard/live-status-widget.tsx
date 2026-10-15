@@ -39,9 +39,23 @@ export function LiveStatusWidget({
     return (
         <div
             onClick={onClick}
+            {...(onClick
+                ? {
+                    role: 'button',
+                    tabIndex: 0,
+                    onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onClick();
+                        }
+                    },
+                }
+                : {})}
             className={cn(
                 'group relative overflow-hidden rounded-lg border p-4 transition-all duration-200',
-                'hover:shadow-md cursor-pointer',
+                'hover:shadow-md',
+                onClick && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                 variants[variant],
                 className
             )}
@@ -52,7 +66,7 @@ export function LiveStatusWidget({
                         {/* Pulsing Dot */}
                         <span className="relative flex h-2.5 w-2.5">
                             <span className={cn(
-                                'animate-ping absolute inline-flex h-full w-full rounded-full opacity-75',
+                                'animate-ping motion-reduce:animate-none absolute inline-flex h-full w-full rounded-full opacity-75',
                                 indicatorColors[variant]
                             )}></span>
                             <span className={cn(

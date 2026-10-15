@@ -125,7 +125,7 @@ npm run test             # Run Vitest tests
 npm run test:ui          # Vitest with UI
 
 # Database
-npm run db:types         # Generate TypeScript types from cloud schema
+npm run db:types         # Generate types from cloud schema (needs SUPABASE_ACCESS_TOKEN)
 ```
 
 ---

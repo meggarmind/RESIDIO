@@ -3,7 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { fetchAllRows } from '@/lib/supabase/fetch-all-rows';
 import { logAudit } from '@/lib/audit/logger';
-import { updateImportStatus } from './create-import';
+import { updateImportStatus } from '@/lib/imports/update-import-status';
 import { createPaymentCore } from '@/lib/payments/create-payment';
 import { createExpense } from '@/actions/expenses/create-expense';
 import { updateExpenseStatus } from '@/actions/expenses/update-expense';
@@ -252,12 +252,16 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
   }
 
   if (!rows || rows.length === 0) {
-    await updateImportStatus({
+    const emptyRun = await updateImportStatus({
       import_id,
       status: 'completed',
       created_rows: 0,
       skipped_rows: importData.total_rows,
     });
+
+    if (emptyRun.error) {
+      console.error('processImport: failed to mark empty import completed', import_id, emptyRun.error);
+    }
 
     return {
       success: true,
@@ -555,7 +559,7 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
 
   // Update import final status
   const finalStatus = result.success ? 'completed' : 'failed';
-  await updateImportStatus({
+  const finalWrite = await updateImportStatus({
     import_id,
     status: finalStatus,
     created_rows: result.created_count,
@@ -568,6 +572,9 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
       errors: result.errors.slice(0, 10), // Store first 10 errors
     },
   });
+  if (finalWrite.error) {
+    console.error('processImport: failed to write final import status', import_id, finalWrite.error);
+  }
 
   // Audit log
   await logAudit({
@@ -661,18 +668,23 @@ export async function approveImport(import_id: string, notes?: string): Promise<
     return { error: 'Import is not awaiting approval' };
   }
 
-  // Update status
-  const { error } = await supabase
+  // Update status, guarded on the status checked above so a racing request cannot overwrite it
+  const { data: updated, error } = await supabase
     .from('bank_statement_imports')
     .update({
       status: 'approved',
       approved_by: user?.id,
       approved_at: new Date().toISOString(),
     })
-    .eq('id', import_id);
+    .eq('id', import_id)
+    .eq('status', 'awaiting_approval')
+    .select('id');
 
   if (error) {
     return { error: error.message };
+  }
+  if (!updated || updated.length === 0) {
+    return { error: 'Import status changed, please refresh and try again' };
   }
 
   // Audit log
@@ -714,8 +726,8 @@ export async function rejectImport(import_id: string, reason: string): Promise<{
     return { error: 'Import is not awaiting approval' };
   }
 
-  // Update status
-  const { error } = await supabase
+  // Update status, guarded on the status checked above so a racing request cannot overwrite it
+  const { data: updated, error } = await supabase
     .from('bank_statement_imports')
     .update({
       status: 'rejected',
@@ -724,10 +736,15 @@ export async function rejectImport(import_id: string, reason: string): Promise<{
         rejection_reason: reason,
       },
     })
-    .eq('id', import_id);
+    .eq('id', import_id)
+    .eq('status', 'awaiting_approval')
+    .select('id');
 
   if (error) {
     return { error: error.message };
+  }
+  if (!updated || updated.length === 0) {
+    return { error: 'Import status changed, please refresh and try again' };
   }
 
   // Audit log
@@ -769,15 +786,30 @@ export async function submitForApproval(import_id: string): Promise<{ error: str
     return { error: 'Import must be in processing status to submit for approval' };
   }
 
-  // Update status
-  const { error } = await supabase
+  // Update status, guarded on the status checked above so a racing request cannot overwrite it
+  const { data: updated, error } = await supabase
     .from('bank_statement_imports')
     .update({ status: 'awaiting_approval' })
-    .eq('id', import_id);
+    .eq('id', import_id)
+    .eq('status', 'processing')
+    .select('id');
 
   if (error) {
     return { error: error.message };
   }
+  if (!updated || updated.length === 0) {
+    return { error: 'Import status changed, please refresh and try again' };
+  }
+
+  // Audit log (maker step of maker-checker)
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'bank_statement_imports',
+    entityId: import_id,
+    entityDisplay: `Import: ${importData.file_name}`,
+    oldValues: { status: importData.status },
+    newValues: { status: 'awaiting_approval' },
+  });
 
   // Notify admins that an import is awaiting approval
   await notifyAdmins({

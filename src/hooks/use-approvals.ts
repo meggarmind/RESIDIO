@@ -6,6 +6,7 @@ import {
     getPendingApprovalsCount,
     approveRequest,
     rejectRequest,
+    reapplyApprovedRequest,
     canAutoApprove,
 } from '@/actions/approvals';
 import type { ApprovalStatus, ApprovalRequestType } from '@/types/database';
@@ -72,6 +73,29 @@ export function useApproveRequest() {
         },
         onError: (error) => {
             toast.error(error.message || 'Failed to approve request');
+        },
+    });
+}
+
+export function useReapplyApprovedRequest() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async ({ requestId }: { requestId: string }) => {
+            const result = await reapplyApprovedRequest(requestId);
+            if (!result.success) throw new Error(result.error || 'Failed to re-apply request');
+            return result;
+        },
+        onSuccess: () => {
+            toast.success('Request re-applied successfully');
+            queryClient.invalidateQueries({ queryKey: ['approval-requests'] });
+            queryClient.invalidateQueries({ queryKey: ['pending-approvals-count'] });
+            queryClient.invalidateQueries({ queryKey: ['billing-profiles'] });
+            queryClient.invalidateQueries({ queryKey: ['houses'] });
+            queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
+        },
+        onError: (error) => {
+            toast.error(error.message || 'Failed to re-apply request');
         },
     });
 }

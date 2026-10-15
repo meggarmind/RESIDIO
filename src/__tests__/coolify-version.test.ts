@@ -2,18 +2,17 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  STAGE_AUTO_DEPLOY_WARNING,
   TARGETS,
   assertOk,
   buildHeaders,
   decideSkip,
-  describeDeployResponse,
   envPayload,
   failureMessage,
   gitQueries,
   main,
   maskCommands,
   normalizeBaseUrl,
+  parseDeploy,
   planRequests,
   redact,
   requestInit,
@@ -27,7 +26,7 @@ import {
 /**
  * Unit tests for the Coolify build-version writer (#421 slice B). Pure functions only: no
  * git, no network. The script's `main()` does the I/O; these pin the decisions it makes,
- * above all that Prod is never deployed from CI.
+ * above all that nothing is deployed from CI and Stage's commit is pinned to the SHA.
  */
 
 const SHA = '0123456789abcdef0123456789abcdef01234567';
@@ -224,23 +223,63 @@ describe('planRequests', () => {
     expect(plan.some((request: { path: string }) => request.path.includes('/deploy'))).toBe(false);
   });
 
-  it('Stage sets the variables first, then triggers the deploy', () => {
+  it('Stage sets the variables first, then pins the commit, and never deploys', () => {
     const plan = planRequests({ target: TARGETS.staging, ...args });
 
     expect(plan.map((request: { method: string; path: string }) => `${request.method} ${request.path}`)).toEqual([
       'PATCH /api/v1/applications/app-uuid/envs/bulk',
-      'POST /api/v1/deploy?uuid=app-uuid&force=false',
+      'PATCH /api/v1/applications/app-uuid',
     ]);
     expect(plan[0].body?.data.find((v: { key: string }) => v.key === 'NEXT_PUBLIC_APP_ENV')?.value).toBe('staging');
+    expect(plan[1].body).toEqual({ git_commit_sha: SHA });
+    expect(plan.some((request: { path: string }) => request.path.includes('/deploy'))).toBe(false);
   });
 
-  it('only staging is a deploying target', () => {
-    expect(TARGETS.production.deploy).toBe(false);
-    expect(TARGETS.staging.deploy).toBe(true);
+  it('the pin uses the same SHA as NEXT_PUBLIC_GIT_SHA in the env payload', () => {
+    const plan = planRequests({ target: TARGETS.staging, ...args });
+    const shaVar = plan[0].body?.data.find((v: { key: string }) => v.key === 'NEXT_PUBLIC_GIT_SHA');
+    expect(shaVar?.value).toBe(SHA);
+    expect((plan[1].body as unknown as { git_commit_sha: string }).git_commit_sha).toBe(shaVar?.value);
+  });
+
+  it('only staging pins the commit, and no target deploys', () => {
+    expect(TARGETS.production.pinCommit).toBe(false);
+    expect(TARGETS.staging.pinCommit).toBe(true);
+    for (const target of Object.values(TARGETS)) expect(target).not.toHaveProperty('deploy');
   });
 
   it('rejects an unknown target rather than guessing', () => {
     expect(() => targetFor('prod')).toThrow(/Unknown TARGET_ENV/);
+  });
+
+  it('Stage with deploy ends with POST /api/v1/deploy, after the variables and the pin', () => {
+    const plan = planRequests({ target: TARGETS.staging, ...args, deploy: true });
+    expect(plan.map((request: { method: string; path: string }) => `${request.method} ${request.path}`)).toEqual([
+      'PATCH /api/v1/applications/app-uuid/envs/bulk',
+      'PATCH /api/v1/applications/app-uuid',
+      'POST /api/v1/deploy?uuid=app-uuid&force=false',
+    ]);
+    expect(plan[2].body).toBeUndefined();
+  });
+
+  it('Stage without deploy stays at two requests', () => {
+    expect(planRequests({ target: TARGETS.staging, ...args })).toHaveLength(2);
+    expect(planRequests({ target: TARGETS.staging, ...args, deploy: false })).toHaveLength(2);
+  });
+
+  it('Prod never gets a deploy request, even if asked', () => {
+    const plan = planRequests({ target: TARGETS.production, ...args, deploy: true });
+    expect(plan).toHaveLength(1);
+    expect(plan.some((request: { path: string }) => request.path.includes('/deploy'))).toBe(false);
+  });
+});
+
+describe('parseDeploy', () => {
+  it('is true only for the exact string true', () => {
+    expect(parseDeploy('true')).toBe(true);
+    for (const value of [undefined, '', 'false', 'TRUE', 'True', '1', 'yes', ' true', 'true ']) {
+      expect(parseDeploy(value)).toBe(false);
+    }
   });
 });
 
@@ -292,10 +331,10 @@ describe('buildHeaders / requestInit', () => {
   });
 
   it('never follows a redirect (Access answers a bad token with a 302 to its login page)', () => {
-    const [patch, deploy] = planRequests({ target: TARGETS.staging, appUuid: 'u', version: 'v1.0.0', sha: SHA });
+    const [patch, pin] = planRequests({ target: TARGETS.staging, appUuid: 'u', version: 'v1.0.0', sha: SHA });
     expect(requestInit(patch, {}).redirect).toBe('manual');
     expect(JSON.parse(requestInit(patch, {}).body ?? '{}').data).toHaveLength(3);
-    expect(requestInit(deploy, {})).not.toHaveProperty('body');
+    expect(JSON.parse(requestInit(pin, {}).body ?? '{}')).toEqual({ git_commit_sha: SHA });
   });
 });
 
@@ -342,8 +381,8 @@ describe('assertOk / failureMessage', () => {
   it.each([199, 300, 301, 302, 304, 307, 308, 399, 400, 401, 403, 404, 405, 500, 502])(
     'throws on HTTP %i (a 302 is Access rejecting the service token)',
     (status) => {
-      expect(() => assertOk(status, 'POST', '/api/v1/deploy?uuid=u&force=false')).toThrow(
-        `POST /api/v1/deploy?uuid=u&force=false returned HTTP ${status}`,
+      expect(() => assertOk(status, 'PATCH', '/api/v1/applications/u')).toThrow(
+        `PATCH /api/v1/applications/u returned HTTP ${status}`,
       );
     },
   );
@@ -362,9 +401,9 @@ describe('assertOk / failureMessage', () => {
 
   it('failureMessage redacts every value anywhere in the message', () => {
     const detail = `failed (${realistic.COOLIFY_API_TOKEN} ${realistic.CF_ACCESS_CLIENT_SECRET})`;
-    const message = failureMessage('POST', `/api/v1/deploy?uuid=${realistic.COOLIFY_APP_UUID_PROD}`, detail, realisticValues);
+    const message = failureMessage('PATCH', `/api/v1/applications/${realistic.COOLIFY_APP_UUID_PROD}`, detail, realisticValues);
     for (const value of realisticValues) expect(message).not.toContain(value);
-    expect(message).toContain('POST /api/v1/deploy?uuid=***');
+    expect(message).toContain('PATCH /api/v1/applications/***');
   });
 });
 
@@ -402,42 +441,17 @@ describe('skipNotice', () => {
   });
 });
 
-describe('describeDeployResponse', () => {
-  it('reports Coolify\'s deployment UUID and message, never the application UUID', () => {
-    const json = {
-      deployments: [
-        {
-          message: `Application ${realistic.COOLIFY_APP_UUID_STAGE} deployment queued.`,
-          resource_uuid: realistic.COOLIFY_APP_UUID_STAGE,
-          deployment_uuid: 'dpl0g8k4c',
-        },
-      ],
-    };
-    const out = describeDeployResponse(json, realisticValues);
-    expect(out).toBe('Coolify reports deployment dpl0g8k4c: "Application *** deployment queued."');
-    for (const value of realisticValues) expect(out).not.toContain(value);
-  });
-
-  it.each([null, 'not json', {}, { deployments: 'x' }, { deployments: [{ token: 'x' }] }])(
-    'gives a fixed string for an unknown shape (%j)',
-    (json) => {
-      expect(describeDeployResponse(json, realisticValues)).toBe(
-        'Coolify accepted the deploy (no deployment details in the response)',
-      );
-    },
-  );
-});
-
 describe('main', () => {
   type Call = { url: string; init: RequestInit };
 
-  function run(env: Record<string, string>, status = 200, body: unknown = { deployments: [] }) {
+  function run(env: Record<string, string>, status = 200, statusFor?: (call: Call) => number) {
     const calls: Call[] = [];
     const logs: string[] = [];
     const summaries: string[] = [];
     const fetchImpl = async (url: string, init: RequestInit) => {
-      calls.push({ url, init });
-      return { status, json: async () => body } as unknown as Response;
+      const call = { url, init };
+      calls.push(call);
+      return { status: statusFor ? statusFor(call) : status } as unknown as Response;
     };
     const done = main({
       env,
@@ -459,7 +473,6 @@ describe('main', () => {
         GITHUB_EVENT_NAME: event,
         GITHUB_ACTIONS: 'true',
         GITHUB_REF: 'refs/heads/stage',
-        DEPLOY: 'true',
         FORCE_DEPLOY: 'true',
       };
       // In process.env as well, in case anything reads it directly instead of `env`.
@@ -472,12 +485,34 @@ describe('main', () => {
     },
   );
 
-  it.each(['push', 'workflow_dispatch'])('Stage sets then deploys (%s)', async (event) => {
+  it.each(['TRUE', '1', 'yes', 'false', ''])('a stray DEPLOY=%j on Stage still makes only the two non-deploy requests', async (value) => {
+    const { done, calls } = run({ ...realistic, TARGET_ENV: 'staging', DEPLOY: value });
+    await done;
+    const app = `${realistic.COOLIFY_BASE_URL}/api/v1/applications/${realistic.COOLIFY_APP_UUID_STAGE}`;
+    expect(calls.map((call) => `${call.init.method} ${call.url}`)).toEqual([`PATCH ${app}/envs/bulk`, `PATCH ${app}`]);
+  });
+
+  it.each(['push', 'workflow_dispatch'])('Stage sets the variables then pins the commit, no deploy (%s)', async (event) => {
     const { done, calls } = run({ ...realistic, TARGET_ENV: 'staging', GITHUB_EVENT_NAME: event });
     await done;
-    expect(calls.map((call) => call.init.method)).toEqual(['PATCH', 'POST']);
-    expect(calls[1].url).toBe(`${realistic.COOLIFY_BASE_URL}/api/v1/deploy?uuid=${realistic.COOLIFY_APP_UUID_STAGE}&force=false`);
-    expect(JSON.parse(String(calls[0].init.body)).data[0]).toMatchObject({ key: 'NEXT_PUBLIC_APP_VERSION', value: 'v0.5.0' });
+    const app = `${realistic.COOLIFY_BASE_URL}/api/v1/applications/${realistic.COOLIFY_APP_UUID_STAGE}`;
+    expect(calls.map((call) => `${call.init.method} ${call.url}`)).toEqual([`PATCH ${app}/envs/bulk`, `PATCH ${app}`]);
+    const envs = JSON.parse(String(calls[0].init.body)).data;
+    expect(envs[0]).toMatchObject({ key: 'NEXT_PUBLIC_APP_VERSION', value: 'v0.5.0' });
+    expect(JSON.parse(String(calls[1].init.body))).toEqual({ git_commit_sha: c('s4') });
+    expect(envs[1]).toMatchObject({ key: 'NEXT_PUBLIC_GIT_SHA', value: c('s4') });
+  });
+
+  it('a non-2xx pin response fails the run, with no secret in the error', async () => {
+    const { done, calls } = run(
+      { ...realistic, TARGET_ENV: 'staging' },
+      200,
+      (call) => (call.url.endsWith('/envs/bulk') ? 201 : 500),
+    );
+    const error = await done.then(() => null, (e: Error) => e);
+    expect(error?.message).toBe('PATCH /api/v1/applications/*** returned HTTP 500');
+    for (const value of realisticValues) expect(error?.message).not.toContain(value);
+    expect(calls).toHaveLength(2);
   });
 
   it('a 302 fails the run, with no secret in the error', async () => {
@@ -485,7 +520,7 @@ describe('main', () => {
     const error = await done.then(() => null, (e: Error) => e);
     expect(error?.message).toBe('PATCH /api/v1/applications/***/envs/bulk returned HTTP 302');
     for (const value of realisticValues) expect(error?.message).not.toContain(value);
-    // Stops at the failure: no deploy after a failed variable write.
+    // Stops at the failure: no commit pin after a failed variable write.
     expect(calls).toHaveLength(1);
   });
 
@@ -523,28 +558,178 @@ describe('main', () => {
     expect(logs.join('\n')).not.toContain('/home/runner');
   });
 
-  it('logs what Coolify reported for the Stage deploy, then warns about auto-deploy', async () => {
-    const body = { deployments: [{ message: 'Deployment queued.', resource_uuid: realistic.COOLIFY_APP_UUID_STAGE, deployment_uuid: 'dpl1' }] };
-    const { done, logs, summaries } = run(
-      { ...realistic, TARGET_ENV: 'staging', GITHUB_STEP_SUMMARY: '/tmp/summary' },
-      200,
-      body,
-    );
+  it('logs the pin without any secret, and the summary says nothing was deployed', async () => {
+    const { done, logs, summaries } = run({ ...realistic, TARGET_ENV: 'staging', GITHUB_STEP_SUMMARY: '/tmp/summary' });
     await done;
-    expect(logs).toContain('Coolify reports deployment dpl1: "Deployment queued."');
-    expect(logs).toContain(`::warning::${STAGE_AUTO_DEPLOY_WARNING}`);
-    expect(STAGE_AUTO_DEPLOY_WARNING).toMatch(/auto-deploy.*residio-stage.*switch it off \(docs\/agents\/branching\.md\)/);
-    expect(summaries.join('')).toContain(STAGE_AUTO_DEPLOY_WARNING);
+    expect(logs).toContain(`Pinned residio-stage to ${c('s4')}; the KVM cron deploys it`);
+    expect(summaries.join('')).toContain('no deploy');
     for (const value of realisticValues) {
       expect(logs.join('\n')).not.toContain(value);
       expect(summaries.join('')).not.toContain(value);
     }
   });
 
-  it('Prod raises no auto-deploy warning (it is never deployed from CI)', async () => {
+  it('Prod pins nothing and logs no pin', async () => {
     const { done, logs } = run({ ...realistic, TARGET_ENV: 'production' });
     await done;
-    expect(logs.some((line) => line.startsWith('::warning::'))).toBe(false);
+    expect(logs.some((line) => line.startsWith('Pinned'))).toBe(false);
+  });
+});
+
+describe('main with DEPLOY=true (#525)', () => {
+  type Call = { url: string; init: RequestInit };
+  const app = `${realistic.COOLIFY_BASE_URL}/api/v1/applications/${realistic.COOLIFY_APP_UUID_STAGE}`;
+
+  function run(
+    env: Record<string, string>,
+    {
+      head = c('s4') as string | null,
+      respond,
+    }: { head?: string | null; respond?: (call: Call) => { status: number; body?: unknown } } = {},
+  ) {
+    const calls: Call[] = [];
+    const logs: string[] = [];
+    const fetchImpl = async (url: string, init: RequestInit) => {
+      const call = { url, init };
+      calls.push(call);
+      const { status, body } = respond ? respond(call) : { status: 200, body: { deployments: [] } };
+      return { status, json: async () => body } as unknown as Response;
+    };
+    const done = main({
+      env,
+      fetchImpl,
+      log: (line: string) => logs.push(line),
+      appendSummary: () => {},
+      git: fakeGit(releaseGraph),
+      resolveCommit: () => c('s4'),
+      stageHead: () => head,
+    });
+    return { done, calls, logs };
+  }
+
+  const staging = { ...realistic, TARGET_ENV: 'staging', DEPLOY: 'true' };
+
+  it('Production fails before any request', async () => {
+    const { done, calls } = run({ ...realistic, TARGET_ENV: 'production', DEPLOY: 'true' });
+    const error = await done.then(() => null, (e: Error) => e);
+    expect(error?.message).toMatch(/DEPLOY=true is not allowed for production/);
+    for (const value of realisticValues) expect(error?.message).not.toContain(value);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('Stage at the head sends variables, pin, then the deploy, in that order', async () => {
+    const { done, calls } = run(staging);
+    await done;
+    expect(calls.map((call) => `${call.init.method} ${call.url}`)).toEqual([
+      `PATCH ${app}/envs/bulk`,
+      `PATCH ${app}`,
+      `POST ${realistic.COOLIFY_BASE_URL}/api/v1/deploy?uuid=${realistic.COOLIFY_APP_UUID_STAGE}&force=false`,
+    ]);
+    expect(JSON.parse(String(calls[1].init.body))).toEqual({ git_commit_sha: c('s4') });
+    expect(calls[2].init.body).toBeUndefined();
+  });
+
+  it('without DEPLOY, Stage makes only two requests and never looks up the head', async () => {
+    const stageHead = vi.fn(() => c('s4'));
+    const calls: string[] = [];
+    await main({
+      env: { ...realistic, TARGET_ENV: 'staging' },
+      fetchImpl: async (url: string, init: RequestInit) => {
+        calls.push(`${init.method} ${url}`);
+        return { status: 200 } as unknown as Response;
+      },
+      log: () => {},
+      git: fakeGit(releaseGraph),
+      resolveCommit: () => c('s4'),
+      stageHead,
+    });
+    expect(calls).toHaveLength(2);
+    expect(stageHead).not.toHaveBeenCalled();
+  });
+
+  it('compares full SHAs: a head sharing the first 12 characters still counts as moved on', async () => {
+    const lookalike = c('s4').slice(0, 12) + 'f'.repeat(28);
+    const { done, calls, logs } = run(staging, { head: lookalike });
+    await expect(done).resolves.toBeUndefined();
+    expect(calls).toHaveLength(0);
+    expect(logs.some((line) => line.startsWith('::notice::Stage has moved on'))).toBe(true);
+  });
+
+  it('does nothing, without failing, when stage has moved past the released commit', async () => {
+    const { done, calls, logs } = run(staging, { head: c('newer') });
+    await expect(done).resolves.toBeUndefined();
+    expect(calls).toHaveLength(0);
+    expect(logs).toContain(
+      `::notice::Stage has moved on from the released commit ${c('s4')} (stage is now ${c('newer')}); not deploying. The KVM cron deploys the newer commit.`,
+    );
+  });
+
+  it('does nothing, without failing, when stage head cannot be resolved', async () => {
+    const { done, calls, logs } = run(staging, { head: null });
+    await expect(done).resolves.toBeUndefined();
+    expect(calls).toHaveLength(0);
+    expect(logs.some((line) => line.startsWith("::notice::Could not resolve stage's head"))).toBe(true);
+  });
+
+  it('a non-2xx deploy response fails the run, with no secret in the error', async () => {
+    const { done, calls } = run(staging, {
+      respond: (call) => ({ status: call.init.method === 'POST' ? 500 : 200 }),
+    });
+    const error = await done.then(() => null, (e: Error) => e);
+    expect(error?.message).toBe('POST /api/v1/deploy?uuid=***&force=false returned HTTP 500');
+    for (const value of realisticValues) expect(error?.message).not.toContain(value);
+    expect(calls).toHaveLength(3);
+  });
+
+  it('logs the queued deploy without the application UUID, even when the response echoes it', async () => {
+    const { done, logs } = run(staging, {
+      respond: (call) => ({
+        status: 200,
+        body:
+          call.init.method === 'POST'
+            ? {
+                deployments: [
+                  {
+                    message: `Queued\u0007 ${realistic.COOLIFY_APP_UUID_STAGE} ${'x'.repeat(5000)}`,
+                    resource_uuid: realistic.COOLIFY_APP_UUID_STAGE,
+                    deployment_uuid: 'dep-123',
+                  },
+                ],
+              }
+            : undefined,
+      }),
+    });
+    await done;
+    const line = logs.find((entry) => entry.startsWith('Stage deploy queued')) ?? '';
+    expect(line).toContain(c('s4'));
+    expect(line).toContain('dep-123');
+    for (const value of realisticValues) expect(logs.join('\n')).not.toContain(value);
+    expect(line.length).toBeLessThan(500);
+    const parts = line.slice(line.indexOf('(') + 1, -1).split(': ');
+    expect(parts).toHaveLength(2);
+    for (const part of parts) expect(part.length).toBeLessThanOrEqual(200);
+    expect(parts[1]).toHaveLength(200);
+    expect(line).not.toMatch(/[\u0000-\u001f]/);
+  });
+
+  it('falls back to a fixed line when the deploy response is not JSON', async () => {
+    const logs: string[] = [];
+    await main({
+      env: staging,
+      fetchImpl: async () =>
+        ({
+          status: 200,
+          json: async () => {
+            throw new SyntaxError('bad json');
+          },
+        }) as unknown as Response,
+      log: (line: string) => logs.push(line),
+      appendSummary: () => {},
+      git: fakeGit(releaseGraph),
+      resolveCommit: () => c('s4'),
+      stageHead: () => c('s4'),
+    });
+    expect(logs).toContain(`Stage deploy queued for ${c('s4')}`);
   });
 });
 
@@ -600,8 +785,10 @@ describe('coolify-version.yml and its call from release.yml', () => {
 
   const releaseJob = () => release.match(/\n {2}coolify-version:\n([\s\S]*?)(?=\n {2}\S|$)/)?.[1] ?? '';
 
-  it('release.yml describes the merge commit the tag sits on, never the PR head', () => {
-    expect(release).not.toMatch(/pull_request\.head\.sha/);
+  it('release.yml describes the merge commit the tag sits on, never the PR head (Prod path)', () => {
+    expect(releaseJob()).not.toMatch(/pull_request\.head\.sha/);
+    // The Prod call never asks for a deploy.
+    expect(releaseJob()).not.toMatch(/\bdeploy:/);
     expect(releaseJob()).toMatch(/\n\s+ref: \$\{\{ github\.event\.pull_request\.merge_commit_sha \}\}\n/);
     // The tag job checks out the same commit it tags.
     expect(release).toMatch(/ref: \$\{\{ github\.event\.pull_request\.merge_commit_sha \}\}\n\s+fetch-depth: 0/);
@@ -640,6 +827,46 @@ describe('coolify-version.yml and its call from release.yml', () => {
     expect(guard).toMatch(/exit 1/);
     // It runs before the version is written.
     expect(workflow.indexOf('Refuse a manual run')).toBeLessThan(workflow.indexOf('run: node scripts/coolify-version.mjs'));
+  });
+
+  const stageJob = () => release.match(/\n {2}stage-deploy:\n([\s\S]*?)(?=\n {2}\S|$)/)?.[1] ?? '';
+
+  it('release.yml deploys Stage only for a tagged release:major merged from stage', () => {
+    const job = stageJob();
+    expect(job).toMatch(/needs: tag/);
+    expect(job).toMatch(/needs\.tag\.outputs\.tag != ''/);
+    expect(job).toMatch(/needs\.tag\.outputs\.bump == 'major'/);
+    expect(job).toMatch(/github\.event\.pull_request\.head\.ref == 'stage'/);
+    expect(job).toMatch(/github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
+    expect(job).toMatch(/permissions:\n\s+contents: read\n/);
+    expect(job).toMatch(/uses: \.\/\.github\/workflows\/coolify-version\.yml/);
+    expect(release).toMatch(/\n {6}bump: \$\{\{ steps\.version\.outputs\.bump \}\}/);
+  });
+
+  it('the stage-deploy job asks for a deploy of the released stage commit, with Stage secrets only', () => {
+    const job = stageJob();
+    expect(job).toMatch(/\n\s+environment: staging\n/);
+    expect(job).toMatch(/\n\s+ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}\n/);
+    expect(job).toMatch(/\n\s+deploy: true\n/);
+    expect(job).not.toMatch(/production/);
+    expect(job).not.toMatch(/COOLIFY_APP_UUID_PROD/);
+    expect(job).not.toMatch(/secrets:\s*inherit/);
+    const block = job.match(/\n\s+secrets:\n((?:\s{6}\S.*\n?)+)/)?.[1] ?? '';
+    const names = [...block.matchAll(/^\s+([A-Z_]+): \$\{\{ secrets\.([A-Z_]+) \}\}$/gm)].map((m) => m[1]);
+    expect(names.sort()).toEqual(requiredSecrets(TARGETS.staging).sort());
+  });
+
+  it('coolify-version.yml takes deploy as an optional workflow_call boolean defaulting to false', () => {
+    const call = workflow.match(/\n {2}workflow_call:\n([\s\S]*?)(?=\n {2}\S)/)?.[1] ?? '';
+    expect(call).toMatch(/\n {6}deploy:\n(?: {8}.*\n)*? {8}type: boolean\n(?: {8}.*\n)*? {8}default: false\n/);
+    const dispatch = workflow.match(/\n {2}workflow_dispatch:\n([\s\S]*?)(?=\n\S)/)?.[1] ?? '';
+    expect(dispatch).not.toMatch(/deploy/);
+    expect(workflow).toMatch(/DEPLOY: \$\{\{ inputs\.deploy && 'true' \|\| 'false' \}\}/);
+  });
+
+  it('the wrong-branch guard applies to workflow_dispatch only, so the master-context call is not blocked', () => {
+    const guard = workflow.match(/- name: Refuse a manual run from the wrong branch\n([\s\S]*?)(?=\n\s+- name:)/)?.[1] ?? '';
+    expect(guard).toMatch(/if: >-\n\s+github\.event_name == 'workflow_dispatch' &&/);
   });
 
   it('checks out full history with tags (fetch-depth 0), or the version rule sees no tags', () => {

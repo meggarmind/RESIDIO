@@ -10,8 +10,8 @@ residio_sources:
   - src/actions/notifications/**
   - src/app/(dashboard)/settings/email/**
   - src/app/(dashboard)/settings/notifications/**
-residio_verified_commit: de0256b
-residio_verified_at: '2026-10-07'
+residio_verified_commit: 223af6d
+residio_verified_at: '2026-10-13'
 residio_app_version: '0.4.0'
 ---
 
@@ -31,11 +31,15 @@ The toggles control which categories of email Residio sends: notifications, invo
 
 ## SMS
 
-SMS is used for a narrower set of messages: emergency broadcasts, verification codes, and two-factor codes. It is more expensive and more intrusive than email, so it should not be the default channel for routine billing communication.
+SMS is used for a narrower set of messages: two-factor codes, plus contact verification codes once the SMS provider is connected. SMS is currently switched off for emergency broadcasts, reminders, contact verification codes, and the WhatsApp fallback below until the SMS provider (Termii) is connected. It is more expensive and more intrusive than email, so it should not be the default channel for routine billing communication.
 
 Configure SMS behaviour from **Settings → Notifications**, alongside the other channels.
 
 ### SMS fallback for urgent WhatsApp messages
+
+:::note[Currently off]
+While SMS is switched off, this fallback does not run. A failed urgent WhatsApp send is reported as failed, with the WhatsApp error only.
+:::
 
 If the estate's active WhatsApp provider is Chatmaid and a WhatsApp send fails for an **urgent** notification, Residio sends that notification by SMS instead. Chatmaid depends on a phone staying connected, and a message that does not arrive has no other way of being recovered.
 
@@ -45,7 +49,7 @@ If the estate's active WhatsApp provider is Chatmaid and a WhatsApp send fails f
 - Meta and Twilio never fall back to SMS.
 
 :::warning[Emergency broadcasts reach everyone immediately]
-A multi-channel emergency announcement bypasses the normal reminder cadence. Confirm the message text and the recipient scope with the estate lead before sending.
+A multi-channel emergency announcement bypasses the normal reminder cadence. While SMS is off, the SMS option is unavailable in the emergency dialog, and if SMS is somehow requested the results list shows SMS as failed with nothing sent. Confirm the message text and the recipient scope with the estate lead before sending.
 :::
 
 ## Templates
@@ -62,6 +66,8 @@ Before saving a template change:
 ## Reminders and schedules
 
 **Settings → Notifications → Reminders** defines which billing events trigger a message, and **Schedules** defines when. Reminders are dispatched by a scheduled job rather than at the moment you save them, so a saved reminder that has not arrived yet is usually waiting for its next run, not broken.
+
+Invoice reminders go out by email and WhatsApp only. SMS is switched off for reminders until the SMS provider (Termii) is connected, so an SMS step in a reminder schedule is skipped without an error. The default schedule is email only, and the schedule editor does not offer SMS.
 
 ## The notification queue
 

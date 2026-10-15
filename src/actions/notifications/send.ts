@@ -98,18 +98,21 @@ export async function sendTemplateNotification(params: {
   });
 
   // Audit log
-  await logAudit({
-    action: result.success ? 'CREATE' : 'REJECT',
-    entityType: 'notification_history',
-    entityId: result.historyId || 'failed',
-    entityDisplay: `${template.display_name} to ${recipient.first_name} ${recipient.last_name}`,
-    newValues: {
-      templateId: template.id,
-      recipientId,
-      channel: template.channel,
-      success: result.success,
-    },
-  });
+  // audit_logs.entity_id is a uuid, so with no real id there is nothing to audit against (#594): a send that left no history row is not audited.
+  if (result.historyId) {
+    await logAudit({
+      action: result.success ? 'CREATE' : 'REJECT',
+      entityType: 'notification_history',
+      entityId: result.historyId,
+      entityDisplay: `${template.display_name} to ${recipient.first_name} ${recipient.last_name}`,
+      newValues: {
+        templateId: template.id,
+        recipientId,
+        channel: template.channel,
+        success: result.success,
+      },
+    });
+  }
 
   return result;
 }
@@ -165,18 +168,21 @@ export async function sendDirectNotification(params: {
   });
 
   // Audit log
-  await logAudit({
-    action: result.success ? 'CREATE' : 'REJECT',
-    entityType: 'notification_history',
-    entityId: result.historyId || 'failed',
-    entityDisplay: `Direct ${channel} to ${recipient.first_name} ${recipient.last_name}`,
-    newValues: {
-      recipientId,
-      channel,
-      subject,
-      success: result.success,
-    },
-  });
+  // audit_logs.entity_id is a uuid, so with no real id there is nothing to audit against (#594): a send that left no history row is not audited.
+  if (result.historyId) {
+    await logAudit({
+      action: result.success ? 'CREATE' : 'REJECT',
+      entityType: 'notification_history',
+      entityId: result.historyId,
+      entityDisplay: `Direct ${channel} to ${recipient.first_name} ${recipient.last_name}`,
+      newValues: {
+        recipientId,
+        channel,
+        subject,
+        success: result.success,
+      },
+    });
+  }
 
   return result;
 }
@@ -218,6 +224,8 @@ export async function sendBulkNotification(params: {
     failed: 0,
     errors: [] as string[],
   };
+  // Ids of the history rows (immediate) or queue rows (queued) this call produced.
+  const affectedIds: string[] = [];
 
   // Get all recipients
   const supabase = createAdminClient();
@@ -285,6 +293,7 @@ export async function sendBulkNotification(params: {
 
       if (sendResult.success) {
         results.sent++;
+        if (sendResult.historyId) affectedIds.push(sendResult.historyId);
       } else {
         results.failed++;
         results.errors.push(`${recipient.id}: ${sendResult.error || 'Send failed'}`);
@@ -305,6 +314,7 @@ export async function sendBulkNotification(params: {
 
       if (queueResult.success) {
         results.queued++;
+        if (queueResult.queueId) affectedIds.push(queueResult.queueId);
       } else {
         results.failed++;
         results.errors.push(`${recipient.id}: ${queueResult.error || 'Queue failed'}`);
@@ -314,20 +324,27 @@ export async function sendBulkNotification(params: {
 
   results.success = results.failed === 0;
 
-  // Audit log
-  await logAudit({
-    action: 'GENERATE',
-    entityType: 'notification_history',
-    entityId: 'bulk',
-    entityDisplay: `Bulk ${template.display_name}`,
-    newValues: {
-      templateId,
-      recipients: recipientIds.length,
-      sent: results.sent,
-      queued: results.queued,
-      failed: results.failed,
-    },
-  });
+  // Audit log. audit_logs.entity_id is a uuid: the first notification record this call
+  // created stands for the batch (#594). Nothing created means nothing to audit.
+  if (affectedIds.length > 0) {
+    await logAudit({
+      action: 'GENERATE',
+      entityType: 'notification_history',
+      entityId: affectedIds[0],
+      entityDisplay: `Bulk ${template.display_name}`,
+      newValues: {
+        batch: 'bulk',
+        total_count: affectedIds.length,
+        record_ids: affectedIds.slice(0, 50),
+        record_kind: immediate ? 'notification_history' : 'notification_queue',
+        templateId,
+        recipients: recipientIds.length,
+        sent: results.sent,
+        queued: results.queued,
+        failed: results.failed,
+      },
+    });
+  }
 
   return results;
 }

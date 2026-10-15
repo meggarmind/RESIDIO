@@ -425,21 +425,43 @@ export async function processNotificationQueue(options?: {
   }
 
   try {
+    const startedAt = new Date().toISOString();
     const result = await processQueue(options);
 
-    // Audit log
-    await logAudit({
-      action: 'GENERATE',
-      entityType: 'notification_queue',
-      entityId: 'batch',
-      entityDisplay: 'Queue Processing',
-      newValues: {
-        processed: result.processed,
-        sent: result.sent,
-        failed: result.failed,
-        skipped: result.skipped,
-      },
-    });
+    // Audit log. audit_logs.entity_id is a uuid: the first queue item this run attempted
+    // stands for the batch (#594). Nothing processed means nothing to audit.
+    if (result.processed > 0) {
+      const { data: attempted } = await createAdminClient()
+        .from('notification_queue')
+        .select('id')
+        .gte('last_attempt_at', startedAt)
+        .order('last_attempt_at', { ascending: true })
+        .limit(50);
+      const queueIds = [
+        ...new Set([
+          ...(attempted ?? []).map((q: { id: string }) => q.id),
+          ...result.errors.map((e) => e.queueId).filter((id) => id !== 'fetch'),
+        ]),
+      ].slice(0, 50);
+
+      if (queueIds.length > 0) {
+        await logAudit({
+          action: 'GENERATE',
+          entityType: 'notification_queue',
+          entityId: queueIds[0],
+          entityDisplay: 'Queue Processing',
+          newValues: {
+            batch: 'queue_processing',
+            total_count: result.processed,
+            queue_ids: queueIds,
+            processed: result.processed,
+            sent: result.sent,
+            failed: result.failed,
+            skipped: result.skipped,
+          },
+        });
+      }
+    }
 
     return { data: result, error: null };
   } catch (error) {

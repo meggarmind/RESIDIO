@@ -1,8 +1,8 @@
 'use server';
 
 import { fetchNewEmails } from './fetch-emails';
-import { parseAllPendingEmails } from './parse-email';
-import { matchEmailTransactions } from './process-email-import';
+import { parseAllPendingEmails } from '@/lib/email-imports/parse-email';
+import { matchEmailTransactions } from '@/lib/email-imports/process-email-matching';
 import { logAudit } from '@/lib/audit/logger';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -60,14 +60,16 @@ export async function checkPaymentEmails() {
 
         console.log('Payment check summary:', summary);
 
-        // Audit this manual check
-        await logAudit({
-            action: 'VERIFY',
-            entityType: 'email_imports',
-            entityId: fetchResult.importId || 'manual-check',
-            entityDisplay: 'Manual Payment Verification Check',
-            newValues: summary
-        });
+        // Audit this manual check. audit_logs.entity_id is a uuid, so with no real id there is nothing to audit against (#594).
+        if (fetchResult.importId) {
+            await logAudit({
+                action: 'VERIFY',
+                entityType: 'email_imports',
+                entityId: fetchResult.importId,
+                entityDisplay: 'Manual Payment Verification Check',
+                newValues: summary
+            });
+        }
 
         return {
             success: true,

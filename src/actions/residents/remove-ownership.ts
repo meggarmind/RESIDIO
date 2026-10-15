@@ -14,7 +14,7 @@ type RemoveOwnershipResponse = {
 }
 
 /**
- * Remove ownership from a non-resident landlord or developer without transferring to a new owner.
+ * Remove ownership from a property owner or developer without transferring to a new owner.
  *
  * This makes the house vacant (no owner assigned).
  *
@@ -84,7 +84,7 @@ export async function removeOwnership(
   if (tenant) {
     return {
       success: false,
-      error: 'Cannot remove ownership while a tenant is assigned. Remove the tenant first.'
+      error: 'Cannot remove ownership while a renter is assigned. Remove the renter first.'
     };
   }
 

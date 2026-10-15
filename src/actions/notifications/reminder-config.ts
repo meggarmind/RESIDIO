@@ -103,7 +103,7 @@ export async function getDefaultReminderSchedule(): Promise<ReminderScheduleConf
         id: 'step-1-before',
         daysFromDue: -1,
         escalationLevel: 'urgent',
-        channels: ['email', 'sms'],
+        channels: ['email'],
         isActive: true,
         priority: 3,
       },
@@ -111,7 +111,7 @@ export async function getDefaultReminderSchedule(): Promise<ReminderScheduleConf
         id: 'step-due-date',
         daysFromDue: 0,
         escalationLevel: 'final',
-        channels: ['email', 'sms'],
+        channels: ['email'],
         isActive: true,
         priority: 2,
       },
@@ -119,7 +119,7 @@ export async function getDefaultReminderSchedule(): Promise<ReminderScheduleConf
         id: 'step-1-after',
         daysFromDue: 1,
         escalationLevel: 'overdue',
-        channels: ['email', 'sms'],
+        channels: ['email'],
         isActive: true,
         priority: 1,
       },
@@ -127,7 +127,7 @@ export async function getDefaultReminderSchedule(): Promise<ReminderScheduleConf
         id: 'step-3-after',
         daysFromDue: 3,
         escalationLevel: 'overdue',
-        channels: ['email', 'sms'],
+        channels: ['email'],
         isActive: true,
         priority: 1,
       },
@@ -135,7 +135,7 @@ export async function getDefaultReminderSchedule(): Promise<ReminderScheduleConf
         id: 'step-7-after',
         daysFromDue: 7,
         escalationLevel: 'overdue',
-        channels: ['email', 'sms'],
+        channels: ['email'],
         isActive: true,
         priority: 1,
       },
@@ -170,17 +170,19 @@ export async function saveReminderSchedule(
     };
 
     // Save to settings
-    await updateSetting(SETTINGS_KEYS.REMINDER_SCHEDULE, JSON.stringify(fullSchedule));
+    const saved = await updateSetting(SETTINGS_KEYS.REMINDER_SCHEDULE, JSON.stringify(fullSchedule));
 
-    // Audit log
-    await logAudit({
-      action: existing ? 'UPDATE' : 'CREATE',
-      entityType: 'system_settings',
-      entityId: SETTINGS_KEYS.REMINDER_SCHEDULE,
-      entityDisplay: 'Invoice Reminder Schedule',
-      oldValues: existing ? JSON.parse(JSON.stringify(existing)) : undefined,
-      newValues: JSON.parse(JSON.stringify(fullSchedule)),
-    });
+    // Audit log. audit_logs.entity_id is a uuid: use the settings row id; no row, no audit (#594).
+    if (saved?.data?.id) {
+      await logAudit({
+        action: existing ? 'UPDATE' : 'CREATE',
+        entityType: 'system_settings',
+        entityId: saved.data.id,
+        entityDisplay: 'Invoice Reminder Schedule',
+        oldValues: existing ? JSON.parse(JSON.stringify(existing)) : undefined,
+        newValues: { key: SETTINGS_KEYS.REMINDER_SCHEDULE, ...JSON.parse(JSON.stringify(fullSchedule)) },
+      });
+    }
 
     return { success: true, data: fullSchedule };
   } catch (error) {
@@ -397,16 +399,19 @@ export async function toggleRemindersEnabled(): Promise<{
     const currentEnabled = await areRemindersEnabled();
     const newEnabled = !currentEnabled;
 
-    await updateSetting(SETTINGS_KEYS.REMINDERS_ENABLED, newEnabled);
+    const saved = await updateSetting(SETTINGS_KEYS.REMINDERS_ENABLED, newEnabled);
 
-    await logAudit({
-      action: newEnabled ? 'ACTIVATE' : 'DEACTIVATE',
-      entityType: 'system_settings',
-      entityId: SETTINGS_KEYS.REMINDERS_ENABLED,
-      entityDisplay: 'Invoice Reminders',
-      oldValues: { enabled: currentEnabled },
-      newValues: { enabled: newEnabled },
-    });
+    // audit_logs.entity_id is a uuid: use the settings row id; no row, no audit (#594).
+    if (saved?.data?.id) {
+      await logAudit({
+        action: newEnabled ? 'ACTIVATE' : 'DEACTIVATE',
+        entityType: 'system_settings',
+        entityId: saved.data.id,
+        entityDisplay: 'Invoice Reminders',
+        oldValues: { key: SETTINGS_KEYS.REMINDERS_ENABLED, enabled: currentEnabled },
+        newValues: { key: SETTINGS_KEYS.REMINDERS_ENABLED, enabled: newEnabled },
+      });
+    }
 
     return { success: true, enabled: newEnabled };
   } catch (error) {

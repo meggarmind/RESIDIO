@@ -8,6 +8,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles'
 import type { PaymentRecord } from '@/types/database'
 import { shouldSendToResident } from '@/lib/notifications/preferences'
 import { buildPaymentReceivedWhatsApp } from '@/lib/whatsapp/outbound'
+import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in'
 import { addToQueue } from '@/lib/notifications/queue'
 import { residentHasHouse } from '@/lib/payments/house-membership'
 
@@ -178,7 +179,11 @@ export async function createPaymentCore(
             .eq('id', result.data.resident_id)
             .single()
 
-        if (paymentRecipient?.phone_primary) {
+        // Opt-in is checked at enqueue time; a non-opted-in resident gets no queue row.
+        if (
+            paymentRecipient?.phone_primary &&
+            (await isWhatsAppOptedIn(result.data.resident_id, paymentRecipient.phone_primary))
+        ) {
             await addToQueue(buildPaymentReceivedWhatsApp({
                 paymentId: paymentRecord.id,
                 residentId: result.data.resident_id,

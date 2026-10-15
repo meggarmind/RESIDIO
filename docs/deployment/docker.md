@@ -11,8 +11,8 @@ Caddy, runtime-injected config, GitHub Actions cron, stage on a laptop) was reve
 plan, costs and measurements are in [`hosting-plan.md`](hosting-plan.md); this document does
 not re-open them.
 
-**Scope:** the image itself. The nine cron schedules that Vercel ran from `vercel.json` become
-Coolify scheduled tasks (#399), and nightly backups go to Cloudflare R2 from GitHub Actions;
+**Scope:** the image itself. The nine cron schedules that Vercel ran from the now-removed `vercel.json` became
+Coolify scheduled tasks (#399, recorded in `hosting-plan.md`), and nightly backups go to Cloudflare R2 from GitHub Actions;
 both are separate pieces of work (#415).
 
 ---
@@ -183,11 +183,12 @@ The same `Dockerfile` runs unchanged. What moves is where the values come from.
 4. **`docker-compose.yml` is not consumed by Coolify.** It is the local mirror of the same
    configuration; keep the two in step by hand.
 5. **Cron becomes Coolify scheduled tasks** hitting `127.0.0.1:3000/api/cron/*` from inside the
-   container network, carrying `CRON_SECRET` in the `Authorization` header. `vercel.json`'s nine
-   schedules are inert off Vercel. Note that `src/lib/auth/cron-auth.ts` fails **closed** in
+   container network, carrying `CRON_SECRET` in the `Authorization` header. The nine schedules
+   (formerly `vercel.json`, now removed) are recorded in `hosting-plan.md`, "Scheduled tasks". Note that `src/lib/auth/cron-auth.ts` fails **closed** in
    production when `CRON_SECRET` is unset — a production container without it has no working
-   scheduled jobs, and no error at boot to tell you. Implementing these schedules is #399 and is
-   out of scope here.
+   scheduled jobs, and no error at boot to tell you. `process-notifications` is the exception to the
+   once-a-day pattern: it runs `*/15 * * * *` so queued retries are picked up (#546). The operator
+   applies that schedule in Coolify; it is not set anywhere in the repository.
 6. **Two applications, one host.** Prod and stage are separate Coolify applications on the same
    KVM, each with its own build variables (so its own build), its own runtime secrets and its
    own hostname. A stage image cannot be promoted to prod; rebuild from the same commit.

@@ -85,7 +85,7 @@ export async function exchangeGmailCode(code: string): Promise<{
       .eq('is_active', true);
 
     // Store encrypted credentials
-    const { error: insertError } = await supabase
+    const { data: inserted, error: insertError } = await supabase
       .from('gmail_oauth_credentials')
       .insert({
         email_address: email,
@@ -95,21 +95,25 @@ export async function exchangeGmailCode(code: string): Promise<{
         scopes: GMAIL_SCOPES,
         is_active: true,
         created_by: auth.userId,
-      });
+      })
+      .select('id')
+      .single();
 
     if (insertError) {
       console.error('Failed to store Gmail credentials:', insertError);
       return { data: null, error: 'Failed to store credentials' };
     }
 
-    // Audit log
-    await logAudit({
-      action: 'CREATE',
-      entityType: 'gmail_oauth_credentials',
-      entityId: email,
-      entityDisplay: `Gmail: ${email}`,
-      newValues: { email, scopes: GMAIL_SCOPES },
-    });
+    // Audit log. audit_logs.entity_id is a uuid: use the credentials row id; no row, no audit (#594).
+    if (inserted?.id) {
+      await logAudit({
+        action: 'CREATE',
+        entityType: 'gmail_oauth_credentials',
+        entityId: inserted.id,
+        entityDisplay: `Gmail: ${email}`,
+        newValues: { email, scopes: GMAIL_SCOPES },
+      });
+    }
 
     return { data: { email }, error: null };
   } catch (error) {
@@ -257,33 +261,6 @@ export async function disconnectGmail(): Promise<{ error: string | null }> {
 }
 
 // ============================================================
-// Update Last Sync Status
-// ============================================================
-
-export async function updateGmailSyncStatus(params: {
-  status: 'success' | 'error' | 'partial';
-  message?: string;
-  emailsCount?: number;
-}): Promise<{ error: string | null }> {
-  const supabase = await createServerSupabaseClient();
-
-  const { error } = await supabase
-    .from('gmail_oauth_credentials')
-    .update({
-      last_sync_at: new Date().toISOString(),
-      last_sync_status: params.status,
-      last_sync_message: params.message || null,
-      last_sync_emails_count: params.emailsCount ?? 0,
-    })
-    .eq('is_active', true);
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  return { error: null };
-}
-// ============================================================
 // Update Sync Criteria
 // ============================================================
 
@@ -296,25 +273,30 @@ export async function updateSyncCriteria(criteria: Record<string, unknown>): Pro
 
   const supabase = await createServerSupabaseClient();
 
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from('gmail_oauth_credentials')
     .update({
       sync_criteria: criteria,
     })
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .select('id');
 
   if (error) {
     return { error: error.message };
   }
 
-  // Audit log
-  await logAudit({
-    action: 'UPDATE',
-    entityType: 'gmail_oauth_credentials',
-    entityId: 'active',
-    entityDisplay: 'Gmail Sync Criteria',
-    newValues: criteria,
-  });
+  // Audit log. audit_logs.entity_id is a uuid: use the updated credentials row (#594).
+  // No active connection means nothing changed, so nothing to audit.
+  const credentialsId = updatedRows?.[0]?.id;
+  if (credentialsId) {
+    await logAudit({
+      action: 'UPDATE',
+      entityType: 'gmail_oauth_credentials',
+      entityId: credentialsId,
+      entityDisplay: 'Gmail Sync Criteria',
+      newValues: criteria,
+    });
+  }
 
   return { error: null };
 }

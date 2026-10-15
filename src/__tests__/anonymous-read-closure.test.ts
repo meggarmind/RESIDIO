@@ -263,15 +263,14 @@ describe('#212 (part 1): close anonymous reads on six finance/settings tables', 
   });
 
   it('does not gate any of these tables on has_permission()', () => {
-    // system_settings must stay readable by every signed-in account, not
-    // just admins (src/middleware.ts:92 reads maintenance_mode on
-    // essentially every request). The same "keep the predicate exactly as
-    // it is" rule applies to the other five tables in this slice -- none of
-    // them should have grown a has_permission() gate as a drive-by.
+    // This migration only re-scopes roles; it must not gate any table on a
+    // permission as a drive-by. (system_settings was narrowed by key in the
+    // later 20261014140000_system_settings_key_split.sql, #237, which
+    // authenticated-read-closure.test.ts pins.)
     expect(activeStatements).not.toContain('has_permission(');
   });
 
-  it('keeps system_settings readable by USING (true), not narrowed', () => {
+  it('this migration re-scopes system_settings to authenticated with USING (true) (since superseded by #237 key split)', () => {
     expect(activeSql).toContain(
       'CREATE POLICY "system_settings_select_policy"\n  ON public.system_settings FOR SELECT TO authenticated\n  USING (true);'
     );

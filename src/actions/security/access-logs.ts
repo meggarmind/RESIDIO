@@ -250,6 +250,17 @@ export async function unflagAccess(logId: string): Promise<AccessLogResponse> {
     return { data: null, error: auth.error || 'Permission denied' };
   }
 
+  // Get existing log (prior flag state is recorded in the audit entry)
+  const { data: existingLog, error: fetchError } = await supabase
+    .from('access_logs')
+    .select('*, contact:security_contacts(full_name)')
+    .eq('id', logId)
+    .single();
+
+  if (fetchError || !existingLog) {
+    return { data: null, error: 'Access log not found' };
+  }
+
   const { data: accessLog, error: updateError } = await supabase
     .from('access_logs')
     .update({
@@ -264,6 +275,17 @@ export async function unflagAccess(logId: string): Promise<AccessLogResponse> {
     console.error('Unflag access error:', updateError);
     return { data: null, error: 'Failed to unflag access' };
   }
+
+  // Audit log
+  const contactData = existingLog.contact as unknown as { full_name: string } | null;
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'access_logs',
+    entityId: accessLog.id,
+    entityDisplay: `Unflagged: ${contactData?.full_name || 'Unknown'}`,
+    oldValues: { flagged: existingLog.flagged, flag_reason: existingLog.flag_reason },
+    newValues: { flagged: false, flag_reason: null },
+  });
 
   revalidatePath('/security');
   revalidatePath('/security/logs');

@@ -7,6 +7,15 @@ this file, whatever tool it is running under — Claude Code, Codex, OpenCode, o
 how a particular tool spawns an isolated sub-agent. They do not carry policy. If a rule about
 what this project does or forbids lives anywhere, it lives here.
 
+> **Session bookends — every session, every harness, no exceptions.**
+> **First:** read the handoff record — `gh issue view 412 --repo meggarmind/RESIDIO --comments`
+> (newest last) — before any substantive work.
+> **Last:** post a new handoff comment on **#412** before you stop — `gh issue comment 412
+> --repo meggarmind/RESIDIO --body-file handoff.md` — even if you were not asked, even if you
+> only read, coordinated or reviewed, and even if the work was abandoned (say so). A session that
+> ends without it has left nothing for the next one. Content and format: §14 and §16. Do not
+> create separate handoff files.
+
 ---
 
 ## 1. Non-negotiables
@@ -127,11 +136,10 @@ components rather than using them directly in pages.
 Do **not** run `supabase start`, `supabase db reset`, or any other local CLI command. Apply
 migrations and run queries through the Supabase MCP tools; your harness's file names them.
 
-> **Known defect — do not be misled by `package.json`.** `db:types` and `db:migrate` are
-> currently defined with `--local` (`supabase gen types typescript --local`,
-> `supabase db push --local`), which contradicts this rule. `db:migrate` must never be run.
-> Treat the cloud-only rule as authoritative and the scripts as wrong; the fix is tracked
-> separately.
+`npm run db:types` generates types from the cloud project via `scripts/db-types.mjs` (needs
+`SUPABASE_ACCESS_TOKEN`; `SUPABASE_PROJECT_REF` overrides the default Residio_Stage) and leaves
+the existing file untouched on failure. The local-CLI scripts (`supabase:*` and the old
+migrate script) are now guards that fail loudly (#219).
 
 **Applying a migration and committing its file are two separate acts** — the first happens
 through the Supabase MCP tools, the second through git, and only the first was ever enforced.
@@ -140,8 +148,8 @@ disk (#283). `scripts/migration-drift.mjs`, run by `.github/workflows/migration-
 every PR and on a daily schedule, compares each database's applied migration list against
 `supabase/migrations/` on the branch it tracks (Residio_Stage against `stage`, Residio_Prod
 against `master`; a PR against its base branch's database) and fails the build on any divergence
-in either direction — enforcing the pairing so drift cannot silently reaccumulate after the #279
-schema baseline. A PR's own new migrations are reported as pending, not drift, because they are
+in either direction, and on two migration files that share a version prefix (#616) — enforcing the
+pairing so drift cannot silently reaccumulate after the #279 schema baseline. A PR's own new migrations are reported as pending, not drift, because they are
 applied after the merge (§11).
 
 ---
@@ -187,6 +195,12 @@ export async function updateSomething(id: string, input: Input) {
 }
 ```
 
+`logAudit` is a thin delegate to the audit recorder (`@/lib/audit/recorder`): it does the single
+`getUser()` and passes the actor on. Explicit `oldValues`, `newValues` and `entityDisplay` are
+written as given; when they are omitted the recorder derives them from `oldRow` / `newRow`. Code
+that already holds the actor may call `recordAudit` directly. Either way an audit failure is logged
+and never fails the action. See `src/lib/audit/README.md`.
+
 **Audit actions available**: `CREATE` / `UPDATE` / `DELETE`; `VERIFY` / `APPROVE` / `REJECT`;
 `ASSIGN` / `UNASSIGN`; `ACTIVATE` / `DEACTIVATE`; `GENERATE` / `ALLOCATE`.
 
@@ -229,16 +243,21 @@ by `module.view` must still filter its buttons by `module.create` / `module.upda
 
 ### Enforcement, and what "green" means
 
-`src/__tests__/integration/module-integration.test.ts` scans `src/actions/**` and fails for any
-write action missing permission or audit, unless the file is listed in its
-`PERMISSION_ALLOWLIST` / `AUDIT_ALLOWLIST`.
+`src/__tests__/integration/module-integration.test.ts` scans `src/actions/**` **per exported
+function** (#390, `src/__tests__/helpers/action-scanner.ts`) and fails for any write action that
+lacks the permission check or the audit call, unless it is listed in `PERMISSION_ALLOWLIST` /
+`AUDIT_ALLOWLIST`. New entries are `path.ts::functionName`; a bare file entry is reserved for the
+permanent ones below.
 
-**The suite passes today, with 42 files allowlisted for permission and 5 for audit** (verified
-2026-09-05). Passing therefore means "no *new* gaps", not "no gaps". Some entries are permanent
-and deliberate: recipient-facing, cron, webhook and pre-auth flows (`payments/*`,
-`billing/pay-*-with-wallet`, `paystack/init+verify+webhook`, `email-imports/*`,
-`two-factor/verify`) cannot take an admin RBAC guard because they authenticate as a resident,
-via `CRON_SECRET`, or by signature verification. **Do not add hard permission checks there.**
+The suite passing means "no *new* gaps", not "no gaps". The allowlists are the live record of the
+known ones, and their sizes change as entries are removed, so the counts are not copied here: read
+the two arrays. Some entries are permanent and deliberate: recipient-facing, cron, webhook and
+pre-auth flows (`payments/submit-payment-proof`, `billing/pay-*-with-wallet`,
+`paystack/initialize-payment`, `paystack/verify-payment`, `paystack/webhook-handler`,
+`email-imports/create-email-import`, `reports/process-schedules`, `two-factor/verify`,
+`auth/register-resident-portal`) cannot take an admin RBAC guard because they authenticate as a
+resident, via `CRON_SECRET`, or by signature verification. **Do not add hard permission checks
+there.** Entries marked "not yet fixed" in that file (#556) are gaps to close, not precedent.
 
 Re-run `npm test` after adding any write action.
 
@@ -294,7 +313,9 @@ hotfix: branch from master --PR--> master, then merge master back into stage
 - **Label every PR into `master`** with exactly one of `release:major` (not a drop-in upgrade:
   new required env var, breaking migration, access-control API change), `release:minor` (new
   capability, drop-in), `release:patch` (fixes) or `release:none`. On merge,
-  `.github/workflows/release.yml` pushes the next `vX.Y.Z` tag, computed from the last tag. No
+  `.github/workflows/release.yml` pushes the next `vX.Y.Z` tag, computed from the last tag (a
+  `release:major` release from `stage` also deploys residio-stage immediately; Prod is still
+  deployed by hand). No
   label means no tag. **The tag is the version**: nothing is committed to `master`, and
   `package.json`'s `version` is not hand-edited.
 - **Rollback is the previous release on `master`** (its `vX.Y.Z` tag; for releases before the
@@ -467,6 +488,16 @@ Standing rule, not a suggestion:
    correct in intent and still be the direct cause of an open P0.
 4. **Record any deliberately withheld migration twice** — on its issue and in
    the next handoff comment on #412 — so a later reader does not "fix" the gap by applying it.
+5. **Restoring the authored version is recommended, not required.** MCP `apply_migration` stamps its
+   own timestamp. Since #374 `migration-drift.mjs` pairs by name, so a stamped version is not drift
+   and CI stays green either way (#305). To make the ledger version match the file, run
+   `npm run db:reconcile-version -- <version> <name>` and execute the printed SQL on the same
+   database via MCP. Never rename the file to match the stamp.
+
+6. **Auto-merged PRs (§16) do not change this.** The coordinator confirms the merge completed
+   (`gh pr view <n> --json state,mergedAt`), then applies and verifies the PR's migrations
+   immediately. Unlike a hand-merged PR, nothing prompts this step, so it is the coordinator's
+   job to notice the merge. Escalate to the owner only when applying fails.
 
 Migrations are **written** by an implementing agent and **never applied** by one. See §16 for
 the rollback-fidelity requirement. Full detail: `docs/agents/migrations-on-merge.md`.
@@ -532,7 +563,10 @@ Four records, four distinct jobs. Keep them in their lanes:
 | `SESSION_STATE.md` | frozen archive (as of 2026-10-07): read-only history, never appended |
 
 Issue #412 is read before substantive work and gets a new comment before finishing, whether or
-not you were asked. Record what was actually performed, decisions taken, verification results,
+not you were asked (the bookends block at the top of this file). **The session that talks to the
+user posts it** — a dispatched sub-agent never does; the coordinator folds its results into the
+coordinator's own comment. A session that coordinates, reviews or only reads still posts one, saying
+so. Record what was actually performed, decisions taken, verification results,
 known failures and remaining work. **Do not create separate handoff files.**
 
 ```bash
@@ -687,11 +721,35 @@ nearly caused a clean branch to be reported as broken.
 - the work uncovers a defect outside its scope — **file it as its own issue rather than
   absorbing it**, so a security fix is never hidden inside a refactor
 
+**Unattended runs.** Inside a run of the autonomous delivery runbook
+(`docs/agents/autonomous-delivery.md`, owner decision 2026-10-15, #625), once its start gate is
+confirmed, this list becomes *decide from precedent, log, or park*: the run answers what the
+owner's recorded decisions and these docs settle, parks the rest for the owner, and writes every
+decision to `docs/decisions/autopilot/`. Nothing else in this file is relaxed.
+
 ---
 
 ## 16. Reporting and continuity
 
-Branch per issue, commits referencing it, **PR only after a pass. The user does the merging.**
+Branch per issue, commits referencing it, **PR only after a pass.**
+**Open a pull request for every issue you complete.**
+
+**Who merges** (owner decision 2026-10-15). Repo auto-merge is enabled. The user merges only
+release PRs (`stage` → `master`) and hotfix PRs into `master`. Every other PR — feature and fix PRs
+into `stage` — the coordinator arms for auto-merge once the real gate (below) and QA (§15) have
+passed:
+
+```bash
+gh pr merge <n> --repo meggarmind/RESIDIO --auto --squash   # GitHub merges when `PR gate` is green
+```
+
+- Arm it only after QA is PASS or PASS WITH NOTES. GitHub cannot see the QA verdict, so arming is
+  the coordinator's assertion that it passed. A FAIL or an unresolved §15 stop-and-ask condition
+  means do not arm.
+- A PR that adds migrations is armed like any other, but the coordinator then owns §11 rule 2:
+  once it merges, apply the migrations to Residio_Stage and verify by name, without being asked.
+  Report only if that fails, so the owner can fix the blocker or apply by hand.
+- Never arm auto-merge on a PR into `master`, and never merge one on the owner's behalf.
 
 Before opening the PR, the coordinator pushes the branch and runs the real gate against it:
 

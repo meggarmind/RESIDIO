@@ -266,17 +266,21 @@ export async function removeSettingOverride(
     return { success: false, error: 'Failed to remove override' };
   }
 
-  await logAudit({
-    action: 'DELETE',
-    entityType: 'system_settings',
-    entityId: existing?.id ?? `${key}:${level}`,
-    entityDisplay: `${key} (${level} override removed)`,
-    oldValues: existing ?? undefined,
-    metadata: {
-      house_id: level === 'house' ? houseId : null,
-      resident_id: level === 'resident' ? residentId : null,
-    },
-  });
+  // audit_logs.entity_id is a uuid, so with no real id there is nothing to audit against (#594): nothing existed to remove, so nothing to audit.
+  if (existing?.id) {
+    await logAudit({
+      action: 'DELETE',
+      entityType: 'system_settings',
+      entityId: existing.id,
+      entityDisplay: `${key} (${level} override removed)`,
+      oldValues: existing,
+      newValues: { setting_key: key, level },
+      metadata: {
+        house_id: level === 'house' ? houseId : null,
+        resident_id: level === 'resident' ? residentId : null,
+      },
+    });
+  }
 
   revalidatePath('/settings');
   return { success: true, error: null };

@@ -8,7 +8,8 @@ export const maxDuration = 60; // 1 minute max
 
 /**
  * Vercel Cron endpoint for processing notification queue
- * Scheduled to run every 5 minutes (configured in vercel.json)
+ * Scheduled every 15 minutes as a Coolify scheduled task (see docs/deployment/hosting-plan.md),
+ * so requeued retries (#546) are picked up
  *
  * This endpoint:
  * 1. Processes pending notifications in the queue
