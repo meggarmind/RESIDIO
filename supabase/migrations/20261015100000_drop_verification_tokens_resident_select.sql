@@ -1,0 +1,39 @@
+-- Stop residents reading their own contact-verification code through the API (#615).
+--
+-- WHAT CHANGES
+--   DROP POLICY "Users can view own verification tokens" ON public.verification_tokens.
+--   Nothing else: the table, its grants and the service-role policy are untouched.
+--
+-- WHY
+--   The policy let any logged-in resident SELECT their own rows, and `token` (the
+--   6-digit code) is a selectable column for anon and authenticated. A resident could
+--   request a code, read it back through PostgREST, and verify an email or phone they
+--   do not control. The attempt limit from #614 does not help against someone who can
+--   simply read the code. Owner decision 2026-10-15: drop the policy; do not keep a
+--   column-restricted read, because nothing needs resident read access.
+--
+-- WHO IS AFFECTED
+--   Logged-in residents lose read access to their own verification_tokens rows (anon
+--   never matched the policy: auth.uid() is null for it). No application
+--   code is affected: every `.from('verification_tokens')` call under src/ uses the
+--   admin (service-role) client, and the service-role policy "Service role can manage
+--   verification tokens" (FOR ALL) is kept. With RLS enabled and no matching policy,
+--   anon and authenticated see zero rows and cannot insert or update either.
+--
+-- IDEMPOTENT: DROP POLICY IF EXISTS.
+--
+-- ROLLBACK (restores resident read access, and with it the leak; the definition is the
+-- live one after 20261014170500_wrap_auth_calls_in_rls_policies):
+--   CREATE POLICY "Users can view own verification tokens"
+--     ON public.verification_tokens
+--     FOR SELECT
+--     USING (resident_id IN (SELECT p.resident_id FROM profiles p WHERE p.id = (select auth.uid())));
+--
+-- VERIFY (run on the database after applying):
+--   SELECT policyname, cmd FROM pg_policies
+--    WHERE schemaname = 'public' AND tablename = 'verification_tokens';
+--     -- expect 1 row: "Service role can manage verification tokens", ALL
+--   SELECT relrowsecurity FROM pg_class WHERE oid = 'public.verification_tokens'::regclass;
+--     -- expect true (RLS still on)
+
+DROP POLICY IF EXISTS "Users can view own verification tokens" ON public.verification_tokens;
