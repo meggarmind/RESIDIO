@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-    getInvoiceGenerationDay,
-    getAutoGenerateEnabled,
-} from '@/actions/billing/get-generation-log';
+import { getInvoiceCronSettings } from '@/lib/billing/invoice-cron-settings';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
 import { createLogger } from '@/lib/logger';
 import {
@@ -44,9 +41,12 @@ export async function GET(request: NextRequest) {
         const period = currentMonthPeriod();
         const response: Record<string, unknown> = { period, timestamp: new Date().toISOString() };
 
+        // Read both settings with the admin client (no session in a cron request).
+        // Throws on a query error -> outer catch returns 500 (fail closed).
+        const { autoGenerate, generationDay: configuredDay } = await getInvoiceCronSettings();
+
         // Check if auto-generation is enabled
-        const autoGenResult = await getAutoGenerateEnabled();
-        if (!autoGenResult.data) {
+        if (!autoGenerate) {
             log.info('Auto-generation is disabled');
             return NextResponse.json({ skipped: true, reason: 'Auto-generation is disabled', ...response });
         }
@@ -69,8 +69,6 @@ export async function GET(request: NextRequest) {
 
         // Prepare a current-month run on or after the configured generation day
         // (catch-up: billing is by month, so a missed day must not skip the month).
-        const genDayResult = await getInvoiceGenerationDay();
-        const configuredDay = genDayResult.data;
         const dayOfMonth = new Date().getDate();
         if (dayOfMonth < configuredDay) {
             log.info(`Before generation day (today: ${dayOfMonth}, configured: ${configuredDay})`);
