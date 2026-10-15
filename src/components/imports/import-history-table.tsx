@@ -1,9 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -33,13 +31,11 @@ import {
   Eye,
   Download,
   FileText,
-  CheckCircle2,
-  XCircle,
-  Clock,
   AlertTriangle,
 } from 'lucide-react';
 import { useImports, useBankAccounts } from '@/hooks/use-imports';
 import { formatDistanceToNow } from 'date-fns';
+import { getStatusBadge } from '@/components/imports/import-status-badge';
 
 const ALL_VALUE = '_all';
 
@@ -68,62 +64,6 @@ export function ImportHistoryTable({ onViewDetails }: ImportHistoryTableProps) {
   const bankAccounts = bankAccountsData?.data || [];
   const totalCount = importsData?.count || 0;
   const totalPages = Math.ceil(totalCount / 20);
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return (
-          <Badge variant="default" className="gap-1 bg-green-600">
-            <CheckCircle2 className="h-3 w-3" />
-            Completed
-          </Badge>
-        );
-      case 'failed':
-        return (
-          <Badge variant="destructive" className="gap-1">
-            <XCircle className="h-3 w-3" />
-            Failed
-          </Badge>
-        );
-      case 'rejected':
-        return (
-          <Badge variant="destructive" className="gap-1">
-            <XCircle className="h-3 w-3" />
-            Rejected
-          </Badge>
-        );
-      case 'pending':
-        return (
-          <Badge variant="secondary" className="gap-1">
-            <Clock className="h-3 w-3" />
-            Pending
-          </Badge>
-        );
-      case 'processing':
-        return (
-          <Badge variant="secondary" className="gap-1">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Processing
-          </Badge>
-        );
-      case 'awaiting_approval':
-        return (
-          <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600">
-            <AlertTriangle className="h-3 w-3" />
-            Awaiting Approval
-          </Badge>
-        );
-      case 'approved':
-        return (
-          <Badge variant="default" className="gap-1">
-            <CheckCircle2 className="h-3 w-3" />
-            Approved
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
 
   const filteredImports = imports.filter(imp => {
     if (searchQuery) {
@@ -163,11 +103,24 @@ export function ImportHistoryTable({ onViewDetails }: ImportHistoryTableProps) {
             <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="processing">Processing</SelectItem>
             <SelectItem value="awaiting_approval">Awaiting Approval</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
             <SelectItem value="failed">Failed</SelectItem>
             <SelectItem value="rejected">Rejected</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          type="button"
+          variant={statusFilter === 'awaiting_approval' ? 'default' : 'outline'}
+          onClick={() => {
+            setStatusFilter(statusFilter === 'awaiting_approval' ? ALL_VALUE : 'awaiting_approval');
+            setPage(1);
+          }}
+          aria-pressed={statusFilter === 'awaiting_approval'}
+        >
+          <AlertTriangle className="h-4 w-4 mr-2" />
+          Needs approval
+        </Button>
         <Select value={accountFilter} onValueChange={setAccountFilter}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Filter by account" />
