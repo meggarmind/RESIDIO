@@ -169,6 +169,9 @@ describe('updateImportStatus concurrency guard (#556)', () => {
           op = 'update';
           return chain;
         };
+        // createImportRows loads auto-tag rules (transaction_tags) with .order(); #649
+        chain.order = () => chain;
+        chain.in = () => chain;
         chain.eq = (col: string, val: unknown) => {
           if (op === 'update') eqs.push([col, val]);
           return chain;
