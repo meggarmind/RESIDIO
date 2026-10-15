@@ -1,6 +1,7 @@
 'use client';
 
-import { use, useState, useCallback } from 'react';
+import { use, useState, useCallback, useRef } from 'react';
+import { isModifiedClick, navigateWithSharedElement } from '@/lib/navigation/shared-element-transition';
 import { motion } from 'framer-motion';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -77,6 +78,7 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
   const verifyMutation = useVerifyResident();
   const adminVerify = useAdminVerifyContact();
   const { data: walletData } = useWallet(id);
+  const headerRef = useRef<HTMLDivElement>(null);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
 
@@ -222,9 +224,25 @@ export default function ResidentDetailPage({ params }: ResidentDetailPageProps) 
     <PageTransition>
     <div className="space-y-4">
       {/* Compact header bar */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div
+        ref={headerRef}
+        style={{ viewTransitionName: `resident-${id}` }}
+        className="flex flex-wrap items-center gap-x-3 gap-y-2"
+      >
         <Button variant="ghost" size="icon" className="h-8 w-8" asChild aria-label="Go back">
-          <Link href="/residents">
+          <Link
+            href="/residents"
+            onClick={(event) => {
+              if (event.defaultPrevented || isModifiedClick(event)) return;
+              event.preventDefault();
+              void navigateWithSharedElement({
+                push: (href) => router.push(href),
+                href: '/residents',
+                sourceEl: headerRef.current,
+                name: `resident-${id}`,
+              });
+            }}
+          >
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>

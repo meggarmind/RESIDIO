@@ -85,7 +85,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
     };
   }
 
-  // Validate assignment rules (Single Owner, Single Tenant, Occpier vs Renter)
+  // Validate assignment rules (Single Owner, Single Renter, Occpier vs Renter)
   const validation = await validateHouseAssignment(supabase, formData.house_id, role);
   if (!validation.valid) {
     return { data: null, error: validation.error || 'Invalid assignment' };
@@ -248,7 +248,7 @@ export async function assignHouse(residentId: string, formData: HouseAssignmentD
           event_type: eventType,
           event_date: eventDate,
           is_current: true,
-          notes: role === 'tenant' ? 'Tenant moved in' : 'Ownership assignment',
+          notes: role === 'tenant' ? 'Renter moved in' : 'Ownership assignment',
           created_by: user.id,
         });
     } catch (historyError) {

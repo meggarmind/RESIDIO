@@ -147,7 +147,7 @@ export async function getAvailableHousesForMoveIn(excludeHouseId?: string): Prom
   // A house can accept a renter if:
   // 1. It has no Owner-Occupier (resident_landlord)
   // 2. It has no existing Renter (tenant)
-  // 3. It has a Non-Resident Landlord (owner who doesn't live there)
+  // 3. It has a Property Owner (owner who doesn't live there)
 
   const result = houses
     ?.filter((h) => h.id !== excludeHouseId)
