@@ -48,6 +48,15 @@ describe('backup cron workflow guard (#623)', () => {
     expect(isHeld(text) && hasLiveSchedule(text)).toBe(false);
   });
 
+  it('is self-consistent: an ACTIVE workflow has a live schedule', () => {
+    expect(/^# STATUS: ACTIVE/m.test(text) && !hasLiveSchedule(text)).toBe(false);
+  });
+
+  it('runs daily at 07:00 UTC when active', () => {
+    if (!/^# STATUS: ACTIVE/m.test(text)) return;
+    expect(codeLines(text).join('\n')).toMatch(/^\s+- cron: '0 7 \* \* \*'$/m);
+  });
+
   it('guard helpers detect HELD with a live schedule', () => {
     const bad = '# STATUS: HELD until ready\non:\n  schedule:\n    - cron: "0 7 * * *"\n';
     const ok = '# STATUS: HELD until ready\non:\n  # schedule:\n  workflow_dispatch:\n';

@@ -4,17 +4,20 @@
 # It runs daily and checks if invoice generation is needed for the current month.
 # If the scheduled run failed to generate invoices, this will trigger generation.
 #
-# STATUS: HELD until the hosting setup (#262) is complete and the stage and
-# production GitHub Environments each hold APP_URL and CRON_SECRET. The workflow
-# is also disabled in Actions (`gh workflow disable`), which is Actions state and
-# can be reversed by anyone; src/__tests__/integration/backup-cron-workflow.test.ts
-# is the repo-side guard. It fails if this marker says HELD while an uncommented
-# `schedule:` exists, so while HELD the schedule is commented out. To release:
-# create the per-environment secrets, uncomment `schedule:`, change the marker line
-# above to `# STATUS: ACTIVE`, then enable the workflow in Actions.
-# The marker only keeps the file self-consistent; GitHub cannot refuse an enable.
-# If parameters are missing at run time the preflight skips that environment (a
-# green skip) and emails the sys_admin instead of failing the run.
+# STATUS: ACTIVE (released in #652). The stage and production GitHub Environments each
+# hold APP_URL and CRON_SECRET, and the schedule below is live.
+# src/__tests__/integration/backup-cron-workflow.test.ts is the repo-side guard: it fails
+# if this marker says HELD while an uncommented `schedule:` exists, or ACTIVE with none.
+# To hold it again (for example while moving hosts): comment out `schedule:` and change the
+# marker to `# STATUS: HELD` in the same commit, and disable the workflow in Actions
+# (`gh workflow disable`; Actions state that anyone can reverse). GitHub cannot refuse an
+# enable, so the marker only keeps this file self-consistent.
+# If parameters are missing at run time the preflight skips that environment (a green skip)
+# and emails the sys_admin instead of failing the run.
+#
+# Prod note (2026-10-15): while Residio_Prod holds no estate data its
+# `auto_generate_invoices` setting is OFF, so the status card reads healthy "off" and this
+# workflow never nudges Prod. Switch it on at go-live (Settings, billing).
 #
 # Parameters (GitHub Environments `stage` and `production`, environment secrets):
 #   APP_URL      the public https origin of that deployment, no path
@@ -32,10 +35,9 @@
 name: Backup Cron - Invoice Generation
 
 on:
-  # HELD: schedule stays commented out until STATUS above is ACTIVE; restore it then.
-  # schedule:
-  #   # Run at 7 AM UTC daily (1 hour after the scheduled run at 6 AM)
-  #   - cron: '0 7 * * *'
+  schedule:
+    # Run at 7 AM UTC daily (1 hour after the scheduled run at 6 AM)
+    - cron: '0 7 * * *'
   workflow_dispatch:
     # Allow manual trigger for testing
 
