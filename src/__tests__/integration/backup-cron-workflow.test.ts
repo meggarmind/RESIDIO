@@ -49,11 +49,11 @@ describe('backup cron workflow guard (#623)', () => {
   });
 
   it('is self-consistent: an ACTIVE workflow has a live schedule', () => {
-    expect(/^# STATUS: ACTIVE/m.test(text) && !hasLiveSchedule(text)).toBe(false);
+    expect(/^# STATUS: ACTIVE\b/m.test(text) && !hasLiveSchedule(text)).toBe(false);
   });
 
   it('runs daily at 07:00 UTC when active', () => {
-    if (!/^# STATUS: ACTIVE/m.test(text)) return;
+    if (!/^# STATUS: ACTIVE\b/m.test(text)) return;
     expect(codeLines(text).join('\n')).toMatch(/^\s+- cron: '0 7 \* \* \*'$/m);
   });
 
