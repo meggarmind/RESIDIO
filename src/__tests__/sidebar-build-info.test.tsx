@@ -131,12 +131,23 @@ describe('Sidebar build info (#421)', () => {
     expect(screen.queryByText('DEV')).toBeNull();
   });
 
+  it('shows tag+commits past a release, with the full version in the tooltip (#633)', () => {
+    authValue = auth;
+    stubStaging();
+    vi.stubEnv('NEXT_PUBLIC_APP_VERSION', 'v0.5.0-341-ga1b2c3d');
+    render(<Sidebar />);
+    expect(screen.queryByText('v0.5.0+341')).not.toBeNull();
+    expect(screen.queryByText('v0.5.0-341-ga1b2c3d')).not.toBeNull();
+    expect(screen.queryByText(/· a1b2c3d/)).toBeNull();
+  });
+
   it('shows dev / unknown with a DEV badge when nothing is set', () => {
     authValue = auth;
     vi.stubEnv('NEXT_PUBLIC_APP_VERSION', '');
     vi.stubEnv('NEXT_PUBLIC_GIT_SHA', '');
     vi.stubEnv('NEXT_PUBLIC_APP_ENV', '');
     render(<Sidebar />);
+    expect(screen.queryByText('dev')).not.toBeNull();
     expect(screen.queryByText('dev · unknown')).not.toBeNull();
     expect(screen.queryByText('DEV')).not.toBeNull();
   });
