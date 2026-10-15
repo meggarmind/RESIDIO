@@ -80,7 +80,6 @@ const PERMISSION_ALLOWLIST = [
   // Vercel cron (CRON_SECRET bearer auth, no user session) as well as manual
   // triggers; a hard permission check would break the automated path.
   'email-imports/create-email-import.ts',
-  'reports/process-schedules.ts',
   'analytics/refresh-payment-cadence-summary.ts',
   // Pre-auth: runs before the caller has a session.
   'auth/register-resident-portal.ts',
