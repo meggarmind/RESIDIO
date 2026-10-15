@@ -1,3 +1,4 @@
+import { currentMonthPeriod } from '@/lib/billing/invoice-generation-run-service';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export interface CronJobStatus {
@@ -62,15 +63,20 @@ export async function computeCronStatus(): Promise<HealthResponse> {
     const now = new Date();
     const jobs: CronJobStatus[] = [];
 
-    // 1. Invoice Generation - Check last generation log
-    const { data: invoiceLog } = await supabase
-        .from('invoice_generation_log')
-        .select('generated_at, trigger_type, generated_count, skipped_count, error_count')
-        .order('generated_at', { ascending: false })
-        .limit(1)
-        .single();
-
-    // Get configured generation day
+    // 1. Invoice Generation - derived from invoice_generation_runs (#638).
+    //
+    // The legacy invoice_generation_log table is no longer written by any code
+    // and is deliberately not read here.
+    //
+    // Status rules, for the CURRENT month period, over non-cancelled runs of any
+    // trigger (draft / awaiting_approval do not count as "ran"):
+    //   latest run completed              -> healthy
+    //   latest run completed_with_errors  -> warning
+    //   latest run queued / processing    -> healthy ("in progress")
+    //   no such run, today < configured day  -> healthy ("Waiting for day N")
+    //   no such run, today >= configured day -> critical ("OVERDUE")
+    //   runs table unreadable             -> unknown (the only remaining use of
+    //                                        'unknown'; we cannot say either way)
     const { data: genDaySetting } = await supabase
         .from('system_settings')
         .select('value')
@@ -79,38 +85,51 @@ export async function computeCronStatus(): Promise<HealthResponse> {
 
     const configuredDay = genDaySetting?.value ?? 2;
     const currentDay = now.getDate();
-    const lastInvoiceRun = invoiceLog?.generated_at ? new Date(invoiceLog.generated_at) : null;
+    const period = currentMonthPeriod(now);
+    const RUN_COLUMNS = 'status, requested_at, completed_at, created_count, skipped_count, failed_count';
 
-    // Invoice generation is healthy if:
-    // - We're before the configured day this month, OR
-    // - We ran this month on or after the configured day
-    let invoiceStatus: 'healthy' | 'warning' | 'critical' | 'unknown' = 'unknown';
-    let invoiceMessage = 'No generation logs found';
+    const { data: monthRuns, error: monthRunsError } = await supabase
+        .from('invoice_generation_runs')
+        .select(RUN_COLUMNS)
+        .neq('status', 'cancelled')
+        .in('status', ['completed', 'completed_with_errors', 'queued', 'processing'])
+        .contains('scope', { targetMonth: period })
+        .order('requested_at', { ascending: false })
+        .limit(1);
 
-    if (lastInvoiceRun) {
-        const lastRunMonth = lastInvoiceRun.getMonth();
-        const currentMonth = now.getMonth();
-        const lastRunYear = lastInvoiceRun.getFullYear();
-        const currentYear = now.getFullYear();
+    const { data: lastRuns } = await supabase
+        .from('invoice_generation_runs')
+        .select(RUN_COLUMNS)
+        .neq('status', 'cancelled')
+        .order('requested_at', { ascending: false })
+        .limit(1);
 
-        const ranThisMonth = lastRunMonth === currentMonth && lastRunYear === currentYear;
-        const beforeConfiguredDay = currentDay < configuredDay;
+    const lastRunRow = lastRuns?.[0] ?? null;
+    const lastRunStamp = lastRunRow ? (lastRunRow.completed_at ?? lastRunRow.requested_at) : null;
+    const lastInvoiceRun = lastRunStamp ? new Date(lastRunStamp) : null;
+    const monthRun = monthRuns?.[0] ?? null;
 
-        if (ranThisMonth && invoiceLog) {
-            invoiceStatus = 'healthy';
-            invoiceMessage = `Last run: ${invoiceLog.generated_count} generated, ${invoiceLog.skipped_count} skipped`;
-            if (invoiceLog.error_count > 0) {
-                invoiceStatus = 'warning';
-                invoiceMessage += `, ${invoiceLog.error_count} errors`;
-            }
-        } else if (beforeConfiguredDay) {
-            invoiceStatus = 'healthy';
-            invoiceMessage = `Waiting for day ${configuredDay} (today is day ${currentDay})`;
-        } else {
-            // Past configured day but no run this month
-            invoiceStatus = 'critical';
-            invoiceMessage = `OVERDUE: Should have run on day ${configuredDay}, last run was ${getRelativeTime(lastInvoiceRun)}`;
-        }
+    let invoiceStatus: 'healthy' | 'warning' | 'critical' | 'unknown';
+    let invoiceMessage: string;
+
+    if (monthRunsError) {
+        invoiceStatus = 'unknown';
+        invoiceMessage = 'Could not read invoice generation runs';
+    } else if (monthRun?.status === 'completed') {
+        invoiceStatus = 'healthy';
+        invoiceMessage = `Generated for ${period.slice(0, 7)}: ${monthRun.created_count} created, ${monthRun.skipped_count} skipped`;
+    } else if (monthRun?.status === 'completed_with_errors') {
+        invoiceStatus = 'warning';
+        invoiceMessage = `Generated for ${period.slice(0, 7)} with errors: ${monthRun.created_count} created, ${monthRun.skipped_count} skipped, ${monthRun.failed_count} failed`;
+    } else if (monthRun) {
+        invoiceStatus = 'healthy';
+        invoiceMessage = `Generation for ${period.slice(0, 7)} is in progress`;
+    } else if (currentDay < configuredDay) {
+        invoiceStatus = 'healthy';
+        invoiceMessage = `Waiting for day ${configuredDay} (today is day ${currentDay})`;
+    } else {
+        invoiceStatus = 'critical';
+        invoiceMessage = `OVERDUE: No invoice generation run for ${period.slice(0, 7)} (due day ${configuredDay})${lastInvoiceRun ? `, last run was ${getRelativeTime(lastInvoiceRun)}` : ''}`;
     }
 
     jobs.push({
