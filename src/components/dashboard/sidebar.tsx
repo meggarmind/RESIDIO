@@ -12,7 +12,7 @@ import { useSectionedNavigation } from '@/hooks/use-navigation';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
 import { useSidebarState } from '@/hooks/use-sidebar-state';
 import { useSidebarNavState } from '@/hooks/use-sidebar-nav-state';
-import { getBuildInfo } from '@/lib/version';
+import { formatBuildLabel, getBuildInfo } from '@/lib/version';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface SidebarProps {
@@ -28,7 +28,7 @@ export function Sidebar({ className }: SidebarProps) {
   const { logoUrl } = useEstateLogo();
   const { isCollapsed, isExpanded, toggleCollapsed, setHoverExpanded } = useSidebarState();
   const build = getBuildInfo();
-  const buildLabel = `${build.version} · ${build.shortSha}`;
+  const buildLabel = formatBuildLabel(build);
   const envBadge =
     build.env === 'staging'
       ? { text: 'STAGE', variant: 'warning' as const }
@@ -438,7 +438,7 @@ export function Sidebar({ className }: SidebarProps) {
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  <p>{buildLabel}</p>
+                  <p>{buildLabel.full}</p>
                 </TooltipContent>
               </Tooltip>
             )
@@ -448,9 +448,16 @@ export function Sidebar({ className }: SidebarProps) {
               style={{ color: 'var(--text-muted)' }}
               data-testid="build-info"
             >
-              <span className="truncate whitespace-nowrap" title={buildLabel}>
-                {buildLabel}
-              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="truncate whitespace-nowrap" tabIndex={0}>
+                    {buildLabel.short}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{buildLabel.full}</p>
+                </TooltipContent>
+              </Tooltip>
               {envBadge && (
                 <Badge variant={envBadge.variant} className="px-1.5 py-0 text-[10px]">
                   {envBadge.text}

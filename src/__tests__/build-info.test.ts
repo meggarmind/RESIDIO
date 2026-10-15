@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getBuildInfo } from '@/lib/version';
+import { formatBuildLabel, getBuildInfo } from '@/lib/version';
 import { GET } from '@/app/api/version/route';
 
 afterEach(() => {
@@ -88,6 +88,32 @@ describe('getBuildInfo', () => {
     delete process.env.NEXT_PUBLIC_APP_ENV;
     expect(getBuildInfo().env).toBe('development');
   });
+});
+
+describe('formatBuildLabel (#633)', () => {
+  it('shortens a describe-style version to tag+commits and does not repeat the sha', () => {
+    expect(formatBuildLabel({ version: 'v1.0.0-341-g3bafb1d', shortSha: '3bafb1d' })).toEqual({
+      short: 'v1.0.0+341',
+      full: 'v1.0.0-341-g3bafb1d',
+    });
+  });
+
+  it('shows an exact release as-is, with the sha only in the full label', () => {
+    expect(formatBuildLabel({ version: 'v1.0.0', shortSha: 'a1b2c3d' })).toEqual({
+      short: 'v1.0.0',
+      full: 'v1.0.0 · a1b2c3d',
+    });
+  });
+
+  it.each(['dev', 'v0.0.0-a1b2c3d', 'v1.0.0-rc1', 'v1.0.0-3-gXYZ'])(
+    'leaves %s unshortened and appends the sha in the full label',
+    (version) => {
+      expect(formatBuildLabel({ version, shortSha: 'a1b2c3d' })).toEqual({
+        short: version,
+        full: `${version} · a1b2c3d`,
+      });
+    },
+  );
 });
 
 describe('src/lib/version.ts source', () => {
