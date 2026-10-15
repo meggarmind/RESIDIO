@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
+import { isSharedTransitionActive } from '@/lib/navigation/shared-element-transition';
 
 interface PageTransitionProps {
     children: ReactNode;
@@ -17,11 +18,14 @@ const variants = {
 
 export function PageTransition({ children, className }: PageTransitionProps) {
     const pathname = usePathname();
+    // During a shared-element transition the new page must be fully visible in
+    // the view-transition's new snapshot, so skip the opacity/y enter.
+    const skipEnter = isSharedTransitionActive();
 
     return (
         <motion.div
             key={pathname}
-            initial="hidden"
+            initial={skipEnter ? false : 'hidden'}
             animate="enter"
             exit="exit"
             variants={variants}
