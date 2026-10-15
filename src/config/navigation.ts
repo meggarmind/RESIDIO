@@ -136,6 +136,18 @@ const NAV_PAYMENTS: NavItem = {
       permissions: [PERMISSIONS.IMPORTS_CREATE],
     },
     {
+      id: 'payments-import-history',
+      title: 'Import History',
+      href: '/payments/imports',
+      icon: History,
+      permissions: [
+        PERMISSIONS.IMPORTS_CREATE,
+        PERMISSIONS.IMPORTS_REVIEW,
+        PERMISSIONS.IMPORTS_APPROVE,
+        PERMISSIONS.IMPORTS_REJECT,
+      ],
+    },
+    {
       id: 'payments-email-imports',
       title: 'Import Email',
       href: '/payments/email-imports',
