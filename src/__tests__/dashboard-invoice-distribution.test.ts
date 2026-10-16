@@ -24,50 +24,39 @@ interface RawInvoiceCounts {
 }
 
 /**
- * Builds a fake `supabase.from('invoices')` chain whose count depends on
- * which `.eq('status', ...)` / `.lt('due_date', ...)` filters were applied,
- * matching the exact query shapes fetchInvoiceDistribution issues.
+ * Builds a fake client whose `rpc('get_dashboard_invoice_status_counts')` returns the raw counts
+ * (the six numbers the SQL function emits). Any other rpc or table read fails the test: the
+ * distribution must come from that single call.
  */
-function mockInvoicesTable(counts: RawInvoiceCounts) {
-  const mockFrom = vi.fn().mockImplementation((table: string) => {
-    if (table !== 'invoices') {
-      throw new Error(`Unexpected table: ${table}`);
+function mockStatusCountsRpc(counts: RawInvoiceCounts, error: { message: string } | null = null) {
+  const rpc = vi.fn().mockImplementation((name: string) => {
+    if (name !== 'get_dashboard_invoice_status_counts') {
+      throw new Error(`Unexpected rpc: ${name}`);
     }
-
-    let status: string | undefined;
-    let hasDueDateFilter = false;
-
-    const chain = {
-      select: vi.fn().mockImplementation(() => chain),
-      eq: vi.fn().mockImplementation((column: string, value: string) => {
-        if (column === 'status') status = value;
-        return chain;
-      }),
-      lt: vi.fn().mockImplementation((column: string) => {
-        if (column === 'due_date') hasDueDateFilter = true;
-        return chain;
-      }),
-      then: (resolve: (value: { count: number; error: null }) => unknown) => {
-        let count = 0;
-        if (status === 'unpaid' && !hasDueDateFilter) count = counts.unpaid;
-        else if (status === 'paid') count = counts.paid;
-        else if (status === 'partially_paid' && !hasDueDateFilter) count = counts.partiallyPaid;
-        else if (status === 'void') count = counts.void;
-        else if (status === 'unpaid' && hasDueDateFilter) count = counts.overdueUnpaid;
-        else if (status === 'partially_paid' && hasDueDateFilter) count = counts.overduePartiallyPaid;
-        return Promise.resolve(resolve({ count, error: null }));
+    if (error) return Promise.resolve({ data: null, error });
+    return Promise.resolve({
+      data: {
+        unpaid: counts.unpaid,
+        paid: counts.paid,
+        partially_paid: counts.partiallyPaid,
+        void: counts.void,
+        overdue_unpaid: counts.overdueUnpaid,
+        overdue_partially_paid: counts.overduePartiallyPaid,
       },
-    };
-
-    return chain;
+      error: null,
+    });
+  });
+  const from = vi.fn().mockImplementation((table: string) => {
+    throw new Error(`Unexpected table read: ${table}`);
   });
 
   createServerSupabaseClient.mockResolvedValue({
     auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'admin-1' } } }) },
-    from: mockFrom,
+    rpc,
+    from,
   });
 
-  return mockFrom;
+  return { rpc, from };
 }
 
 function trueTotal(counts: RawInvoiceCounts): number {
@@ -92,7 +81,7 @@ describe('fetchInvoiceDistribution (via getDashboardInvoiceDistribution)', () =>
       overdueUnpaid: 19,
       overduePartiallyPaid: 0,
     };
-    mockInvoicesTable(counts);
+    mockStatusCountsRpc(counts);
 
     const { data, error } = await getDashboardInvoiceDistribution();
 
@@ -120,7 +109,7 @@ describe('fetchInvoiceDistribution (via getDashboardInvoiceDistribution)', () =>
       overdueUnpaid: 4,
       overduePartiallyPaid: 3,
     };
-    mockInvoicesTable(counts);
+    mockStatusCountsRpc(counts);
 
     const { data, error } = await getDashboardInvoiceDistribution();
 
@@ -144,11 +133,38 @@ describe('fetchInvoiceDistribution (via getDashboardInvoiceDistribution)', () =>
       overdueUnpaid: 12,
       overduePartiallyPaid: 6,
     };
-    mockInvoicesTable(counts);
+    mockStatusCountsRpc(counts);
 
     const { data } = await getDashboardInvoiceDistribution();
 
     expect(sumBuckets(data!)).toBe(145); // 25 + 100 + 15 + 5
     expect(sumBuckets(data!)).toBe(trueTotal(counts));
+  });
+
+  it('issues exactly one RPC with the UTC date the old implementation used, and no table reads', async () => {
+    const { rpc, from } = mockStatusCountsRpc({
+      unpaid: 1, paid: 1, partiallyPaid: 1, void: 1, overdueUnpaid: 0, overduePartiallyPaid: 0,
+    });
+
+    await getDashboardInvoiceDistribution();
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('get_dashboard_invoice_status_counts', {
+      p_today: new Date().toISOString().split('T')[0],
+    });
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('surfaces an RPC error as the action error, never partial numbers', async () => {
+    mockStatusCountsRpc(
+      { unpaid: 1, paid: 1, partiallyPaid: 1, void: 1, overdueUnpaid: 0, overduePartiallyPaid: 0 },
+      { message: 'permission denied for table invoices' }
+    );
+
+    const { data, error } = await getDashboardInvoiceDistribution();
+
+    expect(data).toBeNull();
+    // Postgrest errors are plain objects, so the action's catch falls back to its generic message (unchanged).
+    expect(error).toBe('Failed to fetch invoice distribution');
   });
 });

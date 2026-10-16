@@ -47,9 +47,25 @@ const metricsByMonth = (month: number) => ({
 describe('admin dashboard snapshot contract', () => {
   beforeEach(() => {
     rpc.mockReset();
-    rpc.mockImplementation((_name: string, args: { p_month_start: string }) =>
-      Promise.resolve({ data: metricsByMonth(Number(args.p_month_start.slice(5, 7))), error: null }),
-    );
+    rpc.mockImplementation((name: string, args: Record<string, unknown>) => {
+      if (name === 'get_dashboard_invoice_status_counts') {
+        return Promise.resolve({
+          data: { unpaid: 5, paid: 0, partially_paid: 0, void: 0, overdue_unpaid: 0, overdue_partially_paid: 0 },
+          error: null,
+        });
+      }
+      if (name === 'get_dashboard_monthly_invoice_counts') {
+        // Every trend month reports 5 invoices generated.
+        return Promise.resolve({
+          data: [1, 2, 3, 4, 5, 6].map((idx) => ({ idx, count: 5 })),
+          error: null,
+        });
+      }
+      return Promise.resolve({
+        data: metricsByMonth(Number((args as { p_month_start: string }).p_month_start.slice(5, 7))),
+        error: null,
+      });
+    });
     authorizePermission.mockReset();
     getCurrentUserPermissions.mockReset();
     getCurrentUserPermissions.mockResolvedValue({ userId: 'user-1', permissions: [] });
@@ -113,7 +129,8 @@ describe('admin dashboard snapshot contract', () => {
       paymentsReceived: 1200 + cur,
       invoicesGenerated: 5,
     });
-    expect(rpc).toHaveBeenCalledTimes(8);
+    // 8 payment-metric windows + 1 invoice status counts + 1 monthly invoice counts
+    expect(rpc).toHaveBeenCalledTimes(10);
   });
 
   it('reports financial health as null and trends as empty when the payment RPC errors', async () => {
@@ -165,7 +182,16 @@ describe('admin dashboard snapshot contract', () => {
   // #101 criterion 3: a failed section is "unavailable" (null), never a zero-filled object
   // the UI would render as a genuine "All clear" / "0 items" / "No invoices recorded".
   describe('failed sub-queries are reported as null, not zeros (#101)', () => {
-    async function snapshotWith(from: (table: string) => unknown) {
+    async function snapshotWith(
+      from: (table: string) => unknown,
+      overrideRpc?: (name: string, args: Record<string, unknown>) => unknown,
+    ) {
+      if (overrideRpc) {
+        const base = rpc.getMockImplementation()!;
+        rpc.mockImplementation((name: string, args: Record<string, unknown>) =>
+          overrideRpc(name, args) ?? base(name, args),
+        );
+      }
       authorizePermission.mockResolvedValue({ authorized: true });
       vi.spyOn(console, 'error').mockImplementation(() => {});
       createServerSupabaseClient.mockResolvedValue({ from: vi.fn(from), rpc });
@@ -195,26 +221,42 @@ describe('admin dashboard snapshot contract', () => {
       expect(data.invoiceDistribution).not.toBeNull();
     });
 
-    it('reports invoiceDistribution as null when a status count errors', async () => {
-      const data = await snapshotWith((table) => {
-        if (table !== 'invoices') return ok();
-        const q = ok() as Record<string, unknown>;
-        const eq = q.eq as (...a: unknown[]) => unknown;
-        q.eq = vi.fn((col: string, val: string) => {
-          if (col === 'status' && val === 'void') {
-            return createChainableQuery({ data: undefined, error: new Error('void count failed'), count: null });
-          }
-          return eq(col, val);
-        });
-        return q;
-      });
+    it('reports invoiceDistribution as null when the status counts RPC errors', async () => {
+      const data = await snapshotWith(
+        () => ok(),
+        (name) =>
+          name === 'get_dashboard_invoice_status_counts'
+            ? Promise.resolve({ data: null, error: { message: 'status counts failed' } })
+            : undefined,
+      );
       expect(data.invoiceDistribution).toBeNull();
       expect(data.quickStats).not.toBeNull();
       expect(data.actionMetrics).not.toBeNull();
     });
 
+    it('reports monthlyTrends as empty when the monthly invoice counts RPC errors', async () => {
+      const data = await snapshotWith(
+        () => ok(),
+        (name) =>
+          name === 'get_dashboard_monthly_invoice_counts'
+            ? Promise.resolve({ data: null, error: { message: 'monthly counts failed' } })
+            : undefined,
+      );
+      expect(data.monthlyTrends).toEqual([]);
+      expect(data.invoiceDistribution).not.toBeNull();
+    });
+
     it('keeps a genuine zero as a zero object, distinct from null', async () => {
-      const data = await snapshotWith(() => createChainableQuery({ data: [], error: null, count: 0 }));
+      const data = await snapshotWith(
+        () => createChainableQuery({ data: [], error: null, count: 0 }),
+        (name) =>
+          name === 'get_dashboard_invoice_status_counts'
+            ? Promise.resolve({
+                data: { unpaid: 0, paid: 0, partially_paid: 0, void: 0, overdue_unpaid: 0, overdue_partially_paid: 0 },
+                error: null,
+              })
+            : undefined,
+      );
       expect(data.invoiceDistribution).toEqual({ unpaid: 0, paid: 0, partiallyPaid: 0, overdue: 0, void: 0 });
       expect(data.actionMetrics).toMatchObject({ totalRequiringAttention: 0 });
       expect(data.quickStats).toMatchObject({ totalHouses: 0 });

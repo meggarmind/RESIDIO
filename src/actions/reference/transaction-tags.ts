@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
+import { findMatchingTag } from '@/lib/imports/auto-tag';
 import type { TransactionTag, TransactionTagInsert, TransactionTagUpdate, TransactionTagType } from '@/types/database';
 
 // ============================================================
@@ -465,21 +466,7 @@ export async function autoTagTransaction(
     return { tag: null, matchedKeyword: null };
   }
 
-  // Normalize description for case-insensitive matching
-  const normalizedDescription = description.toLowerCase();
-
-  // Check each tag's keywords against the description
-  for (const tag of tags as TransactionTag[]) {
-    if (!tag.keywords || tag.keywords.length === 0) continue;
-
-    for (const keyword of tag.keywords) {
-      if (normalizedDescription.includes(keyword.toLowerCase())) {
-        return { tag, matchedKeyword: keyword };
-      }
-    }
-  }
-
-  return { tag: null, matchedKeyword: null };
+  return findMatchingTag(tags as TransactionTag[], description);
 }
 
 // ============================================================

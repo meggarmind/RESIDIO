@@ -28,7 +28,8 @@
     "docs:verify": "node scripts/docs-verify.mjs",
     "supabase:status": "node scripts/cloud-only-guard.mjs supabase:status",
     "rbac:matrix:build": "node scripts/build-role-access-matrix.mjs",
-    "rbac:matrix:diff": "node scripts/diff-role-access-matrix.mjs"
+    "rbac:matrix:diff": "node scripts/diff-role-access-matrix.mjs",
+    "rbac:policies:diff": "node scripts/diff-policy-definitions.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

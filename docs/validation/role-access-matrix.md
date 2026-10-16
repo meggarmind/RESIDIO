@@ -86,3 +86,28 @@ Three things in that table are worth reading twice.
 So #186 and #187 are expected to **widen** access for those three roles, not preserve it. That is the point of `--expect`: the widening is declared, and anything else still fails.
 
 **`vice_chairman` can read `audit_logs` while `chairman` cannot.** The new `audit_logs` policy from #181 keys on `settings.view_audit_logs`, and vice_chairman holds it. Whether that is intended is a question for ADR-0006, not a defect in this capture — recorded here so it is not discovered by accident during a rewrite.
+
+## Policy-definition baseline (#228)
+
+The matrix above proves *who can read what*. It cannot see a policy that was edited, added or dropped outside a reviewed migration but happens to leave the matrix unchanged. The policy-definition check covers that: it compares live `pg_policies` against a committed baseline.
+
+| File | What it is |
+| --- | --- |
+| `supabase/probes/policy-definitions.sql` | Read-only SELECT. One row per `public` policy: table, policy, cmd, permissive, roles, and 12-char md5 hashes of the USING and WITH CHECK expressions. |
+| `docs/validation/policy-definitions.baseline.json` | Baseline: 256 policies captured from Residio_Stage on 2026-10-16 (Postgres 17). |
+| `scripts/diff-policy-definitions.mjs` | Diffs a capture against the baseline; logic lives in `scripts/lib/policy-definitions.mjs`. |
+| `src/__tests__/policy-definitions.test.ts` | Guards the baseline and the diff logic. |
+
+Run on Stage or Prod:
+
+1. Execute `supabase/probes/policy-definitions.sql` through the Supabase MCP `execute_sql` against the target project.
+2. Save the `row` values one per line to `capture.txt`. Saving only the bare JSON array from the MCP response (`[{"row":...}]`, without the surrounding explanatory text) also works; the full response text is rejected.
+3. `npm run rbac:policies:diff -- capture.txt`
+
+Exit 0 means identical, 1 means divergence (added, removed or changed policies, grouped by table), 2 means unreadable input. Row order and blank lines do not matter; policies are matched by table and name.
+
+Limits, stated plainly:
+
+- **CI has no database credentials, so this check does not run automatically and does not fail a PR.** It runs by hand, or through an agent holding the Supabase MCP.
+- The hashes are of Postgres's deparsed expression text, so they are only comparable on the same Postgres major version (17). After a major upgrade, re-capture the baseline.
+- The baseline is Residio_Stage. A legitimate policy change through a migration makes the check report divergence until the baseline is re-captured. Migrations reach Stage only after merge (CORE.md section 11), so re-capture in a follow-up PR once the migration is merged and applied to Stage; Prod will differ from Stage until a release carries the same migrations across.

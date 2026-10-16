@@ -128,6 +128,7 @@ export type VerifyAccessCodeData = z.infer<typeof verifyAccessCodeSchema>;
 export const checkInSchema = z.object({
   access_code_id: z.string().uuid().optional().nullable(), // Optional if manual check-in
   contact_id: z.string().uuid('Contact ID is required'),
+  vehicle_id: z.string().uuid('Invalid vehicle ID').optional().nullable(), // Must belong to contact_id
   gate_location: z.string().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
 });

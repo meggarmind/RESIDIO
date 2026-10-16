@@ -4,11 +4,14 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
-import { autoTagTransaction } from '@/actions/reference/transaction-tags';
-import type { BankStatementImport, BankStatementRow, ColumnMapping, TransactionFilter, TransactionTagType } from '@/types/database';
+import { findMatchingTag } from '@/lib/imports/auto-tag';
+import type { BankStatementImport, BankStatementRow, ColumnMapping, TransactionFilter, TransactionTag, TransactionTagType } from '@/types/database';
 import type { ParsedRow } from '@/lib/validators/import';
 import { generateTransactionHash } from '@/lib/utils/hashing';
 import { MAX_IMPORT_ROWS } from '@/lib/uploads';
+
+// Row numbers per auto-tag update; keeps the `.in()` filter well under URL length limits.
+const AUTO_TAG_UPDATE_CHUNK = 200;
 
 // ============================================================
 // Response Types
@@ -277,45 +280,57 @@ export async function createImportRows(params: CreateImportRowsParams): Promise<
     totalInserted += batch.length;
   }
 
-  // Auto-tag rows based on keywords
-  // Process in batches to avoid timeout on large imports
-  const autoTagBatchSize = 50;
-  for (let i = 0; i < dbRows.length; i += autoTagBatchSize) {
-    const batch = dbRows.slice(i, i + autoTagBatchSize);
+  // Auto-tag rows based on keywords. The active tags are loaded once per distinct transaction
+  // type (at most 2 queries, however many rows), matched in memory, and written back with one
+  // update per distinct tag instead of one per row (#649).
+  const tagTypes = Array.from(
+    new Set(
+      dbRows
+        .filter((row) => row.description && row.transaction_type)
+        .map((row) => row.transaction_type as TransactionTagType)
+    )
+  );
 
-    // Process rows in parallel within each batch
-    const autoTagPromises = batch.map(async (row) => {
-      if (!row.description || !row.transaction_type) return null;
+  const tagsByType = new Map<TransactionTagType, TransactionTag[]>();
+  await Promise.all(
+    tagTypes.map(async (type) => {
+      const { data: tags, error: tagsError } = await supabase
+        .from('transaction_tags')
+        .select('*')
+        .eq('transaction_type', type)
+        .eq('is_active', true)
+        .order('sort_order')
+        .order('name');
+      // A failed lookup leaves the rows untagged, as the per-row lookup did.
+      tagsByType.set(type, !tagsError && Array.isArray(tags) ? (tags as TransactionTag[]) : []);
+    })
+  );
 
-      const { tag } = await autoTagTransaction(
-        row.description,
-        row.transaction_type as TransactionTagType
-      );
-
-      if (tag) {
-        return {
-          row_number: row.row_number,
-          tag_id: tag.id,
-        };
-      }
-      return null;
-    });
-
-    const results = await Promise.all(autoTagPromises);
-    const tagsToApply = results.filter((r): r is { row_number: number; tag_id: string } => r !== null);
-
-    // Batch update rows with their auto-tags
-    for (const tagInfo of tagsToApply) {
-      await supabase
-        .from('bank_statement_rows')
-        .update({
-          tag_id: tagInfo.tag_id,
-          auto_tagged: true,
-        })
-        .eq('import_id', import_id)
-        .eq('row_number', tagInfo.row_number);
-    }
+  const rowNumbersByTag = new Map<string, number[]>();
+  for (const row of dbRows) {
+    if (!row.description || !row.transaction_type) continue;
+    const { tag } = findMatchingTag(tagsByType.get(row.transaction_type as TransactionTagType), row.description);
+    if (!tag) continue;
+    const group = rowNumbersByTag.get(tag.id);
+    if (group) group.push(row.row_number);
+    else rowNumbersByTag.set(tag.id, [row.row_number]);
   }
+
+  await Promise.all(
+    Array.from(rowNumbersByTag.entries()).flatMap(([tagId, rowNumbers]) => {
+      const updates = [];
+      for (let i = 0; i < rowNumbers.length; i += AUTO_TAG_UPDATE_CHUNK) {
+        updates.push(
+          supabase
+            .from('bank_statement_rows')
+            .update({ tag_id: tagId, auto_tagged: true })
+            .eq('import_id', import_id)
+            .in('row_number', rowNumbers.slice(i, i + AUTO_TAG_UPDATE_CHUNK))
+        );
+      }
+      return updates;
+    })
+  );
 
   // Update import session status, guarded on the 'pending' status read above so a concurrent
   // change cannot be overwritten. PostgREST reports no error when zero rows match, so ask for
