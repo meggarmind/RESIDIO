@@ -98,17 +98,23 @@ async function sendViaEmail(
         : { idempotencyKey: `${item.id}:${item.attempts + 1}` }
     );
 
+    // Communications override (#715): original and actual recipient (or the
+    // block) land in the history row's metadata via `result.metadata`.
+    const overrideMetadata = result.override ? { metadata: { override: result.override } } : {};
+
     if (!result.ok) {
       return {
         success: false,
         error: result.error,
         ...(result.retryable ? { retryable: true } : {}),
+        ...overrideMetadata,
       };
     }
 
     return {
       success: true,
       externalId: result.id,
+      ...overrideMetadata,
     };
   } catch (error) {
     return {
@@ -224,6 +230,7 @@ async function sendViaWhatsApp(
             metadata: {
               deliveredVia: 'sms_fallback',
               whatsappError: result.error,
+              ...(smsResult.override ? { override: smsResult.override } : {}),
             },
           };
         }
@@ -240,6 +247,8 @@ async function sendViaWhatsApp(
     success: result.success,
     externalId: result.messageId,
     error: result.error,
+    // Communications override (#715): original and actual recipient, or the block.
+    ...(result.override ? { metadata: { override: result.override } } : {}),
     // Providers that cannot tell leave `retryable` unset, which for a
     // transport failure means transient (#546).
     ...(!result.success && (result.retryable ?? true) ? { retryable: true } : {}),

@@ -106,7 +106,9 @@ export async function sendTwoFactorCode(
       return { success: false, message: 'No phone number found' };
     }
 
-    const smsResult = await sendVerificationSms(resident.phone_primary, otp);
+    const smsResult = await sendVerificationSms(resident.phone_primary, otp, undefined, {
+      purpose: 'self_auth_2fa', // self-addressed code to the signed-in user: exempt from the comms override (#715)
+    });
 
     if (!smsResult.success) {
       return { success: false, message: `Failed to send SMS: ${smsResult.error}` };
@@ -134,6 +136,7 @@ export async function sendTwoFactorCode(
       }),
       emailType: 'notification',
       metadata: { purpose: '2fa_login' },
+      purpose: 'self_auth_2fa', // exempt from the comms override (#715)
     });
 
     if (!emailResult.success) {

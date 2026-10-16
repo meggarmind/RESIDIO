@@ -17,14 +17,18 @@ export interface BuildInfo {
   env: BuildEnv;
 }
 
+/** Parses a raw `NEXT_PUBLIC_APP_ENV` value. Unset or unrecognised is `development`. */
+export function parseBuildEnv(raw: string | undefined | null): BuildEnv {
+  const value = (raw ?? '').trim().toLowerCase();
+  if (value === 'production' || value === 'prod') return 'production';
+  if (value === 'staging' || value === 'stage') return 'staging';
+  return 'development';
+}
+
 export function getBuildInfo(): BuildInfo {
   const version = (process.env.NEXT_PUBLIC_APP_VERSION ?? '').trim() || 'dev';
   const sha = (process.env.NEXT_PUBLIC_GIT_SHA ?? '').trim() || 'unknown';
-  const rawEnv = (process.env.NEXT_PUBLIC_APP_ENV ?? '').trim().toLowerCase();
-
-  let env: BuildEnv = 'development';
-  if (rawEnv === 'production' || rawEnv === 'prod') env = 'production';
-  else if (rawEnv === 'staging' || rawEnv === 'stage') env = 'staging';
+  const env = parseBuildEnv(process.env.NEXT_PUBLIC_APP_ENV);
 
   return { version, sha, shortSha: sha === 'unknown' ? 'unknown' : sha.slice(0, 7), env };
 }
