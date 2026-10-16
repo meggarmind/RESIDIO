@@ -8,8 +8,8 @@ residio_sources:
   - src/app/(dashboard)/announcements/**
   - src/actions/approvals/**
   - src/actions/announcements/**
-residio_verified_commit: 93ed5d0
-residio_verified_at: '2026-08-29'
+residio_verified_commit: 7f6feef
+residio_verified_at: '2026-10-16'
 residio_app_version: '0.4.0'
 ---
 
@@ -24,6 +24,8 @@ Open **Approvals** from the dashboard or sidebar. Review the source record, evid
 Use the approval decision that matches the evidence. If the record is incomplete, reject it with a useful reason or leave it pending according to the estate process.
 
 When a request is approved (and its change has been applied) or rejected, the person who submitted it receives an in-app notification with the outcome and, for a rejection, your reason. Nobody is notified for a decision you make on your own request.
+
+A request that nobody decides within 72 hours of being submitted is rejected automatically (the review note reads Auto-rejected: No response within 72 hours), and the person who submitted it receives an in-app notification that it expired. Requests that were already pending before this was introduced do not expire.
 
 ## Announcements
 

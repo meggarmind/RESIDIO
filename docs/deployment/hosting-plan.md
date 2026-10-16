@@ -82,6 +82,7 @@ read from the container's environment by the command, so it is never written int
 | `process-report-schedules` | `0 7 * * *` | 300000 |
 | `payment-reminders` | `0 8 * * *` | 120000 |
 | `process-notifications` | `*/15 * * * *` | 60000 |
+| `expire-approvals` | `0 * * * *` | 60000 |
 
 `process-notifications` runs every 15 minutes (#546), not daily: a transient send failure is put
 back on the queue with a backoff of 15 minutes, 1 hour, 6 hours, then 24 hours (or until the
@@ -128,6 +129,9 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/process-report-schedules',{header
 # payment-reminders  (0 8 * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/payment-reminders',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(120000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 
+# expire-approvals  (0 * * * *)
+node -e "fetch('http://127.0.0.1:3000/api/cron/expire-approvals',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
+
 # process-notifications  (*/15 * * * *)
 node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{Authorization:'Bearer '+process.env.CRON_SECRET},signal:AbortSignal.timeout(60000)}).then(r=>{console.log(r.status);process.exit(r.ok?0:1)}).catch(e=>{console.error(e.name);process.exit(1)})"
 ```
@@ -140,6 +144,7 @@ node -e "fetch('http://127.0.0.1:3000/api/cron/process-notifications',{headers:{
 | 300 s | `process-report-schedules` | **Previously undeclared.** It loops over every due schedule and, per schedule, generates the report, renders a PDF, uploads it and sends email (`src/actions/reports/process-schedules.ts`), the same shape of work as `generate-reports`, so it gets the same ceiling. |
 | 120 s | `payment-reminders` | Declared `maxDuration`: multi-channel sends. |
 | 60 s | `process-notifications` | Declared `maxDuration`. |
+| 60 s | `expire-approvals` | One read, one set-based UPDATE inside `process_expired_approvals()` and one in-app notification per expired request (#558). Hourly, so the backlog is small. New route: the owner must create this Coolify task; nothing runs it until then. |
 | 60 s | `whatsapp-retention` | **Previously undeclared.** Two bulk `DELETE ... WHERE expires_at < cutoff` statements run in parallel (`src/lib/whatsapp/retention.ts`) and nothing else; it runs daily so the backlog is small. Anything near 60 s means something is wrong. |
 
 A timeout aborts the caller, **not** the server-side work: the route handler keeps running in the

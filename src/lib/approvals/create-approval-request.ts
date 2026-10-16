@@ -15,6 +15,9 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getApprovalHandler } from '@/lib/approvals/registry';
 
+/** Pending requests auto-reject after this long (process_expired_approvals, #558). */
+export const APPROVAL_EXPIRY_HOURS = 72;
+
 export async function createApprovalRequest(params: {
   request_type: ApprovalRequestType;
   entity_type: ApprovalEntityType;
@@ -75,6 +78,7 @@ export async function createApprovalRequest(params: {
       current_values: params.current_values,
       reason: params.reason || null,
       requested_by: user.id,
+      expires_at: new Date(Date.now() + APPROVAL_EXPIRY_HOURS * 60 * 60 * 1000).toISOString(),
     })
     .select('id')
     .single();
