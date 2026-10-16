@@ -139,6 +139,12 @@ describe('migration 20261016100000 (#302)', () => {
   it('set_primary_vehicle locks the contact\'s active rows in id order', () => {
     expect(fn).toMatch(/WHERE contact_id = v_contact_id AND is_active\s+ORDER BY id\s+FOR UPDATE;/);
   });
+  it('set_primary_vehicle only clears primaries of the same contact and only sets the target row', () => {
+    expect(fn).toMatch(
+      /SET is_primary = false, updated_at = now\(\)\s+WHERE contact_id = v_contact_id AND is_active AND is_primary AND id <> p_vehicle_id;/,
+    );
+    expect(fn).toMatch(/SET is_primary = true, updated_at = now\(\)\s+WHERE id = p_vehicle_id\s+RETURNING \* INTO v_vehicle;/);
+  });
   it('set_primary_vehicle rejects an inactive vehicle', () => {
     expect(fn).toMatch(/WHERE id = p_vehicle_id AND is_active;\s+IF NOT FOUND THEN\s+RAISE EXCEPTION 'Vehicle % is not active'/);
   });
@@ -252,6 +258,7 @@ describe('vehicle actions use the atomic rpc (#302)', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('set_primary_vehicle', { p_vehicle_id: VEHICLE });
     expect(callsTo('visitor_vehicles', 'update')).toHaveLength(0);
     expect(res.data?.is_primary).toBe(true);
+    expect(mocks.logAudit).toHaveBeenCalledTimes(1);
   });
 
   it('updateVehicle normalises the plate and maps a 23505 to the duplicate-plate error', async () => {
