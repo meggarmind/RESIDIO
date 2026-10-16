@@ -1,0 +1,2312 @@
+{
+  "capturedFrom": "Residio_Stage (kzugmyjjqttardhfejzc) via supabase/probes/policy-definitions.sql",
+  "capturedAt": "2026-10-16",
+  "postgresMajor": 17,
+  "count": 256,
+  "policies": [
+    {
+      "tablename": "access_codes",
+      "policyname": "Residents can view own access codes",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "a56cf865333a",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "access_codes",
+      "policyname": "access_codes_delete_policy",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "access_codes",
+      "policyname": "access_codes_insert_policy",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "access_codes",
+      "policyname": "access_codes_select_policy",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "edc37a2f9e5f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "access_codes",
+      "policyname": "access_codes_update_policy",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "edc37a2f9e5f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "access_logs",
+      "policyname": "access_logs_delete_policy",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "aa3c24239d7b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "access_logs",
+      "policyname": "access_logs_insert_policy",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "edc37a2f9e5f"
+    },
+    {
+      "tablename": "access_logs",
+      "policyname": "access_logs_select_policy",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "edc37a2f9e5f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "access_logs",
+      "policyname": "access_logs_update_policy",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "edc37a2f9e5f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "ai_conversation_logs",
+      "policyname": "Users can insert their own conversation logs",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "6a6b7c2a3a52"
+    },
+    {
+      "tablename": "ai_conversation_logs",
+      "policyname": "Users can read their own conversation logs",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "6a6b7c2a3a52",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "ai_settings",
+      "policyname": "All users can read active AI settings",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "2bd5353c6851",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "ai_settings",
+      "policyname": "Approved accounts only can read",
+      "cmd": "SELECT",
+      "permissive": "RESTRICTIVE",
+      "roles": "authenticated",
+      "qualHash": "126cfb231f48",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "announcement_categories",
+      "policyname": "announcement_categories_admin_all",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "129fafb4f9c5",
+      "withCheckHash": "129fafb4f9c5"
+    },
+    {
+      "tablename": "announcement_categories",
+      "policyname": "announcement_categories_select_policy",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "2bd5353c6851",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "announcement_read_receipts",
+      "policyname": "read_receipts_admin_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "0cbc89e59451",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "announcement_read_receipts",
+      "policyname": "read_receipts_own_insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "bdf4d9ac810e"
+    },
+    {
+      "tablename": "announcement_read_receipts",
+      "policyname": "read_receipts_own_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "bdf4d9ac810e",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "announcements",
+      "policyname": "announcements_admin_delete",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "2e52fa8ff981",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "announcements",
+      "policyname": "announcements_admin_insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "06f939509ec9"
+    },
+    {
+      "tablename": "announcements",
+      "policyname": "announcements_admin_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "41c77993e9ed",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "announcements",
+      "policyname": "announcements_admin_update",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "ad1ea62741cf",
+      "withCheckHash": "ad1ea62741cf"
+    },
+    {
+      "tablename": "announcements",
+      "policyname": "announcements_resident_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "6c682fdf647d",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "app_permissions",
+      "policyname": "Allow read access to all authenticated users",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8d93bde132b4",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "app_roles",
+      "policyname": "Allow delete for role managers",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "0ea332edc96c",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "app_roles",
+      "policyname": "Allow insert for role managers",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "0ea332edc96c"
+    },
+    {
+      "tablename": "app_roles",
+      "policyname": "Allow read access to all authenticated users",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8d93bde132b4",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "app_roles",
+      "policyname": "Allow update for role managers",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "0ea332edc96c",
+      "withCheckHash": "0ea332edc96c"
+    },
+    {
+      "tablename": "approval_requests",
+      "policyname": "Admin and chairman can update approval requests",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "fe1a3f7c805a",
+      "withCheckHash": "fe1a3f7c805a"
+    },
+    {
+      "tablename": "approval_requests",
+      "policyname": "Admin and chairman can view all approval requests",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "dbcf442c5126",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "approval_requests",
+      "policyname": "Users can create their own approval requests",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "7be0f2983019"
+    },
+    {
+      "tablename": "approval_requests",
+      "policyname": "Users can view their own approval requests",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "7be0f2983019",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "audit_logs",
+      "policyname": "Users with settings.view_audit_logs can view audit logs",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "ca6e0210f8f3",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "bank_statement_imports",
+      "policyname": "Admin, Chairman, Financial Secretary can manage imports",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "bank_statement_rows",
+      "policyname": "Admin, Chairman, Financial Secretary can manage import rows",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "billing_items",
+      "policyname": "Admins chairmen fin sec can manage billing items",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "billing_items",
+      "policyname": "All authenticated can view billing items",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "billing_profile_version_items",
+      "policyname": "Finance may read billing profile version items",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "655f672609a4",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "billing_profile_versions",
+      "policyname": "Finance may read billing profile versions",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "655f672609a4",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "billing_profiles",
+      "policyname": "Admins chairmen fin sec can manage billing profiles",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "billing_profiles",
+      "policyname": "All authenticated can view billing profiles",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "budgets",
+      "policyname": "Manage Budgets - Authorized Roles",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "46a7e0567825",
+      "withCheckHash": "46a7e0567825"
+    },
+    {
+      "tablename": "budgets",
+      "policyname": "View Budgets - Authorized Roles",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "332695f9cf3d",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "document_access_logs",
+      "policyname": "Admins can view access logs",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "f70de0d4dde8",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "document_access_logs",
+      "policyname": "Users can log their own access",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "e1544c8ec776"
+    },
+    {
+      "tablename": "document_categories",
+      "policyname": "Admins can manage categories",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "6844c2538ee4",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "document_categories",
+      "policyname": "Authenticated users can view active categories",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "2bd5353c6851",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "documents",
+      "policyname": "Private documents visible to linked resident or editors",
+      "cmd": "SELECT",
+      "permissive": "RESTRICTIVE",
+      "roles": "authenticated",
+      "qualHash": "89c51a624cce",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "documents",
+      "policyname": "Users can delete documents",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "f90c2e70efac",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "documents",
+      "policyname": "Users can update documents",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "e1087511d24c",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "documents",
+      "policyname": "Users can upload documents",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "4573139009e6"
+    },
+    {
+      "tablename": "documents",
+      "policyname": "Users can view documents based on permissions",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "2a05789e24c6",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "email_imports",
+      "policyname": "Admin access for email imports",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "10e3fb6b07ce",
+      "withCheckHash": "10e3fb6b07ce"
+    },
+    {
+      "tablename": "email_logs",
+      "policyname": "Admins can view email logs",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "email_logs",
+      "policyname": "Service role can insert email logs",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "b326b5062b2f"
+    },
+    {
+      "tablename": "email_messages",
+      "policyname": "Admin access for email messages",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "10e3fb6b07ce",
+      "withCheckHash": "10e3fb6b07ce"
+    },
+    {
+      "tablename": "email_transactions",
+      "policyname": "Admin access for email transactions",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "10e3fb6b07ce",
+      "withCheckHash": "10e3fb6b07ce"
+    },
+    {
+      "tablename": "entity_notes",
+      "policyname": "Users can create notes",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "ac0c1df2c710"
+    },
+    {
+      "tablename": "entity_notes",
+      "policyname": "Users can delete notes",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "23718e1d346a",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "entity_notes",
+      "policyname": "Users can update notes",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "414583d077aa",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "entity_notes",
+      "policyname": "Users can view notes based on permissions",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "ad1e2cc41242",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "escalation_states",
+      "policyname": "escalation_states_delete",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "escalation_states",
+      "policyname": "escalation_states_insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "escalation_states",
+      "policyname": "escalation_states_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "escalation_states",
+      "policyname": "escalation_states_update",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "estate_bank_account_passwords",
+      "policyname": "Admin access for bank account passwords",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "1dac426d60b9",
+      "withCheckHash": "1dac426d60b9"
+    },
+    {
+      "tablename": "estate_bank_accounts",
+      "policyname": "Admins chairmen fin sec can manage bank accounts",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "estate_bank_accounts",
+      "policyname": "All authenticated can view active bank accounts",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "7bd08e6cb00a",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "estate_bank_accounts",
+      "policyname": "Approved accounts only can read",
+      "cmd": "SELECT",
+      "permissive": "RESTRICTIVE",
+      "roles": "authenticated",
+      "qualHash": "126cfb231f48",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "expense_categories",
+      "policyname": "Manage Categories - Authorized Roles",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "46a7e0567825",
+      "withCheckHash": "46a7e0567825"
+    },
+    {
+      "tablename": "expense_categories",
+      "policyname": "View Categories - Authorized Roles",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "332695f9cf3d",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "expenses",
+      "policyname": "Manage Expenditure - Authorized Roles",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "46a7e0567825",
+      "withCheckHash": "46a7e0567825"
+    },
+    {
+      "tablename": "expenses",
+      "policyname": "View Expenditure - Admins/Financial Secretary",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "332695f9cf3d",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "generated_reports",
+      "policyname": "generated_reports_delete",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "815193534e40",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "generated_reports",
+      "policyname": "generated_reports_insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "6af4f0d10246"
+    },
+    {
+      "tablename": "generated_reports",
+      "policyname": "generated_reports_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "6af4f0d10246",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "gmail_oauth_credentials",
+      "policyname": "Admin access for gmail oauth credentials",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "ddd9ec1026e4",
+      "withCheckHash": "ddd9ec1026e4"
+    },
+    {
+      "tablename": "hierarchical_settings",
+      "policyname": "hierarchical_settings_admin_all",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "hierarchical_settings",
+      "policyname": "hierarchical_settings_read_estate",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "024b1aafda50",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "hierarchical_settings",
+      "policyname": "hierarchical_settings_read_house",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "1af30bd7e015",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "hierarchical_settings",
+      "policyname": "hierarchical_settings_read_own_resident",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "73b2eec60513",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "house_levy_history",
+      "policyname": "house_levy_history_delete_policy",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "aa3c24239d7b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "house_levy_history",
+      "policyname": "house_levy_history_insert_policy",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "house_levy_history",
+      "policyname": "house_levy_history_select_policy",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "f6ae85cc8f96",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "house_levy_history",
+      "policyname": "house_levy_history_update_policy",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "house_ownership_history",
+      "policyname": "Authorized users can insert ownership history",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "house_ownership_history",
+      "policyname": "Only admins can update ownership history",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "aa3c24239d7b",
+      "withCheckHash": "aa3c24239d7b"
+    },
+    {
+      "tablename": "house_ownership_history",
+      "policyname": "house_ownership_history_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "04203acb163b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "house_types",
+      "policyname": "Admins and chairmen can delete house types",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "house_types",
+      "policyname": "Admins and chairmen can insert house types",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "b20e8ae47e78"
+    },
+    {
+      "tablename": "house_types",
+      "policyname": "Admins and chairmen can update house types",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "house_types",
+      "policyname": "All authenticated users can view active house types",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "763f04dda170",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "house_types",
+      "policyname": "Approved accounts only can read",
+      "cmd": "SELECT",
+      "permissive": "RESTRICTIVE",
+      "roles": "authenticated",
+      "qualHash": "126cfb231f48",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "houses",
+      "policyname": "Admins chairmen and fin sec can delete houses",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "houses",
+      "policyname": "Admins chairmen and fin sec can insert houses",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "houses",
+      "policyname": "Admins chairmen and fin sec can update houses",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "houses",
+      "policyname": "All authenticated users can view active houses",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "7bd08e6cb00a",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "houses",
+      "policyname": "Approved accounts only can read",
+      "cmd": "SELECT",
+      "permissive": "RESTRICTIVE",
+      "roles": "authenticated",
+      "qualHash": "126cfb231f48",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "houses",
+      "policyname": "Residents can view assigned houses",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "1ca51664e995",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "impersonation_sessions",
+      "policyname": "admins_insert_own_impersonation_sessions",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "d3f281856f36"
+    },
+    {
+      "tablename": "impersonation_sessions",
+      "policyname": "admins_read_own_impersonation_sessions",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d3f281856f36",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "impersonation_sessions",
+      "policyname": "admins_update_own_impersonation_sessions",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d3f281856f36",
+      "withCheckHash": "d3f281856f36"
+    },
+    {
+      "tablename": "impersonation_sessions",
+      "policyname": "super_admin_read_all_impersonation_sessions",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "08eec31d6123",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "in_app_notifications",
+      "policyname": "in_app_notifications_admin_insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "74a94834acef"
+    },
+    {
+      "tablename": "in_app_notifications",
+      "policyname": "in_app_notifications_own_delete",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "3b96df4cc84e",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "in_app_notifications",
+      "policyname": "in_app_notifications_own_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "3b96df4cc84e",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "in_app_notifications",
+      "policyname": "in_app_notifications_own_update",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "3b96df4cc84e",
+      "withCheckHash": "3b96df4cc84e"
+    },
+    {
+      "tablename": "invoice_generation_approvals",
+      "policyname": "Finance may read invoice generation approvals",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "fd6afcfc1c71",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "invoice_generation_candidates",
+      "policyname": "Finance may read invoice generation candidates",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "fd6afcfc1c71",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "invoice_generation_log",
+      "policyname": "invoice_generation_log_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "fd6afcfc1c71",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "invoice_generation_runs",
+      "policyname": "Finance may read invoice generation runs",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "fd6afcfc1c71",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "invoice_items",
+      "policyname": "Admins chairmen fin sec can manage all invoice items",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "invoice_items",
+      "policyname": "Residents can view own invoice items",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "57afac8b2a24",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "invoices",
+      "policyname": "Admins chairmen fin sec can manage all invoices",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "invoices",
+      "policyname": "Residents can view own invoices",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "465cf6430ef8",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "late_fee_log",
+      "policyname": "Admins can view late fee log",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "ba2cbe54ad77",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "late_fee_waivers",
+      "policyname": "Approvers can decide late fee waivers",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "608b0139ad8f",
+      "withCheckHash": "56d0aadf3ade"
+    },
+    {
+      "tablename": "late_fee_waivers",
+      "policyname": "Request holders can create late fee waivers",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "f6457f6eb32c"
+    },
+    {
+      "tablename": "late_fee_waivers",
+      "policyname": "Request holders can view late fee waivers",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "ed3613eaf9c1",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "message_templates",
+      "policyname": "message_templates_admin_all",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "c73c06335765",
+      "withCheckHash": "c73c06335765"
+    },
+    {
+      "tablename": "message_templates",
+      "policyname": "message_templates_select_policy",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "2bd5353c6851",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "notification_history",
+      "policyname": "notification_history_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "notification_preferences",
+      "policyname": "Residents can update own notification preferences",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "465cf6430ef8",
+      "withCheckHash": "465cf6430ef8"
+    },
+    {
+      "tablename": "notification_preferences",
+      "policyname": "Residents can view own notification preferences",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "465cf6430ef8",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "notification_preferences",
+      "policyname": "notification_preferences_delete",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "notification_preferences",
+      "policyname": "notification_preferences_insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "notification_preferences",
+      "policyname": "notification_preferences_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "febbfd24d47c",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "notification_preferences",
+      "policyname": "notification_preferences_update",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "notification_queue",
+      "policyname": "notification_queue_delete",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "notification_queue",
+      "policyname": "notification_queue_insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "notification_queue",
+      "policyname": "notification_queue_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "notification_queue",
+      "policyname": "notification_queue_update",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "b20e8ae47e78"
+    },
+    {
+      "tablename": "notification_schedules",
+      "policyname": "notification_schedules_delete",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "notification_schedules",
+      "policyname": "notification_schedules_insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "b20e8ae47e78"
+    },
+    {
+      "tablename": "notification_schedules",
+      "policyname": "notification_schedules_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "notification_schedules",
+      "policyname": "notification_schedules_update",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "b20e8ae47e78"
+    },
+    {
+      "tablename": "notification_templates",
+      "policyname": "notification_templates_delete",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "3ef8c976dcc9",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "notification_templates",
+      "policyname": "notification_templates_insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "b20e8ae47e78"
+    },
+    {
+      "tablename": "notification_templates",
+      "policyname": "notification_templates_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "notification_templates",
+      "policyname": "notification_templates_update",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "b20e8ae47e78"
+    },
+    {
+      "tablename": "payment_records",
+      "policyname": "Admins and FinSec can manage all payments",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "c63871281430",
+      "withCheckHash": "c63871281430"
+    },
+    {
+      "tablename": "payment_records",
+      "policyname": "Residents can view own payments",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "465cf6430ef8",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "paystack_transactions",
+      "policyname": "paystack_transactions_admin_all",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "c63871281430",
+      "withCheckHash": "c63871281430"
+    },
+    {
+      "tablename": "paystack_transactions",
+      "policyname": "paystack_transactions_resident_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "5f13b46c32ce",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "personnel_engagements",
+      "policyname": "Manage Personnel Engagements - Authorized Roles",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "46a7e0567825",
+      "withCheckHash": "46a7e0567825"
+    },
+    {
+      "tablename": "petty_cash_accounts",
+      "policyname": "Admins can manage petty cash accounts",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "46a7e0567825",
+      "withCheckHash": "46a7e0567825"
+    },
+    {
+      "tablename": "petty_cash_accounts",
+      "policyname": "petty_cash_accounts_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8363b2064708",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "profiles",
+      "policyname": "Admins and chairmen can view all profiles",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "profiles",
+      "policyname": "Admins can delete profiles",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "aa3c24239d7b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "profiles",
+      "policyname": "Admins can insert profiles",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "aa3c24239d7b"
+    },
+    {
+      "tablename": "profiles",
+      "policyname": "Users can update own profile",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "c778c06b8b51",
+      "withCheckHash": "c778c06b8b51"
+    },
+    {
+      "tablename": "profiles",
+      "policyname": "Users can view own profile",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "c778c06b8b51",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "project_milestones",
+      "policyname": "Manage Milestones - Admins/Project Manager",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "f5885be9bbd1",
+      "withCheckHash": "f5885be9bbd1"
+    },
+    {
+      "tablename": "project_milestones",
+      "policyname": "View Milestones - Admins/EXCO",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "f3d550af1963",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "projects",
+      "policyname": "Manage Projects - Admins/Project Manager",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "f5885be9bbd1",
+      "withCheckHash": "f5885be9bbd1"
+    },
+    {
+      "tablename": "projects",
+      "policyname": "View Projects - Admins/EXCO",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "f3d550af1963",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "property_transition_requests",
+      "policyname": "House managers can create property transition requests",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "property_transition_requests",
+      "policyname": "House managers can view property transition requests",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "report_archive",
+      "policyname": "Users with report export can insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "79c2a2788049"
+    },
+    {
+      "tablename": "report_archive",
+      "policyname": "report_archive_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "6af4f0d10246",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "report_schedules",
+      "policyname": "Approved accounts only can read",
+      "cmd": "SELECT",
+      "permissive": "RESTRICTIVE",
+      "roles": "authenticated",
+      "qualHash": "126cfb231f48",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "report_schedules",
+      "policyname": "report_schedules_delete",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "815193534e40",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "report_schedules",
+      "policyname": "report_schedules_insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "815193534e40"
+    },
+    {
+      "tablename": "report_schedules",
+      "policyname": "report_schedules_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "815193534e40",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "report_schedules",
+      "policyname": "report_schedules_update",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "815193534e40",
+      "withCheckHash": "815193534e40"
+    },
+    {
+      "tablename": "report_subscriptions",
+      "policyname": "report_subscriptions_admin_insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "a2de3259c8b9"
+    },
+    {
+      "tablename": "report_subscriptions",
+      "policyname": "report_subscriptions_admin_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8261eb1f8d53",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "report_subscriptions",
+      "policyname": "report_subscriptions_admin_update",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "a2de3259c8b9",
+      "withCheckHash": "a2de3259c8b9"
+    },
+    {
+      "tablename": "report_subscriptions",
+      "policyname": "report_subscriptions_own_insert",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "59a18ca9f888"
+    },
+    {
+      "tablename": "report_subscriptions",
+      "policyname": "report_subscriptions_own_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "59a18ca9f888",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "report_subscriptions",
+      "policyname": "report_subscriptions_own_update",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "59a18ca9f888",
+      "withCheckHash": "59a18ca9f888"
+    },
+    {
+      "tablename": "resident_houses",
+      "policyname": "Admins chairmen fin sec can delete resident houses",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "resident_houses",
+      "policyname": "Admins chairmen fin sec can insert resident houses",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "resident_houses",
+      "policyname": "Admins chairmen fin sec can update resident houses",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "resident_houses",
+      "policyname": "Admins chairmen fin sec can view all resident houses",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "resident_houses",
+      "policyname": "Residents can view housemates house assignments",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "200fb4e2c5b8",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "resident_houses",
+      "policyname": "Residents can view own house assignments",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "465cf6430ef8",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "resident_houses",
+      "policyname": "Security officers can view active resident houses",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "ab7fa2e10279",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "resident_payment_aliases",
+      "policyname": "Admin, Chairman, Financial Secretary can manage aliases",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "resident_payment_cadence_summary",
+      "policyname": "resident_payment_cadence_summary_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "6af4f0d10246",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "resident_payment_cadence_summary",
+      "policyname": "resident_payment_cadence_summary_service_role_all",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "service_role",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "b326b5062b2f"
+    },
+    {
+      "tablename": "resident_wallets",
+      "policyname": "Admins chairmen fin sec can manage wallets",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "resident_wallets",
+      "policyname": "Residents can view own wallet",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "465cf6430ef8",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "residents",
+      "policyname": "Admins chairmen fin sec can insert residents",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "residents",
+      "policyname": "Admins chairmen fin sec can update residents",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "residents",
+      "policyname": "Admins chairmen fin sec can view all residents",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "residents",
+      "policyname": "Only admins can delete residents",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "aa3c24239d7b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "residents",
+      "policyname": "Residents can update own contact info",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "4223fe269734",
+      "withCheckHash": "4223fe269734"
+    },
+    {
+      "tablename": "residents",
+      "policyname": "Residents can view housemates",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8629395093e9",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "residents",
+      "policyname": "Residents can view own record",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "4223fe269734",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "residents",
+      "policyname": "Security officers can view active residents",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "c64dda3f9933",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "role_assignment_rules",
+      "policyname": "Admins can manage role assignment rules",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b16aec879195",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "role_assignment_rules",
+      "policyname": "role_assignment_rules_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "6e581fdc7b90",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "role_permissions",
+      "policyname": "Allow delete for role managers",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "0ea332edc96c",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "role_permissions",
+      "policyname": "Allow insert for role managers",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "0ea332edc96c"
+    },
+    {
+      "tablename": "role_permissions",
+      "policyname": "Allow read access to all authenticated users",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8d93bde132b4",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "role_permissions",
+      "policyname": "Allow update for role managers",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "0ea332edc96c",
+      "withCheckHash": "0ea332edc96c"
+    },
+    {
+      "tablename": "search_logs",
+      "policyname": "Admins can view search logs",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "ca6e0210f8f3",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "search_logs",
+      "policyname": "Users can insert search logs",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "ff452c766f1d"
+    },
+    {
+      "tablename": "security_contact_categories",
+      "policyname": "security_contact_categories_delete_policy",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "aa3c24239d7b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "security_contact_categories",
+      "policyname": "security_contact_categories_insert_policy",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "aa3c24239d7b"
+    },
+    {
+      "tablename": "security_contact_categories",
+      "policyname": "security_contact_categories_select_policy",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "security_contact_categories",
+      "policyname": "security_contact_categories_update_policy",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "aa3c24239d7b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "security_contacts",
+      "policyname": "Residents can create own security contacts",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "465cf6430ef8"
+    },
+    {
+      "tablename": "security_contacts",
+      "policyname": "Residents can delete own security contacts",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "465cf6430ef8",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "security_contacts",
+      "policyname": "Residents can update own security contacts",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "465cf6430ef8",
+      "withCheckHash": "465cf6430ef8"
+    },
+    {
+      "tablename": "security_contacts",
+      "policyname": "Residents can view own security contacts",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "465cf6430ef8",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "security_contacts",
+      "policyname": "security_contacts_delete_policy",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "security_contacts",
+      "policyname": "security_contacts_insert_policy",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "security_contacts",
+      "policyname": "security_contacts_select_policy",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "edc37a2f9e5f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "security_contacts",
+      "policyname": "security_contacts_update_policy",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "streets",
+      "policyname": "Admins and chairmen can delete streets",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "streets",
+      "policyname": "Admins and chairmen can insert streets",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "b20e8ae47e78"
+    },
+    {
+      "tablename": "streets",
+      "policyname": "Admins and chairmen can update streets",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "streets",
+      "policyname": "All authenticated users can view active streets",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "763f04dda170",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "streets",
+      "policyname": "Approved accounts only can read",
+      "cmd": "SELECT",
+      "permissive": "RESTRICTIVE",
+      "roles": "authenticated",
+      "qualHash": "126cfb231f48",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "system_action_log",
+      "policyname": "Super admins can view the system action log",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "0162105480c3",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "system_settings",
+      "policyname": "system_settings_delete_policy",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "aa3c24239d7b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "system_settings",
+      "policyname": "system_settings_insert_policy",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "b20e8ae47e78"
+    },
+    {
+      "tablename": "system_settings",
+      "policyname": "system_settings_select_policy",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "44e11856f5f4",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "system_settings",
+      "policyname": "system_settings_update_policy",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "transaction_tags",
+      "policyname": "Authenticated users can view transaction tags",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "7bd08e6cb00a",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "transaction_tags",
+      "policyname": "Only admin can create transaction tags",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "aa3c24239d7b"
+    },
+    {
+      "tablename": "transaction_tags",
+      "policyname": "Only admin can delete transaction tags",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "aa3c24239d7b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "transaction_tags",
+      "policyname": "Only admin can update transaction tags",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "aa3c24239d7b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "two_factor_audit_log",
+      "policyname": "Admins can view all audit logs",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "5eb675cbc58a",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "two_factor_audit_log",
+      "policyname": "System can manage audit logs",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "service_role",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "two_factor_audit_log",
+      "policyname": "Users can view own audit log",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "f67db3caa02f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "two_factor_backup_codes",
+      "policyname": "System can manage backup codes",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "service_role",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "two_factor_policies",
+      "policyname": "Approved accounts only can read",
+      "cmd": "SELECT",
+      "permissive": "RESTRICTIVE",
+      "roles": "authenticated",
+      "qualHash": "126cfb231f48",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "two_factor_policies",
+      "policyname": "System can manage policies",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "service_role",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "two_factor_policies",
+      "policyname": "two_factor_policies_select",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "43800edcf797",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "two_factor_tokens",
+      "policyname": "System can manage 2FA tokens",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "service_role",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "vendors",
+      "policyname": "Manage Vendors - Authorized Roles",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "980a03a12afd",
+      "withCheckHash": "980a03a12afd"
+    },
+    {
+      "tablename": "vendors",
+      "policyname": "View Vendors - Authorized Roles",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "21802af5ffea",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "verification_tokens",
+      "policyname": "Service role can manage verification tokens",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "e79d3cb44ead",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "visitor_vehicles",
+      "policyname": "visitor_vehicles_delete_policy",
+      "cmd": "DELETE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "b20e8ae47e78",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "visitor_vehicles",
+      "policyname": "visitor_vehicles_insert_policy",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "visitor_vehicles",
+      "policyname": "visitor_vehicles_select_policy",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "edc37a2f9e5f",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "visitor_vehicles",
+      "policyname": "visitor_vehicles_update_policy",
+      "cmd": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "wallet_payment_batch_items",
+      "policyname": "Admin finance can manage wallet payment batch items",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "3fbdba5b01b7",
+      "withCheckHash": "3fbdba5b01b7"
+    },
+    {
+      "tablename": "wallet_payment_batch_items",
+      "policyname": "Residents can view own wallet payment batch items",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "57dbf166d959",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "wallet_payment_batches",
+      "policyname": "Admin finance can manage wallet payment batches",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "3fbdba5b01b7",
+      "withCheckHash": "3fbdba5b01b7"
+    },
+    {
+      "tablename": "wallet_payment_batches",
+      "policyname": "Residents can view own wallet payment batches",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "5f13b46c32ce",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "wallet_settlement_requests",
+      "policyname": "Finance can create wallet settlement requests",
+      "cmd": "INSERT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "d41d8cd98f00",
+      "withCheckHash": "8df21492cb5b"
+    },
+    {
+      "tablename": "wallet_settlement_requests",
+      "policyname": "Finance can view wallet settlement requests",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "wallet_transactions",
+      "policyname": "Admins chairmen fin sec can view all transactions",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "8df21492cb5b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "wallet_transactions",
+      "policyname": "Residents can view own transactions",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "public",
+      "qualHash": "903a7747968b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "wallet_transactions",
+      "policyname": "Residents can view own wallet transactions",
+      "cmd": "SELECT",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "1224debc483b",
+      "withCheckHash": "d41d8cd98f00"
+    },
+    {
+      "tablename": "whatsapp_disclosure_logs",
+      "policyname": "whatsapp_disclosure_logs_service_role_all",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "service_role",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "b326b5062b2f"
+    },
+    {
+      "tablename": "whatsapp_link_tokens",
+      "policyname": "whatsapp_link_tokens_service_role_all",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "service_role",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "b326b5062b2f"
+    },
+    {
+      "tablename": "whatsapp_optins",
+      "policyname": "whatsapp_optins_service_role_all",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "service_role",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "b326b5062b2f"
+    },
+    {
+      "tablename": "whatsapp_pending_contacts",
+      "policyname": "whatsapp_pending_contacts_service_role_all",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "service_role",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "b326b5062b2f"
+    },
+    {
+      "tablename": "whatsapp_processed_messages",
+      "policyname": "whatsapp_processed_messages_service_role_all",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "service_role",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "b326b5062b2f"
+    },
+    {
+      "tablename": "whatsapp_provider_credentials",
+      "policyname": "Admin access for whatsapp provider credentials",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "authenticated",
+      "qualHash": "8f44ebd0b3a9",
+      "withCheckHash": "8f44ebd0b3a9"
+    },
+    {
+      "tablename": "whatsapp_sessions",
+      "policyname": "whatsapp_sessions_service_role_all",
+      "cmd": "ALL",
+      "permissive": "PERMISSIVE",
+      "roles": "service_role",
+      "qualHash": "b326b5062b2f",
+      "withCheckHash": "b326b5062b2f"
+    }
+  ]
+}
