@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { scanLine, scanDiff, forbiddenFiles, ALLOW_MARKER } from '../../scripts/secret-scan.mjs';
+import { scanLine, scanDiff, forbiddenFiles, filterGitleaksFindings, ALLOW_MARKER } from '../../scripts/secret-scan.mjs';
 
 const root = path.resolve(__dirname, '..', '..');
 const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as {
@@ -47,8 +47,7 @@ describe('secret-scan (pre-commit)', () => {
       'diff --git a/src/a.ts b/src/a.ts',
       '--- a/src/a.ts',
       '+++ b/src/a.ts',
-      '@@ -1,2 +10,3 @@',
-      ` context ${aws}`,
+      '@@ -1 +10,2 @@',
       `-removed ${aws}`,
       '+const ok = 1;',
       `+const bad = "${aws}";`,
@@ -63,6 +62,50 @@ describe('secret-scan (pre-commit)', () => {
     expect(scanDiff(mk('package-lock.json'))).toEqual([]);
     expect(scanDiff(mk('.env.example'))).toEqual([]);
     expect(scanDiff(mk('src/b.ts'))).not.toEqual([]);
+  });
+
+  it('flags Slack, Resend and Supabase secret keys', () => {
+    expect(scanLine('t = "xox' + 'b-' + '1234567890-abcdefghij"')).toContain('slack-token');
+    expect(scanLine('k = re_' + 'abcdefgh_' + 'A1b2C3d4E5f6G7h8')).toContain('resend-api-key');
+    expect(scanLine('k = sb_' + 'secret_' + 'A1b2C3d4E5f6G7h8I9j0K1')).toContain('supabase-secret-key');
+  });
+
+  it('does not read an added line starting with "++" as a file header', () => {
+    const diff = [
+      '--- a/src/a.ts',
+      '+++ b/src/a.ts',
+      '@@ -0,0 +1,2 @@',
+      `+++ k = "${aws}"`,
+      '+const fine = 1;',
+      '--- a/src/b.ts',
+      '+++ b/src/b.ts',
+      '@@ -0,0 +5 @@',
+      `+const k = "${aws}";`,
+    ].join('\n');
+    expect(scanDiff(diff)).toEqual([
+      { file: 'src/a.ts', line: 1, rule: 'aws-access-key' },
+      { file: 'src/b.ts', line: 5, rule: 'aws-access-key' },
+    ]);
+  });
+
+  it('strips the tab git appends to a path with spaces before matching skip rules', () => {
+    const diff = `+++ b/my config.env.example\t\n@@ -0,0 +1 @@\n+key = "${aws}"`;
+    expect(scanDiff(diff)).toEqual([]);
+  });
+
+  it('filters gitleaks findings the way the built-in engine would', () => {
+    const lines: Record<string, string> = {
+      'a.ts:1': `key = "${aws}" // ${ALLOW_MARKER}`,
+      'b.ts:1': `NEXT_PUBLIC_SUPABASE_ANON_KEY=${jwt('anon')}`,
+      'c.ts:1': `SUPABASE_KEY=${jwt('service_role')}`,
+      'd.ts:1': `key = "${aws}"`,
+    };
+    const f = (file: string, rule: string) => ({ File: file, StartLine: 1, RuleID: rule });
+    const kept = filterGitleaksFindings(
+      [f('a.ts', 'aws-access-token'), f('b.ts', 'jwt'), f('c.ts', 'jwt'), f('d.ts', 'aws-access-token')],
+      (file: string, line: number) => lines[`${file}:${line}`],
+    );
+    expect(kept.map((k: { File: string }) => k.File)).toEqual(['c.ts', 'd.ts']);
   });
 
   it('refuses real env files but allows examples', () => {

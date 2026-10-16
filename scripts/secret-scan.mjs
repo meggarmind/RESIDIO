@@ -4,7 +4,7 @@
  *
  * Wired in by .githooks/pre-commit (enable once per clone: `npm run hooks:install`).
  *
- * Two engines, same verdict:
+ * Two engines, same allow rules (the allow marker and public anon JWTs apply to both):
  *   1. gitleaks, when it is on PATH. This is the same tool and the same default ruleset as the
  *      CI secret scan in .github/workflows/security-gate.yml (pinned there at 8.21.2).
  *   2. A built-in scan of the added lines in the staged diff, when gitleaks is not installed, so a
@@ -17,6 +17,9 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const ALLOW_MARKER = 'secret-scan:allow';
@@ -80,23 +83,56 @@ export function scanDiff(diff) {
   let file = null;
   let skip = false;
   let lineNo = 0;
+  // Lines still owed by the current hunk. File headers ("--- ", "+++ ") can only appear when both
+  // are zero, so an added line whose content starts with "++" is never mistaken for one.
+  let oldLeft = 0;
+  let newLeft = 0;
   for (const raw of diff.split('\n')) {
+    if (oldLeft > 0 || newLeft > 0) {
+      if (raw.startsWith('+')) {
+        if (!skip) for (const rule of scanLine(raw.slice(1))) findings.push({ file, line: lineNo, rule });
+        lineNo += 1;
+        newLeft -= 1;
+      } else if (raw.startsWith('-')) {
+        oldLeft -= 1;
+      } else if (!raw.startsWith('\\')) {
+        // context line (not produced by -U0, but keep the counts honest)
+        oldLeft -= 1;
+        newLeft -= 1;
+        lineNo += 1;
+      }
+      continue;
+    }
     if (raw.startsWith('+++ ')) {
-      file = raw === '+++ /dev/null' ? null : raw.replace(/^\+\+\+ b\//, '');
+      // Git appends a tab after a path that contains spaces.
+      const p = raw.slice(4).replace(/\t.*$/, '');
+      file = p === '/dev/null' ? null : p.replace(/^b\//, '');
       skip = !file || SKIP_CONTENT.some((re) => re.test(file));
       continue;
     }
-    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(raw);
+    const hunk = /^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(raw);
     if (hunk) {
-      lineNo = Number(hunk[1]);
-      continue;
-    }
-    if (raw.startsWith('+') && !raw.startsWith('+++')) {
-      if (!skip) for (const rule of scanLine(raw.slice(1))) findings.push({ file, line: lineNo, rule });
-      lineNo += 1;
+      oldLeft = hunk[1] === undefined ? 1 : Number(hunk[1]);
+      lineNo = Number(hunk[2]);
+      newLeft = hunk[3] === undefined ? 1 : Number(hunk[3]);
     }
   }
   return findings;
+}
+
+/**
+ * Drop gitleaks findings the built-in engine would not raise: a line carrying the allow marker,
+ * and a JWT line where every JWT is a public (non service_role) token, e.g. a Supabase anon key.
+ * `lineOf(file, line)` returns the staged text of that line.
+ */
+export function filterGitleaksFindings(findings, lineOf) {
+  return findings.filter((f) => {
+    const text = lineOf(f.File, f.StartLine) ?? '';
+    if (text.includes(ALLOW_MARKER)) return false;
+    const jwts = [...text.matchAll(JWT)];
+    if (jwts.length > 0 && !serviceRoleJwt(text) && /jwt|generic-api-key/i.test(f.RuleID)) return false;
+    return true;
+  });
 }
 
 /** Staged paths that must not be committed at all (real env files). */
@@ -130,15 +166,38 @@ function main() {
   }
 
   if (gitleaksAvailable()) {
-    // --redact keeps the value out of the terminal. gitleaks exits 1 when it finds a leak.
-    const r = spawnSync('gitleaks', ['git', '--pre-commit', '--staged', '--redact', '--no-banner'], {
-      stdio: 'inherit',
-    });
-    if (r.status !== 0) {
-      console.error('\nsecret-scan: gitleaks found a possible secret in the staged changes.');
-      console.error('A real secret must be rotated, not just removed. False positive: `git commit --no-verify`.');
+    const dir = mkdtempSync(path.join(tmpdir(), 'secret-scan-'));
+    const report = path.join(dir, 'report.json');
+    try {
+      // --redact keeps values out of the report. gitleaks exits 1 when it finds a leak.
+      const r = spawnSync(
+        'gitleaks',
+        ['git', '--pre-commit', '--staged', '--redact', '--no-banner', '--report-format', 'json', '--report-path', report],
+        { encoding: 'utf8' },
+      );
+      if (r.error || (r.status !== 0 && r.status !== 1)) {
+        console.error(`secret-scan: gitleaks could not run (status ${r.status}): ${r.stderr || r.error}`);
+        return 1;
+      }
+      if (r.status === 0) return 0;
+      const raw = existsSync(report) ? JSON.parse(readFileSync(report, 'utf8')) : null;
+      if (!Array.isArray(raw)) {
+        console.error('secret-scan: gitleaks reported a leak but no readable report; failing closed.');
+        return 1;
+      }
+      const kept = filterGitleaksFindings(raw, (file, line) => {
+        const r2 = spawnSync('git', ['show', `:${file}`], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+        return r2.status === 0 ? r2.stdout.split('\n')[line - 1] : undefined;
+      });
+      if (kept.length === 0) return 0;
+      console.error('secret-scan: gitleaks found possible secret(s) in the staged changes (values not shown):');
+      for (const f of kept) console.error(`  ${f.File}:${f.StartLine}  ${f.RuleID}`);
+      console.error(`\nA real secret must be rotated, not just removed. If a line is a false positive, add "${ALLOW_MARKER}"`);
+      console.error('in a comment on it.');
+      return 1;
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
-    return r.status ?? 1;
   }
 
   const findings = scanDiff(git(['diff', '--cached', '-U0', '--no-color', '--no-ext-diff', '--diff-filter=ACMR']));
@@ -147,7 +206,7 @@ function main() {
   console.error('secret-scan: possible secret(s) in the staged changes (values not shown):');
   for (const f of findings) console.error(`  ${f.file}:${f.line}  ${f.rule}`);
   console.error(`\nA real secret must be rotated, not just removed. If a line is a false positive, add "${ALLOW_MARKER}"`);
-  console.error('in a comment on it. Install gitleaks for the full ruleset CI uses (same engine, fewer misses).');
+  console.error('in a comment on it. Install gitleaks for the fuller ruleset CI uses (the built-in scan covers fewer shapes).');
   return 1;
 }
 
