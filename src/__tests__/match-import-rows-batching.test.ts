@@ -250,6 +250,28 @@ describe('checkDuplicatesBatch equals the single-row checkDuplicate (#649)', () 
     expect(count('hierarchical_settings', 'select')).toBe(1);
   });
 
+  it('uses the first match by id when a hash or reference exists more than once', async () => {
+    db.payment_records = [
+      { id: 'p-b', transaction_hash: 'H-TWICE', reference_number: 'REF-TWICE', amount: 1, payment_date: '2020-01-01', description: 'x' },
+      { id: 'p-a', transaction_hash: 'H-TWICE', reference_number: 'REF-TWICE', amount: 1, payment_date: '2020-01-01', description: 'x' },
+    ];
+    const batch = await checkDuplicatesBatch([
+      { id: 'h', reference: null, amount: 9, transaction_date: '2026-03-01', transaction_hash: 'H-TWICE' },
+      { id: 'r', reference: 'REF-TWICE', amount: 9, transaction_date: '2026-03-01', transaction_hash: null },
+    ]);
+    expect(batch.get('h')).toMatchObject({ existing_payment_id: 'p-a' });
+    expect(batch.get('r')).toMatchObject({ existing_payment_id: 'p-a' });
+  });
+
+  it('treats a null amount as 0 for the fuzzy window, like the single-row check', async () => {
+    db.payment_records = [{ id: 'p-zero', transaction_hash: null, reference_number: null, amount: 0, payment_date: '2026-01-10', description: 'Levy' }];
+    const row = { reference: null, amount: null, transaction_date: '2026-01-10', transaction_hash: null, description: 'Levy' };
+    const single = await checkDuplicate(null, 0, row.transaction_date, 1, null, row.description);
+    const batch = await checkDuplicatesBatch([{ id: 'x', ...row }]);
+    expect(single.is_duplicate).toBe(true);
+    expect(batch.get('x')).toEqual(single);
+  });
+
   it('treats an unparseable date as "no fuzzy candidates" instead of throwing', async () => {
     seedDuplicateWorld();
     const batch = await checkDuplicatesBatch([{ id: 'x', reference: null, amount: 500, transaction_date: '', transaction_hash: null }]);
@@ -262,7 +284,7 @@ describe('checkDuplicatesBatch equals the single-row checkDuplicate (#649)', () 
     expect(log).toHaveLength(0);
   });
 
-  it('chunks hash lookups at 200 values', async () => {
+  it('chunks hash lookups at 50 values', async () => {
     const rows = Array.from({ length: 450 }, (_, i) => ({
       id: `r${i}`,
       reference: null,
@@ -272,9 +294,9 @@ describe('checkDuplicatesBatch equals the single-row checkDuplicate (#649)', () 
     }));
     await checkDuplicatesBatch(rows);
     const payQueries = log.filter((e) => e.table === 'payment_records' && e.filters.some((f) => f.col === 'transaction_hash'));
-    expect(payQueries).toHaveLength(3);
+    expect(payQueries).toHaveLength(9);
     for (const q of payQueries) {
-      expect((q.filters.find((f) => f.col === 'transaction_hash')!.val as string[]).length).toBeLessThanOrEqual(200);
+      expect((q.filters.find((f) => f.col === 'transaction_hash')!.val as string[]).length).toBeLessThanOrEqual(50);
     }
   });
 });
@@ -437,6 +459,19 @@ describe('matchImportRows payloads and counters (#649)', () => {
     });
   });
 
+  it('writes matched_rows as the matched count when matched and unmatched differ', async () => {
+    db.bank_statement_rows = [
+      pending({ description: 'RESIDENT a' }),
+      pending({ description: 'RESIDENT b' }),
+      pending({ description: 'RESIDENT c' }),
+      pending({ description: 'nobody' }),
+    ];
+    const res = await matchImportRows(IMPORT);
+    expect([res.matched_count, res.unmatched_count]).toEqual([3, 1]);
+    const importUpdate = log.find((e) => e.table === 'bank_statement_imports' && e.op === 'update')!;
+    expect(importUpdate.vals).toEqual({ matched_rows: 3 });
+  });
+
   it('writes the duplicate_reason for a duplicate that is matched to a resident', async () => {
     db.payment_records = [{ id: 'p1', transaction_hash: null, reference_number: 'REF-DUP', amount: 1, payment_date: '2020-01-01', description: 'x' }];
     const r = pending({ description: 'RESIDENT dues', reference: 'REF-DUP' });
@@ -487,13 +522,13 @@ describe('matchImportRows grouped updates (#649)', () => {
     expect(updates.map((u) => idsOf(u).length).sort()).toEqual([1, 1, 1, 2]);
   });
 
-  it('chunks a bucket at 200 ids and covers every row exactly once', async () => {
+  it('chunks a bucket at 50 ids and covers every row exactly once', async () => {
     const rows = Array.from({ length: 450 }, () => pending({ description: 'RESIDENT dues' }));
     db.bank_statement_rows = rows;
     await matchImportRows(IMPORT);
     const updates = rowUpdates();
-    expect(updates).toHaveLength(3);
-    for (const u of updates) expect(idsOf(u).length).toBeLessThanOrEqual(200);
+    expect(updates).toHaveLength(9);
+    for (const u of updates) expect(idsOf(u).length).toBeLessThanOrEqual(50);
     expect(updates.flatMap(idsOf).sort()).toEqual(rows.map((r) => r.id as string).sort());
   });
 
