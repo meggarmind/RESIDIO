@@ -66,7 +66,7 @@ export function stripHtmlTags(html: string): string {
 // Credit patterns
 const CREDIT_PATTERNS = [
   // "account ****1234 has been credited with NGN 50,000.00 by JOHN DOE on 01/01/2025"
-  /account\s*\*{3,4}(\d{4})\s*(?:has been\s*)?credited\s*(?:with\s*)?(?:NGN|₦)?\s*([\d,]+\.?\d*)\s*(?:by|from)\s*([^on]+?)\s*on\s*([\d/\-A-Za-z]+)/i,
+  /account\s*\*{3,4}(\d{4})\s*(?:has been\s*)?credited\s*(?:with\s*)?(?:NGN|₦)?\s*([\d,]+\.?\d*)\s*(?:by|from)\s*(.+?)\s+on\s+(\d{1,2}[/\-][\d/\-A-Za-z]+)/i,
 
   // "NGN 50,000.00 credited to your account ****1234 from JOHN DOE"
   /(?:NGN|₦)?\s*([\d,]+\.?\d*)\s*credited\s*(?:to\s*)?(?:your\s*)?account\s*\*{3,4}(\d{4})\s*(?:from|by)\s*([^\.]+)/i,
@@ -117,35 +117,68 @@ function parseAmount(amountStr: string): number {
   return isNaN(amount) ? 0 : amount;
 }
 
+const MONTHS: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+// Optional trailing clock time: "10:30", "10:30:45", "03:40 PM". Only the calendar day is
+// kept; the time is validated so garbage is not mistaken for a date, then discarded.
+const TIME_SUFFIX = String.raw`(?:[\sT,]+(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?\s*(?:[AaPp][Mm])?)?`;
+
+/** A real calendar day as UTC midnight, or null (31-Feb must not roll into March). */
+function validCalendarDate(year: number, month: number, day: number): Date | null {
+  const date = calendarDate(year, month, day);
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
 /**
- * Parse date string to Date object
+ * Parse a date string to a calendar day (UTC midnight), ignoring any trailing time.
+ * Accepts DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, DD-MMM-YYYY and DD-MMM-YY.
  */
 function parseDate(dateStr: string): Date | null {
   const trimmed = dateStr.trim();
 
   // DD/MM/YYYY or DD-MM-YYYY
-  const ddmmyyyy = trimmed.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})$/);
+  const ddmmyyyy = trimmed.match(new RegExp(String.raw`^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})${TIME_SUFFIX}$`));
   if (ddmmyyyy) {
     const [, day, month, year] = ddmmyyyy;
     const fullYear = year.length === 2 ? `20${year}` : year;
-    return calendarDate(parseInt(fullYear), parseInt(month), parseInt(day));
+    return validCalendarDate(parseInt(fullYear), parseInt(month), parseInt(day));
   }
 
-  // DD-MMM-YYYY (e.g., 15-Dec-2024)
-  const ddmmmyyyy = trimmed.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
-  if (ddmmmyyyy) {
-    const [, day, monthStr, year] = ddmmmyyyy;
-    const months: Record<string, number> = {
-      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
-    };
-    const month = months[monthStr.toLowerCase()];
+  // YYYY-MM-DD
+  const iso = trimmed.match(new RegExp(String.raw`^(\d{4})-(\d{1,2})-(\d{1,2})${TIME_SUFFIX}$`));
+  if (iso) {
+    const [, year, month, day] = iso;
+    return validCalendarDate(parseInt(year), parseInt(month), parseInt(day));
+  }
+
+  // DD-MMM-YYYY (15-Dec-2024) or DD-MMM-YY (12-Jan-26)
+  const ddmmm = trimmed.match(new RegExp(String.raw`^(\d{1,2})-([A-Za-z]{3})-(\d{4}|\d{2})${TIME_SUFFIX}$`));
+  if (ddmmm) {
+    const [, day, monthStr, year] = ddmmm;
+    const month = MONTHS[monthStr.toLowerCase()];
     if (month !== undefined) {
-      return calendarDate(parseInt(year), month + 1, parseInt(day));
+      const fullYear = year.length === 2 ? 2000 + parseInt(year) : parseInt(year);
+      return validCalendarDate(fullYear, month, parseInt(day));
     }
   }
 
   return null;
+}
+
+/** Mask a value to its shape ("15-Oct-2026" -> "99-Aaa-9999") so it can be logged safely. */
+function shapeOf(value: string | null): string | null {
+  if (value === null) return null;
+  return value.slice(0, 40).replace(/\d/g, '9').replace(/[A-Za-z]/g, 'a');
 }
 
 /**
@@ -176,7 +209,17 @@ function extractDate(text: string): Date | null {
 }
 
 /**
- * Parse a First Bank transaction alert email.
+ * An alert whose date cannot be read is NOT given today's date (that lands the payment in
+ * the wrong month): the parser returns null and the caller records it as unparsed. Only
+ * structure is logged, never the body, which carries account numbers and names.
+ */
+function warnNoDate(layout: string, details: Record<string, unknown>): void {
+  console.warn('[first-bank-alert] No transaction date could be read; alert left unparsed.', { layout, ...details });
+}
+
+/**
+ * Parse a First Bank transaction alert email. Returns null when the alert cannot be parsed,
+ * including when no calendar date can be read from it.
  */
 export function parseFirstBankAlert(
   body: string,
@@ -214,12 +257,19 @@ export function parseFirstBankAlert(
       }
 
       if (amount > 0) {
+        // Prefer the date the matched pattern captured (4th group of the "by ... on <date>" form).
+        const captured = pattern.source.startsWith('account') && match[4] ? parseDate(match[4]) : null;
+        const transactionDate = captured || extractDate(text);
+        if (!transactionDate) {
+          warnNoDate('sentence-credit', { patternIndex: CREDIT_PATTERNS.indexOf(pattern), capturedDate: shapeOf(match[4] ?? null) });
+          return null;
+        }
         return {
           amount,
           transactionType: 'credit',
           description: description || extractSenderFromText(text),
           reference: extractReference(text),
-          transactionDate: extractDate(text) || new Date(),
+          transactionDate,
           bankAccountLast4: accountLast4,
         };
       }
@@ -243,12 +293,17 @@ export function parseFirstBankAlert(
       }
 
       if (amount > 0) {
+        const transactionDate = extractDate(text);
+        if (!transactionDate) {
+          warnNoDate('sentence-debit', { patternIndex: DEBIT_PATTERNS.indexOf(pattern) });
+          return null;
+        }
         return {
           amount,
           transactionType: 'debit',
           description: extractDescriptionFromText(text),
           reference: extractReference(text),
-          transactionDate: extractDate(text) || new Date(),
+          transactionDate,
           bankAccountLast4: accountLast4,
         };
       }
@@ -353,13 +408,17 @@ function parseStructuredAlert(body: string, subject?: string | null): ParsedEmai
   // Helper to find value after a key
   const findValue = (keyPattern: RegExp): string | null => {
     for (let i = 0; i < lines.length; i++) {
-      if (keyPattern.test(lines[i])) {
+      // The key must be a whole word: not inside "Updated"/"Validated" (no letter before), and
+      // not "Date" of "Date/Time" (no slash after). A digit or letter may follow, because a
+      // minified table is stripped to "Date/Time12-Jan-26 ..." or "Narrationdues" with the label glued to its value.
+      const bounded = new RegExp(String.raw`(?<![A-Za-z])(?:${keyPattern.source})(?!/)`, 'i');
+      if (bounded.test(lines[i])) {
         // Value could be on the same line (Key: Value) or next line
-        const sameLineMatch = lines[i].match(new RegExp(`${keyPattern.source}[:\\s]*(.+)`, 'i'));
+        const sameLineMatch = lines[i].match(new RegExp(String.raw`${bounded.source}[:\s]*(.+)`, 'i'));
         if (sameLineMatch && sameLineMatch[1] && sameLineMatch[1].trim().length > 1) {
           return sameLineMatch[1].trim();
         }
-        // Try next line
+        // Bare header: the value is on the next non-empty line (empty lines are already dropped)
         if (i + 1 < lines.length) {
           return lines[i + 1].trim();
         }
@@ -387,23 +446,11 @@ function parseStructuredAlert(body: string, subject?: string | null): ParsedEmai
     type = 'credit';
   }
 
-  // Parse Date
-  // Format: 12-Jan-26 03:40 PM
-  let date = parseDate(dateStr);
+  // Parse Date (e.g. "12-Jan-26 03:40 PM", "15/10/2026 10:30"); only the calendar day is kept.
+  const date = parseDate(dateStr);
   if (!date) {
-    // Try specific format for 2-digit year "12-Jan-26"
-    const twoDigitYearMatch = dateStr.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2})(?:\s+|$)/);
-    if (twoDigitYearMatch) {
-      const [, day, monthStr, year] = twoDigitYearMatch;
-      const months: Record<string, number> = {
-        jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-        jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
-      };
-      const month = months[monthStr.toLowerCase()];
-      if (month !== undefined) {
-        date = calendarDate(2000 + parseInt(year), month + 1, parseInt(day));
-      }
-    }
+    warnNoDate('structured', { linesFound: lines.length, dateValueShape: shapeOf(dateStr) });
+    return null;
   }
 
   // Account
@@ -415,7 +462,7 @@ function parseStructuredAlert(body: string, subject?: string | null): ParsedEmai
       transactionType: type,
       description: narrationStr || 'Transaction Alert',
       reference: extractReference(narrationStr || '') || extractReference(text) || null,
-      transactionDate: date || new Date(),
+      transactionDate: date,
       bankAccountLast4: accountLast4,
     };
   }
