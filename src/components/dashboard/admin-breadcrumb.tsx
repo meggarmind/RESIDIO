@@ -92,9 +92,10 @@ export function AdminBreadcrumb({ hideDashboard = false, className }: AdminBread
         billing: 'Invoice',
         documents: 'Document',
         'email-imports': 'Import',
+        import: 'Import',
       };
-      const context = contextMap[prevSegment] || 'Details';
-      label = `${context} Details`;
+      const context = contextMap[prevSegment];
+      label = context ? `${context} Details` : 'Details';
     } else {
       label = pathLabels[segment] || segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' ');
     }

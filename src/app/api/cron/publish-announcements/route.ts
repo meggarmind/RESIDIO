@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { publishAnnouncement } from '@/actions/announcements/publish-announcement';
 import { createBulkNotifications } from '@/actions/in-app-notifications/create-notification';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
+import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 import { createLogger } from '@/lib/logger';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -26,6 +27,10 @@ export async function GET(request: NextRequest) {
   // Verify cron secret using timing-safe comparison
   const authError = verifyCronAuth(request);
   if (authError) return authError;
+  return withSystemLog('cron:publish-announcements', 'publish', runAnnouncementPublishing);
+}
+
+async function runAnnouncementPublishing(run: SystemLogRun) {
 
   try {
     log.info('Starting scheduled announcement publishing');
@@ -43,6 +48,7 @@ export async function GET(request: NextRequest) {
 
     if (queryError) {
       log.error('Error querying scheduled announcements:', queryError);
+      run.error = queryError;
       return NextResponse.json(
         { error: 'Database query failed' },
         { status: 500 }
@@ -51,6 +57,7 @@ export async function GET(request: NextRequest) {
 
     if (!announcements || announcements.length === 0) {
       log.info('No scheduled announcements ready for publishing');
+      run.summary = { due: 0, published: 0, notificationsSent: 0 };
       return NextResponse.json({
         success: true,
         published: 0,
@@ -154,6 +161,18 @@ export async function GET(request: NextRequest) {
       errors: results.errors.length,
     });
 
+    run.summary = {
+      due: announcements.length,
+      published: results.published,
+      notificationsSent: results.notificationsSent,
+      errorCount: results.errors.length,
+      failedAnnouncementIds: results.errors.map((e) => e.id),
+    };
+    if (results.errors.length > 0) {
+      run.outcome = results.published > 0 ? 'partial' : 'failure';
+      run.error = results.errors[0].error;
+    }
+
     return NextResponse.json({
       success: true,
       published: results.published,
@@ -163,6 +182,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    run.error = error;
     log.error('Scheduled announcement publishing error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },

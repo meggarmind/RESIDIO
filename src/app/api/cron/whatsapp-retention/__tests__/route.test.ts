@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET } from '../route';
 import { getSettingValueAsService } from '@/lib/settings/service';
 import { purgeWhatsAppOperationalState } from '@/lib/whatsapp/retention';
+import { recordSystemAction } from '@/lib/system-log/recorder';
 
 vi.mock('@/lib/settings/service', () => ({ getSettingValueAsService: vi.fn() }));
 vi.mock('@/lib/whatsapp/retention', () => ({ purgeWhatsAppOperationalState: vi.fn() }));
+vi.mock('@/lib/system-log/recorder', () => ({ recordSystemAction: vi.fn() }));
 
 const SECRET = 'cron-secret-for-tests';
 
@@ -32,12 +34,27 @@ describe('GET /api/cron/whatsapp-retention', () => {
     const response = await GET(request());
     expect(response.status).toBe(401);
     expect(purgeWhatsAppOperationalState).not.toHaveBeenCalled();
+    expect(recordSystemAction).not.toHaveBeenCalled();
   });
 
   it('returns 401 for a wrong secret and purges nothing', async () => {
     const response = await GET(request('Bearer not-the-secret-xxxxx'));
     expect(response.status).toBe(401);
     expect(purgeWhatsAppOperationalState).not.toHaveBeenCalled();
+    expect(recordSystemAction).not.toHaveBeenCalled();
+  });
+
+  it('records one success row with the purge counts', async () => {
+    await GET(request(`Bearer ${SECRET}`));
+    expect(recordSystemAction).toHaveBeenCalledTimes(1);
+    expect(recordSystemAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'cron:whatsapp-retention',
+        action: 'purge',
+        outcome: 'success',
+        summary: { sessions: 4, processedMessages: 5 },
+      })
+    );
   });
 
   it('purges with the configured retention days and returns the counts', async () => {
@@ -86,5 +103,8 @@ describe('GET /api/cron/whatsapp-retention', () => {
     const response = await GET(request(`Bearer ${SECRET}`));
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ error: 'db down' });
+    expect(recordSystemAction).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'cron:whatsapp-retention', outcome: 'failure', error: expect.any(Error) })
+    );
   });
 });
