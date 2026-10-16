@@ -10,7 +10,8 @@ import { checkDuplicatesBatch } from './process-import';
 import { findMatchingExpenseCategory } from '@/lib/expenses/category-matcher';
 import { logAudit } from '@/lib/audit/logger';
 
-const UPDATE_CHUNK_SIZE = 200;
+// Small for the same URL-length reason as DUPLICATE_BATCH_CHUNK in process-import.ts.
+const UPDATE_CHUNK_SIZE = 50;
 
 // ============================================================
 // Retry Helper with Exponential Backoff

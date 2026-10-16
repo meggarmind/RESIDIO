@@ -113,7 +113,9 @@ export type DuplicateCheckBatchRow = {
   description?: string | null;
 };
 
-const DUPLICATE_BATCH_CHUNK = 200;
+// Kept small: supabase-js puts `.in()` values in the URL (64-char hashes, 36-char ids), and a gateway that
+// rejects a long request line would make a lookup fail silently as "no match".
+const DUPLICATE_BATCH_CHUNK = 50;
 
 function chunkOf<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -156,7 +158,7 @@ async function firstRowByKey<T extends Record<string, unknown>>(
  * expenses, hash in already-created bank rows, then the guardrail (exact reference, then scored
  * amount + date-window candidates against the threshold). Result keyed by row id.
  *
- * Round trips depend on the number of distinct values (chunks of 200), not on row count.
+ * Round trips depend on the number of distinct values (chunks of 50), not on row count.
  * Differences from the single-row path: `.in()` yields every match where `.maybeSingle()` errored on
  * more than one (treated as no match); the first by id is used. An unparseable date, which made the
  * single-row guardrail throw, simply yields no fuzzy candidates.
