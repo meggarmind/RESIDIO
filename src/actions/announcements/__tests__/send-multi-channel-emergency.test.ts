@@ -20,6 +20,15 @@ vi.mock('@/lib/notifications/queue', () => ({
 }));
 vi.mock('@/lib/notifications/types', () => ({ isChannelImplemented: mocks.isChannelImplemented }));
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: mocks.sendSms }));
+// Every resident follows the environment default here (#716); the lookup itself is covered in
+// comms-override/__tests__/resident-flag.test.ts.
+vi.mock('@/lib/comms-override/resident-flag', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/comms-override/resident-flag')>()),
+  loadResidentOverrideFlags: vi.fn(async (ids: string[]) => ({
+    ok: true,
+    flags: new Map(ids.map((id) => [id, null])),
+  })),
+}));
 vi.mock('@/lib/email/send-email', () => ({
   sendEmail: mocks.sendEmail,
   getEstateEmailSettings: vi.fn().mockResolvedValue({}),

@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import { embed } from '@/lib/utils';
+import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { PaymentReceiptEmail } from '@/emails';
 import { format } from 'date-fns';
 
@@ -217,6 +218,13 @@ export async function sendPaymentReceiptEmail(
     return { success: false, error: 'No valid recipients found' };
   }
 
+  // Communications override (#716): one send addresses several residents, so the flags are
+  // combined toward redirecting. Fail closed if any cannot be read.
+  const override = await resolveResidentOverride(recipients.map((r) => r.residentId));
+  if (!override.ok) {
+    return { success: false, error: override.error };
+  }
+
   // Get estate settings
   const estateSettings = await getEstateEmailSettings();
 
@@ -256,6 +264,7 @@ export async function sendPaymentReceiptEmail(
       ...estateSettings,
     }),
     emailType: 'payment_receipt',
+    residentOverride: override.residentOverride,
     metadata: {
       paymentId: payment.id,
       receiptNumber,

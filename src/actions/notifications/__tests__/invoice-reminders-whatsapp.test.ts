@@ -25,6 +25,10 @@ vi.mock('@/lib/email', () => ({
   getEstateEmailSettings: vi.fn().mockResolvedValue({ estateName: 'Test Estate' }),
 }));
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: mocks.sendSms }));
+// The resident-flag lookup (#716) is covered in comms-override/__tests__/resident-flag-wiring.test.ts.
+vi.mock('@/lib/comms-override/resident-flag', () => ({
+  resolveResidentOverride: vi.fn(async () => ({ ok: true, residentOverride: null })),
+}));
 vi.mock('@/actions/settings/get-settings', () => ({ getSettingValue: vi.fn() }));
 vi.mock('@/actions/settings/update-setting', () => ({ updateSetting: vi.fn().mockResolvedValue({ data: null, error: null }) }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));

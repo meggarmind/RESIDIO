@@ -7,6 +7,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { revalidatePath } from 'next/cache';
 import type { Resident } from '@/types/database';
 import type { ResidentFormData } from '@/lib/validators/resident';
+import { canManageResidentOverride, loadResidentOverrideFlags } from '@/lib/comms-override/resident-flag';
 
 type UpdateResidentResponse = {
   data: Resident | null;
@@ -37,6 +38,26 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
     return { data: null, error: 'Failed to fetch current resident data' };
   }
 
+  // Communications override flag (#716). Only settings.manage_general may change it, enforced here and
+  // not only by hiding the control. Resubmitting the stored value is not a change.
+  let flagChanged = false;
+  let currentFlag: boolean | null = null;
+  const submittedFlag = formData.use_override_comms;
+  if (submittedFlag !== undefined) {
+    const lookup = await loadResidentOverrideFlags([id]);
+    if (!lookup.ok || !lookup.flags.has(id)) {
+      return { data: null, error: 'Failed to read the current communications override' };
+    }
+    currentFlag = lookup.flags.get(id) ?? null;
+    flagChanged = submittedFlag !== currentFlag;
+    if (flagChanged && !canManageResidentOverride(auth.permissions)) {
+      return {
+        data: null,
+        error: "Unauthorized: Missing permission 'settings.manage_general' to change the communications override",
+      };
+    }
+  }
+
   // Determine if contacts have changed
   const emailChanged = (formData.email || null) !== currentResident.email;
   const phoneChanged = formData.phone_primary !== currentResident.phone_primary;
@@ -62,6 +83,10 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
     notes: formData.notes || null,
     updated_by: auth.userId,
   };
+
+  if (flagChanged) {
+    updateData.use_override_comms = submittedFlag;
+  }
 
   // Reset verification status if contact info has changed.
   if (emailChanged) {
@@ -94,12 +119,14 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
       phone_primary: currentResident.phone_primary,
       email_verified_at: currentResident.email_verified_at,
       phone_verified_at: currentResident.phone_verified_at,
+      ...(flagChanged ? { use_override_comms: currentFlag } : {}),
     },
     newValues: {
       email: formData.email || null,
       phone_primary: formData.phone_primary,
       email_verified_at: emailChanged ? null : currentResident.email_verified_at,
       phone_verified_at: phoneChanged ? null : currentResident.phone_verified_at,
+      ...(flagChanged ? { use_override_comms: submittedFlag } : {}),
     },
     description: 'Updated resident profile',
   });

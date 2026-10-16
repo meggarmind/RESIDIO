@@ -11,6 +11,7 @@ import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/se
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import type { EstateEmailSettings } from '@/lib/email/types';
 import { sendSms } from '@/lib/sms/send-sms';
+import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { isWhatsAppOptedIn } from '@/lib/whatsapp/opt-in';
 import { isChannelImplemented } from '@/lib/notifications/types';
 import { getSettingValue } from '@/actions/settings/get-settings';
@@ -388,6 +389,10 @@ async function sendEmailReminder(params: {
   const residentName = `${invoice.resident.first_name} ${invoice.resident.last_name}`;
 
   try {
+    // Communications override (#716): fail closed if the resident's flag cannot be read.
+    const override = await resolveResidentOverride([invoice.resident.id]);
+    if (!override.ok) return { success: false, error: override.error };
+
     const result = await sendEmail({
       to: {
         email: invoice.resident.email!,
@@ -411,6 +416,7 @@ async function sendEmailReminder(params: {
         reminderCount,
       }),
       emailType: 'payment_reminder',
+      residentOverride: override.residentOverride,
       metadata: {
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoice_number,
@@ -464,6 +470,10 @@ async function sendSmsReminder(params: {
   const smsMessage = generatePaymentReminderSms(smsParams, escalationLevel);
 
   try {
+    // Communications override (#716): fail closed if the resident's flag cannot be read.
+    const override = await resolveResidentOverride([invoice.resident.id]);
+    if (!override.ok) return { success: false, error: override.error };
+
     const result = await sendSms({
       to: {
         phone: invoice.resident.phone_primary!,
@@ -472,6 +482,7 @@ async function sendSmsReminder(params: {
       },
       message: smsMessage,
       smsType: 'payment_reminder',
+      residentOverride: override.residentOverride,
       metadata: {
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoice_number,
