@@ -33,6 +33,7 @@ import {
   UserCog,
   Activity,
   LayoutDashboard,
+  ScrollText,
 } from 'lucide-react';
 import { PERMISSIONS, type Permission } from '@/lib/auth/action-roles';
 
@@ -326,6 +327,15 @@ const NAV_CRON_STATUS: NavItem = {
   permissions: [PERMISSIONS.SYSTEM_MONITOR],
 };
 
+// System Action Log (#538). Same permission as ROUTE_PERMISSIONS['/system/action-log'].
+const NAV_ACTION_LOG: NavItem = {
+  id: 'system-action-log',
+  title: 'Action Log',
+  href: '/system/action-log',
+  icon: ScrollText,
+  permissions: [PERMISSIONS.SYSTEM_VIEW_SYSTEM_LOG],
+};
+
 const NAV_PROJECTS: NavItem = {
   id: 'projects',
   title: 'Capital Projects',
@@ -385,6 +395,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       NAV_NOTIFICATION_HISTORY,
       NAV_DATA_TOOLS,
       NAV_CRON_STATUS,
+      NAV_ACTION_LOG,
     ],
   },
 ];

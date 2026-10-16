@@ -251,6 +251,9 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   // configuration). Matches the route handler's own SYSTEM_MONITOR guard at
   // src/app/api/health/cron-status/route.ts.
   '/system/cron-status': [PERMISSIONS.SYSTEM_MONITOR],
+  // System Action Log (#538): what cron runs and webhooks did. Gated on the permission,
+  // not a role name (ADR-0007); only super_admin holds it today.
+  '/system/action-log': [PERMISSIONS.SYSTEM_VIEW_SYSTEM_LOG],
 
   // Settings — fallback first, then the specific pages that override it.
   '/settings': [PERMISSIONS.SETTINGS_VIEW],
