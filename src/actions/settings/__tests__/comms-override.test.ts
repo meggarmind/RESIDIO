@@ -235,6 +235,29 @@ describe('setDebugMode', () => {
     );
   });
 
+  it('still disables, and audits without old values, when the prior-state read fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.getRawSettingsAsService.mockResolvedValue({ status: 'error', message: 'down' });
+    const result = await setDebugMode({ enabled: false });
+    expect(result).toEqual({ success: true, error: null, expiresAt: null });
+    expect(mocks.updateSetting.mock.calls).toEqual([
+      ['comms_debug_mode', false],
+      ['comms_debug_expires_at', ''],
+    ]);
+    expect(mocks.logAudit).toHaveBeenCalledTimes(1);
+    const audit = mocks.logAudit.mock.calls[0][0];
+    expect(audit.action).toBe('DEACTIVATE');
+    expect('oldValues' in audit).toBe(false);
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it('still disables when the prior-state read throws', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.getRawSettingsAsService.mockRejectedValue(new Error('no client'));
+    expect((await setDebugMode({ enabled: false })).success).toBe(true);
+    expect(mocks.updateSetting).toHaveBeenCalledTimes(2);
+  });
+
   it('can be disabled even when the override contacts are blank', async () => {
     configured({ comms_override_email: '', comms_override_phone: '' });
     expect((await setDebugMode({ enabled: false })).success).toBe(true);

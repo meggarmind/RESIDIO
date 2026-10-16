@@ -166,11 +166,24 @@ export async function setDebugMode(
   }
   const { enabled, durationMinutes } = parsed.data;
 
-  const read = await getRawSettingsAsService([...Object.values(OVERRIDE_SETTING_KEYS), DEBUG_DURATION_KEY]);
-  if (read.status === 'error') return { success: false, error: 'Failed to load override settings', expiresAt: null };
-  const settings = parseOverrideSettings(read.values);
+  const settingKeys = [...Object.values(OVERRIDE_SETTING_KEYS), DEBUG_DURATION_KEY];
 
   if (!enabled) {
+    // Turning Debug Mode off must always work. The read below only supplies the
+    // audit old-values, so a failed read is logged and the audit goes without them.
+    let oldValues: Record<string, unknown> | undefined;
+    try {
+      const before = await getRawSettingsAsService(settingKeys);
+      if (before.status === 'ok') {
+        const prior = parseOverrideSettings(before.values);
+        oldValues = { debug_mode: prior.debugMode, expires_at: prior.debugExpiresAt };
+      } else {
+        console.error('[setDebugMode] could not read the prior Debug Mode state for the audit entry:', before.message);
+      }
+    } catch (error) {
+      console.error('[setDebugMode] could not read the prior Debug Mode state for the audit entry:', error);
+    }
+
     const off = await updateSetting(OVERRIDE_SETTING_KEYS.debugMode, false);
     if (off.error) return { success: false, error: off.error, expiresAt: null };
     const cleared = await updateSetting(OVERRIDE_SETTING_KEYS.debugExpiresAt, '');
@@ -181,7 +194,7 @@ export async function setDebugMode(
         entityType: 'system_settings',
         entityId: rowId,
         entityDisplay: 'Debug Mode',
-        oldValues: { debug_mode: settings.debugMode, expires_at: settings.debugExpiresAt },
+        ...(oldValues ? { oldValues } : {}),
         newValues: { debug_mode: false, expires_at: null },
         description: 'Debug Mode turned off',
       });
@@ -191,6 +204,10 @@ export async function setDebugMode(
     }
     return { success: true, error: null, expiresAt: null };
   }
+
+  const read = await getRawSettingsAsService(settingKeys);
+  if (read.status === 'error') return { success: false, error: 'Failed to load override settings', expiresAt: null };
+  const settings = parseOverrideSettings(read.values);
 
   if (!isValidOverrideEmail(settings.email)) {
     return { success: false, error: 'Set a valid override email before enabling Debug Mode', expiresAt: null };

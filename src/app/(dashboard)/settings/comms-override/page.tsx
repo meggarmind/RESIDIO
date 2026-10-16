@@ -298,6 +298,13 @@ function DebugModeCard({ data }: { data: CommsOverrideState }) {
         ) : (
           <div className="space-y-3">
             <p>Debug Mode is <strong>off</strong>.</p>
+            {data.debugMode && (
+              // The stored switch is still on (expired, or no usable expiry): always allow switching it off.
+              <Button variant="outline" onClick={() => run.mutate({ enabled: false })} disabled={run.isPending}>
+                {run.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Turn off Debug Mode
+              </Button>
+            )}
             {!canEnable && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
