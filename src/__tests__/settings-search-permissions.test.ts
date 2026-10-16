@@ -113,6 +113,7 @@ describe('Settings/System search entry permissions', () => {
       '/system/notification-history': ['notifications.manage'],
       '/system/data-tools': ['settings.manage_general'],
       '/system/cron-status': ['system.monitor'],
+      '/system/action-log': ['system.view_system_log'],
     });
   });
 });
