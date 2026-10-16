@@ -74,8 +74,6 @@ describe('settings navigation coverage', () => {
       // rendered the same Gmail connection card, and the child configured no
       // rule despite the nav calling it "Email import rules".
       '/settings/email-integration/config',
-      // The email debug page became the Debug Mode section of Communications override (#717).
-      '/settings/email/debug',
     ]);
 
     const unlisted = routesOnDisk()

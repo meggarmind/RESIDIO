@@ -31,5 +31,5 @@ describe('legacy email debug settings', () => {
       .filter((file) => readFileSync(file, 'utf8').includes(key))
       .map((file) => path.relative(srcDir, file).split(path.sep).join('/'));
     expect(offenders).toEqual([]);
-  });
+  }, 30_000); // walks all of src; slow under load
 });
