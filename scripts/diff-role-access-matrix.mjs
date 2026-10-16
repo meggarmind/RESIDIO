@@ -22,6 +22,8 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 /** Ordered from most to least access. A move down this list is a narrowing. */
 const RANK = {
@@ -93,7 +95,7 @@ function parseExpectations(args) {
   return map;
 }
 
-const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'));
+const isMain = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 
 if (isMain) {
   const args = process.argv.slice(2);
