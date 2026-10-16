@@ -4,18 +4,19 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The 2FA exemption (`purpose: 'self_auth_2fa'`) skips the communications
- * override entirely, so the string may appear only at the two 2FA actions, the
- * override module itself, and tests. Anything else that passes it would send
- * unredirected messages from UAT data.
+ * The exempt purposes skip the communications override entirely, so each string
+ * may appear only at its sanctioned call sites, the override module itself, and
+ * tests. Anything else that passes one would send unredirected messages from UAT
+ * data.
+ *   self_auth_2fa  the two 2FA actions (self-addressed code to the signed-in user)
+ *   inbound_reply  the two inbound WhatsApp Assistant reply sites (decision 8)
  */
 const srcDir = fileURLToPath(new URL('../../..', import.meta.url));
-const NEEDLE = 'self_auth_2fa';
 
-const ALLOWED = new Set([
-  'actions/two-factor/setup.ts',
-  'actions/two-factor/verify.ts',
-]);
+const PURPOSES: Array<{ needle: string; allowed: string[] }> = [
+  { needle: 'self_auth_2fa', allowed: ['actions/two-factor/setup.ts', 'actions/two-factor/verify.ts'] },
+  { needle: 'inbound_reply', allowed: ['lib/whatsapp/identity.ts', 'lib/whatsapp/financial.ts'] },
+];
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -34,22 +35,23 @@ function isException(file: string): boolean {
   return r.startsWith('lib/comms-override/') || r.includes('__tests__/') || /\.test\.tsx?$/.test(r);
 }
 
-describe('self_auth_2fa exemption', () => {
+describe.each(PURPOSES)('$needle exemption', ({ needle, allowed }) => {
+  // Walks all of src; slow under load.
   const files = walk(srcDir);
 
-  it('appears in no file other than the two 2FA actions, the override module and tests', () => {
+  it('appears only at its sanctioned call sites, the override module and tests', () => {
     const offenders = files
-      .filter((f) => !isException(f) && readFileSync(f, 'utf8').includes(NEEDLE))
+      .filter((f) => !isException(f) && readFileSync(f, 'utf8').includes(needle))
       .map(rel)
-      .filter((r) => !ALLOWED.has(r));
+      .filter((r) => !allowed.includes(r));
     expect(offenders).toEqual([]);
-  });
+  }, 30000);
 
-  it('is passed at both 2FA actions, on the email and the SMS send', () => {
-    for (const file of ALLOWED) {
+  it('is passed at every sanctioned call site', () => {
+    for (const file of allowed) {
       const source = readFileSync(path.join(srcDir, file), 'utf8');
-      const uses = source.split(`purpose: '${NEEDLE}'`).length - 1;
-      expect(uses, file).toBe(2);
+      const uses = source.split(`purpose: '${needle}'`).length - 1;
+      expect(uses, file).toBe(needle === 'self_auth_2fa' ? 2 : 1);
     }
-  });
+  }, 30000);
 });

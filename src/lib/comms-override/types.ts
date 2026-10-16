@@ -12,7 +12,15 @@ export type OverrideChannel = 'email' | 'sms' | 'whatsapp';
  * Only the 2FA call sites may pass this (a self-addressed code to the signed-in
  * user). A scan test fails if any other file does.
  */
-export type CommsPurpose = 'self_auth_2fa';
+export type CommsPurpose = 'self_auth_2fa' | 'inbound_reply';
+
+/**
+ * `inbound_reply` (decision 8): a WhatsApp Assistant reply to the person who just
+ * messaged us. Only the two inbound reply call sites may pass it.
+ */
+export function isExemptPurpose(purpose: CommsPurpose | undefined): boolean {
+  return purpose === 'self_auth_2fa' || purpose === 'inbound_reply';
+}
 
 /** Optional context a send function accepts and forwards to the seam. */
 export interface CommsSendContext {

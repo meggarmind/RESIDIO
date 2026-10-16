@@ -286,6 +286,22 @@ describe('WhatsApp seam (provider)', () => {
     expect(result).toMatchObject({ success: false, retryable: true });
   });
 
+  it('sends an inbound_reply text to the original, unlabelled, without reading the settings', async () => {
+    const provider = fakeProvider();
+    const result = await sendWhatsAppMessage(text, provider, { purpose: 'inbound_reply' });
+    expect(provider.sendText).toHaveBeenCalledWith(text);
+    expect(result.override).toBeUndefined();
+    expect(mocks.loadOverrideSettings).not.toHaveBeenCalled();
+  });
+
+  it('sends an inbound_reply to the original even when the override is blank', async () => {
+    settings({ phone: '', whatsappPhone: '' });
+    const provider = fakeProvider();
+    const result = await sendWhatsAppMessage(text, provider, { purpose: 'inbound_reply' });
+    expect(result.success).toBe(true);
+    expect(provider.sendText.mock.calls[0][0].to).toBe(text.to);
+  });
+
   it('in production with the switch off sends to the original', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_ENV', 'production');
     const provider = fakeProvider();

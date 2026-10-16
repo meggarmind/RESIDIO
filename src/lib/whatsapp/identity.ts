@@ -285,7 +285,9 @@ async function sendReply(
   body: string,
   send: WhatsAppIdentityHandlerOptions['send']
 ): Promise<void> {
-  const result = await (send || ((outbound) => sendWhatsAppMessage(outbound)))(
+  const result = await (send || ((outbound) =>
+    // Reply to the person who just messaged us: exempt from the comms override (decision 8, #715).
+    sendWhatsAppMessage(outbound, undefined, { purpose: 'inbound_reply' })))(
     { to: message.from, body }
   );
 

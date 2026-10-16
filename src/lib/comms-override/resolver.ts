@@ -1,3 +1,4 @@
+import { isExemptPurpose } from './types';
 import type {
   BlockCode,
   BlockedResult,
@@ -54,7 +55,7 @@ export function resolveRecipient(
   now: Date = new Date()
 ): ResolveResult {
   // The 2FA exemption is decided before anything else, including the settings.
-  if (input.purpose === 'self_auth_2fa') return { redirect: false };
+  if (isExemptPurpose(input.purpose)) return { redirect: false };
 
   const channel: OverrideChannel = input.channel;
   if (channel !== 'email' && channel !== 'sms' && channel !== 'whatsapp') {

@@ -412,7 +412,9 @@ async function sendFinancialReply(
   body: string,
   send: WhatsAppFinancialHandlerOptions['send']
 ): Promise<void> {
-  const result = await (send || ((outbound) => sendWhatsAppMessage(outbound)))({ to: message.from, body });
+  const result = await (send || ((outbound) =>
+    // Reply to the person who just messaged us: exempt from the comms override (decision 8, #715).
+    sendWhatsAppMessage(outbound, undefined, { purpose: 'inbound_reply' })))({ to: message.from, body });
   if (!result.success) throw new Error(result.error || 'WhatsApp financial reply failed');
 }
 

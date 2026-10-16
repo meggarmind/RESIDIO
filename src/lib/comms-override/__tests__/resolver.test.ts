@@ -184,6 +184,29 @@ describe('2FA exemption', () => {
   });
 });
 
+describe('inbound_reply exemption (decision 8)', () => {
+  const channels = ['email', 'sms', 'whatsapp'] as const;
+
+  it.each([
+    ['non-production', NON_PROD],
+    ['production', PROD],
+  ])('is never redirected or blocked in %s, even with blank overrides, debug on and unreadable settings', (_name, env) => {
+    const blank = snap({ email: '', phone: '', whatsappPhone: '', debugMode: true, enabled: true });
+    const unreadable: SettingsSnapshot = { status: 'error', message: 'db down' };
+    for (const channel of channels) {
+      for (const snapshot of [snap(), blank, unreadable]) {
+        expect(
+          resolveRecipient({ channel, original: '2348000000000', purpose: 'inbound_reply', residentOverride: true }, snapshot, env)
+        ).toEqual({ redirect: false });
+      }
+    }
+  });
+
+  it('does not exempt an ordinary send with the same input', () => {
+    expect(resolveRecipient({ channel: 'whatsapp', original: '2348000000000' }, snap(), NON_PROD)).toMatchObject({ redirect: true });
+  });
+});
+
 describe('toLogRecord', () => {
   it('records original and actual for a redirect', () => {
     const result = resolveRecipient({ channel: 'email', original: 'real@example.test' }, snap(), NON_PROD);
