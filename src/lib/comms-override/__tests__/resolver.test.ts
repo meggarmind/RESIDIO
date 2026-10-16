@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
-import { resolveRecipient, toLogRecord, blockedError, isValidOverridePhone } from '@/lib/comms-override/resolver';
+import { resolveRecipient, toLogRecord, blockedError, isValidOverridePhone, isDebugEffective } from '@/lib/comms-override/resolver';
 import { applyEmailRedirect } from '@/lib/comms-override/apply';
 import { getCommsEnvironment } from '@/lib/comms-override/environment';
 import { prefixSubject, prefixText, emailBannerHtml } from '@/lib/comms-override/labels';
@@ -9,6 +9,7 @@ import type { OverrideSettings, SettingsSnapshot } from '@/lib/comms-override/ty
 const OVERRIDE_EMAIL = 'override@example.test';
 const OVERRIDE_PHONE = '+15550100100';
 const OVERRIDE_WA = '+15550100200';
+const FAR_FUTURE = '2999-01-01T00:00:00Z';
 
 function snap(over: Partial<OverrideSettings> = {}): SettingsSnapshot {
   return {
@@ -21,6 +22,8 @@ function snap(over: Partial<OverrideSettings> = {}): SettingsSnapshot {
       debugMode: false,
       debugExpiresAt: null,
       ...over,
+      // Debug Mode needs an expiry to count (#717); tests that switch it on get a far-future one.
+      ...(over.debugMode && over.debugExpiresAt === undefined ? { debugExpiresAt: FAR_FUTURE } : {}),
     },
   };
 }
@@ -102,8 +105,30 @@ describe('Debug Mode expiry', () => {
     expect(send({ debugMode: true, debugExpiresAt: '2026-10-17T11:00:00Z' })).toEqual({ redirect: false });
   });
 
-  it('keeps the redirect on for an unparseable expiry (fail closed)', () => {
+  it('is off exactly at the expiry instant, on one millisecond before it', () => {
+    expect(send({ debugMode: true, debugExpiresAt: '2026-10-17T12:00:00.000Z' })).toEqual({ redirect: false });
+    expect(send({ debugMode: true, debugExpiresAt: '2026-10-17T12:00:00.001Z' })).toMatchObject({ redirect: true, reason: 'debug' });
+  });
+
+  it('counts a switch that is on with no expiry as expired', () => {
+    expect(send({ debugMode: true, debugExpiresAt: null })).toEqual({ redirect: false });
+  });
+
+  it('counts a blank or whitespace expiry as expired', () => {
+    expect(isDebugEffective(true, '', now)).toBe(false);
+    expect(isDebugEffective(true, '   ', now)).toBe(false);
+  });
+
+  it('keeps the redirect on for an unparseable expiry (errs toward not leaking)', () => {
     expect(send({ debugMode: true, debugExpiresAt: 'not-a-date' })).toMatchObject({ redirect: true, reason: 'debug' });
+  });
+
+  it('ignores a future expiry when the switch is off', () => {
+    expect(send({ debugMode: false, debugExpiresAt: FAR_FUTURE })).toEqual({ redirect: false });
+  });
+
+  it('overrides an explicit resident false while effective', () => {
+    expect(send({ debugMode: true, debugExpiresAt: '2026-10-17T13:00:00Z', enabled: false })).toMatchObject({ redirect: true, reason: 'debug' });
   });
 });
 

@@ -27,7 +27,9 @@ Open **Settings → Email**. The page reports whether email is configured on the
 
 The toggles control which categories of email Residio sends: notifications, invoices and receipts, and account or invitation mail. Turn a category off when you want to suppress a class of message without disabling the whole channel.
 
-**Settings → Email → Debug** shows recent send attempts and their outcomes. Use it to distinguish "Residio never tried to send" from "the provider rejected it".
+**Settings → Communications override** holds Debug Mode. While it is on, every email, SMS and WhatsApp message goes to the override contacts instead of the real recipient, so you can watch the system work without messaging residents. Choose a duration from 5 to 480 minutes when you turn it on; it switches itself off when the time is up, and it cannot be turned on while the override email or phone is blank. It replaces the old email-only debug switch, which skipped sending altogether.
+
+**Settings → Email → Debug & Testing** is where you send a test email to an address of your choosing and trigger payment reminders by hand. Outside production these are redirected to the override contacts, and blocked if the override email is blank; in production they go to the real recipients unless Debug Mode is on.
 
 ## SMS
 
@@ -77,7 +79,7 @@ Invoice reminders go out by email and WhatsApp only. SMS is switched off for rem
 |---|---|
 | Small, draining | Normal |
 | Growing steadily | The processing job is not running — check **Settings → Cron Status** |
-| Stuck with failures | The provider is rejecting sends — check the email debug page |
+| Stuck with failures | The provider is rejecting sends — check **System → Notification History** for the error |
 
 Do not clear the queue to make a warning disappear. Clearing it discards messages residents were owed and destroys the evidence needed to diagnose the failure.
 
