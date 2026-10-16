@@ -5,6 +5,7 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import { embed } from '@/lib/utils';
+import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { getSettingValue } from '@/actions/settings/get-settings';
 import { updateSetting } from '@/actions/settings/update-setting';
 import { logAudit } from '@/lib/audit/logger';
@@ -117,6 +118,14 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
         continue;
       }
 
+      // Communications override (#716): fail closed if the resident's flag cannot be read.
+      const override = await resolveResidentOverride([resident.id]);
+      if (!override.ok) {
+        result.failed++;
+        result.errors.push(`${invoice.invoice_number}: ${override.error}`);
+        continue;
+      }
+
       // Format due date for display
       const formattedDueDate = new Date(invoice.due_date).toLocaleDateString('en-NG', {
         year: 'numeric',
@@ -142,6 +151,7 @@ export async function sendPaymentReminders(): Promise<ReminderResult> {
           ...estateSettings,
         }),
         emailType: 'payment_reminder',
+        residentOverride: override.residentOverride,
         metadata: {
           invoiceId: invoice.id,
           invoiceNumber: invoice.invoice_number,

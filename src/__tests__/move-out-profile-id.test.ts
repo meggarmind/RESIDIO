@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initiateRenterMoveOut, confirmRenterMoveOut } from '@/actions/residents/move-out-renter';
 import { initiateOwnerMoveOut } from '@/actions/residents/move-out-owner';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { sendEmail } from '@/lib/email/send-email';
 
 type Op = { table: string; op: string; arg?: unknown };
 
@@ -30,6 +31,14 @@ vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: h.authorizePermiss
 vi.mock('@/lib/audit/logger', () => ({ logAudit: h.logAudit }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/lib/email/send-email', () => ({ sendEmail: vi.fn(async () => ({})) }));
+// The stored flag (#716) comes from flagState; the lookup itself is covered in comms-override/__tests__.
+const flagState = vi.hoisted(() => ({ byId: new Map<string, boolean | null>(), error: null as string | null }));
+vi.mock('@/lib/comms-override/resident-flag', async (importOriginal) =>
+  (await import('@/__tests__/helpers/resident-flag-lookup-mock')).flagModule(
+    await importOriginal<typeof import('@/lib/comms-override/resident-flag')>(),
+    flagState
+  )
+);
 vi.mock('@/lib/settings/get-system-setting', () => ({ getSystemSetting: vi.fn(async () => 7) }));
 vi.mock('@/actions/billing/get-invoices', () => ({
   getResidentIndebtedness: vi.fn(async () => ({ data: { totalUnpaid: 0, invoiceCount: 0 }, error: null })),
@@ -184,6 +193,59 @@ describe.each(CASES)('$name uses residents.profile_id (#585)', ({ role, run }) =
     const res = await run();
     expect(res.success).toBe(true);
     expect(notifications()).toHaveLength(0);
+  });
+});
+
+describe.each(CASES)('$name emails the resident with the stored override flag (#716)', ({ role, run }) => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.ops.length = 0;
+    h.state.userId = 'caller';
+    h.state.role = role;
+    h.state.resident = {
+      id: 'res-1',
+      first_name: 'Ada',
+      last_name: 'Obi',
+      resident_code: 'R-1',
+      email: 'ada@example.test',
+      phone_primary: null,
+      profile_id: 'profile-1',
+    };
+    h.authorizePermission.mockResolvedValue({ authorized: true });
+    flagState.error = null;
+    flagState.byId = new Map([['res-1', null]]);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  it.each([true, false, null])('stored %s reaches sendEmail unchanged', async (stored) => {
+    flagState.byId = new Map([['res-1', stored]]);
+
+    const res = await run();
+
+    expect(res.success).toBe(true);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendEmail).mock.calls[0][0]).toHaveProperty('residentOverride', stored);
+  });
+
+  it('fails closed when the flag cannot be read: no email, the move-out still succeeds, the reason is logged', async () => {
+    flagState.error = 'db down';
+
+    const res = await run();
+
+    expect(res.success).toBe(true);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Email not sent'), expect.stringContaining('could not read resident flag'));
+  });
+
+  it('sends no email and looks nothing up when the resident has no email address', async () => {
+    h.state.resident = { ...(h.state.resident as object), email: null };
+    flagState.error = 'db down';
+
+    const res = await run();
+
+    expect(res.success).toBe(true);
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(console.error).not.toHaveBeenCalled();
   });
 });
 

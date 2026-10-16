@@ -16,6 +16,11 @@ vi.mock('@/lib/email/resend', () => ({
   emailConfig: { fromAddress: 'noreply@test.example', replyTo: 'reply@test.example' },
   isEmailConfigured: mocks.isEmailConfigured,
 }));
+// The communications override has its own tests; these specs cover retry classification.
+vi.mock('@/lib/comms-override/gate', () => ({
+  decideSend: async () => ({ result: { redirect: false }, envLabel: 'TEST' }),
+  loadSnapshotFor: async () => ({ status: 'error', message: 'unused' }),
+}));
 vi.mock('@/lib/settings/service', () => ({
   getSettingValueAsService: vi.fn(),
   getSettingResultAsService: vi.fn(),
@@ -27,6 +32,10 @@ vi.mock('@/lib/whatsapp', () => ({
 vi.mock('@/lib/whatsapp/config', () => ({ resolveWhatsAppConfig: vi.fn() }));
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
+// The resident-flag lookup (#716) is covered in comms-override/__tests__/resident-flag-wiring.test.ts.
+vi.mock('@/lib/comms-override/resident-flag', () => ({
+  resolveResidentOverride: vi.fn(async () => ({ ok: true, residentOverride: null })),
+}));
 vi.mock('@/lib/whatsapp/rollout', () => ({
   isWhatsAppRecipientAllowed: vi.fn().mockResolvedValue(true),
 }));

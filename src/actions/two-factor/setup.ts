@@ -227,7 +227,9 @@ export async function initiateTwoFactorSetup(
     }
 
     // Send SMS
-    const smsResult = await sendVerificationSms(resident.phone_primary, otp);
+    const smsResult = await sendVerificationSms(resident.phone_primary, otp, undefined, {
+      purpose: 'self_auth_2fa', // self-addressed code to the signed-in user: exempt from the comms override (#715)
+    });
 
     if (!smsResult.success) {
       // Rollback token
@@ -282,6 +284,7 @@ export async function initiateTwoFactorSetup(
       }),
       emailType: 'notification',
       metadata: { purpose: '2fa_setup' },
+      purpose: 'self_auth_2fa', // exempt from the comms override (#715)
     });
 
     if (!emailResult.success) {

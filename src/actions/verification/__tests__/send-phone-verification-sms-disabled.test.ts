@@ -7,6 +7,10 @@ import { sendPhoneVerification } from '../send-verification';
 
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: vi.fn() }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
+// The resident-flag lookup (#716) is covered in comms-override/__tests__/resident-flag-wiring.test.ts.
+vi.mock('@/lib/comms-override/resident-flag', () => ({
+  resolveResidentOverride: vi.fn(async () => ({ ok: true, residentOverride: null })),
+}));
 vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: vi.fn(),
   createServerSupabaseClient: vi.fn(),
@@ -101,7 +105,9 @@ describe('sendPhoneVerification SMS gate', () => {
     const result = await sendPhoneVerification('res-1');
 
     expect(result.success).toBe(true);
-    expect(sendVerificationSms).toHaveBeenCalledWith('08012345678', expect.stringMatching(/^\d{6}$/), 'res-1');
+    expect(sendVerificationSms).toHaveBeenCalledWith('08012345678', expect.stringMatching(/^\d{6}$/), 'res-1', {
+      residentOverride: null,
+    });
     expect(admin.from).toHaveBeenCalledWith('verification_tokens');
     expect(adminQueries.filter((q) => q.insert.mock.calls.length === 1)).toHaveLength(1);
   });

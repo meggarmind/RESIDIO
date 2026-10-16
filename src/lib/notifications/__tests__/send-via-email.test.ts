@@ -11,6 +11,11 @@ vi.mock('@/lib/email/resend', () => ({
   emailConfig: { fromAddress: 'noreply@test.example', replyTo: 'reply@test.example' },
   isEmailConfigured: mocks.isEmailConfigured,
 }));
+// The communications override has its own tests; these specs cover the email sender.
+vi.mock('@/lib/comms-override/gate', () => ({
+  decideSend: async () => ({ result: { redirect: false }, envLabel: 'TEST' }),
+  loadSnapshotFor: async () => ({ status: 'error', message: 'unused' }),
+}));
 vi.mock('@/lib/settings/service', () => ({
   getSettingValueAsService: mocks.getSettingValueAsService,
   getSettingResultAsService: vi.fn(),

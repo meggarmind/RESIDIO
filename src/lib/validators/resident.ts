@@ -58,6 +58,9 @@ const baseResidentSchema = z.object({
   emergency_contact_relationship: z.string().optional().or(z.literal('')),
   emergency_contact_resident_id: z.string().uuid().optional().or(z.literal('')),
   notes: z.string().optional().or(z.literal('')),
+  // Communications override flag (#716): null = follow the environment default. The server
+  // honours it only for users who hold settings.manage_general.
+  use_override_comms: z.boolean().nullable().optional(),
 });
 
 // Resident form schema with corporate field validation

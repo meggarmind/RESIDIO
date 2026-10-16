@@ -112,9 +112,10 @@ export const settingsConfig: SettingsGroup[] = [
                 permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
                 children: [
                     { title: "Configuration", href: "/settings/email", description: "Email notification settings", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
-                    { title: "Debug & Testing", href: "/settings/email/debug", description: "Debug mode and test tools", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
+                    { title: "Debug & Testing", href: "/settings/email/debug", description: "Send a test email and payment reminders", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
                 ]
             },
+            { title: "Communications override", href: "/settings/comms-override", description: "Redirect outbound email, SMS and WhatsApp to override contacts", permissions: [PERMISSIONS.SETTINGS_MANAGE_GENERAL] },
             { title: "Message Templates", href: "/settings/message-templates", description: "Pre-written messages", permissions: [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES] },
             { title: "Announcement Categories", href: "/settings/announcement-categories", description: "Organize announcements", permissions: [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES] },
         ]
