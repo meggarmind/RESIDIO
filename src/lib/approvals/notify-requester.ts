@@ -2,7 +2,7 @@ import { notifyUser } from '@/lib/notifications/user-notifier';
 import { APPROVAL_REQUEST_TYPE_LABELS } from '@/types/database';
 import type { ApprovalRequest, ApprovalRequestType } from '@/types/database';
 
-/** Outcomes the requester can be told about. 'expired' is reserved for the expiry work (#558). */
+/** Outcomes the requester can be told about. 'expired' is the 72-hour auto-reject (#558). */
 export type ApprovalOutcome = 'approved' | 'rejected' | 'expired';
 
 function requestLabel(requestType: string): string {
@@ -27,8 +27,10 @@ export async function notifyRequesterOfOutcome(params: {
         const label = requestLabel(request.request_type);
         const notes = reviewNotes?.trim();
         const body =
-            `Your request "${label}" was ${outcome}.` +
-            (outcome === 'rejected' && notes ? ` Reason: ${notes}` : '');
+            outcome === 'expired'
+                ? `Your request "${label}" expired after 72 hours without a response.`
+                : `Your request "${label}" was ${outcome}.` +
+                  (outcome === 'rejected' && notes ? ` Reason: ${notes}` : '');
 
         await notifyUser({
             recipientId: request.requested_by,
