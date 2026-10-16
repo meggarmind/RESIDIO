@@ -71,9 +71,9 @@ npm run issue:workflow -- resume <issue>
 npm run issue:workflow -- finish <issue> [--check "issue-specific command"]
 ```
 
-Worktrees live at `.worktrees/issue-<number>` with branches named `codex/issue-<number>-<slug>`. `review` sets `In review` before running the configured lint, test, and build checks. `finish` reruns those checks, refuses dirty worktrees or integration branches, merges the issue branch into `master` with `--no-ff`, then verifies that the integration commit has reached `origin/master` before it closes the child issue, sets Project status to `Done`, and removes the worktree and merged branch. A failed check, merge conflict, or unpublished integration leaves the issue in review and preserves its worktree. `resume` returns an issue to `In progress` for fixes.
+Worktrees live at `.worktrees/issue-<number>` with branches named `codex/issue-<number>-<slug>`. `review` sets `In review` before running the configured lint, test, and build checks. `finish` (coordinator only) reruns those checks, lists the migrations the branch adds, pushes the branch, opens or reuses the PR into `stage`, sets `In review`, and stops; it never merges. After the PR merges, rerun it to set `Done`, print the migrations still to apply, and remove the worktree and local branch when the branch tip is inside the merged PR head and the tree is clean. See CORE.md §8. `resume` returns an issue to `In progress` for fixes.
 
-The helper resolves Project, field, item, and option IDs by name at runtime and fails closed if any required project data is missing. Pushing the resulting `master` commit requires explicit authorization; after it succeeds, rerun `finish` to complete the remote issue and Project status transition.
+The helper resolves Project, field, item, and option IDs by name at runtime and fails closed if any required project data is missing.
 
 ---
 

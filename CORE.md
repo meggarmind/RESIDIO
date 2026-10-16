@@ -359,10 +359,14 @@ Failed checks, dirty worktrees, missing project configuration and merge conflict
 issue unfinished and preserve its worktree. Parent initiative issues are never closed by child
 completion.
 
-> **`finish` is coordinator-only, and currently cannot complete.** It merges into local
-> `stage` (`defaultBranch` in `.github/issue-workflow.json`) and then requires that merge to have
-> reached `origin/stage` — but `stage` is branch-protected and refuses pushes, and `finish` never
-> opens a PR. It also merges with no migrations check, contradicting §11. **No sub-agent may run it.** Land work by PR (§16).
+> **`finish` is coordinator-only; no sub-agent may run it.** It never merges and never applies
+> migrations. Run it once and it requires the issue worktree clean and the issue In review, runs the
+> checks, lists the migrations the branch adds against `origin/<defaultBranch>` (§11), pushes the
+> branch, opens or reuses the PR into `defaultBranch` (body says "Part of #N", never a closing
+> keyword), sets the board to In review, and stops. After the PR merges (§16), rerun it: it sets Done,
+> prints the migrations still to apply to Residio_Stage, and removes the worktree and local branch only
+> when the branch tip is inside the merged PR head and the tree is clean. It does not close the issue
+> or any parent initiative.
 
 ---
 

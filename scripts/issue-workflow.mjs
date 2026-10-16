@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -517,82 +518,208 @@ function resume(config, cwd, issueNumber, lane) {
   console.log(`Issue #${issue.number} is back In progress at ${target.path}`);
 }
 
+const MIGRATIONS_DIR = 'supabase/migrations/';
+
+// Migrations the branch adds: present at the branch head, absent on the base
+// ref. Takes two file lists (`git ls-tree -r --name-only`) so it is pure.
+// CORE.md section 11 rule 1: diff the base ref, never hard-code one.
+export function migrationsAdded(baseFiles, headFiles) {
+  const base = new Set(baseFiles.map((file) => file.trim()).filter(Boolean));
+  return [...new Set(headFiles.map((file) => file.trim()).filter(Boolean))]
+    .filter((file) => file.startsWith(MIGRATIONS_DIR) && !base.has(file))
+    .sort();
+}
+
+// Migration paths among the files a merged PR touched.
+export function migrationsFromPaths(paths) {
+  return [...new Set(paths.map((file) => file.trim()).filter((file) => file.startsWith(MIGRATIONS_DIR)))].sort();
+}
+
+// Which phase finish is in. A merged PR means phase 2 (Done and cleanup).
+// Otherwise phase 1: reuse an open PR, or create one. A closed-unmerged PR is
+// ignored, because the branch can be published again as a new PR.
+export function decidePhase(prs) {
+  const list = prs ?? [];
+  const merged = list.find((pr) => pr.state === 'MERGED' || pr.mergedAt);
+  if (merged) return { phase: 'merged', pr: merged };
+  const open = list.find((pr) => pr.state === 'OPEN');
+  if (open) return { phase: 'publish', pr: open };
+  return { phase: 'publish', pr: null };
+}
+
+// Phase 1 needs the issue In review. Done with the PR not merged is an error.
+export function publishStatusProblem(status, statuses) {
+  if (status === statuses.inReview) return null;
+  if (status === statuses.done) {
+    return `is marked ${statuses.done} but its PR is not merged; reconcile the board before finishing`;
+  }
+  return `is currently "${status ?? 'unset'}"; finish requires ${statuses.inReview}`;
+}
+
+// The PR body names the issue as "Part of #N" only. No closing keyword (a
+// merge would close the issue, or a parent, unreviewed; see the keyword trap)
+// and no attribution footer (CORE.md section 14).
+export function buildPrBody({ issue, defaultBranch, migrations }) {
+  const lines = [
+    '## Summary',
+    '',
+    `Part of #${issue.number}: ${issue.title}`,
+    '',
+    '## Migrations',
+    '',
+  ];
+  if (migrations.length) {
+    lines.push(`This branch adds these migrations. Apply them to Residio_Stage after the merge into \`${defaultBranch}\`, and verify by name (CORE.md section 11):`, '');
+    for (const file of migrations) lines.push(`- \`${file}\``);
+  } else {
+    lines.push('None added by this branch.');
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+// Whether finish may remove the worktree and local branch after a merge.
+// Every condition must hold; the reasons explain each refusal.
+export function cleanupDecision({ branch, defaultBranch, currentBranch, tipInPrHead, dirty }) {
+  const reasons = [];
+  if (!tipInPrHead) reasons.push('the branch tip is not contained in the merged PR head (unpushed commits would be lost)');
+  if (dirty) reasons.push('the worktree has uncommitted or untracked changes');
+  const protectedBranches = new Set([defaultBranch, 'master', 'main']);
+  if (protectedBranches.has(branch)) reasons.push(`${branch} is a default or main branch`);
+  if (currentBranch && currentBranch === branch) reasons.push('the branch is checked out where finish is running');
+  return { ok: reasons.length === 0, reasons };
+}
+
+function listFiles(ref, cwd) {
+  const out = run('git', ['ls-tree', '-r', '--name-only', ref, '--', 'supabase/migrations'], cwd);
+  return out ? out.split(/\r?\n/) : [];
+}
+
+function printMigrations(files, defaultBranch) {
+  if (!files.length) {
+    console.log('Migrations: none added.');
+    return;
+  }
+  console.log(`Migrations added (apply to the ${defaultBranch} database, Residio_Stage, after the merge; verify by name; CORE.md section 11):`);
+  for (const file of files) console.log(`  - ${file}`);
+}
+
+function findPrs(config, cwd, branch) {
+  return runJson('gh', [
+    'pr', 'list', '--repo', config.repository, '--head', branch, '--state', 'all',
+    '--json', 'number,url,state,mergedAt,headRefOid', '--limit', '20',
+  ], cwd);
+}
+
 function finish(config, cwd, issueNumber, args, lane) {
   const issue = issueDetails(config, cwd, issueNumber);
   const target = matchingWorktree(cwd, config, issue, lane);
   if (!target.listed) throw new WorkflowError(`Issue #${issue.number} has no registered worktree.`);
+
+  const { phase, pr } = decidePhase(findPrs(config, cwd, target.branch));
+  if (phase === 'merged') {
+    finishMerged(config, cwd, issue, target, pr);
+  } else {
+    finishPublish(config, cwd, issue, target, pr, args);
+  }
+}
+
+// Phase 1: verify, publish the branch, open or reuse the PR, stop. Never merges.
+function finishPublish(config, cwd, issue, target, existingPr, args) {
   ensureClean(target.path, `Issue #${issue.number} worktree`);
+  const problem = publishStatusProblem(currentStatus(config, cwd, issue.number), config.statuses);
+  if (problem) throw new WorkflowError(`Issue #${issue.number} ${problem}.`);
 
-  const integrationPath = defaultWorktree(cwd, config);
-  ensureBranch(integrationPath, config.defaultBranch, 'Integration worktree');
-  ensureClean(integrationPath, 'Integration worktree');
+  runChecks(config, target.path, checksFromArgs(args));
 
-  const status = currentStatus(config, cwd, issue.number);
-  if (status && status !== config.statuses.inReview && status !== config.statuses.done) {
-    throw new WorkflowError(`Issue #${issue.number} is currently "${status}"; finish requires In review.`);
-  }
+  run('git', ['fetch', 'origin', config.defaultBranch], target.path);
+  const migrations = migrationsAdded(
+    listFiles(`origin/${config.defaultBranch}`, target.path),
+    listFiles('HEAD', target.path),
+  );
 
-  if (status !== config.statuses.done) {
-    setStatus(config, cwd, issue.number, 'inReview');
-    commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.inReview, {
-      branch: target.branch,
-      worktree: target.path,
-      verification: 'running',
-    }));
-    runChecks(config, target.path, checksFromArgs(args));
+  run('git', ['push', '-u', 'origin', target.branch], target.path);
 
-    const ancestor = (() => {
-      try {
-        execFileSync(binary('git'), ['merge-base', '--is-ancestor', target.branch, config.defaultBranch], { cwd: integrationPath, stdio: 'ignore' });
-        return true;
-      } catch {
-        return false;
-      }
-    })();
-
-    if (!ancestor) {
-      try {
-        run('git', ['merge', '--no-ff', target.branch, '-m', `Merge issue #${issue.number}: ${issue.title}`], integrationPath);
-      } catch (error) {
-        try { run('git', ['merge', '--abort'], integrationPath); } catch {}
-        throw new WorkflowError(`Issue #${issue.number} was not integrated because the merge failed. ${error.message}`);
-      }
-    }
-
+  let pr = existingPr;
+  if (!pr) {
+    const dir = mkdtempSync(join(tmpdir(), 'issue-workflow-'));
+    const bodyFile = join(dir, 'pr-body.md');
     try {
-      run('git', ['fetch', 'origin', config.defaultBranch], integrationPath);
-      run('git', ['merge-base', '--is-ancestor', 'HEAD', `origin/${config.defaultBranch}`], integrationPath);
-    } catch (error) {
-      throw new WorkflowError(
-        `Issue #${issue.number} is merged locally but has not been pushed to origin/${config.defaultBranch}. ` +
-        `Push the integration branch, then rerun finish to close the issue. ${error.message}`
-      );
+      writeFileSync(bodyFile, buildPrBody({ issue, defaultBranch: config.defaultBranch, migrations }));
+      const url = run('gh', [
+        'pr', 'create', '--repo', config.repository,
+        '--base', config.defaultBranch, '--head', target.branch,
+        '--title', `${issue.title} (#${issue.number})`,
+        '--body-file', bodyFile,
+      ], target.path);
+      pr = { url };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
-
-    commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.done, {
-      branch: target.branch,
-      worktree: target.path,
-      verification: 'passed',
-      integration: `merged into ${config.defaultBranch}`,
-    }));
-
-    if (issue.state === 'OPEN') {
-      run('gh', [
-        'issue', 'close', String(issue.number),
-        '--repo', config.repository,
-        '--comment', `Completed and integrated into ${config.defaultBranch} by the issue workflow.`,
-      ], cwd);
-    }
-    setStatus(config, cwd, issue.number, 'done');
-  } else if (issue.state === 'OPEN') {
-    throw new WorkflowError(`Issue #${issue.number} is marked Done in Project 1 but is still open; close it before cleanup.`);
   }
 
-  run('git', ['worktree', 'remove', target.path], integrationPath);
-  try { run('git', ['branch', '-d', target.branch], integrationPath); } catch (error) {
-    throw new WorkflowError(`Issue #${issue.number} is Done, but branch cleanup failed: ${error.message}`);
+  setStatus(config, cwd, issue.number, 'inReview');
+  commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.inReview, {
+    branch: target.branch,
+    worktree: target.path,
+    verification: 'passed',
+    integration: `PR ${pr.url} into ${config.defaultBranch} (not merged)`,
+  }));
+
+  console.log(`Issue #${issue.number} is In review: ${pr.url}`);
+  printMigrations(migrations, config.defaultBranch);
+  console.log('finish stops here and does not merge. After the PR merges, rerun finish to mark Done and clean up.');
+}
+
+// Phase 2: the PR is merged. Mark Done, report migrations, clean up if safe.
+function finishMerged(config, cwd, issue, target, pr) {
+  const files = runJson('gh', ['pr', 'view', String(pr.number), '--repo', config.repository, '--json', 'files'], cwd).files ?? [];
+  const migrations = migrationsFromPaths(files.map((file) => file.path));
+
+  setStatus(config, cwd, issue.number, 'done');
+  commentIssue(config, cwd, issue, lifecycleComment(config, issue, config.statuses.done, {
+    branch: target.branch,
+    worktree: target.path,
+    verification: 'passed',
+    integration: `merged via PR #${pr.number}`,
+  }));
+  console.log(`Issue #${issue.number} is Done (PR #${pr.number} merged).`);
+  printMigrations(migrations, config.defaultBranch);
+  if (issue.state === 'OPEN') {
+    console.log(`Issue #${issue.number} is still OPEN. finish does not close issues; the owner closes it.`);
   }
-  console.log(`Issue #${issue.number} is Done, closed, merged into ${config.defaultBranch}, and cleaned up.`);
+
+  const root = commonRoot(cwd);
+  let tipInPrHead = false;
+  try {
+    const headOid = pr.headRefOid;
+    run('git', ['fetch', 'origin', `refs/pull/${pr.number}/head`], root);
+    const tip = run('git', ['rev-parse', target.branch], root);
+    if (headOid) {
+      try {
+        run('git', ['merge-base', '--is-ancestor', tip, headOid], root);
+        tipInPrHead = true;
+      } catch {
+        tipInPrHead = false;
+      }
+    }
+  } catch {
+    tipInPrHead = false;
+  }
+  const decision = cleanupDecision({
+    branch: target.branch,
+    defaultBranch: config.defaultBranch,
+    currentBranch: run('git', ['branch', '--show-current'], cwd),
+    tipInPrHead,
+    dirty: Boolean(run('git', ['status', '--porcelain'], target.path)),
+  });
+  if (!decision.ok) {
+    console.log(`Worktree ${target.path} and branch ${target.branch} left in place: ${decision.reasons.join('; ')}.`);
+    return;
+  }
+  run('git', ['worktree', 'remove', target.path], root);
+  run('git', ['branch', '-D', target.branch], root);
+  console.log(`Removed worktree ${target.path} and local branch ${target.branch}.`);
 }
 
 function doctor(config, cwd) {
@@ -611,7 +738,8 @@ function usage() {
     '  start <issue>       Create/reuse the issue worktree and set In progress.',
     '  review <issue>      Set In review and run verification checks.',
     '  resume <issue>      Set an issue back to In progress after failed review.',
-    '  finish <issue>      Verify, merge, close, set Done, and clean up.',
+    '  finish <issue>      Verify, push, open/reuse the PR, set In review; never merges.',
+    '                      Rerun after the PR merges to set Done and clean up.',
     '',
     'Options:',
     '  --check "command"   Add an issue-specific shell check (repeatable).',
