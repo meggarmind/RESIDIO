@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getLateFeeSettings } from '@/actions/billing/apply-late-fees';
 import { runLateFeeApplication } from '@/lib/billing/apply-late-fees';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
+import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('[Cron]');
@@ -24,6 +25,10 @@ export async function GET(request: NextRequest) {
   // Verify cron secret using timing-safe comparison
   const authError = verifyCronAuth(request);
   if (authError) return authError;
+  return withSystemLog('cron:apply-late-fees', 'apply', runLateFees);
+}
+
+async function runLateFees(run: SystemLogRun) {
 
   try {
     log.info('Checking late fee application conditions');
@@ -34,6 +39,7 @@ export async function GET(request: NextRequest) {
     // Check if late fees are enabled
     if (!settings.enabled) {
       log.info('Late fees are disabled');
+      run.summary = { skipped: true, reason: 'late_fees_disabled' };
       return NextResponse.json({
         skipped: true,
         reason: 'Late fees are disabled',
@@ -44,6 +50,7 @@ export async function GET(request: NextRequest) {
     // Check if auto-application is enabled
     if (!settings.autoApply) {
       log.info('Late fee auto-application is disabled');
+      run.summary = { skipped: true, reason: 'auto_apply_disabled' };
       return NextResponse.json({
         skipped: true,
         reason: 'Late fee auto-application is disabled',
@@ -57,6 +64,7 @@ export async function GET(request: NextRequest) {
 
     if (dayOfMonth !== settings.applicationDay) {
       log.info(`Not application day (today: ${dayOfMonth}, configured: ${settings.applicationDay})`);
+      run.summary = { skipped: true, reason: 'not_application_day', today: dayOfMonth, configured: settings.applicationDay };
       return NextResponse.json({
         skipped: true,
         reason: `Not application day (today: ${dayOfMonth}, configured: ${settings.applicationDay})`,
@@ -76,6 +84,18 @@ export async function GET(request: NextRequest) {
       errors: result.errors.length,
     });
 
+    run.summary = {
+      processed: result.processed,
+      applied: result.applied,
+      totalLateFees: result.totalLateFees,
+      skippedWaiver: result.skippedWaiver,
+      skippedAlreadyApplied: result.skippedAlreadyApplied,
+      errorCount: result.errors.length,
+      logId: result.logId,
+    };
+    if (!result.success) run.outcome = 'failure';
+    else if (result.errors.length > 0) run.outcome = 'partial';
+
     return NextResponse.json({
       success: result.success,
       processed: result.processed,
@@ -90,6 +110,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    run.error = error;
     log.error('Late fee application error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processDueSchedules } from '@/lib/reports/process-schedules';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
+import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,11 +15,18 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   const authError = verifyCronAuth(request);
   if (authError) return authError;
+  return withSystemLog('cron:process-report-schedules', 'process', runReportSchedules);
+}
+
+async function runReportSchedules(run: SystemLogRun) {
 
   try {
     const result = await processDueSchedules();
+    run.summary = { processed: result.processed, failed: result.failed };
+    if (result.failed > 0) run.outcome = result.processed > result.failed ? 'partial' : 'failure';
     return NextResponse.json({ success: true, ...result });
   } catch (e) {
+    run.error = e;
     return NextResponse.json({
       success: false,
       error: e instanceof Error ? e.message : 'Unknown error',

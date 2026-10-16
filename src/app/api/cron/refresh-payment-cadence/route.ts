@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { refreshPaymentCadenceSummary } from '@/actions/analytics/refresh-payment-cadence-summary';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
+import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('[Cron]');
@@ -17,6 +18,10 @@ export const maxDuration = 300; // 5 minutes max
 export async function GET(request: NextRequest) {
   const authError = verifyCronAuth(request);
   if (authError) return authError;
+  return withSystemLog('cron:refresh-payment-cadence', 'refresh', runCadenceRefresh);
+}
+
+async function runCadenceRefresh(run: SystemLogRun) {
 
   try {
     log.info('Refreshing payment cadence summary');
@@ -24,10 +29,12 @@ export async function GET(request: NextRequest) {
 
     if (result.error) {
       log.error('Payment cadence refresh error:', result.error);
+      run.error = result.error;
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
     log.info('Payment cadence refresh completed:', result.data);
+    run.summary = { ...result.data };
 
     return NextResponse.json({
       success: true,
@@ -35,6 +42,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    run.error = error;
     log.error('Payment cadence refresh error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },

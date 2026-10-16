@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processQueue, purgeOldItems } from '@/lib/notifications/queue';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
+import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 
 // Configure for Vercel
 export const runtime = 'nodejs';
@@ -22,6 +23,10 @@ export async function GET(request: NextRequest) {
   // Verify cron secret using timing-safe comparison
   const authError = verifyCronAuth(request);
   if (authError) return authError;
+  return withSystemLog('cron:process-notifications', 'process', runNotificationQueue);
+}
+
+async function runNotificationQueue(run: SystemLogRun) {
 
   try {
     console.log('[Cron] Starting notification queue processing');
@@ -43,6 +48,15 @@ export async function GET(request: NextRequest) {
       console.log('[Cron] Purge completed:', purgeResult);
     }
 
+    run.summary = {
+      processed: result.processed,
+      sent: result.sent,
+      failed: result.failed,
+      skipped: result.skipped,
+      purged: purgeResult.deleted,
+    };
+    if (result.failed > 0) run.outcome = result.sent > 0 ? 'partial' : 'failure';
+
     return NextResponse.json({
       success: true,
       queue: {
@@ -57,6 +71,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Cron] Process notifications error:', error);
+    run.error = error;
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
