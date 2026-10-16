@@ -686,7 +686,7 @@ function finishMerged(config, cwd, issue, target, pr) {
   console.log(`Issue #${issue.number} is Done (PR #${pr.number} merged).`);
   printMigrations(migrations, config.defaultBranch);
   if (issue.state === 'OPEN') {
-    console.log(`Issue #${issue.number} is still OPEN. finish does not close issues; the PR's closing keyword or the owner closes it.`);
+    console.log(`Issue #${issue.number} is still OPEN. finish does not close issues; the owner closes it.`);
   }
 
   const root = commonRoot(cwd);
