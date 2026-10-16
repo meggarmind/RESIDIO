@@ -102,6 +102,15 @@ describe('WhatsApp (Meta) webhook system action log', () => {
     expect(recordSystemAction).not.toHaveBeenCalled();
   });
 
+  it('records nothing for an ignored-only delivery (non-text message)', async () => {
+    const payload = JSON.stringify({
+      entry: [{ changes: [{ value: { messages: [{ id: 'wamid.img', from: '2348000000000', timestamp: '1', type: 'image' }] } }] }],
+    });
+    const response = await POST(signed(payload));
+    expect(response.status).toBe(200);
+    expect(recordSystemAction).not.toHaveBeenCalled();
+  });
+
   it('records a failure row when processing fails, and the response stays 500', async () => {
     failClaims = true;
     const response = await POST(signed(body('wamid.4')));

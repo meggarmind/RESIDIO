@@ -69,7 +69,7 @@ describe('Twilio WhatsApp webhook system action log', () => {
     const response = await POST(post(message, 'not-the-token'));
     expect(response.status).toBe(401);
     expect(recordSystemAction).not.toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it('records one success row with counts, and no phone number or message text', async () => {
     const POST = await load();

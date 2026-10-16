@@ -253,6 +253,12 @@ describe('Chatmaid WhatsApp webhook route', () => {
       expect(JSON.stringify(entry)).not.toContain('balance');
     });
 
+    it('records nothing when the only message was skipped for a human takeover pause', async () => {
+      const h = await load({ pausedUntil: new Date(NOW + 60_000) });
+      expect((await h.POST(post('message.received', receivedBody))).status).toBe(200);
+      expect(recordSystemAction).not.toHaveBeenCalled();
+    });
+
     it('records nothing for a duplicate-only retry', async () => {
       const h = await load();
       await h.POST(post('message.received', receivedBody));

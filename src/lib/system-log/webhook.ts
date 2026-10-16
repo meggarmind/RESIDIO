@@ -32,7 +32,7 @@ export interface InboundBatchResult {
 
 /**
  * Record a verified batch of inbound messages: a failure always, a success only when something
- * was actually processed. Duplicate-only and ignored-only deliveries changed nothing and are
+ * was actually acted on. Duplicate-only and ignored-only deliveries changed nothing and are
  * not recorded.
  */
 export async function recordInboundBatch(
@@ -40,13 +40,15 @@ export async function recordInboundBatch(
   result: InboundBatchResult,
   extra: Record<string, unknown> = {}
 ): Promise<void> {
-  if (result.accepted && result.processedCount === 0) return;
+  // processedCount includes ignored messages (counted before the ignore check), so subtract them.
+  const effective = result.processedCount - result.ignoredCount;
+  if (result.accepted && effective <= 0) return;
   await recordWebhookDelivery({
     provider,
     action: 'inbound_messages',
     outcome: result.accepted ? 'success' : 'failure',
     summary: {
-      processed: result.processedCount,
+      processed: effective,
       duplicates: result.duplicateCount,
       ignored: result.ignoredCount,
       ...extra,

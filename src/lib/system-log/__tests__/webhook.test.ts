@@ -40,7 +40,19 @@ describe('recordInboundBatch', () => {
     );
   });
 
-  it('records nothing for a duplicate-only or ignored-only delivery', async () => {
+  it('records nothing for an ignored-only delivery (ignored messages are counted as processed upstream)', async () => {
+    await recordInboundBatch('whatsapp-meta', { ...batch, processedCount: 2, ignoredCount: 2, duplicateCount: 0 });
+    expect(recordSystemAction).not.toHaveBeenCalled();
+  });
+
+  it('counts only the messages actually acted on', async () => {
+    await recordInboundBatch('whatsapp-meta', { ...batch, processedCount: 3, ignoredCount: 1, duplicateCount: 0 });
+    expect(recordSystemAction).toHaveBeenCalledWith(
+      expect.objectContaining({ summary: { processed: 2, duplicates: 0, ignored: 1 } })
+    );
+  });
+
+  it('records nothing for a duplicate-only delivery', async () => {
     await recordInboundBatch('whatsapp-meta', { ...batch, processedCount: 0, duplicateCount: 3 });
     expect(recordSystemAction).not.toHaveBeenCalled();
   });

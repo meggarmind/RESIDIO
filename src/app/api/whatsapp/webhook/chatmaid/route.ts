@@ -110,7 +110,11 @@ async function handleMessageReceived(payload: unknown) {
     },
   });
 
-  await recordInboundBatch('whatsapp-chatmaid', result, { paused: pausedCount });
+  await recordInboundBatch(
+    'whatsapp-chatmaid',
+    { ...result, ignoredCount: result.ignoredCount + pausedCount },
+    { paused: pausedCount }
+  );
 
   if (!result.accepted) {
     return processingFailed(result.error || 'Inbound WhatsApp message could not be processed');
@@ -149,6 +153,7 @@ async function handleMessageOutgoing(payload: unknown) {
     return processingFailed('Human-takeover pause could not be recorded');
   }
 
+  // A successful pause is deliberately not recorded: it fires on every handset message an admin types, so it would flood the log. Failures above are.
   return NextResponse.json({ received: true, processed: true });
 }
 
