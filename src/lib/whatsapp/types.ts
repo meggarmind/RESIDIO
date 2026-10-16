@@ -1,3 +1,5 @@
+import type { OverrideLogRecord } from '@/lib/comms-override/types';
+
 export interface WhatsAppTextMessage {
   to: string;
   body: string;
@@ -17,6 +19,8 @@ export interface WhatsAppSendResult {
   error?: string;
   /** Set on failure when the adapter can tell: false = do not retry, true = transient. Absent = unknown. */
   retryable?: boolean;
+  /** Set when the communications override redirected or blocked the send (#715). */
+  override?: OverrideLogRecord;
 }
 
 export interface WhatsAppInboundMessage {

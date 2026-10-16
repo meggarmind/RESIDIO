@@ -2,6 +2,11 @@ import { resolveWhatsAppConfig, type ChatmaidWhatsAppConfig, type MetaWhatsAppCo
 import { createMetaWhatsAppProvider } from '@/lib/whatsapp/providers/meta';
 import { createTwilioWhatsAppProvider } from '@/lib/whatsapp/providers/twilio';
 import { createChatmaidWhatsAppProvider } from '@/lib/whatsapp/providers/chatmaid';
+import { decideSend } from '@/lib/comms-override/gate';
+import { prefixText } from '@/lib/comms-override/labels';
+import { blockedError, toLogRecord } from '@/lib/comms-override/resolver';
+import type { CommsSendContext, OverrideLogRecord } from '@/lib/comms-override/types';
+import { normalizePhoneNumber } from '@/lib/sms/termii';
 import type {
   WhatsAppSendResult,
   WhatsAppTemplateMessage,
@@ -69,9 +74,45 @@ function resolveProvider(config: WhatsAppConfig): WhatsAppProvider {
   return factory(config);
 }
 
+type WhatsAppRedirect =
+  | { blocked: WhatsAppSendResult }
+  | { to: string; redirected: boolean; envLabel: string; override?: OverrideLogRecord };
+
+/**
+ * Communications override (#715) for WhatsApp. Runs inside the provider seam,
+ * AFTER `evaluateSendPolicy` has judged the ORIGINAL recipient (decision 11), and
+ * only changes the destination. A block never falls through to the original.
+ */
+async function resolveWhatsAppRedirect(
+  original: string,
+  context: CommsSendContext | undefined
+): Promise<WhatsAppRedirect> {
+  const { result, envLabel } = await decideSend({
+    channel: 'whatsapp',
+    original,
+    residentOverride: context?.residentOverride,
+    purpose: context?.purpose,
+  });
+  const override = toLogRecord(result) ?? undefined;
+  if ('blocked' in result) {
+    return {
+      blocked: {
+        success: false,
+        error: blockedError(result),
+        // Only an unreadable settings table is transient; a blank override needs an admin.
+        retryable: result.code === 'settings_unreadable',
+        override,
+      },
+    };
+  }
+  if (!result.redirect) return { to: original, redirected: false, envLabel };
+  return { to: normalizePhoneNumber(result.to), redirected: true, envLabel, override };
+}
+
 export async function sendWhatsAppMessage(
   message: WhatsAppTextMessage,
-  provider?: WhatsAppProvider
+  provider?: WhatsAppProvider,
+  context?: CommsSendContext
 ): Promise<WhatsAppSendResult> {
   const resolved = provider ? null : await resolveWhatsAppConfig();
 
@@ -92,19 +133,29 @@ export async function sendWhatsAppMessage(
 
   const config = resolved ? resolved.config : null;
 
+  const redirect = await resolveWhatsAppRedirect(message.to, context);
+  if ('blocked' in redirect) return redirect.blocked;
+  // Free-form text can carry the label; the original is also in the log record.
+  const outbound = redirect.redirected
+    ? { ...message, to: redirect.to, body: prefixText(redirect.envLabel, message.to, message.body) }
+    : message;
+
   try {
-    return await (provider || resolveProvider(config!)).sendText(message);
+    const result = await (provider || resolveProvider(config!)).sendText(outbound);
+    return redirect.override ? { ...result, override: redirect.override } : result;
   } catch {
     return {
       success: false,
       error: 'WhatsApp provider request failed',
+      ...(redirect.override ? { override: redirect.override } : {}),
     };
   }
 }
 
 export async function sendWhatsAppTemplate(
   message: WhatsAppTemplateMessage,
-  provider?: WhatsAppProvider
+  provider?: WhatsAppProvider,
+  context?: CommsSendContext
 ): Promise<WhatsAppSendResult> {
   const resolved = provider ? null : await resolveWhatsAppConfig();
 
@@ -125,9 +176,22 @@ export async function sendWhatsAppTemplate(
 
   const config = resolved ? resolved.config : null;
 
+  const redirect = await resolveWhatsAppRedirect(message.to, context);
+  if ('blocked' in redirect) return redirect.blocked;
+  // KNOWN LIMIT: an approved template cannot be prefixed or bannered, so a
+  // redirected template send carries no visible label. The original recipient is
+  // recorded in the log only (`metadata.override`).
+  const outbound = redirect.redirected ? { ...message, to: redirect.to } : message;
+
   try {
-    return await (provider || resolveProvider(config!)).sendTemplate(message);
+    const result = await (provider || resolveProvider(config!)).sendTemplate(outbound);
+    return redirect.override ? { ...result, override: redirect.override } : result;
   } catch {
-    return { success: false, error: 'WhatsApp provider request failed', retryable: true };
+    return {
+      success: false,
+      error: 'WhatsApp provider request failed',
+      retryable: true,
+      ...(redirect.override ? { override: redirect.override } : {}),
+    };
   }
 }

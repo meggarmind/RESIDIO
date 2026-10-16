@@ -75,6 +75,8 @@ describe('resident form corporate-field lifecycle', () => {
     expect(source).toContain('const submitted = resolveSubmittedCorporateFields(data);');
     expect(source).toContain('company_name: submitted.company_name');
     expect(source).toContain('liaison_contact_phone: submitted.liaison_contact_phone');
-    expect(source).toContain('await createMutation.mutateAsync(submitted);');
+    // #716: create submits the resolved payload, minus the override flag for users who cannot set it.
+    expect(source).toContain('const createData = canManageOverride ? submitted : { ...submitted, use_override_comms: undefined };');
+    expect(source).toContain('await createMutation.mutateAsync(createData);');
   });
 });

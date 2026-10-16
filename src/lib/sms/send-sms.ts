@@ -1,6 +1,10 @@
 import { termiiConfig, isSmsConfigured, formatPhoneForTermii } from './termii';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getSettingValueAsService } from '@/lib/settings/service';
+import { decideSend, loadSnapshotFor } from '@/lib/comms-override/gate';
+import { prefixText } from '@/lib/comms-override/labels';
+import { blockedError, toLogRecord } from '@/lib/comms-override/resolver';
+import type { CommsSendContext, ResolveResult } from '@/lib/comms-override/types';
 import type {
   SendSmsOptions,
   SendSmsResult,
@@ -66,29 +70,45 @@ export async function sendSms(options: SendSmsOptions): Promise<SendSmsResult> {
 
   const recipients = Array.isArray(options.to) ? options.to : [options.to];
 
+  // Communications override (#715): settings are read once; each recipient is
+  // resolved separately so its own original number labels its own message.
+  const snapshot = await loadSnapshotFor(options);
+
   // Send to each recipient (Termii API handles single recipient per request)
   const results: SendSmsResult[] = [];
 
   for (const recipient of recipients) {
-    const result = await sendSingleSms(recipient, options);
+    const { result: decision, envLabel } = await decideSend(
+      {
+        channel: 'sms',
+        original: recipient.phone,
+        residentOverride: options.residentOverride,
+        purpose: options.purpose,
+      },
+      snapshot
+    );
+    const result = await sendSingleSms(recipient, options, decision, envLabel);
     results.push(result);
   }
 
   // Return combined result
   const allSuccess = results.every((r) => r.success);
   const errors = results.filter((r) => !r.success).map((r) => r.error);
+  const override = results.find((r) => r.override)?.override;
 
   if (allSuccess) {
     return {
       success: true,
       messageId: results[0]?.messageId,
       balance: results[0]?.balance,
+      ...(override ? { override } : {}),
     };
   }
 
   return {
     success: false,
     error: errors.join('; '),
+    ...(override ? { override } : {}),
   };
 }
 
@@ -97,9 +117,36 @@ export async function sendSms(options: SendSmsOptions): Promise<SendSmsResult> {
  */
 async function sendSingleSms(
   recipient: { phone: string; name?: string; residentId?: string },
-  options: SendSmsOptions
+  options: SendSmsOptions,
+  decision: ResolveResult,
+  envLabel: string
 ): Promise<SendSmsResult> {
-  const formattedPhone = formatPhoneForTermii(recipient.phone);
+  const override = toLogRecord(decision) ?? undefined;
+  const logMetadata = override ? { ...options.metadata, override } : options.metadata;
+
+  // Blocked: never fall through to the real number (#715).
+  if ('blocked' in decision) {
+    const errorMessage = blockedError(decision);
+    if (!options.skipHistoryLog) {
+      await logSms({
+        recipientPhone: recipient.phone,
+        recipientName: recipient.name,
+        residentId: recipient.residentId,
+        smsType: options.smsType,
+        message: options.message,
+        status: 'failed',
+        errorMessage,
+        metadata: logMetadata,
+      });
+    }
+    return { success: false, error: errorMessage, override };
+  }
+
+  const destination = decision.redirect ? decision.to : recipient.phone;
+  const message = decision.redirect
+    ? prefixText(envLabel, recipient.phone, options.message)
+    : options.message;
+  const formattedPhone = formatPhoneForTermii(destination);
 
   try {
     const response = await fetch(`${termiiConfig.baseUrl}/sms/send`, {
@@ -111,7 +158,7 @@ async function sendSingleSms(
         api_key: termiiConfig.apiKey,
         to: formattedPhone,
         from: termiiConfig.senderId,
-        sms: options.message,
+        sms: message,
         type: 'plain',
         channel: 'generic', // Can be 'generic', 'dnd' (Do Not Disturb), or 'whatsapp'
       }),
@@ -132,7 +179,7 @@ async function sendSingleSms(
           messageId: data.message_id_str || data.message_id,
           status: 'sent',
           metadata: {
-            ...options.metadata,
+            ...logMetadata,
             balance: data.balance,
           },
         });
@@ -142,6 +189,7 @@ async function sendSingleSms(
         success: true,
         messageId: data.message_id_str || data.message_id,
         balance: data.balance,
+        override,
       };
     }
 
@@ -157,11 +205,11 @@ async function sendSingleSms(
         message: options.message,
         status: 'failed',
         errorMessage,
-        metadata: options.metadata,
+        metadata: logMetadata,
       });
     }
 
-    return { success: false, error: errorMessage };
+    return { success: false, error: errorMessage, override };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error sending SMS';
 
@@ -174,11 +222,11 @@ async function sendSingleSms(
         message: options.message,
         status: 'failed',
         errorMessage,
-        metadata: options.metadata,
+        metadata: logMetadata,
       });
     }
 
-    return { success: false, error: errorMessage };
+    return { success: false, error: errorMessage, override };
   }
 }
 
@@ -189,7 +237,8 @@ async function sendSingleSms(
 export async function sendVerificationSms(
   phone: string,
   otp: string,
-  residentId?: string
+  residentId?: string,
+  context?: CommsSendContext
 ): Promise<SendSmsResult> {
   const message = `Your Residio verification code is: ${otp}. Valid for 30 minutes. Do not share this code with anyone.`;
 
@@ -198,5 +247,6 @@ export async function sendVerificationSms(
     message,
     smsType: 'verification',
     metadata: { purpose: 'phone_verification' },
+    ...context,
   });
 }

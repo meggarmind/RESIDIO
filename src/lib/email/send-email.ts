@@ -99,43 +99,27 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
 
   const recipients = Array.isArray(options.to) ? options.to : [options.to];
 
-  // Check if debug mode is enabled (log only, don't send)
-  const debugMode = await getSettingValueAsService('email_debug_mode');
-  if (debugMode === 'true' || debugMode === true) {
-    // Log to email_logs with DEBUG_MODE status
-    for (const recipient of recipients) {
-      await logEmail({
-        recipientEmail: recipient.email,
-        recipientName: recipient.name,
-        residentId: recipient.residentId,
-        emailType: options.emailType,
-        subject: options.subject,
-        status: 'debug',
-        metadata: {
-          ...options.metadata,
-          original_recipient: recipient.email,
-          debug_mode: true,
-          would_have_sent_at: new Date().toISOString(),
-        },
-      });
-    }
-
-    // Return success without actually sending
-    return { success: true, resendId: 'debug-mode-skip' };
-  }
-
   // Check if Resend is configured
   const transportError = getEmailTransportError();
   if (transportError) {
     return { success: false, error: transportError };
   }
 
-  const result = await sendViaResend({
-    to: recipients.map(r => r.email),
-    subject: options.subject,
-    react: options.react,
-    attachments: options.attachments,
-  });
+  const result = await sendViaResend(
+    {
+      to: recipients.map(r => r.email),
+      subject: options.subject,
+      react: options.react,
+      attachments: options.attachments,
+    },
+    { residentOverride: options.residentOverride, purpose: options.purpose }
+  );
+
+  // Original and actual recipient (or the block) go into the log metadata (#715).
+  const logMetadata = result.override
+    ? { ...options.metadata, override: result.override }
+    : options.metadata;
+  const overrideField = result.override ? { override: result.override } : {};
 
   if (!result.ok) {
     // Log failed attempt for each recipient
@@ -148,10 +132,10 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
         subject: options.subject,
         status: 'failed',
         errorMessage: result.error,
-        metadata: options.metadata,
+        metadata: logMetadata,
       });
     }
-    return { success: false, error: result.error };
+    return { success: false, error: result.error, ...overrideField };
   }
 
   // Log successful send for each recipient
@@ -164,9 +148,9 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
       subject: options.subject,
       resendId: result.id,
       status: 'sent',
-      metadata: options.metadata,
+      metadata: logMetadata,
     });
   }
 
-  return { success: true, resendId: result.id };
+  return { success: true, resendId: result.id, ...overrideField };
 }

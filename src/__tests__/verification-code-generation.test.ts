@@ -37,6 +37,16 @@ vi.mock('@/lib/supabase/server', () => ({
   createServerSupabaseClient: async () => client,
   createAdminClient: () => client,
 }));
+// The send now reads the resident's override flag before creating a token (#716); this test is about the
+// code, so the stored flag is supplied (null: follow the environment default). A lookup that cannot run
+// fails closed, which would stop the flow before any code is generated.
+const flagState = vi.hoisted(() => ({ byId: new Map<string, boolean | null>([['r1', null]]), error: null as string | null }));
+vi.mock('@/lib/comms-override/resident-flag', async (importOriginal) =>
+  (await import('@/__tests__/helpers/resident-flag-lookup-mock')).flagModule(
+    await importOriginal<typeof import('@/lib/comms-override/resident-flag')>(),
+    flagState
+  )
+);
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission: async () => ({ authorized: true }) }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
 vi.mock('@/lib/sms/send-sms', () => ({ sendVerificationSms: vi.fn() }));

@@ -22,6 +22,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createAdminClient: vi.fn(),
 }));
 
+// The resident-flag lookup (#716) is covered in comms-override/__tests__/resident-flag-wiring.test.ts.
+vi.mock('@/lib/comms-override/resident-flag', () => ({
+  resolveResidentOverride: vi.fn(async () => ({ ok: true, residentOverride: null })),
+}));
 vi.mock('@/lib/whatsapp/rollout', () => ({
   isWhatsAppRecipientAllowed: vi.fn().mockResolvedValue(true),
 }));
@@ -134,7 +138,7 @@ describe('WhatsApp outbound dispatch', () => {
       templateName: 'invoice_reminder',
       languageCode: 'en_US',
       parameters: ['Ada', 'INV-001', 'NGN 10,000', '1 September 2026'],
-    });
+    }, undefined, undefined);
   });
 
   it('rejects WhatsApp sends when the daily cap is reached', async () => {
@@ -458,7 +462,7 @@ describe('WhatsApp outbound dispatch', () => {
       templateName: 'payment_received',
       languageCode: 'en_US',
       parameters: ['Chidi Okonkwo', 'NGN 25,000', '15/08/2026', 'PAYSTACK-TXN-123'],
-    });
+    }, undefined, undefined);
   });
 
   it('passes announcement template parameters correctly', async () => {
@@ -484,7 +488,7 @@ describe('WhatsApp outbound dispatch', () => {
       templateName: 'announcement',
       languageCode: 'en_US',
       parameters: ['Gate Maintenance', 'The main gate will be closed on Saturday.'],
-    });
+    }, undefined, undefined);
   });
 
   // Issue #136: under cron, getSettingValue (RLS-bound) always returned
