@@ -20,15 +20,15 @@ vi.mock('@/lib/notifications/queue', () => ({
 }));
 vi.mock('@/lib/notifications/types', () => ({ isChannelImplemented: mocks.isChannelImplemented }));
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: mocks.sendSms }));
-// Every resident follows the environment default here (#716); the lookup itself is covered in
+// The stored flag per resident (#716) comes from flagState; the lookup itself is covered in
 // comms-override/__tests__/resident-flag.test.ts.
-vi.mock('@/lib/comms-override/resident-flag', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/comms-override/resident-flag')>()),
-  loadResidentOverrideFlags: vi.fn(async (ids: string[]) => ({
-    ok: true,
-    flags: new Map(ids.map((id) => [id, null])),
-  })),
-}));
+const flagState = vi.hoisted(() => ({ byId: new Map<string, boolean | null>(), error: null as string | null }));
+vi.mock('@/lib/comms-override/resident-flag', async (importOriginal) =>
+  (await import('@/__tests__/helpers/resident-flag-lookup-mock')).flagModule(
+    await importOriginal<typeof import('@/lib/comms-override/resident-flag')>(),
+    flagState
+  )
+);
 vi.mock('@/lib/email/send-email', () => ({
   sendEmail: mocks.sendEmail,
   getEstateEmailSettings: vi.fn().mockResolvedValue({}),
@@ -58,6 +58,11 @@ const INPUT = { title: 'Gas leak', content: 'Evacuate block C', channels: ALL_CH
 
 beforeEach(() => {
   vi.clearAllMocks();
+  flagState.error = null;
+  flagState.byId = new Map([
+    ['r1', null],
+    ['r2', null],
+  ]);
   mocks.authorizePermission.mockResolvedValue({ authorized: true, userId: 'admin-1' });
   mocks.createServerSupabaseClient.mockResolvedValue({
     from: vi.fn(() => ({
@@ -126,5 +131,58 @@ describe('sendMultiChannelEmergencyBroadcast SMS switch', () => {
     expect(mocks.sendSms).toHaveBeenCalledTimes(2);
     const sms = response.data!.results.find((r) => r.channel === 'sms');
     expect(sms).toMatchObject({ success: true, count: 2 });
+  });
+});
+
+describe('sendMultiChannelEmergencyBroadcast passes each resident its stored override flag (#716)', () => {
+  const overrideSentTo = (mock: { mock: { calls: unknown[][] } }, id: string) =>
+    (mock.mock.calls.map((c) => c[0]) as Array<{ to: { residentId: string }; residentOverride?: unknown }>).find(
+      (o) => o.to.residentId === id
+    );
+
+  it.each([
+    [true, false],
+    [false, true],
+    [null, true],
+  ])('email and SMS: r1 stored %s, r2 stored %s reach the seams unchanged', async (r1, r2) => {
+    flagState.byId = new Map<string, boolean | null>([
+      ['r1', r1],
+      ['r2', r2],
+    ]);
+    mocks.isChannelImplemented.mockReturnValue(true);
+
+    await sendMultiChannelEmergencyBroadcast(INPUT);
+
+    for (const seam of [mocks.sendEmail, mocks.sendSms]) {
+      expect(seam).toHaveBeenCalledTimes(2);
+      expect(overrideSentTo(seam, 'r1')).toHaveProperty('residentOverride', r1);
+      expect(overrideSentTo(seam, 'r2')).toHaveProperty('residentOverride', r2);
+    }
+  });
+
+  it('fails closed when the flags cannot be read: nothing is emailed or texted, both channels report failure', async () => {
+    flagState.error = 'db down';
+    mocks.isChannelImplemented.mockReturnValue(true);
+
+    const response = await sendMultiChannelEmergencyBroadcast(INPUT);
+
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+    expect(mocks.sendSms).not.toHaveBeenCalled();
+    for (const channel of ['email', 'sms']) {
+      const result = response.data!.results.find((r) => r.channel === channel);
+      expect(result).toMatchObject({ success: false, count: 0 });
+      expect(result!.error).toContain('could not read resident flags');
+    }
+  });
+
+  it('fails a resident whose row is missing from the lookup without sending to them', async () => {
+    flagState.byId = new Map([['r1', null]]);
+    mocks.isChannelImplemented.mockReturnValue(true);
+
+    await sendMultiChannelEmergencyBroadcast(INPUT);
+
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+    expect(overrideSentTo(mocks.sendEmail, 'r2')).toBeUndefined();
+    expect(mocks.sendSms).toHaveBeenCalledTimes(1);
   });
 });

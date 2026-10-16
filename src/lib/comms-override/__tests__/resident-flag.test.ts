@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
@@ -11,7 +13,9 @@ import {
 } from '@/lib/comms-override/resident-flag';
 import {
   describeEnvironmentDefault,
+  displayedFlag,
   flagToSelectValue,
+  flagToSubmit,
   selectValueToFlag,
 } from '@/lib/comms-override/resident-flag-ui';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
@@ -131,6 +135,37 @@ describe('three-state control mapping (#716)', () => {
   it('round-trips every state', () => {
     for (const flag of [null, true, false]) expect(selectValueToFlag(flagToSelectValue(flag))).toBe(flag);
     expect(flagToSelectValue(undefined)).toBe('default');
+  });
+
+  describe.each([true, false, null])('stored %s', (stored) => {
+    it('is shown on every render until the control is touched, whenever it arrives', () => {
+      expect(displayedFlag(stored, undefined)).toBe(flagToSelectValue(stored));
+      // The resident prop arriving after mount: undefined first, then the stored value.
+      expect(displayedFlag(undefined, undefined)).toBe('default');
+      expect(displayedFlag(stored, undefined)).toBe(flagToSelectValue(stored));
+    });
+
+    it.each([true, false, null])('a touched control (%s) wins over the stored value', (touched) => {
+      expect(displayedFlag(stored, touched)).toBe(flagToSelectValue(touched));
+    });
+
+    it('saving without touching the control sends undefined, with the permission or without', () => {
+      expect(flagToSubmit(true, undefined)).toBeUndefined();
+      expect(flagToSubmit(false, undefined)).toBeUndefined();
+    });
+
+    it.each([true, false, null])('a touched value (%s) is sent only with the permission', (touched) => {
+      expect(flagToSubmit(true, touched)).toBe(touched);
+      expect(flagToSubmit(false, touched)).toBeUndefined();
+    });
+  });
+
+  it('the form derives the display from the stored value and defaults the field to undefined', () => {
+    const source = readFileSync(path.join(process.cwd(), 'src/components/residents/resident-form.tsx'), 'utf8');
+    expect(source).toContain('displayedFlag(storedOverrideFlag, field.value)');
+    expect(source).toContain('flagToSubmit(canManageOverride, submitted.use_override_comms)');
+    expect(source).toMatch(/use_override_comms: undefined,\s+house_id/);
+    expect(source).not.toMatch(/use_override_comms: canManageOverride/);
   });
 
   it('describes the environment default for each environment', () => {

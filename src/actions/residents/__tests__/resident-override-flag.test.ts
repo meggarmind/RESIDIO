@@ -230,6 +230,16 @@ describe('updateResident: database guard (#716)', () => {
     expect(result.error).toContain("Missing permission 'settings.manage_general'");
   });
 
+  it('passes a 42501 through unchanged when the flag was not part of the change', async () => {
+    authAs(WITH_SETTINGS);
+    failingUpdate({ code: '42501', message: 'new row violates row-level security policy for table "residents"' });
+    // Field absent, and field present but equal to the stored value (null): neither is a flag change.
+    const absent = await updateResident('res-1', FORM);
+    expect(absent.error).toBe('new row violates row-level security policy for table "residents"');
+    const unchanged = await updateResident('res-1', { ...FORM, use_override_comms: null });
+    expect(unchanged.error).toBe('new row violates row-level security policy for table "residents"');
+  });
+
   it('leaves other database errors untouched', async () => {
     authAs(WITH_SETTINGS);
     failingUpdate({ code: '23505', message: 'duplicate' });

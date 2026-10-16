@@ -35,3 +35,17 @@ export function describeEnvironmentDefault(isProduction: boolean): string {
 
 export const REAL_RECIPIENT_WARNING =
   'Send to real recipient lets real messages reach this resident even outside production (for example from Stage). Debug Mode still redirects.';
+
+/**
+ * What the control shows. `current` is the form's value and stays `undefined` until the user touches the
+ * control, so the display follows the resident's stored value on every render (a stored value that arrives
+ * or changes after mount is shown, never a stale default).
+ */
+export function displayedFlag(stored: boolean | null | undefined, current: boolean | null | undefined): FlagSelectValue {
+  return flagToSelectValue(current === undefined ? stored : current);
+}
+
+/** What a save sends: nothing (`undefined`) unless the user may manage the flag and changed the control. */
+export function flagToSubmit(canManage: boolean, current: boolean | null | undefined): boolean | null | undefined {
+  return canManage ? current : undefined;
+}

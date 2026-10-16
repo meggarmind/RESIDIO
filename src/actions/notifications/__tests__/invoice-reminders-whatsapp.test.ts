@@ -25,10 +25,19 @@ vi.mock('@/lib/email', () => ({
   getEstateEmailSettings: vi.fn().mockResolvedValue({ estateName: 'Test Estate' }),
 }));
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: mocks.sendSms }));
-// The resident-flag lookup (#716) is covered in comms-override/__tests__/resident-flag-wiring.test.ts.
-vi.mock('@/lib/comms-override/resident-flag', () => ({
-  resolveResidentOverride: vi.fn(async () => ({ ok: true, residentOverride: null })),
-}));
+// The stored flag (#716) comes from flagState; the lookup itself is covered in comms-override/__tests__.
+const flagState = vi.hoisted(() => ({ byId: new Map<string, boolean | null>(), error: null as string | null }));
+vi.mock('@/lib/comms-override/resident-flag', async (importOriginal) =>
+  (await import('@/__tests__/helpers/resident-flag-lookup-mock')).flagModule(
+    await importOriginal<typeof import('@/lib/comms-override/resident-flag')>(),
+    flagState
+  )
+);
+// Real channel list by default; the SMS caller test switches SMS on.
+vi.mock('@/lib/notifications/types', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/notifications/types')>();
+  return { ...actual, isChannelImplemented: vi.fn(actual.isChannelImplemented) };
+});
 vi.mock('@/actions/settings/get-settings', () => ({ getSettingValue: vi.fn() }));
 vi.mock('@/actions/settings/update-setting', () => ({ updateSetting: vi.fn().mockResolvedValue({ data: null, error: null }) }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit: vi.fn() }));
@@ -57,6 +66,7 @@ vi.mock('@/lib/notifications/preferences', () => ({
 }));
 
 import { processInvoiceReminders } from '../invoice-reminders';
+import { isChannelImplemented } from '@/lib/notifications/types';
 
 const INVOICE = {
   id: 'inv-1',
@@ -101,8 +111,12 @@ function adminClientReturning(invoices: unknown[]) {
   return { from: vi.fn(() => chain) };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks();
+  flagState.error = null;
+  flagState.byId = new Map([['res-1', null]]);
+  const actualTypes = await vi.importActual<typeof import('@/lib/notifications/types')>('@/lib/notifications/types');
+  vi.mocked(isChannelImplemented).mockImplementation(actualTypes.isChannelImplemented);
   mocks.createAdminClient.mockReturnValue(adminClientReturning([INVOICE]));
   mocks.addToQueue.mockResolvedValue({ success: true });
   mocks.shouldSendToResident.mockResolvedValue({ shouldSend: true });
@@ -207,5 +221,44 @@ describe('processInvoiceReminders SMS gate (#6)', () => {
     expect(mocks.addToQueue).toHaveBeenCalledTimes(1);
     expect(result.sent.email).toBe(1);
     expect(result.sent.whatsapp).toBe(1);
+  });
+});
+
+describe('processInvoiceReminders passes the stored resident flag to the email and SMS seams (#716)', () => {
+  const withContacts = () =>
+    mocks.createAdminClient.mockReturnValue(
+      adminClientReturning([
+        { ...INVOICE, resident: { ...INVOICE.resident, email: 'ada@example.test', phone_primary: '+2348000000000' } },
+      ])
+    );
+
+  beforeEach(() => {
+    withContacts();
+    mocks.sendSms.mockResolvedValue({ success: true });
+    vi.mocked(isChannelImplemented).mockReturnValue(true);
+    mocks.getReminderSchedule.mockResolvedValue(scheduleWithChannels(['email', 'sms']));
+  });
+
+  it.each([true, false, null])('stored %s reaches sendEmail and sendSms unchanged', async (stored) => {
+    flagState.byId = new Map([['res-1', stored]]);
+
+    await processInvoiceReminders();
+
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.sendEmail.mock.calls[0][0]).toHaveProperty('residentOverride', stored);
+    expect(mocks.sendSms).toHaveBeenCalledTimes(1);
+    expect(mocks.sendSms.mock.calls[0][0]).toHaveProperty('residentOverride', stored);
+  });
+
+  it('fails closed when the flag cannot be read: nothing is sent and the failure is reported', async () => {
+    flagState.error = 'db down';
+
+    const result = await processInvoiceReminders();
+
+    expect(mocks.sendEmail).not.toHaveBeenCalled();
+    expect(mocks.sendSms).not.toHaveBeenCalled();
+    expect(result.sent.email).toBe(0);
+    expect(result.sent.sms).toBe(0);
+    expect(result.errors.map((e) => e.error).join(' ')).toContain('could not read resident flag');
   });
 });
