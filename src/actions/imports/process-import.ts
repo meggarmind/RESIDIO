@@ -13,6 +13,7 @@ import { notifyAdmins } from '@/lib/notifications/admin-notifier';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { calculateImportReconciliation } from '@/lib/imports/reconciliation';
+import { NO_MATCHED_ROWS_MESSAGE, hasMatchedRows } from '@/lib/imports/submit-guard';
 // ============================================================
 
 // ============================================================
@@ -820,6 +821,21 @@ export async function submitForApproval(import_id: string): Promise<{ error: str
 
   if (importData.status !== 'processing') {
     return { error: 'Import must be in processing status to submit for approval' };
+  }
+
+  // Refuse an import with nothing to approve (#666): at least one matched row is required,
+  // the same rule the import wizard applies. Unmatched rows alongside a matched one are allowed.
+  const { count: matchedCount, error: countError } = await supabase
+    .from('bank_statement_rows')
+    .select('id', { count: 'exact', head: true })
+    .eq('import_id', import_id)
+    .eq('status', 'matched');
+
+  if (countError) {
+    return { error: countError.message };
+  }
+  if (!hasMatchedRows(matchedCount)) {
+    return { error: NO_MATCHED_ROWS_MESSAGE };
   }
 
   // Update status, guarded on the status checked above so a racing request cannot overwrite it
