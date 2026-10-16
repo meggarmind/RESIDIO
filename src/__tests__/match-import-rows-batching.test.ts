@@ -147,6 +147,7 @@ const CATEGORIES = [
   { id: 'cat-fuel', name: 'Fuel', sort_order: 1, is_active: true, keywords: ['diesel'] },
   { id: 'cat-bank', name: 'Bank', sort_order: 2, is_active: true, keywords: ['bank charge', 'DIESEL'] },
   { id: 'cat-none', name: 'None', sort_order: 3, is_active: true, keywords: null },
+  { id: 'cat-vat', name: 'VAT', sort_order: 4, is_active: true, keywords: ['VAT'] },
 ];
 
 beforeEach(() => {
@@ -211,6 +212,7 @@ const SCENARIOS: Scenario[] = [
   { name: 'fuzzy above threshold, highest score wins', row: { reference: null, amount: 700, transaction_date: '2026-02-02', transaction_hash: null, description: 'Gamma rent' }, expected: { is_duplicate: true, existing_payment_id: 'p3', reason: 'Potential duplicate with 100% confidence (Threshold: 90%)' } },
   { name: 'fuzzy below threshold', row: { reference: null, amount: 500, transaction_date: '2026-01-11', transaction_hash: null, description: 'zzz qqq unrelated' }, expected: { is_duplicate: false } },
   { name: 'outside the date window', row: { reference: null, amount: 500, transaction_date: '2026-01-20', transaction_hash: null, description: 'Alpha transfer' }, expected: { is_duplicate: false } },
+  { name: 'candidate after the row window (batch-wide query window is wider)', row: { reference: null, amount: 500, transaction_date: '2026-01-08', transaction_hash: null, description: 'Alpha transfer' }, expected: { is_duplicate: false } },
   { name: 'different amount', row: { reference: null, amount: 501, transaction_date: '2026-01-10', transaction_hash: null, description: 'Alpha transfer' }, expected: { is_duplicate: false } },
   { name: 'nothing at all', row: { reference: 'REF-NEW', amount: 12, transaction_date: '2027-01-01', transaction_hash: 'H-NEW', description: null }, expected: { is_duplicate: false } },
 ];
@@ -307,6 +309,7 @@ describe('findMatchingExpenseCategory (#649)', () => {
   it('earlier category wins even when a later one also matches', () => {
     expect(findMatchingExpenseCategory(cats, 'diesel and bank charge').category?.id).toBe('cat-fuel');
     expect(findMatchingExpenseCategory(cats, 'monthly bank charge').category?.id).toBe('cat-bank');
+    expect(findMatchingExpenseCategory(cats, 'paid vat quarterly').category?.id).toBe('cat-vat'); // keyword stored upper-case
   });
 
   it('returns no match for no keywords, no hit, or no categories', () => {
