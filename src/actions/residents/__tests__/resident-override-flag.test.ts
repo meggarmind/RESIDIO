@@ -211,3 +211,29 @@ describe('createResident: use_override_comms permission (#716)', () => {
     expect(mocks.insertPayload.mock.calls[0][0]).not.toHaveProperty('use_override_comms');
   });
 });
+
+describe('updateResident: database guard (#716)', () => {
+  function failingUpdate(error: { code: string; message: string }) {
+    mocks.createServerSupabaseClient.mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },
+      from: () => ({
+        select: () => ({ eq: () => ({ single: async () => ({ data: CURRENT, error: null }) }) }),
+        update: () => ({ eq: () => ({ select: () => ({ single: async () => ({ data: null, error }) }) }) }),
+      }),
+    });
+  }
+
+  it('maps a 42501 from the guard trigger to the same clear error', async () => {
+    authAs(WITH_SETTINGS);
+    failingUpdate({ code: '42501', message: 'use_override_comms may only be changed by a settings manager' });
+    const result = await updateResident('res-1', { ...FORM, use_override_comms: true });
+    expect(result.error).toContain("Missing permission 'settings.manage_general'");
+  });
+
+  it('leaves other database errors untouched', async () => {
+    authAs(WITH_SETTINGS);
+    failingUpdate({ code: '23505', message: 'duplicate' });
+    const result = await updateResident('res-1', { ...FORM, use_override_comms: true });
+    expect(result.error).toBe('duplicate');
+  });
+});

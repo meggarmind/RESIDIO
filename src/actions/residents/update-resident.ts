@@ -9,6 +9,9 @@ import type { Resident } from '@/types/database';
 import type { ResidentFormData } from '@/lib/validators/resident';
 import { canManageResidentOverride, loadResidentOverrideFlags } from '@/lib/comms-override/resident-flag';
 
+const OVERRIDE_DENIED =
+  "Unauthorized: Missing permission 'settings.manage_general' to change the communications override";
+
 type UpdateResidentResponse = {
   data: Resident | null;
   error: string | null;
@@ -53,7 +56,7 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
     if (flagChanged && !canManageResidentOverride(auth.permissions)) {
       return {
         data: null,
-        error: "Unauthorized: Missing permission 'settings.manage_general' to change the communications override",
+        error: OVERRIDE_DENIED,
       };
     }
   }
@@ -106,7 +109,8 @@ export async function updateResident(id: string, formData: ResidentFormData): Pr
     .single();
 
   if (error) {
-    return { data: null, error: error.message };
+    // 42501 from the residents_guard_use_override_comms trigger: same answer as the check above.
+    return { data: null, error: error.code === '42501' && flagChanged ? OVERRIDE_DENIED : error.message };
   }
 
   await logAudit({
