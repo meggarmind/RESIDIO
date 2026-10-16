@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getSettingValueAsService: vi.fn(),
   insert: vi.fn(),
   from: vi.fn(),
+  decideSend: vi.fn(),
 }));
 
 vi.mock('@/lib/email/resend', () => ({
@@ -15,7 +16,7 @@ vi.mock('@/lib/email/resend', () => ({
 }));
 // The communications override has its own tests; these specs cover sendEmail itself.
 vi.mock('@/lib/comms-override/gate', () => ({
-  decideSend: async () => ({ result: { redirect: false }, envLabel: 'TEST' }),
+  decideSend: mocks.decideSend,
   loadSnapshotFor: async () => ({ status: 'error', message: 'unused' }),
 }));
 vi.mock('@/lib/settings/service', () => ({
@@ -27,6 +28,25 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/actions/settings/get-settings', () => ({ getSettings: vi.fn() }));
 
 import { sendEmail } from '@/lib/email/send-email';
+import { resolveRecipient } from '@/lib/comms-override/resolver';
+import type { OverrideSettings } from '@/lib/comms-override/types';
+
+const OVERRIDE_EMAIL = 'override@example.test';
+
+/** Routes the gate through the real resolver, in production, with these settings. */
+function useRealResolver(over: Partial<OverrideSettings>) {
+  mocks.decideSend.mockImplementation(async (input) => ({
+    result: resolveRecipient(
+      input,
+      {
+        status: 'ok',
+        settings: { enabled: false, email: OVERRIDE_EMAIL, phone: '+15550100100', whatsappPhone: '', debugMode: false, debugExpiresAt: null, ...over },
+      },
+      { isProduction: true }
+    ),
+    envLabel: 'PROD',
+  }));
+}
 
 const recipient = { email: 'a@test.example', name: 'A', residentId: 'res-1' };
 const react = { type: 'div', props: {} } as unknown as React.ReactElement;
@@ -54,6 +74,7 @@ describe('sendEmail', () => {
     mocks.insert.mockResolvedValue({ error: null });
     mocks.from.mockImplementation(() => ({ insert: mocks.insert }));
     settings({});
+    mocks.decideSend.mockResolvedValue({ result: { redirect: false }, envLabel: 'TEST' });
   });
 
   it('returns its own message and does not send when email_enabled is false', async () => {
@@ -86,35 +107,41 @@ describe('sendEmail', () => {
     expect(mocks.send).not.toHaveBeenCalled();
   });
 
-  it('debug mode skips Resend and logs a debug entry per recipient', async () => {
-    settings({ email_debug_mode: 'true' });
+  it('with Debug Mode effective, sends to the override address instead of skipping', async () => {
+    useRealResolver({ debugMode: true, debugExpiresAt: new Date(Date.now() + 3_600_000).toISOString() });
     const result = await sendEmail(baseOptions());
-    expect(result).toEqual({ success: true, resendId: 'debug-mode-skip' });
-    expect(mocks.send).not.toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(result.resendId).toBe('rid-1');
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    const arg = mocks.send.mock.calls[0][0];
+    expect(arg.to).toBe(OVERRIDE_EMAIL);
+    expect(arg.subject).toContain('a@test.example');
 
-    expect(mocks.from).toHaveBeenCalledWith('email_logs');
+    // The log keeps both the intended and the actual recipient, and is a real send, not a 'debug' skip.
     const emailLog = mocks.insert.mock.calls[0][0];
-    expect(emailLog).toMatchObject({
-      recipient_email: 'a@test.example',
-      status: 'debug',
-      email_type: 'test',
-      resend_id: null,
-    });
-    expect(emailLog.metadata).toMatchObject({
-      k: 'v',
-      original_recipient: 'a@test.example',
-      debug_mode: true,
-    });
-    const history = mocks.insert.mock.calls[1][0];
-    expect(history).toMatchObject({ channel: 'email', status: 'failed', sent_at: null });
-    expect(history.metadata).toMatchObject({ legacy_email: true, email_type: 'test' });
+    expect(emailLog).toMatchObject({ recipient_email: 'a@test.example', status: 'sent', resend_id: 'rid-1' });
+    expect(emailLog.metadata.override).toMatchObject({ original: 'a@test.example', actual: OVERRIDE_EMAIL, reason: 'debug' });
   });
 
-  it('debug mode also honours boolean true and runs before the config check', async () => {
-    settings({ email_debug_mode: true });
-    mocks.isEmailConfigured.mockReturnValue(false);
+  it('sends to the real address once Debug Mode has expired', async () => {
+    useRealResolver({ debugMode: true, debugExpiresAt: new Date(Date.now() - 1000).toISOString() });
+    await sendEmail(baseOptions());
+    expect(mocks.send.mock.calls[0][0].to).toEqual(['a@test.example']);
+  });
+
+  it('blocks rather than sending to the real address when Debug Mode is effective but the override email is blank', async () => {
+    useRealResolver({ debugMode: true, debugExpiresAt: new Date(Date.now() + 3_600_000).toISOString(), email: '' });
     const result = await sendEmail(baseOptions());
-    expect(result).toEqual({ success: true, resendId: 'debug-mode-skip' });
+    expect(result.success).toBe(false);
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('no longer reads the legacy email_debug_mode setting', async () => {
+    settings({ email_debug_mode: 'true' });
+    const result = await sendEmail(baseOptions());
+    expect(result).toEqual({ success: true, resendId: 'rid-1' });
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    expect(mocks.getSettingValueAsService).not.toHaveBeenCalledWith('email_debug_mode');
   });
 
   it('sends with the exact Resend arguments (fallback from-name, array to)', async () => {
