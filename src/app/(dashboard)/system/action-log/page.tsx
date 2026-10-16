@@ -33,7 +33,7 @@ export default function SystemActionLogPage() {
   const [draft, setDraft] = useState<FilterState>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<FilterState>(EMPTY_FILTERS);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: queryError } = useQuery({
     queryKey: ['system-action-log', applied, page],
     queryFn: () =>
       getSystemActionLog({
@@ -45,6 +45,11 @@ export default function SystemActionLogPage() {
         limit: LIMIT,
       }),
   });
+
+  // Either the action threw (queryError) or it returned { error } (data.error).
+  const loadError = queryError
+    ? queryError.message || 'Request failed'
+    : (data?.error ?? null);
 
   const hasFilters =
     !!applied.source || applied.outcome !== ALL_VALUE || !!applied.startDate || !!applied.endDate;
@@ -131,7 +136,11 @@ export default function SystemActionLogPage() {
         <CardHeader>
           <CardTitle>Automated Actions</CardTitle>
           <CardDescription>
-            {data?.data ? `${data.data.total} total entries, newest first` : 'Loading...'}
+            {loadError
+              ? 'Unable to load entries'
+              : data?.data
+                ? `${data.data.total} total entries, newest first`
+                : 'Loading...'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -141,7 +150,7 @@ export default function SystemActionLogPage() {
             page={page}
             limit={LIMIT}
             isLoading={isLoading}
-            error={data?.error}
+            error={loadError}
             hasFilters={hasFilters}
             onPageChange={setPage}
             onClearFilters={clear}
