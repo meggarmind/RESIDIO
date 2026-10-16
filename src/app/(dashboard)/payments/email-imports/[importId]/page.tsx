@@ -58,6 +58,7 @@ import type { EmailImport, EmailTransaction } from '@/types/database';
 import { useGmailConnectionStatus } from '@/hooks/use-gmail-connection';
 import { Can, useCan } from '@/components/auth/can';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { formatCalendarDate } from '@/lib/utils/calendar-date';
 
 const CONFIDENCE_COLORS = {
   high: 'bg-green-500',
@@ -240,7 +241,8 @@ export default function EmailImportDetailPage() {
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return '-';
-    return new Date(date).toLocaleDateString();
+    // transaction_date is a DATE column: format in UTC so the day matches the statement (#655).
+    return formatCalendarDate(date);
   };
 
   if (importLoading) {
