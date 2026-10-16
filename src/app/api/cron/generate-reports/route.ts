@@ -4,6 +4,7 @@ import { generateReportWithClient } from '@/lib/reports/report-generator';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getDateRangeFromPreset, type ReportRequestFormData } from '@/lib/validators/reports';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
+import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -18,6 +19,10 @@ export async function GET(request: NextRequest) {
     // Verify cron secret using timing-safe comparison
     const authError = verifyCronAuth(request);
     if (authError) return authError;
+    return withSystemLog('cron:generate-reports', 'generate', runReportGeneration);
+}
+
+async function runReportGeneration(run: SystemLogRun) {
 
     console.log('[ReportsCron] Checking for due report schedules');
 
@@ -30,11 +35,13 @@ export async function GET(request: NextRequest) {
 
         if (fetchError) {
             console.error('[ReportsCron] Failed to fetch due schedules:', fetchError);
+            run.error = fetchError;
             return NextResponse.json({ error: fetchError }, { status: 500 });
         }
 
         if (!dueSchedules || dueSchedules.length === 0) {
             console.log('[ReportsCron] No schedules due for execution');
+            run.summary = { due: 0 };
             return NextResponse.json({
                 success: true,
                 message: 'No schedules due',
@@ -149,6 +156,18 @@ export async function GET(request: NextRequest) {
 
         console.log(`[ReportsCron] Completed: ${successCount} succeeded, ${failCount} failed`);
 
+        const failed = results.filter(r => !r.success);
+        run.summary = {
+            due: dueSchedules.length,
+            succeeded: successCount,
+            failed: failCount,
+            failedScheduleIds: failed.map(r => r.scheduleId),
+        };
+        if (failCount > 0) {
+            run.outcome = successCount > 0 ? 'partial' : 'failure';
+            run.error = failed[0].error;
+        }
+
         return NextResponse.json({
             success: true,
             processed: dueSchedules.length,
@@ -160,6 +179,7 @@ export async function GET(request: NextRequest) {
 
     } catch (error) {
         console.error('[ReportsCron] Unexpected error:', error);
+        run.error = error;
         return NextResponse.json(
             { error: error instanceof Error ? error.message : 'Unknown error' },
             { status: 500 }

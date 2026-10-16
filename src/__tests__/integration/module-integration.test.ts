@@ -137,6 +137,18 @@ const AUDIT_ALLOWLIST = [
   // the audit log without recording an administrative decision.
   'announcements/read-receipts.ts',
 
+  // ---- Pipeline progress writes (#556).
+  // Internal status/counter updates of an email-import run (fetching, parsing,
+  // matching, completed, failed). Its callers are the pipeline stages in
+  // src/lib/email-imports/*, reached both from the CRON_SECRET route
+  // (api/cron/fetch-emails, no session, so logAudit would write nothing) and from
+  // admin-triggered runs (whose trigger action is permission-checked). The
+  // import row's creation is audited in createEmailImport, and the one
+  // admin decision that changes status, cancelImport, audits itself. Auditing every
+  // stage transition would add rows only for session runs. Sessionless runs are
+  // for the System Action Log (#538).
+  'email-imports/create-email-import.ts::updateEmailImportStatus',
+
   // ---- Own-rows self-service or self-trail (#390 triage, #556).
   'report-subscriptions/update-subscription.ts::updateMyReportSubscription',
   'in-app-notifications/update-notification.ts::markNotificationAsRead',
@@ -153,7 +165,6 @@ const AUDIT_ALLOWLIST = [
   // ---- SURFACED BY #390, NOT YET FIXED. Tracked in #556. Remove an entry in the
   // same PR that fixes it; do not add to this block.
   'report-subscriptions/update-subscription.ts::createDefaultReportSubscription',
-  'email-imports/create-email-import.ts::updateEmailImportStatus',
   'billing/wallet.ts::getOrCreateWallet',
 ];
 

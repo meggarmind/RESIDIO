@@ -18,6 +18,8 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const VERDICTS = ['allow', 'deny', 'row-dependent', 'no-grant', 'no-policy'];
 
@@ -91,7 +93,7 @@ export function buildMatrix(captures, capturedAt) {
   };
 }
 
-const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'));
+const isMain = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 
 if (isMain) {
   const [input, output, capturedAt] = process.argv.slice(2);
