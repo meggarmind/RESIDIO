@@ -9,8 +9,8 @@ residio_sources:
   - src/actions/imports/**
   - src/components/imports/**
   - src/lib/parsers/**
-residio_verified_commit: 9f10bde
-residio_verified_at: '2026-10-15'
+residio_verified_commit: 7f6feef
+residio_verified_at: '2026-10-16'
 residio_app_version: '0.4.0'
 ---
 
@@ -36,7 +36,7 @@ An uploaded statement never posts payments on its own. It is submitted, approved
 2. Upload the approved statement file.
 3. Review parsed rows and duplicate warnings.
 4. Correct categorization or matching issues in the preview.
-5. Check that the total and row count match the source statement, then choose **Submit for approval**. This needs the `imports.review` permission and opens the import's page.
+5. Check that the total and row count match the source statement, then choose **Submit for approval**. This needs the `imports.review` permission and opens the import's page. An import with no matched rows cannot be submitted: the button is disabled on the import's page and the server refuses it with "No matched rows to process, so there is nothing to submit."
 6. An approver opens the import (from the **Import History** page, using the **Needs approval** filter, or from the "Bank Import Awaiting Approval" notification) and chooses **Approve**, or **Reject** with a required reason. Approve needs `imports.approve`; Reject needs `imports.reject`. The person who submitted an import cannot approve it: a different approver is required, and the page shows "You submitted this import, so a different approver is required" if they try. The submitter can still reject their own submission to withdraw it.
 7. Only an approved import can be processed. Once approved, anyone with `imports.review` (including the submitter) opens the import, picks the processing options (mode, skip duplicates, skip unmatched) and chooses **Process payments**. Payments are created and wallets credited only at this step.
 

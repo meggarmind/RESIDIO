@@ -88,6 +88,7 @@ const btn = (name: string) => screen.queryByRole('button', { name });
 beforeEach(() => {
   mocks.permissions = [];
   mocks.push.mockReset();
+  mocks.submitForApproval.mockClear();
   setStatus('processing');
   mocks.getImport.mockImplementation(async () => ({ data: mocks.record, error: null }));
   mocks.getImportRowSummary.mockResolvedValue({
@@ -121,6 +122,31 @@ describe('processing status', () => {
     renderPanel();
     fireEvent.click(await screen.findByRole('button', { name: 'Submit for approval' }));
     await waitFor(() => expect(mocks.submitForApproval).toHaveBeenCalledWith('imp-1'));
+  });
+
+  it('disables Submit and explains why when there are no matched rows (#666)', async () => {
+    mocks.permissions = [PERMISSIONS.IMPORTS_REVIEW];
+    mocks.getImportRowSummary.mockResolvedValue({
+      data: { total: 2, matched: 0, unmatched: 2, duplicate: 0 },
+      error: null,
+    });
+    renderPanel();
+    expect(
+      await screen.findByText('No matched rows to process, so there is nothing to submit.'),
+    ).toBeInTheDocument();
+    const submit = screen.getByRole('button', { name: 'Submit for approval' });
+    expect(submit).toBeDisabled();
+    fireEvent.click(submit);
+    expect(mocks.submitForApproval).not.toHaveBeenCalled();
+  });
+
+  it('enables Submit and shows no explanation when matched rows exist (#666)', async () => {
+    mocks.permissions = [PERMISSIONS.IMPORTS_REVIEW];
+    renderPanel();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeEnabled(),
+    );
+    expect(screen.queryByText(/nothing to submit/)).not.toBeInTheDocument();
   });
 
   it('surfaces a server error string', async () => {
