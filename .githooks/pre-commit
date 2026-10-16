@@ -1,0 +1,4 @@
+#!/bin/sh
+# Pre-commit hook. Enable once per clone with: npm run hooks:install
+# Scans the staged changes for secrets. See scripts/secret-scan.mjs.
+exec node scripts/secret-scan.mjs
