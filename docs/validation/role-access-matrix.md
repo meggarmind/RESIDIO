@@ -101,7 +101,7 @@ The matrix above proves *who can read what*. It cannot see a policy that was edi
 Run on Stage or Prod:
 
 1. Execute `supabase/probes/policy-definitions.sql` through the Supabase MCP `execute_sql` against the target project.
-2. Save the `row` values one per line to `capture.txt`. Saving the raw MCP JSON result also works.
+2. Save the `row` values one per line to `capture.txt`. Saving only the bare JSON array from the MCP response (`[{"row":...}]`, without the surrounding explanatory text) also works; the full response text is rejected.
 3. `npm run rbac:policies:diff -- capture.txt`
 
 Exit 0 means identical, 1 means divergence (added, removed or changed policies, grouped by table), 2 means unreadable input. Row order and blank lines do not matter; policies are matched by table and name.
@@ -110,4 +110,4 @@ Limits, stated plainly:
 
 - **CI has no database credentials, so this check does not run automatically and does not fail a PR.** It runs by hand, or through an agent holding the Supabase MCP.
 - The hashes are of Postgres's deparsed expression text, so they are only comparable on the same Postgres major version (17). After a major upgrade, re-capture the baseline.
-- The baseline is Residio_Stage. A legitimate policy change through a migration makes the check report divergence until the baseline is re-captured in the same PR; Prod will differ from Stage until a release carries the same migrations across.
+- The baseline is Residio_Stage. A legitimate policy change through a migration makes the check report divergence until the baseline is re-captured. Migrations reach Stage only after merge (CORE.md section 11), so re-capture in a follow-up PR once the migration is merged and applied to Stage; Prod will differ from Stage until a release carries the same migrations across.

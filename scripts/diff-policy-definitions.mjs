@@ -12,11 +12,13 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { comparePolicies, parseCapture, PolicyParseError } from './lib/policy-definitions.mjs';
 
 const DEFAULT_BASELINE = 'docs/validation/policy-definitions.baseline.json';
 
-const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'));
+const isMain = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 
 if (isMain) {
   const [capturePath, baselinePath = DEFAULT_BASELINE] = process.argv.slice(2).filter((a) => !a.startsWith('--'));
