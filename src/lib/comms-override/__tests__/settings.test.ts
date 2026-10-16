@@ -9,7 +9,13 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 import { getRawSettingsAsService, readSetting } from '@/lib/settings/service';
-import { loadOverrideSettings, parseOverrideSettings, parseSwitch, OVERRIDE_SETTING_KEYS } from '@/lib/comms-override/settings';
+import {
+  loadOverrideSettings,
+  parseOverrideSettings,
+  parseSwitch,
+  parseDebugDuration,
+  OVERRIDE_SETTING_KEYS,
+} from '@/lib/comms-override/settings';
 
 function clientReturning(rows: Array<{ key: string; value: Json }> | null, error: { message: string } | null = null) {
   return {
@@ -95,5 +101,34 @@ describe('parsing', () => {
   it('treats a numeric phone (leading zero already lost) as blank rather than guessing', () => {
     const settings = parseOverrideSettings(new Map<string, Json>([[OVERRIDE_SETTING_KEYS.phone, 8012345678]]));
     expect(settings.phone).toBe('');
+  });
+});
+
+describe('Debug Mode settings (#717)', () => {
+  it('loadOverrideSettings preserves the expiry as the stored string', async () => {
+    const expiry = '2026-10-17T13:00:00.000Z';
+    mocks.createAdminClient.mockReturnValue(
+      clientReturning([
+        { key: OVERRIDE_SETTING_KEYS.debugMode, value: 'true' },
+        { key: OVERRIDE_SETTING_KEYS.debugExpiresAt, value: expiry },
+      ])
+    );
+    const snapshot = await loadOverrideSettings();
+    if (snapshot.status !== 'ok') throw new Error('expected ok');
+    expect(snapshot.settings.debugMode).toBe(true);
+    expect(snapshot.settings.debugExpiresAt).toBe(expiry);
+  });
+
+  it('treats a blank expiry as no expiry', () => {
+    expect(parseOverrideSettings(new Map([[OVERRIDE_SETTING_KEYS.debugExpiresAt, '']])).debugExpiresAt).toBeNull();
+  });
+
+  it('reads the duration as a number, from a number or a numeric string', () => {
+    expect(parseDebugDuration(90)).toBe(90);
+    expect(parseDebugDuration('90')).toBe(90);
+  });
+
+  it.each([undefined, '', 'abc', 4, 481, 12.5, null])('falls back to 60 minutes for %s', (value) => {
+    expect(parseDebugDuration(value as never)).toBe(60);
   });
 });

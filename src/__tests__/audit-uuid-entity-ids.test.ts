@@ -15,7 +15,6 @@ import { resetEmailImports } from '@/actions/email-imports/reset-email-imports';
 import { processNotificationQueue } from '@/actions/notifications/queue';
 import { updateRoleAssignmentRule, batchUpdateRoleAssignmentRules } from '@/actions/roles/assignment-rules';
 import { resetSecuritySettingsToDefault } from '@/actions/security/settings';
-import { updateEmailDebugMode } from '@/actions/settings/update-email-debug-mode';
 import { updateMaintenanceMode } from '@/actions/settings/update-maintenance-mode';
 import { removeEstateLogo } from '@/actions/settings/upload-estate-logo';
 import { pruneSystemData } from '@/actions/system/prune-data';
@@ -97,16 +96,12 @@ describe('system_settings single-row sites', () => {
     await updateAutoGenerateEnabled(false);
     expect(logAudit).not.toHaveBeenCalled();
   });
-  it('updateEmailDebugMode / updateMaintenanceMode audit with the row id returned by updateSetting', async () => {
-    await updateEmailDebugMode(true);
-    expectAuditedOnce({ entityType: 'system_settings', entityId: uid(1) });
-    logAudit.mockClear();
+  it('updateMaintenanceMode audits with the row id returned by updateSetting', async () => {
     await updateMaintenanceMode(true);
     expectAuditedOnce({ entityType: 'system_settings', entityId: uid(1) });
   });
-  it('updateEmailDebugMode / updateMaintenanceMode do not audit when updateSetting fails', async () => {
+  it('updateMaintenanceMode does not audit when updateSetting fails', async () => {
     updateSetting.mockResolvedValue({ data: null, error: 'nope' });
-    await updateEmailDebugMode(true);
     await updateMaintenanceMode(true);
     expect(logAudit).not.toHaveBeenCalled();
   });

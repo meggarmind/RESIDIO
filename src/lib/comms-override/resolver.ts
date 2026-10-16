@@ -21,12 +21,16 @@ export function isValidOverridePhone(value: string): boolean {
   return E164_PATTERN.test(value);
 }
 
-/** Debug Mode is effective unless an expiry is present and in the past. */
-function isDebugEffective(debugMode: boolean, expiresAt: string | null, now: Date): boolean {
+/**
+ * Debug Mode is effective only while the switch is on AND an expiry is present,
+ * parseable and in the future. A switch that is on with a missing or blank expiry
+ * counts as EXPIRED: an unexpiring Debug Mode on Prod is the hazard (#717). An
+ * UNPARSEABLE expiry keeps the redirect on, erring toward not leaking.
+ */
+export function isDebugEffective(debugMode: boolean, expiresAt: string | null, now: Date): boolean {
   if (!debugMode) return false;
-  if (!expiresAt) return true;
+  if (!expiresAt || !expiresAt.trim()) return false;
   const expiry = Date.parse(expiresAt);
-  // Unparseable expiry: keep the redirect on (fail closed).
   if (Number.isNaN(expiry)) return true;
   return expiry > now.getTime();
 }

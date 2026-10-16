@@ -11,6 +11,22 @@ export const OVERRIDE_SETTING_KEYS = {
   debugExpiresAt: 'comms_debug_expires_at',
 } as const;
 
+/** Debug Mode duration setting and bounds (#717). Kept out of the send-time key list: the resolver never reads it. */
+export const DEBUG_DURATION_KEY = 'comms_debug_duration_minutes';
+export const DEBUG_DURATION_MIN = 5;
+export const DEBUG_DURATION_MAX = 480;
+export const DEBUG_DURATION_DEFAULT = 60;
+
+export function isValidDebugDuration(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= DEBUG_DURATION_MIN && value <= DEBUG_DURATION_MAX;
+}
+
+/** The stored default duration as a number; absent, malformed or out of bounds falls back to 60. */
+export function parseDebugDuration(value: Json | undefined): number {
+  const n = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  return isValidDebugDuration(n) ? n : DEBUG_DURATION_DEFAULT;
+}
+
 /**
  * A switch value. Absent is off; `true`/`'true'` is on; `false`/`'false'` is
  * off; anything else is unrecognised and counts as ON, so a corrupted value can
