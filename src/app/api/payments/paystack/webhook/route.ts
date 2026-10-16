@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processPaystackWebhook } from '@/actions/paystack';
 import { getWebhookSecret } from '@/lib/paystack/client';
+import { recordWebhookDelivery } from '@/lib/system-log/webhook';
 
 /**
  * Paystack Webhook Handler
@@ -51,6 +52,13 @@ export async function POST(request: NextRequest) {
 
     if (!result.success) {
       console.error('[Paystack Webhook] Processing failed:', result.error);
+      // Signature already verified above, so this is a genuine failed delivery.
+      await recordWebhookDelivery({
+        provider: 'paystack',
+        action: 'payment_event',
+        outcome: 'failure',
+        error: result.error,
+      });
       // Return 200 to acknowledge receipt even on processing errors
       // Paystack will retry on 4xx/5xx responses
       return NextResponse.json(
@@ -61,6 +69,17 @@ export async function POST(request: NextRequest) {
 
     console.log('[Paystack Webhook] Processed successfully:', result);
 
+    // Only a delivery that changed state is worth a row; ignored events and
+    // redeliveries of an already-processed transaction are not.
+    if (result.action !== 'ignored' && result.action !== 'already_processed') {
+      await recordWebhookDelivery({
+        provider: 'paystack',
+        action: 'payment_event',
+        outcome: 'success',
+        summary: { action: result.action, transactionId: result.transaction_id },
+      });
+    }
+
     return NextResponse.json({
       received: true,
       processed: true,
@@ -69,6 +88,13 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Paystack Webhook] Error:', error);
+    // Fixed message: the thrown error may carry payload details.
+    await recordWebhookDelivery({
+      provider: 'paystack',
+      action: 'payment_event',
+      outcome: 'failure',
+      error: 'Internal error',
+    });
     // Return 200 to acknowledge receipt
     return NextResponse.json(
       { received: true, processed: false, error: 'Internal error' },

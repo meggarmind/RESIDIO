@@ -11,6 +11,7 @@ import {
   verifyWhatsAppSignature,
   verifyWhatsAppToken,
 } from '@/lib/whatsapp';
+import { recordInboundBatch, recordWebhookDelivery } from '@/lib/system-log/webhook';
 
 export async function GET(request: NextRequest) {
   const resolved = await resolveWhatsAppConfig();
@@ -76,6 +77,12 @@ export async function POST(request: NextRequest) {
   try {
     payload = JSON.parse(rawBody) as Parameters<typeof handleInboundMessage>[0];
   } catch {
+    await recordWebhookDelivery({
+      provider: 'whatsapp-meta',
+      action: 'inbound_messages',
+      outcome: 'failure',
+      error: 'Invalid webhook payload',
+    });
     return NextResponse.json({ error: 'Invalid webhook payload' }, { status: 400 });
   }
 
@@ -97,6 +104,8 @@ export async function POST(request: NextRequest) {
       });
     },
   });
+
+  await recordInboundBatch('whatsapp-meta', result);
 
   if (!result.accepted) {
     return NextResponse.json(

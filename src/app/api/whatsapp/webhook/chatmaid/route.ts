@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { notifyAdmins } from '@/lib/notifications/admin-notifier';
+import { recordInboundBatch, recordWebhookDelivery } from '@/lib/system-log/webhook';
 import {
   canPerformWhatsAppFinancialLookup,
   createSupabaseProcessedMessageStore,
@@ -109,6 +110,8 @@ async function handleMessageReceived(payload: unknown) {
     },
   });
 
+  await recordInboundBatch('whatsapp-chatmaid', result, { paused: pausedCount });
+
   if (!result.accepted) {
     return processingFailed(result.error || 'Inbound WhatsApp message could not be processed');
   }
@@ -137,6 +140,12 @@ async function handleMessageOutgoing(payload: unknown) {
     );
   } catch (error) {
     console.error('[chatmaid-webhook] Failed to pause the Assistant for a human takeover:', error);
+    await recordWebhookDelivery({
+      provider: 'whatsapp-chatmaid',
+      action: 'human_takeover',
+      outcome: 'failure',
+      error: 'Human-takeover pause could not be recorded',
+    });
     return processingFailed('Human-takeover pause could not be recorded');
   }
 
@@ -179,9 +188,23 @@ async function handlePhoneHealth(event: 'phone.disconnected' | 'phone.connected'
           })
     );
 
+    if (outcome !== 'duplicate') {
+      await recordWebhookDelivery({
+        provider: 'whatsapp-chatmaid',
+        action: event === 'phone.disconnected' ? 'phone_disconnected' : 'phone_connected',
+        outcome: 'success',
+      });
+    }
+
     return NextResponse.json({ received: true, processed: true, duplicate: outcome === 'duplicate' });
   } catch (error) {
     console.error(`[chatmaid-webhook] Failed to handle ${event}:`, error);
+    await recordWebhookDelivery({
+      provider: 'whatsapp-chatmaid',
+      action: event === 'phone.disconnected' ? 'phone_disconnected' : 'phone_connected',
+      outcome: 'failure',
+      error: `${event} could not be processed`,
+    });
     return processingFailed(`${event} could not be processed`);
   }
 }
