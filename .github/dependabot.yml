@@ -1,0 +1,62 @@
+# Dependabot version updates. The repo's default branch is `stage`, so every update PR targets it.
+# `master` is production and only moves by release PR (CORE.md section 7); never point this at it.
+#
+# Security updates are separate and keep working whatever this file says: `ignore` and
+# `open-pull-requests-limit: 0` below only affect routine version updates.
+version: 2
+
+updates:
+  # App dependencies. One grouped PR per week instead of one PR per package. Majors are left out on
+  # purpose: a major bump (vite 8, eslint-config-next, shadcn) is a decision, not a routine update.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - dependencies
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+
+  # Docs site (Docusaurus). Version updates are OFF here (limit 0): Dependabot's regenerated
+  # website/package-lock.json drops the optional-peer `search-insights` entry, so `npm ci` fails in
+  # the admin-guide build (#714). Update this lock by hand with npm 10, as #714 and #724 did, and
+  # run `npm ci` before merging. Turn this on once that is fixed.
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+
+  # Workflow actions. They run with repo permissions, so keep them current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - dependencies
+    groups:
+      actions:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+
+  # Docker is not configured: the Dockerfile takes its base image through the ${NODE_IMAGE} build
+  # arg, which Dependabot cannot resolve.
