@@ -103,7 +103,7 @@ Locally, run lint, `npx tsc --noEmit` and the test files the change touches. The
 and `next build` run remotely on the real gate before a PR opens (see §16): local full runs on a
 loaded machine are ~4x slower and time out falsely (#497).
 
-- **Pre-commit secret scan**: run `npm run hooks:install` once per clone (sets `core.hooksPath` to `.githooks`). Each commit then scans the staged changes with gitleaks when it is installed, else a built-in scan (`scripts/secret-scan.mjs`). Real `.env*` files are refused outright. A false positive takes `secret-scan:allow` in a comment on that line. CI still scans the range (`security-gate.yml`), so `--no-verify` does not get a secret through unnoticed.
+- **Pre-commit secret scan**: run `npm run hooks:install` once per clone (sets `core.hooksPath` to `.githooks`). Each commit then scans the staged changes with gitleaks when it is installed, else a built-in scan (`scripts/secret-scan.mjs`). Real `.env*` files are refused outright. A false positive takes `secret-scan:allow` in a comment on that line. `--no-verify` skips it; the only backstop is the gitleaks job in `security-gate.yml`, which runs on PRs into `master` and is still in report mode.
 - **Path alias**: `@/*` maps to `src/*`. Always import via `@/...`, never relative.
 - State: TanStack React Query. Forms: React Hook Form + Zod. Icons: Lucide.
 - DB types: `src/types/database.generated.ts` is generated — never hand-edit. Helpers live in
