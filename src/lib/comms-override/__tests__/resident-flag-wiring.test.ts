@@ -33,6 +33,8 @@ import type { NotificationQueueItem } from '@/lib/notifications/types';
 
 const REAL = 'real@example.test';
 const OVERRIDE = 'override@example.test';
+// Debug Mode counts only with a parseable expiry in the future (#717); a switch on with none is expired.
+const FAR_FUTURE = '2999-01-01T00:00:00.000Z';
 
 type FlagResult = { rows?: Array<{ id: string; use_override_comms: unknown }>; error?: string };
 
@@ -143,7 +145,7 @@ describe('queue path passes the resident flag to the seam (sendAndRecordNotifica
     });
 
     it('Debug Mode redirects even a stored false', async () => {
-      settings({ debugMode: true });
+      settings({ debugMode: true, debugExpiresAt: FAR_FUTURE });
       mocks.createAdminClient.mockReturnValue(withFlag(false).client);
       await sendAndRecordNotification(item());
       expect(sentTo()).toBe(OVERRIDE);
@@ -174,7 +176,7 @@ describe('queue path passes the resident flag to the seam (sendAndRecordNotifica
     });
 
     it('Debug Mode redirects a stored false', async () => {
-      settings({ debugMode: true });
+      settings({ debugMode: true, debugExpiresAt: FAR_FUTURE });
       mocks.createAdminClient.mockReturnValue(withFlag(false).client);
       await sendAndRecordNotification(item());
       expect(sentTo()).toBe(OVERRIDE);
