@@ -23,6 +23,8 @@ Open **Approvals** from the dashboard or sidebar. Review the source record, evid
 
 Use the approval decision that matches the evidence. If the record is incomplete, reject it with a useful reason or leave it pending according to the estate process.
 
+When a request is approved (and its change has been applied) or rejected, the person who submitted it receives an in-app notification with the outcome and, for a rejection, your reason. Nobody is notified for a decision you make on your own request.
+
 ## Announcements
 
 1. Open **Announcements → New Announcement**.
