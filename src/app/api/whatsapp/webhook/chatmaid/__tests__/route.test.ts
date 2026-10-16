@@ -11,6 +11,7 @@ const chatmaidConfig = {
   baseUrl: 'https://developers-api.chatmaid.net',
 };
 
+const recordSystemAction = vi.fn();
 const url = 'https://residio.test/api/whatsapp/webhook/chatmaid';
 const NOW = Date.parse('2026-09-22T12:00:00.000Z');
 
@@ -92,6 +93,7 @@ async function load(options: {
 
   const notifyAdmins = vi.fn().mockResolvedValue(options.notifyResult ?? { success: true, count: 2 });
   vi.doMock('@/lib/notifications/admin-notifier', () => ({ notifyAdmins }));
+  vi.doMock('@/lib/system-log/recorder', () => ({ recordSystemAction }));
 
   const { POST } = await import('@/app/api/whatsapp/webhook/chatmaid/route');
   return { handleResidentMessage, notifyAdmins, getPausedUntil, pause, store, POST };
@@ -100,6 +102,7 @@ async function load(options: {
 describe('Chatmaid WhatsApp webhook route', () => {
   beforeEach(() => {
     vi.resetModules();
+    recordSystemAction.mockReset();
     vi.unstubAllEnvs();
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(NOW);
@@ -110,6 +113,7 @@ describe('Chatmaid WhatsApp webhook route', () => {
     vi.doUnmock('@/lib/whatsapp');
     vi.doUnmock('@/lib/whatsapp/providers/chatmaid-inbound');
     vi.doUnmock('@/lib/notifications/admin-notifier');
+    vi.doUnmock('@/lib/system-log/recorder');
   });
 
   it('returns 503 with the reason when stored credentials are unusable', async () => {
@@ -216,6 +220,97 @@ describe('Chatmaid WhatsApp webhook route', () => {
     expect(retry.status).toBe(200);
     await expect(retry.json()).resolves.toMatchObject({ processed_count: 1, duplicate_count: 0 });
     expect(failing).toHaveBeenCalledTimes(2);
+  });
+
+  describe('system action log (#538)', () => {
+    it.each([
+      ['missing signature', null],
+      ['wrong secret', sign(receivedBody, 'not-the-secret')],
+    ])('records nothing for a request rejected for a %s', async (_label, signature) => {
+      const h = await load();
+      expect((await h.POST(post('message.received', receivedBody, signature))).status).toBe(401);
+      expect(recordSystemAction).not.toHaveBeenCalled();
+    });
+
+    it('records nothing when the webhook is not configured (unauthenticated traffic)', async () => {
+      const h = await load({ config: { status: 'absent' } });
+      expect((await h.POST(post('message.received', receivedBody))).status).toBe(503);
+      expect(recordSystemAction).not.toHaveBeenCalled();
+    });
+
+    it('records one success row with counts, and no phone number or message text', async () => {
+      const h = await load();
+      await h.POST(post('message.received', receivedBody));
+      expect(recordSystemAction).toHaveBeenCalledTimes(1);
+      const entry = recordSystemAction.mock.calls[0][0];
+      expect(entry).toMatchObject({
+        source: 'webhook:whatsapp-chatmaid',
+        action: 'inbound_messages',
+        outcome: 'success',
+        summary: { processed: 1, duplicates: 0, ignored: 0, paused: 0 },
+      });
+      expect(JSON.stringify(entry)).not.toContain('2348000000000');
+      expect(JSON.stringify(entry)).not.toContain('balance');
+    });
+
+    it('records nothing when the only message was skipped for a human takeover pause', async () => {
+      const h = await load({ pausedUntil: new Date(NOW + 60_000) });
+      expect((await h.POST(post('message.received', receivedBody))).status).toBe(200);
+      expect(recordSystemAction).not.toHaveBeenCalled();
+    });
+
+    it('records nothing for a duplicate-only retry', async () => {
+      const h = await load();
+      await h.POST(post('message.received', receivedBody));
+      recordSystemAction.mockClear();
+      await h.POST(post('message.received', receivedBody));
+      expect(recordSystemAction).not.toHaveBeenCalled();
+    });
+
+    it('records a failure row when processing fails (500)', async () => {
+      const h = await load({ handleResidentMessage: vi.fn().mockRejectedValue(new Error('db down')) });
+      expect((await h.POST(post('message.received', receivedBody))).status).toBe(500);
+      expect(recordSystemAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: 'webhook:whatsapp-chatmaid',
+          outcome: 'failure',
+          error: 'Inbound WhatsApp message could not be processed',
+        })
+      );
+    });
+
+    it('records a failure row when the human-takeover pause cannot be stored', async () => {
+      const h = await load();
+      h.pause.mockRejectedValueOnce(new Error('db down'));
+      const body = JSON.stringify({ event: 'message.outgoing', data: { to: '+2348000000000' } });
+      expect((await h.POST(post('message.outgoing', body))).status).toBe(500);
+      expect(recordSystemAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'human_takeover', outcome: 'failure' })
+      );
+      expect(JSON.stringify(recordSystemAction.mock.calls)).not.toContain('2348000000000');
+    });
+
+    it('records one phone_disconnected success, and nothing for the retried delivery', async () => {
+      const h = await load();
+      await h.POST(post('phone.disconnected', disconnectedBody));
+      await h.POST(post('phone.disconnected', disconnectedBody));
+      expect(recordSystemAction).toHaveBeenCalledTimes(1);
+      expect(recordSystemAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: 'webhook:whatsapp-chatmaid',
+          action: 'phone_disconnected',
+          outcome: 'success',
+        })
+      );
+    });
+
+    it('records a failure row when the alert cannot be sent', async () => {
+      const h = await load({ notifyResult: { success: false, count: 0, error: 'no admins' } });
+      expect((await h.POST(post('phone.disconnected', disconnectedBody))).status).toBe(500);
+      expect(recordSystemAction).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'phone_disconnected', outcome: 'failure' })
+      );
+    });
   });
 
   it('pauses the recipient conversation for 30 minutes on message.outgoing', async () => {
