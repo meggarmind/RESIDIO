@@ -13,6 +13,12 @@ export interface ExpireApprovalsResult {
  * tells each requester in-app (#558). The function returns only a count, so the due rows are read
  * first and re-read afterwards to learn which were actually rejected. A notification failure
  * never fails the run: notifyRequesterOfOutcome swallows its own errors.
+ *
+ * Race behaviour (chosen deliberately): the read-back is limited to the ids read before the RPC.
+ * A row whose expires_at falls between that read and the RPC's NOW() is still rejected but is not
+ * notified by this run. A time-window read-back (reviewed_at >= run start) would catch it, but
+ * overlapping or manual runs would then re-notify the same requests, which is worse than a rare
+ * missed notification. Without a migration the function cannot return the ids it rejected.
  */
 export async function expirePendingApprovals(): Promise<ExpireApprovalsResult> {
   const supabase = createAdminClient();

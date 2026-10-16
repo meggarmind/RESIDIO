@@ -28,12 +28,17 @@ function adminDouble(opts: {
   rpc: unknown;
   rejected?: unknown;
 }) {
-  const queries = [query(opts.due), query(opts.rejected ?? { data: [], error: null })];
+  const dueQ = query(opts.due);
+  const rejectedQ = query(opts.rejected ?? { data: [], error: null });
+  const queries = [dueQ, rejectedQ];
   const from = vi.fn().mockImplementation(() => queries.shift());
   const rpc = vi.fn().mockResolvedValue(opts.rpc);
   createAdminClient.mockReturnValue({ from, rpc });
-  return { from, rpc };
+  return { from, rpc, dueQ, rejectedQ };
 }
+
+type Mock = ReturnType<typeof vi.fn>;
+const calls = (q: Record<string, unknown>, method: string) => (q[method] as Mock).mock.calls;
 
 describe('expirePendingApprovals (#558)', () => {
   beforeEach(() => {
@@ -101,6 +106,95 @@ describe('expirePendingApprovals (#558)', () => {
   it('throws when the rpc fails so the run is recorded as a failure', async () => {
     adminDouble({ due: { data: [{ id: 'a' }], error: null }, rpc: { data: null, error: { message: 'nope' } } });
     await expect(expirePendingApprovals()).rejects.toThrow('process_expired_approvals failed: nope');
+    expect(notifyUser).not.toHaveBeenCalled();
+  });
+});
+
+describe('expirePendingApprovals filters and error paths (#558)', () => {
+  const twoRows = {
+    data: [
+      { id: 'a', request_type: 'house_plots_change', requested_by: 'user-a' },
+      { id: 'b', request_type: 'house_plots_change', requested_by: 'user-b' },
+    ],
+    error: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    notifyUser.mockResolvedValue({ success: true });
+  });
+
+  it('due read targets approval_requests, pending, with a non-null expires_at at or before now', async () => {
+    const before = Date.now();
+    const { from, dueQ } = adminDouble({
+      due: { data: [{ id: 'a' }, { id: 'b' }], error: null },
+      rpc: { data: 2, error: null },
+      rejected: twoRows,
+    });
+    await expirePendingApprovals();
+    const after = Date.now();
+
+    expect(from).toHaveBeenNthCalledWith(1, 'approval_requests');
+    expect(calls(dueQ, 'select')).toEqual([['id']]);
+    expect(calls(dueQ, 'eq')).toEqual([['status', 'pending']]);
+    expect(calls(dueQ, 'not')).toEqual([['expires_at', 'is', null]]);
+    const lte = calls(dueQ, 'lte');
+    expect(lte).toHaveLength(1);
+    expect(lte[0][0]).toBe('expires_at');
+    const cutoff = new Date(lte[0][1] as string);
+    expect(cutoff.toISOString()).toBe(lte[0][1]);
+    expect(cutoff.getTime()).toBeGreaterThanOrEqual(before);
+    expect(cutoff.getTime()).toBeLessThanOrEqual(after);
+  });
+
+  it('readback is limited to exactly the due ids, rejected, and auto-rejected notes', async () => {
+    const { from, rejectedQ } = adminDouble({
+      due: { data: [{ id: 'a' }, { id: 'b' }], error: null },
+      rpc: { data: 2, error: null },
+      rejected: twoRows,
+    });
+    await expirePendingApprovals();
+
+    expect(from).toHaveBeenNthCalledWith(2, 'approval_requests');
+    expect(calls(rejectedQ, 'select')).toEqual([['id, request_type, requested_by']]);
+    expect(calls(rejectedQ, 'in')).toEqual([['id', ['a', 'b']]]);
+    expect(calls(rejectedQ, 'eq')).toEqual([['status', 'rejected']]);
+    expect(calls(rejectedQ, 'like')).toEqual([['review_notes', 'Auto-rejected%']]);
+  });
+
+  it('throws without calling the rpc when the due read fails', async () => {
+    const { rpc } = adminDouble({
+      due: { data: null, error: { message: 'read failed' } },
+      rpc: { data: 5, error: null },
+    });
+    await expect(expirePendingApprovals()).rejects.toThrow('Failed to list expiring approvals: read failed');
+    expect(rpc).not.toHaveBeenCalled();
+    expect(notifyUser).not.toHaveBeenCalled();
+  });
+
+  it('does not throw when the readback fails, returns notified 0 and logs the error', async () => {
+    const readbackError = { message: 'readback failed' };
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    adminDouble({
+      due: { data: [{ id: 'a' }], error: null },
+      rpc: { data: 1, error: null },
+      rejected: { data: null, error: readbackError },
+    });
+
+    await expect(expirePendingApprovals()).resolves.toEqual({ expired: 1, notified: 0 });
+    expect(notifyUser).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('expirePendingApprovals'), readbackError);
+    errorSpy.mockRestore();
+  });
+
+  it('skips the readback entirely when the rpc rejected rows but none were pre-read as due', async () => {
+    const { from } = adminDouble({
+      due: { data: [], error: null },
+      rpc: { data: 3, error: null },
+      rejected: twoRows,
+    });
+    await expect(expirePendingApprovals()).resolves.toEqual({ expired: 3, notified: 0 });
+    expect(from).toHaveBeenCalledTimes(1);
     expect(notifyUser).not.toHaveBeenCalled();
   });
 });

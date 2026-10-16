@@ -55,7 +55,7 @@ describe('GET /api/cron/expire-approvals (#558)', () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ error: 'db down' });
     expect(recordSystemAction).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'cron:expire-approvals', outcome: 'failure' })
+      expect.objectContaining({ source: 'cron:expire-approvals', outcome: 'failure', error: expect.objectContaining({ message: 'db down' }) })
     );
   });
 });
