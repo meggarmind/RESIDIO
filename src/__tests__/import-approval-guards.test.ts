@@ -32,15 +32,21 @@ type Rec = {
   updates: Array<Record<string, unknown>>;
   eqs: Array<[string, unknown]>;
   selectsAfterUpdate: string[];
+  countQueries: Array<{ cols: string; opts?: Record<string, unknown> }>;
+  countEqs: Array<[string, unknown]>;
 };
 let rec: Rec;
+let matchedCount: number | null;
+let countError: { message: string } | null;
 let currentStatus: string;
 let updateRows: unknown[];
 let updateError: { message: string } | null;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  rec = { writes: [], updates: [], eqs: [], selectsAfterUpdate: [] };
+  rec = { writes: [], updates: [], eqs: [], selectsAfterUpdate: [], countQueries: [], countEqs: [] };
+  matchedCount = 3;
+  countError = null;
   currentStatus = 'awaiting_approval';
   updateRows = [{ id: uid(1) }];
   updateError = null;
@@ -56,9 +62,13 @@ beforeEach(() => {
     from(table: string) {
       let op = '';
       const chain: Record<string, unknown> = {};
-      chain.select = (cols: string) => {
+      chain.select = (cols: string, opts?: Record<string, unknown>) => {
         if (op === 'update') rec.selectsAfterUpdate.push(cols);
-        else if (!op) op = 'select';
+        else if (!op) {
+          op = 'select';
+          // #666: the matched-row count query on bank_statement_rows
+          if (table === 'bank_statement_rows') rec.countQueries.push({ cols, opts });
+        }
         return chain;
       };
       chain.update = (vals: Record<string, unknown>) => {
@@ -79,6 +89,7 @@ beforeEach(() => {
       chain.in = () => chain;
       chain.eq = (col: string, val: unknown) => {
         if (op === 'update') rec.eqs.push([col, val]);
+        if (op === 'select' && table === 'bank_statement_rows') rec.countEqs.push([col, val]);
         return chain;
       };
       const settle = () => {
@@ -92,6 +103,7 @@ beforeEach(() => {
           if (table !== 'bank_statement_imports') return { data: null, error: null };
           return { data: updateRows, error: updateError };
         }
+        if (table === 'bank_statement_rows') return { count: matchedCount, error: countError };
         return { data: { id: uid(1), file_name: 'jan.csv', status: currentStatus, import_summary: {} }, error: null };
       };
       chain.single = async () => settle();
@@ -187,6 +199,74 @@ for (const c of CASES) {
     }
   });
 }
+
+describe('submitForApproval requires matched rows (#666)', () => {
+  const NO_MATCHED = 'No matched rows to process, so there is nothing to submit.';
+
+  beforeEach(() => {
+    currentStatus = 'processing';
+  });
+
+  it('counts only matched rows of this import, head-only', async () => {
+    await submitForApproval(uid(1));
+    expect(rec.countQueries).toEqual([{ cols: 'id', opts: { count: 'exact', head: true } }]);
+    expect(rec.countEqs).toEqual([
+      ['import_id', uid(1)],
+      ['status', 'matched'],
+    ]);
+  });
+
+  it('refuses with zero matched rows: exact error, no write, no audit, no notification', async () => {
+    matchedCount = 0;
+    const res = await submitForApproval(uid(1));
+    expect(res).toEqual({ error: NO_MATCHED });
+    expect(rec.updates).toEqual([]);
+    expect(rec.writes).toEqual([]);
+    expect(logAudit).not.toHaveBeenCalled();
+    expect(notifyAdmins).not.toHaveBeenCalled();
+  });
+
+  it('treats a null count like zero', async () => {
+    matchedCount = null;
+    const res = await submitForApproval(uid(1));
+    expect(res.error).toBe(NO_MATCHED);
+    expect(rec.writes).toEqual([]);
+  });
+
+  it('submits with a single matched row', async () => {
+    matchedCount = 1;
+    const res = await submitForApproval(uid(1));
+    expect(res.error).toBeNull();
+    expect(rec.updates[0]).toMatchObject({ status: 'awaiting_approval' });
+    expect(logAudit).toHaveBeenCalledTimes(1);
+    expect(notifyAdmins).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a count query error with no write', async () => {
+    matchedCount = null;
+    countError = { message: 'count exploded' };
+    const res = await submitForApproval(uid(1));
+    expect(res.error).toBe('count exploded');
+    expect(rec.writes).toEqual([]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('keeps the status guard first: a wrong status never reaches the count', async () => {
+    currentStatus = 'approved';
+    matchedCount = 0;
+    const res = await submitForApproval(uid(1));
+    expect(res.error).toBe('Import must be in processing status to submit for approval');
+    expect(rec.countQueries).toEqual([]);
+  });
+
+  it('keeps the permission check first: unauthorized never reaches the count', async () => {
+    authorizePermission.mockResolvedValue({ authorized: false, error: 'Nope' });
+    matchedCount = 0;
+    const res = await submitForApproval(uid(1));
+    expect(res.error).toBe('Nope');
+    expect(rec.countQueries).toEqual([]);
+  });
+});
 
 describe('createImportRows status guard (#627)', () => {
   const rows = [

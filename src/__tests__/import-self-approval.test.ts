@@ -43,7 +43,7 @@ beforeEach(() => {
   authorizePermission.mockImplementation(async () => ({ authorized: true, userId: actingUser }));
   createServerSupabaseClient.mockImplementation(async () => ({
     auth: { getUser: async () => ({ data: { user: actingUser ? { id: actingUser } : null }, error: null }) },
-    from() {
+    from(table: string) {
       let op = '';
       const chain: Record<string, unknown> = {};
       chain.select = () => {
@@ -62,6 +62,8 @@ beforeEach(() => {
       const settle = () =>
         op === 'update'
           ? { data: [{ id: uid(1) }], error: null }
+          : table === 'bank_statement_rows'
+          ? { count: 2, error: null } // #666: matched-row count for submitForApproval
           : {
               data: {
                 id: uid(1),

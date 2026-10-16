@@ -34,6 +34,7 @@ import {
 } from '@/components/imports/import-processing-options';
 import { ImportResults } from '@/components/imports/import-results';
 import type { ProcessImportResult } from '@/actions/imports/types';
+import { NO_MATCHED_ROWS_MESSAGE, hasMatchedRows } from '@/lib/imports/submit-guard';
 
 interface ImportApprovalPanelProps {
   importId: string;
@@ -147,7 +148,10 @@ export function ImportApprovalPanel({ importId }: ImportApprovalPanelProps) {
               any payment is created.
             </p>
             <Can permission={PERMISSIONS.IMPORTS_REVIEW}>
-              <Button onClick={handleSubmit} disabled={anyPending}>
+              <Button
+                onClick={handleSubmit}
+                disabled={anyPending || !hasMatchedRows(summary?.matched)}
+              >
                 {submitMutation.isPending ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
@@ -156,6 +160,9 @@ export function ImportApprovalPanel({ importId }: ImportApprovalPanelProps) {
                 Submit for approval
               </Button>
             </Can>
+            {canReview && summary && !hasMatchedRows(summary.matched) && (
+              <p className="text-xs text-muted-foreground">{NO_MATCHED_ROWS_MESSAGE}</p>
+            )}
           </div>
         )}
 
