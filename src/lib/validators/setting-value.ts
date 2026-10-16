@@ -1,6 +1,6 @@
 import { MAX_MONEY_AMOUNT, validateMoneyAmount } from '@/lib/validators/money';
 import { isValidOverrideEmail, isValidOverridePhone } from '@/lib/comms-override/resolver';
-import { DEBUG_DURATION_MAX, DEBUG_DURATION_MIN, isValidDebugDuration } from '@/lib/comms-override/settings';
+import { DEBUG_DURATION_MAX, DEBUG_DURATION_MIN, isValidDebugDuration } from '@/lib/comms-override/limits';
 
 /**
  * Conservative sanity rules for system_settings values (issue #466).

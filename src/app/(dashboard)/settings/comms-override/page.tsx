@@ -19,7 +19,7 @@ import {
   type CommsOverrideState,
 } from '@/actions/settings/comms-override';
 import { isValidOverrideEmail, isValidOverridePhone } from '@/lib/comms-override/resolver';
-import { DEBUG_DURATION_MAX, DEBUG_DURATION_MIN } from '@/lib/comms-override/settings';
+import { DEBUG_DURATION_MAX, DEBUG_DURATION_MIN } from '@/lib/comms-override/limits';
 
 const QUERY_KEY = ['comms-override-state'];
 

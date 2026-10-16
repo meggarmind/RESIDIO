@@ -1,6 +1,7 @@
 import type { Json } from '@/types/database.generated';
 import { getRawSettingsAsService } from '@/lib/settings/service';
 import type { OverrideSettings, SettingsSnapshot } from './types';
+import { DEBUG_DURATION_DEFAULT, DEBUG_DURATION_MAX, DEBUG_DURATION_MIN, isValidDebugDuration } from './limits';
 
 export const OVERRIDE_SETTING_KEYS = {
   enabled: 'comms_override_enabled',
@@ -13,13 +14,7 @@ export const OVERRIDE_SETTING_KEYS = {
 
 /** Debug Mode duration setting and bounds (#717). Kept out of the send-time key list: the resolver never reads it. */
 export const DEBUG_DURATION_KEY = 'comms_debug_duration_minutes';
-export const DEBUG_DURATION_MIN = 5;
-export const DEBUG_DURATION_MAX = 480;
-export const DEBUG_DURATION_DEFAULT = 60;
-
-export function isValidDebugDuration(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= DEBUG_DURATION_MIN && value <= DEBUG_DURATION_MAX;
-}
+export { DEBUG_DURATION_MIN, DEBUG_DURATION_MAX, DEBUG_DURATION_DEFAULT, isValidDebugDuration };
 
 /** The stored default duration as a number; absent, malformed or out of bounds falls back to 60. */
 export function parseDebugDuration(value: Json | undefined): number {
