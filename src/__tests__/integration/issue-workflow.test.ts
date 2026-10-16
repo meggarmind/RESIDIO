@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checksFromArgs, commandInvocation, findStatusOption, isIssueBranch, laneFromArgs, lanePrefixes, lifecycleComment, MAX_STDERR_CHARS, MAX_STDOUT_CHARS, parseWorktrees, pathsMatch, resolveLanePrefix, run, slugify, statusName, WorkflowError } from '../../../scripts/issue-workflow.mjs';
+import { buildPrBody, checksFromArgs, cleanupDecision, commandInvocation, decidePhase, migrationsAdded, migrationsFromPaths, publishStatusProblem, findStatusOption, isIssueBranch, laneFromArgs, lanePrefixes, lifecycleComment, MAX_STDERR_CHARS, MAX_STDOUT_CHARS, parseWorktrees, pathsMatch, resolveLanePrefix, run, slugify, statusName, WorkflowError } from '../../../scripts/issue-workflow.mjs';
 
 // Mirrors .github/issue-workflow.json. Kept literal so a config change that
 // drops a lane fails here rather than silently narrowing branch matching.
@@ -184,5 +184,81 @@ describe('run output buffering', () => {
     }
     expect(message).toContain('exceeded the 1024 byte buffer limit');
     expect(message).not.toContain('xxxx');
+  });
+});
+
+describe('finish: PR-based delivery (#220)', () => {
+  const M = 'supabase/migrations/';
+  const statuses = { inReview: 'In review', done: 'Done' };
+  const issue = { number: 220, title: 'finish opens the PR' };
+
+  it('lists only migrations present on the branch and absent on the base', () => {
+    const base = [`${M}20260101000000_a.sql`, `${M}20260102000000_b.sql`, 'src/x.ts'];
+    const head = [`${M}20260101000000_a.sql`, `${M}20260102000000_b.sql`, `${M}20260301000000_new.sql`, 'src/y.ts'];
+    expect(migrationsAdded(base, head)).toEqual([`${M}20260301000000_new.sql`]);
+  });
+
+  it('reports nothing when the branch adds none, and ignores base-only migrations', () => {
+    const base = [`${M}20260101000000_a.sql`, `${M}20260201000000_only_on_base.sql`];
+    const head = [`${M}20260101000000_a.sql`];
+    expect(migrationsAdded(base, head)).toEqual([]);
+  });
+
+  it('ignores added files outside the migrations directory', () => {
+    expect(migrationsAdded([], ['docs/supabase/migrations/x.sql', 'src/a.ts'])).toEqual([]);
+  });
+
+  it('extracts migrations from a merged PR file list', () => {
+    expect(migrationsFromPaths(['src/a.ts', `${M}2_b.sql`, `${M}1_a.sql`])).toEqual([`${M}1_a.sql`, `${M}2_b.sql`]);
+  });
+
+  it('chooses the phase from PR state', () => {
+    expect(decidePhase([]).phase).toBe('publish');
+    expect(decidePhase([]).pr).toBeNull();
+    const open = { number: 5, state: 'OPEN' };
+    expect(decidePhase([open])).toEqual({ phase: 'publish', pr: open });
+    const merged = { number: 6, state: 'MERGED', mergedAt: '2026-10-16T00:00:00Z' };
+    expect(decidePhase([open, merged])).toEqual({ phase: 'merged', pr: merged });
+    const closed = { number: 7, state: 'CLOSED', mergedAt: null };
+    expect(decidePhase([closed])).toEqual({ phase: 'publish', pr: null });
+  });
+
+  it('requires In review to publish and rejects Done with an unmerged PR', () => {
+    expect(publishStatusProblem('In review', statuses)).toBeNull();
+    expect(publishStatusProblem('Done', statuses)).toMatch(/not merged/);
+    expect(publishStatusProblem('In progress', statuses)).toMatch(/requires In review/);
+  });
+
+  it('builds a PR body with Part of #N, the migrations, no closing keyword and no footer', () => {
+    const body = buildPrBody({ issue, defaultBranch: 'stage', migrations: [`${M}1_a.sql`] });
+    expect(body).toContain('Part of #220');
+    expect(body).toContain(`${M}1_a.sql`);
+    expect(body).not.toMatch(/\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\b[:\s]+#\d+/i);
+    expect(body).not.toMatch(/Generated with|Co-Authored-By/i);
+    expect(buildPrBody({ issue, defaultBranch: 'stage', migrations: [] })).toContain('None added');
+  });
+
+  const safe = { branch: 'claude/issue-220-x', defaultBranch: 'stage', currentBranch: 'stage', tipInPrHead: true, dirty: false };
+
+  it('allows cleanup only when every safety check holds', () => {
+    expect(cleanupDecision(safe)).toEqual({ ok: true, reasons: [] });
+  });
+
+  it('refuses cleanup when the tip is not in the PR head', () => {
+    const d = cleanupDecision({ ...safe, tipInPrHead: false });
+    expect(d.ok).toBe(false);
+    expect(d.reasons.join(' ')).toMatch(/not contained in the merged PR head/);
+  });
+
+  it('refuses cleanup when the tree is dirty', () => {
+    const d = cleanupDecision({ ...safe, dirty: true });
+    expect(d.ok).toBe(false);
+    expect(d.reasons.join(' ')).toMatch(/uncommitted or untracked/);
+  });
+
+  it('refuses cleanup of the default branch, master, or the checked-out branch', () => {
+    expect(cleanupDecision({ ...safe, branch: 'stage' }).ok).toBe(false);
+    expect(cleanupDecision({ ...safe, branch: 'master' }).ok).toBe(false);
+    expect(cleanupDecision({ ...safe, currentBranch: safe.branch }).ok).toBe(false);
   });
 });
