@@ -86,6 +86,33 @@ describe('getSystemActionLog', () => {
     expect(callsOf(calls, 'range')).toEqual([[0, 99]]);
   });
 
+  it('escapes a backslash in the source filter', async () => {
+    const { calls } = makeBuilder({ data: [], count: 0, error: null });
+
+    await getSystemActionLog({ source: 'a\\b' });
+
+    expect(callsOf(calls, 'ilike')).toEqual([['source', '%a\\\\b%']]);
+  });
+
+  it('trims whitespace around the source filter and skips a blank one', async () => {
+    const first = makeBuilder({ data: [], count: 0, error: null });
+    await getSystemActionLog({ source: '  cron:x  ' });
+    expect(callsOf(first.calls, 'ilike')).toEqual([['source', '%cron:x%']]);
+
+    const second = makeBuilder({ data: [], count: 0, error: null });
+    await getSystemActionLog({ source: '   ' });
+    expect(callsOf(second.calls, 'ilike')).toEqual([]);
+  });
+
+  it.each([0, -5])('raises a page size of %i to 1', async (limit) => {
+    const { calls } = makeBuilder({ data: [], count: 0, error: null });
+
+    const result = await getSystemActionLog({ limit });
+
+    expect(callsOf(calls, 'range')).toEqual([[0, 0]]);
+    expect(result.data?.limit).toBe(1);
+  });
+
   it('surfaces a query error', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     makeBuilder({ data: null, count: null, error: { message: 'boom' } });
