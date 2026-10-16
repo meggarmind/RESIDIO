@@ -81,9 +81,8 @@ npm run issue:workflow -- start <issue> --lane codex
 A worktree created under any lane can be resumed, reviewed or finished from any other — the
 worktree path `.worktrees/issue-<n>` is lane-independent.
 
-> **Do not run `finish`.** It merges into local `stage` and requires that merge to have reached
-> `origin/stage`, which branch protection forbids; it never opens a PR, and it merges with no
-> migrations check. See the note in `CORE.md` §8. Land work by PR instead.
+> **`finish` is coordinator-only; do not run it from a sub-agent.** What it does (opens or reuses the PR,
+> never merges) is defined in `CORE.md` §8.
 
 ## Unattended runs
 
