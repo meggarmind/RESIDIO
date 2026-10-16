@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { ExpenseCategory } from '@/types/database';
+import { findMatchingExpenseCategory } from '@/lib/expenses/category-matcher';
 
 // ============================================================
 // Response Types
@@ -106,21 +107,7 @@ export async function autoMatchExpenseCategory(
         return { category: null, matchedKeyword: null };
     }
 
-    // Normalize description for case-insensitive matching
-    const normalizedDescription = description.toLowerCase();
-
-    // Check each category's keywords against the description
-    for (const category of categories as ExpenseCategory[]) {
-        if (!category.keywords || category.keywords.length === 0) continue;
-
-        for (const keyword of category.keywords) {
-            if (normalizedDescription.includes(keyword.toLowerCase())) {
-                return { category, matchedKeyword: keyword };
-            }
-        }
-    }
-
-    return { category: null, matchedKeyword: null };
+    return findMatchingExpenseCategory(categories as ExpenseCategory[], description);
 }
 
 // ============================================================

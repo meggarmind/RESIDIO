@@ -100,7 +100,234 @@ export async function checkDuplicate(
   return { is_duplicate: false };
 }
 
+// ============================================================
+// Batch duplicate check (matchImportRows, #649)
+// ============================================================
 
+export type DuplicateCheckBatchRow = {
+  id: string;
+  reference: string | null;
+  amount: number | null;
+  transaction_date: string | null;
+  transaction_hash?: string | null;
+  description?: string | null;
+};
+
+const DUPLICATE_BATCH_CHUNK = 200;
+
+function chunkOf<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+type BatchPage<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
+
+/**
+ * Reads every row whose `keyField` is among `keys` (chunked `.in()`, paged) and keeps the FIRST row
+ * per key. The single-row checks used `.maybeSingle()`; `.in()` returns all matches, so rows must come
+ * back in a deterministic order (callers order by id) for "first" to be stable. A failed page is logged
+ * and treated as "no match", as the ignored error of the single-row path was.
+ */
+async function firstRowByKey<T extends Record<string, unknown>>(
+  keys: Array<string | number>,
+  keyField: string,
+  label: string,
+  fetchPage: (chunk: Array<string | number>, from: number, to: number) => BatchPage<T>
+): Promise<Map<string | number, T>> {
+  const found = new Map<string | number, T>();
+  for (const chunk of chunkOf(keys, DUPLICATE_BATCH_CHUNK)) {
+    const { data, error } = await fetchAllRows<T>((from, to) => fetchPage(chunk, from, to));
+    if (error || !data) {
+      console.error(`checkDuplicatesBatch: ${label} lookup failed (${chunk.length} keys):`, error);
+      continue;
+    }
+    for (const row of data) {
+      const key = row[keyField] as string | number;
+      if (!found.has(key)) found.set(key, row);
+    }
+  }
+  return found;
+}
+
+/**
+ * Batch equivalent of calling `checkDuplicate(reference, amount || 0, date || '', toleranceDays, hash,
+ * description)` for every row, with the same precedence and reasons: hash in payments, hash in
+ * expenses, hash in already-created bank rows, then the guardrail (exact reference, then scored
+ * amount + date-window candidates against the threshold). Result keyed by row id.
+ *
+ * Round trips depend on the number of distinct values (chunks of 200), not on row count.
+ * Differences from the single-row path: `.in()` yields every match where `.maybeSingle()` errored on
+ * more than one (treated as no match); the first by id is used. An unparseable date, which made the
+ * single-row guardrail throw, simply yields no fuzzy candidates.
+ */
+export async function checkDuplicatesBatch(
+  rows: DuplicateCheckBatchRow[],
+  tolerance_days: number = 1
+): Promise<Map<string, DuplicateCheckResult>> {
+  const results = new Map<string, DuplicateCheckResult>();
+  if (rows.length === 0) return results;
+
+  const supabase = await createServerSupabaseClient();
+  const { pickBestDuplicate, duplicateWindow, resolveDuplicateThreshold } = await import('@/lib/matching/duplicate-matcher');
+
+  // 1. Hash lookups (strongest signal)
+  const hashes = [...new Set(rows.map((r) => r.transaction_hash).filter((h): h is string => !!h))];
+  let payHash = new Map<string | number, { id: string }>();
+  let expHash = new Map<string | number, { id: string }>();
+  let rowHash = new Map<string | number, { id: string; payment_id: string | null }>();
+  if (hashes.length > 0) {
+    [payHash, expHash, rowHash] = await Promise.all([
+      firstRowByKey<{ id: string; transaction_hash: string }>(hashes, 'transaction_hash', 'payment hash', (chunk, from, to) =>
+        supabase
+          .from('payment_records')
+          .select('id, transaction_hash')
+          .in('transaction_hash', chunk as string[])
+          .order('id')
+          .range(from, to)
+      ),
+      firstRowByKey<{ id: string; transaction_hash: string }>(hashes, 'transaction_hash', 'expense hash', (chunk, from, to) =>
+        supabase
+          .from('expenses')
+          .select('id, transaction_hash')
+          .in('transaction_hash', chunk as string[])
+          .order('id')
+          .range(from, to)
+      ),
+      firstRowByKey<{ id: string; payment_id: string | null; transaction_hash: string }>(
+        hashes,
+        'transaction_hash',
+        'created-row hash',
+        (chunk, from, to) =>
+          supabase
+            .from('bank_statement_rows')
+            .select('id, payment_id, transaction_hash')
+            .in('transaction_hash', chunk as string[])
+            .eq('status', 'created')
+            .order('id')
+            .range(from, to)
+      ),
+    ]);
+  }
+
+  // Decide the hash outcome per row; the rest go on to the guardrail.
+  const pending: DuplicateCheckBatchRow[] = [];
+  for (const row of rows) {
+    const hash = row.transaction_hash;
+    if (hash) {
+      const p = payHash.get(hash);
+      if (p) {
+        results.set(row.id, { is_duplicate: true, existing_payment_id: p.id, reason: `Duplicate transaction hash in payments` });
+        continue;
+      }
+      const e = expHash.get(hash);
+      if (e) {
+        results.set(row.id, { is_duplicate: true, existing_payment_id: e.id, reason: `Duplicate transaction hash in expenses` });
+        continue;
+      }
+      const b = rowHash.get(hash);
+      if (b) {
+        results.set(row.id, {
+          is_duplicate: true,
+          existing_payment_id: b.payment_id || undefined,
+          reason: `Duplicate transaction hash (already imported)`,
+        });
+        continue;
+      }
+    }
+    pending.push(row);
+  }
+
+  // 2a. Exact reference match in payment_records
+  const references = [...new Set(pending.map((r) => r.reference).filter((x): x is string => !!x))];
+  const refMap =
+    references.length > 0
+      ? await firstRowByKey<{ id: string; reference_number: string }>(references, 'reference_number', 'reference', (chunk, from, to) =>
+          supabase
+            .from('payment_records')
+            .select('id, reference_number')
+            .in('reference_number', chunk as string[])
+            .order('id')
+            .range(from, to)
+        )
+      : new Map<string | number, { id: string }>();
+
+  const fuzzyRows: Array<{ row: DuplicateCheckBatchRow; amount: number; date: Date }> = [];
+  for (const row of pending) {
+    if (row.reference) {
+      const hit = refMap.get(row.reference);
+      if (hit) {
+        results.set(row.id, { is_duplicate: true, existing_payment_id: hit.id, reason: `Duplicate reference number: ${row.reference}` });
+        continue;
+      }
+    }
+    const date = new Date(row.transaction_date || '');
+    if (Number.isNaN(date.getTime())) {
+      results.set(row.id, { is_duplicate: false });
+      continue;
+    }
+    fuzzyRows.push({ row, amount: row.amount || 0, date });
+  }
+
+  // 2b. Amount + date-window candidates, scored in memory
+  if (fuzzyRows.length > 0) {
+    const windows = fuzzyRows.map((f) => duplicateWindow(f.date, tolerance_days || 1));
+    const minStart = windows.map((w) => w.startDate).sort()[0];
+    const maxEnd = windows.map((w) => w.endDate).sort().at(-1)!;
+    const amounts = [...new Set(fuzzyRows.map((f) => f.amount))];
+
+    type Candidate = { id: string; description: string | null; amount: number; payment_date: string };
+    const byAmount = new Map<number, Candidate[]>();
+    for (const chunk of chunkOf(amounts, DUPLICATE_BATCH_CHUNK)) {
+      const { data, error } = await fetchAllRows<Candidate>((from, to) =>
+        supabase
+          .from('payment_records')
+          .select('id, description, amount, payment_date')
+          .in('amount', chunk)
+          .gte('payment_date', minStart)
+          .lte('payment_date', maxEnd)
+          .order('id')
+          .range(from, to)
+      );
+      if (error || !data) {
+        console.error(`checkDuplicatesBatch: candidate lookup failed (${chunk.length} amounts):`, error);
+        continue;
+      }
+      for (const c of data) {
+        const key = Number(c.amount);
+        if (!byAmount.has(key)) byAmount.set(key, []);
+        byAmount.get(key)!.push(c);
+      }
+    }
+
+    // Threshold is read once for the whole batch.
+    const { data: setting } = await supabase
+      .from('hierarchical_settings')
+      .select('value')
+      .eq('setting_key', 'duplicate_matching_threshold')
+      .maybeSingle();
+    const threshold = resolveDuplicateThreshold(setting);
+
+    fuzzyRows.forEach(({ row, amount, date }, i) => {
+      // payment_date is a DATE column, so the database compared calendar dates (UTC date part of the bounds).
+      const lo = windows[i].startDate.slice(0, 10);
+      const hi = windows[i].endDate.slice(0, 10);
+      const candidates = (byAmount.get(Number(amount)) ?? []).filter((c) => {
+        const d = String(c.payment_date).slice(0, 10);
+        return d >= lo && d <= hi;
+      });
+      const best = pickBestDuplicate({ amount, date, description: row.description || undefined }, candidates, threshold);
+      results.set(
+        row.id,
+        best.isDuplicate
+          ? { is_duplicate: true, existing_payment_id: best.existingId, reason: best.reason || 'Duplicate detected by system guardrail' }
+          : { is_duplicate: false }
+      );
+    });
+  }
+
+  return results;
+}
 
 /**
  * Checks for duplicate expenses (Debits)
