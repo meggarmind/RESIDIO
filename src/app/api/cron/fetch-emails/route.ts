@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
+import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 import { createLogger } from '@/lib/logger';
 import { getGmailConnectionStatus } from '@/actions/email-imports/gmail-oauth';
 import { runEmailFetch } from '@/lib/email-imports/fetch-emails';
@@ -32,6 +33,10 @@ export async function GET(request: NextRequest) {
   // Verify cron secret
   const authError = verifyCronAuth(request);
   if (authError) return authError;
+  return withSystemLog('cron:fetch-emails', 'import', runEmailImport);
+}
+
+async function runEmailImport(run: SystemLogRun) {
 
   const startTime = Date.now();
   const results: Record<string, unknown> = {
@@ -46,6 +51,7 @@ export async function GET(request: NextRequest) {
 
     if (connectionStatus.error || !connectionStatus.data?.connected) {
       log.info('Gmail not connected, skipping');
+      run.summary = { skipped: true, reason: 'gmail_not_connected' };
       return NextResponse.json({
         skipped: true,
         reason: 'Gmail not connected',
@@ -69,8 +75,12 @@ export async function GET(request: NextRequest) {
       emailsErrored: fetchResult.emailsErrored,
     };
 
+    run.summary.fetchPhase = results.fetchPhase;
+
     if (!fetchResult.success || !fetchResult.importId) {
       log.error('Email fetch failed:', fetchResult.error);
+      run.outcome = 'failure';
+      run.error = fetchResult.error;
       return NextResponse.json({
         success: false,
         error: fetchResult.error,
@@ -81,6 +91,7 @@ export async function GET(request: NextRequest) {
 
     const importId = fetchResult.importId;
     results.importId = importId;
+    run.summary.importId = importId;
 
     // If no new emails, we're done
     if (fetchResult.emailsFetched === 0) {
@@ -102,6 +113,7 @@ export async function GET(request: NextRequest) {
       transactionsExtracted: parseResult.transactionsExtracted,
       errored: parseResult.errored,
     };
+    run.summary.parsePhase = results.parsePhase;
 
     if (parseResult.transactionsExtracted === 0) {
       log.info('No transactions extracted from emails');
@@ -121,6 +133,7 @@ export async function GET(request: NextRequest) {
       matched: matchResult.matched,
       unmatched: matchResult.unmatched,
     };
+    run.summary.matchPhase = results.matchPhase;
 
     if (matchResult.matched === 0) {
       log.info('No transactions matched to residents');
@@ -145,6 +158,8 @@ export async function GET(request: NextRequest) {
       skipped: processResult.skipped,
       errored: processResult.errored,
     };
+    run.summary.processPhase = results.processPhase;
+    if (processResult.errored > 0) run.outcome = 'partial';
 
     const durationMs = Date.now() - startTime;
 
@@ -172,6 +187,7 @@ export async function GET(request: NextRequest) {
       durationMs,
     });
   } catch (error) {
+    run.error = error;
     log.error('Email import cron error:', error);
     return NextResponse.json(
       {

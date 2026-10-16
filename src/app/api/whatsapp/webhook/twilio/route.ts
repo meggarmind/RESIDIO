@@ -9,6 +9,7 @@ import {
   processInboundMessages,
   resolveWhatsAppConfig,
 } from '@/lib/whatsapp';
+import { recordInboundBatch } from '@/lib/system-log/webhook';
 import { extractTwilioMessages, verifyTwilioSignature } from '@/lib/whatsapp/providers/twilio';
 
 /**
@@ -87,6 +88,8 @@ export async function POST(request: NextRequest) {
       });
     },
   });
+
+  await recordInboundBatch('whatsapp-twilio', result);
 
   if (!result.accepted) {
     return NextResponse.json(

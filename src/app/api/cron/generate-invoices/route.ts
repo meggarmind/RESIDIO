@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getInvoiceCronSettings } from '@/lib/billing/invoice-cron-settings';
 import { verifyCronAuth } from '@/lib/auth/cron-auth';
+import { withSystemLog, type SystemLogRun } from '@/lib/system-log/with-system-log';
 import { createLogger } from '@/lib/logger';
 import {
     currentMonthPeriod,
@@ -36,10 +37,15 @@ export async function GET(request: NextRequest) {
     // Verify cron secret using timing-safe comparison
     const authError = verifyCronAuth(request);
     if (authError) return authError;
+    return withSystemLog('cron:generate-invoices', 'generate', runInvoiceGeneration);
+}
+
+async function runInvoiceGeneration(run: SystemLogRun) {
 
     try {
         const period = currentMonthPeriod();
         const response: Record<string, unknown> = { period, timestamp: new Date().toISOString() };
+        run.summary = { period };
 
         // Read both settings with the admin client (no session in a cron request).
         // Throws on a query error -> outer catch returns 500 (fail closed).
@@ -48,6 +54,7 @@ export async function GET(request: NextRequest) {
         // Check if auto-generation is enabled
         if (!autoGenerate) {
             log.info('Auto-generation is disabled');
+            run.summary.skipped = 'auto_generation_disabled';
             return NextResponse.json({ skipped: true, reason: 'Auto-generation is disabled', ...response });
         }
 
@@ -64,6 +71,7 @@ export async function GET(request: NextRequest) {
             const active = activeRuns[0];
             const chunk = await processInvoiceGenerationRunChunk(active.id, null);
             response.advanced = { runId: active.id, processed: chunk.processed, status: chunk.run ? (chunk.run as { status: string }).status : null };
+            run.summary.advanced = response.advanced;
             log.info('Advanced invoice generation run', response.advanced as Record<string, unknown>);
         }
 
@@ -72,12 +80,14 @@ export async function GET(request: NextRequest) {
         const dayOfMonth = new Date().getDate();
         if (dayOfMonth < configuredDay) {
             log.info(`Before generation day (today: ${dayOfMonth}, configured: ${configuredDay})`);
+            run.summary.skipped = 'before_generation_day';
             return NextResponse.json({ skipped: true, reason: `Before generation day (today: ${dayOfMonth}, configured: ${configuredDay})`, ...response });
         }
 
         const existing = await findReusableInvoiceGenerationRun('cron', period, { includeCancelled: true });
         if (existing) {
             response.prepared = { skipped: true, runId: existing.id, status: existing.status, reason: existing.status === 'cancelled' ? 'Run for this period was cancelled' : 'Run already exists for this period' };
+            run.summary.prepared = response.prepared;
             return NextResponse.json({ success: true, ...response });
         }
 
@@ -86,6 +96,7 @@ export async function GET(request: NextRequest) {
             null
         );
         if (!prepared.data) {
+            run.error = prepared.error;
             return NextResponse.json({ success: false, error: prepared.error, ...response }, { status: 500 });
         }
         const chunk = await processInvoiceGenerationRunChunk(prepared.data.id, null);
@@ -98,9 +109,11 @@ export async function GET(request: NextRequest) {
             sendEmails: false,
             assessLateFees: false,
         };
+        run.summary.prepared = response.prepared;
         log.info('Prepared conservative invoice generation run', response.prepared as Record<string, unknown>);
         return NextResponse.json({ success: true, ...response });
     } catch (error) {
+        run.error = error;
         log.error('Invoice generation error:', error);
         return NextResponse.json(
             { error: error instanceof Error ? error.message : 'Unknown error' },
