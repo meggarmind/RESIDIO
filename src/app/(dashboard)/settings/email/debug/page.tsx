@@ -1,17 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { TestTube, Send, Loader2, Info, AlertCircle } from 'lucide-react';
-import { useSettings, useUpdateSetting } from '@/hooks/use-settings';
+import { TestTube, Send, Loader2, Info } from 'lucide-react';
+import { useSettings } from '@/hooks/use-settings';
 import { useTestEmail, useSendPaymentReminders } from '@/hooks/use-email';
-import { toast } from 'sonner';
 
 function settingsToObject(settings: { key: string; value: unknown }[] | undefined): Record<string, unknown> {
   if (!settings) return {};
@@ -23,20 +22,12 @@ function settingsToObject(settings: { key: string; value: unknown }[] | undefine
 
 export default function EmailDebugPage() {
   const { data: settings, isLoading } = useSettings('email');
-  const updateSetting = useUpdateSetting();
   const sendReminders = useSendPaymentReminders();
   const testEmailMutation = useTestEmail();
   const [testEmailAddress, setTestEmailAddress] = useState('');
 
   const settingsMap = settings ? settingsToObject(settings) : {};
-
-  const isDebugMode = settingsMap.email_debug_mode === 'true' || settingsMap.email_debug_mode === true;
   const lastRun = settingsMap.email_last_reminder_run as string | null;
-
-  const handleDebugModeToggle = async () => {
-    updateSetting.mutate({ key: 'email_debug_mode', value: !isDebugMode });
-    toast.success(`Debug mode ${!isDebugMode ? 'enabled' : 'disabled'}`);
-  };
 
   const handleTestEmail = () => {
     if (testEmailAddress) {
@@ -51,43 +42,28 @@ export default function EmailDebugPage() {
       <div>
         <h3 className="text-lg font-medium">Debug & Testing</h3>
         <p className="text-sm text-muted-foreground">
-          Test email functionality and manage debug mode.
+          Send a test email and trigger payment reminders by hand.
         </p>
       </div>
       <Separator />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <TestTube className="h-4 w-4" />
-            Email Debug Mode
-          </CardTitle>
-          <CardDescription>Test email functionality without sending to actual recipients</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Enable Debug Mode</Label>
-              <p className="text-xs text-muted-foreground mt-1">Emails will be logged but NOT sent to residents</p>
-            </div>
-            <Switch checked={isDebugMode} onCheckedChange={handleDebugModeToggle} disabled={updateSetting.isPending} />
-          </div>
-          {isDebugMode && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Debug Mode Active:</strong> All emails are being logged to the database but are NOT being sent to recipients.
-              </AlertDescription>
-            </Alert>
-          )}
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              When debug mode is enabled, emails are saved to the email logs with status &quot;DEBUG_MODE&quot; and include the original recipient in metadata.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          The email debug switch moved to{' '}
+          <Link href="/settings/comms-override#debug-mode" className="underline font-medium">
+            Communications override &gt; Debug Mode
+          </Link>
+          . It now redirects every message to the override contacts, with an expiry, instead of skipping the send.
+        </AlertDescription>
+      </Alert>
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          Outside production, the test email and the payment reminders are redirected to the override contacts by the communications
+          override, and are blocked if the override email is blank. In production they go to the real recipients unless Debug Mode is on.
+        </AlertDescription>
+      </Alert>
 
       <Card>
         <CardHeader>

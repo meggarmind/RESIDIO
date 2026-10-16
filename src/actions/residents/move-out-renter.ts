@@ -9,6 +9,7 @@ import { getResidentIndebtedness } from '@/actions/billing/get-invoices';
 import { getOrCreateWallet } from '@/actions/billing/wallet';
 import { getSystemSetting } from '@/lib/settings/get-system-setting';
 import { sendEmail } from '@/lib/email/send-email';
+import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { MOVE_OUT_NOTIFY_ROLES } from '@/lib/residents/move-out-recipients';
 import type { ResidentRole } from '@/types/database';
 
@@ -461,7 +462,11 @@ export async function initiateRenterMoveOut(
   }
 
   // Send email to the renter
-  if (resident.email) {
+  // Communications override (#716): fail closed if the resident's flag cannot be read.
+  const emailOverride = resident.email ? await resolveResidentOverride([residentId]) : null;
+  if (emailOverride && !emailOverride.ok) {
+    console.error('[moveOutRenter] Email not sent:', emailOverride.error);
+  } else if (resident.email && emailOverride?.ok) {
     await sendEmail({
       to: {
         email: resident.email,
@@ -470,6 +475,7 @@ export async function initiateRenterMoveOut(
       },
       subject: 'Move-Out Clearance Certificate',
       emailType: 'clearance_certificate',
+      residentOverride: emailOverride.residentOverride,
       react: null, // Would normally use a react template
       metadata: {
         certificateNumber,

@@ -32,6 +32,10 @@ vi.mock('@/lib/whatsapp', () => ({
 vi.mock('@/lib/whatsapp/config', () => ({ resolveWhatsAppConfig: vi.fn() }));
 vi.mock('@/lib/sms/send-sms', () => ({ sendSms: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createAdminClient: vi.fn() }));
+// The resident-flag lookup (#716) is covered in comms-override/__tests__/resident-flag-wiring.test.ts.
+vi.mock('@/lib/comms-override/resident-flag', () => ({
+  resolveResidentOverride: vi.fn(async () => ({ ok: true, residentOverride: null })),
+}));
 vi.mock('@/lib/whatsapp/rollout', () => ({
   isWhatsAppRecipientAllowed: vi.fn().mockResolvedValue(true),
 }));
