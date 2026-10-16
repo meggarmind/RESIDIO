@@ -13,6 +13,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getApprovalHandler } from '@/lib/approvals/registry';
 import { isStuckApproval } from '@/lib/approvals/stuck';
+import { notifyRequesterOfOutcome } from '@/lib/approvals/notify-requester';
 
 // Response types
 interface GetApprovalRequestsResponse {
@@ -319,6 +320,8 @@ export async function approveRequest(
 
   await auditDecision('APPROVE', request, 'approved', auth.userId!, notes);
 
+  await notifyRequesterOfOutcome({ request, outcome: 'approved', reviewerId: auth.userId, reviewNotes: notes });
+
   return { success: true, error: null };
 }
 
@@ -394,6 +397,13 @@ export async function reapplyApprovedRequest(requestId: string): Promise<Approva
     newValues: { applied_at: appliedAt },
   });
 
+  await notifyRequesterOfOutcome({
+    request,
+    outcome: 'approved',
+    reviewerId: auth.userId,
+    reviewNotes: request.review_notes,
+  });
+
   return { success: true, error: null };
 }
 
@@ -436,6 +446,8 @@ export async function rejectRequest(
   }
 
   await auditDecision('REJECT', request, 'rejected', auth.userId!, notes);
+
+  await notifyRequesterOfOutcome({ request, outcome: 'rejected', reviewerId: auth.userId, reviewNotes: notes });
 
   return { success: true, error: null };
 }

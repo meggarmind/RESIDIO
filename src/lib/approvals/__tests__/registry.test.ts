@@ -11,6 +11,7 @@ const { createServerSupabaseClient, authorizePermission, logAudit, notifyAdmins 
 }));
 
 vi.mock('@/lib/supabase/server', () => ({ createServerSupabaseClient }));
+vi.mock('@/lib/approvals/notify-requester', () => ({ notifyRequesterOfOutcome: vi.fn() }));
 vi.mock('@/lib/auth/authorize', () => ({ authorizePermission }));
 vi.mock('@/lib/audit/logger', () => ({ logAudit }));
 vi.mock('@/lib/notifications/admin-notifier', () => ({ notifyAdmins }));
