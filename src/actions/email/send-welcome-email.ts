@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email';
 import { embed } from '@/lib/utils';
+import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 import { getSettingValue } from '@/actions/settings/get-settings';
 import { WelcomeResidentEmail } from '@/emails';
 
@@ -52,6 +53,12 @@ export async function sendWelcomeEmail(residentId: string): Promise<SendWelcomeE
     return { success: false, error: 'Resident has no email address' };
   }
 
+  // Communications override (#716): fail closed if the resident's flag cannot be read.
+  const override = await resolveResidentOverride([resident.id]);
+  if (!override.ok) {
+    return { success: false, error: override.error };
+  }
+
   // Get estate settings
   const estateSettings = await getEstateEmailSettings();
 
@@ -73,6 +80,7 @@ export async function sendWelcomeEmail(residentId: string): Promise<SendWelcomeE
       ...estateSettings,
     }),
     emailType: 'welcome',
+    residentOverride: override.residentOverride,
     metadata: {
       residentId: resident.id,
       residentCode: resident.resident_code,

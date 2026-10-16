@@ -31,6 +31,8 @@ import { sendWhatsAppTemplate } from '@/lib/whatsapp';
 import { resolveWhatsAppConfig } from '@/lib/whatsapp/config';
 import { evaluateSendPolicy, createSendPolicyFacts } from '@/lib/whatsapp/send-policy';
 import { sendSms } from '@/lib/sms/send-sms';
+import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
+import type { CommsSendContext } from '@/lib/comms-override/types';
 import { PRIORITY } from '@/lib/notifications/queue';
 import { nextUtcMidnight, resolveBurstWindowMinutes, retryDelayMs } from './retry';
 
@@ -41,14 +43,16 @@ const IMMEDIATE_ITEM_ID = 'immediate';
  * Channel-specific sender function signature
  */
 type ChannelSender = (
-  item: NotificationQueueItem
+  item: NotificationQueueItem,
+  context?: CommsSendContext
 ) => Promise<SendNotificationResult>;
 
 /**
  * Send a notification via email using Resend
  */
 async function sendViaEmail(
-  item: NotificationQueueItem
+  item: NotificationQueueItem,
+  context?: CommsSendContext
 ): Promise<SendNotificationResult> {
   // Check if email is globally enabled. This runs from cron/queue processing
   // with no authenticated user, so it must read via the service-role client
@@ -81,6 +85,14 @@ async function sendViaEmail(
     };
   }
 
+  // One key per queue item and attempt, so a retry after a timeout whose first request
+  // actually landed cannot send the email twice (#546). Communications override (#716): the
+  // resident's flag, looked up by the caller.
+  const transportOptions = {
+    ...(item.id === IMMEDIATE_ITEM_ID ? {} : { idempotencyKey: `${item.id}:${item.attempts + 1}` }),
+    ...(context?.residentOverride !== undefined ? { residentOverride: context.residentOverride } : {}),
+  };
+
   try {
     const result = await sendViaResend(
       {
@@ -91,11 +103,7 @@ async function sendViaEmail(
           ? { html: item.html_body }
           : { text: item.body }),
       },
-      // One key per queue item and attempt, so a retry after a timeout whose
-      // first request actually landed cannot send the email twice (#546).
-      item.id === IMMEDIATE_ITEM_ID
-        ? undefined
-        : { idempotencyKey: `${item.id}:${item.attempts + 1}` }
+      transportOptions
     );
 
     // Communications override (#715): original and actual recipient (or the
@@ -144,7 +152,8 @@ async function sendViaSms(
  * for proactive delivery; free-form text is rejected.
  */
 async function sendViaWhatsApp(
-  item: NotificationQueueItem
+  item: NotificationQueueItem,
+  context?: CommsSendContext
 ): Promise<SendNotificationResult> {
   // Pre-send checks (kill switch, rollout, caps, opt-in, template) live in the
   // Send Policy module; anything other than 'allow' stops here.
@@ -173,12 +182,14 @@ async function sendViaWhatsApp(
     return { success: false, error: decision.message };
   }
 
-  const result = await sendWhatsAppTemplate({
+  const templateMessage = {
     to: decision.normalizedPhone,
     templateName: decision.template.name,
     languageCode: decision.template.languageCode,
     parameters: decision.template.parameters,
-  });
+  };
+  // Communications override (#716): forward the resident's flag when the caller looked it up.
+  const result = await sendWhatsAppTemplate(templateMessage, undefined, context);
 
   if (!result.success) {
     // DORMANT while SMS is off (owner decision 2026-10-13): the fallback is
@@ -217,6 +228,7 @@ async function sendViaWhatsApp(
           // record a Chatmaid failure as a successful WhatsApp send (#401
           // QA defect).
           skipHistoryLog: true,
+          ...(context?.residentOverride !== undefined ? { residentOverride: context.residentOverride } : {}),
         });
 
         if (smsResult.success) {
@@ -283,7 +295,13 @@ const CHANNEL_SENDERS: Record<NotificationChannel, ChannelSender> = {
  * It dispatches to the channel-specific sender.
  */
 export async function sendNotification(
-  item: NotificationQueueItem
+  item: NotificationQueueItem,
+  /**
+   * Communications override (#716): the resident's flag. Omitted means "no resident context",
+   * which follows the global switch, so production senders go through `sendAndRecordNotification`
+   * / `sendImmediate`, which look the flag up first.
+   */
+  context?: CommsSendContext
 ): Promise<SendNotificationResult> {
   const channel = item.channel;
 
@@ -305,7 +323,22 @@ export async function sendNotification(
   }
 
   // Send via the channel
-  return sender(item);
+  return sender(item, context);
+}
+
+/**
+ * Looks the queue row's resident flag up and sends. Fails closed: if the flag cannot be read the
+ * message is NOT sent (never sent as if the flag were null), and the failure is retryable because
+ * an unreadable table is transient.
+ */
+async function sendWithResidentFlag(item: NotificationQueueItem): Promise<SendNotificationResult> {
+  const override = item.recipient_id
+    ? await resolveResidentOverride([item.recipient_id])
+    : ({ ok: false, error: 'comms override: queue row has no resident to read the flag for' } as const);
+  if (!override.ok) {
+    return { success: false, error: override.error, retryable: true };
+  }
+  return sendNotification(item, { residentOverride: override.residentOverride });
 }
 
 /**
@@ -322,7 +355,7 @@ export async function sendAndRecordNotification(
   const supabase = createAdminClient();
 
   // Send the notification
-  const result = await sendNotification(item);
+  const result = await sendWithResidentFlag(item);
 
   // Determine history status
   const historyStatus: HistoryStatus = result.success ? 'sent' : 'failed';
@@ -475,7 +508,7 @@ export async function sendImmediate(params: {
   };
 
   // Send the notification
-  const result = await sendNotification(pseudoItem);
+  const result = await sendWithResidentFlag(pseudoItem);
 
   // Create history record for tracking
   const historyStatus: HistoryStatus = result.success ? 'sent' : 'failed';

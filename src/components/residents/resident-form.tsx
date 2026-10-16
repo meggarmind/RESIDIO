@@ -31,6 +31,17 @@ import type { Resident, ResidentRole, EntityType } from '@/types/database';
 import { PRIMARY_ROLE_OPTIONS, SECONDARY_ROLE_OPTIONS, CORPORATE_ROLE_OPTIONS, ENTITY_TYPE_LABELS, RESIDENT_ROLE_LABELS, RESIDENT_TYPE_LABELS } from '@/types/database';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { useAuth } from '@/lib/auth/auth-provider';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import { getCommsEnvironment } from '@/lib/comms-override/environment';
+import {
+  FLAG_OPTION_LABELS,
+  REAL_RECIPIENT_WARNING,
+  describeEnvironmentDefault,
+  displayedFlag,
+  flagToSubmit,
+  selectValueToFlag,
+} from '@/lib/comms-override/resident-flag-ui';
 
 // House state type for context from house detail page
 export type HouseState = 'empty' | 'has_tenant' | 'has_resident_landlord' | 'has_non_resident_landlord';
@@ -44,6 +55,14 @@ interface ResidentFormProps {
 
 export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseState }: ResidentFormProps) {
   const router = useRouter();
+  const { hasPermission } = useAuth();
+  // Communications override control (#716): hidden entirely without settings.manage_general. The
+  // server enforces the same rule; this only decides whether the control is shown.
+  const canManageOverride = hasPermission(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  // The stored flag, read from the resident prop on every render. `use_override_comms` is not in the
+  // generated Resident type until `npm run db:types` is re-run after the migration (#716 follow-up).
+  const storedOverrideFlag = (resident as (Resident & { use_override_comms?: boolean | null }) | undefined)
+    ?.use_override_comms;
   const { data: housesData, isLoading: housesLoading } = useHousesWithRoles({ limit: 100 });
   // Reduced limit - only used for emergency contact picker in linked mode
   const { data: residentsData, isLoading: residentsLoading } = useResidentOptions();
@@ -99,6 +118,9 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
       emergency_contact_relationship: resident?.emergency_contact_relationship ?? '',
       emergency_contact_resident_id: resident?.emergency_contact_resident_id ?? undefined,
       notes: resident?.notes ?? '',
+      // Left undefined until the user touches the control: the control shows the stored value
+      // (storedOverrideFlag) on every render, and an untouched save sends nothing.
+      use_override_comms: undefined,
       house_id: preselectedHouseId,
       resident_role: undefined,
       move_in_date: new Date().toISOString().split('T')[0],
@@ -162,6 +184,8 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
   async function onSubmit(data: CreateResidentData) {
     try {
       const submitted = resolveSubmittedCorporateFields(data);
+      // Without the permission the field is never sent (the server would reject a change anyway).
+      const overrideField = { use_override_comms: flagToSubmit(canManageOverride, submitted.use_override_comms) };
       if (isEditing) {
         const updateData: ResidentFormData = {
           first_name: submitted.first_name,
@@ -180,11 +204,13 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
           emergency_contact_relationship: submitted.emergency_contact_relationship,
           emergency_contact_resident_id: submitted.emergency_contact_resident_id,
           notes: submitted.notes,
+          ...overrideField,
         };
         await updateMutation.mutateAsync({ id: resident.id, data: updateData });
         toast.success('Resident updated successfully');
       } else {
-        await createMutation.mutateAsync(submitted);
+        const createData = canManageOverride ? submitted : { ...submitted, use_override_comms: undefined };
+        await createMutation.mutateAsync(createData);
         toast.success('Resident created successfully');
       }
       onSuccess?.();
@@ -709,6 +735,38 @@ export function ResidentForm({ resident, onSuccess, preselectedHouseId, houseSta
             </div>
           )}
         </div>
+
+        {/* Communications override (#716): settings.manage_general only */}
+        {canManageOverride && (
+          <FormField
+            control={form.control}
+            name="use_override_comms"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Communications override</FormLabel>
+                <Select
+                  onValueChange={(value) => field.onChange(selectValueToFlag(value))}
+                  value={displayedFlag(storedOverrideFlag, field.value)}
+                >
+                  <FormControl>
+                    <SelectTrigger data-testid="use-override-comms">
+                      <SelectValue placeholder="Follow environment default" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="default">{FLAG_OPTION_LABELS.default}</SelectItem>
+                    <SelectItem value="override">{FLAG_OPTION_LABELS.override}</SelectItem>
+                    <SelectItem value="real">{FLAG_OPTION_LABELS.real}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  {describeEnvironmentDefault(getCommsEnvironment().isProduction)} {REAL_RECIPIENT_WARNING}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {/* Notes */}
         <FormField
