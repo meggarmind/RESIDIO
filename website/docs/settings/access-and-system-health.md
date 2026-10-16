@@ -12,7 +12,7 @@ residio_sources:
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 1e9ab0d
+residio_verified_commit: 895a6ea
 residio_verified_at: '2026-10-16'
 residio_app_version: '0.4.0'
 ---
