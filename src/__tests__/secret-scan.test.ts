@@ -70,6 +70,36 @@ describe('secret-scan (pre-commit)', () => {
     expect(scanLine('k = sb_' + 'secret_' + 'A1b2C3d4E5f6G7h8I9j0K1')).toContain('supabase-secret-key');
   });
 
+  it('keeps parsing headers after hunks that remove lines', () => {
+    const diff = [
+      '--- a/src/a.ts',
+      '+++ b/src/a.ts',
+      '@@ -3,2 +3 @@',
+      '-old one',
+      '-old two',
+      '+const fine = 1;',
+      '@@ -9 +8,2 @@',
+      '-old three',
+      `+const k = "${aws}";`,
+      '+const also = 2;',
+      '--- a/src/b.ts',
+      '+++ b/src/b.ts',
+      '@@ -1 +1 @@',
+      '-old',
+      `+const k = "${aws}";`,
+    ].join('\n');
+    expect(scanDiff(diff)).toEqual([
+      { file: 'src/a.ts', line: 8, rule: 'aws-access-key' },
+      { file: 'src/b.ts', line: 1, rule: 'aws-access-key' },
+    ]);
+  });
+
+  it('keeps a gitleaks finding for a non-JWT rule even when the line also holds an anon JWT', () => {
+    const line = `x = "${aws}"; y = "${jwt('anon')}"`;
+    const kept = filterGitleaksFindings([{ File: 'a.ts', StartLine: 1, RuleID: 'aws-access-token' }], () => line);
+    expect(kept).toHaveLength(1);
+  });
+
   it('does not read an added line starting with "++" as a file header', () => {
     const diff = [
       '--- a/src/a.ts',

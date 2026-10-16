@@ -176,12 +176,12 @@ function main() {
         { encoding: 'utf8' },
       );
       if (r.error || (r.status !== 0 && r.status !== 1)) {
-        console.error(`secret-scan: gitleaks could not run (status ${r.status}): ${r.stderr || r.error}`);
+        console.error(`secret-scan: gitleaks could not run (status ${r.status}): ${r.stderr || r.error || 'no output'}`);
         return 1;
       }
       if (r.status === 0) return 0;
       const raw = existsSync(report) ? JSON.parse(readFileSync(report, 'utf8')) : null;
-      if (!Array.isArray(raw)) {
+      if (!Array.isArray(raw) || raw.length === 0) {
         console.error('secret-scan: gitleaks reported a leak but no readable report; failing closed.');
         return 1;
       }
