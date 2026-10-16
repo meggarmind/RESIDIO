@@ -130,12 +130,21 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
     return { success: false, error: transportError };
   }
 
-  const result = await sendViaResend({
-    to: recipients.map(r => r.email),
-    subject: options.subject,
-    react: options.react,
-    attachments: options.attachments,
-  });
+  const result = await sendViaResend(
+    {
+      to: recipients.map(r => r.email),
+      subject: options.subject,
+      react: options.react,
+      attachments: options.attachments,
+    },
+    { residentOverride: options.residentOverride, purpose: options.purpose }
+  );
+
+  // Original and actual recipient (or the block) go into the log metadata (#715).
+  const logMetadata = result.override
+    ? { ...options.metadata, override: result.override }
+    : options.metadata;
+  const overrideField = result.override ? { override: result.override } : {};
 
   if (!result.ok) {
     // Log failed attempt for each recipient
@@ -148,10 +157,10 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
         subject: options.subject,
         status: 'failed',
         errorMessage: result.error,
-        metadata: options.metadata,
+        metadata: logMetadata,
       });
     }
-    return { success: false, error: result.error };
+    return { success: false, error: result.error, ...overrideField };
   }
 
   // Log successful send for each recipient
@@ -164,9 +173,9 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
       subject: options.subject,
       resendId: result.id,
       status: 'sent',
-      metadata: options.metadata,
+      metadata: logMetadata,
     });
   }
 
-  return { success: true, resendId: result.id };
+  return { success: true, resendId: result.id, ...overrideField };
 }

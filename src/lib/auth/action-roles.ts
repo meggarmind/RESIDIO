@@ -297,6 +297,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
 
   // Communications
   '/settings/email': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
+  '/settings/comms-override': [PERMISSIONS.SETTINGS_MANAGE_GENERAL],
   '/settings/message-templates': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_TEMPLATES],
   '/settings/announcement-categories': [PERMISSIONS.ANNOUNCEMENTS_MANAGE_CATEGORIES],
 

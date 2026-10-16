@@ -16,7 +16,9 @@ export interface SmsRecipient {
   residentId?: string;
 }
 
-export interface SendSmsOptions {
+import type { CommsSendContext, OverrideLogRecord } from '@/lib/comms-override/types';
+
+export interface SendSmsOptions extends CommsSendContext {
   to: SmsRecipient | SmsRecipient[];
   message: string;
   smsType: SmsType;
@@ -39,6 +41,8 @@ export interface SendSmsResult {
   messageId?: string;
   error?: string;
   balance?: number; // Termii returns account balance
+  /** Set when the communications override redirected or blocked the send (#715). */
+  override?: OverrideLogRecord;
 }
 
 export interface SmsLogEntry {

@@ -16,6 +16,11 @@ vi.mock('@/lib/email/resend', () => ({
   emailConfig: { fromAddress: 'noreply@test.example', replyTo: 'reply@test.example' },
   isEmailConfigured: mocks.isEmailConfigured,
 }));
+// The communications override has its own tests; these specs cover retry classification.
+vi.mock('@/lib/comms-override/gate', () => ({
+  decideSend: async () => ({ result: { redirect: false }, envLabel: 'TEST' }),
+  loadSnapshotFor: async () => ({ status: 'error', message: 'unused' }),
+}));
 vi.mock('@/lib/settings/service', () => ({
   getSettingValueAsService: vi.fn(),
   getSettingResultAsService: vi.fn(),

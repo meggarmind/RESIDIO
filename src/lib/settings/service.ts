@@ -39,8 +39,10 @@ function coerceSettingValue(value: Json): Json {
  * and "query error" are reported distinctly instead of both surfacing as
  * a PostgREST error.
  */
+type SettingsClient = Awaited<ReturnType<typeof createServerSupabaseClient>> | ReturnType<typeof createAdminClient>;
+
 export async function readSetting(
-    supabase: Awaited<ReturnType<typeof createServerSupabaseClient>> | ReturnType<typeof createAdminClient>,
+    supabase: SettingsClient,
     key: string
 ): Promise<SettingReadResult<Json>> {
     const { data, error } = await supabase
@@ -84,4 +86,30 @@ export async function getSettingValueAsService(key: string): Promise<Json | null
 export async function getSettingResultAsService(key: string): Promise<SettingReadResult> {
     const supabase = createAdminClient();
     return readSetting(supabase, key);
+}
+
+/**
+ * Reads several settings in one query with NO type coercion: a stored string
+ * stays a string. `coerceSettingValue` turns numeric-looking strings into
+ * numbers and `''` into `0`, which destroys a phone number such as
+ * `08012345678`. Keys with no row are simply absent from the returned map.
+ * A query error is reported, never collapsed to "absent", so a caller can fail
+ * closed (communications override, #715).
+ */
+export async function getRawSettingsAsService(
+    keys: string[],
+    client?: SettingsClient
+): Promise<{ status: 'ok'; values: Map<string, Json> } | { status: 'error'; message: string }> {
+    const supabase = client ?? createAdminClient();
+    const { data, error } = await supabase
+        .from('system_settings')
+        .select('key, value')
+        .in('key', keys);
+
+    if (error) {
+        console.error('Get raw settings error:', error);
+        return { status: 'error', message: error.message };
+    }
+
+    return { status: 'ok', values: new Map((data ?? []).map((row) => [row.key, row.value as Json])) };
 }

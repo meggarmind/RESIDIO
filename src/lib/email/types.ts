@@ -19,7 +19,9 @@ export interface EmailRecipient {
   residentId?: string;
 }
 
-export interface SendEmailOptions {
+import type { CommsSendContext, OverrideLogRecord } from '@/lib/comms-override/types';
+
+export interface SendEmailOptions extends CommsSendContext {
   to: EmailRecipient | EmailRecipient[];
   subject: string;
   react?: React.ReactElement | null;
@@ -32,6 +34,8 @@ export interface SendEmailResult {
   success: boolean;
   resendId?: string;
   error?: string;
+  /** Set when the communications override redirected or blocked the send (#715). */
+  override?: OverrideLogRecord;
 }
 
 export interface EmailLogEntry {
