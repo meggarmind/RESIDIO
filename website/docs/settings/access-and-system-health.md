@@ -6,13 +6,14 @@ residio_sources:
   - src/app/(dashboard)/settings/maintenance/**
   - src/app/(dashboard)/settings/data-retention/**
   - src/app/(dashboard)/system/audit-logs/**
+  - src/app/(dashboard)/system/action-log/**
   - src/app/(dashboard)/settings/roles/**
   - src/app/(dashboard)/system/accounts/**
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: df973bb
-residio_verified_at: '2026-10-11'
+residio_verified_commit: 895a6ea
+residio_verified_at: '2026-10-16'
 residio_app_version: '0.4.0'
 ---
 
@@ -52,6 +53,10 @@ Work the **Pending Accounts** queue, under System, as part of routine access rev
 ## Audit logs
 
 Open **System → Audit Logs** to trace creates, updates, approvals, and administrative changes. Filter by entity, actor, action, or date range. Audit logs are something you watch, not something you configure, so the page lives under System rather than Settings.
+
+## Action log
+
+Open **System → Action Log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only, and entries are not yet pruned automatically.
 
 ## System health
 
