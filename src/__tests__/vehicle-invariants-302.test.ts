@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { normalizePlate } from '@/lib/security/plate';
-import { createVehicle, updateVehicle, setPrimaryVehicle } from '@/actions/security/vehicles';
+import { createVehicle, updateVehicle, setPrimaryVehicle, searchVehicleByPlate } from '@/actions/security/vehicles';
 import { recordCheckIn } from '@/actions/security/access-logs';
 import { checkInSchema } from '@/lib/validators/security-contact';
 
@@ -22,7 +22,7 @@ function builder(table: string) {
   const call: Call = { table, chain: [] };
   mocks.calls.push(call);
   const proxy: Record<string, unknown> = {};
-  for (const name of ['select', 'insert', 'update', 'eq', 'neq', 'limit', 'order', 'ilike']) {
+  for (const name of ['select', 'insert', 'update', 'eq', 'neq', 'limit', 'order', 'ilike', 'or']) {
     proxy[name] = (...args: unknown[]) => {
       call.chain.push([name, args]);
       return proxy;
@@ -128,6 +128,24 @@ describe('migration 20261016100000 (#302)', () => {
     const doBlock = code.match(/DO \$\$[\s\S]*?\$\$;/)?.[0] ?? '';
     expect(doBlock).not.toMatch(/\b(UPDATE|DELETE|INSERT)\b/i);
   });
+  const preCheck = code.match(/DO \$\$[\s\S]*?\$\$;/)?.[0] ?? '';
+  const fn = code.match(/CREATE OR REPLACE FUNCTION public\.set_primary_vehicle[\s\S]*?\n\$\$;/)?.[0] ?? '';
+
+  it('pre-check counts only ACTIVE vehicles for both invariants', () => {
+    expect(preCheck).toMatch(/FROM public\.visitor_vehicles\s+WHERE is_active\s+GROUP BY 1/);
+    expect(preCheck).toMatch(/WHERE is_primary AND is_active\s+GROUP BY contact_id/);
+    expect(preCheck).toMatch(/upper\(regexp_replace\(plate_number, '\[\^A-Za-z0-9\]', '', 'g'\)\)/);
+  });
+  it('set_primary_vehicle locks the contact\'s active rows in id order', () => {
+    expect(fn).toMatch(/WHERE contact_id = v_contact_id AND is_active\s+ORDER BY id\s+FOR UPDATE;/);
+  });
+  it('set_primary_vehicle rejects an inactive vehicle', () => {
+    expect(fn).toMatch(/WHERE id = p_vehicle_id AND is_active;\s+IF NOT FOUND THEN\s+RAISE EXCEPTION 'Vehicle % is not active'/);
+  });
+  it('set_primary_vehicle raises when the final update touched no row (RLS)', () => {
+    expect(fn).toMatch(/RETURNING \* INTO v_vehicle;\s+(--[^\n]*\n\s*)?IF NOT FOUND THEN\s+RAISE EXCEPTION 'Vehicle % could not be updated'/);
+  });
+
   it('documents a faithful rollback that drops each object by name', () => {
     expect(raw).toMatch(/--\s+ROLLBACK:/);
     expect(raw).toMatch(/--\s+DROP FUNCTION IF EXISTS public\.set_primary_vehicle\(uuid\);/);
@@ -285,6 +303,115 @@ describe('vehicle actions use the atomic rpc (#302)', () => {
   });
 });
 
+describe('QA hardening (#302)', () => {
+  const contactOk = { id: CONTACT, full_name: 'Visitor', status: 'active' };
+
+  it('createVehicle: when set-primary fails, returns the created vehicle with an error and still audits the create', async () => {
+    mocks.resolve.mockImplementation((c: Call) => {
+      if (c.table === 'security_contacts') return { data: contactOk, error: null };
+      if (has(c, 'insert')) return { data: vehicleRow, error: null };
+      return { data: null, error: { code: 'PGRST116' } };
+    });
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'uq_visitor_vehicles_one_active_primary' } });
+    const res = await createVehicle({ contact_id: CONTACT, plate_number: 'ABC123DE', is_primary: true } as never);
+    expect(res.data?.id).toBe(VEHICLE);
+    expect(res.error).toMatch(/already has a primary vehicle/);
+    expect(mocks.logAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it('createVehicle: a generic set-primary failure is reported, not dropped', async () => {
+    mocks.resolve.mockImplementation((c: Call) => {
+      if (c.table === 'security_contacts') return { data: contactOk, error: null };
+      if (has(c, 'insert')) return { data: vehicleRow, error: null };
+      return { data: null, error: { code: 'PGRST116' } };
+    });
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    const res = await createVehicle({ contact_id: CONTACT, plate_number: 'ABC123DE', is_primary: true } as never);
+    expect(res.error).toMatch(/could not be set as the primary/);
+    expect(res.data?.is_primary).toBe(false);
+  });
+
+  it('createVehicle: an empty row from the rpc is a failure, not a primary', async () => {
+    mocks.resolve.mockImplementation((c: Call) => {
+      if (c.table === 'security_contacts') return { data: contactOk, error: null };
+      if (has(c, 'insert')) return { data: vehicleRow, error: null };
+      return { data: null, error: { code: 'PGRST116' } };
+    });
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+    const res = await createVehicle({ contact_id: CONTACT, plate_number: 'ABC123DE', is_primary: true } as never);
+    expect(res.error).toMatch(/could not be set as the primary/);
+  });
+
+  it('setPrimaryVehicle: no error but no row means failure and no audit', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+    const res = await setPrimaryVehicle(VEHICLE);
+    expect(res.data).toBeNull();
+    expect(res.error).toBe('Failed to set primary vehicle');
+    expect(mocks.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('setPrimaryVehicle: an empty composite row (no id) from the rpc is a failure with no audit', async () => {
+    mocks.rpc.mockResolvedValue({ data: {}, error: null });
+    const res = await setPrimaryVehicle(VEHICLE);
+    expect(res.data).toBeNull();
+    expect(res.error).toBe('Failed to set primary vehicle');
+    expect(mocks.logAudit).not.toHaveBeenCalled();
+  });
+
+  it('updateVehicle: fields saved but set-primary fails still audits the saved fields and reports the error', async () => {
+    mocks.resolve.mockImplementation((c: Call) => {
+      if (has(c, 'update')) return { data: { ...vehicleRow, color: 'red' }, error: null };
+      return { data: { ...vehicleRow, color: 'blue', contact: { full_name: 'Visitor' } }, error: null };
+    });
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    const res = await updateVehicle({ id: VEHICLE, color: 'red', is_primary: true } as never);
+    expect(res.data).toBeNull();
+    expect(res.error).toBe('Failed to set primary vehicle');
+    expect(mocks.logAudit).toHaveBeenCalledTimes(1);
+    expect(mocks.logAudit.mock.calls[0][0].newValues).toEqual({ color: 'red' });
+  });
+
+  it('updateVehicle: rejects a plate empty after normalisation without any write', async () => {
+    mocks.resolve.mockReturnValue({ data: { ...vehicleRow, contact: { full_name: 'V' } }, error: null });
+    const res = await updateVehicle({ id: VEHICLE, plate_number: '--' } as never);
+    expect(res.error).toMatch(/letters or digits/);
+    expect(mocks.calls.some((c) => has(c, 'update'))).toBe(false);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('searchVehicleByPlate (#302)', () => {
+  const orFilter = () =>
+    mocks.calls[0].chain.find(([n]) => n === 'or')?.[1][0] as string | undefined;
+
+  it('searches the normalised term and the raw term so legacy hyphenated rows stay findable', async () => {
+    mocks.resolve.mockReturnValue({ data: { ...vehicleRow, contact: null }, error: null });
+    const res = await searchVehicleByPlate(' abc-123 ');
+    expect(res.error).toBeNull();
+    expect(orFilter()).toBe('plate_number.ilike.%ABC123%,plate_number.ilike.%abc-123%');
+    expect(mocks.calls[0].chain.some(([n, a]) => n === 'eq' && a[0] === 'is_active' && a[1] === true)).toBe(true);
+  });
+
+  it('does not duplicate the term when raw equals normalised', async () => {
+    mocks.resolve.mockReturnValue({ data: null, error: { code: 'PGRST116' } });
+    const res = await searchVehicleByPlate('ABC123');
+    expect(orFilter()).toBe('plate_number.ilike.%ABC123%');
+    expect(res).toEqual({ data: null, error: null });
+  });
+
+  it('strips characters that could break the or() filter syntax from the raw term', async () => {
+    mocks.resolve.mockReturnValue({ data: null, error: { code: 'PGRST116' } });
+    await searchVehicleByPlate('A,B(1)%');
+    expect(orFilter()).toBe('plate_number.ilike.%AB1%');
+  });
+
+  it('returns no match without querying when nothing alphanumeric remains', async () => {
+    const res = await searchVehicleByPlate(' - ');
+    expect(res).toEqual({ data: null, error: null });
+    expect(mocks.calls).toHaveLength(0);
+  });
+});
+
 describe('check-in vehicle linkage (#302)', () => {
   function setup(vehicle: Record<string, unknown> | null, vehicleError: unknown = null) {
     mocks.resolve.mockImplementation((c: Call) => {
@@ -313,6 +440,7 @@ describe('check-in vehicle linkage (#302)', () => {
     const res = await recordCheckIn({ contact_id: CONTACT, vehicle_id: VEHICLE });
     expect(res.error).toBeNull();
     expect(insertPayload().vehicle_id).toBe(VEHICLE);
+    expect(mocks.logAudit.mock.calls[0][0].newValues.vehicle_id).toBe(VEHICLE);
   });
 
   it('stores null vehicle_id when none is given and never looks up vehicles', async () => {

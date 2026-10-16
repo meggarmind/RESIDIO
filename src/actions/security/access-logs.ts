@@ -131,6 +131,7 @@ export async function recordCheckIn(data: CheckInData): Promise<AccessLogRespons
     newValues: {
       contact_name: contact.full_name,
       gate_location: data.gate_location,
+      vehicle_id: accessLog.vehicle_id ?? data.vehicle_id ?? null,
       check_in_time: accessLog.check_in_time,
     },
   });

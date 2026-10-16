@@ -100,6 +100,11 @@ BEGIN
     WHERE id = p_vehicle_id
     RETURNING * INTO v_vehicle;
 
+    -- RLS can allow the read but refuse the write; never report that as success.
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Vehicle % could not be updated', p_vehicle_id USING ERRCODE = 'P0002';
+    END IF;
+
     RETURN v_vehicle;
 END;
 $$;

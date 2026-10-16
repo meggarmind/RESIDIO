@@ -43,7 +43,13 @@ async function callSetPrimaryVehicle(
     fn: 'set_primary_vehicle',
     args: { p_vehicle_id: string }
   ) => Promise<{ data: VisitorVehicle | null; error: PgErrorLike }>;
-  return rpc.call(supabase, 'set_primary_vehicle', { p_vehicle_id: vehicleId });
+  const result = await rpc.call(supabase, 'set_primary_vehicle', { p_vehicle_id: vehicleId });
+  // An RLS policy can allow the read but not the update, which yields an empty row
+  // without an error. That is a failure, never a success to audit.
+  if (!result.error && !result.data?.id) {
+    return { data: null, error: { message: 'set_primary_vehicle returned no row' } };
+  }
+  return result;
 }
 
 type VehicleResponse = {
@@ -129,6 +135,12 @@ export async function searchVehicleByPlate(
     return { data: null, error: null };
   }
 
+  const rawTerm = plateNumber.trim().replace(/[^A-Za-z0-9 -]/g, '');
+  const searchFilter = [normalizedPlate, rawTerm]
+    .filter((t, i, all) => t && all.indexOf(t) === i)
+    .map((t) => `plate_number.ilike.%${t}%`)
+    .join(',');
+
   const { data, error } = await supabase
     .from('visitor_vehicles')
     .select(`
@@ -146,7 +158,9 @@ export async function searchVehicleByPlate(
         )
       )
     `)
-    .ilike('plate_number', `%${normalizedPlate}%`)
+    // Legacy rows were stored with only whitespace stripped (e.g. 'ABC-123'), so match
+    // the normalised term OR the raw trimmed term (sanitised for the or() filter syntax).
+    .or(searchFilter)
     .eq('is_active', true)
     .limit(1)
     .single();
@@ -350,6 +364,23 @@ export async function updateVehicle(formData: UpdateVisitorVehicleData): Promise
     delete updateObject.is_primary;
   }
 
+  const contactData = existingVehicle.contact as { full_name: string } | null;
+  // Each committed write is audited as soon as it succeeds, so a later failure
+  // (the set-primary call) can never leave a saved change unaudited.
+  const auditChange = async (before: Record<string, unknown>, after: VisitorVehicle) => {
+    const changes = getChangedValues(before, after);
+    if (Object.keys(changes.new).length > 0) {
+      await logAudit({
+        action: 'UPDATE',
+        entityType: 'visitor_vehicles',
+        entityId: after.id,
+        entityDisplay: `${after.vehicle_type.toUpperCase()} - ${after.plate_number} (${contactData?.full_name || 'Unknown'})`,
+        oldValues: changes.old,
+        newValues: changes.new,
+      });
+    }
+  };
+
   let vehicle: VisitorVehicle | null = null;
   if (Object.keys(updateObject).length > 0) {
     const { data: updated, error: updateError } = await supabase
@@ -367,36 +398,29 @@ export async function updateVehicle(formData: UpdateVisitorVehicleData): Promise
       };
     }
     vehicle = updated;
+    await auditChange(existingVehicle, updated);
   }
 
   if (wantsPrimary) {
     const { data: primaryVehicle, error: rpcError } = await callSetPrimaryVehicle(supabase, id);
     if (rpcError || !primaryVehicle) {
       console.error('Update vehicle set-primary error:', rpcError);
+      if (vehicle) {
+        // The field edits above were committed (and audited); refresh the views.
+        revalidatePath('/security');
+        revalidatePath('/security/contacts');
+      }
       return {
         data: null,
         error: mapUniqueViolation(rpcError) || 'Failed to set primary vehicle',
       };
     }
+    await auditChange(vehicle ?? existingVehicle, primaryVehicle);
     vehicle = primaryVehicle;
   }
 
   if (!vehicle) {
     return { data: existingVehicle as VisitorVehicle, error: null };
-  }
-
-  // Audit log with changes
-  const changes = getChangedValues(existingVehicle, vehicle);
-  if (Object.keys(changes.new).length > 0) {
-    const contactData = existingVehicle.contact as { full_name: string } | null;
-    await logAudit({
-      action: 'UPDATE',
-      entityType: 'visitor_vehicles',
-      entityId: vehicle.id,
-      entityDisplay: `${vehicle.vehicle_type.toUpperCase()} - ${vehicle.plate_number} (${contactData?.full_name || 'Unknown'})`,
-      oldValues: changes.old,
-      newValues: changes.new,
-    });
   }
 
   revalidatePath('/security');
