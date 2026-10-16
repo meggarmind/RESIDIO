@@ -81,12 +81,17 @@ describe('Paystack webhook system action log', () => {
     );
   });
 
-  it('records a failure row with a fixed message when the handler throws', async () => {
+  it('records nothing when the handler throws, since the signature may not have been verified', async () => {
     vi.mocked(processPaystackWebhook).mockRejectedValue(new Error('contains ref-secret'));
     const response = await POST(request('sig'));
     expect(response.status).toBe(200);
-    const entry = vi.mocked(recordSystemAction).mock.calls[0][0];
-    expect(entry).toMatchObject({ source: 'webhook:paystack', outcome: 'failure', error: 'Internal error' });
-    expect(JSON.stringify(entry)).not.toContain('ref-secret');
+    expect(recordSystemAction).not.toHaveBeenCalled();
+  });
+
+  it('records nothing when reading the request body throws', async () => {
+    const broken = { headers: new Headers({ 'x-paystack-signature': 'sig' }), text: async () => { throw new Error('stream'); } };
+    const response = await POST(broken as never);
+    expect(response.status).toBe(200);
+    expect(recordSystemAction).not.toHaveBeenCalled();
   });
 });

@@ -88,13 +88,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Paystack Webhook] Error:', error);
-    // Fixed message: the thrown error may carry payload details.
-    await recordWebhookDelivery({
-      provider: 'paystack',
-      action: 'payment_event',
-      outcome: 'failure',
-      error: 'Internal error',
-    });
+    // Deliberately not recorded: an exception here may precede signature verification
+    // (e.g. reading the body), and nothing is logged before the signature is verified.
     // Return 200 to acknowledge receipt
     return NextResponse.json(
       { received: true, processed: false, error: 'Internal error' },
