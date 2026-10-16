@@ -39,7 +39,7 @@ describe('GET /api/cron/process-report-schedules system log', () => {
         source: 'cron:process-report-schedules',
         action: 'process',
         outcome: 'success',
-        summary: { processed: 3, failed: 0 },
+        summary: { processed: 3, failed: 0, errorCount: 0 },
       })
     );
   });
@@ -48,6 +48,31 @@ describe('GET /api/cron/process-report-schedules system log', () => {
     vi.mocked(processDueSchedules).mockResolvedValue({ processed: 3, failed: 1, errors: ['x'] });
     await GET(request(`Bearer ${SECRET}`));
     expect(recordSystemAction).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'partial' }));
+  });
+
+  it('records partial for 1 success and 2 failures (processed counts successes only)', async () => {
+    vi.mocked(processDueSchedules).mockResolvedValue({ processed: 1, failed: 2, errors: ['x', 'y'] });
+    await GET(request(`Bearer ${SECRET}`));
+    expect(recordSystemAction).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'partial' }));
+  });
+
+  it('records failure when every schedule failed', async () => {
+    vi.mocked(processDueSchedules).mockResolvedValue({ processed: 0, failed: 2, errors: ['x', 'y'] });
+    await GET(request(`Bearer ${SECRET}`));
+    expect(recordSystemAction).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'failure' }));
+  });
+
+  it('records failure when the schedule query itself failed (nothing processed, one error)', async () => {
+    vi.mocked(processDueSchedules).mockResolvedValue({ processed: 0, failed: 0, errors: ['relation missing'] });
+    const response = await GET(request(`Bearer ${SECRET}`));
+    expect(response.status).toBe(200);
+    expect(recordSystemAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: 'failure',
+        error: 'relation missing',
+        summary: { processed: 0, failed: 0, errorCount: 1 },
+      })
+    );
   });
 
   it('records failure with the error when processing throws, and still returns 500', async () => {

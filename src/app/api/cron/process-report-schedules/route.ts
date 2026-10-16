@@ -22,8 +22,15 @@ async function runReportSchedules(run: SystemLogRun) {
 
   try {
     const result = await processDueSchedules();
-    run.summary = { processed: result.processed, failed: result.failed };
-    if (result.failed > 0) run.outcome = result.processed > result.failed ? 'partial' : 'failure';
+    run.summary = { processed: result.processed, failed: result.failed, errorCount: result.errors.length };
+    if (result.failed > 0) {
+      // `processed` counts successes only, so any success alongside a failure is partial.
+      run.outcome = result.processed > 0 ? 'partial' : 'failure';
+    } else if (result.processed === 0 && result.errors.length > 0) {
+      // processDueSchedules reports a failed schedule query this way (nothing ran, one error).
+      run.outcome = 'failure';
+      run.error = result.errors[0];
+    }
     return NextResponse.json({ success: true, ...result });
   } catch (e) {
     run.error = e;
