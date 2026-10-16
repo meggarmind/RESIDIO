@@ -19,9 +19,10 @@ import type { BankStatementImport, ImportStatus } from '@/types/database';
 
 export const IMPORT_STATUS_TRANSITIONS: Readonly<Record<ImportStatus, readonly ImportStatus[]>> = {
   pending: [],
-  // processImport may run on an import in any of these three states and finishes it.
-  processing: ['completed', 'failed'],
-  awaiting_approval: ['completed', 'failed'],
+  // processImport runs only on an approved import (maker-checker, #628) and finishes it.
+  // processing and awaiting_approval have no way out through this helper.
+  processing: [],
+  awaiting_approval: [],
   approved: ['completed', 'failed'],
   completed: [],
   failed: [],

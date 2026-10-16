@@ -11,6 +11,7 @@ import type {
   DevelopmentLevyData,
   ReportData
 } from '@/actions/reports/report-engine';
+import { formatCalendarDate } from '@/lib/utils/calendar-date';
 
 // ============================================================
 // Utility Functions
@@ -20,8 +21,9 @@ const formatCurrency = (amount: number) => {
   return `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('en-GB', {
+export const formatDate = (dateStr: string) => {
+  // Stored report dates are calendar days (DATE columns): format in UTC, not the viewer's zone (#655).
+  return formatCalendarDate(dateStr, 'en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

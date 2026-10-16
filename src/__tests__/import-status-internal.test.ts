@@ -112,9 +112,9 @@ beforeEach(() => {
 });
 
 const ALL: ImportStatus[] = ['pending', 'processing', 'awaiting_approval', 'approved', 'completed', 'failed', 'rejected'];
-// Observed: processImport accepts these three and finishes the import as completed or failed.
+// processImport accepts only an approved import (#628) and finishes it as completed or failed.
 const LEGIT: Array<[ImportStatus, ImportStatus]> = (
-  ['processing', 'awaiting_approval', 'approved'] as ImportStatus[]
+  ['approved'] as ImportStatus[]
 ).flatMap((from) => (['completed', 'failed'] as ImportStatus[]).map((to) => [from, to] as [ImportStatus, ImportStatus]));
 
 describe('updateImportStatus transition table (#556)', () => {
@@ -169,12 +169,15 @@ describe('updateImportStatus concurrency guard (#556)', () => {
           op = 'update';
           return chain;
         };
+        // createImportRows loads auto-tag rules (transaction_tags) with .order(); #649
+        chain.order = () => chain;
+        chain.in = () => chain;
         chain.eq = (col: string, val: unknown) => {
           if (op === 'update') eqs.push([col, val]);
           return chain;
         };
         const settle = () =>
-          op === 'update' ? { data: [{ id: uid(1) }], error: null } : { data: { status: 'processing' }, error: null };
+          op === 'update' ? { data: [{ id: uid(1) }], error: null } : { data: { status: 'approved' }, error: null };
         chain.single = async () => settle();
         chain.then = (res: (v: unknown) => unknown) => Promise.resolve(settle()).then(res);
         return chain;
@@ -183,19 +186,19 @@ describe('updateImportStatus concurrency guard (#556)', () => {
     const res = await updateImportStatus({ import_id: uid(1), status: 'completed' });
     expect(res.error).toBeNull();
     expect(eqs).toContainEqual(['id', uid(1)]);
-    expect(eqs).toContainEqual(['status', 'processing']);
+    expect(eqs).toContainEqual(['status', 'approved']);
     expect(selectsAfterUpdate).toEqual(['id, file_name']);
   });
 
   it('returns an error when zero rows were updated (lost race)', async () => {
-    results['bank_statement_imports.select'] = { data: { status: 'processing' } };
+    results['bank_statement_imports.select'] = { data: { status: 'approved' } };
     results['bank_statement_imports.update'] = { data: [] };
     const res = await updateImportStatus({ import_id: uid(1), status: 'completed' });
     expect(res.error).toMatch(/changed concurrently/);
   });
 
   it('returns ok when one row was updated', async () => {
-    results['bank_statement_imports.select'] = { data: { status: 'processing' } };
+    results['bank_statement_imports.select'] = { data: { status: 'approved' } };
     results['bank_statement_imports.update'] = { data: [{ id: uid(1) }] };
     const res = await updateImportStatus({ import_id: uid(1), status: 'completed' });
     expect(res.error).toBeNull();
@@ -249,7 +252,7 @@ describe('processImport final status write under IMPORTS_REVIEW alone (#556)', (
     );
     fetchAllRows.mockResolvedValue({ data: [], error: null });
     results['bank_statement_imports.select'] = {
-      data: { id: uid(1), file_name: 'jan.csv', status: 'awaiting_approval', total_rows: 3 },
+      data: { id: uid(1), file_name: 'jan.csv', status: 'approved', total_rows: 3 },
     };
   });
 
@@ -264,6 +267,23 @@ describe('processImport final status write under IMPORTS_REVIEW alone (#556)', (
     );
     expect(authorizePermission).not.toHaveBeenCalledWith(PERMISSIONS.IMPORTS_CREATE);
   });
+
+  for (const status of ['processing', 'awaiting_approval', 'pending', 'rejected', 'completed', 'failed']) {
+    it(`refuses a ${status} import: no row read, no write, no audit, no payments (#628)`, async () => {
+      results['bank_statement_imports.select'] = {
+        data: { id: uid(1), file_name: 'jan.csv', status, total_rows: 3 },
+      };
+      const res = await processImport({ import_id: uid(1) });
+      expect(res.success).toBe(false);
+      expect(res.created_payments_count).toBe(0);
+      expect(res.errors[0].error).toBe(
+        `Cannot process import with status: ${status}. Only approved imports can be processed.`,
+      );
+      expect(fetchAllRows).not.toHaveBeenCalled();
+      expect(calls).toEqual([]);
+      expect(logAudit).not.toHaveBeenCalled();
+    });
+  }
 
   it('writes nothing when the caller lacks IMPORTS_REVIEW', async () => {
     authorizePermission.mockResolvedValue({ authorized: false, error: 'Forbidden' });

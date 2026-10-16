@@ -1,21 +1,27 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { IconBox } from '@/components/ui/icon-box';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, FileText, Trash2 } from 'lucide-react';
 import { useImport, useImportRowSummary } from '@/hooks/use-imports';
 import { getStatusBadge } from '@/components/imports/import-status-badge';
 import { ImportSummaryTiles } from '@/components/imports/import-summary-tiles';
 import { ImportApprovalPanel } from '@/components/imports/import-approval-panel';
+import { DeleteImportDialog, canDeleteImport } from '@/components/imports/delete-import-dialog';
+import { Can } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 export default function ImportDetailPage() {
   const params = useParams();
   const importId = params.importId as string;
+  const router = useRouter();
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const {
     data: importRecord,
@@ -87,7 +93,17 @@ export default function ImportDetailPage() {
               : 'Uploader not recorded'}
           </p>
         </div>
-        <div className="ml-auto">{getStatusBadge(importRecord.status ?? 'pending')}</div>
+        <div className="ml-auto flex items-center gap-3">
+          {getStatusBadge(importRecord.status ?? 'pending')}
+          {canDeleteImport(importRecord.status) && (
+            <Can permission={PERMISSIONS.IMPORTS_CREATE}>
+              <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete import
+              </Button>
+            </Can>
+          )}
+        </div>
       </div>
 
       <Card className="shadow-soft">
@@ -101,6 +117,17 @@ export default function ImportDetailPage() {
       </Card>
 
       <ImportApprovalPanel importId={importId} />
+
+      <DeleteImportDialog
+        importId={importId}
+        fileName={importRecord.file_name}
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onDeleted={() => {
+          router.push('/payments/imports');
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

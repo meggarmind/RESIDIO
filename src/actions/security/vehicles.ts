@@ -13,6 +13,44 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { getChangedValues } from '@/lib/audit/helpers';
+import { normalizePlate } from '@/lib/security/plate';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+const PLATE_TAKEN_ERROR = 'A vehicle with this plate number is already registered';
+const PRIMARY_CONFLICT_ERROR =
+  'This contact already has a primary vehicle. Try again to replace it.';
+
+type PgErrorLike = { code?: string; message?: string; details?: string } | null;
+
+/** Maps a Postgres unique violation (23505) on visitor_vehicles to a user-facing error. */
+function mapUniqueViolation(error: PgErrorLike): string | null {
+  if (!error || error.code !== '23505') return null;
+  const text = `${error.message ?? ''} ${error.details ?? ''}`;
+  if (text.includes('uq_visitor_vehicles_one_active_primary')) return PRIMARY_CONFLICT_ERROR;
+  return PLATE_TAKEN_ERROR;
+}
+
+/**
+ * Atomically makes a vehicle its contact's only active primary, via the
+ * set_primary_vehicle SQL function (#302). The generated DB types do not know
+ * this function yet, hence the narrow cast; drop it after the next `db:types` run.
+ */
+async function callSetPrimaryVehicle(
+  supabase: SupabaseClient,
+  vehicleId: string
+): Promise<{ data: VisitorVehicle | null; error: PgErrorLike }> {
+  const rpc = supabase.rpc as unknown as (
+    fn: 'set_primary_vehicle',
+    args: { p_vehicle_id: string }
+  ) => Promise<{ data: VisitorVehicle | null; error: PgErrorLike }>;
+  const result = await rpc.call(supabase, 'set_primary_vehicle', { p_vehicle_id: vehicleId });
+  // An RLS policy can allow the read but not the update, which yields an empty row
+  // without an error. That is a failure, never a success to audit.
+  if (!result.error && !result.data?.id) {
+    return { data: null, error: { message: 'set_primary_vehicle returned no row' } };
+  }
+  return result;
+}
 
 type VehicleResponse = {
   data: VisitorVehicle | null;
@@ -91,8 +129,17 @@ export async function searchVehicleByPlate(
     return { data: null, error: auth.error || 'Permission denied' };
   }
 
-  // Normalize plate number (remove spaces, uppercase)
-  const normalizedPlate = plateNumber.replace(/\s+/g, '').toUpperCase();
+  // Normalize plate number (upper-case alphanumerics only)
+  const normalizedPlate = normalizePlate(plateNumber);
+  if (!normalizedPlate) {
+    return { data: null, error: null };
+  }
+
+  const rawTerm = plateNumber.trim().replace(/[^A-Za-z0-9 -]/g, '');
+  const searchFilter = [normalizedPlate, rawTerm]
+    .filter((t, i, all) => t && all.indexOf(t) === i)
+    .map((t) => `plate_number.ilike.%${t}%`)
+    .join(',');
 
   const { data, error } = await supabase
     .from('visitor_vehicles')
@@ -111,7 +158,9 @@ export async function searchVehicleByPlate(
         )
       )
     `)
-    .ilike('plate_number', `%${normalizedPlate}%`)
+    // Legacy rows were stored with only whitespace stripped (e.g. 'ABC-123'), so match
+    // the normalised term OR the raw trimmed term (sanitised for the or() filter syntax).
+    .or(searchFilter)
     .eq('is_active', true)
     .limit(1)
     .single();
@@ -164,7 +213,10 @@ export async function createVehicle(formData: CreateVisitorVehicleData): Promise
   }
 
   // Normalize plate number
-  const normalizedPlate = formData.plate_number.replace(/\s+/g, '').toUpperCase();
+  const normalizedPlate = normalizePlate(formData.plate_number);
+  if (!normalizedPlate) {
+    return { data: null, error: 'Plate number must contain letters or digits' };
+  }
 
   // Check for duplicate plate number
   const { data: existingVehicle } = await supabase
@@ -176,19 +228,11 @@ export async function createVehicle(formData: CreateVisitorVehicleData): Promise
     .single();
 
   if (existingVehicle) {
-    return { data: null, error: 'A vehicle with this plate number is already registered' };
+    return { data: null, error: PLATE_TAKEN_ERROR };
   }
 
-  // If this is marked as primary, unset other primary vehicles
-  if (formData.is_primary) {
-    await supabase
-      .from('visitor_vehicles')
-      .update({ is_primary: false })
-      .eq('contact_id', formData.contact_id)
-      .eq('is_primary', true);
-  }
-
-  // Create the vehicle
+  // Create the vehicle. It is inserted non-primary; a primary request is applied
+  // afterwards by the atomic set_primary_vehicle function.
   const { data: vehicle, error: createError } = await supabase
     .from('visitor_vehicles')
     .insert({
@@ -200,7 +244,7 @@ export async function createVehicle(formData: CreateVisitorVehicleData): Promise
       color: formData.color || null,
       year: formData.year || null,
       photo_url: formData.photo_url || null,
-      is_primary: formData.is_primary || false,
+      is_primary: false,
       notes: formData.notes || null,
       created_by: user.id,
     })
@@ -209,7 +253,24 @@ export async function createVehicle(formData: CreateVisitorVehicleData): Promise
 
   if (createError) {
     console.error('Create vehicle error:', createError);
-    return { data: null, error: 'Failed to create vehicle registration' };
+    return {
+      data: null,
+      error: mapUniqueViolation(createError) || 'Failed to create vehicle registration',
+    };
+  }
+
+  let createdVehicle: VisitorVehicle = vehicle;
+  let primaryError: string | null = null;
+  if (formData.is_primary) {
+    const { data: primaryVehicle, error: rpcError } = await callSetPrimaryVehicle(supabase, vehicle.id);
+    if (rpcError || !primaryVehicle) {
+      console.error('Create vehicle set-primary error:', rpcError);
+      primaryError =
+        mapUniqueViolation(rpcError) ||
+        'Vehicle registered, but it could not be set as the primary vehicle';
+    } else {
+      createdVehicle = primaryVehicle;
+    }
   }
 
   // Audit log
@@ -218,14 +279,14 @@ export async function createVehicle(formData: CreateVisitorVehicleData): Promise
     entityType: 'visitor_vehicles',
     entityId: vehicle.id,
     entityDisplay: `${formData.vehicle_type?.toUpperCase() || 'CAR'} - ${normalizedPlate} (${contact.full_name})`,
-    newValues: vehicle,
+    newValues: createdVehicle,
   });
 
   revalidatePath('/security');
   revalidatePath('/security/contacts');
   revalidatePath(`/security/contacts/${formData.contact_id}`);
 
-  return { data: vehicle, error: null };
+  return { data: createdVehicle, error: primaryError };
 }
 
 // Editable vehicle columns. Deliberately NOT derived from updateVisitorVehicleSchema:
@@ -279,7 +340,11 @@ export async function updateVehicle(formData: UpdateVisitorVehicleData): Promise
   for (const [key, value] of Object.entries(updateData)) {
     if (value !== undefined && value !== '') {
       if (key === 'plate_number' && typeof value === 'string') {
-        updateObject[key] = value.replace(/\s+/g, '').toUpperCase();
+        const normalized = normalizePlate(value);
+        if (!normalized) {
+          return { data: null, error: 'Plate number must contain letters or digits' };
+        }
+        updateObject[key] = normalized;
       } else {
         updateObject[key] = value;
       }
@@ -292,40 +357,70 @@ export async function updateVehicle(formData: UpdateVisitorVehicleData): Promise
     return { data: existingVehicle as VisitorVehicle, error: null };
   }
 
-  // If setting as primary, unset other primary vehicles
-  if (updateObject.is_primary === true) {
-    await supabase
+  // Promoting to primary goes through the atomic set_primary_vehicle function,
+  // never a separate unset-then-set update.
+  const wantsPrimary = updateObject.is_primary === true;
+  if (wantsPrimary) {
+    delete updateObject.is_primary;
+  }
+
+  const contactData = existingVehicle.contact as { full_name: string } | null;
+  // Each committed write is audited as soon as it succeeds, so a later failure
+  // (the set-primary call) can never leave a saved change unaudited.
+  const auditChange = async (before: Record<string, unknown>, after: VisitorVehicle) => {
+    const changes = getChangedValues(before, after);
+    if (Object.keys(changes.new).length > 0) {
+      await logAudit({
+        action: 'UPDATE',
+        entityType: 'visitor_vehicles',
+        entityId: after.id,
+        entityDisplay: `${after.vehicle_type.toUpperCase()} - ${after.plate_number} (${contactData?.full_name || 'Unknown'})`,
+        oldValues: changes.old,
+        newValues: changes.new,
+      });
+    }
+  };
+
+  let vehicle: VisitorVehicle | null = null;
+  if (Object.keys(updateObject).length > 0) {
+    const { data: updated, error: updateError } = await supabase
       .from('visitor_vehicles')
-      .update({ is_primary: false })
-      .eq('contact_id', existingVehicle.contact_id)
-      .eq('is_primary', true)
-      .neq('id', id);
+      .update(updateObject)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError || !updated) {
+      console.error('Update vehicle error:', updateError);
+      return {
+        data: null,
+        error: mapUniqueViolation(updateError) || 'Failed to update vehicle',
+      };
+    }
+    vehicle = updated;
+    await auditChange(existingVehicle, updated);
   }
 
-  const { data: vehicle, error: updateError } = await supabase
-    .from('visitor_vehicles')
-    .update(updateObject)
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (updateError) {
-    console.error('Update vehicle error:', updateError);
-    return { data: null, error: 'Failed to update vehicle' };
+  if (wantsPrimary) {
+    const { data: primaryVehicle, error: rpcError } = await callSetPrimaryVehicle(supabase, id);
+    if (rpcError || !primaryVehicle) {
+      console.error('Update vehicle set-primary error:', rpcError);
+      if (vehicle) {
+        // The field edits above were committed (and audited); refresh the views.
+        revalidatePath('/security');
+        revalidatePath('/security/contacts');
+      }
+      return {
+        data: null,
+        error: mapUniqueViolation(rpcError) || 'Failed to set primary vehicle',
+      };
+    }
+    await auditChange(vehicle ?? existingVehicle, primaryVehicle);
+    vehicle = primaryVehicle;
   }
 
-  // Audit log with changes
-  const changes = getChangedValues(existingVehicle, vehicle);
-  if (Object.keys(changes.new).length > 0) {
-    const contactData = existingVehicle.contact as { full_name: string } | null;
-    await logAudit({
-      action: 'UPDATE',
-      entityType: 'visitor_vehicles',
-      entityId: vehicle.id,
-      entityDisplay: `${vehicle.vehicle_type.toUpperCase()} - ${vehicle.plate_number} (${contactData?.full_name || 'Unknown'})`,
-      oldValues: changes.old,
-      newValues: changes.new,
-    });
+  if (!vehicle) {
+    return { data: existingVehicle as VisitorVehicle, error: null };
   }
 
   revalidatePath('/security');
@@ -399,44 +494,27 @@ export async function setPrimaryVehicle(
     return { data: null, error: auth.error || 'Permission denied' };
   }
 
-  // Get the vehicle
-  const { data: vehicle, error: fetchError } = await supabase
-    .from('visitor_vehicles')
-    .select('contact_id')
-    .eq('id', vehicleId)
-    .single();
+  // Single atomic call: unsets the contact's other primaries and sets this one.
+  const { data: updatedVehicle, error: rpcError } = await callSetPrimaryVehicle(supabase, vehicleId);
 
-  if (fetchError || !vehicle) {
-    return { data: null, error: 'Vehicle not found' };
-  }
-
-  // Unset other primary vehicles for this contact
-  await supabase
-    .from('visitor_vehicles')
-    .update({ is_primary: false })
-    .eq('contact_id', vehicle.contact_id)
-    .eq('is_primary', true);
-
-  // Set this vehicle as primary
-  const { data: updatedVehicle, error: updateError } = await supabase
-    .from('visitor_vehicles')
-    .update({ is_primary: true })
-    .eq('id', vehicleId)
-    .select()
-    .single();
-
-  if (updateError) {
-    console.error('Set primary vehicle error:', updateError);
-    return { data: null, error: 'Failed to set primary vehicle' };
+  if (rpcError || !updatedVehicle) {
+    console.error('Set primary vehicle error:', rpcError);
+    if (rpcError?.code === 'P0002') {
+      return { data: null, error: 'Vehicle not found or inactive' };
+    }
+    return {
+      data: null,
+      error: mapUniqueViolation(rpcError) || 'Failed to set primary vehicle',
+    };
   }
 
   await logAudit({
     action: 'UPDATE',
     entityType: 'visitor_vehicles',
     entityId: vehicleId,
-    entityDisplay: `Set primary vehicle${updatedVehicle?.plate_number ? `: ${updatedVehicle.plate_number}` : ''}`,
+    entityDisplay: `Set primary vehicle: ${updatedVehicle.plate_number}`,
     oldValues: { is_primary: false },
-    newValues: { is_primary: true, contact_id: vehicle.contact_id },
+    newValues: { is_primary: true, contact_id: updatedVehicle.contact_id },
   });
 
   revalidatePath('/security');

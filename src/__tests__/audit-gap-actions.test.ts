@@ -42,9 +42,17 @@ beforeEach(() => {
 });
 
 describe('setPrimaryVehicle audit (#556)', () => {
+  // setPrimaryVehicle is one atomic rpc('set_primary_vehicle') since #302.
+  const rpcResult: { current: QueryResult } = { current: {} };
   beforeEach(() => {
-    results['visitor_vehicles.select'] = { data: { contact_id: uid(8) } };
-    results['visitor_vehicles.update'] = { data: { id: uid(1), plate_number: 'ABC-123' } };
+    rpcResult.current = { data: { id: uid(1), contact_id: uid(8), plate_number: 'ABC-123' } };
+    createServerSupabaseClient.mockImplementation(async () => ({
+      ...makeRecordingSupabase({ results, calls, selects }),
+      rpc: async (fn: string) => {
+        calls.push(`write:rpc.${fn}`);
+        return { data: rpcResult.current.data ?? null, error: rpcResult.current.error ?? null };
+      },
+    }));
   });
 
   it('audits an UPDATE after the writes succeed', async () => {
@@ -56,11 +64,11 @@ describe('setPrimaryVehicle audit (#556)', () => {
       expect.objectContaining({ action: 'UPDATE', entityType: 'visitor_vehicles', entityId: uid(1) })
     );
     expect(calls.at(-1)).toBe('audit');
-    expect(calls.indexOf('audit')).toBeGreaterThan(calls.lastIndexOf('write:visitor_vehicles.update'));
+    expect(calls.indexOf('audit')).toBeGreaterThan(calls.lastIndexOf('write:rpc.set_primary_vehicle'));
   });
 
   it('does not audit when the update fails', async () => {
-    results['visitor_vehicles.update'] = { error: boom };
+    rpcResult.current = { error: boom };
     await setPrimaryVehicle(uid(1));
     expect(logAudit).not.toHaveBeenCalled();
   });

@@ -9,7 +9,7 @@ residio_sources:
   - src/actions/imports/**
   - src/components/imports/**
   - src/lib/parsers/**
-residio_verified_commit: 5912d9d
+residio_verified_commit: 9f10bde
 residio_verified_at: '2026-10-15'
 residio_app_version: '0.4.0'
 ---
@@ -37,10 +37,12 @@ An uploaded statement never posts payments on its own. It is submitted, approved
 3. Review parsed rows and duplicate warnings.
 4. Correct categorization or matching issues in the preview.
 5. Check that the total and row count match the source statement, then choose **Submit for approval**. This needs the `imports.review` permission and opens the import's page.
-6. An approver opens the import (from the **Import History** page, using the **Needs approval** filter, or from the "Bank Import Awaiting Approval" notification) and chooses **Approve**, or **Reject** with a required reason. Approve needs `imports.approve`; Reject needs `imports.reject`.
-7. Once approved, anyone with `imports.review` opens the import, picks the processing options (mode, skip duplicates, skip unmatched) and chooses **Process payments**. Payments are created and wallets credited only at this step.
+6. An approver opens the import (from the **Import History** page, using the **Needs approval** filter, or from the "Bank Import Awaiting Approval" notification) and chooses **Approve**, or **Reject** with a required reason. Approve needs `imports.approve`; Reject needs `imports.reject`. The person who submitted an import cannot approve it: a different approver is required, and the page shows "You submitted this import, so a different approver is required" if they try. The submitter can still reject their own submission to withdraw it.
+7. Only an approved import can be processed. Once approved, anyone with `imports.review` (including the submitter) opens the import, picks the processing options (mode, skip duplicates, skip unmatched) and chooses **Process payments**. Payments are created and wallets credited only at this step.
 
 A rejected import keeps its reason on the import page and creates no payments. Approvers and reviewers can open the import pages without `imports.create`.
+
+On the **Import History** page, click anywhere on a row to open that import. To remove an import that was never submitted or was turned down, choose **Delete** from the row menu or on the import page. Delete is offered only for imports that are pending, failed or rejected, needs `imports.create`, and asks for confirmation first. This also clears a pending import that never finished uploading.
 
 ## Verify pending payments
 

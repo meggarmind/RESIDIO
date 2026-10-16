@@ -52,6 +52,25 @@ export async function recordCheckIn(data: CheckInData): Promise<AccessLogRespons
     return { data: null, error: `Contact is ${contact.status}. Cannot record check-in.` };
   }
 
+  // If a vehicle is given, it must exist, be active and belong to this contact
+  if (data.vehicle_id) {
+    const { data: vehicle, error: vehicleError } = await supabase
+      .from('visitor_vehicles')
+      .select('id, contact_id, is_active')
+      .eq('id', data.vehicle_id)
+      .single();
+
+    if (vehicleError || !vehicle) {
+      return { data: null, error: 'Vehicle not found' };
+    }
+    if (vehicle.contact_id !== data.contact_id) {
+      return { data: null, error: 'Vehicle does not belong to this contact' };
+    }
+    if (!vehicle.is_active) {
+      return { data: null, error: 'Vehicle is not active' };
+    }
+  }
+
   // If access_code_id provided, verify it's valid
   if (data.access_code_id) {
     const { data: accessCode, error: codeError } = await supabase
@@ -85,6 +104,7 @@ export async function recordCheckIn(data: CheckInData): Promise<AccessLogRespons
       access_code_id: data.access_code_id || null,
       contact_id: data.contact_id,
       resident_id: contact.resident_id,
+      vehicle_id: data.vehicle_id || null,
       check_in_time: new Date().toISOString(),
       verified_by: user.id,
       gate_location: data.gate_location || null,
@@ -111,6 +131,7 @@ export async function recordCheckIn(data: CheckInData): Promise<AccessLogRespons
     newValues: {
       contact_name: contact.full_name,
       gate_location: data.gate_location,
+      vehicle_id: accessLog.vehicle_id ?? data.vehicle_id ?? null,
       check_in_time: accessLog.check_in_time,
     },
   });

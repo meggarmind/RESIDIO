@@ -302,14 +302,23 @@ mislead the next session.
 ```
 feature branch --PR--> stage   (Coolify residio-stage, Residio_Stage: UAT)
 stage --PR "Release vX.Y.Z" (merge commit)--> master   (Coolify residio-prod, Residio_Prod)
-hotfix: branch from master --PR--> master, then merge master back into stage
+after EVERY release and hotfix: sync PR (branch cut from stage, master merged in) --> stage
+hotfix: branch from master --PR--> master, then the sync PR above
 ```
 
 - **Feature and fix PRs target `stage`.** Only release PRs (from `stage`) and hotfix PRs target
   `master`. Both branches are protected and require the `PR gate` check.
 - **Promote with a merge commit, never a squash**, so `stage` and `master` keep a shared history
   and the next release PR does not re-present already-shipped commits.
-- **After a hotfix, merge `master` back into `stage`** in its own PR, before the next release.
+- **After every release and every hotfix, merge `master` back into `stage`** in its own PR,
+  before the next release. Both branches require "up to date before merging", and a merge-commit
+  promotion leaves `master` holding a merge commit that `stage` lacks, so the next release PR
+  shows BEHIND and cannot merge until this is done. Open the PR from a branch **cut from `stage`**
+  with `master` merged in (`git merge --no-ff origin/master`); a PR from `master` itself cannot
+  work, because it is behind `stage` and can never satisfy the same rule. Merge it with a **merge
+  commit, never a squash**, or `master` does not enter `stage`'s history. After a plain release it
+  changes no file (check: the merged tree equals `stage`'s tree); after a hotfix it carries the
+  fix.
 - **Label every PR into `master`** with exactly one of `release:major` (not a drop-in upgrade:
   new required env var, breaking migration, access-control API change), `release:minor` (new
   capability, drop-in), `release:patch` (fixes) or `release:none`. On merge,
