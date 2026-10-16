@@ -35,7 +35,7 @@ export async function notifyRequesterOfOutcome(params: {
             title: `Request ${outcome}`,
             body,
             category: 'info',
-            actionUrl: `/approvals?id=${request.id}`,
+            actionUrl: '/approvals',
             priority: outcome === 'approved' ? 'normal' : 'high',
             metadata: { approval_request_id: request.id, request_type: request.request_type, outcome },
         });

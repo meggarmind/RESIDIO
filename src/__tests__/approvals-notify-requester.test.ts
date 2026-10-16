@@ -76,8 +76,10 @@ describe('notifyRequesterOfOutcome (#559)', () => {
     expect(row).toMatchObject({
       recipient_id: 'maker-1',
       title: 'Request approved',
-      action_url: '/approvals?id=req-1',
+      action_url: '/approvals',
       is_read: false,
+      category: 'info',
+      priority: 'normal',
     });
     expect(row.body).toContain('House Plots Change');
     expect(row.body).toContain('approved');
@@ -89,6 +91,7 @@ describe('notifyRequesterOfOutcome (#559)', () => {
     await notifyRequesterOfOutcome({ request, outcome: 'rejected', reviewerId: 'a', reviewNotes: 'Wrong plot count' });
     await notifyRequesterOfOutcome({ request, outcome: 'approved', reviewerId: 'a', reviewNotes: 'ok thanks' });
 
+    expect(insert.mock.calls[0][0]).toMatchObject({ category: 'info', priority: 'high' });
     expect(insert.mock.calls[0][0].body).toContain('Reason: Wrong plot count');
     expect(insert.mock.calls[1][0].body).not.toContain('ok thanks');
   });
@@ -169,6 +172,20 @@ describe('approveRequest notifies the requester (#559)', () => {
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 
+  it('does not notify when another approver wins the claim race', async () => {
+    const { insert } = adminWithInsert();
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(createQuery({ data: requestRow(), error: null }))
+      .mockReturnValueOnce(createQuery({ data: null, error: null }));
+    createServerSupabaseClient.mockResolvedValue({ from });
+
+    const result = await approveRequest('req-1');
+
+    expect(result).toEqual({ success: false, error: 'Request has already been processed' });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
   it('does not notify when the requester approves their own request (blocked)', async () => {
     const { insert } = adminWithInsert();
     authorizePermission.mockResolvedValue({ authorized: true, userId: 'maker-1', error: null });
@@ -222,6 +239,49 @@ describe('reapplyApprovedRequest notifies the requester on completion (#559)', (
     expect(result).toEqual({ success: true, error: null });
     expect(insert).toHaveBeenCalledTimes(1);
     expect(insert.mock.calls[0][0].recipient_id).toBe('maker-1');
+  });
+
+  it('does not notify when a concurrent re-apply wins the applied_at mark', async () => {
+    const { insert } = adminWithInsert();
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(
+        createQuery({
+          data: requestRow({ status: 'approved', reviewed_at: minutesAgo(30) }),
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(preRead())
+      .mockReturnValueOnce(createQuery({ data: null, error: null }))
+      .mockReturnValueOnce(createQuery({ data: null, error: null }));
+    createServerSupabaseClient.mockResolvedValue({ from });
+
+    const result = await reapplyApprovedRequest('req-1');
+
+    expect(result).toEqual({ success: false, error: 'This request has already been applied' });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it('does not notify when the re-applier is the requester', async () => {
+    const { insert } = adminWithInsert();
+    authorizePermission.mockResolvedValue({ authorized: true, userId: 'maker-1', error: null });
+    const from = vi
+      .fn()
+      .mockReturnValueOnce(
+        createQuery({
+          data: requestRow({ status: 'approved', reviewed_at: minutesAgo(30) }),
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(preRead())
+      .mockReturnValueOnce(createQuery({ data: null, error: null }))
+      .mockReturnValueOnce(createQuery({ data: { id: 'req-1' }, error: null }));
+    createServerSupabaseClient.mockResolvedValue({ from });
+
+    const result = await reapplyApprovedRequest('req-1');
+
+    expect(result).toEqual({ success: true, error: null });
+    expect(insert).not.toHaveBeenCalled();
   });
 
   it('does not notify when the re-apply fails', async () => {
