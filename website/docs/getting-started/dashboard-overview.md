@@ -7,14 +7,14 @@ residio_sources:
   - src/app/(dashboard)/dashboard/**
   - src/components/dashboard/**
   - src/actions/dashboard/**
-residio_verified_commit: 3de7617
-residio_verified_at: '2026-10-15'
+residio_verified_commit: 3f0bc55
+residio_verified_at: '2026-10-17'
 residio_app_version: '0.4.0'
 ---
 
 # Dashboard overview
 
-The dashboard is your operating picture for the estate. Start here before opening a module: it shows collection health, work waiting for approval, recent activity, and shortcuts into the workflows you use most.
+The dashboard is your operating picture for the estate. Start here before opening a module: it shows the most urgent item, three lanes for money, people and security, an estate map, recent activity, and shortcuts into the workflows you use most.
 
 ![Residio admin dashboard with collection, financial health, and action cards](../assets/admin/dashboard-overview.png)
 
@@ -26,22 +26,22 @@ The dashboard is your operating picture for the estate. Start here before openin
 
 ## Read the page in this order
 
-1. **Live status strip:** the band at the top changes with the time of day. In the morning it leads with what needs attention today, in the afternoon with payments awaiting verification, and in the evening with how much happened today. Each item links to where you resolve it. If your role cannot view audit logs, the latest-activity item is left out rather than shown empty.
-2. **Collection:** compare the collected amount with the expected invoice total.
-3. **Action Needed:** open approvals when the count is non-zero. This is the fastest way to find blocked work.
-4. **Financial Health:** scan outstanding, overdue, monthly revenue, and wallet credit values.
-5. **Payments Traffic:** use the status counts to decide whether to inspect billing or payments.
-6. **Recent activity:** confirm recent changes are expected and traceable. If your role cannot
-   view audit logs, this card says so rather than showing an empty list — ask an administrator
+1. **Top strip:** the band at the top greets you and shows the single most urgent item, as "Most urgent: ...". It picks the first of overdue Invoices, Payments to verify, Residents awaiting review, and expiring security contacts that has a non-zero count, and links to where you resolve it.
+2. **Money lane:** the headline is the amount collected against the amount invoiced, with the collection rate. Three queue rows sit under it: Payments to verify, Overdue invoice balance, and Resident wallet credits. The main button is **Verify payments**, with shortcuts to record a Payment, generate Invoices, and import a statement.
+3. **People and Houses lane:** the headline is Residents awaiting review. The queue rows show Active residents, Occupied houses, and Vacant houses. The main button is **Review residents**, with shortcuts to add a Resident and add a House.
+4. **Security and Access lane:** the headline is how many security contacts are active out of the total. The queue rows show Expired access codes, Suspended contacts, and Recent flagged entries. The main button is **Open security contacts**, with a shortcut to add a security contact.
+5. **Estate map:** one cell for each House, grouped by street and coloured by paid-up status. Use the status filter to show only the Houses in one state. It is gated on the same billing view permission as the Money lane.
+6. **Recent activity:** confirm recent changes are expected and traceable. It is limited to Payments, Residents, and security contacts. If your role cannot
+   view audit logs, this card says so rather than showing an empty list. Ask an administrator
    for the "view audit logs" permission if you need it.
 
 :::tip[Daily habit]
 Use the dashboard as a queue, not a report. Resolve the highest-risk exception first, then refresh before starting the next task.
 :::
 
-## Quick actions
+## Lane buttons
 
-The lower action row provides shortcuts for adding a resident, recording a payment, generating invoices, importing a statement, adding a house, and creating a security contact. These links open the same workflows as the sidebar.
+Each lane has one main button and a few smaller shortcuts for common jobs: adding a Resident, recording a Payment, generating Invoices, importing a statement, adding a House, and adding a security contact. These open the same workflows as the sidebar. A button is hidden when your role lacks the permission for it.
 
 ## What the numbers mean
 
