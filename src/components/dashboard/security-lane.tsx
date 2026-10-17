@@ -26,7 +26,16 @@ export function SecurityLane({
   const { hasPermission } = useAuth();
   const state: LaneState = isLoading ? 'loading' : isUnavailable || !actionMetrics ? 'unavailable' : 'ready';
   const expiring = actionMetrics?.expiringSecurityContacts ?? 0;
-  const tone: LaneTone = expiring > 0 ? 'attention' : 'ok';
+  const problems: string[] = [];
+  const add = (n: number, one: string, many: string) => {
+    if (n > 0) problems.push(`${n} ${n === 1 ? one : many}`);
+  };
+  add(expiring, 'contact expiring soon', 'contacts expiring soon');
+  add(securityAlerts?.expiredCodesCount ?? 0, 'expired access code', 'expired access codes');
+  add(securityAlerts?.suspendedContactsCount ?? 0, 'suspended contact', 'suspended contacts');
+  add(securityAlerts?.recentFlaggedEntries ?? 0, 'flagged entry', 'flagged entries');
+  // Healthy only when every figure the lane shows is zero. Without the alert figures it cannot judge.
+  const tone: LaneTone = problems.length > 0 ? 'attention' : securityAlerts ? 'ok' : 'neutral';
 
   return (
     <CommandLane
@@ -38,9 +47,18 @@ export function SecurityLane({
       heroLabel="Contacts expiring soon"
       heroValue={actionMetrics ? String(expiring) : null}
       status={
-        <span className="block text-foreground">
-          {quickStats ? `${quickStats.activeSecurityContacts} of ${quickStats.totalSecurityContacts} contacts active` : 'Contact totals unavailable'}
-        </span>
+        <>
+          <span className="block text-foreground">
+            {quickStats ? `${quickStats.activeSecurityContacts} of ${quickStats.totalSecurityContacts} contacts active` : 'Contact totals unavailable'}
+          </span>
+          <span data-testid="lane-security-summary" className="block text-foreground">
+            {problems.length > 0
+              ? `Needs attention: ${problems.join(', ')}`
+              : securityAlerts
+                ? 'No expiring contacts, expired codes, suspended contacts or flagged entries'
+                : 'Access code and suspension figures unavailable'}
+          </span>
+        </>
       }
       rows={[
         { key: 'expired', label: 'Expired access codes', value: securityAlerts ? String(securityAlerts.expiredCodesCount) : null },

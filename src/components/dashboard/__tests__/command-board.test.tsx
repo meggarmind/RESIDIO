@@ -167,9 +167,9 @@ describe('lanes', () => {
     render(<MoneyLane financialHealth={fh()} actionMetrics={am()} />);
     const lane = screen.getByTestId('lane-money');
     expect(screen.getByTestId('lane-money-hero')).toHaveTextContent('₦40,000');
-    expect(lane).toHaveTextContent('collected of ₦100,000 invoiced (40%)');
-    expect(lane).toHaveTextContent('Verified this month: ₦25,000');
-    expect(lane).toHaveTextContent('Collection counts invoice payments. Verified counts bank-matched receipts.');
+    expect(lane).toHaveTextContent('collected of ₦100,000 invoiced, all time (40%)');
+    expect(lane).toHaveTextContent('Verified payments this month: ₦25,000');
+    expect(lane).toHaveTextContent("Collected is everything paid against invoices, all time. Verified is this month's payments that a person confirmed or that came in through a bank or email statement import.");
     expect(within(screen.getByTestId('lane-money-queue')).getAllByRole('listitem')[0]).toHaveTextContent('Payments to verify4');
     expect(within(lane).getByRole('link', { name: 'Verify payments' })).toHaveAttribute('href', '/approvals');
     expect(screen.getByTestId('lane-money-state')).toHaveTextContent('Overdue');

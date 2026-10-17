@@ -48,16 +48,16 @@ export function MoneyLane({
       state={state}
       tone={tone}
       asOf={asOf}
-      heroLabel="Collection"
+      heroLabel="Collected on invoices, all time"
       heroValue={fh ? formatNaira(fh.totalCollected) : null}
       status={
         fh ? (
           <>
             <span className="block text-foreground">
-              {invoiced > 0 ? `collected of ${formatNaira(invoiced)} invoiced (${Math.round(fh.collectionRate)}%)` : 'No invoices raised yet'}
+              {invoiced > 0 ? `collected of ${formatNaira(invoiced)} invoiced, all time (${Math.round(fh.collectionRate)}%)` : 'No invoices raised yet'}
             </span>
-            <span className="block text-foreground">Verified this month: {formatNaira(fh.monthlyRevenue)}</span>
-            <span className="block">Collection counts invoice payments. Verified counts bank-matched receipts.</span>
+            <span className="block text-foreground">Verified payments this month: {formatNaira(fh.monthlyRevenue)}</span>
+            <span className="block">Collected is everything paid against invoices, all time. Verified is this month&apos;s payments that a person confirmed or that came in through a bank or email statement import.</span>
           </>
         ) : null
       }

@@ -27,7 +27,8 @@ export function PeopleLane({
   const { hasPermission } = useAuth();
   const state: LaneState = isLoading ? 'loading' : isUnavailable || !actionMetrics ? 'unavailable' : 'ready';
   const awaiting = actionMetrics?.pendingResidentVerifications ?? 0;
-  const tone: LaneTone = awaiting > 0 ? 'attention' : quickStats ? 'ok' : 'neutral';
+  const overdueHouses = estateMapCounts ? estateMapCounts.overdue : 0;
+  const tone: LaneTone = awaiting > 0 || overdueHouses > 0 ? 'attention' : quickStats ? 'ok' : 'neutral';
 
   const mapTotal = estateMapCounts
     ? estateMapCounts.paid_up + estateMapCounts.outstanding + estateMapCounts.overdue + estateMapCounts.no_invoice
@@ -47,6 +48,11 @@ export function PeopleLane({
           <span className="block text-foreground">
             {awaiting === 0 ? 'No residents are waiting for review' : 'Residents waiting for a decision'}
           </span>
+          {overdueHouses > 0 ? (
+            <span data-testid="lane-people-overdue" className="block text-foreground">
+              {overdueHouses} {overdueHouses === 1 ? 'house is' : 'houses are'} overdue
+            </span>
+          ) : null}
           {estateMapCounts ? (
             <span data-testid="lane-people-paid-up" className="block text-foreground">
               {estateMapCounts.paid_up} of {mapTotal} houses paid up
@@ -61,7 +67,10 @@ export function PeopleLane({
           label: 'Occupied houses',
           value: quickStats ? `${quickStats.occupiedHouses} of ${quickStats.totalHouses}` : null,
         },
-        { key: 'vacant', label: 'Vacant houses', value: quickStats ? String(quickStats.vacantHouses) : null },
+        // Vacant is total minus occupied, already readable from the row above, so the overdue count takes its place.
+        estateMapCounts
+          ? { key: 'overdue-houses', label: 'Overdue houses', value: String(overdueHouses) }
+          : { key: 'vacant', label: 'Vacant houses', value: quickStats ? String(quickStats.vacantHouses) : null },
       ]}
       primary={{ label: 'Review residents', href: '/residents', allowed: hasPermission(PERMISSIONS.RESIDENTS_VIEW) }}
       secondary={[
