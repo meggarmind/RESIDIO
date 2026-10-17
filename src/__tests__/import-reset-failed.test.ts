@@ -30,6 +30,7 @@ let record: Record<string, unknown>;
 type Row = { id: string; import_id: string; status: string };
 let rows: Row[];
 let countError: { message: string } | null;
+let requeueError: { message: string } | null;
 let currentUser: string;
 let raceStatus: string | null;
 let rowWrites: Array<{ id: string; status: string }>;
@@ -58,6 +59,7 @@ beforeEach(() => {
     ...make('x', 'imp-other', 'error', 3),
   ];
   countError = null;
+  requeueError = null;
   currentUser = 'super';
   raceStatus = null;
   rowWrites = [];
@@ -98,6 +100,7 @@ beforeEach(() => {
         if (table === 'bank_statement_rows') {
           const hits = rows.filter((r) => filters.every(([c, v]) => r[c as keyof Row] === v));
           if (op === 'update') {
+            if (requeueError) return { data: null, error: requeueError };
             for (const r of hits) {
               rowWrites.push({ id: r.id, status: r.status });
               Object.assign(r, vals);
@@ -206,6 +209,26 @@ describe('resetFailedImport (#708)', () => {
     expect(record.status).toBe('failed');
     expect(rowWrites).toEqual([]);
     expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('a failed requeue still audits the committed reset and returns the error', async () => {
+    requeueError = { message: 'requeue exploded' };
+    const res = await resetFailedImport(IMPORT_ID);
+    expect(res).toEqual({ createdRows: 4, rowsRequeued: 0, error: 'requeue exploded' });
+    expect(record.status).toBe('processing');
+    expect(rows.filter((r) => r.id.startsWith('e')).map((r) => r.status)).toEqual(['error', 'error']);
+    expect(logAudit).toHaveBeenCalledTimes(1);
+    expect(logAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        newValues: {
+          status: 'processing',
+          rows_already_created: 4,
+          rows_requeued: 0,
+          requeue_error: 'requeue exploded',
+        },
+        description: expect.stringContaining('requeue exploded'),
+      })
+    );
   });
 
   it('audits once with old and new status and the created row count', async () => {

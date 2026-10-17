@@ -611,6 +611,8 @@ export function useResetFailedImport() {
       queryClient.invalidateQueries({ queryKey: ['imports'] });
       queryClient.invalidateQueries({ queryKey: ['import', importId] });
       queryClient.invalidateQueries({ queryKey: ['import-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['import-rows', importId] });
+      queryClient.invalidateQueries({ queryKey: ['import-row-summary', importId] });
       toast.success('Import reset for review');
     },
     onError: (error) => {

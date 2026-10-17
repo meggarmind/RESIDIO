@@ -85,10 +85,7 @@ export async function resetFailedImport(
     .eq('status', 'error')
     .select('id');
 
-  if (requeueError) {
-    return { createdRows, rowsRequeued: 0, error: requeueError.message };
-  }
-  const rowsRequeued = requeued?.length ?? 0;
+  const rowsRequeued = requeueError ? 0 : (requeued?.length ?? 0);
 
   await logAudit({
     action: 'UPDATE',
@@ -96,9 +93,16 @@ export async function resetFailedImport(
     entityId: import_id,
     entityDisplay: `Import: ${importData.file_name}`,
     oldValues: { status: 'failed' },
-    newValues: { status: 'processing', rows_already_created: createdRows, rows_requeued: rowsRequeued },
-    description: `Failed import reset for review; ${createdRows} row(s) already created were left untouched, ${rowsRequeued} errored row(s) returned to unmatched`,
+    newValues: {
+      status: 'processing',
+      rows_already_created: createdRows,
+      rows_requeued: rowsRequeued,
+      ...(requeueError && { requeue_error: requeueError.message }),
+    },
+    description: requeueError
+      ? `Failed import reset for review; ${createdRows} row(s) already created were left untouched, but returning errored rows to unmatched failed: ${requeueError.message}`
+      : `Failed import reset for review; ${createdRows} row(s) already created were left untouched, ${rowsRequeued} errored row(s) returned to unmatched`,
   });
 
-  return { createdRows, rowsRequeued, error: null };
+  return { createdRows, rowsRequeued, error: requeueError?.message ?? null };
 }
