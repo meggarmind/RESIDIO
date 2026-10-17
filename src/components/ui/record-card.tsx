@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import { cva } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -13,17 +13,19 @@ import { Skeleton } from "@/components/ui/skeleton"
  * Slots: leading (e.g. a checkbox), title, badge (top right), subtitle,
  * children (body) and actions (footer buttons).
  *
- * When `onClick` is set the whole card is the tap target: it is a button for
- * assistive tech, reachable by keyboard, activated by Enter and Space, and at
- * least 44px tall. Clicks and key presses inside `leading` and `actions` never
- * reach `onClick`.
+ * When `onClick` is set the card is tappable through one real, full-bleed
+ * <button> (the hit area) that sits BEHIND the content. The card root is not
+ * itself a button, so the links, buttons and checkbox inside it stay exposed
+ * to assistive tech and are never nested in another interactive element.
+ * Non-interactive content lets taps fall through to the hit area
+ * (`pointer-events-none`); real controls opt back in.
  */
 const recordCardVariants = cva(
-  "bg-card text-card-foreground flex flex-col gap-3 rounded-xl border border-border p-4 shadow-soft",
+  "relative bg-card text-card-foreground flex flex-col gap-3 rounded-xl border border-border p-4 shadow-soft",
   {
     variants: {
       interactive: {
-        true: "min-h-11 cursor-pointer transition-colors hover:bg-muted/50 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+        true: "min-h-11 transition-colors hover:bg-muted/50",
         false: "",
       },
     },
@@ -33,21 +35,35 @@ const recordCardVariants = cva(
   }
 )
 
-type RecordCardEvent = React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
+// Content sits above the hit area and ignores pointer events, so a tap on text
+// reaches the hit area. Real controls (and Radix triggers such as the tooltip
+// badge and checkbox, which carry data-state) opt back in.
+const CONTENT_LAYER = "relative z-10 pointer-events-none"
+const CONTROLS_ENABLED =
+  "[&_a]:pointer-events-auto [&_button]:pointer-events-auto [&_input]:pointer-events-auto [&_[role=checkbox]]:pointer-events-auto [&_[data-state]]:pointer-events-auto"
 
-interface RecordCardProps
-  extends Omit<React.ComponentProps<"div">, "title" | "onClick">,
-    Omit<VariantProps<typeof recordCardVariants>, "interactive"> {
+interface RecordCardBaseProps extends Omit<React.ComponentProps<"div">, "title" | "onClick"> {
   title: React.ReactNode
   badge?: React.ReactNode
   subtitle?: React.ReactNode
   leading?: React.ReactNode
   actions?: React.ReactNode
-  /** Receives the originating event so callers can use `event.currentTarget`. */
-  onClick?: (event: RecordCardEvent) => void
 }
 
-const stopPropagation = (event: React.SyntheticEvent) => event.stopPropagation()
+type RecordCardInteraction =
+  | {
+      /**
+       * Called when the hit-area button is activated (tap, Enter or Space).
+       * `card` is the card root element, for callers that need to name it
+       * (for example a view transition), rather than the button.
+       */
+      onClick: (event: React.MouseEvent<HTMLButtonElement>, card: HTMLElement) => void
+      /** Accessible name of the hit-area button, for example "Open Ada Obi". */
+      label: string
+    }
+  | { onClick?: undefined; label?: string }
+
+type RecordCardProps = RecordCardBaseProps & RecordCardInteraction
 
 function RecordCard({
   title,
@@ -56,38 +72,33 @@ function RecordCard({
   leading,
   actions,
   onClick,
+  label,
   className,
   children,
   ...props
 }: RecordCardProps) {
   const interactive = typeof onClick === "function"
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    // Ignore keys that bubble up from a control inside the card.
-    if (event.target !== event.currentTarget) return
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault()
-      onClick?.(event)
-    }
-  }
-
   return (
     <div
       data-slot="record-card"
-      role={interactive ? "button" : undefined}
-      tabIndex={interactive ? 0 : undefined}
-      onClick={interactive ? onClick : undefined}
-      onKeyDown={interactive ? handleKeyDown : undefined}
       className={cn(recordCardVariants({ interactive }), className)}
       {...props}
     >
-      <div className="flex items-start gap-3">
+      {interactive ? (
+        <button
+          type="button"
+          data-slot="record-card-hit-area"
+          aria-label={label}
+          className="absolute inset-0 cursor-pointer rounded-xl bg-transparent outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:border focus-visible:border-ring"
+          onClick={(event) => onClick?.(event, event.currentTarget.parentElement as HTMLElement)}
+        />
+      ) : null}
+      <div className={cn("flex items-start gap-3", interactive && CONTENT_LAYER, interactive && CONTROLS_ENABLED)}>
         {leading ? (
           <div
             data-slot="record-card-leading"
-            className="flex shrink-0 items-center self-center"
-            onClick={stopPropagation}
-            onKeyDown={stopPropagation}
+            className={cn("flex shrink-0 items-center self-center", interactive && "pointer-events-auto")}
           >
             {leading}
           </div>
@@ -109,16 +120,21 @@ function RecordCard({
         ) : null}
       </div>
       {children ? (
-        <div data-slot="record-card-body" className="text-sm">
+        <div
+          data-slot="record-card-body"
+          className={cn("text-sm", interactive && CONTENT_LAYER, interactive && CONTROLS_ENABLED)}
+        >
           {children}
         </div>
       ) : null}
       {actions ? (
         <div
           data-slot="record-card-actions"
-          className="flex flex-wrap items-center justify-end gap-1 border-t border-border pt-2 empty:hidden"
-          onClick={stopPropagation}
-          onKeyDown={stopPropagation}
+          className={cn(
+            "flex flex-wrap items-center justify-end gap-1 border-t border-border pt-2 empty:hidden",
+            interactive && CONTENT_LAYER,
+            interactive && CONTROLS_ENABLED
+          )}
         >
           {actions}
         </div>
