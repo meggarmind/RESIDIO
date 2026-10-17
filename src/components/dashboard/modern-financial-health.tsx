@@ -134,7 +134,7 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
                 Verified Payments This Month
               </p>
               <div className={cn(
-                'flex items-center gap-0.5 rounded-full px-1 py-0.5 text-[9px] font-semibold shrink-0',
+                'flex items-center gap-0.5 rounded-full px-1 py-0.5 text-xs font-semibold shrink-0',
                 isRevenueUp
                   ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                   : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
