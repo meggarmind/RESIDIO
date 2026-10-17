@@ -33,12 +33,15 @@ import {
   Search,
   Calendar,
   RefreshCw,
+  FlagOff,
+  Car,
 } from 'lucide-react';
 import {
   useAccessLogs,
   useCurrentUserSecurityPermissions,
   useRecordCheckOut,
   useFlagAccess,
+  useUnflagAccess,
   useExportAccessLogsCSV,
 } from '@/hooks/use-security';
 import { FlaggedBadge } from '@/components/security/security-badges';
@@ -61,6 +64,7 @@ export default function AccessLogsPage() {
   const [showFlagDialog, setShowFlagDialog] = useState(false);
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
   const [flagReason, setFlagReason] = useState('');
+  const [unflagLog, setUnflagLog] = useState<{ id: string; reason: string | null } | null>(null);
 
   const { data: permissionsData, isLoading: permissionsLoading } = useCurrentUserSecurityPermissions();
   const { data: logsData, isLoading: logsLoading, refetch } = useAccessLogs({
@@ -72,6 +76,7 @@ export default function AccessLogsPage() {
 
   const checkOutMutation = useRecordCheckOut();
   const flagMutation = useFlagAccess();
+  const unflagMutation = useUnflagAccess();
   const exportMutation = useExportAccessLogsCSV();
 
   const canViewLogs = permissionsData?.permissions?.view_access_logs || false;
@@ -131,6 +136,19 @@ export default function AccessLogsPage() {
       refetch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to flag access');
+    }
+  };
+
+  const handleUnflag = async () => {
+    if (!unflagLog) return;
+
+    try {
+      await unflagMutation.mutateAsync(unflagLog.id);
+      toast.success('Flag cleared');
+      setUnflagLog(null);
+      refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to clear flag');
     }
   };
 
@@ -269,7 +287,7 @@ export default function AccessLogsPage() {
             </div>
           ) : logs.length > 0 ? (
             <div className="space-y-4">
-              {logs.map((log: AccessLog & { contact?: { full_name?: string } | null; resident?: { first_name?: string; last_name?: string; resident_code?: string } | null }) => (
+              {logs.map((log: AccessLog & { contact?: { full_name?: string } | null; resident?: { first_name?: string; last_name?: string; resident_code?: string } | null; vehicle?: { plate_number?: string } | null }) => (
                 <div
                   key={log.id}
                   className={`flex items-start justify-between p-4 border rounded-lg ${
@@ -292,6 +310,12 @@ export default function AccessLogsPage() {
                     {log.gate_location && (
                       <div className="text-xs text-muted-foreground">
                         Gate: {log.gate_location}
+                      </div>
+                    )}
+                    {log.vehicle?.plate_number && (
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Car className="h-3 w-3" />
+                        <span className="font-mono">{log.vehicle.plate_number}</span>
                       </div>
                     )}
                     {log.notes && (
@@ -350,6 +374,18 @@ export default function AccessLogsPage() {
                           <Flag className="h-4 w-4" />
                         </Button>
                       )}
+                      {/* unflagAccess is gated on security.view_logs (owner decision on #301), which this page already requires */}
+                      {log.flagged && canViewLogs && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Clear flag"
+                          aria-label="Clear flag"
+                          onClick={() => setUnflagLog({ id: log.id, reason: log.flag_reason })}
+                        >
+                          <FlagOff className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -399,6 +435,33 @@ export default function AccessLogsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Unflag Dialog */}
+      <Dialog open={!!unflagLog} onOpenChange={(open) => !open && setUnflagLog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FlagOff className="h-5 w-5" />
+              Clear Flag
+            </DialogTitle>
+            <DialogDescription>
+              Remove the suspicious-activity flag from this entry. The original reason is kept in the audit log.
+            </DialogDescription>
+          </DialogHeader>
+          {unflagLog?.reason && (
+            <p className="text-sm text-muted-foreground">Flag reason: {unflagLog.reason}</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUnflagLog(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUnflag} disabled={unflagMutation.isPending}>
+              {unflagMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Clear Flag
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Flag Dialog */}
       <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>

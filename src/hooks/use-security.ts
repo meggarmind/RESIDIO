@@ -708,7 +708,8 @@ export function useCreateVehicle() {
       if (result.error) throw new Error(result.error);
       return result.data;
     },
-    onSuccess: (_, variables) => {
+    // Settled, not success: a create whose set-primary step fails still saved the vehicle.
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: ['contactVehicles', variables.contact_id] });
       queryClient.invalidateQueries({ queryKey: ['visitorDashboardStats'] });
     },
