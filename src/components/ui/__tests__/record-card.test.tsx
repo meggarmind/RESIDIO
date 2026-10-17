@@ -87,6 +87,20 @@ describe('RecordCard', () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
+  it('ignores Enter and Space pressed on a control inside the body', () => {
+    const onClick = vi.fn();
+    const onInner = vi.fn();
+    render(
+      <RecordCard title="T" onClick={onClick}>
+        <button onClick={onInner}>Inner</button>
+      </RecordCard>,
+    );
+    const inner = screen.getByRole('button', { name: 'Inner' });
+    fireEvent.keyDown(inner, { key: 'Enter' });
+    fireEvent.keyDown(inner, { key: ' ' });
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
   it('does not call onClick for clicks or keys inside leading', () => {
     const onClick = vi.fn();
     const { onLeading } = renderCard(onClick);
