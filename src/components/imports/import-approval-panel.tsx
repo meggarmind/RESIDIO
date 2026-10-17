@@ -16,13 +16,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { CheckCircle2, Loader2, PlayCircle, Send, ShieldCheck, XCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, PlayCircle, RotateCcw, Send, ShieldCheck, XCircle } from 'lucide-react';
 import {
   useApproveImport,
   useImport,
   useImportRowSummary,
   useProcessImport,
   useRejectImport,
+  useResetFailedImport,
   useSubmitForApproval,
 } from '@/hooks/use-imports';
 import { Can, useCan } from '@/components/auth/can';
@@ -58,6 +59,7 @@ export function ImportApprovalPanel({ importId }: ImportApprovalPanelProps) {
   const approveMutation = useApproveImport();
   const rejectMutation = useRejectImport();
   const processMutation = useProcessImport();
+  const resetMutation = useResetFailedImport();
 
   const canReview = useCan(PERMISSIONS.IMPORTS_REVIEW);
   const canApprove = useCan(PERMISSIONS.IMPORTS_APPROVE);
@@ -65,6 +67,7 @@ export function ImportApprovalPanel({ importId }: ImportApprovalPanelProps) {
 
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [resetOpen, setResetOpen] = useState(false);
   const [options, setOptions] = useState<ImportProcessingOptionValues>(DEFAULT_PROCESSING_OPTIONS);
   const [processResult, setProcessResult] = useState<ProcessImportResult | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -77,7 +80,8 @@ export function ImportApprovalPanel({ importId }: ImportApprovalPanelProps) {
     submitMutation.isPending ||
     approveMutation.isPending ||
     rejectMutation.isPending ||
-    processMutation.isPending;
+    processMutation.isPending ||
+    resetMutation.isPending;
 
   const run = async (action: () => Promise<unknown>) => {
     setActionError(null);
@@ -98,6 +102,11 @@ export function ImportApprovalPanel({ importId }: ImportApprovalPanelProps) {
       setRejectReason('');
     });
   };
+  const handleReset = () =>
+    run(async () => {
+      await resetMutation.mutateAsync(importId);
+      setResetOpen(false);
+    });
   const handleProcess = () =>
     run(async () => {
       const result = await processMutation.mutateAsync({
@@ -113,6 +122,8 @@ export function ImportApprovalPanel({ importId }: ImportApprovalPanelProps) {
     (importRecord.import_summary as { rejection_reason?: string } | null)?.rejection_reason;
   const summaryErrors =
     ((importRecord.import_summary as { errors?: { error?: string }[] } | null)?.errors) ?? [];
+
+  const createdRowCount = summary?.created ?? 0;
 
   const uploader = importRecord.created_by_user?.full_name;
   const approver = importRecord.approved_by_user?.full_name;
@@ -264,6 +275,14 @@ export function ImportApprovalPanel({ importId }: ImportApprovalPanelProps) {
                   ))}
                 </ul>
               )}
+              {status === 'failed' && (
+                <Can permission={PERMISSIONS.IMPORTS_RESET}>
+                  <Button variant="outline" onClick={() => setResetOpen(true)} disabled={anyPending}>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Reset for review
+                  </Button>
+                </Can>
+              )}
             </div>
           )
         )}
@@ -312,6 +331,33 @@ export function ImportApprovalPanel({ importId }: ImportApprovalPanelProps) {
               >
                 {rejectMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Confirm rejection
+              </Button>
+            </Can>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      )}
+
+      {status === 'failed' && (
+      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset failed import</DialogTitle>
+            <DialogDescription>
+              The import goes back to review and must be submitted and approved again before it
+              can be processed. {createdRowCount} {createdRowCount === 1 ? 'row was' : 'rows were'}{' '}
+              already created and will not be processed again. Rows that errored return to
+              unmatched and must be re-matched before resubmitting.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetOpen(false)}>
+              Cancel
+            </Button>
+            <Can permission={PERMISSIONS.IMPORTS_RESET}>
+              <Button onClick={handleReset} disabled={resetMutation.isPending}>
+                {resetMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Confirm reset
               </Button>
             </Can>
           </DialogFooter>
