@@ -176,6 +176,7 @@ export function PersonnelList() {
                             Type: <span className="capitalize">{typeFilter}</span>
                             <button
                                 onClick={() => setTypeFilter('all')}
+                                aria-label="Clear type filter"
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                             >
                                 <X className="h-3 w-3" />
@@ -199,6 +200,7 @@ export function PersonnelList() {
                             Search: {searchTerm}
                             <button
                                 onClick={() => setSearchTerm('')}
+                                aria-label="Clear search filter"
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                             >
                                 <X className="h-3 w-3" />

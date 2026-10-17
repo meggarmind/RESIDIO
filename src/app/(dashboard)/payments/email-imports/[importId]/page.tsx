@@ -52,11 +52,17 @@ import {
   processSingleTransaction,
   skipTransaction,
 } from '@/actions/email-imports/process-email-import';
-import { extractSenderName, getUnmatchedCount } from '@/lib/email-imports/utils';
+import {
+  EMAIL_AUTO_PROCESS_LIMIT_NGN,
+  exceedsEmailAutoProcessLimit,
+  extractSenderName,
+  getUnmatchedCount,
+} from '@/lib/email-imports/utils';
 import { getActiveResidents } from '@/actions/residents/get-residents';
 import type { EmailImport, EmailTransaction } from '@/types/database';
 import { useGmailConnectionStatus } from '@/hooks/use-gmail-connection';
 import { Can, useCan } from '@/components/auth/can';
+import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { formatCalendarDate } from '@/lib/utils/calendar-date';
 
@@ -78,6 +84,8 @@ const STATUS_BADGES = {
   error: { variant: 'destructive' as const, label: 'Error' },
 };
 
+const OVER_LIMIT_LABEL = `Needs approval: over ₦${EMAIL_AUTO_PROCESS_LIMIT_NGN.toLocaleString('en-NG')}`;
+
 export default function EmailImportDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -85,6 +93,12 @@ export default function EmailImportDetailPage() {
   const importId = params.importId as string;
   const { data: connectionStatus, isLoading: connectionLoading } = useGmailConnectionStatus();
   const canProcess = useCan(PERMISSIONS.EMAIL_IMPORTS_PROCESS);
+  // Mirrors processSingleTransaction: over-limit credits need imports.approve or super_admin (#709).
+  const { profile } = useAuth();
+  const canApproveOverLimit =
+    useCan(PERMISSIONS.IMPORTS_APPROVE) || profile?.role_name === 'super_admin';
+  const isReleaseBlocked = (tx: EmailTransaction | null) =>
+    !!tx && exceedsEmailAutoProcessLimit(tx) && !canApproveOverLimit;
 
   const [statusFilter, setStatusFilter] = useState<string>('queued_for_review');
   const [page, setPage] = useState(1);
@@ -565,6 +579,12 @@ export default function EmailImportDetailPage() {
                       <Badge variant={STATUS_BADGES[tx.status]?.variant || 'secondary'} className="rounded-full">
                         {STATUS_BADGES[tx.status]?.label || tx.status}
                       </Badge>
+                      {['queued_for_review', 'pending', 'matched'].includes(tx.status) &&
+                        exceedsEmailAutoProcessLimit(tx) && (
+                          <Badge variant="outline" className="ml-1 rounded-full border-amber-500 text-amber-700 dark:text-amber-400">
+                            {OVER_LIMIT_LABEL}
+                          </Badge>
+                        )}
                     </TableCell>
                     <TableCell className="text-right">
                       {['queued_for_review', 'pending', 'matched'].includes(tx.status) && (
@@ -575,7 +595,8 @@ export default function EmailImportDetailPage() {
                               size="sm"
                               className="h-8 w-8 text-green-600"
                               onClick={() => handleOpenProcessDialog(tx)}
-                              title="Process"
+                              disabled={isReleaseBlocked(tx)}
+                              title={isReleaseBlocked(tx) ? OVER_LIMIT_LABEL : 'Process'}
                               aria-label="Process transaction"
                             >
                               <Check className="h-4 w-4" />
@@ -781,7 +802,13 @@ export default function EmailImportDetailPage() {
             </Button>
             <Button
               onClick={() => processMutation.mutate()}
-              disabled={!canProcess || processMutation.isPending || !selectedResidentId}
+              disabled={
+                !canProcess ||
+                processMutation.isPending ||
+                !selectedResidentId ||
+                isReleaseBlocked(selectedTransaction)
+              }
+              title={isReleaseBlocked(selectedTransaction) ? OVER_LIMIT_LABEL : undefined}
             >
               {processMutation.isPending ? 'Processing...' : 'Create Payment'}
             </Button>

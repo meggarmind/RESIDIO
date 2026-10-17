@@ -8,14 +8,14 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: 5912d9d
-residio_verified_at: '2026-10-15'
+residio_verified_commit: 3f929146
+residio_verified_at: '2026-10-17'
 residio_app_version: '0.4.0'
 ---
 
 # Gmail import and bank feeds
 
-Residio gets bank data into the system through two routes: an automated Gmail connection that reads bank alerts and statement attachments, and manual file upload from **Transactions → Import Statement**. Gmail items land in the email review queue, while an uploaded statement is submitted for approval and processed from its own import page under **Transactions → Import History**. Neither posts a payment without review.
+Residio gets bank data into the system through two routes: an automated Gmail connection that reads bank alerts and statement attachments, and manual file upload from **Transactions → Import Statement**. Gmail items land in the email review queue, apart from high-confidence credits of ₦60,000 or less, which are posted automatically (see [The review queue](#the-review-queue)). An uploaded statement is submitted for approval and processed from its own import page under **Transactions → Import History**.
 
 For the day-to-day payment workflow, see [Payments and statement imports](../finance/payments-and-imports). This page covers the connection itself.
 
@@ -55,7 +55,9 @@ Passwords are stored encrypted and are never displayed back. To change one, set 
 
 ## The review queue
 
-Imported rows are matched against residents, houses, and outstanding invoices, then queued for review. Nothing is posted automatically.
+Imported rows are matched against residents, houses, and outstanding invoices. The hourly sync posts a credit automatically only when it matched a resident with high confidence (by alias or phone number) and is ₦60,000 or less. Every other credit is queued for review.
+
+A credit above ₦60,000 is always queued, however confident the match, and is marked **Needs approval: over ₦60,000**. Releasing it needs the import approval permission or the super admin role; without it the Process button is disabled. Anyone who can process email imports can still skip it. Debits (expenses) are not limited.
 
 For each queued row you can:
 

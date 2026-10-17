@@ -322,6 +322,7 @@ export function DocumentsTable({
                 className="h-8 w-8"
                 onClick={() => setViewMode('list')}
                 aria-label="List view"
+                aria-pressed={viewMode === 'list'}
               >
                 <List className="h-4 w-4" />
               </Button>
@@ -331,6 +332,7 @@ export function DocumentsTable({
                 className="h-8 w-8"
                 onClick={() => setViewMode('grid')}
                 aria-label="Grid view"
+                aria-pressed={viewMode === 'grid'}
               >
                 <LayoutGrid className="h-4 w-4" />
               </Button>

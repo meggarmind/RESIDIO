@@ -26,6 +26,7 @@ function SuggestionItem({
         >
             <button
                 onClick={() => onDismiss(suggestion.id)}
+                aria-label="Dismiss suggestion"
                 className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
             >
                 <X className="h-4 w-4" />

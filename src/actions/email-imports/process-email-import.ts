@@ -13,7 +13,11 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { createPayment } from '@/actions/payments/create-payment';
-import { extractSenderName } from '@/lib/email-imports/utils';
+import {
+  EMAIL_AUTO_PROCESS_LIMIT_NGN,
+  exceedsEmailAutoProcessLimit,
+  extractSenderName,
+} from '@/lib/email-imports/utils';
 import { createExpense } from '@/actions/expenses/create-expense';
 import { updateEmailImportStatus } from './create-email-import';
 import type {
@@ -115,6 +119,17 @@ export async function processEmailTransactions(
       autoProcessHighConfidence &&
       emailTx.match_confidence === 'high' &&
       (emailTx.match_method === 'alias' || emailTx.match_method === 'phone');
+
+    if (canAutoProcess && exceedsEmailAutoProcessLimit(emailTx)) {
+      // Over the limit: wait for an approver (#709). The review queue shows
+      // the reason from the amount, so no column records it.
+      await adminClient
+        .from('email_transactions')
+        .update({ status: 'queued_for_review' })
+        .eq('id', emailTx.id);
+      result.queuedForReview++;
+      continue;
+    }
 
     if (canAutoProcess) {
       // Auto-process: Create payment
@@ -421,6 +436,17 @@ export async function processSingleTransaction(
   // ============================================================
   // Handle Credit (Payment)
   // ============================================================
+  if (
+    exceedsEmailAutoProcessLimit(emailTx) &&
+    !auth.permissions.includes(PERMISSIONS.IMPORTS_APPROVE) &&
+    auth.roleName !== 'super_admin'
+  ) {
+    return {
+      success: false,
+      error: `Needs approval: payments over ₦${EMAIL_AUTO_PROCESS_LIMIT_NGN.toLocaleString('en-NG')} require the '${PERMISSIONS.IMPORTS_APPROVE}' permission or super admin`,
+    };
+  }
+
   if (!params.residentId) {
     return { success: false, error: 'Resident ID required for payment transactions' };
   }

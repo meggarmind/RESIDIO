@@ -143,3 +143,21 @@ export function getUnmatchedCount(counts: EmailImportCounts): number {
     const matched = counts.transactions_matched ?? 0;
     return Math.max(0, extracted - matched);
 }
+
+/**
+ * Email credits strictly above this amount (naira, as stored in
+ * email_transactions.amount) are never auto-processed and need an approver
+ * to release them (owner decision #668 Q5, #709). Debits are not limited.
+ */
+export const EMAIL_AUTO_PROCESS_LIMIT_NGN = 60000;
+
+/**
+ * Whether a transaction is above the limit and would become a payment. Anything
+ * that is not a debit takes the payment path when released, so it counts.
+ */
+export function exceedsEmailAutoProcessLimit(tx: {
+    transaction_type: string | null;
+    amount: number | string | null;
+}): boolean {
+    return tx.transaction_type !== 'debit' && Number(tx.amount) > EMAIL_AUTO_PROCESS_LIMIT_NGN;
+}
