@@ -333,7 +333,7 @@ export function Sidebar({ className }: SidebarProps) {
                   <button
                     type="button"
                     onClick={() => router.push('/portal?impersonate=true')}
-${indent}aria-label="View as Resident"
+                    aria-label="View as Resident"
                     className={cn(
                       'flex items-center rounded-lg text-sm transition-all duration-200 w-full cursor-pointer',
                       isExpanded ? 'gap-3 px-3 py-2 text-left' : 'justify-center px-2 py-2'

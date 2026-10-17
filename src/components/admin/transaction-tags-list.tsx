@@ -424,7 +424,7 @@ export function TransactionTagsList() {
                               <button
                                 type="button"
                                 onClick={() => removeKeyword(keyword)}
-${indent}aria-label={`Remove keyword ${keyword}`}
+                                aria-label={`Remove keyword ${keyword}`}
                                 className="ml-1 rounded-full hover:bg-muted p-0.5"
                               >
                                 <X className="h-3 w-3" />

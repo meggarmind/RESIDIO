@@ -176,7 +176,7 @@ export function PersonnelList() {
                             Type: <span className="capitalize">{typeFilter}</span>
                             <button
                                 onClick={() => setTypeFilter('all')}
-${indent}aria-label="Clear type filter"
+                                aria-label="Clear type filter"
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                             >
                                 <X className="h-3 w-3" />
@@ -200,7 +200,7 @@ ${indent}aria-label="Clear type filter"
                             Search: {searchTerm}
                             <button
                                 onClick={() => setSearchTerm('')}
-${indent}aria-label="Clear search filter"
+                                aria-label="Clear search filter"
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                             >
                                 <X className="h-3 w-3" />

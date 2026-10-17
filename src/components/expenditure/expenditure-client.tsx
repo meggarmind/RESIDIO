@@ -205,7 +205,7 @@ export function ExpenditureClient({
                             Status: <span className="capitalize">{statusFilter}</span>
                             <button
                                 onClick={() => setStatusFilter('all')}
-${indent}aria-label="Clear status filter"
+                                aria-label="Clear status filter"
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                             >
                                 <X className="h-3 w-3" />
@@ -217,7 +217,7 @@ ${indent}aria-label="Clear status filter"
                             Category: {categories.find(c => c.id === categoryFilter)?.name}
                             <button
                                 onClick={() => setCategoryFilter('all')}
-${indent}aria-label="Clear category filter"
+                                aria-label="Clear category filter"
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                             >
                                 <X className="h-3 w-3" />
@@ -229,7 +229,7 @@ ${indent}aria-label="Clear category filter"
                             Payee: <span className="capitalize">{payeeTypeFilter}</span>
                             <button
                                 onClick={() => setPayeeTypeFilter('all')}
-${indent}aria-label="Clear payee filter"
+                                aria-label="Clear payee filter"
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                             >
                                 <X className="h-3 w-3" />
@@ -241,7 +241,7 @@ ${indent}aria-label="Clear payee filter"
                             Search: {searchQuery}
                             <button
                                 onClick={() => setSearchQuery('')}
-${indent}aria-label="Clear search filter"
+                                aria-label="Clear search filter"
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                             >
                                 <X className="h-3 w-3" />
