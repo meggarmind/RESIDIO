@@ -22,8 +22,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FileText, Download, Loader2, Calendar, Building2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { toast } from 'sonner';
 
 // ============================================================
@@ -72,9 +70,6 @@ export function StatementGeneratorDialog({
     open: controlledOpen,
     onOpenChange: setControlledOpen,
 }: StatementGeneratorDialogProps) {
-    const { themeId } = useVisualTheme();
-    const isModern = themeId === 'modern';
-
     const [internalOpen, setInternalOpen] = useState(false);
     const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
     const setOpen = setControlledOpen || setInternalOpen;
@@ -218,17 +213,13 @@ export function StatementGeneratorDialog({
                     <Button
                         variant="outline"
                         size="sm"
-                        className={cn(isModern && 'rounded-xl')}
                     >
                         <FileText className="mr-2 h-4 w-4" />
                         Generate Statement
                     </Button>
                 )}
             </DialogTrigger>
-            <DialogContent className={cn(
-                'sm:max-w-[425px]',
-                isModern && 'rounded-2xl'
-            )}>
+            <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
@@ -253,7 +244,6 @@ export function StatementGeneratorDialog({
                             <Select value={houseId} onValueChange={setHouseId}>
                                 <SelectTrigger
                                     id="house"
-                                    className={cn(isModern && 'rounded-xl')}
                                 >
                                     <SelectValue placeholder="All properties" />
                                 </SelectTrigger>
@@ -282,7 +272,6 @@ export function StatementGeneratorDialog({
                         >
                             <SelectTrigger
                                 id="period"
-                                className={cn(isModern && 'rounded-xl')}
                             >
                                 <SelectValue placeholder="Select period" />
                             </SelectTrigger>
@@ -306,7 +295,6 @@ export function StatementGeneratorDialog({
                                     type="date"
                                     value={customFromDate}
                                     onChange={(e) => setCustomFromDate(e.target.value)}
-                                    className={cn(isModern && 'rounded-xl')}
                                 />
                             </div>
                             <div className="grid gap-2">
@@ -316,7 +304,6 @@ export function StatementGeneratorDialog({
                                     type="date"
                                     value={customToDate}
                                     onChange={(e) => setCustomToDate(e.target.value)}
-                                    className={cn(isModern && 'rounded-xl')}
                                 />
                             </div>
                         </div>
@@ -324,10 +311,7 @@ export function StatementGeneratorDialog({
 
                     {/* Preview of Selected Period */}
                     {preset !== 'custom' && (
-                        <div className={cn(
-                            'rounded-lg border p-3 bg-muted/50',
-                            isModern && 'rounded-xl'
-                        )}>
+                        <div className="rounded-lg border p-3 bg-muted/50">
                             <p className="text-sm text-muted-foreground">
                                 Statement will cover:
                             </p>
@@ -344,16 +328,12 @@ export function StatementGeneratorDialog({
                         variant="outline"
                         onClick={() => setOpen(false)}
                         disabled={isGenerating}
-                        className={cn(isModern && 'rounded-xl')}
                     >
                         Cancel
                     </Button>
                     <Button
                         onClick={handleGenerate}
                         disabled={isGenerating}
-                        className={cn(
-                            isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
-                        )}
                     >
                         {isGenerating ? (
                             <>
