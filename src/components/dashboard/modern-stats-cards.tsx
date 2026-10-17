@@ -215,7 +215,7 @@ function SuggestionsCarousel({ suggestions }: { suggestions: SmartSuggestion[] }
                 "flex h-5 w-5 items-center justify-center rounded-full shrink-0",
                 suggestion.priority === 'high' ? "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" :
                   suggestion.priority === 'medium' ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" :
-                    "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                    "bg-muted text-muted-foreground"
               )}>
                 <Zap className="h-2.5 w-2.5" />
               </div>
@@ -247,7 +247,7 @@ function StatsCardsSkeleton() {
       {[...Array(5)].map((_, i) => (
         <div
           key={i}
-          className="rounded-xl border border-gray-200 bg-white p-6 dark:bg-[#1E293B] dark:border-[#334155] min-h-[160px]"
+          className="rounded-xl border border-border bg-card p-6 min-h-[160px]"
         >
           <ShimmerSkeleton width={80} height={12} className="mb-4" speed="fast" />
           <div className="flex flex-col items-center justify-center space-y-4 pt-2">

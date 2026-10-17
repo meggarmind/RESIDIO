@@ -21,7 +21,7 @@ function formatCurrency(amount: number): string {
 
 function FinancialHealthSkeleton() {
   return (
-    <div className="rounded-xl border bg-white p-6 dark:bg-[#1E293B] dark:border-[#334155] h-[270px]">
+    <div className="rounded-xl border bg-card p-6 h-[270px]">
       <ShimmerSkeleton width={144} height={24} className="mb-4" speed="fast" />
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex flex-col items-center gap-2">
@@ -51,7 +51,7 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
 
   if (!financialHealth) {
     return (
-      <div className="rounded-xl border bg-white p-6 dark:bg-[#1E293B] dark:border-[#334155] h-[270px] flex flex-col items-center justify-center text-center">
+      <div className="rounded-xl border bg-card p-6 h-[270px] flex flex-col items-center justify-center text-center">
         <CircleDollarSign className="h-10 w-10 text-muted-foreground mb-2 opacity-30" />
         <h3 className="text-sm font-semibold">Financial metrics unavailable</h3>
         <p className="text-xs text-muted-foreground">Estate balances could not be loaded.</p>
@@ -74,15 +74,15 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
 
   return (
     <div className={cn(
-      'rounded-xl border bg-white p-4 shadow-sm transition-all duration-200 h-[270px] flex flex-col',
-      'hover:shadow-md dark:bg-[#1E293B] dark:border-[#334155]'
+      'rounded-xl border bg-card p-4 shadow-sm transition-all duration-200 h-[270px] flex flex-col',
+      'hover:shadow-md'
     )}>
       {/* Header */}
       <div className="mb-3 flex items-center gap-2 shrink-0">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0EA5E9]/10">
-          <CircleDollarSign className="h-4 w-4 text-[#0EA5E9]" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+          <CircleDollarSign className="h-4 w-4 text-primary" />
         </div>
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+        <h3 className="text-base font-semibold text-foreground">
           Financial Health
         </h3>
       </div>
@@ -96,15 +96,15 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
             size={110}
             strokeWidth={10}
             duration={1200}
-            color="hsl(199 89% 48%)" // #0EA5E9 blue-teal
-            gradientColor="hsl(189 94% 43%)" // #06B6D4 cyan
+            color="var(--primary)"
+            gradientColor="var(--chart-2)"
             label="COLLECTION"
           />
           <div className="text-center">
-            <p className="text-xs font-semibold text-gray-900 dark:text-white">
+            <p className="text-xs font-semibold text-foreground">
               ₦{formatCurrency(totalCollected)}
             </p>
-            <p className="text-[10px] text-gray-500 dark:text-gray-400">collected</p>
+            <p className="text-[10px] text-muted-foreground">collected</p>
           </div>
         </div>
 
@@ -128,9 +128,9 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
           </div>
 
           {/* Monthly Revenue */}
-          <div className="rounded-lg bg-gray-50 p-2.5 dark:bg-[#0F172A] flex flex-col justify-between min-h-0">
+          <div className="rounded-lg bg-muted/50 p-2.5 flex flex-col justify-between min-h-0">
             <div className="flex items-center justify-between mb-1 gap-1">
-              <p className="text-[10px] font-medium text-gray-600 dark:text-gray-400 leading-tight">
+              <p className="text-[10px] font-medium text-muted-foreground leading-tight">
                 Verified Payments This Month
               </p>
               <div className={cn(
@@ -151,7 +151,7 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
               value={monthlyRevenue}
               prefix="₦"
               formatNumber
-              className="text-lg font-bold text-gray-900 dark:text-white"
+              className="text-lg font-bold text-foreground"
               duration={800}
             />
           </div>
@@ -161,13 +161,13 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
             'rounded-lg p-2.5 flex flex-col justify-between min-h-0',
             overdueAmount > 0
               ? 'bg-red-50 dark:bg-red-900/10'
-              : 'bg-gray-50 dark:bg-[#0F172A]'
+              : 'bg-muted/50'
           )}>
             <p className={cn(
               'text-[10px] font-medium mb-1 leading-tight',
               overdueAmount > 0
                 ? 'text-red-700 dark:text-red-300'
-                : 'text-gray-600 dark:text-gray-400'
+                : 'text-muted-foreground'
             )}>
               Overdue Invoice Balance
             </p>
@@ -179,7 +179,7 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
                 'text-lg font-bold',
                 overdueAmount > 0
                   ? 'text-red-900 dark:text-red-100'
-                  : 'text-gray-900 dark:text-white'
+                  : 'text-foreground'
               )}
               duration={800}
             />

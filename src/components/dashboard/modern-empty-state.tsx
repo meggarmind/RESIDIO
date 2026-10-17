@@ -53,8 +53,8 @@ export function ModernEmptyState({
       className={cn(
         'flex flex-col items-center justify-center py-16 px-8 text-center',
         'rounded-2xl',
-        'bg-gradient-to-br from-gray-50/80 to-gray-100/50 dark:from-[#0F172A]/80 dark:to-[#1E293B]/50',
-        'backdrop-blur-sm border border-gray-100 dark:border-[#334155]/50',
+        'bg-gradient-to-br from-muted/80 to-muted/50',
+        'backdrop-blur-sm border border-border/50',
         animate && 'animate-slide-up',
         className
       )}
@@ -62,18 +62,18 @@ export function ModernEmptyState({
       <div
         className={cn(
           'mb-5 flex h-20 w-20 items-center justify-center rounded-2xl',
-          'bg-gradient-to-br from-gray-100 to-gray-50 dark:from-[#1E293B] dark:to-[#0F172A]',
+          'bg-gradient-to-br from-muted to-muted/50',
           'shadow-soft transition-transform duration-300 hover:scale-105',
           animate && 'animate-float'
         )}
       >
-        <Icon className="h-10 w-10 text-gray-400 dark:text-gray-500" />
+        <Icon className="h-10 w-10 text-muted-foreground" />
       </div>
-      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+      <h3 className="text-xl font-semibold text-foreground mb-2">
         {title}
       </h3>
       {description && (
-        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md leading-relaxed">
+        <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
           {description}
         </p>
       )}
@@ -281,11 +281,11 @@ export function ModernCustomEmptyState({
 }) {
   const colorClasses = {
     gray: {
-      bg: 'bg-gray-50 dark:bg-[#0F172A]',
-      iconBg: 'bg-gray-100 dark:bg-[#1E293B]',
-      iconColor: 'text-gray-400 dark:text-gray-500',
-      title: 'text-gray-900 dark:text-white',
-      description: 'text-gray-500 dark:text-gray-400',
+      bg: 'bg-muted/50',
+      iconBg: 'bg-muted',
+      iconColor: 'text-muted-foreground',
+      title: 'text-foreground',
+      description: 'text-muted-foreground',
     },
     blue: {
       bg: 'bg-blue-50 dark:bg-blue-900/10',

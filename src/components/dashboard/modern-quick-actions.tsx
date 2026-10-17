@@ -30,48 +30,48 @@ const quickActions: QuickAction[] = [
     description: 'Register new resident',
     href: '/residents/new',
     icon: UserPlus,
-    accentColor: 'text-[#10B981]',
-    bgColor: 'bg-[#10B981]/10',
+    accentColor: 'text-chart-1',
+    bgColor: 'bg-chart-1/10',
   },
   {
     label: 'Record Payment',
     description: 'Manual payment entry',
     href: '/payments/new',
     icon: CreditCard,
-    accentColor: 'text-[#0EA5E9]',
-    bgColor: 'bg-[#0EA5E9]/10',
+    accentColor: 'text-chart-2',
+    bgColor: 'bg-chart-2/10',
   },
   {
     label: 'Generate Invoices',
     description: 'Create monthly invoices',
     href: '/billing/generate',
     icon: FileText,
-    accentColor: 'text-[#F59E0B]',
-    bgColor: 'bg-[#F59E0B]/10',
+    accentColor: 'text-chart-3',
+    bgColor: 'bg-chart-3/10',
   },
   {
     label: 'Import Statement',
     description: 'Bank statement upload',
     href: '/billing/imports/new',
     icon: Upload,
-    accentColor: 'text-[#8B5CF6]',
-    bgColor: 'bg-[#8B5CF6]/10',
+    accentColor: 'text-chart-4',
+    bgColor: 'bg-chart-4/10',
   },
   {
     label: 'Add House',
     description: 'Register property',
     href: '/houses/new',
     icon: Home,
-    accentColor: 'text-[#F43F5E]',
-    bgColor: 'bg-[#F43F5E]/10',
+    accentColor: 'text-chart-5',
+    bgColor: 'bg-chart-5/10',
   },
   {
     label: 'Security Contact',
     description: 'Register contact',
     href: '/security/contacts/new',
     icon: ShieldPlus,
-    accentColor: 'text-[#64748B]',
-    bgColor: 'bg-[#64748B]/10',
+    accentColor: 'text-muted-foreground',
+    bgColor: 'bg-muted',
     showBadge: true,
   },
 ];
@@ -90,10 +90,10 @@ function ActionCard({ action, pendingCount }: ActionCardProps) {
       href={action.href}
       className={cn(
         'group flex flex-col items-center justify-center gap-3 rounded-xl p-6 text-center',
-        'bg-white dark:bg-[#1E293B]',
-        'border border-gray-200 dark:border-[#334155]',
+        'bg-card',
+        'border border-border',
         'shadow-sm transition-all duration-200',
-        'hover:shadow-md hover:border-gray-300 dark:hover:border-[#475569]',
+        'hover:shadow-md hover:border-primary/30',
         'hover:-translate-y-0.5'
       )}
     >
@@ -107,10 +107,10 @@ function ActionCard({ action, pendingCount }: ActionCardProps) {
         <Icon className={cn('h-7 w-7', action.accentColor)} />
       </div>
       <div className="relative">
-        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+        <p className="text-sm font-semibold text-foreground">
           {action.label}
         </p>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+        <p className="text-xs text-muted-foreground mt-0.5">
           {action.description}
         </p>
         {showBadge && (
@@ -141,17 +141,16 @@ export function ModernQuickActions() {
 
   return (
     <div className={cn(
-      'rounded-xl border bg-white p-6 shadow-sm',
-      'dark:bg-[#1E293B] dark:border-[#334155]'
+      'rounded-xl border bg-card p-6 shadow-sm'
     )}>
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <h3 className="text-lg font-semibold text-foreground">
           Quick Actions
         </h3>
         <Link
           href="/settings"
-          className="flex items-center gap-1 text-sm font-medium text-[#0EA5E9] hover:text-[#0284C7] transition-colors"
+          className="flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
         >
           Settings
           <ChevronRight className="h-4 w-4" />

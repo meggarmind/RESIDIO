@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { useEstateLogo } from '@/hooks/use-estate-logo';
 import { ThemeSwitcher } from '@/components/ui/theme-switcher';
 import {
@@ -27,56 +26,31 @@ interface MobileNavProps {
  * Displays the admin navigation menu for mobile devices.
  * Uses shared navigation config with permission-based filtering.
  * Mirrors the desktop sidebar information architecture, grouped by section.
- * Adapts styling based on active visual theme (Default vs Modern).
+ * Styling follows the active theme tokens.
  */
 export function MobileNav({ open, onOpenChange }: MobileNavProps) {
   const pathname = usePathname();
   const { profile } = useAuth();
   const { sections } = useSectionedNavigation();
-  const { themeId } = useVisualTheme();
   const { logoUrl } = useEstateLogo();
-
-  const isModern = themeId === 'modern';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="left"
-        className={cn(
-          'w-72 p-0',
-          // Modern theme: dark navy background
-          isModern && 'bg-[#1E293B] border-[#334155]'
-        )}
-      >
-        <SheetHeader
-          className={cn(
-            'p-6 border-b',
-            isModern && 'border-[#334155]'
-          )}
-        >
+      <SheetContent side="left" className="w-72 p-0">
+        <SheetHeader className="p-6 border-b">
           <SheetTitle className="flex items-center gap-3">
             {logoUrl ? (
               <img
                 src={logoUrl}
                 alt="Estate Logo"
-                className={cn(
-                  'h-10 w-auto max-w-[140px] object-contain',
-                  isModern && 'brightness-0 invert'
-                )}
+                className="h-10 w-auto max-w-[140px] object-contain"
               />
             ) : (
               <>
-                <div
-                  className={cn(
-                    'flex h-10 w-10 items-center justify-center rounded-lg text-white',
-                    isModern ? 'rounded-xl bg-[#0EA5E9] shadow-lg' : 'bg-primary'
-                  )}
-                >
-                  <span className={cn(isModern ? 'text-lg font-bold' : '')}>R</span>
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg text-white bg-primary">
+                  <span>R</span>
                 </div>
-                <span className={cn(isModern ? 'text-2xl font-bold text-white' : '')}>
-                  Residio
-                </span>
+                <span>Residio</span>
               </>
             )}
           </SheetTitle>
@@ -85,20 +59,15 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
           </SheetDescription>
         </SheetHeader>
 
-        <nav className={cn('flex-1 overflow-y-auto px-4 py-4', isModern && 'px-6 py-6')}>
+        <nav className="flex-1 overflow-y-auto px-4 py-4">
           {sections.map((section) => (
             <div key={section.id} className={cn(sections[0] !== section && 'mt-5')}>
               {section.label && (
-                <p
-                  className={cn(
-                    'mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground',
-                    isModern && 'px-4 text-gray-400'
-                  )}
-                >
+                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {section.label}
                 </p>
               )}
-              <ul className={cn('space-y-1', isModern && 'space-y-2')}>
+              <ul className="space-y-1">
                 {section.items.map((item) => {
                   const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                   // Children arrive already permission-filtered from the shared hook.
@@ -114,30 +83,16 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
                         aria-current={isActive ? 'page' : undefined}
                         className={cn(
                           'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                          isModern
-                            ? cn(
-                                'rounded-xl px-4 py-3 gap-4 transition-all duration-200 relative',
-                                isActive
-                                  ? 'bg-[#0EA5E9]/10 text-[#0EA5E9] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-6 before:w-1 before:rounded-r-full before:bg-[#0EA5E9]'
-                                  : 'text-gray-300 hover:bg-[#334155] hover:text-white'
-                              )
-                            : cn(
-                                isActive
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                              )
+                          isActive
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                         )}
                       >
-                        <item.icon className={cn('h-4 w-4', isModern && 'h-5 w-5')} />
+                        <item.icon className="h-4 w-4" />
                         <span className="truncate">{item.mobileLabel ?? item.title}</span>
                       </Link>
                       {children.length > 0 && (
-                        <ul
-                          className={cn(
-                            'ml-5 mt-1 space-y-1 border-l pl-2',
-                            isModern && 'border-[#334155]'
-                          )}
-                        >
+                        <ul className="ml-5 mt-1 space-y-1 border-l pl-2">
                           {children.map((child) => {
                             const isChildActive = pathname === child.href;
                             return (
@@ -148,13 +103,9 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
                                   aria-current={isChildActive ? 'page' : undefined}
                                   className={cn(
                                     'flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                                    isModern
-                                      ? isChildActive
-                                        ? 'bg-[#0EA5E9]/10 text-[#0EA5E9]'
-                                        : 'text-gray-300 hover:bg-[#334155] hover:text-white'
-                                      : isChildActive
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                                    isChildActive
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                                   )}
                                 >
                                   <child.icon className="h-3.5 w-3.5" />
@@ -173,50 +124,15 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
           ))}
         </nav>
 
-        <div
-          className={cn(
-            'border-t p-4',
-            isModern && 'border-[#334155] p-6'
-          )}
-        >
-          <ThemeSwitcher
-            variant="compact"
-            className={cn(
-              'mb-3',
-              isModern && 'text-gray-300 hover:bg-[#334155] hover:text-white'
-            )}
-          />
-          <div
-            className={cn(
-              'flex items-center gap-3 px-3 py-2',
-              isModern && 'gap-4 px-4 py-3 rounded-xl bg-[#334155]'
-            )}
-          >
-            <div
-              className={cn(
-                'flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium',
-                isModern
-                  ? 'h-10 w-10 bg-[#0EA5E9] text-white font-semibold'
-                  : 'bg-muted'
-              )}
-            >
+        <div className="border-t p-4">
+          <ThemeSwitcher variant="compact" className="mb-3" />
+          <div className="flex items-center gap-3 px-3 py-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium bg-muted">
               {profile?.full_name?.charAt(0) || '?'}
             </div>
             <div className="flex-1 truncate">
-              <p
-                className={cn(
-                  'text-sm font-medium truncate',
-                  isModern && 'font-semibold text-white'
-                )}
-              >
-                {profile?.full_name}
-              </p>
-              <p
-                className={cn(
-                  'text-xs capitalize',
-                  isModern ? 'text-gray-400' : 'text-muted-foreground'
-                )}
-              >
+              <p className="text-sm font-medium truncate">{profile?.full_name}</p>
+              <p className="text-xs capitalize text-muted-foreground">
                 {profile?.role_display_name}
               </p>
             </div>
