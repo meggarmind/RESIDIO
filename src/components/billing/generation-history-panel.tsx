@@ -130,19 +130,19 @@ export function GenerationHistoryPanel({ onRetry }: GenerationHistoryPanelProps)
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={entry.trigger_type === 'cron' ? 'secondary' : 'outline'} className="text-[10px] uppercase">
+                      <Badge variant={entry.trigger_type === 'cron' ? 'secondary' : 'outline'} className="text-xs uppercase">
                         {entry.trigger_type}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1.5">
                         {entry.run_status && (
-                          <Badge variant={runStatusBadgeVariant(entry.run_status)} className="text-[10px] uppercase">
+                          <Badge variant={runStatusBadgeVariant(entry.run_status)} className="text-xs uppercase">
                             {entry.run_status.replaceAll('_', ' ')}
                           </Badge>
                         )}
                         {entry.error_count > 0 && (
-                          <Badge variant="destructive" className="text-[10px]">
+                          <Badge variant="destructive" className="text-xs">
                             <AlertCircle className="mr-1 h-3 w-3" />
                             {entry.error_count} errors
                           </Badge>

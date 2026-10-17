@@ -910,6 +910,7 @@ export default function HouseDetailPage({ params }: HouseDetailPageProps) {
                             disabled={unassignMutation.isPending}
                             className="text-muted-foreground hover:text-destructive"
                             data-testid="remove-resident-button"
+                            aria-label={`Remove ${residentName} from house`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

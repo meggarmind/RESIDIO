@@ -408,8 +408,6 @@ export function SecurityContactsTable({
                       // Background colors
                       isExpired && 'bg-red-50 dark:bg-red-950/20',
                       expiryInfo?.isExpiringSoon && !expiryInfo.isExpired && 'bg-yellow-50 dark:bg-yellow-950/20',
-                      // Left border indicator for expired
-                      isExpired && 'border-l-4 border-l-red-500',
                       // Reduced opacity for expired rows
                       isExpired && 'opacity-75'
                     );

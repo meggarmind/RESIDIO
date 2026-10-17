@@ -440,6 +440,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                             variant="default"
                                             size="icon"
                                             className="bg-primary-foreground text-primary"
+                                            aria-label="Set status for selected payments"
                                             disabled={bulkUpdateMutation.isPending}
                                         >
                                             <CheckCircle className="h-4 w-4" />
@@ -470,6 +471,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                 <Button
                                     variant="outline"
                                     size="icon"
+                                    aria-label="Export selected payments to CSV"
                                     onClick={handleExportCSV}
                                     className="bg-transparent text-primary-foreground border-primary-foreground"
                                 >
@@ -479,6 +481,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                                 <Button
                                     variant="destructive"
                                     size="icon"
+                                    aria-label="Delete selected payments"
                                     onClick={() => setDeleteDialogOpen(true)}
                                 >
                                     <Trash2 className="h-4 w-4" />
@@ -490,6 +493,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
                             variant="ghost"
                             size="icon"
                             onClick={clearSelection}
+                            aria-label="Clear selection"
                             className="text-primary-foreground hover:bg-primary-foreground/10"
                         >
                             <X className="h-4 w-4" />

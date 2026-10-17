@@ -139,7 +139,7 @@ export default function InvoiceDetailPage() {
 
             {/* Correction Badge (if this is a correction invoice) */}
             {invoice.is_correction && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                <div className="bg-yellow-50 border border-yellow-200 p-4">
                     <div className="flex items-start">
                         <AlertCircle className="h-5 w-5 text-yellow-400 mr-2 mt-0.5" />
                         <div>

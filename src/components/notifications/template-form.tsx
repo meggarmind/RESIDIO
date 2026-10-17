@@ -365,6 +365,7 @@ export function TemplateForm({ template, onSuccess, onCancel }: TemplateFormProp
                     type="button"
                     variant="ghost"
                     size="icon"
+                    aria-label={variable.name ? `Remove variable ${variable.name}` : 'Remove variable'}
                     onClick={() => removeVariable(index)}
                   >
                     <X className="h-4 w-4" />

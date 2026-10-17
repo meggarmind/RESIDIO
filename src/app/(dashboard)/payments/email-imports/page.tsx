@@ -329,6 +329,7 @@ export default function EmailImportsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label="View email import details"
                           onClick={() => router.push(`/payments/email-imports/${importItem.id}`)}
                         >
                           <ArrowRight className="h-4 w-4" />

@@ -325,6 +325,7 @@ export default function AnnouncementCategoriesPage() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={`Edit ${category.name}`}
                             onClick={() => handleOpenDialog(category)}
                           >
                             <Pencil className="h-4 w-4" />
@@ -332,6 +333,7 @@ export default function AnnouncementCategoriesPage() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={`Delete ${category.name}`}
                             onClick={() => setDeleteCategory(category)}
                             className="text-destructive hover:text-destructive"
                           >

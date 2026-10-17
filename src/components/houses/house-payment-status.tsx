@@ -113,10 +113,7 @@ export function HousePaymentStatus({ houseId, className }: HousePaymentStatusPro
     : 100;
 
   return (
-    <Card className={cn(
-      className,
-      hasOverdue && 'border-l-4 border-l-destructive'
-    )}>
+    <Card className={className}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
