@@ -843,7 +843,7 @@ export function ImportPreview({
                               value={currentTagId}
                               onValueChange={(value) => handleTagChange(row.id, value)}
                             >
-                              <SelectTrigger className="h-6 w-full text-[10px] px-1">
+                              <SelectTrigger className="h-6 w-full text-xs px-1">
                                 <SelectValue placeholder="--" />
                               </SelectTrigger>
                               <SelectContent>
@@ -862,7 +862,7 @@ export function ImportPreview({
                             </Select>
                           ) : (
                             // Debit transactions: Expense categories (shown in Assignment column)
-                            <span className="text-[10px] text-muted-foreground italic">
+                            <span className="text-xs text-muted-foreground italic">
                               {r.matched_expense_category_id ? '✓ Cat.' : '--'}
                             </span>
                           )}

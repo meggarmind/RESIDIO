@@ -70,7 +70,7 @@ export function WalletBatchReconciliationPanel() {
                                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                                     <div className="min-w-0 flex-1">
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <Badge variant="outline" className="font-mono text-[10px]">{finding.code}</Badge>
+                                            <Badge variant="outline" className="font-mono text-xs">{finding.code}</Badge>
                                             <span className="font-mono text-xs text-muted-foreground">Batch {finding.batchId.slice(0, 8)}</span>
                                         </div>
                                         <p className="mt-1 text-muted-foreground">{finding.message}</p>

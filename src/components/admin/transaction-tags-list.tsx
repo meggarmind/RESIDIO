@@ -550,6 +550,7 @@ export function TransactionTagsList() {
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => openEditDialog(tag)}
+                        aria-label={`Edit tag ${tag.name}`}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -559,6 +560,7 @@ export function TransactionTagsList() {
                         className="h-8 w-8 text-destructive hover:bg-destructive/10"
                         onClick={() => openDeleteDialog(tag)}
                         disabled={deleteMutation.isPending}
+                        aria-label={`Delete tag ${tag.name}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

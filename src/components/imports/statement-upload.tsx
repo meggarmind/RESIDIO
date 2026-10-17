@@ -262,6 +262,7 @@ export function StatementUpload({ onComplete }: StatementUploadProps) {
                     variant="ghost"
                     size="icon"
                     onClick={handleRemoveFile}
+                    aria-label={`Remove ${file.name}`}
                     className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                   >
                     <X className="h-4 w-4" />

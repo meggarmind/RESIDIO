@@ -193,7 +193,7 @@ export function ManagePettyCashDialog() {
                                             <div className="flex justify-between items-start mb-1">
                                                 <div className="font-medium flex items-center gap-2">
                                                     {acc.name}
-                                                    {!acc.is_active && <Badge variant="secondary" className="text-[10px] h-4 px-1">Inactive</Badge>}
+                                                    {!acc.is_active && <Badge variant="secondary" className="text-xs h-4 px-1">Inactive</Badge>}
                                                 </div>
                                                 {/* Actions only visible on hover or if selected? No, maybe always visible for toggle */}
                                             </div>
@@ -207,6 +207,7 @@ export function ManagePettyCashDialog() {
                                                         size="icon"
                                                         className="h-6 w-6 text-muted-foreground hover:text-foreground"
                                                         onClick={() => startEdit(acc)}
+                                                        aria-label={`Edit ${acc.name}`}
                                                     >
                                                         <Pencil className="h-3 w-3" />
                                                     </Button>
@@ -235,7 +236,7 @@ export function ManagePettyCashDialog() {
                                 <h4 className="font-medium text-sm">
                                     {editingId ? 'Edit Account' : 'New Account'}
                                 </h4>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={resetView}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={resetView} aria-label="Close account form">
                                     <X className="h-4 w-4" />
                                 </Button>
                             </div>
@@ -265,7 +266,7 @@ export function ManagePettyCashDialog() {
                                                     <FormControl>
                                                         <Input type="number" placeholder="0.00" {...field} onChange={e => field.onChange(e.target.value)} />
                                                     </FormControl>
-                                                    <p className="text-[10px] text-muted-foreground">The standard float amount for this account.</p>
+                                                    <p className="text-xs text-muted-foreground">The standard float amount for this account.</p>
                                                     <FormMessage />
                                                 </FormItem>
                                             )}

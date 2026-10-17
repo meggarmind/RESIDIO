@@ -317,6 +317,7 @@ export function BillingProfileForm({ onSuccess }: { onSuccess?: () => void }) {
                                 variant="ghost"
                                 size="icon"
                                 className="text-destructive mb-[2px]"
+                                aria-label={`Remove billing item ${index + 1}`}
                                 onClick={() => remove(index)}
                                 disabled={fields.length === 1}
                             >

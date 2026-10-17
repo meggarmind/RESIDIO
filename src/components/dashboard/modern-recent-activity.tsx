@@ -86,12 +86,12 @@ function ActivityListItem({ activity, index }: { activity: RecentActivityItem; i
             dateTime={activity.timestamp}
             title={exactTime}
             aria-label={`${timeAgo}, ${exactTime}`}
-            className="shrink-0 whitespace-nowrap text-[10px] font-medium leading-4 text-muted-foreground"
+            className="shrink-0 whitespace-nowrap text-xs font-medium leading-4 text-muted-foreground"
           >
             {timeAgo}
           </time>
         </div>
-        <p className="mt-0.5 whitespace-normal break-words text-[11px] leading-4 text-muted-foreground [overflow-wrap:anywhere]">
+        <p className="mt-0.5 whitespace-normal break-words text-xs leading-4 text-muted-foreground [overflow-wrap:anywhere]">
           {activity.description}
         </p>
       </div>
@@ -146,7 +146,7 @@ function ActivityUnavailable() {
         <p className="text-xs font-semibold text-foreground">
           Recent activity isn&apos;t available for your role.
         </p>
-        <p className="max-w-[32ch] text-[11px] leading-4 text-muted-foreground">
+        <p className="max-w-[32ch] text-xs leading-4 text-muted-foreground">
           Viewing the audit trail needs the &ldquo;view audit logs&rdquo; permission. Ask an
           administrator if you need it.
         </p>
@@ -202,7 +202,7 @@ export function ModernRecentActivity({ activities, isLoading, isUnavailable = fa
         </div>
         <Link
           href="/system/audit-logs"
-          className="flex min-h-7 items-center gap-1 rounded-md px-1.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="flex min-h-7 items-center gap-1 rounded-md px-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           View audit logs
           <ChevronRight className="h-3 w-3" aria-hidden="true" />
@@ -214,7 +214,7 @@ export function ModernRecentActivity({ activities, isLoading, isUnavailable = fa
             Object.entries(groupedActivities).map(([label, items]) => (
               <div key={label} className="space-y-0.5">
                 <div className="flex items-center gap-2 px-1 mb-1.5">
-                  <span className="text-[10px] font-semibold text-muted-foreground">
+                  <span className="text-xs font-semibold text-muted-foreground">
                     {label}
                   </span>
                   <div className="h-px flex-1 bg-muted/50" aria-hidden="true" />

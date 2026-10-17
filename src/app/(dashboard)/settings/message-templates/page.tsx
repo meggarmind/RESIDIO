@@ -312,6 +312,7 @@ export default function MessageTemplatesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label={`Edit ${template.name}`}
                           onClick={() => handleOpenDialog(template)}
                         >
                           <Pencil className="h-4 w-4" />
@@ -319,6 +320,7 @@ export default function MessageTemplatesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label={`Delete ${template.name}`}
                           onClick={() => setDeleteTemplate(template)}
                           className="text-destructive hover:text-destructive"
                         >
@@ -461,6 +463,7 @@ export default function MessageTemplatesPage() {
                           type="button"
                           variant="ghost"
                           size="icon"
+                          aria-label={`Remove variable ${index + 1}`}
                           onClick={() => remove(index)}
                           className="text-destructive hover:text-destructive"
                         >

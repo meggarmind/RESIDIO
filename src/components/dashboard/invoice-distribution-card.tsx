@@ -127,7 +127,7 @@ function DonutChart({ distribution }: { distribution: InvoiceStatusDistribution 
                     className="text-2xl font-bold tabular-nums"
                     duration={800}
                 />
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">
                     Invoices
                 </span>
             </div>
@@ -156,7 +156,7 @@ function LegendItem({ label, value, total, bgColor }: {
                 value={percentage}
                 decimals={0}
                 suffix="%"
-                className="text-[10px] text-muted-foreground tabular-nums w-8 text-right"
+                className="text-xs text-muted-foreground tabular-nums w-8 text-right"
                 duration={600}
             />
         </div>

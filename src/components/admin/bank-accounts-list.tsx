@@ -348,6 +348,7 @@ export function BankAccountsList() {
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => openEditDialog(account)}
+                        aria-label={`Edit ${account.account_name}`}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -357,6 +358,7 @@ export function BankAccountsList() {
                         className="h-8 w-8 text-destructive hover:text-destructive"
                         onClick={() => openDeleteDialog(account)}
                         disabled={deleteMutation.isPending}
+                        aria-label={`Delete ${account.account_name}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

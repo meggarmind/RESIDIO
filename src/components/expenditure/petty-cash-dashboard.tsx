@@ -75,7 +75,7 @@ export function PettyCashDashboard({ data, onSnapLog, onTopUp }: PettyCashDashbo
                         <div className="flex items-center justify-between">
                             <div className="text-2xl font-bold">{metrics.pendingReconciliations}</div>
                             {metrics.pendingReconciliations > 0 && (
-                                <Badge variant="outline" className="border-amber-500 text-amber-500 bg-amber-50 dark:bg-amber-900/10 text-[10px] px-1.5 py-0 h-5">
+                                <Badge variant="outline" className="border-amber-500 text-amber-500 bg-amber-50 dark:bg-amber-900/10 text-xs px-1.5 py-0 h-5">
                                     Needs Review
                                 </Badge>
                             )}
@@ -111,7 +111,7 @@ export function PettyCashDashboard({ data, onSnapLog, onTopUp }: PettyCashDashbo
                                 ))
                             )}
                             {recentTransactions.length > 2 && (
-                                <p className="text-[10px] text-muted-foreground text-center">
+                                <p className="text-xs text-muted-foreground text-center">
                                     +{recentTransactions.length - 2} more
                                 </p>
                             )}

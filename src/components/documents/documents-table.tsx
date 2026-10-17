@@ -289,6 +289,7 @@ export function DocumentsTable({
                   size="icon"
                   className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
                   onClick={() => handleSearch('')}
+                  aria-label="Clear search"
                 >
                   <X className="h-3 w-3" />
                 </Button>
@@ -320,6 +321,7 @@ export function DocumentsTable({
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => setViewMode('list')}
+                aria-label="List view"
               >
                 <List className="h-4 w-4" />
               </Button>
@@ -328,6 +330,7 @@ export function DocumentsTable({
                 size="icon"
                 className="h-8 w-8"
                 onClick={() => setViewMode('grid')}
+                aria-label="Grid view"
               >
                 <LayoutGrid className="h-4 w-4" />
               </Button>

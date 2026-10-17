@@ -137,6 +137,7 @@ export default function BillingProfilesPage() {
                                                 variant="ghost"
                                                 size="icon"
                                                 className="h-8 w-8"
+                                                aria-label={`Edit ${profile.name}`}
                                                 onClick={() => setEditProfileId(profile.id)}
                                             >
                                                 <Pencil className="h-4 w-4" />
@@ -157,6 +158,7 @@ export default function BillingProfilesPage() {
                                                 variant="ghost"
                                                 size="icon"
                                                 className="h-8 w-8"
+                                                aria-label={`Duplicate ${profile.name}`}
                                                 onClick={() => duplicateMutation.mutate(profile.id)}
                                                 disabled={duplicateMutation.isPending}
                                             >
@@ -166,6 +168,7 @@ export default function BillingProfilesPage() {
                                                 variant="ghost"
                                                 size="icon"
                                                 className="text-destructive h-8 w-8"
+                                                aria-label={`Delete ${profile.name}`}
                                                 onClick={async () => {
                                                     if (confirm('Delete this profile? This might affect automated billing.')) {
                                                         await deleteMutation.mutateAsync(profile.id);

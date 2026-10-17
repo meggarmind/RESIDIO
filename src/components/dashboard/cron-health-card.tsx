@@ -181,6 +181,7 @@ export function CronHealthCard() {
                         className="h-8 w-8"
                         onClick={() => refetch()}
                         disabled={isFetching}
+                        aria-label="Refresh system health"
                     >
                         <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
                     </Button>

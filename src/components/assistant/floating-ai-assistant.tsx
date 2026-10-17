@@ -107,6 +107,7 @@ export function FloatingAiAssistant() {
                                     e.stopPropagation();
                                     dismissSuggestion();
                                 }}
+                                aria-label="Dismiss suggestion"
                                 className="absolute -top-1 -right-1 h-4 w-4 bg-muted text-muted-foreground rounded-full border flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
                             >
                                 <X className="h-2 w-2" />

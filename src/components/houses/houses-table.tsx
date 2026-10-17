@@ -341,7 +341,7 @@ export function HousesTable() {
                 Add
               </Button>
               {/* Mobile-only Add Button (icon only to save space) */}
-              <Button onClick={() => router.push('/houses/new')} size="icon" className="sm:hidden shrink-0">
+              <Button onClick={() => router.push('/houses/new')} size="icon" className="sm:hidden shrink-0" aria-label="Add house">
                 <Plus className="h-4 w-4" />
               </Button>
             </Can>
