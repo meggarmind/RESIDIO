@@ -33,7 +33,6 @@ export async function checkDuplicateGuardrail(
     const supabase = await createServerSupabaseClient();
     const dateObj = new Date(transaction.date);
     const toleranceDays = options.toleranceDays || 1;
-    const toleranceMs = toleranceDays * 24 * 60 * 60 * 1000;
 
     // 1. Get System Threshold
     let threshold = options.threshold;
@@ -47,7 +46,7 @@ export async function checkDuplicateGuardrail(
             .eq('setting_key', 'duplicate_matching_threshold')
             .maybeSingle();
 
-        threshold = setting ? Number(setting.value) : 90; // Default 90%
+        threshold = resolveDuplicateThreshold(setting); // Default 90%
     }
 
     // 2. Exact Match (Reference)
@@ -76,8 +75,7 @@ export async function checkDuplicateGuardrail(
     }
 
     // 3. Find Candidates (Amount + Date Window)
-    const startDate = new Date(dateObj.getTime() - toleranceMs).toISOString();
-    const endDate = new Date(dateObj.getTime() + toleranceMs).toISOString();
+    const { startDate, endDate } = duplicateWindow(dateObj, toleranceDays);
 
     let query = supabase.from(
         entityType === 'expense' ? 'expenses' : 'payment_records'
@@ -100,21 +98,45 @@ export async function checkDuplicateGuardrail(
     }
 
     // 4. Calculate Scores
+    return pickBestDuplicate(
+        { amount: transaction.amount, date: dateObj, description: transaction.description },
+        candidates,
+        threshold
+    );
+}
+
+export interface DuplicateCandidate {
+    id: string;
+    description?: string | null;
+    amount: number;
+    payment_date?: string | null;
+    expense_date?: string | null;
+}
+
+/**
+ * Pure scoring step shared by the single-row guardrail and the batch import check:
+ * the highest-scoring candidate wins (first one on ties); no positive score means "none".
+ */
+export function pickBestDuplicate(
+    transaction: { amount: number; date: Date; description?: string },
+    candidates: DuplicateCandidate[],
+    threshold: number
+): DuplicateCheckResult {
     let bestMatch: DuplicateCheckResult | null = null;
     let highestScore = 0;
 
     for (const candidate of candidates) {
-        const candidateDate = new Date(candidate.payment_date || candidate.expense_date);
+        const candidateDate = new Date((candidate.payment_date || candidate.expense_date) as string);
         const score = calculateDuplicateScore(
             {
                 amount: transaction.amount,
-                date: dateObj,
+                date: transaction.date,
                 description: transaction.description
             },
             {
                 amount: candidate.amount,
                 date: candidateDate,
-                description: candidate.description
+                description: candidate.description ?? undefined
             }
         );
 
@@ -131,4 +153,18 @@ export async function checkDuplicateGuardrail(
     }
 
     return bestMatch || { isDuplicate: false, score: 0, matchType: 'none' };
+}
+
+/** ISO bounds of the +-toleranceDays window around a date (same maths as the guardrail query). */
+export function duplicateWindow(dateObj: Date, toleranceDays: number): { startDate: string; endDate: string } {
+    const toleranceMs = toleranceDays * 24 * 60 * 60 * 1000;
+    return {
+        startDate: new Date(dateObj.getTime() - toleranceMs).toISOString(),
+        endDate: new Date(dateObj.getTime() + toleranceMs).toISOString(),
+    };
+}
+
+/** Default when no hierarchical setting exists, and how a stored setting becomes a threshold. */
+export function resolveDuplicateThreshold(setting: { value: unknown } | null | undefined): number {
+    return setting ? Number(setting.value) : 90;
 }
