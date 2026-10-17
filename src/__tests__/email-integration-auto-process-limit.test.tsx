@@ -5,16 +5,22 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@testing-library/jest-dom/vitest';
 
 // The auto-process limit field on Settings > Gmail Import (#710): visible with
-// settings.view, editable only with settings.manage_general (what updateSetting enforces).
+// settings.view, editable only by a super_admin holding settings.manage_general (what
+// updateSetting enforces for this key).
 
 const mocks = vi.hoisted(() => ({
   permissions: [] as string[],
+  roleName: 'super_admin' as string | null,
   getSettings: vi.fn(),
   updateSetting: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/auth-provider', () => ({
-  useAuth: () => ({ isLoading: false, hasPermission: (p: string) => mocks.permissions.includes(p) }),
+  useAuth: () => ({
+    isLoading: false,
+    hasPermission: (p: string) => mocks.permissions.includes(p),
+    profile: { role_name: mocks.roleName },
+  }),
 }));
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
 vi.mock('@/hooks/use-gmail-connection', () => ({
@@ -50,6 +56,7 @@ const field = () => screen.findByLabelText('Auto-process limit (NGN)');
 
 beforeEach(() => {
   mocks.permissions = [];
+  mocks.roleName = 'super_admin';
   mocks.getSettings.mockResolvedValue({
     data: [{ key: 'email_import_auto_process_limit', value: 75000 }],
     error: null,
@@ -79,7 +86,16 @@ describe('Auto-process limit setting (issue #710)', () => {
     expect(mocks.getSettings).toHaveBeenCalledWith('email_integration');
   });
 
-  it('saves a new value through updateSetting with settings.manage_general', async () => {
+  it('is read-only for a settings.manage_general holder who is not super_admin', async () => {
+    mocks.permissions = [PERMISSIONS.SETTINGS_VIEW, PERMISSIONS.SETTINGS_MANAGE_GENERAL];
+    mocks.roleName = 'finance_officer';
+    renderPage();
+
+    expect(await field()).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+  });
+
+  it('saves a new value through updateSetting for a super_admin', async () => {
     mocks.permissions = [PERMISSIONS.SETTINGS_VIEW, PERMISSIONS.SETTINGS_MANAGE_GENERAL];
     renderPage();
 

@@ -30,6 +30,7 @@ import {
 } from '@/hooks/use-gmail-connection';
 import { useSettings, useUpdateSetting } from '@/hooks/use-settings';
 import { useCan } from '@/components/auth/can';
+import { useAuth } from '@/lib/auth/auth-provider';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import {
   EMAIL_AUTO_PROCESS_LIMIT_KEY,
@@ -222,12 +223,14 @@ function EmailIntegrationContent() {
 
 /**
  * The email-import auto-process limit (#710). Shown with settings.view; saving
- * goes through updateSetting, so the control is gated on the permission that
- * action enforces (settings.manage_general).
+ * goes through updateSetting, which for this key needs settings.manage_general
+ * and the super_admin role (owner decision), so the control is gated on both.
  */
 function AutoProcessLimitCard() {
   const canView = useCan(PERMISSIONS.SETTINGS_VIEW);
-  const canEdit = useCan(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  const { profile } = useAuth();
+  const canEdit =
+    useCan(PERMISSIONS.SETTINGS_MANAGE_GENERAL) && profile?.role_name === 'super_admin';
   const { data: settings, isLoading } = useSettings('email_integration');
   const updateSetting = useUpdateSetting();
   const [draft, setDraft] = useState<number | null>(null);

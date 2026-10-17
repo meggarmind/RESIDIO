@@ -1,12 +1,12 @@
 /**
  * Issue #710 -- the email-import auto-process limit is the
  * `email_import_auto_process_limit` setting. The generic writer must refuse a
- * value that would switch the approval control off, and every accepted change
- * is audited.
+ * value that would switch the approval control off, only super_admin may
+ * change it (owner decision), and every accepted change is audited.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeRecordingSupabase, uid, type QueryResult } from '@/__tests__/helpers/recording-supabase';
-import { updateSetting, updateSettings } from '@/actions/settings/update-setting';
+import { createSetting, updateSetting, updateSettings } from '@/actions/settings/update-setting';
 import { settingValueError } from '@/lib/validators/setting-value';
 import { EMAIL_AUTO_PROCESS_LIMIT_KEY } from '@/lib/email-imports/utils';
 
@@ -83,5 +83,50 @@ describe('updateSetting for the auto-process limit', () => {
 
     expect(result.success).toBe(false);
     expect(logAudit).not.toHaveBeenCalled();
+  });
+});
+
+describe('super_admin-only save for the auto-process limit (owner decision on #710)', () => {
+  // Holds settings.manage_general (authorizePermission passes) but is not super_admin.
+  const asFinanceOfficer = () =>
+    authorizePermission.mockResolvedValue({ authorized: true, userId: uid(901), roleName: 'finance_officer' });
+
+  it('updateSetting refuses a non-super-admin with no write and no audit', async () => {
+    asFinanceOfficer();
+    results['system_settings.update'] = { data: { id: uid(1), key: KEY, value: '80000' } };
+
+    const result = await updateSetting(KEY, '80000');
+
+    expect(result.error).toBe(`Only a super admin can change "${KEY}"`);
+    expect(calls).toEqual([]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('updateSettings refuses a batch carrying the limit from a non-super-admin', async () => {
+    asFinanceOfficer();
+    results['system_settings.upsert'] = { data: { id: uid(2) } };
+
+    const result = await updateSettings({ other_setting: 1, [KEY]: 80000 });
+
+    expect(result).toEqual({ success: false, error: `Only a super admin can change "${KEY}"` });
+    expect(calls).toEqual([]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('createSetting refuses the limit key from a non-super-admin', async () => {
+    asFinanceOfficer();
+    results['system_settings.insert'] = { data: { id: uid(3) } };
+
+    expect((await createSetting(KEY, '80000')).error).toMatch(/Only a super admin/);
+    expect(calls).toEqual([]);
+    expect(logAudit).not.toHaveBeenCalled();
+  });
+
+  it('leaves other keys to settings.manage_general', async () => {
+    asFinanceOfficer();
+    results['system_settings.update'] = { data: { id: uid(4), key: 'other_setting', value: '2' } };
+
+    expect((await updateSetting('other_setting', 2)).error).toBeNull();
+    expect(logAudit).toHaveBeenCalledTimes(1);
   });
 });

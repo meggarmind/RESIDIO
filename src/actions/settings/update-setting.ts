@@ -7,10 +7,21 @@ import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
 import { settingValueError } from '@/lib/validators/setting-value';
+import { EMAIL_AUTO_PROCESS_LIMIT_KEY } from '@/lib/email-imports/utils';
 
 type UpdateSettingResponse = {
     data: SystemSetting | null;
     error: string | null;
+}
+
+/**
+ * Only super_admin may change the email auto-process limit: a very large value
+ * switches the approval control off (owner decision on #710). Checked before
+ * any write, so a refusal writes and audits nothing.
+ */
+function superAdminOnlyError(keys: string[], roleName: string | null): string | null {
+    if (roleName === 'super_admin' || !keys.includes(EMAIL_AUTO_PROCESS_LIMIT_KEY)) return null;
+    return `Only a super admin can change "${EMAIL_AUTO_PROCESS_LIMIT_KEY}"`;
 }
 
 /**
@@ -29,6 +40,9 @@ export async function updateSetting(key: string, value: unknown): Promise<Update
     if (!auth.authorized) {
         return { data: null, error: auth.error || 'Unauthorized' };
     }
+
+    const roleError = superAdminOnlyError([key], auth.roleName);
+    if (roleError) return { data: null, error: roleError };
 
     const valueError = settingValueError(key, value);
     if (valueError) return { data: null, error: valueError };
@@ -95,6 +109,9 @@ export async function updateSettings(settings: Record<string, unknown>): Promise
     if (!auth.authorized) {
         return { success: false, error: auth.error || 'Unauthorized' };
     }
+
+    const roleError = superAdminOnlyError(Object.keys(settings), auth.roleName);
+    if (roleError) return { success: false, error: roleError };
 
     for (const [key, value] of Object.entries(settings)) {
         const valueError = settingValueError(key, value);
@@ -202,6 +219,9 @@ export async function createSetting(
     if (!auth.authorized) {
         return { data: null, error: auth.error || 'Unauthorized' };
     }
+
+    const roleError = superAdminOnlyError([key], auth.roleName);
+    if (roleError) return { data: null, error: roleError };
 
     const valueError = settingValueError(key, value);
     if (valueError) return { data: null, error: valueError };
