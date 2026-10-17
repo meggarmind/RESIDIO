@@ -205,6 +205,7 @@ export function ExpenditureClient({
                             Status: <span className="capitalize">{statusFilter}</span>
                             <button
                                 onClick={() => setStatusFilter('all')}
+                                aria-label="Clear status filter"
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                             >
                                 <X className="h-3 w-3" />
@@ -216,6 +217,7 @@ export function ExpenditureClient({
                             Category: {categories.find(c => c.id === categoryFilter)?.name}
                             <button
                                 onClick={() => setCategoryFilter('all')}
+                                aria-label="Clear category filter"
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                             >
                                 <X className="h-3 w-3" />
@@ -227,6 +229,7 @@ export function ExpenditureClient({
                             Payee: <span className="capitalize">{payeeTypeFilter}</span>
                             <button
                                 onClick={() => setPayeeTypeFilter('all')}
+                                aria-label="Clear payee filter"
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                             >
                                 <X className="h-3 w-3" />
@@ -238,6 +241,7 @@ export function ExpenditureClient({
                             Search: {searchQuery}
                             <button
                                 onClick={() => setSearchQuery('')}
+                                aria-label="Clear search filter"
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
                             >
                                 <X className="h-3 w-3" />
