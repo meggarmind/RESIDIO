@@ -346,7 +346,8 @@ export function ImportApprovalPanel({ importId }: ImportApprovalPanelProps) {
             <DialogDescription>
               The import goes back to review and must be submitted and approved again before it
               can be processed. {createdRowCount} {createdRowCount === 1 ? 'row was' : 'rows were'}{' '}
-              already created and will not be processed again.
+              already created and will not be processed again. Rows that errored return to
+              unmatched and must be re-matched before resubmitting.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

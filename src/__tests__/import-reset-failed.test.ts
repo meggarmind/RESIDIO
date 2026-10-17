@@ -5,8 +5,8 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 /**
  * Issue #708: a failed import is reset to `processing` by a holder of imports.reset only. The
- * reset clears the submitter and approver so maker-checker runs again, never touches rows, and
- * is audited with the number of rows already created.
+ * reset clears the submitter and approver so maker-checker runs again, never writes created rows,
+ * returns this import's errored rows to unmatched, and is audited with both counts.
  */
 
 const { authorizePermission, createServerSupabaseClient, logAudit, notifyAdmins } = vi.hoisted(() => ({
@@ -27,11 +27,12 @@ const RACE_ERROR = 'Import status changed, please refresh and try again';
 
 // In-memory import row; updates apply only when every .eq() filter matches, like PostgREST.
 let record: Record<string, unknown>;
-let rowCounts: Record<string, number>;
+type Row = { id: string; import_id: string; status: string };
+let rows: Row[];
 let countError: { message: string } | null;
 let currentUser: string;
 let raceStatus: string | null;
-let rowWrites: string[];
+let rowWrites: Array<{ id: string; status: string }>;
 let countFilters: Array<Array<[string, unknown]>>;
 let updateFilters: Array<Array<[string, unknown]>>;
 
@@ -45,8 +46,17 @@ beforeEach(() => {
     submitted_at: '2026-10-01T00:00:00Z',
     approved_by: 'checker',
     approved_at: '2026-10-02T00:00:00Z',
+    completed_at: '2026-10-03T00:00:00Z',
+    import_summary: { created: 4 },
   };
-  rowCounts = { created: 4, matched: 6 };
+  const make = (prefix: string, import_id: string, status: string, n: number) =>
+    Array.from({ length: n }, (_, i) => ({ id: `${prefix}${i}`, import_id, status }));
+  rows = [
+    ...make('c', IMPORT_ID, 'created', 4),
+    ...make('m', IMPORT_ID, 'matched', 6),
+    ...make('e', IMPORT_ID, 'error', 2),
+    ...make('x', 'imp-other', 'error', 3),
+  ];
   countError = null;
   currentUser = 'super';
   raceStatus = null;
@@ -86,13 +96,16 @@ beforeEach(() => {
       };
       const settle = () => {
         if (table === 'bank_statement_rows') {
-          if (op !== 'select') {
-            rowWrites.push(op);
-            return { data: null, error: null };
+          const hits = rows.filter((r) => filters.every(([c, v]) => r[c as keyof Row] === v));
+          if (op === 'update') {
+            for (const r of hits) {
+              rowWrites.push({ id: r.id, status: r.status });
+              Object.assign(r, vals);
+            }
+            return { data: hits.map((r) => ({ id: r.id })), error: null };
           }
           countFilters.push(filters);
-          const status = filters.find(([c]) => c === 'status')?.[1] as string;
-          return { count: countError ? null : rowCounts[status] ?? 0, error: countError };
+          return { count: countError ? null : hits.length, error: countError };
         }
         if (op === 'update') {
           updateFilters.push(filters);
@@ -117,7 +130,8 @@ describe('resetFailedImport (#708)', () => {
     authorizePermission.mockResolvedValue({ authorized: false, error: 'Nope' });
     const res = await resetFailedImport(IMPORT_ID);
     expect(authorizePermission).toHaveBeenCalledWith(PERMISSIONS.IMPORTS_RESET);
-    expect(res).toEqual({ createdRows: 0, error: 'Nope' });
+    expect(res).toEqual({ createdRows: 0, rowsRequeued: 0, error: 'Nope' });
+    expect(rowWrites).toEqual([]);
     expect(record.status).toBe('failed');
     expect(updateFilters).toEqual([]);
     expect(logAudit).not.toHaveBeenCalled();
@@ -130,19 +144,22 @@ describe('resetFailedImport (#708)', () => {
       expect(res.error).toBe('Only a failed import can be reset');
       expect(record.status).toBe(status);
       expect(updateFilters).toEqual([]);
+      expect(rowWrites).toEqual([]);
       expect(logAudit).not.toHaveBeenCalled();
     });
   }
 
-  it('moves a failed import to processing and clears submitter, approver and timestamps', async () => {
+  it('moves a failed import to processing and clears submitter, approver, timestamps and summary', async () => {
     const res = await resetFailedImport(IMPORT_ID);
-    expect(res).toEqual({ createdRows: 4, error: null });
+    expect(res).toEqual({ createdRows: 4, rowsRequeued: 2, error: null });
     expect(record).toMatchObject({
       status: 'processing',
       submitted_by: null,
       submitted_at: null,
       approved_by: null,
       approved_at: null,
+      completed_at: null,
+      import_summary: null,
     });
   });
 
@@ -155,12 +172,21 @@ describe('resetFailedImport (#708)', () => {
     ]);
     expect(res.error).toBe(RACE_ERROR);
     expect(record.status).toBe('completed');
+    expect(rowWrites).toEqual([]);
     expect(logAudit).not.toHaveBeenCalled();
   });
 
-  it('never writes to bank_statement_rows, so created rows stay created', async () => {
+  it('returns only this import\'s errored rows to unmatched and never writes created rows', async () => {
     await resetFailedImport(IMPORT_ID);
-    expect(rowWrites).toEqual([]);
+    expect(rowWrites).toEqual([
+      { id: 'e0', status: 'error' },
+      { id: 'e1', status: 'error' },
+    ]);
+    const statusOf = (prefix: string) => rows.filter((r) => r.id.startsWith(prefix)).map((r) => r.status);
+    expect(statusOf('e')).toEqual(['unmatched', 'unmatched']);
+    expect(statusOf('c')).toEqual(Array(4).fill('created'));
+    expect(statusOf('m')).toEqual(Array(6).fill('matched'));
+    expect(statusOf('x')).toEqual(Array(3).fill('error'));
   });
 
   it('counts only created rows of this import', async () => {
@@ -178,6 +204,7 @@ describe('resetFailedImport (#708)', () => {
     const res = await resetFailedImport(IMPORT_ID);
     expect(res.error).toBe('count exploded');
     expect(record.status).toBe('failed');
+    expect(rowWrites).toEqual([]);
     expect(logAudit).not.toHaveBeenCalled();
   });
 
@@ -190,17 +217,20 @@ describe('resetFailedImport (#708)', () => {
         entityType: 'bank_statement_imports',
         entityId: IMPORT_ID,
         oldValues: { status: 'failed' },
-        newValues: { status: 'processing', rows_already_created: 4 },
+        newValues: { status: 'processing', rows_already_created: 4, rows_requeued: 2 },
+        description: expect.stringContaining('2 errored row(s) returned to unmatched'),
       })
     );
   });
 
-  it('a zero created count is reported as zero', async () => {
-    rowCounts.created = 0;
+  it('zero created and zero errored rows are reported as zero', async () => {
+    rows = rows.filter((r) => r.status !== 'created' && r.import_id === IMPORT_ID && r.status !== 'error');
     const res = await resetFailedImport(IMPORT_ID);
-    expect(res.createdRows).toBe(0);
+    expect(res).toMatchObject({ createdRows: 0, rowsRequeued: 0 });
     expect(logAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ newValues: { status: 'processing', rows_already_created: 0 } })
+      expect.objectContaining({
+        newValues: { status: 'processing', rows_already_created: 0, rows_requeued: 0 },
+      })
     );
   });
 });
