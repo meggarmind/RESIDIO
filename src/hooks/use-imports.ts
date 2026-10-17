@@ -42,6 +42,7 @@ import {
   approveImport,
   rejectImport,
   submitForApproval,
+  resetFailedImport,
   type ImportSearchParams,
   type ImportRowSearchParams,
   type CreateImportParams,
@@ -590,6 +591,27 @@ export function useSubmitForApproval() {
       queryClient.invalidateQueries({ queryKey: ['import', importId] });
       queryClient.invalidateQueries({ queryKey: ['import-stats'] });
       toast.success('Import submitted for approval');
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+export function useResetFailedImport() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (importId: string) => {
+      const result = await resetFailedImport(importId);
+      if (result.error) throw new Error(result.error);
+      return result;
+    },
+    onSuccess: (_result, importId) => {
+      queryClient.invalidateQueries({ queryKey: ['imports'] });
+      queryClient.invalidateQueries({ queryKey: ['import', importId] });
+      queryClient.invalidateQueries({ queryKey: ['import-stats'] });
+      toast.success('Import reset for review');
     },
     onError: (error) => {
       toast.error(error.message);
