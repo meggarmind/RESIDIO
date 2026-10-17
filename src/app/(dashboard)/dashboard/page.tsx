@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { useAdminDashboardSnapshot } from '@/hooks/use-dashboard';
+import { useAdminDashboardSnapshot, useEstateMapStatus } from '@/hooks/use-dashboard';
 import { toast } from 'sonner';
 import { DashboardSkeleton } from '@/components/dashboard/dashboard-skeleton';
 import { useSmartSuggestions } from '@/hooks/use-smart-suggestions';
@@ -10,6 +10,7 @@ import { CommandStrip } from '@/components/dashboard/command-strip';
 import { MoneyLane } from '@/components/dashboard/money-lane';
 import { PeopleLane } from '@/components/dashboard/people-lane';
 import { SecurityLane } from '@/components/dashboard/security-lane';
+import { EstateMap } from '@/components/dashboard/estate-map';
 import { CommandRecentActivity } from '@/components/dashboard/command-recent-activity';
 import { useDashboardNavigationState } from '@/hooks/use-dashboard-navigation-state';
 import { OfflineAdminBanner } from '@/components/dashboard/offline-admin-banner';
@@ -25,6 +26,7 @@ function DashboardContent() {
     const { profile, isLoading: authLoading } = useAuth();
     const navigationState = useDashboardNavigationState();
     const { data: snapshot, isLoading, isError, isStaleSnapshot, snapshotSavedAt } = useAdminDashboardSnapshot();
+    const { data: estateMap, isLoading: estateMapLoading, error: estateMapError } = useEstateMapStatus();
     const { suggestions } = useSmartSuggestions();
 
     if (authLoading) {
@@ -56,6 +58,7 @@ function DashboardContent() {
                 <PeopleLane
                   actionMetrics={snapshot?.actionMetrics ?? null}
                   quickStats={snapshot?.quickStats ?? null}
+                  estateMapCounts={estateMap?.counts ?? null}
                   asOf={snapshot?.lastUpdated ?? null}
                   isLoading={isLoading}
                   isUnavailable={isError}
@@ -68,6 +71,7 @@ function DashboardContent() {
                   isLoading={isLoading}
                   isUnavailable={isError}
                 />
+                <EstateMap snapshot={estateMap ?? null} isLoading={estateMapLoading} error={estateMapError ? estateMapError.message : null} />
                 <CommandRecentActivity
                   activities={snapshot?.recentActivity ?? null}
                   isLoading={isLoading}
