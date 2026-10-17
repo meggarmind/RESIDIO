@@ -96,8 +96,8 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
             size={110}
             strokeWidth={10}
             duration={1200}
-            color="hsl(199 89% 48%)" // #0EA5E9 blue-teal
-            gradientColor="hsl(189 94% 43%)" // #06B6D4 cyan
+            color="var(--primary)"
+            gradientColor="var(--chart-2)"
             label="COLLECTION"
           />
           <div className="text-center">

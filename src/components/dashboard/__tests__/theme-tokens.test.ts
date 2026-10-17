@@ -21,6 +21,9 @@ const DEAD_BRANCH_FILES = ['mobile-nav.tsx', 'enhanced-stat-card.tsx'];
 
 const HEX_COLOUR_CLASS = /(bg|text|border|from|to|via|ring|fill|stroke)-\[#[0-9a-fA-F]{3,8}\]/;
 
+// Colour-function literals (hsl(...), rgb(...)) are theme-blind too.
+const COLOUR_FUNCTION = /\b(hsl|rgb)a?\(\s*\d/;
+
 function findOffences(file: string, pattern: RegExp): string[] {
   const lines = readFileSync(join(DIR, file), 'utf8').split(/\r?\n/);
   const hits: string[] = [];
@@ -39,6 +42,14 @@ describe('dashboard theme tokens (#743)', () => {
   it.each(DEAD_BRANCH_FILES)('%s does not read the visual theme', (file) => {
     const hits = findOffences(file, /useVisualTheme/);
     expect(hits, `useVisualTheme must stay removed:\n${hits.join('\n')}`).toEqual([]);
+  });
+
+  it.each(ALL_FILES)('%s has no hsl()/rgb() colour literals', (file) => {
+    const hits = findOffences(file, COLOUR_FUNCTION);
+    expect(
+      hits,
+      `Use a CSS variable such as var(--primary) instead of a colour literal:\n${hits.join('\n')}`
+    ).toEqual([]);
   });
 
   it.each(ALL_FILES)('%s has no arbitrary-hex colour classes', (file) => {

@@ -93,7 +93,7 @@ function ActionCard({ action, pendingCount }: ActionCardProps) {
         'bg-card',
         'border border-border',
         'shadow-sm transition-all duration-200',
-        'hover:shadow-md hover:border-border',
+        'hover:shadow-md hover:border-primary/30',
         'hover:-translate-y-0.5'
       )}
     >
