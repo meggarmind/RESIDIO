@@ -1630,7 +1630,8 @@ export interface AccessLogWithDetails extends AccessLog {
 // ============================================
 
 // Import status for bank statement imports
-export type ImportStatus = 'pending' | 'processing' | 'awaiting_approval' | 'approved' | 'completed' | 'failed' | 'rejected';
+// 'posting' is the claim processImport takes before creating any payment (#707).
+export type ImportStatus = 'pending' | 'processing' | 'awaiting_approval' | 'approved' | 'posting' | 'completed' | 'failed' | 'rejected';
 
 // Transaction filter options
 export type TransactionFilter = 'credit' | 'debit' | 'all';
@@ -1650,6 +1651,7 @@ export const IMPORT_STATUS_LABELS: Record<ImportStatus, string> = {
   processing: 'Processing',
   awaiting_approval: 'Awaiting Approval',
   approved: 'Approved',
+  posting: 'Posting',
   completed: 'Completed',
   failed: 'Failed',
   rejected: 'Rejected',

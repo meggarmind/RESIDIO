@@ -111,10 +111,11 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
-const ALL: ImportStatus[] = ['pending', 'processing', 'awaiting_approval', 'approved', 'completed', 'failed', 'rejected'];
-// processImport accepts only an approved import (#628) and finishes it as completed or failed.
+const ALL: ImportStatus[] = ['pending', 'processing', 'awaiting_approval', 'approved', 'posting', 'completed', 'failed', 'rejected'];
+// processImport accepts only an approved import (#628), claims it as posting with its own guarded
+// update (#707), and finishes it from posting as completed or failed.
 const LEGIT: Array<[ImportStatus, ImportStatus]> = (
-  ['approved'] as ImportStatus[]
+  ['posting'] as ImportStatus[]
 ).flatMap((from) => (['completed', 'failed'] as ImportStatus[]).map((to) => [from, to] as [ImportStatus, ImportStatus]));
 
 describe('updateImportStatus transition table (#556)', () => {
@@ -177,7 +178,7 @@ describe('updateImportStatus concurrency guard (#556)', () => {
           return chain;
         };
         const settle = () =>
-          op === 'update' ? { data: [{ id: uid(1) }], error: null } : { data: { status: 'approved' }, error: null };
+          op === 'update' ? { data: [{ id: uid(1) }], error: null } : { data: { status: 'posting' }, error: null };
         chain.single = async () => settle();
         chain.then = (res: (v: unknown) => unknown) => Promise.resolve(settle()).then(res);
         return chain;
@@ -186,19 +187,19 @@ describe('updateImportStatus concurrency guard (#556)', () => {
     const res = await updateImportStatus({ import_id: uid(1), status: 'completed' });
     expect(res.error).toBeNull();
     expect(eqs).toContainEqual(['id', uid(1)]);
-    expect(eqs).toContainEqual(['status', 'approved']);
+    expect(eqs).toContainEqual(['status', 'posting']);
     expect(selectsAfterUpdate).toEqual(['id, file_name']);
   });
 
   it('returns an error when zero rows were updated (lost race)', async () => {
-    results['bank_statement_imports.select'] = { data: { status: 'approved' } };
+    results['bank_statement_imports.select'] = { data: { status: 'posting' } };
     results['bank_statement_imports.update'] = { data: [] };
     const res = await updateImportStatus({ import_id: uid(1), status: 'completed' });
     expect(res.error).toMatch(/changed concurrently/);
   });
 
   it('returns ok when one row was updated', async () => {
-    results['bank_statement_imports.select'] = { data: { status: 'approved' } };
+    results['bank_statement_imports.select'] = { data: { status: 'posting' } };
     results['bank_statement_imports.update'] = { data: [{ id: uid(1) }] };
     const res = await updateImportStatus({ import_id: uid(1), status: 'completed' });
     expect(res.error).toBeNull();
@@ -256,12 +257,31 @@ describe('processImport final status write under IMPORTS_REVIEW alone (#556)', (
     };
   });
 
-  it('completes the import and audits it once with the import uuid', async () => {
+  it('claims, then completes the import, auditing each step with the import uuid', async () => {
+    // The import reads as posting once processImport's claim (the first update) has run (#707).
+    Object.defineProperty(results, 'bank_statement_imports.select', {
+      configurable: true,
+      enumerable: true,
+      get: () => ({
+        data: {
+          id: uid(1),
+          file_name: 'jan.csv',
+          status: calls.includes('write:bank_statement_imports.update') ? 'posting' : 'approved',
+          total_rows: 3,
+        },
+      }),
+    });
     const res = await processImport({ import_id: uid(1) });
     expect(res.success).toBe(true);
-    expect(calls).toEqual(['write:bank_statement_imports.update', 'audit']);
-    expect(logAudit).toHaveBeenCalledTimes(1);
-    expectUuidEntityId(logAudit);
+    expect(calls).toEqual([
+      'write:bank_statement_imports.update',
+      'audit',
+      'write:bank_statement_imports.update',
+      'audit',
+    ]);
+    expect(logAudit).toHaveBeenCalledTimes(2);
+    expectUuidEntityId(logAudit, 0);
+    expectUuidEntityId(logAudit, 1);
     expect(logAudit).toHaveBeenCalledWith(
       expect.objectContaining({ entityType: 'bank_statement_imports', newValues: expect.objectContaining({ status: 'completed' }) }),
     );
