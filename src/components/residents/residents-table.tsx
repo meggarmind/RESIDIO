@@ -32,6 +32,8 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RecordCard, RecordCardSkeleton } from '@/components/ui/record-card';
+import { RecordSortControl } from '@/components/ui/record-sort-control';
 import { AccountStatusBadge, ResidentRoleBadge } from '@/components/residents/status-badge';
 import { ContactVerificationBadge } from '@/components/residents/contact-verification-badge';
 import { ResidentQuickView } from '@/components/residents/resident-quick-view';
@@ -46,29 +48,123 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const ALL_VALUE = '_all';
 
-// Memoized row component to prevent unnecessary re-renders
-// This significantly improves performance for large resident lists
-const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview }: { resident: ResidentWithHouses; onNavigate: (id: string, el: HTMLElement | null, event: React.MouseEvent) => void; onPreview: (id: string) => void }) {
-  // Show first active house assignment
+type NavigateHandler = (id: string, el: HTMLElement | null, event: React.MouseEvent | React.KeyboardEvent) => void;
+
+// Show first active house assignment, plus the unique roles across active assignments
+function summarizeResident(resident: ResidentWithHouses) {
   const activeHouse = resident.resident_houses?.find((rh) => rh.is_active);
   const address = activeHouse
     ? `${activeHouse.house?.house_number} ${activeHouse.house?.street?.name}`
     : '-';
   const activeAssignments = resident.resident_houses?.filter((rh) => rh.is_active) ?? [];
   const uniqueActiveRoles = Array.from(new Set(activeAssignments.map((rh) => rh.resident_role)));
+  return { address, activeAssignments, uniqueActiveRoles };
+}
 
-  // Reverse shared-element transition: when returning from this resident's
-  // detail page, name this row so the header morphs back into it. Only while a
-  // shared transition is active; the helper clears the name afterwards.
-  const rowRef = useRef<HTMLTableRowElement>(null);
+// True when the element and every ancestor take part in layout. The table row
+// and the phone card both live in the DOM and CSS hides one of them, so only a
+// displayed element may claim a view-transition name (names must be unique).
+function isDisplayed(el: HTMLElement): boolean {
+  for (let node: HTMLElement | null = el; node; node = node.parentElement) {
+    if (getComputedStyle(node).display === 'none') return false;
+  }
+  return true;
+}
+
+// Reverse shared-element transition: when returning from this resident's
+// detail page, name the visible row/card so the header morphs back into it. Only
+// while a shared transition is active; the helper clears the name afterwards.
+function useReturnTransitionName<T extends HTMLElement>(residentId: string) {
+  const ref = useRef<T>(null);
   useEffect(() => {
-    const el = rowRef.current;
-    const name = `resident-${resident.id}`;
-    if (el && isSharedTransitionActive() && getLastSharedElementName() === name) {
+    const el = ref.current;
+    const name = `resident-${residentId}`;
+    if (el && isSharedTransitionActive() && getLastSharedElementName() === name && isDisplayed(el)) {
       el.style.viewTransitionName = name;
       el.dataset.sharedTarget = 'true';
     }
-  }, [resident.id]);
+  }, [residentId]);
+  return ref;
+}
+
+// Preview and Edit buttons, shared by the table row and the phone card
+function ResidentActions({ resident, onPreview }: { resident: ResidentWithHouses; onPreview: (id: string) => void }) {
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Preview resident"
+        onClick={(event) => {
+          event.stopPropagation();
+          onPreview(resident.id);
+        }}
+      >
+        <Eye className="h-4 w-4" />
+      </Button>
+      <Can permission={PERMISSIONS.RESIDENTS_UPDATE}>
+        <Button
+          variant="ghost"
+          size="icon"
+          asChild
+          aria-label="Edit resident"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Link href={`/residents/${resident.id}?edit=true`}>
+            <Pencil className="h-4 w-4" />
+          </Link>
+        </Button>
+      </Can>
+    </>
+  );
+}
+
+// Memoized phone card, the stacked counterpart of ResidentRow (below md)
+const ResidentCard = memo(function ResidentCard({ resident, onNavigate, onPreview }: { resident: ResidentWithHouses; onNavigate: NavigateHandler; onPreview: (id: string) => void }) {
+  const { address, activeAssignments, uniqueActiveRoles } = summarizeResident(resident);
+  const cardRef = useReturnTransitionName<HTMLDivElement>(resident.id);
+
+  return (
+    <RecordCard
+      ref={cardRef}
+      data-testid="resident-card"
+      title={`${resident.first_name} ${resident.last_name}`}
+      badge={<AccountStatusBadge status={resident.account_status} />}
+      subtitle={address === '-' ? resident.resident_code : `${resident.resident_code} · ${address}`}
+      onClick={(event) => onNavigate(resident.id, event.currentTarget, event)}
+      actions={
+        <>
+          <div className="mr-auto">
+            <ContactVerificationBadge
+              emailVerifiedAt={resident.email_verified_at}
+              phoneVerifiedAt={resident.phone_verified_at}
+              hasEmail={!!resident.email}
+            />
+          </div>
+          <ResidentActions resident={resident} onPreview={onPreview} />
+        </>
+      }
+    >
+      <div className="flex flex-wrap gap-1">
+        {activeAssignments.length ? (
+          uniqueActiveRoles.map((role) => (
+            <ResidentRoleBadge key={role} role={role} />
+          ))
+        ) : (
+          <Badge variant="outline" className="text-muted-foreground">
+            Unassigned
+          </Badge>
+        )}
+      </div>
+    </RecordCard>
+  );
+});
+
+// Memoized row component to prevent unnecessary re-renders
+// This significantly improves performance for large resident lists
+const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview }: { resident: ResidentWithHouses; onNavigate: NavigateHandler; onPreview: (id: string) => void }) {
+  const { address, activeAssignments, uniqueActiveRoles } = summarizeResident(resident);
+  const rowRef = useReturnTransitionName<HTMLTableRowElement>(resident.id);
 
   return (
     <TableRow
@@ -116,35 +212,19 @@ const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview 
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Preview resident"
-            onClick={(event) => {
-              event.stopPropagation();
-              onPreview(resident.id);
-            }}
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Can permission={PERMISSIONS.RESIDENTS_UPDATE}>
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              aria-label="Edit resident"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Link href={`/residents/${resident.id}?edit=true`}>
-                <Pencil className="h-4 w-4" />
-              </Link>
-            </Button>
-          </Can>
+          <ResidentActions resident={resident} onPreview={onPreview} />
         </div>
       </TableCell>
     </TableRow>
   );
 });
+
+// Sort options for the phone sort control (the table uses its column headers)
+const SORT_OPTIONS = [
+  { value: 'resident_code', label: 'Code' },
+  { value: 'first_name', label: 'Name' },
+  { value: 'house_number', label: 'House' },
+];
 
 // Labels for contact verification filter
 const CONTACT_VERIFICATION_LABELS: Record<ContactVerificationFilter | typeof ALL_VALUE, string> = {
@@ -178,7 +258,7 @@ export function ResidentsTable() {
     setPage(1);
   }, [setPage, setSortBy, setSortOrder, sortBy]);
 
-  const handleNavigate = useCallback((id: string, el: HTMLElement | null, event: React.MouseEvent) => {
+  const handleNavigate = useCallback<NavigateHandler>((id, el, event) => {
     void navigateWithSharedElement({
       push: (href) => router.push(href),
       href: `/residents/${id}`,
@@ -229,6 +309,25 @@ export function ResidentsTable() {
       </div>
     );
   }
+
+  // Shown in the table's empty row and in the phone card list
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center gap-4 text-center">
+      <UserPlus className="size-12 text-muted-foreground" />
+      <div className="space-y-2">
+        <h3 className="text-xl font-semibold">No residents yet</h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Get started by adding your first resident to the system
+        </p>
+      </div>
+      <Can permission={PERMISSIONS.RESIDENTS_CREATE}>
+        <Button onClick={() => router.push('/residents/new')}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Resident
+        </Button>
+      </Can>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -419,8 +518,27 @@ export function ResidentsTable() {
         </div>
       )}
 
+      {/* Phone: stacked cards below md. Both lists stay in the DOM and CSS picks one. */}
+      <div className="space-y-3 md:hidden" data-testid="resident-card-list">
+        <RecordSortControl
+          options={SORT_OPTIONS}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSort={(value) => handleSort(value as 'resident_code' | 'first_name' | 'house_number')}
+        />
+        {isLoading ? (
+          [...Array(5)].map((_, i) => <RecordCardSkeleton key={i} />)
+        ) : data?.data.length === 0 ? (
+          <div className="rounded-xl border bg-card py-12 shadow-soft">{emptyState}</div>
+        ) : (
+          data?.data.map((resident) => (
+            <ResidentCard key={resident.id} resident={resident} onNavigate={handleNavigate} onPreview={setPreviewResidentId} />
+          ))
+        )}
+      </div>
+
       {/* Table */}
-      <div className="rounded-xl border overflow-hidden shadow-soft animate-slide-up">
+      <div className="hidden md:block rounded-xl border overflow-hidden shadow-soft animate-slide-up">
         <Table variant="modern">
           <TableHeader>
             <TableRow interactive={false}>
@@ -499,21 +617,7 @@ export function ResidentsTable() {
             ) : data?.data.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="py-12">
-                  <div className="flex flex-col items-center justify-center gap-4 text-center">
-                    <UserPlus className="size-12 text-muted-foreground" />
-                    <div className="space-y-2">
-                      <h3 className="text-xl font-semibold">No residents yet</h3>
-                      <p className="text-sm text-muted-foreground max-w-md">
-                        Get started by adding your first resident to the system
-                      </p>
-                    </div>
-                    <Can permission={PERMISSIONS.RESIDENTS_CREATE}>
-                      <Button onClick={() => router.push('/residents/new')}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Resident
-                      </Button>
-                    </Can>
-                  </div>
+                  {emptyState}
                 </TableCell>
               </TableRow>
             ) : (

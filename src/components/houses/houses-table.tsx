@@ -22,6 +22,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RecordCard, RecordCardSkeleton } from '@/components/ui/record-card';
+import { RecordSortControl } from '@/components/ui/record-sort-control';
 import { Badge } from '@/components/ui/badge';
 import { OccupancyBadge } from '@/components/residents/status-badge';
 import { HouseQuickView } from '@/components/houses/house-quick-view';
@@ -50,6 +52,14 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const ALL_VALUE = '_all';
 
+// Sort options for the phone sort control (the table uses its column headers)
+const SORT_OPTIONS = [
+  { value: 'short_name', label: 'Short name' },
+  { value: 'house_number', label: 'House number' },
+  { value: 'street', label: 'Street' },
+  { value: 'house_type', label: 'Type' },
+];
+
 // Type for house data (inferred from API)
 interface HouseData {
   id: string;
@@ -64,6 +74,66 @@ interface HouseData {
   identifier_unverified?: boolean | null;
   identifier_note?: string | null;
 }
+
+// Preview and Edit buttons, shared by the table row and the phone card
+function HouseActions({ house, onPreview }: { house: HouseData; onPreview: (id: string) => void }) {
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 hover:bg-muted"
+        aria-label="Preview house"
+        onClick={(event) => {
+          event.stopPropagation();
+          onPreview(house.id);
+        }}
+      >
+        <Eye className="h-4 w-4 text-muted-foreground" />
+      </Button>
+      <Can permission={PERMISSIONS.HOUSES_UPDATE}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 hover:bg-muted"
+          asChild
+          aria-label="Edit house"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Link href={`/houses/${house.id}?edit=true`}>
+            <Pencil className="h-4 w-4 text-muted-foreground" />
+          </Link>
+        </Button>
+      </Can>
+    </>
+  );
+}
+
+// Memoized phone card, the stacked counterpart of HouseRow (below md)
+const HouseCard = memo(function HouseCard({ house, onNavigate, onPreview }: { house: HouseData; onNavigate: (id: string) => void; onPreview: (id: string) => void }) {
+  const subtitle = [getPropertyShortname(house), house.street?.name, house.house_type?.name]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <RecordCard
+      data-testid="house-card"
+      title={
+        <span className="flex flex-wrap items-center gap-2">
+          <span>{house.house_number}</span>
+          <IdentifierUnverifiedBadge
+            unverified={house.identifier_unverified}
+            note={house.identifier_note}
+          />
+        </span>
+      }
+      badge={<OccupancyBadge isOccupied={house.is_occupied} />}
+      subtitle={subtitle}
+      onClick={() => onNavigate(house.id)}
+      actions={<HouseActions house={house} onPreview={onPreview} />}
+    />
+  );
+});
 
 // Memoized row component
 const HouseRow = memo(function HouseRow({ house, onNavigate, onPreview }: { house: HouseData; onNavigate: (id: string) => void; onPreview: (id: string) => void }) {
@@ -96,32 +166,7 @@ const HouseRow = memo(function HouseRow({ house, onNavigate, onPreview }: { hous
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 hover:bg-muted"
-            aria-label="Preview house"
-            onClick={(event) => {
-              event.stopPropagation();
-              onPreview(house.id);
-            }}
-          >
-            <Eye className="h-4 w-4 text-muted-foreground" />
-          </Button>
-          <Can permission={PERMISSIONS.HOUSES_UPDATE}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 hover:bg-muted"
-              asChild
-              aria-label="Edit house"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Link href={`/houses/${house.id}?edit=true`}>
-                <Pencil className="h-4 w-4 text-muted-foreground" />
-              </Link>
-            </Button>
-          </Can>
+          <HouseActions house={house} onPreview={onPreview} />
         </div>
       </TableCell>
     </TableRow>
@@ -247,6 +292,20 @@ export function HousesTable() {
   const totalPages = data ? Math.ceil(data.count / limit) : 0;
   const startIdx = (page - 1) * limit + 1;
   const endIdx = data ? Math.min(page * limit, data.count) : 0;
+
+  // Shown in the table's empty row and in the phone card list
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+      <div className="p-3 bg-muted/50 rounded-full mb-2">
+        <Search className="h-6 w-6 opacity-50" />
+      </div>
+      <p className="font-medium text-foreground">No properties found</p>
+      <p className="text-sm">Try adjusting your search or filters</p>
+      <Button variant="outline" size="sm" className="mt-2" onClick={clearAllFilters}>
+        Clear Filters
+      </Button>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -377,8 +436,27 @@ export function HousesTable() {
         )}
       </div>
 
-      {/* 2. Table Content Layout */}
-      <div className="rounded-xl border shadow-sm bg-card overflow-hidden">
+      {/* 2a. Phone: stacked cards below md. Both lists stay in the DOM and CSS picks one. */}
+      <div className="space-y-3 md:hidden" data-testid="house-card-list">
+        <RecordSortControl
+          options={SORT_OPTIONS}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSort={(value) => handleSort(value as 'short_name' | 'house_number' | 'street' | 'house_type')}
+        />
+        {isLoading ? (
+          [...Array(5)].map((_, i) => <RecordCardSkeleton key={i} />)
+        ) : data?.data.length === 0 ? (
+          <div className="rounded-xl border bg-card py-12 text-center shadow-sm">{emptyState}</div>
+        ) : (
+          data?.data.map((house) => (
+            <HouseCard key={house.id} house={house} onNavigate={handleNavigate} onPreview={setPreviewHouseId} />
+          ))
+        )}
+      </div>
+
+      {/* 2b. Table Content Layout */}
+      <div className="hidden md:block rounded-xl border shadow-sm bg-card overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/40">
             <TableRow className="hover:bg-transparent border-b">
@@ -463,16 +541,7 @@ export function HousesTable() {
             ) : data?.data.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-[300px] text-center">
-                  <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                    <div className="p-3 bg-muted/50 rounded-full mb-2">
-                      <Search className="h-6 w-6 opacity-50" />
-                    </div>
-                    <p className="font-medium text-foreground">No properties found</p>
-                    <p className="text-sm">Try adjusting your search or filters</p>
-                    <Button variant="outline" size="sm" className="mt-2" onClick={clearAllFilters}>
-                      Clear Filters
-                    </Button>
-                  </div>
+                  {emptyState}
                 </TableCell>
               </TableRow>
             ) : (

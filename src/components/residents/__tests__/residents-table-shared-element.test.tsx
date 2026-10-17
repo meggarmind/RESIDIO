@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 const mocks = vi.hoisted(() => ({ push: vi.fn() }));
@@ -61,13 +61,25 @@ function startInFlightTransition(name: string) {
   return { ...state, done };
 }
 
-const getRow = () => screen.getByText('Ada Obi').closest('tr') as HTMLElement;
+// The table row and the phone card are both in the DOM (CSS picks one), so
+// scope each query to its own list.
+const getRow = () => within(screen.getByRole('table', { hidden: true })).getByText('Ada Obi').closest('tr') as HTMLElement;
+const getCard = () => within(screen.getByTestId('resident-card-list')).getByText('Ada Obi').closest('[data-slot="record-card"]') as HTMLElement;
+
+/** Hides an element the way Tailwind's hidden / md:hidden does (jsdom loads no CSS). */
+function hideWith(selector: string) {
+  const style = document.createElement('style');
+  style.textContent = `${selector} { display: none; }`;
+  document.head.appendChild(style);
+  return style;
+}
 
 beforeEach(() => mocks.push.mockReset());
 afterEach(() => {
   cleanup();
   delete (document as unknown as Doc).startViewTransition;
   delete document.documentElement.dataset.sharedTransition;
+  document.head.querySelectorAll('style').forEach((s) => s.remove());
 });
 
 describe('ResidentRow shared-element transition', () => {
@@ -116,6 +128,54 @@ describe('ResidentRow shared-element transition', () => {
     fireEvent.click(getRow());
     expect(start).toHaveBeenCalledOnce();
     expect(getRow().style.viewTransitionName).toBe('resident-res-1');
+  });
+
+  it('names the phone card, not the hidden table row, when only the card is displayed', async () => {
+    hideWith('table');
+    const t = startInFlightTransition('resident-res-1');
+    render(<ResidentsTable />);
+    expect(getCard().style.viewTransitionName).toBe('resident-res-1');
+    expect(getCard().dataset.sharedTarget).toBe('true');
+    expect(getRow().style.viewTransitionName).toBe('');
+    t.finish();
+    await t.done;
+    expect(getCard().style.viewTransitionName).toBe('');
+    expect(getCard().dataset.sharedTarget).toBeUndefined();
+  });
+
+  it('names the table row, not the hidden phone card, when only the row is displayed', async () => {
+    hideWith('[data-testid="resident-card-list"]');
+    const t = startInFlightTransition('resident-res-1');
+    render(<ResidentsTable />);
+    expect(getRow().style.viewTransitionName).toBe('resident-res-1');
+    expect(getCard().style.viewTransitionName).toBe('');
+    t.finish();
+    await t.done;
+  });
+
+  it('starts a view transition from the tapped card and names that card', () => {
+    const start = vi.fn(() => ({ finished: new Promise<void>(() => {}) }));
+    (document as unknown as Doc).startViewTransition = start;
+    render(<ResidentsTable />);
+    fireEvent.click(getCard());
+    expect(start).toHaveBeenCalledOnce();
+    expect(getCard().style.viewTransitionName).toBe('resident-res-1');
+    expect(getRow().style.viewTransitionName).toBe('');
+  });
+
+  it('falls back to router.push on a modified card click', () => {
+    const start = vi.fn();
+    (document as unknown as Doc).startViewTransition = start;
+    render(<ResidentsTable />);
+    fireEvent.click(getCard(), { metaKey: true });
+    expect(start).not.toHaveBeenCalled();
+    expect(mocks.push).toHaveBeenCalledExactlyOnceWith('/residents/res-1');
+  });
+
+  it('navigates from a card on Enter', () => {
+    render(<ResidentsTable />);
+    fireEvent.keyDown(getCard(), { key: 'Enter' });
+    expect(mocks.push).toHaveBeenCalledExactlyOnceWith('/residents/res-1');
   });
 
   it('falls back to router.push on a modified click', () => {
