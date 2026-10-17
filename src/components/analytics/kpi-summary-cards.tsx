@@ -82,7 +82,7 @@ export function KPISummaryCards({ kpis, isLoading }: KPISummaryCardsProps) {
                     duration={800}
                   />
                 )}
-                <p className="text-[10px] text-muted-foreground/80">
+                <p className="text-xs text-muted-foreground/80">
                   {card.description}
                 </p>
               </div>

@@ -191,7 +191,7 @@ export function PermissionPicker({
                 <div className="flex items-center justify-between rounded-lg border bg-card p-3">
                   <div className="flex items-center gap-3">
                     <CollapsibleTrigger asChild>
-                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6">
+                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${permissionCategoryLabel(category)} privileges`}>
                         {isExpanded ? (
                           <ChevronDown className="h-4 w-4" />
                         ) : (

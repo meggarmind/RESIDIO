@@ -432,7 +432,7 @@ export function Sidebar({ className }: SidebarProps) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex justify-center" data-testid="build-info">
-                    <Badge variant={envBadge.variant} className="px-1.5 py-0 text-[10px]">
+                    <Badge variant={envBadge.variant} className="px-1.5 py-0 text-xs">
                       {envBadge.text}
                     </Badge>
                   </div>
@@ -459,7 +459,7 @@ export function Sidebar({ className }: SidebarProps) {
                 </TooltipContent>
               </Tooltip>
               {envBadge && (
-                <Badge variant={envBadge.variant} className="px-1.5 py-0 text-[10px]">
+                <Badge variant={envBadge.variant} className="px-1.5 py-0 text-xs">
                   {envBadge.text}
                 </Badge>
               )}

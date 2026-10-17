@@ -63,7 +63,7 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
           {sections.map((section) => (
             <div key={section.id} className={cn(sections[0] !== section && 'mt-5')}>
               {section.label && (
-                <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {section.label}
                 </p>
               )}

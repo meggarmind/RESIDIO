@@ -213,7 +213,7 @@ export function HouseTypesList() {
                                     </TableCell>
                                     <TableCell className="text-right">{type.max_residents}</TableCell>
                                     <TableCell>
-                                        <Button variant="ghost" size="icon" onClick={() => openEdit(type)}>
+                                        <Button variant="ghost" size="icon" onClick={() => openEdit(type)} aria-label={`Edit ${type.name}`}>
                                             <Edit className="h-4 w-4 text-muted-foreground" />
                                         </Button>
                                     </TableCell>

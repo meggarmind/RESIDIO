@@ -38,8 +38,8 @@ function LegendItem({ label, count, color }: { label: string; count: number; col
   return (
     <div className="flex items-center gap-1.5 px-1 py-0.5">
       <div className={cn("h-1.5 w-1.5 rounded-full shrink-0", color)} />
-      <span className="text-[10px] font-medium text-muted-foreground truncate">{label}</span>
-      <span className="text-[10px] font-bold text-foreground ml-auto">{count}</span>
+      <span className="text-xs font-medium text-muted-foreground truncate">{label}</span>
+      <span className="text-xs font-bold text-foreground ml-auto">{count}</span>
     </div>
   );
 }
@@ -70,8 +70,8 @@ export function ModernPendingPayments({ distribution, isLoading }: ModernPending
     return (
       <div className="rounded-xl border bg-card p-4 h-[205px] flex flex-col items-center justify-center text-center">
         <FileText className="h-10 w-10 text-muted-foreground mb-2 opacity-30" />
-        <h3 className="text-[11px] font-semibold mb-0.5">Invoice counts unavailable</h3>
-        <p className="text-[10px] text-muted-foreground">Invoice status data could not be loaded.</p>
+        <h3 className="text-xs font-semibold mb-0.5">Invoice counts unavailable</h3>
+        <p className="text-xs text-muted-foreground">Invoice status data could not be loaded.</p>
       </div>
     );
   }
@@ -84,8 +84,8 @@ export function ModernPendingPayments({ distribution, isLoading }: ModernPending
     return (
       <div className="rounded-xl border bg-card p-4 h-[205px] flex flex-col items-center justify-center text-center">
         <CheckCircle2 className="h-10 w-10 text-status-success mb-2 opacity-20" />
-        <h3 className="text-[11px] font-semibold mb-0.5">No invoices recorded</h3>
-        <p className="text-[10px] text-muted-foreground">All invoice status counts are zero.</p>
+        <h3 className="text-xs font-semibold mb-0.5">No invoices recorded</h3>
+        <p className="text-xs text-muted-foreground">All invoice status counts are zero.</p>
       </div>
     );
   }
@@ -103,7 +103,7 @@ export function ModernPendingPayments({ distribution, isLoading }: ModernPending
         </div>
         <Link
           href="/billing"
-          className="flex items-center gap-0.5 text-[10px] font-bold text-primary hover:opacity-80 transition-opacity"
+          className="flex items-center gap-0.5 text-xs font-bold text-primary hover:opacity-80 transition-opacity"
         >
           Details
           <ChevronRight className="h-2.5 w-2.5" />

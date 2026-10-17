@@ -65,11 +65,11 @@ export function ProjectsClient({ initialProjects }: ProjectsClientProps) {
 
                                     <div className="flex justify-between items-end">
                                         <div className="space-y-1">
-                                            <p className="text-[10px] uppercase text-muted-foreground font-semibold">Budget</p>
+                                            <p className="text-xs uppercase text-muted-foreground font-semibold">Budget</p>
                                             <p className="text-sm font-bold">{formatCurrency(project.total_budget ?? 0)}</p>
                                         </div>
                                         <div className="text-right space-y-1">
-                                            <p className="text-[10px] uppercase text-muted-foreground font-semibold">Ends</p>
+                                            <p className="text-xs uppercase text-muted-foreground font-semibold">Ends</p>
                                             <p className="text-xs">{project.end_date ? new Date(project.end_date).toLocaleDateString() : 'TBD'}</p>
                                         </div>
                                     </div>

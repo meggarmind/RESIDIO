@@ -181,6 +181,7 @@ export function DocumentUploadForm({
                   type="button"
                   variant="ghost"
                   size="icon"
+                  aria-label={`Remove ${file.name}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     setFile(null);

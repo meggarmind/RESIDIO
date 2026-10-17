@@ -101,7 +101,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                     <span className="sr-only">System Status</span>
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-[10px] font-medium uppercase tracking-wider">
+                <TooltipContent side="bottom" className="text-xs font-medium uppercase tracking-wider">
                   System Operational
                 </TooltipContent>
               </Tooltip>

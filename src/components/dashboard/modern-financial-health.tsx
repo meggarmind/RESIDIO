@@ -104,7 +104,7 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
             <p className="text-xs font-semibold text-foreground">
               ₦{formatCurrency(totalCollected)}
             </p>
-            <p className="text-[10px] text-muted-foreground">collected</p>
+            <p className="text-xs text-muted-foreground">collected</p>
           </div>
         </div>
 
@@ -114,7 +114,7 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
           <div className="rounded-lg bg-amber-50 p-2.5 dark:bg-amber-900/10 flex flex-col justify-between min-h-0">
             <div className="flex items-center gap-1.5 mb-1">
               <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
-              <p className="text-[10px] font-medium text-amber-700 dark:text-amber-300 leading-tight">
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300 leading-tight">
                 Unpaid Invoice Balance
               </p>
             </div>
@@ -130,7 +130,7 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
           {/* Monthly Revenue */}
           <div className="rounded-lg bg-muted/50 p-2.5 flex flex-col justify-between min-h-0">
             <div className="flex items-center justify-between mb-1 gap-1">
-              <p className="text-[10px] font-medium text-muted-foreground leading-tight">
+              <p className="text-xs font-medium text-muted-foreground leading-tight">
                 Verified Payments This Month
               </p>
               <div className={cn(
@@ -164,7 +164,7 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
               : 'bg-muted/50'
           )}>
             <p className={cn(
-              'text-[10px] font-medium mb-1 leading-tight',
+              'text-xs font-medium mb-1 leading-tight',
               overdueAmount > 0
                 ? 'text-red-700 dark:text-red-300'
                 : 'text-muted-foreground'
@@ -189,7 +189,7 @@ export function ModernFinancialHealth({ financialHealth, isLoading }: ModernFina
           <div className="rounded-lg bg-green-50 p-2.5 dark:bg-green-900/10 flex flex-col justify-between min-h-0">
             <div className="flex items-center gap-1.5 mb-1">
               <Wallet className="h-3 w-3 text-green-600 dark:text-green-400 shrink-0" />
-              <p className="text-[10px] font-medium text-green-700 dark:text-green-300 leading-tight">
+              <p className="text-xs font-medium text-green-700 dark:text-green-300 leading-tight">
                 Resident Wallet Credits
               </p>
             </div>

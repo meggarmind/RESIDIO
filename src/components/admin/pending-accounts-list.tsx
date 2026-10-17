@@ -166,7 +166,7 @@ export function PendingAccountsList() {
             className="pl-9"
           />
         </div>
-        <Button variant="outline" size="icon" onClick={() => refetch()} disabled={isRefetching}>
+        <Button variant="outline" size="icon" onClick={() => refetch()} disabled={isRefetching} aria-label="Refresh pending accounts">
           <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
         </Button>
       </div>

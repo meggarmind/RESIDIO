@@ -75,7 +75,7 @@ function HealthStat({ title, percentage, label }: { title: string; percentage: n
             </span>
           </div>
         </div>
-        <p className="text-[10px] text-muted-foreground mt-3 text-center px-2">{label}</p>
+        <p className="text-xs text-muted-foreground mt-3 text-center px-2">{label}</p>
       </div>
     </div>
   );
@@ -96,8 +96,8 @@ function ActionStat({ title, count, label, secondaryLabel }: { title: string; co
             <AnimatedCounter value={count} duration={800} />
           )}
         </span>
-        <span className="mb-2 text-[11px] font-medium text-foreground/80">{label}</span>
-        <p className="w-full border-t border-muted/50 pt-2 text-center text-[10px] text-muted-foreground">
+        <span className="mb-2 text-xs font-medium text-foreground/80">{label}</span>
+        <p className="w-full border-t border-muted/50 pt-2 text-center text-xs text-muted-foreground">
           {secondaryLabel}
         </p>
       </div>
@@ -117,9 +117,9 @@ function CurrencyStat({ title, value, label, subLabel }: { title: string; value:
           <span>{formatValue(value)}</span>
         </div>
         <div className="bg-muted px-2 py-0.5 rounded-full mb-3">
-          <span className="text-[10px] font-medium text-muted-foreground">{label}</span>
+          <span className="text-xs font-medium text-muted-foreground">{label}</span>
         </div>
-        <p className="text-[10px] text-muted-foreground text-center uppercase tracking-tighter">
+        <p className="text-xs text-muted-foreground text-center uppercase tracking-tighter">
           {subLabel}
         </p>
       </div>
@@ -147,8 +147,8 @@ function HighlightStat({ title, value, label, details }: { title: string; value:
         <div className="text-3xl font-bold text-primary mb-1">
           ₦{formatValue(value)}
         </div>
-        <span className="text-[11px] font-medium text-primary/80 mb-3">{label}</span>
-        <p className="text-[10px] text-primary/60 text-center uppercase font-bold tracking-tight">
+        <span className="text-xs font-medium text-primary/80 mb-3">{label}</span>
+        <p className="text-xs text-primary/60 text-center uppercase font-bold tracking-tight">
           {details}
         </p>
       </div>
@@ -221,10 +221,10 @@ function SuggestionsCarousel({ suggestions }: { suggestions: SmartSuggestion[] }
               </div>
               <h4 className="font-bold text-xs truncate">{suggestion.title}</h4>
             </div>
-            <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed mb-3">
+            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed mb-3">
               {suggestion.description}
             </p>
-            <Button size="sm" variant="ghost" className="h-7 text-[10px] w-full justify-between group px-2 border border-muted hover:bg-muted/50" asChild>
+            <Button size="sm" variant="ghost" className="h-7 text-xs w-full justify-between group px-2 border border-muted hover:bg-muted/50" asChild>
               <Link href={suggestion.actionUrl}>
                 {suggestion.actionLabel}
                 <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />

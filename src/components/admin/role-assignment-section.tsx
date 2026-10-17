@@ -523,7 +523,7 @@ export function RoleAssignmentSection() {
                 </div>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={handleClearSelection}>
+            <Button variant="ghost" size="icon" onClick={handleClearSelection} aria-label={`Clear selected person ${selectedTarget.name}`}>
               <X className="h-4 w-4" />
             </Button>
           </div>

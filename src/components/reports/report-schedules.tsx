@@ -122,11 +122,11 @@ function ScheduleCard({
                                 {reportType?.label} &bull; {schedule.frequency}
                             </p>
                             <div className="flex items-center gap-2 mt-2">
-                                <Badge variant="outline" className="text-[10px]">
+                                <Badge variant="outline" className="text-xs">
                                     {schedule.period_preset?.replace('_', ' ') || 'Custom'}
                                 </Badge>
                                 {schedule.next_run_at && (
-                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
                                         <CalendarClock className="h-3 w-3" />
                                         Next: {format(new Date(schedule.next_run_at), 'MMM d, yyyy')}
                                     </span>
@@ -144,6 +144,7 @@ function ScheduleCard({
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-destructive"
                             onClick={() => onDelete(schedule.id)}
+                            aria-label={`Delete schedule ${schedule.name}`}
                         >
                             <Trash2 className="h-4 w-4" />
                         </Button>

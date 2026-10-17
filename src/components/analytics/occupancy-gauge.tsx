@@ -97,7 +97,7 @@ export function OccupancyGauge({ data, isLoading }: OccupancyGaugeProps) {
               className="text-lg font-semibold text-emerald-600"
               duration={800}
             />
-            <p className="text-[10px] text-muted-foreground">Occupied</p>
+            <p className="text-xs text-muted-foreground">Occupied</p>
           </div>
           <div className="space-y-0.5">
             <AnimatedCounter
@@ -105,7 +105,7 @@ export function OccupancyGauge({ data, isLoading }: OccupancyGaugeProps) {
               className="text-lg font-semibold text-amber-600"
               duration={800}
             />
-            <p className="text-[10px] text-muted-foreground">Vacant</p>
+            <p className="text-xs text-muted-foreground">Vacant</p>
           </div>
           <div className="space-y-0.5">
             <AnimatedCounter
@@ -113,7 +113,7 @@ export function OccupancyGauge({ data, isLoading }: OccupancyGaugeProps) {
               className="text-lg font-semibold"
               duration={800}
             />
-            <p className="text-[10px] text-muted-foreground">Total</p>
+            <p className="text-xs text-muted-foreground">Total</p>
           </div>
         </div>
       </CardContent>
