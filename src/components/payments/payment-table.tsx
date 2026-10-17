@@ -57,7 +57,7 @@ interface PaymentTableProps {
 }
 
 // Sort options for the phone sort control (the table uses its column headers)
-const SORT_OPTIONS = [
+export const PAYMENT_SORT_OPTIONS = [
     { value: 'payment_date', label: 'Date' },
     { value: 'amount', label: 'Amount' },
     { value: 'status', label: 'Status' },
@@ -140,7 +140,12 @@ const PaymentCard = memo(function PaymentCard({
                     />
                 ) : undefined
             }
-            onClick={clickableRows ? () => onNavigate?.(payment.id) : undefined}
+            {...(clickableRows
+                ? {
+                      label: `Open payment of ${formatCurrency(Number(payment.amount))}`,
+                      onClick: () => onNavigate?.(payment.id),
+                  }
+                : {})}
             actions={<PaymentActions payment={payment} clickableRows={clickableRows} onDelete={onDelete} />}
         >
             <div className="space-y-0.5">
@@ -370,7 +375,7 @@ export function PaymentTable({ data, showResident = true, residentId, clickableR
             <div className="space-y-3 md:hidden" data-testid="payment-card-list">
                 {onSort && (
                     <RecordSortControl
-                        options={SORT_OPTIONS}
+                        options={PAYMENT_SORT_OPTIONS}
                         sortBy={sortBy}
                         sortOrder={sortOrder}
                         onSort={(value) => onSort(value as 'payment_date' | 'amount' | 'status')}

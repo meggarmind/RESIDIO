@@ -66,6 +66,8 @@ function startInFlightTransition(name: string) {
 const getRow = () => within(screen.getByRole('table', { hidden: true })).getByText('Ada Obi').closest('tr') as HTMLElement;
 const getCard = () => within(screen.getByTestId('resident-card-list')).getByText('Ada Obi').closest('[data-slot="record-card"]') as HTMLElement;
 
+const getHitArea = () => within(getCard()).getByRole('button', { name: 'Open Ada Obi' });
+
 /** Hides an element the way Tailwind's hidden / md:hidden does (jsdom loads no CSS). */
 function hideWith(selector: string) {
   const style = document.createElement('style');
@@ -157,9 +159,11 @@ describe('ResidentRow shared-element transition', () => {
     const start = vi.fn(() => ({ finished: new Promise<void>(() => {}) }));
     (document as unknown as Doc).startViewTransition = start;
     render(<ResidentsTable />);
-    fireEvent.click(getCard());
+    fireEvent.click(getHitArea());
     expect(start).toHaveBeenCalledOnce();
+    // The card element is named, never the hit-area button inside it.
     expect(getCard().style.viewTransitionName).toBe('resident-res-1');
+    expect(getHitArea().style.viewTransitionName).toBe('');
     expect(getRow().style.viewTransitionName).toBe('');
   });
 
@@ -167,14 +171,16 @@ describe('ResidentRow shared-element transition', () => {
     const start = vi.fn();
     (document as unknown as Doc).startViewTransition = start;
     render(<ResidentsTable />);
-    fireEvent.click(getCard(), { metaKey: true });
+    fireEvent.click(getHitArea(), { metaKey: true });
     expect(start).not.toHaveBeenCalled();
     expect(mocks.push).toHaveBeenCalledExactlyOnceWith('/residents/res-1');
   });
 
-  it('navigates from a card on Enter', () => {
+  it('exposes the card as a native, named button (Enter and Space arrive as clicks)', () => {
     render(<ResidentsTable />);
-    fireEvent.keyDown(getCard(), { key: 'Enter' });
+    expect(getHitArea().tagName).toBe('BUTTON');
+    expect(getCard()).not.toHaveAttribute('role');
+    fireEvent.click(getHitArea());
     expect(mocks.push).toHaveBeenCalledExactlyOnceWith('/residents/res-1');
   });
 

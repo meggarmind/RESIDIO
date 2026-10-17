@@ -53,7 +53,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 const ALL_VALUE = '_all';
 
 // Sort options for the phone sort control (the table uses its column headers)
-const SORT_OPTIONS = [
+export const HOUSE_SORT_OPTIONS = [
   { value: 'short_name', label: 'Short name' },
   { value: 'house_number', label: 'House number' },
   { value: 'street', label: 'Street' },
@@ -129,6 +129,7 @@ const HouseCard = memo(function HouseCard({ house, onNavigate, onPreview }: { ho
       }
       badge={<OccupancyBadge isOccupied={house.is_occupied} />}
       subtitle={subtitle}
+      label={`Open house ${house.house_number}`}
       onClick={() => onNavigate(house.id)}
       actions={<HouseActions house={house} onPreview={onPreview} />}
     />
@@ -439,7 +440,7 @@ export function HousesTable() {
       {/* 2a. Phone: stacked cards below md. Both lists stay in the DOM and CSS picks one. */}
       <div className="space-y-3 md:hidden" data-testid="house-card-list">
         <RecordSortControl
-          options={SORT_OPTIONS}
+          options={HOUSE_SORT_OPTIONS}
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSort={(value) => handleSort(value as 'short_name' | 'house_number' | 'street' | 'house_type')}

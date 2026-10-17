@@ -65,9 +65,9 @@ vi.mock('@/hooks/use-payments', () => ({
 vi.mock('@/components/residents/resident-quick-view', () => ({ ResidentQuickView: () => null }));
 vi.mock('@/components/houses/house-quick-view', () => ({ HouseQuickView: () => null }));
 
-import { ResidentsTable } from '@/components/residents/residents-table';
-import { HousesTable } from '@/components/houses/houses-table';
-import { PaymentTable } from '@/components/payments/payment-table';
+import { ResidentsTable, RESIDENT_SORT_OPTIONS } from '@/components/residents/residents-table';
+import { HousesTable, HOUSE_SORT_OPTIONS } from '@/components/houses/houses-table';
+import { PaymentTable, PAYMENT_SORT_OPTIONS } from '@/components/payments/payment-table';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const PAYMENTS = [
@@ -116,7 +116,7 @@ describe('Residents phone cards', () => {
     render(<ResidentsTable />);
     fireEvent.click(cards('resident-card-list').getAllByRole('link', { name: 'Edit resident' })[0]);
     expect(mocks.push).not.toHaveBeenCalled();
-    fireEvent.click(cards('resident-card-list').getByText('Bayo Eze'));
+    fireEvent.click(cards('resident-card-list').getByRole('button', { name: 'Open Bayo Eze' }));
     expect(mocks.push).toHaveBeenCalledExactlyOnceWith('/residents/res-2');
   });
 
@@ -154,7 +154,7 @@ describe('Houses phone cards', () => {
 
   it('navigates when a card is tapped', () => {
     render(<HousesTable />);
-    fireEvent.click(cards('house-card-list').getByText('14'));
+    fireEvent.click(cards('house-card-list').getByRole('button', { name: 'Open house 14' }));
     expect(mocks.push).toHaveBeenCalledExactlyOnceWith('/houses/house-2');
   });
 });
@@ -200,12 +200,13 @@ describe('Payments phone cards', () => {
     render(<PaymentTable data={PAYMENTS} clickableRows />);
     expect(cards('payment-card-list').queryByRole('checkbox')).not.toBeInTheDocument();
     expect(cards('payment-card-list').queryByRole('link', { name: 'View payment' })).not.toBeInTheDocument();
-    fireEvent.click(cards('payment-card-list').getByText('Ref REF-2'));
+    fireEvent.click(cards('payment-card-list').getAllByRole('button', { name: /^Open payment of/ })[1]);
     expect(mocks.push).toHaveBeenCalledExactlyOnceWith('/payments/pay-2');
   });
 
-  it('without clickableRows a card tap does not navigate', () => {
+  it('without clickableRows a card has no tap target and does not navigate', () => {
     render(<PaymentTable data={PAYMENTS} />);
+    expect(cards('payment-card-list').queryByRole('button', { name: /^Open payment of/ })).not.toBeInTheDocument();
     fireEvent.click(cards('payment-card-list').getByText('Ref REF-2'));
     expect(mocks.push).not.toHaveBeenCalled();
   });
@@ -220,5 +221,48 @@ describe('Payments phone cards', () => {
     const direction = cards('payment-card-list').getByRole('button', { name: 'Sort descending' });
     fireEvent.click(direction);
     expect(onSort).toHaveBeenCalledExactlyOnceWith('amount');
+  });
+});
+
+// jsdom applies no CSS, so the responsive switch is asserted on the classes.
+describe('Phone card lists: responsive switch and structure', () => {
+  const wrapperOf = () => screen.getByRole('table', { hidden: true }).closest('.hidden') as HTMLElement | null;
+
+  it.each([
+    ['residents', 'resident-card-list', () => <ResidentsTable />],
+    ['houses', 'house-card-list', () => <HousesTable />],
+    ['payments', 'payment-card-list', () => <PaymentTable data={PAYMENTS} />],
+  ])('%s: cards show only below md and the table only from md up', (_name, testId, ui) => {
+    render(ui());
+    const list = screen.getByTestId(testId as string);
+    expect(list).toHaveClass('md:hidden');
+    expect(list).not.toHaveClass('hidden');
+    const wrapper = wrapperOf();
+    expect(wrapper).not.toBeNull();
+    expect(wrapper).toHaveClass('hidden');
+    expect(wrapper).toHaveClass('md:block');
+    expect(wrapper).toContainElement(screen.getByRole('table', { hidden: true }));
+  });
+
+  it.each([
+    ['residents', 'resident-card-list', () => <ResidentsTable />],
+    ['houses', 'house-card-list', () => <HousesTable />],
+    ['payments', 'payment-card-list', () => <PaymentTable data={PAYMENTS} clickableRows />],
+  ])('%s: no interactive element is nested inside a button or link, and cards are not buttons', (_name, testId, ui) => {
+    mocks.permissions = Object.values(PERMISSIONS);
+    render(ui());
+    const list = screen.getByTestId(testId as string);
+    expect(list.querySelectorAll('button button, button a, a button, a a, button input, a input, button [role=checkbox], a [role=checkbox]')).toHaveLength(0);
+    for (const card of list.querySelectorAll('[data-slot="record-card"]')) {
+      expect(card).not.toHaveAttribute('role');
+    }
+  });
+});
+
+describe('Phone sort options', () => {
+  it('map to the same columns as the table headers', () => {
+    expect(RESIDENT_SORT_OPTIONS.map((o) => o.value)).toEqual(['resident_code', 'first_name', 'house_number']);
+    expect(HOUSE_SORT_OPTIONS.map((o) => o.value)).toEqual(['short_name', 'house_number', 'street', 'house_type']);
+    expect(PAYMENT_SORT_OPTIONS.map((o) => o.value)).toEqual(['payment_date', 'amount', 'status']);
   });
 });

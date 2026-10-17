@@ -48,7 +48,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const ALL_VALUE = '_all';
 
-type NavigateHandler = (id: string, el: HTMLElement | null, event: React.MouseEvent | React.KeyboardEvent) => void;
+type NavigateHandler = (id: string, el: HTMLElement | null, event: React.MouseEvent) => void;
 
 // Show first active house assignment, plus the unique roles across active assignments
 function summarizeResident(resident: ResidentWithHouses) {
@@ -131,7 +131,8 @@ const ResidentCard = memo(function ResidentCard({ resident, onNavigate, onPrevie
       title={`${resident.first_name} ${resident.last_name}`}
       badge={<AccountStatusBadge status={resident.account_status} />}
       subtitle={address === '-' ? resident.resident_code : `${resident.resident_code} · ${address}`}
-      onClick={(event) => onNavigate(resident.id, event.currentTarget, event)}
+      label={`Open ${resident.first_name} ${resident.last_name}`}
+      onClick={(event, card) => onNavigate(resident.id, card, event)}
       actions={
         <>
           <div className="mr-auto">
@@ -220,7 +221,7 @@ const ResidentRow = memo(function ResidentRow({ resident, onNavigate, onPreview 
 });
 
 // Sort options for the phone sort control (the table uses its column headers)
-const SORT_OPTIONS = [
+export const RESIDENT_SORT_OPTIONS = [
   { value: 'resident_code', label: 'Code' },
   { value: 'first_name', label: 'Name' },
   { value: 'house_number', label: 'House' },
@@ -521,7 +522,7 @@ export function ResidentsTable() {
       {/* Phone: stacked cards below md. Both lists stay in the DOM and CSS picks one. */}
       <div className="space-y-3 md:hidden" data-testid="resident-card-list">
         <RecordSortControl
-          options={SORT_OPTIONS}
+          options={RESIDENT_SORT_OPTIONS}
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSort={(value) => handleSort(value as 'resident_code' | 'first_name' | 'house_number')}
