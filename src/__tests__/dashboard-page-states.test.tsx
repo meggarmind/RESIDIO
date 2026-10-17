@@ -25,6 +25,7 @@ vi.mock('@/lib/auth/auth-provider', () => ({
   useAuth: () => ({
     profile: { id: 'u1', role_name: 'super_admin', full_name: 'Test Admin' },
     isLoading: mocks.authLoading,
+    hasPermission: () => true,
   }),
 }));
 vi.mock('@/hooks/use-dashboard', () => ({
@@ -37,12 +38,6 @@ vi.mock('@/hooks/use-dashboard', () => ({
   }),
 }));
 vi.mock('@/hooks/use-smart-suggestions', () => ({ useSmartSuggestions: () => ({ suggestions: [] }) }));
-vi.mock('@/components/dashboard/unified-actions-card', () => ({ UnifiedActionsCard: () => null }));
-vi.mock('@/components/dashboard/live-status-strip', () => ({ LiveStatusStrip: () => null }));
-vi.mock('@/components/dashboard/modern-stats-cards', () => ({ ModernStatsCards: () => null }));
-vi.mock('@/components/dashboard/modern-financial-health', () => ({ ModernFinancialHealth: () => null }));
-vi.mock('@/components/dashboard/modern-pending-payments', () => ({ ModernPendingPayments: () => null }));
-vi.mock('@/components/dashboard/modern-recent-activity', () => ({ ModernRecentActivity: () => null }));
 vi.mock('@/components/dashboard/offline-admin-banner', () => ({ OfflineAdminBanner: () => null }));
 
 import DashboardPage from '@/app/(dashboard)/dashboard/page';
@@ -75,6 +70,16 @@ describe('dashboard page states', () => {
     expect(container.querySelector('[data-dashboard-state="ready"]')).toBeInTheDocument();
     expect(container.querySelector('[data-loading-state]')).toBeNull();
     expect(container.querySelector('[data-dashboard-debug]')).toBeNull();
+  });
+
+  it('renders the strip, three lanes and activity, and no fake zeros while the snapshot is missing', () => {
+    render(<DashboardPage />);
+    expect(screen.getByTestId('command-strip')).toBeInTheDocument();
+    for (const id of ['lane-money', 'lane-people', 'lane-security']) {
+      expect(screen.getByTestId(id)).toHaveAttribute('data-lane-state', 'unavailable');
+      expect(screen.getByTestId(`${id}-hero`)).toHaveTextContent('Unavailable');
+    }
+    expect(screen.getByTestId('command-strip-urgent')).toHaveTextContent('Attention status unavailable');
   });
 
   it('renders the debug block only for debug=true', () => {
