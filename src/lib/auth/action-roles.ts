@@ -97,6 +97,7 @@ export const PERMISSIONS = {
   IMPORTS_REVIEW: 'imports.review',
   IMPORTS_APPROVE: 'imports.approve',
   IMPORTS_REJECT: 'imports.reject',
+  IMPORTS_RESET: 'imports.reset',
 
   // Approvals Module
   APPROVALS_VIEW: 'approvals.view',
@@ -206,6 +207,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
     PERMISSIONS.IMPORTS_REVIEW,
     PERMISSIONS.IMPORTS_APPROVE,
     PERMISSIONS.IMPORTS_REJECT,
+    PERMISSIONS.IMPORTS_RESET,
   ],
   '/payments/email-imports': [PERMISSIONS.EMAIL_IMPORTS_VIEW],
   '/billing': [PERMISSIONS.BILLING_VIEW],
