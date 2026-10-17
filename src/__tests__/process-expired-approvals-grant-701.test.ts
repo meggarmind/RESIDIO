@@ -7,8 +7,13 @@ import { describe, expect, it } from 'vitest';
  * estate-wide, so only service_role (the cron route's admin client) may EXECUTE it. Replays every
  * migration's EXECUTE grants and revokes on it, in file order, to find who ends up holding it.
  *
- * Line-pattern based: it understands plain GRANT/REVOKE EXECUTE ON FUNCTION statements and the
- * blanket `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public`. Dynamic SQL in a DO block escapes it.
+ * Lexical ratchet: it checks migration text, not live database grants. It understands plain
+ * GRANT/REVOKE EXECUTE ON FUNCTION statements naming process_expired_approvals first, and the
+ * blanket `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public`. It misses list-form statements where
+ * process_expired_approvals is not the first function named (`ON FUNCTION public.a(),
+ * public.process_expired_approvals() ...`) and grants issued from DO blocks or other dynamic SQL.
+ * The authoritative proof is the has_function_privilege probe in the migration header, run after
+ * the migration is applied.
  */
 
 const DIR = path.resolve(__dirname, '../../supabase/migrations');
