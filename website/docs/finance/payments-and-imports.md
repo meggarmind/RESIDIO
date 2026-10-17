@@ -9,7 +9,7 @@ residio_sources:
   - src/actions/imports/**
   - src/components/imports/**
   - src/lib/parsers/**
-residio_verified_commit: 26490d59
+residio_verified_commit: 67b6d9df
 residio_verified_at: '2026-10-17'
 residio_app_version: '0.4.0'
 ---
