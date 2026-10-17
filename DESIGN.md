@@ -216,7 +216,7 @@ Soft and layered. Cards sit on a gentle two-part shadow with a visible hairline 
 ### Named Rules
 **The Settle Rule.** Anything that lifts on hover must settle on press (`active:scale-[0.98]` on buttons). Motion confirms; it never decorates a money figure.
 
-**The Reduced Motion Rule.** Every lift, stagger and pulse has a `prefers-reduced-motion` fallback; the stylesheet already provides one and new motion must use it.
+**The Reduced Motion Rule.** Today a single global `prefers-reduced-motion` rule collapses every animation and transition to 0.01ms, so lifts snap and nothing animates. That is a blunt fallback. New motion must never be the only carrier of a state change (pair it with a color, icon or text change), so the interface still reads when motion is removed.
 
 ## Shapes
 
@@ -268,7 +268,7 @@ Gently rounded, never sharp, never pill-shaped except for status. The base radiu
 - **Do** gate every action button on its write permission, and render a clear "no access" or empty state rather than a blank area.
 
 ### Don't:
-- **Don't** add new uses of the legacy `modern`, `modern-outline`, `modern-ghost`, `modern-secondary`, `modern-destructive` and `modern-success` button variants or the `modern` input variant. They hard-code sky blue (#0EA5E9) and gray hex values and bypass theme tokens; the token-driven default variants win. Existing uses are drift to migrate, not precedent.
+- **Don't** hard-code the Modern theme's palette in components. `modern` is a registered, user-selectable visual theme (`src/lib/themes/modern.ts`: blue-teal accents, dark navy sidebar, rounder components), but components express it through `isModern` branches, the `modern*` button variants and the `modern` input variant, using sky blue (#0EA5E9) and gray hex literals that bypass theme tokens. The theme is legitimate; the hard-coding is the drift. New work reads theme tokens so Modern and every other theme repaint without a per-component branch, and existing `isModern` branches are to be migrated, not copied.
 - **Don't** use raw hex colors, inline `style` colors, or fixed Tailwind palette steps (such as `bg-blue-500`) for brand or surface color. Status badge tints are the only documented exception.
 - **Don't** introduce a second display typeface or hard-code a font; fonts come from the theme.
 - **Don't** put hover lift or entrance animation on data that people are reconciling (tables of amounts); keep motion to cards, buttons and overlays.
