@@ -15,7 +15,8 @@
 --
 -- Rule: a caller running as authenticated (or anon) whose role is not one of the roles in the
 -- admin update policy may change only the self-service columns below. Any other column change
--- raises 42501. Not affected:
+-- raises 42501. Changing email or phone_primary on the self path clears email_verified_at or
+-- phone_verified_at, so a new contact never inherits the old one's verification. Not affected:
 --   * the admin roles of "Admins chairmen fin sec can update residents" (same role list),
 --   * service_role (createAdminClient: cron, webhooks, contact verification, WhatsApp),
 --   * SQL with no API role (postgres, pg_cron) and SECURITY DEFINER functions, where
@@ -66,6 +67,14 @@ BEGIN
   IF blocked IS NOT NULL THEN
     RAISE EXCEPTION 'residents: only contact details may be changed on your own record (blocked: %)', blocked
       USING ERRCODE = '42501';
+  END IF;
+
+  -- A new email or phone is unverified, whatever the old one was.
+  IF NEW.email IS DISTINCT FROM OLD.email THEN
+    NEW.email_verified_at := NULL;
+  END IF;
+  IF NEW.phone_primary IS DISTINCT FROM OLD.phone_primary THEN
+    NEW.phone_verified_at := NULL;
   END IF;
 
   RETURN NEW;

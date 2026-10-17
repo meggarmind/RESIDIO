@@ -8,9 +8,10 @@ import { describe, expect, it } from 'vitest';
  * columns. Admin edits run as authenticated too, so column grants (the profiles fix) would break them; a
  * BEFORE UPDATE trigger limits non-admin callers to the self-service columns instead.
  *
- * Structural assertions on the migration, plus the trigger's rule replayed against the column list it
- * declares. Each check is also run against a mutated copy and must fail there. Nothing here connects to a
- * database.
+ * This checks the migration text only, not trigger behaviour: structural assertions on the SQL, plus the
+ * trigger's rule replayed against the column list it declares. Each check is also run against a mutated copy
+ * and must fail there. Nothing here connects to a database; the trigger itself is verified on Residio_Stage
+ * after the migration is applied.
  */
 const FILE = path.join(process.cwd(), 'supabase/migrations/20261017130000_guard_residents_self_service_columns.sql');
 const sql = readFileSync(FILE, 'utf8');
@@ -117,6 +118,18 @@ const CHECKS: Record<string, { check: Check; mutate: (s: string) => string }> = 
   'unchanged admin columns sent alongside a contact change are allowed': {
     check: (s) => s.includes('WHERE n.value IS DISTINCT FROM o.value'),
     mutate: (s) => s.replace('WHERE n.value IS DISTINCT FROM o.value', 'WHERE true'),
+  },
+  'a resident changing email or phone_primary clears its verified stamp, after the blocked check': {
+    check: (s) => {
+      const body = upToRollback(s);
+      const raise = body.indexOf("USING ERRCODE = '42501'");
+      const email = body.indexOf('IF NEW.email IS DISTINCT FROM OLD.email THEN\n    NEW.email_verified_at := NULL;');
+      const phone = body.indexOf(
+        'IF NEW.phone_primary IS DISTINCT FROM OLD.phone_primary THEN\n    NEW.phone_verified_at := NULL;'
+      );
+      return raise > -1 && email > raise && phone > raise;
+    },
+    mutate: (s) => s.replace('NEW.phone_verified_at := NULL;', 'NULL;'),
   },
   'anyone else gets 42501': {
     check: (s) => /RAISE EXCEPTION 'residents: [^']*'[^;]*USING ERRCODE = '42501'/.test(s),
