@@ -225,7 +225,7 @@ Gently rounded, never sharp, never pill-shaped except for status. The base radiu
 ## Components
 
 ### Buttons
-- **Shape:** 8px radius, 36px tall by default (32px small, 40px large, 48px extra large); icon buttons are 36px square.
+- **Shape:** 8px radius, 36px tall by default (32px small, 40px large, 48px extra large); icon buttons are 36px square from the `md` breakpoint up and 44px square below it (`max-md:size-11`, a touch target; the explicit `h-6 w-6` and `h-8 w-8` overrides also grow on phones because the media rule comes last in the generated CSS).
 - **Primary:** Ink Slate fill, Paper White text, soft shadow, 90% opacity on hover; 16px horizontal padding.
 - **Outline / Ghost / Secondary / Destructive:** outline is a hairline on the background; ghost shows only an accent wash on hover; destructive uses Alarm Red with white text.
 - **Hover / Focus:** 200ms transition; a 3px ring at 50% of the ring color on `focus-visible`; scale to 0.98 on press; a spinner replaces the label when loading.
