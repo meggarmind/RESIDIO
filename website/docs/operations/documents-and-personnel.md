@@ -18,6 +18,8 @@ residio_app_version: '0.4.0'
 
 Use **Documents** to upload, categorize, and retrieve estate records. Choose a clear category, title, and access scope. Check the detail page after upload to confirm the file is available to the intended audience.
 
+Search matches whole words in a document's title, description and file name, and lists title matches first, then description, then file name. A search can use quotes for an exact phrase and `-word` to exclude a word. If no whole word matches, search falls back to matching part of the text, so a fragment such as `inv` still finds "Invoice register".
+
 ## Contractors and staff
 
 Use **Contractors & Staff** to maintain operational personnel and their accountability scope. Keep engagement dates and responsibility descriptions current. End an engagement rather than deleting history when a person leaves the assignment.

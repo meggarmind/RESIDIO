@@ -2,7 +2,7 @@
  * Document full-text search (#382 Slice 1).
  *
  * `documents.search_tsv` is a stored tsvector weighted A title, B description,
- * C file_name (migration 20261017130000). PostgREST can filter on it but cannot
+ * C file_name (migration 20261018090000). PostgREST can filter on it but cannot
  * order by `ts_rank`, so matches are fetched up to a cap and ranked here with
  * the same field weights.
  */
