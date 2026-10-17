@@ -107,7 +107,8 @@ const PERMISSION_ALLOWLIST = [
   // non-owners are forced through HOUSES_ASSIGN_RESIDENT before any write.
   'residents/move-out-renter.ts::initiateRenterMoveOut',
   'residents/move-out-owner.ts::initiateOwnerMoveOut',
-  // Token-authenticated, pre-auth. Its missing attempt limit is tracked in #556.
+  // Token-authenticated, pre-auth. Wrong codes are capped at 5 attempts per code
+  // (record_failed_verification_attempt, #556).
   'verification/verify-contact.ts::verifyContactToken',
 
   // ---- SURFACED BY #390, NOT YET FIXED. Tracked in #556. Remove an entry in the
