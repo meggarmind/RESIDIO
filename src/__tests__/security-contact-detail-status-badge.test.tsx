@@ -106,7 +106,11 @@ function mockHooksForContact(accessCodes: AccessCode[]) {
     useDeleteSecurityContact: () => mutationStub,
     useGenerateAccessCode: () => mutationStub,
     useRevokeAccessCode: () => mutationStub,
+    useRegenerateAccessCode: () => mutationStub,
   }));
+  // The vehicle and visit-history cards (#121) fetch their own data; this test is about the badge.
+  vi.doMock('@/components/security/contact-vehicles-card', () => ({ ContactVehiclesCard: () => null }));
+  vi.doMock('@/components/security/contact-visit-history-card', () => ({ ContactVisitHistoryCard: () => null }));
 }
 
 describe('security contact detail page status badge (#123)', () => {
@@ -114,6 +118,8 @@ describe('security contact detail page status badge (#123)', () => {
     cleanup();
     vi.resetModules();
     vi.doUnmock('@/hooks/use-security');
+    vi.doUnmock('@/components/security/contact-vehicles-card');
+    vi.doUnmock('@/components/security/contact-visit-history-card');
   });
 
   it(

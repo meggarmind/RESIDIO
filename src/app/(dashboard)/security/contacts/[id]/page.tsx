@@ -37,6 +37,7 @@ import {
   CheckCircle,
   Loader2,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -46,6 +47,7 @@ import {
   useDeleteSecurityContact,
   useGenerateAccessCode,
   useRevokeAccessCode,
+  useRegenerateAccessCode,
 } from '@/hooks/use-security';
 import {
   SecurityContactStatusBadge,
@@ -59,6 +61,8 @@ import {
 } from '@/components/security/admin-access-code-generation';
 import { AccessCodeDisplay } from '@/components/security/access-code-display';
 import { SecurityContactForm } from '@/components/security/security-contact-form';
+import { ContactVehiclesCard } from '@/components/security/contact-vehicles-card';
+import { ContactVisitHistoryCard } from '@/components/security/contact-visit-history-card';
 import { toast } from 'sonner';
 import type { AccessCode } from '@/types/database';
 
@@ -71,6 +75,7 @@ export default function SecurityContactDetailPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [newStatus, setNewStatus] = useState<'active' | 'suspended'>('active');
+  const [regeneratingCode, setRegeneratingCode] = useState<AccessCode | null>(null);
 
   const { data: contact, isLoading, error, refetch } = useSecurityContact(id);
   const { data: permissionsData } = useCurrentUserSecurityPermissions();
@@ -79,6 +84,7 @@ export default function SecurityContactDetailPage() {
   const deleteMutation = useDeleteSecurityContact();
   const generateCodeMutation = useGenerateAccessCode();
   const revokeCodeMutation = useRevokeAccessCode();
+  const regenerateCodeMutation = useRegenerateAccessCode();
 
   const canUpdate = permissionsData?.permissions?.update_contacts || false;
   const canSuspendRevoke = permissionsData?.permissions?.suspend_revoke_contacts || false;
@@ -164,6 +170,18 @@ export default function SecurityContactDetailPage() {
     }
   };
 
+  const handleRegenerateCode = async () => {
+    if (!regeneratingCode) return;
+    try {
+      const newCode = await regenerateCodeMutation.mutateAsync(regeneratingCode.id);
+      toast.success(newCode ? `New code ${newCode.code} issued` : 'Code regenerated');
+      setRegeneratingCode(null);
+      refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to regenerate code');
+    }
+  };
+
   if (isEditing) {
     return (
       <div className="space-y-6">
@@ -191,6 +209,7 @@ export default function SecurityContactDetailPage() {
             />
           </CardContent>
         </Card>
+        <ContactVehiclesCard contactId={contact.id} contactActive={contact.status === 'active'} />
       </div>
     );
   }
@@ -448,20 +467,33 @@ export default function SecurityContactDetailPage() {
                         {code.max_uses && ` • Uses: ${code.current_uses}/${code.max_uses}`}
                       </div>
                     </div>
-                    {code.is_active && canGenerateCodes && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRevokeCode(code.id)}
-                        disabled={revokeCodeMutation.isPending}
-                      >
-                        {revokeCodeMutation.isPending ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Ban className="h-4 w-4" />
-                        )}
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {code.is_active && canGenerateCodes && contact.status === 'active' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          title="Regenerate code"
+                          aria-label={`Regenerate code ${code.code}`}
+                          onClick={() => setRegeneratingCode(code)}
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {code.is_active && canGenerateCodes && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRevokeCode(code.id)}
+                          disabled={revokeCodeMutation.isPending}
+                        >
+                          {revokeCodeMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Ban className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -478,7 +510,33 @@ export default function SecurityContactDetailPage() {
             )}
           </CardContent>
         </Card>
+
+        <ContactVehiclesCard contactId={contact.id} contactActive={contact.status === 'active'} />
+
+        <ContactVisitHistoryCard contactId={contact.id} />
       </div>
+
+      {/* Regenerate Code Dialog */}
+      <Dialog open={!!regeneratingCode} onOpenChange={(open) => !open && setRegeneratingCode(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Regenerate Access Code</DialogTitle>
+            <DialogDescription>
+              {regeneratingCode?.code} stops working immediately and a new code with the same type and expiry
+              replaces it. Share the new code with the contact.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegeneratingCode(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRegenerateCode} disabled={regenerateCodeMutation.isPending}>
+              {regenerateCodeMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Regenerate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Status Change Dialog */}
       <Dialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
