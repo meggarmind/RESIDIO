@@ -8,14 +8,14 @@ residio_sources:
   - src/lib/parsers/**
   - src/actions/email-imports/**
   - src/app/(dashboard)/settings/email-integration/**
-residio_verified_commit: 3f929146
+residio_verified_commit: 8aae5d8b
 residio_verified_at: '2026-10-17'
 residio_app_version: '0.4.0'
 ---
 
 # Gmail import and bank feeds
 
-Residio gets bank data into the system through two routes: an automated Gmail connection that reads bank alerts and statement attachments, and manual file upload from **Transactions → Import Statement**. Gmail items land in the email review queue, apart from high-confidence credits of ₦60,000 or less, which are posted automatically (see [The review queue](#the-review-queue)). An uploaded statement is submitted for approval and processed from its own import page under **Transactions → Import History**.
+Residio gets bank data into the system through two routes: an automated Gmail connection that reads bank alerts and statement attachments, and manual file upload from **Transactions → Import Statement**. Gmail items land in the email review queue, apart from high-confidence credits at or below the auto-process limit (₦60,000 by default), which are posted automatically (see [The review queue](#the-review-queue)). An uploaded statement is submitted for approval and processed from its own import page under **Transactions → Import History**.
 
 For the day-to-day payment workflow, see [Payments and statement imports](../finance/payments-and-imports). This page covers the connection itself.
 
@@ -55,9 +55,15 @@ Passwords are stored encrypted and are never displayed back. To change one, set 
 
 ## The review queue
 
-Imported rows are matched against residents, houses, and outstanding invoices. The hourly sync posts a credit automatically only when it matched a resident with high confidence (by alias or phone number) and is ₦60,000 or less. Every other credit is queued for review.
+Imported rows are matched against residents, houses, and outstanding invoices. The hourly sync posts a credit automatically only when it matched a resident with high confidence (by alias or phone number) and is at or below the auto-process limit. Every other credit is queued for review.
 
-A credit above ₦60,000 is always queued, however confident the match, and is marked **Needs approval: over ₦60,000**. Releasing it needs the import approval permission or the super admin role; without it the Process button is disabled. Anyone who can process email imports can still skip it. Debits (expenses) are not limited.
+A credit above the limit is always queued, however confident the match, and is marked **Needs approval: over ₦60,000** (the label shows the current limit). Releasing it needs the import approval permission or the super admin role; without it the Process button is disabled. Anyone who can process email imports can still skip it. Debits (expenses) are not limited.
+
+### The auto-process limit
+
+The limit is set on **Settings → Integrations → Gmail Import** under **Approval Limit**, in the **Auto-process limit (NGN)** field. It defaults to ₦60,000. Anyone with the settings view permission can see it; changing it needs the general settings management permission, and every change is recorded in the audit log. The value must be a whole naira amount from 1 to 100,000,000.
+
+If Residio cannot read the limit, or the stored value is invalid, it fails safe: that sync posts no credit automatically and queues every credit for review, marked **Needs approval: approval limit unavailable**. Only an approver can release them until the limit is readable again.
 
 For each queued row you can:
 
