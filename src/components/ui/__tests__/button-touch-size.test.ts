@@ -28,4 +28,17 @@ describe('Button icon sizes on phones (#750)', () => {
   it('leaves the extra-large icon size alone (already 48px)', () => {
     expect(sizeClasses('icon-xl')).toBe('size-12');
   });
+
+  // The media rule comes last in the generated CSS, so it beats call-site h-/w- overrides.
+  // Layouts that cannot hold a 44px button opt out or make room (QA findings on #750).
+  it('keeps the calendar day cells a grid, not 44px squares', () => {
+    const calendar = readFileSync(join(process.cwd(), 'src', 'components', 'ui', 'calendar.tsx'), 'utf8');
+    expect(calendar, 'DayButton must opt out with max-md:size-auto').toContain('max-md:size-auto');
+  });
+
+  it('gives the floating assistant a 48px header so 44px buttons fit', () => {
+    const file = join(process.cwd(), 'src', 'components', 'assistant', 'floating-ai-assistant.tsx');
+    const assistant = readFileSync(file, 'utf8');
+    expect(assistant, 'the body height math assumes a 48px header').toMatch(/flex h-12 items-center justify-between/);
+  });
 });
