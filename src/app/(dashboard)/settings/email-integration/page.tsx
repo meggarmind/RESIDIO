@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Label } from '@/components/ui/label';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import {
   AlertCircle,
   CheckCircle2,
@@ -16,6 +18,7 @@ import {
   Mail,
   RefreshCw,
   Settings,
+  ShieldCheck,
   Unlink,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -25,6 +28,14 @@ import {
   useDisconnectGmail,
   useManualFetch,
 } from '@/hooks/use-gmail-connection';
+import { useSettings, useUpdateSetting } from '@/hooks/use-settings';
+import { useCan } from '@/components/auth/can';
+import { PERMISSIONS } from '@/lib/auth/action-roles';
+import {
+  EMAIL_AUTO_PROCESS_LIMIT_KEY,
+  EMAIL_AUTO_PROCESS_LIMIT_NGN,
+  isValidEmailAutoProcessLimit,
+} from '@/lib/email-imports/utils';
 
 /**
  * Gmail import — connection, credentials, and the operational console
@@ -190,6 +201,8 @@ function EmailIntegrationContent() {
         </Card>
       )}
 
+      <AutoProcessLimitCard />
+
       <Card className="bg-muted/30">
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
@@ -204,5 +217,71 @@ function EmailIntegrationContent() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * The email-import auto-process limit (#710). Shown with settings.view; saving
+ * goes through updateSetting, so the control is gated on the permission that
+ * action enforces (settings.manage_general).
+ */
+function AutoProcessLimitCard() {
+  const canView = useCan(PERMISSIONS.SETTINGS_VIEW);
+  const canEdit = useCan(PERMISSIONS.SETTINGS_MANAGE_GENERAL);
+  const { data: settings, isLoading } = useSettings('email_integration');
+  const updateSetting = useUpdateSetting();
+  const [draft, setDraft] = useState<number | null>(null);
+
+  if (!canView) return null;
+
+  const stored = settings?.find((s) => s.key === EMAIL_AUTO_PROCESS_LIMIT_KEY)?.value;
+  const current = stored === undefined ? EMAIL_AUTO_PROCESS_LIMIT_NGN : Number(stored);
+  const value = draft ?? current;
+  const canSave = canEdit && draft !== null && draft !== current && isValidEmailAutoProcessLimit(draft);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5" /> Approval Limit
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <Skeleton className="h-10 w-64" />
+        ) : (
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="email-auto-process-limit">Auto-process limit (NGN)</Label>
+              <p id="email-auto-process-limit-help" className="text-sm text-muted-foreground">
+                Auto-matched payments above this amount wait for approval.
+              </p>
+              <CurrencyInput
+                id="email-auto-process-limit"
+                aria-describedby="email-auto-process-limit-help"
+                value={value}
+                onValueChange={setDraft}
+                allowDecimals={false}
+                className="w-48 text-right"
+                disabled={!canEdit || updateSetting.isPending}
+              />
+            </div>
+            {canEdit && (
+              <Button
+                onClick={() =>
+                  updateSetting.mutate(
+                    { key: EMAIL_AUTO_PROCESS_LIMIT_KEY, value: String(draft) },
+                    { onSuccess: () => setDraft(null) }
+                  )
+                }
+                disabled={!canSave || updateSetting.isPending}
+              >
+                {updateSetting.isPending ? 'Saving...' : 'Save'}
+              </Button>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
