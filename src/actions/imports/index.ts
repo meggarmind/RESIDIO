@@ -83,6 +83,9 @@ export {
   submitForApproval,
 } from './process-import';
 
+// Reset Failed Import
+export { resetFailedImport } from './reset-import';
+
 // Get Imports
 export {
   getImports,
