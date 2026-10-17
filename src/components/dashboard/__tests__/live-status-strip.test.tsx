@@ -204,16 +204,19 @@ describe('LiveStatusStrip widgets', () => {
     expect(screen.getByText('2 residents awaiting review').closest('[role=button]')).toBeNull();
   });
 
-  // Mounting /dashboard needs auth + React Query; this fails if the strip's
-  // wiring to the snapshot flags is dropped.
+  // Mounting /dashboard needs auth + React Query; this fails if the command
+  // board's wiring to the snapshot flags is dropped (the page no longer
+  // renders LiveStatusStrip, #758).
   it('is wired to the snapshot on the dashboard page', () => {
     const page = readFileSync(
       resolve(__dirname, '../../../app/(dashboard)/dashboard/page.tsx'),
       'utf-8'
     );
-    const block = /<LiveStatusStrip[\s\S]*?\/>/.exec(page)?.[0] ?? '';
-    expect(block).toContain('isUnavailable={isError}');
-    expect(block).toContain('isLoading={isLoading}');
-    expect(page).toContain('recentActivityUnavailable={snapshot?.recentActivityUnavailable ?? false}');
+    for (const tag of ['CommandStrip', 'MoneyLane', 'PeopleLane', 'SecurityLane']) {
+      const block = new RegExp(`<${tag}[\\s\\S]*?/>`).exec(page)?.[0] ?? '';
+      expect(block, tag).toContain('isUnavailable={isError}');
+      expect(block, tag).toContain('isLoading={isLoading}');
+    }
+    expect(page).toContain('recentActivityUnavailable ?? false');
   });
 });
