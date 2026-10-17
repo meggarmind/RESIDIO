@@ -404,7 +404,7 @@ export function SecurityContactsTable({
                     // Determine row background and styling based on expiry status
                     const isExpired = effectiveStatus === 'expired';
                     const rowClassName = cn(
-                      'hover:bg-gray-50 dark:hover:bg-[#0F172A]',
+                      'hover:bg-muted/50',
                       // Background colors
                       isExpired && 'bg-red-50 dark:bg-red-950/20',
                       expiryInfo?.isExpiringSoon && !expiryInfo.isExpired && 'bg-yellow-50 dark:bg-yellow-950/20',

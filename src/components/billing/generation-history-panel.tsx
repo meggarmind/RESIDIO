@@ -22,7 +22,6 @@ import type { GenerationHistoryEntry } from '@/lib/billing/invoice-generation-hi
 import { describeVersionFallback } from '@/lib/billing/invoice-generation';
 import { Download, History, Clock, AlertCircle, Ban, RotateCcw, Mail } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { useVisualTheme } from '@/contexts/visual-theme-context';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 10;
@@ -75,8 +74,6 @@ export function GenerationHistoryPanel({ onRetry }: GenerationHistoryPanelProps)
   const { data, isLoading } = useGenerationHistory(page, PAGE_SIZE);
   const cancelRun = useCancelInvoiceGenerationRun();
   const retryRun = useRetryInvoiceGenerationRun();
-  const { themeId } = useVisualTheme();
-  const isModern = themeId === 'modern';
   const entries = data?.data || [];
   const total = data?.total || 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -98,11 +95,8 @@ export function GenerationHistoryPanel({ onRetry }: GenerationHistoryPanelProps)
         </div>
       ) : (
         <>
-          <div className={cn(
-            'rounded-xl border overflow-hidden shadow-soft',
-            isModern && 'border-gray-200 dark:border-[#334155]'
-          )}>
-            <Table variant={isModern ? 'modern' : 'default'}>
+          <div className={cn('rounded-xl border overflow-hidden shadow-soft')}>
+            <Table variant="default">
               <TableHeader>
                 <TableRow interactive={false}>
                   <TableHead>Period</TableHead>
@@ -198,7 +192,7 @@ export function GenerationHistoryPanel({ onRetry }: GenerationHistoryPanelProps)
               <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
                 Previous
               </Button>
-              <span className={cn('text-xs text-muted-foreground', isModern && 'text-gray-500 dark:text-gray-400')}>
+              <span className={cn('text-xs text-muted-foreground')}>
                 Page {page} of {totalPages}
               </span>
               <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>

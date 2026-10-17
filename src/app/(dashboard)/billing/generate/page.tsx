@@ -8,14 +8,10 @@ import { GenerateInvoicesDialog } from '@/components/billing/generate-invoices-d
 import { GenerationHistoryPanel } from '@/components/billing/generation-history-panel';
 import { useLatestGenerationLog } from '@/hooks/use-billing';
 import { EnhancedAlertBanner, EnhancedPageHeader } from '@/components/dashboard/enhanced-stat-card';
-import { useVisualTheme } from '@/contexts/visual-theme-context';
-import { cn } from '@/lib/utils';
 
 export default function BillingGeneratePage() {
     const [showGenerateDialog, setShowGenerateDialog] = useState(false);
     const { data: lastGeneration } = useLatestGenerationLog();
-    const { themeId } = useVisualTheme();
-    const isModern = themeId === 'modern';
 
     return (
         <div className="space-y-6">
@@ -25,18 +21,13 @@ export default function BillingGeneratePage() {
                 icon={FileBarChart}
                 actions={
                     <div className="flex gap-2">
-                        <Button variant="outline" asChild className={cn(isModern && 'rounded-xl')}>
+                        <Button variant="outline" asChild>
                             <Link href="/billing">
                                 <ArrowLeft className="mr-2 h-4 w-4" />
                                 Back to Billing
                             </Link>
                         </Button>
-                        <Button
-                            onClick={() => setShowGenerateDialog(true)}
-                            className={cn(
-                                isModern && 'rounded-xl bg-[#0EA5E9] hover:bg-[#0284C7] text-white'
-                            )}
-                        >
+                        <Button onClick={() => setShowGenerateDialog(true)}>
                             <FileText className="mr-2 h-4 w-4" />
                             Generate Invoices
                         </Button>
