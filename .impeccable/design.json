@@ -1,0 +1,420 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-17T20:00:01.436Z",
+  "title": "Design System: Residio",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Ink Slate",
+        "canonical": "oklch(0.205 0.012 265.729)",
+        "tonalRamp": [
+          "oklch(0.15 0.012 265.7)",
+          "oklch(0.25 0.012 265.7)",
+          "oklch(0.35 0.012 265.7)",
+          "oklch(0.45 0.012 265.7)",
+          "oklch(0.55 0.012 265.7)",
+          "oklch(0.7 0.012 265.7)",
+          "oklch(0.85 0.012 265.7)",
+          "oklch(0.95 0.012 265.7)"
+        ]
+      },
+      "dark-primary": {
+        "role": "primary",
+        "displayName": "Deep Fern",
+        "canonical": "oklch(0.5882 0.1373 166.1429)",
+        "tonalRamp": [
+          "oklch(0.15 0.1373 166.1)",
+          "oklch(0.25 0.1373 166.1)",
+          "oklch(0.35 0.1373 166.1)",
+          "oklch(0.45 0.1373 166.1)",
+          "oklch(0.55 0.1373 166.1)",
+          "oklch(0.7 0.1373 166.1)",
+          "oklch(0.85 0.1373 166.1)",
+          "oklch(0.95 0.1373 166.1)"
+        ]
+      },
+      "mint": {
+        "role": "secondary",
+        "displayName": "Mint",
+        "canonical": "#86EFAC",
+        "tonalRamp": [
+          "oklch(0.15 0.15 150)",
+          "oklch(0.25 0.15 150)",
+          "oklch(0.35 0.15 150)",
+          "oklch(0.45 0.15 150)",
+          "oklch(0.55 0.15 150)",
+          "oklch(0.7 0.15 150)",
+          "oklch(0.85 0.15 150)",
+          "oklch(0.95 0.15 150)"
+        ]
+      },
+      "lavender": {
+        "role": "secondary",
+        "displayName": "Lavender",
+        "canonical": "#C4B5FD",
+        "tonalRamp": [
+          "oklch(0.15 0.12 295)",
+          "oklch(0.25 0.12 295)",
+          "oklch(0.35 0.12 295)",
+          "oklch(0.45 0.12 295)",
+          "oklch(0.55 0.12 295)",
+          "oklch(0.7 0.12 295)",
+          "oklch(0.85 0.12 295)",
+          "oklch(0.95 0.12 295)"
+        ]
+      },
+      "teal": {
+        "role": "tertiary",
+        "displayName": "Soft Teal",
+        "canonical": "#5EEAD4",
+        "tonalRamp": [
+          "oklch(0.15 0.12 180)",
+          "oklch(0.25 0.12 180)",
+          "oklch(0.35 0.12 180)",
+          "oklch(0.45 0.12 180)",
+          "oklch(0.55 0.12 180)",
+          "oklch(0.7 0.12 180)",
+          "oklch(0.85 0.12 180)",
+          "oklch(0.95 0.12 180)"
+        ]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(0.145 0.012 265.729)",
+        "tonalRamp": [
+          "oklch(0.15 0.012 265.7)",
+          "oklch(0.25 0.012 265.7)",
+          "oklch(0.35 0.012 265.7)",
+          "oklch(0.45 0.012 265.7)",
+          "oklch(0.55 0.012 265.7)",
+          "oklch(0.7 0.012 265.7)",
+          "oklch(0.85 0.012 265.7)",
+          "oklch(0.95 0.012 265.7)"
+        ]
+      },
+      "text-muted": {
+        "role": "neutral",
+        "displayName": "Quiet Slate",
+        "canonical": "oklch(0.552 0.016 285.938)",
+        "tonalRamp": [
+          "oklch(0.15 0.016 285.9)",
+          "oklch(0.25 0.016 285.9)",
+          "oklch(0.35 0.016 285.9)",
+          "oklch(0.45 0.016 285.9)",
+          "oklch(0.55 0.016 285.9)",
+          "oklch(0.7 0.016 285.9)",
+          "oklch(0.85 0.016 285.9)",
+          "oklch(0.95 0.016 285.9)"
+        ]
+      },
+      "surface-muted": {
+        "role": "neutral",
+        "displayName": "Whisper Gray",
+        "canonical": "oklch(0.967 0.001 286.375)",
+        "tonalRamp": [
+          "oklch(0.15 0.001 286.4)",
+          "oklch(0.25 0.001 286.4)",
+          "oklch(0.35 0.001 286.4)",
+          "oklch(0.45 0.001 286.4)",
+          "oklch(0.55 0.001 286.4)",
+          "oklch(0.7 0.001 286.4)",
+          "oklch(0.85 0.001 286.4)",
+          "oklch(0.95 0.001 286.4)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(0.85 0.005 0)",
+        "tonalRamp": [
+          "oklch(0.15 0.005 0)",
+          "oklch(0.25 0.005 0)",
+          "oklch(0.35 0.005 0)",
+          "oklch(0.45 0.005 0)",
+          "oklch(0.55 0.005 0)",
+          "oklch(0.7 0.005 0)",
+          "oklch(0.85 0.005 0)",
+          "oklch(0.95 0.005 0)"
+        ]
+      },
+      "destructive": {
+        "role": "semantic",
+        "displayName": "Alarm Red",
+        "canonical": "oklch(0.577 0.245 27.325)",
+        "tonalRamp": [
+          "oklch(0.15 0.245 27.3)",
+          "oklch(0.25 0.245 27.3)",
+          "oklch(0.35 0.245 27.3)",
+          "oklch(0.45 0.245 27.3)",
+          "oklch(0.55 0.245 27.3)",
+          "oklch(0.7 0.245 27.3)",
+          "oklch(0.85 0.245 27.3)",
+          "oklch(0.95 0.245 27.3)"
+        ]
+      },
+      "chart-green": {
+        "role": "data",
+        "displayName": "Fern",
+        "canonical": "oklch(0.6314 0.1373 150.7159)",
+        "tonalRamp": [
+          "oklch(0.15 0.1373 150.7)",
+          "oklch(0.25 0.1373 150.7)",
+          "oklch(0.35 0.1373 150.7)",
+          "oklch(0.45 0.1373 150.7)",
+          "oklch(0.55 0.1373 150.7)",
+          "oklch(0.7 0.1373 150.7)",
+          "oklch(0.85 0.1373 150.7)",
+          "oklch(0.95 0.1373 150.7)"
+        ]
+      },
+      "chart-teal": {
+        "role": "data",
+        "displayName": "Lagoon",
+        "canonical": "oklch(0.7255 0.1686 192.1771)",
+        "tonalRamp": [
+          "oklch(0.15 0.1686 192.2)",
+          "oklch(0.25 0.1686 192.2)",
+          "oklch(0.35 0.1686 192.2)",
+          "oklch(0.45 0.1686 192.2)",
+          "oklch(0.55 0.1686 192.2)",
+          "oklch(0.7 0.1686 192.2)",
+          "oklch(0.85 0.1686 192.2)",
+          "oklch(0.95 0.1686 192.2)"
+        ]
+      },
+      "chart-amber": {
+        "role": "data",
+        "displayName": "Honey",
+        "canonical": "oklch(0.7098 0.1255 78.9271)",
+        "tonalRamp": [
+          "oklch(0.15 0.1255 78.9)",
+          "oklch(0.25 0.1255 78.9)",
+          "oklch(0.35 0.1255 78.9)",
+          "oklch(0.45 0.1255 78.9)",
+          "oklch(0.55 0.1255 78.9)",
+          "oklch(0.7 0.1255 78.9)",
+          "oklch(0.85 0.1255 78.9)",
+          "oklch(0.95 0.1255 78.9)"
+        ]
+      },
+      "chart-orange": {
+        "role": "data",
+        "displayName": "Apricot",
+        "canonical": "oklch(0.7843 0.1608 52.5208)",
+        "tonalRamp": [
+          "oklch(0.15 0.1608 52.5)",
+          "oklch(0.25 0.1608 52.5)",
+          "oklch(0.35 0.1608 52.5)",
+          "oklch(0.45 0.1608 52.5)",
+          "oklch(0.55 0.1608 52.5)",
+          "oklch(0.7 0.1608 52.5)",
+          "oklch(0.85 0.1608 52.5)",
+          "oklch(0.95 0.1608 52.5)"
+        ]
+      },
+      "chart-rose": {
+        "role": "data",
+        "displayName": "Rose",
+        "canonical": "oklch(0.6902 0.1294 17.3825)",
+        "tonalRamp": [
+          "oklch(0.15 0.1294 17.4)",
+          "oklch(0.25 0.1294 17.4)",
+          "oklch(0.35 0.1294 17.4)",
+          "oklch(0.45 0.1294 17.4)",
+          "oklch(0.55 0.1294 17.4)",
+          "oklch(0.7 0.1294 17.4)",
+          "oklch(0.85 0.1294 17.4)",
+          "oklch(0.95 0.1294 17.4)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page titles in the expanded layout."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Phone page titles and stat values."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card and section headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Tables, forms, descriptions."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Buttons, field labels, stat captions."
+      },
+      "badge": {
+        "displayName": "Badge",
+        "purpose": "Status chips and trend chips."
+      }
+    },
+    "shadows": [
+      {
+        "name": "soft",
+        "value": "0 2px 8px -2px rgba(0,0,0,0.05), 0 4px 12px -4px rgba(0,0,0,0.08)",
+        "purpose": "Default card depth."
+      },
+      {
+        "name": "elevated",
+        "value": "0 4px 12px -2px rgba(0,0,0,0.08), 0 8px 24px -4px rgba(0,0,0,0.12)",
+        "purpose": "Modals and popovers."
+      },
+      {
+        "name": "hover-lift",
+        "value": "0 12px 24px -8px rgba(14,165,233,0.15), 0 4px 8px -2px rgba(0,0,0,0.06)",
+        "purpose": "Interactive card hover, as shipped. The sky-blue tint is legacy drift."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Card hover and input transitions."
+      },
+      {
+        "name": "control",
+        "value": "200ms",
+        "purpose": "Button and input state transitions."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main action on a screen.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Record payment</button>",
+      "css": ".ds-btn{font-family:Geist, ui-sans-serif, system-ui, sans-serif;font-size:14px;font-weight:500;height:36px;padding:8px 16px;border-radius:8px;cursor:pointer;transition:all .2s;border:none;background:oklch(0.205 0.012 265.729);color:oklch(0.985 0.001 106.423);box-shadow:0 1px 2px rgba(0,0,0,.08)}.ds-btn:hover{background:oklch(0.205 0.012 265.729 / .9)}.ds-btn:focus-visible{outline:none;box-shadow:0 0 0 3px oklch(0.205 0.012 265.729 / .5)}.ds-btn:active{transform:scale(.98)}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action with a hairline stroke.",
+      "html": "<button class=\"ds-btn ds-btn-outline\">Export</button>",
+      "css": ".ds-btn{font-family:Geist, ui-sans-serif, system-ui, sans-serif;font-size:14px;font-weight:500;height:36px;padding:8px 16px;border-radius:8px;cursor:pointer;transition:all .2s;border:1px solid oklch(0.85 0.005 0);background:#fff;color:oklch(0.145 0.012 265.729);box-shadow:0 1px 2px rgba(0,0,0,.08)}.ds-btn:hover{background:oklch(0.967 0.001 286.375)}.ds-btn:focus-visible{outline:none;box-shadow:0 0 0 3px oklch(0.205 0.012 265.729 / .5)}.ds-btn:active{transform:scale(.98)}"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Irreversible action, always confirmed.",
+      "html": "<button class=\"ds-btn ds-btn-destructive\">Delete</button>",
+      "css": ".ds-btn{font-family:Geist, ui-sans-serif, system-ui, sans-serif;font-size:14px;font-weight:500;height:36px;padding:8px 16px;border-radius:8px;cursor:pointer;transition:all .2s;border:none;background:oklch(0.577 0.245 27.325);color:#fff;box-shadow:0 1px 2px rgba(0,0,0,.08)}.ds-btn:hover{background:oklch(0.577 0.245 27.325 / .9)}.ds-btn:focus-visible{outline:none;box-shadow:0 0 0 3px oklch(0.205 0.012 265.729 / .5)}.ds-btn:active{transform:scale(.98)}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Standard 36px field with ring focus.",
+      "html": "<input class=\"ds-input\" placeholder=\"Search residents\" />",
+      "css": ".ds-input{font-family:Geist, ui-sans-serif, system-ui, sans-serif;font-size:14px;height:36px;width:240px;padding:4px 12px;border-radius:8px;border:1px solid oklch(0.85 0.005 0);background:transparent;color:oklch(0.145 0.012 265.729);box-shadow:0 1px 2px rgba(0,0,0,.05);transition:all .2s;outline:none}.ds-input::placeholder{color:oklch(0.552 0.016 285.938)}.ds-input:focus-visible{border-color:oklch(0.205 0.012 265.729);box-shadow:0 0 0 3px oklch(0.205 0.012 265.729 / .5)}"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "status-badge",
+      "description": "Rounded status chip with tinted fill and icon.",
+      "html": "<span class=\"ds-badge ds-badge-ok\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m9 12 2 2 4-4\"/></svg>Paid</span> <span class=\"ds-badge ds-badge-warn\">Pending</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:9999px;font-family:Geist, ui-sans-serif, system-ui, sans-serif;font-size:12px;font-weight:500}.ds-badge-ok{background:#d1fae5;color:#047857}.ds-badge-warn{background:#fef3c7;color:#b45309}"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Soft-shadow card on the page canvas.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Outstanding levies</div><div class=\"ds-card-text\">12 houses have unpaid invoices.</div></div>",
+      "css": ".ds-card{font-family:Geist, ui-sans-serif, system-ui, sans-serif;background:#fff;color:oklch(0.145 0.012 265.729);border:1px solid oklch(0.85 0.005 0);border-radius:14px;padding:24px;width:280px;box-shadow:0 2px 8px -2px rgba(0,0,0,.05),0 4px 12px -4px rgba(0,0,0,.08);transition:all .3s cubic-bezier(.4,0,.2,1)}.ds-card:hover{transform:translateY(-4px);box-shadow:0 12px 24px -8px rgba(0,0,0,.15)}.ds-card-title{font-size:18px;font-weight:600;margin-bottom:6px}.ds-card-text{font-size:14px;color:oklch(0.552 0.016 285.938)}"
+    },
+    {
+      "name": "Icon Box",
+      "kind": "custom",
+      "refersTo": "icon-box",
+      "description": "Signature pastel icon anchor.",
+      "html": "<div class=\"ds-iconbox\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 9.5 12 3l9 6.5V21H3z\"/></svg></div>",
+      "css": ".ds-iconbox{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:oklch(0.6314 0.1373 150.7159);color:#fff}"
+    },
+    {
+      "name": "Stat Card",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Caption, bold tabular value, trend chip.",
+      "html": "<div class=\"ds-stat\"><div class=\"ds-stat-cap\">Collected this month</div><div class=\"ds-stat-val\">4,820,000</div><span class=\"ds-stat-trend\">+12%</span></div>",
+      "css": ".ds-stat{font-family:Geist, ui-sans-serif, system-ui, sans-serif;background:#fff;border:1px solid oklch(0.85 0.005 0);border-radius:14px;padding:16px;width:260px;box-shadow:0 2px 8px -2px rgba(0,0,0,.05),0 4px 12px -4px rgba(0,0,0,.08)}.ds-stat-cap{font-size:14px;font-weight:500;letter-spacing:.025em;color:oklch(0.552 0.016 285.938)}.ds-stat-val{font-size:30px;font-weight:700;letter-spacing:-.025em;font-variant-numeric:tabular-nums;white-space:nowrap;margin:6px 0}.ds-stat-trend{display:inline-flex;padding:4px 8px;border-radius:9999px;font-size:12px;font-weight:500;background:#ecfdf5;color:#059669}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Estate Concierge",
+    "overview": "Residio should feel like a capable estate manager who has already looked at the books before you opened them. It greets the officer, surfaces what needs doing next (an unpaid levy, a payment to match, a message waiting to send) and gets out of the way. The system is warm and proactive rather than austere: soft surfaces, pastel icon anchors, a friendly greeting, and quiet motion that confirms an action took.\n\nIt is built for volunteer committee members who open the dashboard occasionally, often on a phone, and have to trust the numbers on it. So the warmth sits in the surfaces, greetings and icon anchors; the numbers themselves stay plain and exact. Whitespace does the structural work in place of heavy borders, and color is spent on status and on a small number of accents. \"Anticipatory minimalism\" (DESIGN_AGENTS.md) is the working philosophy: suggest the action, do not decorate the data.\n\nColors are theme-driven. The values below are the shipped fallbacks and the Default theme; a visual theme provider can replace the palette and fonts at runtime from the theme registry, so structure and roles are normative and exact hues are not.",
+    "keyCharacteristics": [
+      "Warm, proactive, calm. Concierge tone in greetings and suggested actions, restraint in data.",
+      "Token-first: components read theme variables (`--primary`, `--card`, `--border`), never fixed hex.",
+      "Soft layered depth with small lift on interaction; glass only on floating overlays.",
+      "Responsive by two layout modes (compact for phones, expanded for desktop) controlled by CSS variables.",
+      "Tabular, bold numerals for money; muted labels with slight tracking."
+    ],
+    "rules": [
+      {
+        "name": "The Token Rule",
+        "body": "Colors come from theme variables or the Tailwind semantic names (`bg-primary`, `text-muted-foreground`, `border-border`). A hex literal in a component is a bug unless it is a documented status tint.",
+        "section": "colors"
+      },
+      {
+        "name": "The Status Is Never Color Alone Rule",
+        "body": "A paid, overdue or pending state must carry an icon or text label as well as its tint; money screens are read by people with varied eyesight and in bright light on phones.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Money Rule",
+        "body": "Currency amounts and counts use tabular numerals and never wrap (`tabular-nums whitespace-nowrap`); long values shrink to fit the card rather than overflowing.",
+        "section": "typography"
+      },
+      {
+        "name": "The Settle Rule",
+        "body": "Anything that lifts on hover must settle on press (`active:scale-[0.98]` on buttons). Motion confirms; it never decorates a money figure.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Reduced Motion Rule",
+        "body": "Today a single global `prefers-reduced-motion` rule collapses every animation and transition to 0.01ms, so lifts snap and nothing animates. That is a blunt fallback. New motion must never be the only carrier of a state change (pair it with a color, icon or text change), so the interface still reads when motion is removed.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** read color from theme variables and semantic Tailwind names so a theme change repaints the whole app.",
+      "**Do** wrap shadcn primitives in semantic layout components and use `IconBox` for Lucide icons.",
+      "**Do** use the New-York shadcn style, Lucide icons only, and OKLCH for any new color token.",
+      "**Do** keep money and counts tabular, bold and non-wrapping, with a muted caption above.",
+      "**Do** design every screen for the phone first: the compact layout mode is the default and must be complete on its own. Prefer the large (40px) or extra large (48px) button for primary mobile actions, since 36px is below the comfortable touch size.",
+      "**Do** pair every status tint with an icon or label.",
+      "**Do** gate every action button on its write permission, and render a clear \"no access\" or empty state rather than a blank area."
+    ],
+    "donts": [
+      "**Don't** hard-code the Modern theme's palette in components. `modern` is a registered, user-selectable visual theme (`src/lib/themes/modern.ts`: blue-teal accents, dark navy sidebar, rounder components), but components express it through `isModern` branches, the `modern*` button variants and the `modern` input variant, using sky blue (#0EA5E9) and gray hex literals that bypass theme tokens. The theme is legitimate; the hard-coding is the drift. New work reads theme tokens so Modern and every other theme repaint without a per-component branch, and existing `isModern` branches are to be migrated, not copied.",
+      "**Don't** use raw hex colors, inline `style` colors, or fixed Tailwind palette steps (such as `bg-blue-500`) for brand or surface color. Status badge tints are the only documented exception.",
+      "**Don't** introduce a second display typeface or hard-code a font; fonts come from the theme.",
+      "**Don't** put hover lift or entrance animation on data that people are reconciling (tables of amounts); keep motion to cards, buttons and overlays.",
+      "**Don't** put hover-only affordances on anything a phone user needs.",
+      "**Don't** invest visual work in the resident portal or self-service surfaces; they are out of scope (PRODUCT.md)."
+    ]
+  }
+}
