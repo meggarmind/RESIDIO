@@ -121,42 +121,45 @@ const PaymentCard = memo(function PaymentCard({
     const residentName = `${payment.resident?.first_name ?? ''} ${payment.resident?.last_name ?? ''}`.trim();
     const method = payment.method ? payment.method.replace('_', ' ') : '-';
 
-    return (
+    const cardProps = {
+        'data-testid': 'payment-card',
+        title: formatCurrency(Number(payment.amount)),
+        badge: <PaymentStatusBadge status={payment.status} />,
+        subtitle: showResident
+            ? [residentName, payment.resident?.resident_code].filter(Boolean).join(' · ')
+            : undefined,
+        leading: !clickableRows ? (
+            <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => onToggleSelection(payment.id)}
+                aria-label={`Select payment ${payment.reference_number}`}
+            />
+        ) : undefined,
+        actions: <PaymentActions payment={payment} clickableRows={clickableRows} onDelete={onDelete} />,
+    };
+    const cardBody = (
+        <div className="space-y-0.5">
+            <p>
+                {format(new Date(payment.payment_date), 'MMM d, yyyy')}
+                <span className="text-muted-foreground"> · </span>
+                <span className="capitalize">{method}</span>
+            </p>
+            <p className="font-mono text-xs text-muted-foreground">Ref {payment.reference_number || '-'}</p>
+        </div>
+    );
+
+    // A tap target needs both a label and a handler (RecordCard's props are a union),
+    // so the two cases are rendered explicitly.
+    return clickableRows ? (
         <RecordCard
-            data-testid="payment-card"
-            title={formatCurrency(Number(payment.amount))}
-            badge={<PaymentStatusBadge status={payment.status} />}
-            subtitle={
-                showResident
-                    ? [residentName, payment.resident?.resident_code].filter(Boolean).join(' · ')
-                    : undefined
-            }
-            leading={
-                !clickableRows ? (
-                    <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => onToggleSelection(payment.id)}
-                        aria-label={`Select payment ${payment.reference_number}`}
-                    />
-                ) : undefined
-            }
-            {...(clickableRows
-                ? {
-                      label: `Open payment of ${formatCurrency(Number(payment.amount))}`,
-                      onClick: () => onNavigate?.(payment.id),
-                  }
-                : {})}
-            actions={<PaymentActions payment={payment} clickableRows={clickableRows} onDelete={onDelete} />}
+            {...cardProps}
+            label={`Open payment of ${formatCurrency(Number(payment.amount))}`}
+            onClick={() => onNavigate?.(payment.id)}
         >
-            <div className="space-y-0.5">
-                <p>
-                    {format(new Date(payment.payment_date), 'MMM d, yyyy')}
-                    <span className="text-muted-foreground"> · </span>
-                    <span className="capitalize">{method}</span>
-                </p>
-                <p className="font-mono text-xs text-muted-foreground">Ref {payment.reference_number || '-'}</p>
-            </div>
+            {cardBody}
         </RecordCard>
+    ) : (
+        <RecordCard {...cardProps}>{cardBody}</RecordCard>
     );
 });
 
