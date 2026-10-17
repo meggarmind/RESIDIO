@@ -3,6 +3,11 @@ import { sendSms } from '@/lib/sms/send-sms';
 import { getSettingValueAsService } from '@/lib/settings/service';
 import { createAdminClient } from '@/lib/supabase/server';
 
+// The communications override has its own tests; these specs cover Termii logging.
+vi.mock('@/lib/comms-override/gate', () => ({
+  decideSend: async () => ({ result: { redirect: false }, envLabel: 'TEST' }),
+  loadSnapshotFor: async () => ({ status: 'error', message: 'unused' }),
+}));
 vi.mock('@/lib/settings/service', () => ({
   getSettingValueAsService: vi.fn(),
 }));

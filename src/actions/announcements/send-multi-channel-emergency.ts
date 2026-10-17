@@ -7,6 +7,7 @@ import { logAudit } from '@/lib/audit/logger';
 import { createNotificationsForAllResidents } from '@/actions/in-app-notifications/create-notification';
 import { sendEmail, getEstateEmailSettings } from '@/lib/email/send-email';
 import { sendSms } from '@/lib/sms/send-sms';
+import { loadResidentOverrideFlags, residentOverrideFrom } from '@/lib/comms-override/resident-flag';
 import { EmergencyBroadcastEmail } from '@/emails/emergency-broadcast';
 import type { Announcement } from '@/types/database';
 import { whatsappTemplate, WHATSAPP_TEMPLATE_NAMES } from '@/lib/whatsapp';
@@ -89,6 +90,17 @@ async function sendEmailBroadcast(
     };
   }
 
+  // Communications override (#716): one lookup for the whole broadcast. Fail closed.
+  const flagLookup = await loadResidentOverrideFlags(recipientsWithEmail.map((r) => r.id));
+  if (!flagLookup.ok) {
+    return {
+      channel: 'email',
+      success: false,
+      count: 0,
+      error: `comms override: could not read resident flags (${flagLookup.error})`,
+    };
+  }
+
   let successCount = 0;
   let errorCount = 0;
 
@@ -100,6 +112,8 @@ async function sendEmailBroadcast(
     // Send to each recipient individually (Resend prefers individual sends for tracking)
     const promises = batch.map(async (resident) => {
       try {
+        const override = residentOverrideFrom(flagLookup, [resident.id]);
+        if (!override.ok) return false;
         const result = await sendEmail({
           to: {
             email: resident.email!,
@@ -120,6 +134,7 @@ async function sendEmailBroadcast(
             viewUrl,
           }),
           emailType: 'emergency_broadcast',
+          residentOverride: override.residentOverride,
           metadata: {
             announcement_id: announcementId,
             is_emergency: true,
@@ -186,6 +201,17 @@ async function sendSmsBroadcast(
     ? `EMERGENCY: ${title}\n\n${summary}\n\nCheck Residio app for full details.`
     : `EMERGENCY: ${title}\n\n${content.substring(0, 100)}${content.length > 100 ? '...' : ''}\n\nCheck Residio app for details.`;
 
+  // Communications override (#716): one lookup for the whole broadcast. Fail closed.
+  const flagLookup = await loadResidentOverrideFlags(recipientsWithPhone.map((r) => r.id));
+  if (!flagLookup.ok) {
+    return {
+      channel: 'sms',
+      success: false,
+      count: 0,
+      error: `comms override: could not read resident flags (${flagLookup.error})`,
+    };
+  }
+
   let successCount = 0;
   let errorCount = 0;
 
@@ -196,6 +222,8 @@ async function sendSmsBroadcast(
 
     const promises = batch.map(async (resident) => {
       try {
+        const override = residentOverrideFrom(flagLookup, [resident.id]);
+        if (!override.ok) return false;
         const result = await sendSms({
           to: {
             phone: resident.phone_primary,
@@ -204,6 +232,7 @@ async function sendSmsBroadcast(
           },
           message: smsMessage,
           smsType: 'emergency',
+          residentOverride: override.residentOverride,
           metadata: {
             is_emergency: true,
             title,

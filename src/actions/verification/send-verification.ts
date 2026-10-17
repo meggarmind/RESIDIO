@@ -11,6 +11,7 @@ import type { VerificationType, SendVerificationResult } from '@/types/database'
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { isChannelImplemented } from '@/lib/notifications/types';
+import { resolveResidentOverride } from '@/lib/comms-override/resident-flag';
 
 // Token expiry in minutes
 const TOKEN_EXPIRY_MINUTES = 30;
@@ -123,6 +124,12 @@ export async function sendEmailVerification(residentId: string): Promise<SendVer
     };
   }
 
+  // Communications override (#716): read the flag before any token is created; fail closed.
+  const override = await resolveResidentOverride([resident.id]);
+  if (!override.ok) {
+    return { success: false, message: override.error };
+  }
+
   // Invalidate existing tokens
   await invalidateExistingTokens(residentId, 'email');
 
@@ -164,6 +171,7 @@ export async function sendEmailVerification(residentId: string): Promise<SendVer
       estateName: estateSettings.estateName,
     }),
     emailType: 'notification',
+    residentOverride: override.residentOverride,
     metadata: { purpose: 'email_verification' },
   });
 
@@ -245,6 +253,12 @@ export async function sendPhoneVerification(residentId: string): Promise<SendVer
     };
   }
 
+  // Communications override (#716): read the flag before any token is created; fail closed.
+  const override = await resolveResidentOverride([resident.id]);
+  if (!override.ok) {
+    return { success: false, message: override.error };
+  }
+
   // Invalidate existing tokens
   await invalidateExistingTokens(residentId, 'phone');
 
@@ -272,7 +286,8 @@ export async function sendPhoneVerification(residentId: string): Promise<SendVer
   const smsResult = await sendVerificationSms(
     resident.phone_primary,
     otp,
-    resident.id
+    resident.id,
+    { residentOverride: override.residentOverride }
   );
 
   if (!smsResult.success) {

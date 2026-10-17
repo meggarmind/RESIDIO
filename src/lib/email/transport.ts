@@ -9,6 +9,10 @@
 import type { ReactNode } from 'react';
 import { resend, emailConfig, isEmailConfigured } from './resend';
 import { getSettingValueAsService } from '@/lib/settings/service';
+import { decideSend } from '@/lib/comms-override/gate';
+import { applyEmailRedirect } from '@/lib/comms-override/apply';
+import { blockedError, toLogRecord } from '@/lib/comms-override/resolver';
+import type { CommsSendContext, OverrideLogRecord } from '@/lib/comms-override/types';
 
 export const EMAIL_NOT_CONFIGURED_ERROR = 'Email service not configured (missing RESEND_API_KEY)';
 
@@ -27,11 +31,12 @@ export interface ResendTransportParams {
 }
 
 export type ResendTransportResult =
-  | { ok: true; id: string | undefined }
+  /** `override` is set when the communications override altered or blocked the send (#715). */
+  | { ok: true; id: string | undefined; override?: OverrideLogRecord }
   /** `retryable` is present (true) only for a transient failure (#546). */
-  | { ok: false; error: string; retryable?: true };
+  | { ok: false; error: string; retryable?: true; override?: OverrideLogRecord };
 
-export interface ResendTransportOptions {
+export interface ResendTransportOptions extends CommsSendContext {
   /** Sent to Resend as the Idempotency-Key so a retried attempt cannot double-send (#546). */
   idempotencyKey?: string;
 }
@@ -61,8 +66,30 @@ export async function sendViaResend(
 ): Promise<ResendTransportResult> {
   if (!resend) return { ok: false, error: EMAIL_NOT_CONFIGURED_ERROR };
 
+  // Communications override (#715): decided at send time, after the not-configured
+  // check so an unconfigured transport keeps its message. Blocked never falls
+  // through to the original address.
+  const original = (Array.isArray(params.to) ? params.to : [params.to]).join(', ');
+  const { result: decision, envLabel } = await decideSend({
+    channel: 'email',
+    original,
+    residentOverride: options?.residentOverride,
+    purpose: options?.purpose,
+  });
+  const override = toLogRecord(decision) ?? undefined;
+  if ('blocked' in decision) {
+    return {
+      ok: false,
+      error: blockedError(decision),
+      override,
+      // An unreadable settings table is transient; a blank override needs an admin.
+      ...(decision.code === 'settings_unreadable' ? { retryable: true as const } : {}),
+    };
+  }
+  const outbound = decision.redirect ? applyEmailRedirect(params, decision, envLabel) : params;
+
   const fromName = (await getSettingValueAsService('email_from_name')) || 'Residio Estate';
-  const { to, subject, ...content } = params;
+  const { to, subject, ...content } = outbound;
 
   try {
     const payload = {
@@ -78,10 +105,10 @@ export async function sendViaResend(
 
     if (error) {
       return isRetryableResendError(error)
-        ? { ok: false, error: error.message, retryable: true }
-        : { ok: false, error: error.message };
+        ? { ok: false, error: error.message, retryable: true, override }
+        : { ok: false, error: error.message, override };
     }
-    return { ok: true, id: data?.id };
+    return { ok: true, id: data?.id, override };
   } catch (e) {
     // A thrown error is a network/timeout failure, so it is treated as
     // retryable. The idempotency key does NOT make that safe if the first
@@ -92,6 +119,7 @@ export async function sendViaResend(
       ok: false,
       error: e instanceof Error ? e.message : 'Unknown error sending email',
       retryable: true,
+      override,
     };
   }
 }
