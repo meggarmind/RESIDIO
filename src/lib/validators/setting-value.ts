@@ -1,6 +1,11 @@
 import { MAX_MONEY_AMOUNT, validateMoneyAmount } from '@/lib/validators/money';
 import { isValidOverrideEmail, isValidOverridePhone } from '@/lib/comms-override/resolver';
 import { DEBUG_DURATION_MAX, DEBUG_DURATION_MIN, isValidDebugDuration } from '@/lib/comms-override/limits';
+import {
+  EMAIL_AUTO_PROCESS_LIMIT_KEY,
+  EMAIL_AUTO_PROCESS_LIMIT_MAX,
+  isValidEmailAutoProcessLimit,
+} from '@/lib/email-imports/utils';
 
 /**
  * Conservative sanity rules for system_settings values (issue #466).
@@ -73,6 +78,13 @@ function commsSettingError(key: string, value: unknown, now: Date): string | nul
 export function settingValueError(key: string, value: unknown, now: Date = new Date()): string | null {
   const comms = commsSettingError(key, value, now);
   if (comms !== undefined) return comms;
+
+  if (key === EMAIL_AUTO_PROCESS_LIMIT_KEY) {
+    // Zero, a negative or a huge value would turn the approval control off (#710).
+    return isValidEmailAutoProcessLimit(toNumber(value))
+      ? null
+      : `Setting "${key}" must be a whole naira amount from 1 to ${EMAIL_AUTO_PROCESS_LIMIT_MAX.toLocaleString('en-NG')}`;
+  }
 
   if (typeof value === 'number' && !Number.isFinite(value)) {
     return `Setting "${key}" must be a finite number`;
