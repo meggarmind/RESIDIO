@@ -7,7 +7,7 @@ residio_sources:
   - src/app/(dashboard)/security/**
   - src/actions/security/**
   - src/lib/security/**
-residio_verified_commit: 27ad2d80
+residio_verified_commit: 76f26a25
 residio_verified_at: '2026-10-17'
 residio_app_version: '0.4.0'
 ---
