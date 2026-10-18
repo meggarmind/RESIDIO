@@ -33,7 +33,7 @@ const statusConfig = {
 // Use CSS variables for theme-aware status colors
 <Badge
   style={{
-    color: 'var(--status-warning)',
+    color: 'var(--status-warning-text)',
     backgroundColor: 'var(--status-warning-subtle)',
   }}
 >
@@ -42,7 +42,7 @@ const statusConfig = {
 
 <Badge
   style={{
-    color: 'var(--status-success)',
+    color: 'var(--status-success-text)',
     backgroundColor: 'var(--status-success-subtle)',
   }}
 >
@@ -51,7 +51,7 @@ const statusConfig = {
 
 <Badge
   style={{
-    color: 'var(--status-error)',
+    color: 'var(--status-error-text)',
     backgroundColor: 'var(--status-error-subtle)',
   }}
 >
@@ -82,7 +82,7 @@ const statusConfig = {
 >
   <p
     className="text-xl font-bold"
-    style={{ color: 'var(--status-error)' }}
+    style={{ color: 'var(--status-error-text)' }}
   >
     {formatCurrency(totalOutstanding)}
   </p>
@@ -100,7 +100,7 @@ const statusConfig = {
 **After:**
 ```tsx
 <p style={{ color: 'var(--text-muted)' }}>Label</p>
-<p style={{ color: 'var(--status-error)' }}>Error</p>
+<p style={{ color: 'var(--status-error-text)' }}>Error</p>
 ```
 
 ### 4. Interactive Elements
@@ -150,13 +150,13 @@ const statusConfig = {
 
 | Old Tailwind Class | New CSS Variable | Usage |
 |-------------------|------------------|-------|
-| `text-red-600` | `var(--status-error)` | Error text |
+| `text-red-600` | `var(--status-error-text)` | Error text |
 | `bg-red-500/10` | `var(--status-error-subtle)` | Error background |
-| `text-emerald-600` | `var(--status-success)` | Success text |
+| `text-emerald-600` | `var(--status-success-text)` | Success text |
 | `bg-emerald-500/10` | `var(--status-success-subtle)` | Success background |
-| `text-amber-600` | `var(--status-warning)` | Warning text |
+| `text-amber-600` | `var(--status-warning-text)` | Warning text |
 | `bg-amber-500/10` | `var(--status-warning-subtle)` | Warning background |
-| `text-blue-600` | `var(--status-info)` | Info text |
+| `text-blue-600` | `var(--status-info-text)` | Info text |
 | `bg-blue-500/10` | `var(--status-info-subtle)` | Info background |
 
 ### Text Colors
@@ -198,15 +198,15 @@ interface StatusBadgeProps {
 function InvoiceStatusBadge({ status }: StatusBadgeProps) {
   const statusStyles = {
     unpaid: {
-      color: 'var(--status-warning)',
+      color: 'var(--status-warning-text)',
       backgroundColor: 'var(--status-warning-subtle)',
     },
     partially_paid: {
-      color: 'var(--status-info)',
+      color: 'var(--status-info-text)',
       backgroundColor: 'var(--status-info-subtle)',
     },
     paid: {
-      color: 'var(--status-success)',
+      color: 'var(--status-success-text)',
       backgroundColor: 'var(--status-success-subtle)',
     },
     void: {
@@ -214,7 +214,7 @@ function InvoiceStatusBadge({ status }: StatusBadgeProps) {
       backgroundColor: 'var(--bg-secondary)',
     },
     overdue: {
-      color: 'var(--status-error)',
+      color: 'var(--status-error-text)',
       backgroundColor: 'var(--status-error-subtle)',
     },
   };
@@ -245,22 +245,22 @@ function StatCard({ label, value, variant, icon }: StatCardProps) {
     success: {
       background: `linear-gradient(to bottom right, var(--status-success-subtle), transparent)`,
       borderColor: 'var(--status-success)',
-      color: 'var(--status-success)',
+      color: 'var(--status-success-text)',
     },
     error: {
       background: `linear-gradient(to bottom right, var(--status-error-subtle), transparent)`,
       borderColor: 'var(--status-error)',
-      color: 'var(--status-error)',
+      color: 'var(--status-error-text)',
     },
     warning: {
       background: `linear-gradient(to bottom right, var(--status-warning-subtle), transparent)`,
       borderColor: 'var(--status-warning)',
-      color: 'var(--status-warning)',
+      color: 'var(--status-warning-text)',
     },
     info: {
       background: `linear-gradient(to bottom right, var(--status-info-subtle), transparent)`,
       borderColor: 'var(--status-info)',
-      color: 'var(--status-info)',
+      color: 'var(--status-info-text)',
     },
   };
 
