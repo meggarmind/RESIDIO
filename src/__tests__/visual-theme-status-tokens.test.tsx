@@ -107,5 +107,10 @@ describe('status colour tokens (#767)', () => {
       const ratio = contrast(css(`--status-${status}-text`), css(`--status-${status}-subtle`));
       expect(ratio, `${status} text on its subtle tint`).toBeGreaterThanOrEqual(4.5);
     }
+    if (mode === 'dark') {
+      for (const status of ['success', 'warning', 'info']) {
+        expect(css(`--status-${status}-text`)).toBe(css(`--status-${status}`));
+      }
+    }
   });
 });
