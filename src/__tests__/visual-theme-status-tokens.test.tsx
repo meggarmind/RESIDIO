@@ -67,7 +67,7 @@ describe('status colour tokens (#767)', () => {
     mocks.resolvedTheme = mode;
     vi.spyOn(console, 'log').mockImplementation(() => {});
     render(
-      <VisualThemeProvider context="admin" initialThemeId={theme.id}>
+      <VisualThemeProvider context="admin-dashboard" initialThemeId={theme.id}>
         <div />
       </VisualThemeProvider>
     );
@@ -97,7 +97,7 @@ describe('status colour tokens (#767)', () => {
     mocks.resolvedTheme = mode;
     vi.spyOn(console, 'log').mockImplementation(() => {});
     render(
-      <VisualThemeProvider context="admin" initialThemeId={theme.id}>
+      <VisualThemeProvider context="admin-dashboard" initialThemeId={theme.id}>
         <div />
       </VisualThemeProvider>
     );
