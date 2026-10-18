@@ -66,6 +66,7 @@ export const settingsConfig: SettingsGroup[] = [
             { title: "Streets", href: "/settings/streets", description: "Manage estate streets", permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE] },
             { title: "House Types", href: "/settings/house-types", description: "Define property types", permissions: [PERMISSIONS.SETTINGS_MANAGE_REFERENCE] },
             { title: "Document Categories", href: "/settings/document-categories", description: "Organize document types", permissions: [PERMISSIONS.DOCUMENTS_MANAGE_CATEGORIES] },
+            { title: "Document Tags & Fields", href: "/settings/document-taxonomy", description: "Nested tags and custom fields", permissions: [PERMISSIONS.DOCUMENTS_MANAGE_TAGS, PERMISSIONS.DOCUMENTS_MANAGE_CUSTOM_FIELDS] },
         ]
     },
     {

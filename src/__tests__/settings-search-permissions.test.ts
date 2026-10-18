@@ -83,6 +83,7 @@ describe('Settings/System search entry permissions', () => {
       '/settings/streets': ['settings.manage_reference'],
       '/settings/house-types': ['settings.manage_reference'],
       '/settings/document-categories': ['documents.manage_categories'],
+      '/settings/document-taxonomy': ['documents.manage_custom_fields', 'documents.manage_tags'],
       '/settings/billing': ['settings.manage_billing'],
       '/settings/billing/late-fees': ['settings.manage_billing'],
       '/settings/billing/invoices': ['settings.manage_billing'],
