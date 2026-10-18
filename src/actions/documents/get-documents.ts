@@ -7,6 +7,7 @@ import {
   DOCUMENT_SEARCH_CAP,
   type DocumentSearchQuery,
 } from '@/lib/documents/search';
+import { tagWithDescendants } from '@/lib/documents/taxonomy';
 import type { DocumentWithRelations, DocumentListParams } from '@/types/database';
 
 type GetDocumentsResponse = {
@@ -24,6 +25,7 @@ export async function getDocuments(
   const supabase = await createServerSupabaseClient();
   const {
     category_id,
+    tag_id,
     search,
     is_archived = false,
     uploaded_by,
@@ -32,6 +34,17 @@ export async function getDocuments(
     page = 1,
     limit = 20,
   } = params;
+
+  let taggedIds: string[] | null = null;
+  if (tag_id) {
+    const tagged = await documentIdsTagged(supabase, tag_id);
+    if (tagged.error) {
+      console.error('Error filtering documents by tag:', tagged.error);
+      return { data: [], count: 0, error: tagged.error.message };
+    }
+    if (tagged.ids.length === 0) return { data: [], count: 0, error: null };
+    taggedIds = tagged.ids;
+  }
 
   const buildQuery = () => {
     let query = supabase
@@ -42,7 +55,8 @@ export async function getDocuments(
         category:document_categories(id, name, description, is_resident_accessible),
         uploader:profiles!uploaded_by(id, full_name),
         resident:residents(id, first_name, last_name),
-        house:houses(id, unit_number, street:streets(name))
+        house:houses(id, unit_number, street:streets(name)),
+        tag_assignments:document_tag_assignments(tag:document_tags(id, name, color, is_active))
       `,
         { count: 'exact' }
       );
@@ -52,6 +66,11 @@ export async function getDocuments(
 
     if (category_id) {
       query = query.eq('category_id', category_id);
+    }
+
+    if (taggedIds) {
+      // shortcut: ids travel in the URL, fine for an estate library; move to an RPC or inner-join filter past ~1,000 tagged documents.
+      query = query.in('id', taggedIds);
     }
 
     if (uploaded_by) {
@@ -85,8 +104,9 @@ export async function getDocuments(
   }
 
   // Transform data to match DocumentWithRelations type
-  const transformedData = (data ?? []).map((doc) => ({
+  const transformedData = (data ?? []).map(({ tag_assignments, ...doc }) => ({
     ...doc,
+    tags: activeTags(tag_assignments),
     resident: doc.resident
       ? {
           id: doc.resident.id,
@@ -171,6 +191,33 @@ export async function getResidentAccessibleDocuments(
     count: count ?? 0,
     error: null,
   };
+}
+
+type TagAssignmentRow = { tag: { id: string; name: string; color: string; is_active: boolean } | null };
+
+/** Chips show active tags only; an inactive tag stays assigned but hidden until reactivated. */
+function activeTags(assignments: TagAssignmentRow[] | null | undefined) {
+  return (assignments ?? [])
+    .map((a) => a.tag)
+    .filter((t): t is NonNullable<TagAssignmentRow['tag']> => !!t && t.is_active)
+    .map(({ id, name, color }) => ({ id, name, color }));
+}
+
+/**
+ * Ids of documents carrying the tag or any tag nested under it: filtering by a parent tag finds
+ * documents tagged with its children (#382).
+ */
+async function documentIdsTagged(supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>, tagId: string) {
+  const { data: tags, error: tagsError } = await supabase.from('document_tags').select('id, parent_tag_id');
+  if (tagsError) return { ids: [], error: tagsError };
+
+  const { data, error } = await supabase
+    .from('document_tag_assignments')
+    .select('document_id')
+    .in('tag_id', tagWithDescendants(tags ?? [], tagId));
+  if (error) return { ids: [], error };
+
+  return { ids: [...new Set((data ?? []).map((a) => a.document_id as string))], error: null };
 }
 
 /**

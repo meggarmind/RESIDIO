@@ -17,7 +17,24 @@ import {
   updateDocumentCategory,
   deleteDocumentCategory,
 } from '@/actions/documents/categories';
-import type { DocumentListParams, DocumentUpdateInput } from '@/types/database';
+import {
+  getDocumentTags,
+  createDocumentTag,
+  updateDocumentTag,
+  deleteDocumentTag,
+} from '@/actions/documents/tags';
+import {
+  getDocumentCustomFields,
+  createDocumentCustomField,
+  updateDocumentCustomField,
+  deleteDocumentCustomField,
+} from '@/actions/documents/custom-fields';
+import {
+  getDocumentTaxonomy,
+  setDocumentTags,
+  setDocumentCustomFieldValue,
+} from '@/actions/documents/document-taxonomy';
+import type { DocumentCustomFieldDataType, DocumentListParams, DocumentUpdateInput } from '@/types/database';
 
 // =====================================================
 // Document Queries
@@ -372,6 +389,177 @@ export function useDeleteDocumentCategory() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documentCategories'] });
+    },
+  });
+}
+
+// =====================================================
+// Tags, Custom Fields and Per-Document Taxonomy (#382)
+// =====================================================
+
+/**
+ * Fetch all document tags (flat; nesting via parent_tag_id)
+ */
+export function useDocumentTags(includeInactive = false) {
+  return useQuery({
+    queryKey: ['documentTags', { includeInactive }],
+    queryFn: async () => {
+      const result = await getDocumentTags(includeInactive);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+  });
+}
+
+/**
+ * Create, update or soft-delete a document tag
+ */
+export function useSaveDocumentTag() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id?: string;
+      data: { name?: string; color?: string; parent_tag_id?: string | null; is_active?: boolean };
+    }) => {
+      const result = id
+        ? await updateDocumentTag(id, data)
+        : await createDocumentTag({ ...data, name: data.name ?? '' });
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documentTags'] });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+  });
+}
+
+export function useDeleteDocumentTag() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const result = await deleteDocumentTag(id);
+      if (result.error) throw new Error(result.error);
+      return result.success;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documentTags'] });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+  });
+}
+
+/**
+ * Fetch all document custom field definitions
+ */
+export function useDocumentCustomFields(includeInactive = false) {
+  return useQuery({
+    queryKey: ['documentCustomFields', { includeInactive }],
+    queryFn: async () => {
+      const result = await getDocumentCustomFields(includeInactive);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+  });
+}
+
+/**
+ * Create or update a custom field. data_type is set on create only.
+ */
+export function useSaveDocumentCustomField() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id?: string;
+      data: { name: string; data_type?: DocumentCustomFieldDataType; is_active?: boolean };
+    }) => {
+      const result = id
+        ? await updateDocumentCustomField(id, { name: data.name, is_active: data.is_active })
+        : await createDocumentCustomField({ name: data.name, data_type: data.data_type ?? 'text' });
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documentCustomFields'] });
+    },
+  });
+}
+
+export function useDeleteDocumentCustomField() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const result = await deleteDocumentCustomField(id);
+      if (result.error) throw new Error(result.error);
+      return result.success;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documentCustomFields'] });
+    },
+  });
+}
+
+/**
+ * Fetch a document's tag ids and custom-field values (shared by all its versions)
+ */
+export function useDocumentTaxonomy(documentId: string | undefined) {
+  return useQuery({
+    queryKey: ['documentTaxonomy', documentId],
+    queryFn: async () => {
+      if (!documentId) throw new Error('Document ID is required');
+      const result = await getDocumentTaxonomy(documentId);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    enabled: !!documentId,
+  });
+}
+
+export function useSetDocumentTags() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ documentId, tagIds }: { documentId: string; tagIds: string[] }) => {
+      const result = await setDocumentTags(documentId, tagIds);
+      if (result.error) throw new Error(result.error);
+      return result.success;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['documentTaxonomy', variables.documentId] });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+  });
+}
+
+export function useSetDocumentCustomFieldValue() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      documentId,
+      fieldId,
+      value,
+    }: {
+      documentId: string;
+      fieldId: string;
+      value: string | number | boolean | null;
+    }) => {
+      const result = await setDocumentCustomFieldValue(documentId, fieldId, value);
+      if (result.error) throw new Error(result.error);
+      return result.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['documentTaxonomy', variables.documentId] });
     },
   });
 }

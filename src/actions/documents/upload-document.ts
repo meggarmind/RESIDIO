@@ -77,6 +77,7 @@ export async function uploadDocument(formData: FormData): Promise<UploadDocument
   const title = formData.get('title') as string;
   const description = formData.get('description') as string | null;
   const categoryId = formData.get('category_id') as string | null;
+  const tagIds = [...new Set(formData.getAll('tag_ids').map(String).filter(Boolean))];
 
   if (!file || !title) {
     return { data: null, error: 'File and title are required' };
@@ -146,6 +147,19 @@ export async function uploadDocument(formData: FormData): Promise<UploadDocument
     action: 'upload',
   });
 
+  // Tags (#382): the document exists either way, so a failed assignment is reported, not rolled back
+  let assignedTagIds: string[] = [];
+  if (tagIds.length > 0) {
+    const { error: tagError } = await supabase
+      .from('document_tag_assignments')
+      .insert(tagIds.map((tag_id) => ({ document_id: document.id, tag_id })));
+    if (tagError) {
+      console.error('Document tag assignment error:', { documentId: document.id, tagIds, tagError });
+    } else {
+      assignedTagIds = tagIds;
+    }
+  }
+
   // Audit log
   await logAudit({
     action: 'CREATE',
@@ -158,6 +172,7 @@ export async function uploadDocument(formData: FormData): Promise<UploadDocument
       file_type: document.file_type,
       file_size_bytes: document.file_size_bytes,
       category_id: categoryId,
+      tag_ids: assignedTagIds,
       version: 1,
     },
     description: `Uploaded document: ${document.title}`,
