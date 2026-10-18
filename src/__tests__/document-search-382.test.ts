@@ -72,6 +72,15 @@ describe('rankDocuments', () => {
     expect(rankDocuments(stemmed, 'rules').map((d) => d.id)).toEqual(['title', 'desc']);
   });
 
+  it('scores a y/ies plural on the title it stems to', () => {
+    const stemmed: Doc[] = [
+      { id: 'desc', title: 'Estate notice', description: 'Updated policies for residents', file_name: 'a.pdf' },
+      { id: 'title', title: 'Privacy Policy', description: null, file_name: 'b.pdf' },
+    ];
+    expect(rankDocuments(stemmed, 'policies').map((d) => d.id)).toEqual(['title', 'desc']);
+    expect(rankDocuments(stemmed, 'policy').map((d) => d.id)).toEqual(['title', 'desc']);
+  });
+
   it('returns the input unchanged for a query with no words', () => {
     expect(rankDocuments(docs, '  !! ')).toBe(docs);
   });
