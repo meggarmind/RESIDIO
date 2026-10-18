@@ -59,7 +59,7 @@ export default function DataRetentionPage() {
       if (result.error) {
         toast.error(result.error);
       } else if (result.data) {
-        toast.success(`Pruned ${result.data.notifications} notifications, ${result.data.auditLogs} audit logs, and ${result.data.searchLogs} search logs.`);
+        toast.success(`Pruned ${result.data.notifications} notifications, ${result.data.auditLogs} audit logs, ${result.data.searchLogs} search logs, and ${result.data.systemActionLogs} system action log entries.`);
       }
     } catch {
       toast.error('Failed to prune data');
@@ -126,7 +126,7 @@ export default function DataRetentionPage() {
             <div className="space-y-0.5">
               <Label>Prune Old Data</Label>
               <p className="text-sm text-muted-foreground">
-                Remove old notifications ({'>'}30 days read, {'>'}90 days unread), audit logs ({'>'}6 months), and search history ({'>'}30 days).
+                Remove old notifications ({'>'}30 days read, {'>'}90 days unread), audit logs ({'>'}6 months), search history ({'>'}30 days), and system action log entries ({'>'}90 days).
               </p>
             </div>
             <AlertDialog>
@@ -139,7 +139,7 @@ export default function DataRetentionPage() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete old notifications, audit logs, and search history from the database.
+                    This action cannot be undone. This will permanently delete old notifications, audit logs, search history, and system action log entries from the database.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

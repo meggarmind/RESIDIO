@@ -12,8 +12,8 @@ residio_sources:
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 895a6ea
-residio_verified_at: '2026-10-16'
+residio_verified_commit: 632166cb
+residio_verified_at: '2026-10-18'
 residio_app_version: '0.4.0'
 ---
 
@@ -56,7 +56,7 @@ Open **System → Audit Logs** to trace creates, updates, approvals, and adminis
 
 ## Action log
 
-Open **System → Action Log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only, and entries are not yet pruned automatically.
+Open **System → Action Log** to see what automated processes, such as scheduled jobs and incoming webhooks, did and whether it worked. Audit logs record what a signed-in person changed; the action log covers runs with nobody signed in. Each entry shows when it ran, its source, the action, an outcome (success, partial or failure), how long it took, any error message, and a collapsible summary of counts and ids. Filter by source, outcome, or date range; newest entries come first. Only super administrators see this page and its sidebar link. It is read-only. Entries older than 90 days are removed when someone runs **Prune Data** under **Settings → Data Retention**; nothing prunes them automatically.
 
 ## System health
 
