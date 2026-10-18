@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CategoryBadge, FileTypeBadge } from '@/components/documents/category-badge';
 import { DocumentUploadForm } from '@/components/documents/document-upload-form';
+import { DocumentTaxonomyCard } from '@/components/documents/document-taxonomy-card';
 import {
   useDocument,
   useDocumentVersions,
@@ -359,6 +360,8 @@ export default function DocumentDetailPage({
 
         {/* Sidebar */}
         <div className="space-y-6">
+          <DocumentTaxonomyCard documentId={document.id} canEdit={canEdit} />
+
           <Card>
             <CardHeader>
               <CardTitle>File Information</CardTitle>
