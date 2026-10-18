@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Issues #759 and #744: below md the residents, houses, payments, invoices and approvals lists show stacked
+// Issues #759 and #744: below md the residents, houses, payments, invoices, approvals and security contacts lists show stacked
 // cards. Both the cards and the table are in the DOM (CSS picks one), so every
 // query here is scoped to one of them.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -96,6 +96,21 @@ vi.mock('@/hooks/use-approvals', () => ({
   useRejectRequest: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useReapplyApprovedRequest: () => ({ mutate: vi.fn(), isPending: false }),
 }));
+vi.mock('@/hooks/use-security', () => ({
+  useSecurityContacts: () => ({
+    isLoading: false,
+    error: null,
+    data: {
+      count: 2,
+      data: [
+        { id: 'sc-1', full_name: 'Chidi Okafor', phone_primary: '0802', id_number: 'NIN-1', status: 'active', category: { name: 'Driver' }, resident: { id: 'res-1', first_name: 'Ada', last_name: 'Obi', resident_code: 'R-001' }, access_codes: [{ id: 'code-1', code: 'ABC123', is_active: true, valid_from: '2026-01-01T00:00:00.000Z', valid_until: '2099-01-01T00:00:00.000Z' }] },
+        { id: 'sc-2', full_name: 'Dayo Bello', phone_primary: '0803', id_number: null, status: 'suspended', category: { name: 'Vendor' }, resident: null, access_codes: [] },
+      ],
+    },
+  }),
+  useSecurityContactCategories: () => ({ data: [] }),
+  useExpiredContactCount: () => ({ data: 0 }),
+}));
 vi.mock('@/components/residents/resident-quick-view', () => ({ ResidentQuickView: () => null }));
 vi.mock('@/components/houses/house-quick-view', () => ({ HouseQuickView: () => null }));
 
@@ -104,6 +119,7 @@ import { HousesTable, HOUSE_SORT_OPTIONS } from '@/components/houses/houses-tabl
 import { PaymentTable, PAYMENT_SORT_OPTIONS } from '@/components/payments/payment-table';
 import BillingPage from '@/app/(dashboard)/billing/page';
 import ApprovalsPage from '@/app/(dashboard)/approvals/page';
+import { SecurityContactsTable } from '@/components/security/security-contacts-table';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const PAYMENTS = [
@@ -322,6 +338,36 @@ describe('Approvals phone cards', () => {
   });
 });
 
+describe('Security contacts phone cards', () => {
+  it('renders the same contacts as the table', () => {
+    render(<SecurityContactsTable />);
+    const list = screen.getByTestId('security-contact-card-list');
+    expect(list.querySelectorAll('[data-slot="record-card"]')).toHaveLength(2);
+    expect(within(screen.getByRole('table')).getAllByRole('row').slice(1)).toHaveLength(2);
+    expect(cards('security-contact-card-list').getByText('Chidi Okafor')).toBeInTheDocument();
+    expect(cards('security-contact-card-list').getByText('0802 · NIN-1')).toBeInTheDocument();
+    expect(cards('security-contact-card-list').getByText('0803')).toBeInTheDocument();
+    expect(cards('security-contact-card-list').getByText('Driver')).toBeInTheDocument();
+    expect(cards('security-contact-card-list').getByRole('link', { name: /Ada Obi/ })).toHaveAttribute('href', '/residents/res-1');
+    expect(cards('security-contact-card-list').getByText('ABC123')).toBeInTheDocument();
+    expect(cards('security-contact-card-list').getByText('No active code')).toBeInTheDocument();
+    expect(cards('security-contact-card-list').getAllByRole('button', { name: 'Open actions menu' })).toHaveLength(2);
+  });
+
+  it('hides the resident link when the resident column is off', () => {
+    render(<SecurityContactsTable showResidentColumn={false} />);
+    expect(cards('security-contact-card-list').queryByRole('link', { name: /Ada Obi/ })).not.toBeInTheDocument();
+  });
+
+  it('navigates when a card is tapped but not when its actions menu is', () => {
+    render(<SecurityContactsTable />);
+    fireEvent.click(cards('security-contact-card-list').getAllByRole('button', { name: 'Open actions menu' })[0]);
+    expect(mocks.push).not.toHaveBeenCalled();
+    fireEvent.click(cards('security-contact-card-list').getByRole('button', { name: 'Open Dayo Bello' }));
+    expect(mocks.push).toHaveBeenCalledExactlyOnceWith('/security/contacts/sc-2');
+  });
+});
+
 // jsdom applies no CSS, so the responsive switch is asserted on the classes.
 describe('Phone card lists: responsive switch and structure', () => {
   const wrapperOf = () => screen.getByRole('table', { hidden: true }).closest('.hidden') as HTMLElement | null;
@@ -332,6 +378,7 @@ describe('Phone card lists: responsive switch and structure', () => {
     ['payments', 'payment-card-list', () => <PaymentTable data={PAYMENTS} />],
     ['invoices', 'invoice-card-list', () => <BillingPage />],
     ['approvals', 'approval-card-list', () => <ApprovalsPage />],
+    ['security contacts', 'security-contact-card-list', () => <SecurityContactsTable />],
   ])('%s: cards show only below md and the table only from md up', (_name, testId, ui) => {
     render(ui());
     const list = screen.getByTestId(testId as string);
@@ -350,6 +397,7 @@ describe('Phone card lists: responsive switch and structure', () => {
     ['payments', 'payment-card-list', () => <PaymentTable data={PAYMENTS} clickableRows />],
     ['invoices', 'invoice-card-list', () => <BillingPage />],
     ['approvals', 'approval-card-list', () => <ApprovalsPage />],
+    ['security contacts', 'security-contact-card-list', () => <SecurityContactsTable />],
   ])('%s: no interactive element is nested inside a button or link, and cards are not buttons', (_name, testId, ui) => {
     mocks.permissions = Object.values(PERMISSIONS);
     render(ui());
