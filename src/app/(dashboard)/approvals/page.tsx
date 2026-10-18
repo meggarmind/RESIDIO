@@ -106,7 +106,7 @@ function ApprovalActions({
         <>
             {request.status === 'pending' && (
                 <Can permission={PERMISSIONS.APPROVALS_APPROVE_REJECT}>
-                <div className="flex gap-2 justify-end">
+                <div className="flex flex-wrap gap-2 justify-end">
                     <Button
                         size="sm"
                         variant="default"
