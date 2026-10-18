@@ -17,10 +17,12 @@ import {
   Loader2,
   UserCheck,
   UserX,
+  BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
 import { SecurityContactsTable } from '@/components/security/security-contacts-table';
 import { CodeVerification } from '@/components/security/code-verification';
+import { VisitorAnalyticsPanel } from '@/components/security/visitor-analytics-panel';
 import {
   useSecurityContacts,
   useTodayAccessLogs,
@@ -210,6 +212,15 @@ export default function SecurityPage() {
             >
               <ClipboardList className="h-4 w-4" />
               Access Logs
+            </TabsTrigger>
+          )}
+          {canViewLogs && (
+            <TabsTrigger
+              value="analytics"
+              className={cn('flex items-center gap-2')}
+            >
+              <BarChart3 className="h-4 w-4" />
+              Analytics
             </TabsTrigger>
           )}
         </TabsList>
@@ -444,6 +455,13 @@ export default function SecurityPage() {
               </Button>
             </div>
             <SecurityContactsTable />
+          </TabsContent>
+        )}
+
+        {/* Analytics Tab */}
+        {canViewLogs && (
+          <TabsContent value="analytics">
+            <VisitorAnalyticsPanel />
           </TabsContent>
         )}
 

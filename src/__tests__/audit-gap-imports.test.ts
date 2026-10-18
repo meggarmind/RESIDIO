@@ -105,6 +105,11 @@ describe('matchImportRows audit (#556)', () => {
     transaction_type: 'credit',
   }));
 
+  beforeEach(() => {
+    // Rows can only be matched while the import is under review (#707).
+    results['bank_statement_imports.select'] = { data: [{ id: uid(5), status: 'processing' }] };
+  });
+
   it('writes ONE bounded entry for the whole run, after the writes', async () => {
     fetchAllRows.mockResolvedValue({ data: rows, error: null });
     const res = await matchImportRows(uid(5));
@@ -177,7 +182,8 @@ describe('createImportRows audit (#556)', () => {
 
 describe('updateImportStatus audit (#541)', () => {
   beforeEach(() => {
-    results['bank_statement_imports.select'] = { data: { status: 'approved' } };
+    // processImport's claim (#707) is the only way in, so the helper only ever starts from posting.
+    results['bank_statement_imports.select'] = { data: { status: 'posting' } };
     results['bank_statement_imports.update'] = { data: [{ id: uid(5), file_name: 'jan.csv' }] };
   });
 
@@ -220,8 +226,8 @@ describe('updateImportStatus audit (#541)', () => {
   });
 
   it.each([
-    ['approved', 'completed'],
-    ['approved', 'failed'],
+    ['posting', 'completed'],
+    ['posting', 'failed'],
   ] as const)('includes a completed_at ISO timestamp for %s -> %s', async (from, status) => {
     results['bank_statement_imports.select'] = { data: { status: from } };
     await updateImportStatus({ import_id: uid(5), status });

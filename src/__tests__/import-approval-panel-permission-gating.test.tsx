@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   approveImport: vi.fn(),
   rejectImport: vi.fn(),
   processImport: vi.fn(),
+  resetFailedImport: vi.fn(),
   push: vi.fn(),
 }));
 
@@ -36,6 +37,7 @@ vi.mock('@/actions/imports', () => ({
   approveImport: (...a: unknown[]) => mocks.approveImport(...a),
   rejectImport: (...a: unknown[]) => mocks.rejectImport(...a),
   processImport: (...a: unknown[]) => mocks.processImport(...a),
+  resetFailedImport: (...a: unknown[]) => mocks.resetFailedImport(...a),
 }));
 vi.mock('@/actions/imports/bank-accounts', () => ({}));
 vi.mock('@/actions/residents/aliases', () => ({}));
@@ -96,6 +98,8 @@ beforeEach(() => {
     error: null,
   });
   mocks.submitForApproval.mockResolvedValue({ error: null });
+  mocks.resetFailedImport.mockReset();
+  mocks.resetFailedImport.mockResolvedValue({ createdRows: 2, error: null });
   mocks.approveImport.mockResolvedValue({ error: null });
   mocks.rejectImport.mockResolvedValue({ error: null });
   mocks.processImport.mockResolvedValue({
@@ -310,5 +314,45 @@ describe('other statuses render no action buttons', () => {
     renderPanel();
     expect(await screen.findByText('Errors')).toBeInTheDocument();
     expect(btn('Process payments')).not.toBeInTheDocument();
+  });
+});
+
+describe('failed status reset (#708)', () => {
+  beforeEach(() => {
+    setStatus('failed', { error_rows: 1 });
+    mocks.getImportRowSummary.mockResolvedValue({
+      data: { total: 5, matched: 2, unmatched: 0, duplicate: 0, created: 3 },
+      error: null,
+    });
+  });
+
+  it('hides Reset from users without imports.reset', async () => {
+    mocks.permissions = [
+      PERMISSIONS.IMPORTS_REVIEW,
+      PERMISSIONS.IMPORTS_APPROVE,
+      PERMISSIONS.IMPORTS_REJECT,
+    ];
+    renderPanel();
+    await screen.findByText('Errors');
+    expect(btn('Reset for review')).not.toBeInTheDocument();
+    expect(btn('Confirm reset')).not.toBeInTheDocument();
+  });
+
+  it('confirms with the created row count and resets with the import id', async () => {
+    mocks.permissions = [PERMISSIONS.IMPORTS_RESET];
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset for review' }));
+    expect(await screen.findByText(/3 rows were already created/)).toBeInTheDocument();
+    expect(mocks.resetFailedImport).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm reset' }));
+    await waitFor(() => expect(mocks.resetFailedImport).toHaveBeenCalledWith('imp-1'));
+  });
+
+  it('never offers Reset on a non-failed import', async () => {
+    setStatus('completed', { created_rows: 7 });
+    mocks.permissions = [PERMISSIONS.IMPORTS_RESET];
+    renderPanel();
+    await screen.findByText('Payments created');
+    expect(btn('Reset for review')).not.toBeInTheDocument();
   });
 });
