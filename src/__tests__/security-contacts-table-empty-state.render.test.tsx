@@ -12,7 +12,7 @@
 // profile-fetch-failure-cache.test.tsx on fix/issue-256) and assert on what a
 // user actually sees.
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SecurityContactsTable } from '@/components/security/security-contacts-table';
 import type { AccessCode, SecurityContactStatus } from '@/types/database';
@@ -46,6 +46,10 @@ vi.mock('@/hooks/use-security', () => ({
   useSecurityContactCategories: () => ({ data: [] }),
   useExpiredContactCount: () => ({ data: mockExpiredCount }),
 }));
+
+// The phone cards (#744) render the same rows and messages as the table, and
+// both stay in the DOM, so every query is scoped to the table.
+const table = () => within(screen.getByRole('table'));
 
 function expiredCode(overrides: Partial<AccessCode> = {}): AccessCode {
   return {
@@ -108,7 +112,7 @@ describe('SecurityContactsTable empty-state rendering (#124)', () => {
 
     render(<SecurityContactsTable />);
 
-    expect(screen.getByText('No security contacts found')).toBeTruthy();
+    expect(table().getByText('No security contacts found')).toBeTruthy();
   });
 
   it('MUTATION TARGET: shows the hidden-and-expired message (not a blank body) when every fetched row is expired and hidden', () => {
@@ -124,8 +128,12 @@ describe('SecurityContactsTable empty-state rendering (#124)', () => {
 
     render(<SecurityContactsTable />);
 
-    expect(screen.getByText(/expired and hidden/i)).toBeTruthy();
-    expect(screen.queryByText('Expired Contact 1')).toBeNull();
+    expect(table().getByText(/expired and hidden/i)).toBeTruthy();
+    expect(table().queryByText('Expired Contact 1')).toBeNull();
+    // The phone card list applies the same gate
+    const cardList = within(screen.getByTestId('security-contact-card-list'));
+    expect(cardList.getByText(/expired and hidden/i)).toBeTruthy();
+    expect(cardList.queryByText('Expired Contact 1')).toBeNull();
   });
 
   it('pins the corrected count: uses rows actually hidden on this fetch, not the estate-wide expired count', () => {
@@ -137,7 +145,7 @@ describe('SecurityContactsTable empty-state rendering (#124)', () => {
 
     render(<SecurityContactsTable />);
 
-    const message = screen.getByText(/expired and hidden/i);
+    const message = table().getByText(/expired and hidden/i);
     expect(message.textContent).toContain('2');
     expect(message.textContent).not.toContain('7');
   });
@@ -151,7 +159,7 @@ describe('SecurityContactsTable empty-state rendering (#124)', () => {
 
     render(<SecurityContactsTable residentId="resident-1" />);
 
-    const message = screen.getByText(/expired and hidden/i);
+    const message = table().getByText(/expired and hidden/i);
     expect(message.textContent).toContain('1');
     expect(message.textContent).not.toContain('12');
   });
@@ -169,7 +177,7 @@ describe('SecurityContactsTable empty-state rendering (#124)', () => {
       // component state -- click it.
       fireEvent.click(screen.getByRole('button', { name: /show expired/i }));
 
-      expect(screen.getByText('No expired contacts found')).toBeTruthy();
+      expect(table().getByText('No expired contacts found')).toBeTruthy();
     },
     10000
   );
@@ -180,7 +188,7 @@ describe('SecurityContactsTable empty-state rendering (#124)', () => {
 
     render(<SecurityContactsTable showResidentColumn={false} />);
 
-    expect(screen.getByText('Active Contact 1')).toBeTruthy();
-    expect(screen.queryByText(/expired and hidden/i)).toBeNull();
+    expect(table().getByText('Active Contact 1')).toBeTruthy();
+    expect(table().queryByText(/expired and hidden/i)).toBeNull();
   });
 });
