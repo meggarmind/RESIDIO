@@ -7,8 +7,8 @@ residio_sources:
   - src/app/(dashboard)/personnel/**
   - src/actions/documents/**
   - src/actions/personnel/**
-residio_verified_commit: 93ed5d0
-residio_verified_at: '2026-08-29'
+residio_verified_commit: b052a314
+residio_verified_at: '2026-10-18'
 residio_app_version: '0.4.0'
 ---
 
@@ -17,6 +17,8 @@ residio_app_version: '0.4.0'
 ## Documents
 
 Use **Documents** to upload, categorize, and retrieve estate records. Choose a clear category, title, and access scope. Check the detail page after upload to confirm the file is available to the intended audience.
+
+Search matches whole words in a document's title, description and file name, and lists title matches first, then description, then file name. A search can use quotes for an exact phrase and `-word` to exclude a word. If no whole word matches, search falls back to matching part of the text, so a fragment such as `inv` still finds "Invoice register".
 
 ## Contractors and staff
 

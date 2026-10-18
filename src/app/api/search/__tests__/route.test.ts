@@ -33,6 +33,7 @@ function makeBuilder(result: { data: unknown[] | null; error: unknown } = { data
     select: vi.fn(() => builder),
     or: vi.fn(() => builder),
     ilike: vi.fn(() => builder),
+    textSearch: vi.fn(() => builder),
     in: vi.fn(() => builder),
     eq: vi.fn(() => builder),
     limit: vi.fn(() => Promise.resolve(result)),
