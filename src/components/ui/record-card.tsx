@@ -36,11 +36,12 @@ const recordCardVariants = cva(
 )
 
 // Content sits above the hit area and ignores pointer events, so a tap on text
-// reaches the hit area. Real controls (and Radix triggers such as the tooltip
-// badge and checkbox, which carry data-state) opt back in.
+// reaches the hit area. Real controls (links, buttons, inputs, checkboxes) opt
+// back in. Tooltip badges deliberately do NOT: tooltips do not open on touch, so
+// a tap on a badge should open the card, as it did on the table row.
 const CONTENT_LAYER = "relative z-10 pointer-events-none"
 const CONTROLS_ENABLED =
-  "[&_a]:pointer-events-auto [&_button]:pointer-events-auto [&_input]:pointer-events-auto [&_[role=checkbox]]:pointer-events-auto [&_[data-state]]:pointer-events-auto"
+  "[&_a]:pointer-events-auto [&_button]:pointer-events-auto [&_input]:pointer-events-auto [&_[role=checkbox]]:pointer-events-auto"
 
 interface RecordCardBaseProps extends Omit<React.ComponentProps<"div">, "title" | "onClick"> {
   title: React.ReactNode
@@ -90,7 +91,7 @@ function RecordCard({
           type="button"
           data-slot="record-card-hit-area"
           aria-label={label}
-          className="absolute inset-0 cursor-pointer rounded-xl bg-transparent outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:border focus-visible:border-ring"
+          className="absolute inset-0 h-full w-full cursor-pointer rounded-xl bg-transparent outline-none focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:border focus-visible:border-ring"
           onClick={(event) => onClick?.(event, event.currentTarget.parentElement as HTMLElement)}
         />
       ) : null}

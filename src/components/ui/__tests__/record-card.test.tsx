@@ -89,6 +89,25 @@ describe('RecordCard', () => {
     expect(actions.className).toContain('[&_button]:pointer-events-auto');
   });
 
+  it('does not re-enable pointer events for tooltip-style triggers, so a tap on a badge opens the card', () => {
+    const { container } = render(
+      <RecordCard
+        title="Ada Obi"
+        badge={<span data-state="closed">Needs confirmation</span>}
+        label="Open Ada Obi"
+        onClick={vi.fn() as never}
+      />
+    );
+    const layers = Array.from(container.querySelectorAll<HTMLElement>('[class*="pointer-events-none"]'));
+    expect(layers.length, 'the content layer must ignore pointer events').toBeGreaterThan(0);
+    for (const layer of layers) {
+      expect(layer.className, 'badges with data-state must stay tap-through').not.toContain('data-state');
+    }
+    const hitArea = container.querySelector('[data-slot="record-card-hit-area"]') as HTMLElement;
+    expect(hitArea.className).toContain('h-full');
+    expect(hitArea.className).toContain('w-full');
+  });
+
   it('calls onClick with the event and the card root (not the button)', () => {
     const onClick = vi.fn();
     renderCard(onClick);
