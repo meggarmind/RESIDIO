@@ -20,6 +20,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RecordCard, RecordCardSkeleton } from '@/components/ui/record-card';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -28,11 +29,11 @@ import { formatCurrency } from '@/lib/utils';
 import { endOfMonth, endOfYear, format, startOfMonth, startOfYear, subMonths } from 'date-fns';
 import { Loader2, FileText, RefreshCw, ChevronLeft, ChevronRight, Search, AlertCircle, Clock, CheckCircle2, Receipt, TrendingUp, CalendarRange } from 'lucide-react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
 import type { DateRange } from 'react-day-picker';
 import { getBillingResidentFilterOptions } from '@/actions/billing/get-invoices';
-import { INVOICE_TYPE_LABELS, type InvoiceType, type InvoiceStatus } from '@/types/database';
+import { INVOICE_TYPE_LABELS, type InvoiceType, type InvoiceStatus, type InvoiceWithDetails } from '@/types/database';
 import {
     EnhancedStatCard,
     EnhancedTableCard,
@@ -55,6 +56,52 @@ const invoiceTypeColors: Record<InvoiceType, string> = {
     ADJUSTMENT: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
     OTHER: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300',
 };
+
+// Type and status badges, shared by the table row and the phone card
+function InvoiceTypeBadge({ invoice }: { invoice: InvoiceWithDetails }) {
+    return (
+        <Badge className={cn(invoice.invoice_type ? invoiceTypeColors[invoice.invoice_type as InvoiceType] : invoiceTypeColors.SERVICE_CHARGE)}>
+            {invoice.invoice_type ? INVOICE_TYPE_LABELS[invoice.invoice_type as InvoiceType] : 'Service Charge'}
+        </Badge>
+    );
+}
+
+function InvoiceStatusBadge({ invoice }: { invoice: InvoiceWithDetails }) {
+    return (
+        <Badge className={cn(statusColors[invoice.status] || '')}>
+            {invoice.status}
+        </Badge>
+    );
+}
+
+// Phone card, the stacked counterpart of an invoice table row (below md)
+function InvoiceCard({ invoice, onNavigate }: { invoice: InvoiceWithDetails; onNavigate: (id: string) => void }) {
+    const residentName = `${invoice.resident?.first_name ?? ''} ${invoice.resident?.last_name ?? ''}`.trim();
+    const house = [invoice.house?.house_number, invoice.house?.street?.name].filter(Boolean).join(', ');
+
+    return (
+        <RecordCard
+            data-testid="invoice-card"
+            title={formatCurrency(invoice.amount_due)}
+            badge={<InvoiceStatusBadge invoice={invoice} />}
+            subtitle={[residentName, house].filter(Boolean).join(' · ')}
+            label={`Open invoice ${invoice.invoice_number}`}
+            onClick={() => onNavigate(invoice.id)}
+        >
+            <div className="space-y-1">
+                <p>
+                    {new Date(invoice.period_start).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+                    <span className="text-muted-foreground"> · Due </span>
+                    {new Date(invoice.due_date).toLocaleDateString('en-GB')}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs text-muted-foreground">{invoice.invoice_number}</span>
+                    <InvoiceTypeBadge invoice={invoice} />
+                </div>
+            </div>
+        </RecordCard>
+    );
+}
 
 type BillingResident = {
     id: string;
@@ -108,6 +155,7 @@ export function buildBillingResidentOptions(
 }
 
 export default function BillingPage() {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(20);
@@ -146,6 +194,8 @@ export default function BillingPage() {
     const { data: overdueStats } = useOverdueStats();
 
     const invoices = data?.data ?? [];
+    // Shown in the table's empty row and in the phone card list
+    const emptyMessage = 'No invoices found. Click "Generate Monthly Invoices" to create them.';
     const totalCount = data?.total ?? 0;
     const totalPages = Math.ceil(totalCount / limit);
 
@@ -412,7 +462,22 @@ export default function BillingPage() {
                     </div>
                 }
             >
-                <div className={cn('rounded-xl border overflow-hidden shadow-soft animate-slide-up')}>
+                {/* Phone: stacked cards below md. Both lists stay in the DOM and CSS picks one. */}
+                <div className="space-y-3 md:hidden" data-testid="invoice-card-list">
+                    {isLoading ? (
+                        [...Array(5)].map((_, i) => <RecordCardSkeleton key={i} />)
+                    ) : invoices.length === 0 ? (
+                        <div className="rounded-xl border bg-card py-8 text-center text-muted-foreground shadow-soft">
+                            {emptyMessage}
+                        </div>
+                    ) : (
+                        invoices.map((invoice) => (
+                            <InvoiceCard key={invoice.id} invoice={invoice} onNavigate={(id) => router.push(`/billing/${id}`)} />
+                        ))
+                    )}
+                </div>
+
+                <div className={cn('hidden md:block rounded-xl border overflow-hidden shadow-soft animate-slide-up')}>
                     <Table variant="default">
                         <TableHeader>
                             <TableRow interactive={false}>
@@ -445,7 +510,7 @@ export default function BillingPage() {
                             ) : invoices.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
-                                        No invoices found. Click &quot;Generate Monthly Invoices&quot; to create them.
+                                        {emptyMessage}
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -472,14 +537,10 @@ export default function BillingPage() {
                                             {formatCurrency(invoice.amount_due)}
                                         </TableCell>
                                         <TableCell>
-                                            <Badge className={cn(invoice.invoice_type ? invoiceTypeColors[invoice.invoice_type as InvoiceType] : invoiceTypeColors.SERVICE_CHARGE)}>
-                                                {invoice.invoice_type ? INVOICE_TYPE_LABELS[invoice.invoice_type as InvoiceType] : 'Service Charge'}
-                                            </Badge>
+                                            <InvoiceTypeBadge invoice={invoice} />
                                         </TableCell>
                                         <TableCell>
-                                            <Badge className={cn(statusColors[invoice.status] || '')}>
-                                                {invoice.status}
-                                            </Badge>
+                                            <InvoiceStatusBadge invoice={invoice} />
                                         </TableCell>
                                         <TableCell>
                                             <Button
