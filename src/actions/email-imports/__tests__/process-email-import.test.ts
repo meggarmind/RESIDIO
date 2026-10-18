@@ -16,6 +16,11 @@ vi.mock('@/lib/auth/authorize', () => ({
     authorizePermission: vi.fn(),
 }));
 
+// The auto-process limit setting (#710) is absent here, so the N60,000 default applies.
+vi.mock('@/lib/settings/service', () => ({
+    getSettingResultAsService: vi.fn(async () => ({ status: 'absent' })),
+}));
+
 vi.mock('@/lib/auth/action-roles', () => ({
     PERMISSIONS: {
         EMAIL_IMPORTS_PROCESS: 'email_imports_process',
