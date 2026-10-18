@@ -241,6 +241,17 @@ export function ImportApprovalPanel({ importId }: ImportApprovalPanelProps) {
           </div>
         )}
 
+        {status === 'posting' && !processResult && (
+          <Alert>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <AlertTitle>Posting payments</AlertTitle>
+            <AlertDescription>
+              Payments for this import are being created. Refresh the page in a moment to see the
+              result. If it stays here, the run stopped part way: ask a super admin to recover it.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {status === 'rejected' && (
           <Alert variant="destructive">
             <XCircle className="h-4 w-4" />

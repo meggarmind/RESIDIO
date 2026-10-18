@@ -9,6 +9,7 @@ import type { BankStatementRow, ExpenseCategory, MatchConfidence, MatchMethod, R
 import { checkDuplicatesBatch } from './process-import';
 import { findMatchingExpenseCategory } from '@/lib/expenses/category-matcher';
 import { logAudit } from '@/lib/audit/logger';
+import { isImportRowEditable, rowsLockedMessage } from '@/lib/imports/row-edit-guard';
 
 // Small for the same URL-length reason as DUPLICATE_BATCH_CHUNK in process-import.ts.
 const UPDATE_CHUNK_SIZE = 50;
@@ -45,6 +46,43 @@ async function fetchWithRetry<T>(
 
   // This shouldn't be reached but TypeScript needs it
   return { data: null, error: { message: 'Unknown error after retries' } };
+}
+
+// ============================================================
+// Row-edit lock (#707)
+// ============================================================
+
+/**
+ * Returns why rows of these imports may not be edited, or null when every import is still under
+ * review (pending/processing). Once an import is submitted its rows are what the approver signs off.
+ */
+async function rowEditBlockedReason(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  importIds: string[]
+): Promise<string | null> {
+  const ids = [...new Set(importIds)];
+  if (ids.length === 0) return null;
+
+  const { data, error } = await supabase.from('bank_statement_imports').select('id, status').in('id', ids);
+  if (error) return error.message;
+  if (!data || data.length !== ids.length) return 'Import not found';
+
+  const locked = data.find((i) => !isImportRowEditable(i.status));
+  return locked ? rowsLockedMessage(locked.status) : null;
+}
+
+/** rowEditBlockedReason for a single row, looked up by id. */
+async function rowLockReason(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  row_id: string
+): Promise<string | null> {
+  const { data: row, error } = await supabase
+    .from('bank_statement_rows')
+    .select('import_id')
+    .eq('id', row_id)
+    .single();
+  if (error || !row) return 'Row not found';
+  return rowEditBlockedReason(supabase, [row.import_id]);
 }
 
 // ============================================================
@@ -86,6 +124,13 @@ export async function matchImportRows(import_id: string): Promise<MatchResidents
       unmatched_count: 0,
       error: auth.error || 'Unauthorized',
     };
+  }
+
+  // Rows are locked once the import is submitted (#707); the pending rows this would match could
+  // still exist then, since submit requires only one matched row.
+  const blocked = await rowEditBlockedReason(supabase, [import_id]);
+  if (blocked) {
+    return { results: [], matched_count: 0, unmatched_count: 0, error: blocked };
   }
 
   // Get pending rows for this import
@@ -399,6 +444,11 @@ export async function manualMatchRow(params: ManualMatchParams): Promise<ManualM
     };
   }
 
+  const blocked = await rowEditBlockedReason(supabase, [row.import_id]);
+  if (blocked) {
+    return { data: null, error: blocked };
+  }
+
   // Verify resident exists if provided
   if (resident_id) {
     const { data: resident, error: residentError } = await supabase
@@ -552,6 +602,11 @@ export async function unmatchRow(row_id: string): Promise<ManualMatchResponse> {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
 
+  const blocked = await rowLockReason(supabase, row_id);
+  if (blocked) {
+    return { data: null, error: blocked };
+  }
+
   const { data, error } = await supabase
     .from('bank_statement_rows')
     .update({
@@ -601,6 +656,11 @@ export async function skipRow(row_id: string): Promise<ManualMatchResponse> {
     return { data: null, error: auth.error || 'Unauthorized' };
   }
 
+  const blocked = await rowLockReason(supabase, row_id);
+  if (blocked) {
+    return { data: null, error: blocked };
+  }
+
   const { data, error } = await supabase
     .from('bank_statement_rows')
     .update({ status: 'skipped' })
@@ -648,6 +708,21 @@ export async function batchUpdateRowStatus(params: BatchUpdateParams): Promise<{
   }
 
   const { row_ids, status } = params;
+
+  // Ids that match no row are ignored, as the update below does.
+  if (row_ids.length > 0) {
+    const { data: rows, error: rowsError } = await supabase
+      .from('bank_statement_rows')
+      .select('import_id')
+      .in('id', row_ids);
+    if (rowsError) {
+      return { count: 0, error: rowsError.message };
+    }
+    const blocked = await rowEditBlockedReason(supabase, (rows ?? []).map((r) => r.import_id));
+    if (blocked) {
+      return { count: 0, error: blocked };
+    }
+  }
 
   const { error, count } = await supabase
     .from('bank_statement_rows')
