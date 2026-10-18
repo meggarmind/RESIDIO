@@ -95,6 +95,14 @@ describe('rankDocuments', () => {
     expect(rankDocuments(rules, 'rule').map((d) => d.id)).toEqual(['title', 'desc']);
   });
 
+  it('scores a vowel+y plural on the singular title', () => {
+    const keys: Doc[] = [
+      { id: 'desc', title: 'Gate notice', description: 'Spare keys are at the office', file_name: 'a.pdf' },
+      { id: 'title', title: 'Gate Key Register', description: null, file_name: 'b.pdf' },
+    ];
+    expect(rankDocuments(keys, 'keys').map((d) => d.id)).toEqual(['title', 'desc']);
+  });
+
   it('returns the input unchanged for a query with no words', () => {
     expect(rankDocuments(docs, '  !! ')).toBe(docs);
   });

@@ -21,11 +21,12 @@ const FIELD_WEIGHTS = [
 
 const WORD_RE = /[\p{L}\p{N}]+/gu;
 
+// shortcut: approximates Postgres english stemming for ranking only (Postgres still decides which rows match); move ranking into SQL with ts_rank if ordering mismatches matter.
 /** Light english stemmer so "rules"/"Rule" and "policies"/"Policy" compare equal, as Postgres matched them. */
 function stemWord(word: string): string {
-  const w = word.toLowerCase().replace(/ies$/, 'i').replace(/y$/, 'i');
+  const w = word.toLowerCase();
   const suffix = ['ing', 'es', 'ed', 's'].find((s) => w.endsWith(s) && w.length - s.length >= 3);
-  const base = suffix ? w.slice(0, -suffix.length) : w;
+  const base = (w.endsWith('ies') ? w.slice(0, -2) : suffix ? w.slice(0, -suffix.length) : w).replace(/y$/, 'i');
   return base.length > 3 && base.endsWith('e') ? base.slice(0, -1) : base;
 }
 
