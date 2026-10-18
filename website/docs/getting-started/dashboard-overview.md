@@ -7,8 +7,8 @@ residio_sources:
   - src/app/(dashboard)/dashboard/**
   - src/components/dashboard/**
   - src/actions/dashboard/**
-residio_verified_commit: 3f0bc55
-residio_verified_at: '2026-10-17'
+residio_verified_commit: 8bfd82a
+residio_verified_at: '2026-10-18'
 residio_app_version: '0.4.0'
 ---
 
