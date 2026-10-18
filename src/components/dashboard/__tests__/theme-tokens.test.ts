@@ -11,11 +11,8 @@ const DIR = join(process.cwd(), 'src', 'components', 'dashboard');
 const ALL_FILES = [
   'mobile-nav.tsx',
   'enhanced-stat-card.tsx',
-  'modern-stats-cards.tsx',
-  'modern-financial-health.tsx',
   'modern-skeleton.tsx',
   'modern-empty-state.tsx',
-  'modern-quick-actions.tsx',
 ];
 const DEAD_BRANCH_FILES = ['mobile-nav.tsx', 'enhanced-stat-card.tsx'];
 

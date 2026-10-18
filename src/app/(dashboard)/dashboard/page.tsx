@@ -2,16 +2,16 @@
 
 import { Suspense, useEffect } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { useAdminDashboardSnapshot } from '@/hooks/use-dashboard';
+import { useAdminDashboardSnapshot, useEstateMapStatus } from '@/hooks/use-dashboard';
 import { toast } from 'sonner';
 import { DashboardSkeleton } from '@/components/dashboard/dashboard-skeleton';
-import { UnifiedActionsCard } from '@/components/dashboard/unified-actions-card';
 import { useSmartSuggestions } from '@/hooks/use-smart-suggestions';
-import { LiveStatusStrip } from '@/components/dashboard/live-status-strip';
-import { ModernStatsCards } from '@/components/dashboard/modern-stats-cards';
-import { ModernFinancialHealth } from '@/components/dashboard/modern-financial-health';
-import { ModernPendingPayments } from '@/components/dashboard/modern-pending-payments';
-import { ModernRecentActivity } from '@/components/dashboard/modern-recent-activity';
+import { CommandStrip } from '@/components/dashboard/command-strip';
+import { MoneyLane } from '@/components/dashboard/money-lane';
+import { PeopleLane } from '@/components/dashboard/people-lane';
+import { SecurityLane } from '@/components/dashboard/security-lane';
+import { EstateMap } from '@/components/dashboard/estate-map';
+import { CommandRecentActivity } from '@/components/dashboard/command-recent-activity';
 import { useDashboardNavigationState } from '@/hooks/use-dashboard-navigation-state';
 import { OfflineAdminBanner } from '@/components/dashboard/offline-admin-banner';
 
@@ -26,6 +26,7 @@ function DashboardContent() {
     const { profile, isLoading: authLoading } = useAuth();
     const navigationState = useDashboardNavigationState();
     const { data: snapshot, isLoading, isError, isStaleSnapshot, snapshotSavedAt } = useAdminDashboardSnapshot();
+    const { data: estateMap, isLoading: estateMapLoading, error: estateMapError } = useEstateMapStatus();
     const { suggestions } = useSmartSuggestions();
 
     if (authLoading) {
@@ -37,40 +38,41 @@ function DashboardContent() {
             <OfflineAdminBanner isStale={isStaleSnapshot} savedAt={snapshotSavedAt} />
             <NavigationStateHandler unauthorized={navigationState.unauthorized} />
 
-            <LiveStatusStrip
-              actionMetrics={snapshot?.actionMetrics ?? null}
-              recentActivity={snapshot?.recentActivity ?? null}
-              recentActivityUnavailable={snapshot?.recentActivityUnavailable ?? false}
-              isLoading={isLoading}
-              isUnavailable={isError}
-            />
-
-            <ModernStatsCards
-              financialHealth={snapshot?.financialHealth ?? null}
-              quickStats={snapshot?.quickStats ?? null}
-              actionMetrics={snapshot?.actionMetrics ?? null}
-              suggestions={suggestions}
-              isLoading={isLoading}
-              isUnavailable={isError}
-              areActionMetricsUnavailable={isError}
-            />
-
-            <div className="grid gap-6 lg:grid-cols-4">
-                <div className="lg:col-span-2">
-                    <ModernFinancialHealth financialHealth={snapshot?.financialHealth ?? null} isLoading={isLoading} />
-                </div>
-                <div className="lg:col-span-2">
-                    <UnifiedActionsCard
-                      actionMetrics={snapshot?.actionMetrics ?? null}
-                      isLoading={isLoading}
-                      isUnavailable={isError}
-                    />
-                </div>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-                <ModernPendingPayments distribution={snapshot?.invoiceDistribution ?? null} isLoading={isLoading} />
-                <ModernRecentActivity
+            {/* One 12-column grid and one gutter. Lanes span 4 columns each from lg. */}
+            <div className="grid grid-cols-12 gap-6">
+                <CommandStrip
+                  name={profile?.full_name}
+                  financialHealth={snapshot?.financialHealth ?? null}
+                  actionMetrics={snapshot?.actionMetrics ?? null}
+                  isLoading={isLoading}
+                  isUnavailable={isError}
+                />
+                <MoneyLane
+                  financialHealth={snapshot?.financialHealth ?? null}
+                  actionMetrics={snapshot?.actionMetrics ?? null}
+                  suggestions={suggestions}
+                  asOf={snapshot?.lastUpdated ?? null}
+                  isLoading={isLoading}
+                  isUnavailable={isError}
+                />
+                <PeopleLane
+                  actionMetrics={snapshot?.actionMetrics ?? null}
+                  quickStats={snapshot?.quickStats ?? null}
+                  estateMapCounts={estateMap?.counts ?? null}
+                  asOf={snapshot?.lastUpdated ?? null}
+                  isLoading={isLoading}
+                  isUnavailable={isError}
+                />
+                <SecurityLane
+                  actionMetrics={snapshot?.actionMetrics ?? null}
+                  securityAlerts={snapshot?.securityAlerts ?? null}
+                  quickStats={snapshot?.quickStats ?? null}
+                  asOf={snapshot?.lastUpdated ?? null}
+                  isLoading={isLoading}
+                  isUnavailable={isError}
+                />
+                <EstateMap snapshot={estateMap ?? null} isLoading={estateMapLoading} error={estateMapError ? estateMapError.message : null} />
+                <CommandRecentActivity
                   activities={snapshot?.recentActivity ?? null}
                   isLoading={isLoading}
                   isUnavailable={snapshot?.recentActivityUnavailable ?? false}
