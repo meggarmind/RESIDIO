@@ -23,7 +23,8 @@ ALTER TABLE public.documents ADD COLUMN IF NOT EXISTS search_tsv tsvector
   GENERATED ALWAYS AS (
     setweight(to_tsvector('english'::regconfig, coalesce(title, '')), 'A') ||
     setweight(to_tsvector('english'::regconfig, coalesce(description, '')), 'B') ||
-    setweight(to_tsvector('english'::regconfig, coalesce(file_name, '')), 'C')
+    -- split on punctuation: the default parser reads 'handbook.pdf' as one file token, hiding 'handbook'
+    setweight(to_tsvector('english'::regconfig, regexp_replace(coalesce(file_name, ''), '[^[:alnum:]]+', ' ', 'g')), 'C')
   ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_documents_search_tsv ON public.documents USING gin (search_tsv);
