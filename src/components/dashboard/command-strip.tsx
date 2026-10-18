@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { STATUS_COLORS } from '@/components/dashboard/status-colors';
 import type { DashboardActionMetrics, FinancialHealthMetrics } from '@/actions/dashboard/get-enhanced-dashboard-stats';
 
 export interface UrgentItem {
@@ -91,7 +93,7 @@ export function CommandStrip({
           <Skeleton className="h-5 w-56" aria-label="Loading status" />
         ) : urgent === 'clear' ? (
           <p className="flex items-center gap-2 text-muted-foreground">
-            <CheckCircle2 className="h-4 w-4 text-status-success" aria-hidden="true" />
+            <CheckCircle2 className={cn('h-4 w-4', STATUS_COLORS.ok.text)} aria-hidden="true" />
             All clear. Nothing needs you right now.
           </p>
         ) : urgent ? (
@@ -101,7 +103,7 @@ export function CommandStrip({
             className="flex items-center gap-2 font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <AlertTriangle
-              className={urgent.kind === 'overdue_invoices' ? 'h-4 w-4 text-status-error' : 'h-4 w-4 text-status-warning'}
+              className={cn('h-4 w-4', STATUS_COLORS[urgent.kind === 'overdue_invoices' ? 'overdue' : 'attention'].text)}
               aria-hidden="true"
             />
             <span>Most urgent: {urgent.label}</span>

@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { format, isValid } from 'date-fns';
 import { AlertTriangle, CheckCircle2, CircleDashed, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { IconBox } from '@/components/ui/icon-box';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { STATUS_COLORS } from '@/components/dashboard/status-colors';
 
 /** neutral = nothing to judge yet (for example no invoices), never a green tick. */
 export type LaneTone = 'neutral' | 'ok' | 'attention' | 'overdue';
@@ -43,11 +43,11 @@ export interface CommandLaneProps {
   secondary?: LaneAction[];
 }
 
-const TONE: Record<LaneTone, { label: string; text: string; icon: React.ElementType; box: 'blue' | 'green' | 'orange' | 'pink' }> = {
-  neutral: { label: 'Quiet', text: 'text-muted-foreground', icon: CircleDashed, box: 'blue' },
-  ok: { label: 'Healthy', text: 'text-status-success', icon: CheckCircle2, box: 'green' },
-  attention: { label: 'Needs attention', text: 'text-status-warning', icon: Clock, box: 'orange' },
-  overdue: { label: 'Overdue', text: 'text-status-error', icon: AlertTriangle, box: 'pink' },
+const TONE: Record<LaneTone, { label: string; text: string; icon: React.ElementType }> = {
+  neutral: { label: 'Quiet', text: STATUS_COLORS.neutral.text, icon: CircleDashed },
+  ok: { label: 'Healthy', text: STATUS_COLORS.ok.text, icon: CheckCircle2 },
+  attention: { label: 'Needs attention', text: STATUS_COLORS.attention.text, icon: Clock },
+  overdue: { label: 'Overdue', text: STATUS_COLORS.overdue.text, icon: AlertTriangle },
 };
 
 export function formatAsOf(asOf?: string | null): string | null {
@@ -87,9 +87,7 @@ export function CommandLane({
       className="col-span-12 flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm lg:col-span-4 lg:row-span-6 lg:grid lg:grid-rows-subgrid lg:gap-y-0"
     >
       <header className="flex items-start gap-3 lg:pb-4">
-        <IconBox size="sm" color={t.box} aria-hidden="true">
-          <Icon className="h-5 w-5" />
-        </IconBox>
+        <Icon className={cn('mt-0.5 h-6 w-6 shrink-0', t.text)} aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <h2 id={headingId} className="text-base font-semibold leading-6">
             {title}

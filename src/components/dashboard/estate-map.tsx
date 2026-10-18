@@ -6,16 +6,24 @@ import { AlertTriangle, Check, Clock, Lock, Minus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { formatAsOf } from '@/components/dashboard/command-lane';
+import { STATUS_COLORS, type StatusState } from '@/components/dashboard/status-colors';
 import type { EstateMapHouse, EstateMapSnapshot, EstateMapStatus } from '@/types/estate-map';
 
 type Filter = 'all' | EstateMapStatus;
 
-/** Green = paid up, amber = outstanding, red = overdue only. No invoice stays neutral. */
-export const STATUS_META: Record<EstateMapStatus, { label: string; icon: React.ElementType; cell: string }> = {
-  overdue: { label: 'Overdue', icon: AlertTriangle, cell: 'border-status-error bg-status-error-subtle text-status-error' },
-  outstanding: { label: 'Outstanding', icon: Clock, cell: 'border-status-warning bg-status-warning-subtle text-status-warning' },
-  paid_up: { label: 'Paid up', icon: Check, cell: 'border-status-success bg-status-success-subtle text-status-success' },
-  no_invoice: { label: 'No invoice', icon: Minus, cell: 'border-border bg-muted text-muted-foreground' },
+const meta = (label: string, icon: React.ElementType, state: StatusState) => ({
+  label,
+  icon,
+  cell: cn('border-2 bg-card text-foreground', STATUS_COLORS[state].border),
+  cue: STATUS_COLORS[state].text,
+});
+
+/** Neutral cell, status-hue 2px border and icon, house number in foreground. Shape differs per status. */
+export const STATUS_META: Record<EstateMapStatus, { label: string; icon: React.ElementType; cell: string; cue: string }> = {
+  overdue: meta('Overdue', AlertTriangle, 'overdue'),
+  outstanding: meta('Outstanding', Clock, 'attention'),
+  paid_up: meta('Paid up', Check, 'ok'),
+  no_invoice: meta('No invoice', Minus, 'neutral'),
 };
 
 const FILTERS: Filter[] = ['all', 'overdue', 'outstanding', 'paid_up', 'no_invoice'];
@@ -137,20 +145,20 @@ export function EstateMap({ snapshot, isLoading, error }: EstateMapProps) {
               <h3 className="mb-2 text-xs font-semibold text-muted-foreground">{g.name}</h3>
               <div className={GRID}>
                 {visible.map((h) => {
-                  const meta = STATUS_META[h.status];
-                  const Icon = meta.icon;
+                  const m = STATUS_META[h.status];
+                  const Icon = m.icon;
                   return (
                     <Link
                       key={h.id}
                       href={`/houses/${h.id}`}
                       data-status={h.status}
-                      aria-label={`House ${h.houseNumber}, ${g.name}, ${meta.label}`}
+                      aria-label={`House ${h.houseNumber}, ${g.name}, ${m.label}`}
                       className={cn(
-                        'flex min-h-11 min-w-0 flex-col items-center justify-center rounded-md border px-1 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                        meta.cell
+                        'flex min-h-11 min-w-0 flex-col items-center justify-center rounded-md px-1 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        m.cell
                       )}
                     >
-                      <Icon className="h-3 w-3 shrink-0" aria-hidden="true" data-testid={`estate-map-cue-${h.status}`} />
+                      <Icon className={cn('h-3 w-3 shrink-0', m.cue)} aria-hidden="true" data-testid={`estate-map-cue-${h.status}`} />
                       <span className="max-w-full truncate text-foreground">{h.houseNumber}</span>
                     </Link>
                   );

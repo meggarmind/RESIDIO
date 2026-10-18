@@ -107,11 +107,23 @@ describe('EstateMap ready', () => {
     expect(screen.getByRole('link', { name: 'House 10, Ash Road, No invoice' })).toBeInTheDocument();
   });
 
-  it('carries a shape cue for every status', () => {
+  it('carries a distinct icon shape per status', () => {
     renderMap();
-    for (const s of ['overdue', 'outstanding', 'paid_up', 'no_invoice']) {
-      expect(screen.getAllByTestId(`estate-map-cue-${s}`).length).toBeGreaterThan(0);
+    const shape = { overdue: 'lucide-triangle-alert', outstanding: 'lucide-clock', paid_up: 'lucide-check', no_invoice: 'lucide-minus' };
+    for (const [status, cls] of Object.entries(shape)) {
+      const cues = screen.getAllByTestId(`estate-map-cue-${status}`);
+      expect(cues.length).toBeGreaterThan(0);
+      cues.forEach((c) => expect(c.getAttribute('class')).toContain(cls));
     }
+  });
+
+  it('cells are neutral with the house number in foreground and no status-* tokens', () => {
+    renderMap();
+    document.querySelectorAll('a[data-status]').forEach((a) => {
+      expect(a.className).toContain('bg-card');
+      expect(a.className).not.toMatch(/status-/);
+      expect(a.querySelector('span')?.className).toContain('text-foreground');
+    });
   });
 
   it('filters: one active button, hides non-matching cells and empty groups, keeps legend counts', () => {
