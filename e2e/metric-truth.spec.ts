@@ -113,7 +113,8 @@ test.describe('#111 /billing stat cards are estate-wide, not page-scoped', () =>
 });
 
 test.describe('#110 dashboard invoice status counts form a partition', () => {
-    test('the charted buckets sum to the true invoice count, not an inflated one', async ({ page }) => {
+    // Skipped (#758): the Invoice Status Counts panel was removed with the dashboard redesign.
+    test.skip('the charted buckets sum to the true invoice count, not an inflated one', async ({ page }) => {
         await loginAs(page, 'admin');
         await page.goto('/dashboard');
         await page.waitForLoadState('networkidle');

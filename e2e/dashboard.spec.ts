@@ -8,9 +8,13 @@ test.describe('Phase 2: Dashboard Shell', () => {
         // Check dashboard has loaded
         await expect(page).toHaveURL(/\/dashboard/);
 
-        // Look for dashboard stats cards (modern UI uses Collection / Verified Payments etc.)
-        await expect(page.getByText('Verified Payments').first()).toBeVisible({ timeout: 20000 });
-        await expect(page.getByText('Collection').first()).toBeVisible({ timeout: 20000 });
+        // The dashboard is a command strip, three lanes and an estate map (#758)
+        await expect(page.getByTestId('command-strip')).toBeVisible({ timeout: 20000 });
+        for (const lane of ['lane-money', 'lane-people', 'lane-security']) {
+            await expect(page.getByTestId(lane)).toBeVisible({ timeout: 20000 });
+        }
+        await expect(page.getByRole('heading', { name: 'Money' })).toBeVisible();
+        await expect(page.getByRole('region', { name: 'Estate map' })).toBeVisible({ timeout: 20000 });
     });
 
     test('TC2.2: Sidebar navigation is visible for admin', async ({ page }) => {
@@ -84,7 +88,7 @@ test.describe('Phase 2: Dashboard Shell', () => {
         await expandSidebar(page);
 
         // Wait for dashboard to fully load and sidebar nav to settle
-        await expect(page.getByText('Verified Payments').first()).toBeVisible({ timeout: 10000 });
+        await expect(page.getByTestId('lane-money')).toBeVisible({ timeout: 20000 });
         await expect(page.locator('aside a[href="/residents"]').first()).toBeVisible({ timeout: 15000 });
 
         // Click on Residents link
@@ -165,7 +169,7 @@ test.describe('Phase 2: Dashboard Shell', () => {
         await page.setViewportSize({ width: 390, height: 844 });
         await loginAs(page, 'admin');
 
-        await expect(page.getByText('Verified Payments').first()).toBeVisible({ timeout: 20000 });
+        await expect(page.getByTestId('lane-money')).toBeVisible({ timeout: 20000 });
         await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
         const overflow = await page.evaluate(() => ({
