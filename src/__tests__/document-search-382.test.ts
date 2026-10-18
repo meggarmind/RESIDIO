@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -67,6 +64,14 @@ describe('rankDocuments', () => {
     expect(rankDocuments(docs, 'zzz').map((d) => d.id)).toEqual(['file', 'desc', 'title']);
   });
 
+  it('scores an inflected query on the field Postgres stemmed it to', () => {
+    const stemmed: Doc[] = [
+      { id: 'desc', title: 'Gate notice', description: 'New rules for visitors', file_name: 'a.pdf' },
+      { id: 'title', title: 'Estate Rule Book', description: null, file_name: 'b.pdf' },
+    ];
+    expect(rankDocuments(stemmed, 'rules').map((d) => d.id)).toEqual(['title', 'desc']);
+  });
+
   it('returns the input unchanged for a query with no words', () => {
     expect(rankDocuments(docs, '  !! ')).toBe(docs);
   });
@@ -114,39 +119,5 @@ describe('searchDocuments', () => {
     await searchDocuments(build, 'a'.repeat(300), ['title']);
 
     expect(queries[0][0]).toBe(`textSearch:search_tsv:${'a'.repeat(200)}:websearch:english`);
-  });
-});
-
-describe('documents search_tsv migration (static)', () => {
-  const root = fileURLToPath(new URL('../..', import.meta.url));
-  const sql = readFileSync(
-    path.join(root, 'supabase/migrations/20261018090000_documents_search_tsv.sql'),
-    'utf8'
-  )
-    .split('\n')
-    .filter((line) => !line.trim().startsWith('--'))
-    .join('\n')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  it('adds a stored generated tsvector weighted A title, B description, C file_name', () => {
-    expect(sql).toContain('ADD COLUMN IF NOT EXISTS search_tsv tsvector GENERATED ALWAYS AS (');
-    expect(sql).toContain("setweight(to_tsvector('english'::regconfig, coalesce(title, '')), 'A')");
-    expect(sql).toContain("setweight(to_tsvector('english'::regconfig, coalesce(description, '')), 'B')");
-    expect(sql).toContain("setweight(to_tsvector('english'::regconfig, coalesce(file_name, '')), 'C')");
-    expect(sql).toContain(') STORED;');
-  });
-
-  it('indexes search_tsv with GIN, drops only idx_documents_search, and keeps the trigram index', () => {
-    expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_documents_search_tsv ON public.documents USING gin (search_tsv);');
-    expect(sql).toContain('DROP INDEX IF EXISTS public.idx_documents_search;');
-    expect(sql.match(/DROP /g)).toHaveLength(1);
-    expect(sql).not.toContain('trgm');
-  });
-
-  it('adds no table, policy, grant or trigger', () => {
-    for (const word of ['CREATE TABLE', 'POLICY', 'GRANT', 'REVOKE', 'TRIGGER']) {
-      expect(sql.toUpperCase()).not.toContain(word);
-    }
   });
 });

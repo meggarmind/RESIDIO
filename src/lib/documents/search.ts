@@ -61,7 +61,9 @@ type RankableDocument = {
 
 /**
  * Order documents by relevance to `search`: each query word scores the weight
- * of the best field holding a word that starts with it. Ties keep input order.
+ * of the best field holding a word that starts with it, or (3+ letters) that it
+ * starts with, so stemmed matches like "rules" / "Rule" still score. Ties keep
+ * input order.
  */
 export function rankDocuments<T extends RankableDocument>(docs: T[], search: string): T[] {
   const terms = search.toLowerCase().match(WORD_RE) ?? [];
@@ -71,7 +73,9 @@ export function rankDocuments<T extends RankableDocument>(docs: T[], search: str
     terms.reduce((total, term) => {
       const best = FIELD_WEIGHTS.reduce((max, [field, weight]) => {
         const words = (doc[field] ?? '').toLowerCase().match(WORD_RE) ?? [];
-        return words.some((w) => w.startsWith(term)) ? Math.max(max, weight) : max;
+        return words.some((w) => w.startsWith(term) || (w.length >= 3 && term.startsWith(w)))
+          ? Math.max(max, weight)
+          : max;
       }, 0);
       return total + best;
     }, 0);
