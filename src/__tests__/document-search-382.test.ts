@@ -81,6 +81,20 @@ describe('rankDocuments', () => {
     expect(rankDocuments(stemmed, 'policy').map((d) => d.id)).toEqual(['title', 'desc']);
   });
 
+  it('scores a singular query on a plural title', () => {
+    const invoices: Doc[] = [
+      { id: 'desc', title: 'March bundle', description: 'One invoice per house', file_name: 'a.pdf' },
+      { id: 'title', title: 'Invoices 2026', description: null, file_name: 'b.pdf' },
+    ];
+    expect(rankDocuments(invoices, 'invoice').map((d) => d.id)).toEqual(['title', 'desc']);
+
+    const rules: Doc[] = [
+      { id: 'desc', title: 'Gate notice', description: 'Read the rule first', file_name: 'a.pdf' },
+      { id: 'title', title: 'Estate Rules', description: null, file_name: 'b.pdf' },
+    ];
+    expect(rankDocuments(rules, 'rule').map((d) => d.id)).toEqual(['title', 'desc']);
+  });
+
   it('returns the input unchanged for a query with no words', () => {
     expect(rankDocuments(docs, '  !! ')).toBe(docs);
   });

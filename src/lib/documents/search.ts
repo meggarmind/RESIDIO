@@ -25,7 +25,8 @@ const WORD_RE = /[\p{L}\p{N}]+/gu;
 function stemWord(word: string): string {
   const w = word.toLowerCase().replace(/ies$/, 'i').replace(/y$/, 'i');
   const suffix = ['ing', 'es', 'ed', 's'].find((s) => w.endsWith(s) && w.length - s.length >= 3);
-  return suffix ? w.slice(0, -suffix.length) : w;
+  const base = suffix ? w.slice(0, -suffix.length) : w;
+  return base.length > 3 && base.endsWith('e') ? base.slice(0, -1) : base;
 }
 
 const stemmedWords = (text: string) => (text.match(WORD_RE) ?? []).map(stemWord);
