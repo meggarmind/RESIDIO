@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, createAdminClient } from '@/lib/supabase/server';
 import { authorizePermission } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { logAudit } from '@/lib/audit/logger';
@@ -22,6 +22,7 @@ export async function pruneSystemData() {
         notifications: 0,
         auditLogs: 0,
         searchLogs: 0,
+        systemActionLogs: 0,
         success: false,
         error: null as string | null,
     };
@@ -74,19 +75,38 @@ export async function pruneSystemData() {
             results.searchLogs = searchLogsCount || 0;
         }
 
+        // 4. Prune System Action Log > 90 days (#538). The table grants no DELETE to
+        // authenticated users (service-role write only), so this uses the admin client. The table
+        // is not in database.generated.ts yet, hence the cast (as in src/actions/system/action-log.ts).
+        type UntypedDelete = {
+            from: (table: string) => {
+                delete: (opts: { count: 'exact' }) => {
+                    lt: (column: string, value: string) => PromiseLike<{ count: number | null; error: { message: string } | null }>;
+                };
+            };
+        };
+        const { count: systemActionLogsCount, error: systemActionLogError } = await (createAdminClient() as unknown as UntypedDelete)
+            .from('system_action_log')
+            .delete({ count: 'exact' })
+            .lt('occurred_at', date90DaysAgo);
+
+        if (systemActionLogError) throw new Error(`Failed to prune system action log: ${systemActionLogError.message}`);
+
+        results.systemActionLogs = systemActionLogsCount || 0;
+
         results.success = true;
         revalidatePath('/settings/data-retention');
 
         // Nothing pruned means nothing changed, so nothing to audit. The prune touches no single
         // row, so a fresh run uuid identifies this run (audit_logs.entity_id is a uuid) (#594).
-        if (results.notifications + results.auditLogs + results.searchLogs > 0) {
+        if (results.notifications + results.auditLogs + results.searchLogs + results.systemActionLogs > 0) {
             await logAudit({
                 action: 'DELETE',
                 entityType: 'system_settings',
                 entityId: globalThis.crypto.randomUUID(),
-                entityDisplay: 'Pruned system data (notifications, audit, search logs)',
+                entityDisplay: 'Pruned system data (notifications, audit, search, system action logs)',
                 newValues: { ...results, batch: 'prune-data' } as unknown as Record<string, unknown>,
-                description: `Pruned ${results.notifications} notifications, ${results.auditLogs} audit logs, ${results.searchLogs} search logs`,
+                description: `Pruned ${results.notifications} notifications, ${results.auditLogs} audit logs, ${results.searchLogs} search logs, ${results.systemActionLogs} system action log entries`,
             });
         }
 
