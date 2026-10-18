@@ -1504,6 +1504,7 @@ export interface VisitorVehicleWithContact extends VisitorVehicle {
     id: string;
     full_name: string;
     phone_primary: string;
+    status: SecurityContactStatus;
     resident: {
       id: string;
       first_name: string;

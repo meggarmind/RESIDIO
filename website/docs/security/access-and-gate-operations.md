@@ -5,8 +5,8 @@ sidebar_label: Access and gate operations
 residio_sources:
   - src/actions/security/**
   - src/lib/security/**
-residio_verified_commit: a5bd2668
-residio_verified_at: '2026-09-07'
+residio_verified_commit: 76f26a25
+residio_verified_at: '2026-10-17'
 residio_app_version: '0.4.0'
 ---
 
@@ -25,6 +25,14 @@ Security workflows connect resident status, contact validity, access codes, and 
 An **already used** result means a one-time code has reached its usage limit. A **revoked**
 result means the code is inactive for another reason; check the contact and access log before
 deciding how to handle the attempted entry.
+
+## Vehicles at the gate
+
+On the **Verify Code** tab, **Look Up Plate** finds the active contact a plate is registered to. When you record a check-in, choose the vehicle the visitor arrived in. The contact's primary vehicle is selected by default, and **No vehicle (on foot)** is available. Roles that can register contacts can also register a new plate from the check-in dialog. The access log then shows the plate against the entry.
+
+## Clear a flag
+
+Flagged entries in the access logs show a clear-flag icon. Select it, read the original reason, and confirm only after the investigation is closed. The original reason stays in the audit log. Any role that can view access logs can flag and clear flags.
 
 ## Visitor operations
 
