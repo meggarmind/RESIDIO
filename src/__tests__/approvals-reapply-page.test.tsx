@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -65,14 +65,15 @@ describe('ApprovalsPage re-apply (#557)', () => {
     ];
     render(<ApprovalsPage />);
 
-    expect(screen.getAllByText('Approved, not applied')).toHaveLength(1);
+    expect(within(screen.getByRole('table')).getAllByText('Approved, not applied')).toHaveLength(1);
+    expect(within(screen.getByTestId('approval-card-list')).getAllByText('Approved, not applied')).toHaveLength(1);
   });
 
   it('shows Re-apply to a holder of approvals.approve_reject and calls the mutation', () => {
     mocks.permissions = [PERMISSIONS.APPROVALS_VIEW, PERMISSIONS.APPROVALS_APPROVE_REJECT];
     render(<ApprovalsPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: /re-apply/i }));
+    fireEvent.click(within(screen.getByRole('table')).getByRole('button', { name: /re-apply/i }));
 
     expect(mocks.mutate).toHaveBeenCalledWith({ requestId: 'req-1' });
   });
@@ -80,7 +81,7 @@ describe('ApprovalsPage re-apply (#557)', () => {
   it('does not show Re-apply to a view-only user (the badge still shows)', () => {
     render(<ApprovalsPage />);
 
-    expect(screen.getByText('Approved, not applied')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Approved, not applied')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /re-apply/i })).not.toBeInTheDocument();
   });
 
