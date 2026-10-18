@@ -72,23 +72,25 @@ function ReapplyButton({ requestId }: { requestId: string }) {
     );
 }
 
-// Status and stuck badges, shared by the table row and the phone card (`stacked` puts them in a column)
-function ApprovalStatusBadges({ request, stacked = false }: { request: ApprovalRequestWithDetails; stacked?: boolean }) {
+// Status badge, shared by the table row and the phone card
+function ApprovalStatusBadge({ request }: { request: ApprovalRequestWithDetails }) {
     return (
-        <div className={cn(stacked && 'flex flex-col items-end gap-1')}>
-            <Badge variant={STATUS_BADGES[request.status].variant} className="whitespace-nowrap">
-                {request.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
-                {request.status === 'approved' && <CheckCircle className="h-3 w-3 mr-1" />}
-                {request.status === 'rejected' && <XCircle className="h-3 w-3 mr-1" />}
-                {STATUS_BADGES[request.status].label}
-            </Badge>
-            {isStuckApproval(request) && (
-                <Badge variant="destructive" className={cn('whitespace-nowrap', !stacked && 'ml-2')}>
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    Approved, not applied
-                </Badge>
-            )}
-        </div>
+        <Badge variant={STATUS_BADGES[request.status].variant} className="whitespace-nowrap">
+            {request.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
+            {request.status === 'approved' && <CheckCircle className="h-3 w-3 mr-1" />}
+            {request.status === 'rejected' && <XCircle className="h-3 w-3 mr-1" />}
+            {STATUS_BADGES[request.status].label}
+        </Badge>
+    );
+}
+
+// Stuck badge; on the phone card it sits in the body so the badge slot does not squeeze the title
+function StuckApprovalBadge({ className }: { className?: string }) {
+    return (
+        <Badge variant="destructive" className={cn('whitespace-nowrap', className)}>
+            <AlertTriangle className="h-3 w-3 mr-1" />
+            Approved, not applied
+        </Badge>
     );
 }
 
@@ -281,7 +283,7 @@ export default function ApprovalsPage() {
                                     key={request.id}
                                     data-testid="approval-card"
                                     title={request.entity_name}
-                                    badge={<ApprovalStatusBadges request={request} stacked />}
+                                    badge={<ApprovalStatusBadge request={request} />}
                                     subtitle={[
                                         APPROVAL_REQUEST_TYPE_LABELS[request.request_type] || request.request_type,
                                         request.requester?.full_name || 'Unknown',
@@ -289,6 +291,7 @@ export default function ApprovalsPage() {
                                     ].join(' · ')}
                                     actions={<ApprovalActions request={request} onAction={handleAction} />}
                                 >
+                                    {isStuckApproval(request) && <StuckApprovalBadge className="mb-2" />}
                                     {renderChangeDetails(request, true)}
                                 </RecordCard>
                             ))}
@@ -330,7 +333,8 @@ export default function ApprovalsPage() {
                                                 </span>
                                             </TableCell>
                                             <TableCell>
-                                                <ApprovalStatusBadges request={request} />
+                                                <ApprovalStatusBadge request={request} />
+                                                {isStuckApproval(request) && <StuckApprovalBadge className="ml-2" />}
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <ApprovalActions request={request} onAction={handleAction} />

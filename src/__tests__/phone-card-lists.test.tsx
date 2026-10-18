@@ -293,6 +293,16 @@ describe('Approvals phone cards', () => {
     expect(cards('approval-card-list').getByText('by Chi Okafor')).toBeInTheDocument();
   });
 
+  it('keeps only the status badge in the badge slot so the stuck badge cannot squeeze the title', () => {
+    mocks.permissions = [PERMISSIONS.APPROVALS_VIEW];
+    render(<ApprovalsPage />);
+    const stuck = cards('approval-card-list').getByText('Approved, not applied');
+    expect(stuck.closest('[data-slot="record-card-badge"]')).toBeNull();
+    expect(stuck.closest('[data-slot="record-card-body"]')).not.toBeNull();
+    const slots = screen.getByTestId('approval-card-list').querySelectorAll('[data-slot="record-card-badge"]');
+    slots.forEach((slot) => expect(slot.querySelectorAll('[data-slot="badge"]')).toHaveLength(1));
+  });
+
   it('gates Approve, Reject and Re-apply on approvals.approve_reject', () => {
     mocks.permissions = [PERMISSIONS.APPROVALS_VIEW];
     render(<ApprovalsPage />);
