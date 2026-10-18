@@ -44,7 +44,7 @@ import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const ALL_VALUE = '_all';
 
-type ImportStatus = 'pending' | 'processing' | 'awaiting_approval' | 'approved' | 'completed' | 'failed' | 'rejected';
+type ImportStatus = 'pending' | 'processing' | 'awaiting_approval' | 'approved' | 'posting' | 'completed' | 'failed' | 'rejected';
 
 interface ImportHistoryTableProps {
   onViewDetails?: (importId: string) => void;
@@ -117,6 +117,7 @@ export function ImportHistoryTable({ onViewDetails }: ImportHistoryTableProps) {
             <SelectItem value="processing">Processing</SelectItem>
             <SelectItem value="awaiting_approval">Awaiting Approval</SelectItem>
             <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="posting">Posting</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
             <SelectItem value="failed">Failed</SelectItem>
             <SelectItem value="rejected">Rejected</SelectItem>
