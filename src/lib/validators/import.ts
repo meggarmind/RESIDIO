@@ -9,6 +9,7 @@ export const importStatusEnum = z.enum([
   'processing',
   'awaiting_approval',
   'approved',
+  'posting',
   'completed',
   'failed',
   'rejected',

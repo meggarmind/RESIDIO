@@ -9,8 +9,8 @@ residio_sources:
   - src/actions/imports/**
   - src/components/imports/**
   - src/lib/parsers/**
-residio_verified_commit: 7f6feef
-residio_verified_at: '2026-10-16'
+residio_verified_commit: 67b6d9df
+residio_verified_at: '2026-10-17'
 residio_app_version: '0.4.0'
 ---
 
@@ -39,6 +39,12 @@ An uploaded statement never posts payments on its own. It is submitted, approved
 5. Check that the total and row count match the source statement, then choose **Submit for approval**. This needs the `imports.review` permission and opens the import's page. An import with no matched rows cannot be submitted: the button is disabled on the import's page and the server refuses it with "No matched rows to process, so there is nothing to submit."
 6. An approver opens the import (from the **Import History** page, using the **Needs approval** filter, or from the "Bank Import Awaiting Approval" notification) and chooses **Approve**, or **Reject** with a required reason. Approve needs `imports.approve`; Reject needs `imports.reject`. The person who submitted an import cannot approve it: a different approver is required, and the page shows "You submitted this import, so a different approver is required" if they try. The submitter can still reject their own submission to withdraw it.
 7. Only an approved import can be processed. Once approved, anyone with `imports.review` (including the submitter) opens the import, picks the processing options (mode, skip duplicates, skip unmatched) and chooses **Process payments**. Payments are created and wallets credited only at this step.
+
+Once an import is submitted, its rows are locked: matching, unmatching, skipping or re-running the auto-match is refused with "This import's rows can no longer be changed" for an import that is awaiting approval, approved, posting, completed, failed or rejected. Rows can only be edited while the import is pending or processing. To change a submitted import, reject it and upload the statement again.
+
+While payments are being created the import shows **Posting**. Only one run can post an import: a second **Process payments** started at the same time is refused with "Import is already being processed by another run" and creates nothing. If an import stays in Posting, the run stopped part way (for example the server restarted). It is not retried automatically: a super admin checks which of its rows were already posted, then moves the import to Failed by hand. From Failed it can then be reset for review as described below.
+
+A failed import can be reset by a super admin (the `imports.reset` permission). On the failed import's page, choose **Reset for review**. The confirmation states how many rows were already created; those rows keep their payments and are not processed again. Rows that errored in the failed run return to unmatched, so re-match them before resubmitting. The reset is audited and sends the import back to review, clearing its submitter and approver, so it must be submitted and approved again by two different people before it can be processed. It is a manual reset, not an automatic retry.
 
 A rejected import keeps its reason on the import page and creates no payments. Approvers and reviewers can open the import pages without `imports.create`.
 

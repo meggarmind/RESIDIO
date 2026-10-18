@@ -776,7 +776,7 @@ export function ImportPreview({
                         <TableCell className="px-1">
                           <div className="flex flex-col">
                             <span>{row.transaction_date ? formatCalendarDate(row.transaction_date, 'en-GB', { day: '2-digit', month: 'short' }) : '--'}</span>
-                            <span className={cn("text-[9px] font-semibold", isCredit ? "text-green-600" : isDebit ? "text-red-600" : "text-muted-foreground")}>
+                            <span className={cn("text-xs font-semibold", isCredit ? "text-green-600" : isDebit ? "text-red-600" : "text-muted-foreground")}>
                               {isCredit ? 'CR' : isDebit ? 'DR' : '--'}
                             </span>
                           </div>

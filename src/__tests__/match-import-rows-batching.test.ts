@@ -161,6 +161,8 @@ beforeEach(() => {
     bank_statement_rows: [],
     hierarchical_settings: [],
     expense_categories: [...CATEGORIES],
+    // Rows can only be matched while the import is under review (#707).
+    bank_statement_imports: [{ id: IMPORT, status: 'processing' }],
   };
   authorizePermission.mockResolvedValue({ authorized: true, userId: 'user-1' });
   logAudit.mockResolvedValue(undefined);
@@ -387,7 +389,7 @@ describe('matchImportRows round trips do not grow with row count (#649)', () => 
     // Both runs contain the same three distinct update payloads, so every table count is identical.
     expect(largeCounts).toEqual(smallCounts);
     expect(count('expense_categories', 'select')).toBe(1);
-    expect(Object.values(largeCounts).reduce((a, b) => a + b, 0)).toBe(16);
+    expect(Object.values(largeCounts).reduce((a, b) => a + b, 0)).toBe(17); // includes the #707 row-lock status read
   });
 
   it('reads expense categories at most once however many debits are unmatched, and never when there are none', async () => {

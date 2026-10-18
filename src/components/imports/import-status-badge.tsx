@@ -59,6 +59,13 @@ export function getStatusBadge(status: string) {
           Approved
         </Badge>
       );
+    case 'posting':
+      return (
+        <Badge variant="secondary" className="gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Posting
+        </Badge>
+      );
     default:
       return <Badge variant="outline">{status}</Badge>;
   }

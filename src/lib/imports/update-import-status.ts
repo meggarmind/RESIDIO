@@ -9,7 +9,8 @@
  * (UPDATE); a caller's own entry (processImport's GENERATE) is a separate event. See #556 item 5.
  *
  * Only the transitions this helper is actually used for are allowed. Other lifecycle steps
- * (pending -> processing, processing -> awaiting_approval, awaiting_approval -> approved/rejected)
+ * (pending -> processing, processing -> awaiting_approval, awaiting_approval -> approved/rejected,
+ * approved -> posting)
  * are written directly, with their own permission checks, by their own actions.
  */
 
@@ -19,11 +20,13 @@ import type { BankStatementImport, ImportStatus } from '@/types/database';
 
 export const IMPORT_STATUS_TRANSITIONS: Readonly<Record<ImportStatus, readonly ImportStatus[]>> = {
   pending: [],
-  // processImport runs only on an approved import (maker-checker, #628) and finishes it.
-  // processing and awaiting_approval have no way out through this helper.
+  // processImport runs only on an approved import (maker-checker, #628): it claims it
+  // (approved -> posting, its own guarded update, #707) and finishes it from posting.
+  // processing, awaiting_approval and approved have no way out through this helper.
   processing: [],
   awaiting_approval: [],
-  approved: ['completed', 'failed'],
+  approved: [],
+  posting: ['completed', 'failed'],
   completed: [],
   failed: [],
   rejected: [],

@@ -1,7 +1,12 @@
 'use server';
 
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { ilikeAny } from '@/lib/postgrest-filter';
+import {
+  rankDocuments,
+  searchDocuments,
+  DOCUMENT_SEARCH_CAP,
+  type DocumentSearchQuery,
+} from '@/lib/documents/search';
 import type { DocumentWithRelations, DocumentListParams } from '@/types/database';
 
 type GetDocumentsResponse = {
@@ -28,53 +33,51 @@ export async function getDocuments(
     limit = 20,
   } = params;
 
-  let query = supabase
-    .from('documents')
-    .select(
-      `
-      *,
-      category:document_categories(id, name, description, is_resident_accessible),
-      uploader:profiles!uploaded_by(id, full_name),
-      resident:residents(id, first_name, last_name),
-      house:houses(id, unit_number, street:streets(name))
-    `,
-      { count: 'exact' }
-    );
+  const buildQuery = () => {
+    let query = supabase
+      .from('documents')
+      .select(
+        `
+        *,
+        category:document_categories(id, name, description, is_resident_accessible),
+        uploader:profiles!uploaded_by(id, full_name),
+        resident:residents(id, first_name, last_name),
+        house:houses(id, unit_number, street:streets(name))
+      `,
+        { count: 'exact' }
+      );
 
-  // Apply filters
-  query = query.eq('is_archived', is_archived);
+    // Apply filters
+    query = query.eq('is_archived', is_archived);
 
-  if (category_id) {
-    query = query.eq('category_id', category_id);
-  }
+    if (category_id) {
+      query = query.eq('category_id', category_id);
+    }
 
-  if (uploaded_by) {
-    query = query.eq('uploaded_by', uploaded_by);
-  }
+    if (uploaded_by) {
+      query = query.eq('uploaded_by', uploaded_by);
+    }
 
-  if (from_date) {
-    query = query.gte('created_at', from_date);
-  }
+    if (from_date) {
+      query = query.gte('created_at', from_date);
+    }
 
-  if (to_date) {
-    query = query.lte('created_at', to_date);
-  }
+    if (to_date) {
+      query = query.lte('created_at', to_date);
+    }
 
-  // Full-text search on title and description
-  if (search) {
-    query = query.or(ilikeAny(['title', 'description', 'file_name'], search));
-  }
-
-  // Only get latest versions (no parent_document_id means it's the original or latest)
-  // For version history, we query by parent_document_id separately
-  query = query.is('parent_document_id', null);
+    // Only get latest versions (no parent_document_id means it's the original or latest)
+    // For version history, we query by parent_document_id separately
+    return query.is('parent_document_id', null).order('created_at', { ascending: false });
+  };
 
   // Pagination
   const from = (page - 1) * limit;
   const to = from + limit - 1;
-  query = query.range(from, to).order('created_at', { ascending: false });
 
-  const { data, error, count } = await query;
+  const { data, error, count } = search
+    ? await searchPage(buildQuery, search, ['title', 'description', 'file_name'], from, to)
+    : await buildQuery().range(from, to);
 
   if (error) {
     console.error('Error fetching documents:', error);
@@ -121,41 +124,42 @@ export async function getResidentAccessibleDocuments(
     return { data: [], count: 0, error: null };
   }
 
-  let query = supabase
-    .from('documents')
-    .select(
-      `
-      *,
-      category:document_categories(id, name, description, is_resident_accessible),
-      uploader:profiles!uploaded_by(id, full_name)
-    `,
-      { count: 'exact' }
-    )
-    .eq('is_archived', false)
-    .is('parent_document_id', null)
-    .in('category_id', accessibleCategoryIds);
+  const buildQuery = () => {
+    let query = supabase
+      .from('documents')
+      .select(
+        `
+        *,
+        category:document_categories(id, name, description, is_resident_accessible),
+        uploader:profiles!uploaded_by(id, full_name)
+      `,
+        { count: 'exact' }
+      )
+      .eq('is_archived', false)
+      .is('parent_document_id', null)
+      .in('category_id', accessibleCategoryIds);
 
-  if (category_id && accessibleCategoryIds.includes(category_id)) {
-    query = query.eq('category_id', category_id);
-  }
+    if (category_id && accessibleCategoryIds.includes(category_id)) {
+      query = query.eq('category_id', category_id);
+    }
 
-  if (from_date) {
-    query = query.gte('created_at', from_date);
-  }
+    if (from_date) {
+      query = query.gte('created_at', from_date);
+    }
 
-  if (to_date) {
-    query = query.lte('created_at', to_date);
-  }
+    if (to_date) {
+      query = query.lte('created_at', to_date);
+    }
 
-  if (search) {
-    query = query.or(ilikeAny(['title', 'description'], search));
-  }
+    return query.order('created_at', { ascending: false });
+  };
 
   const from = (page - 1) * limit;
   const to = from + limit - 1;
-  query = query.range(from, to).order('created_at', { ascending: false });
 
-  const { data, error, count } = await query;
+  const { data, error, count } = search
+    ? await searchPage(buildQuery, search, ['title', 'description'], from, to)
+    : await buildQuery().range(from, to);
 
   if (error) {
     console.error('Error fetching resident documents:', error);
@@ -166,5 +170,24 @@ export async function getResidentAccessibleDocuments(
     data: (data ?? []) as DocumentWithRelations[],
     count: count ?? 0,
     error: null,
+  };
+}
+
+/**
+ * Full-text search, ranked, then paged. Ranking needs every match, so the page
+ * is cut here rather than by `.range()`; `count` is capped to what was ranked.
+ */
+async function searchPage<R extends { title: string }>(
+  build: () => DocumentSearchQuery<R>,
+  search: string,
+  fallbackColumns: string[],
+  from: number,
+  to: number
+) {
+  const { data, error, count } = await searchDocuments(build, search, fallbackColumns);
+  return {
+    data: rankDocuments(data ?? [], search).slice(from, to + 1),
+    error,
+    count: Math.min(count ?? 0, DOCUMENT_SEARCH_CAP),
   };
 }

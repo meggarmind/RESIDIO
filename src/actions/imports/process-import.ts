@@ -453,6 +453,39 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
     };
   }
 
+  // Claim the import before creating anything (#707): two runs can both pass the check above, and
+  // only the one whose guarded update moves it out of 'approved' may go on. Zero rows means
+  // another run owns it.
+  const { data: claimed, error: claimError } = await supabase
+    .from('bank_statement_imports')
+    .update({ status: 'posting' })
+    .eq('id', import_id)
+    .eq('status', 'approved')
+    .select('id');
+
+  if (claimError || !claimed || claimed.length === 0) {
+    return {
+      success: false,
+      created_count: 0,
+      created_payments_count: 0,
+      created_expenses_count: 0,
+      skipped_count: 0,
+      error_count: 1,
+      errors: [{ row_id: '', error: claimError?.message || 'Import is already being processed by another run' }],
+      import_id,
+    };
+  }
+
+  await logAudit({
+    action: 'UPDATE',
+    entityType: 'bank_statement_imports',
+    entityId: import_id,
+    entityDisplay: `Import: ${importData.file_name}`,
+    oldValues: { status: 'approved' },
+    newValues: { status: 'posting' },
+    description: 'Import claimed for posting',
+  });
+
   // Get rows to process. Paged: a single PostgREST read is capped (1000 rows by default) and a
   // silently truncated read would mark the import completed with rows untouched (#459).
   const processableStatuses = skip_unmatched ? ['matched'] : ['matched', 'unmatched'];
@@ -469,6 +502,11 @@ export async function processImport(options: ProcessImportOptions): Promise<Proc
   const rowsError = rowsErrorMessage ? { message: rowsErrorMessage } : null;
 
   if (rowsError) {
+    // Nothing was created, so end the claim as failed rather than leave it stuck in 'posting'.
+    const failWrite = await updateImportStatus({ import_id, status: 'failed', created_rows: 0 });
+    if (failWrite.error) {
+      console.error('processImport: failed to mark import failed after row read error', import_id, failWrite.error);
+    }
     return {
       success: false,
       created_count: 0,

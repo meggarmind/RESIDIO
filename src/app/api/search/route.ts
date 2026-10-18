@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUserPermissions } from '@/lib/auth/authorize';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 import { ilikeAny } from '@/lib/postgrest-filter';
+import { rankDocuments, searchDocuments } from '@/lib/documents/search';
 
 interface ScoredResult {
     _score: number;
@@ -20,6 +21,9 @@ const EMPTY_RESULTS = {
  * that gates it -- shaped like a Supabase response so it can sit in the same
  * `Promise.all` as the real queries below without a separate branch. */
 const SKIPPED = Promise.resolve({ data: [], error: null });
+
+/** Document matches fetched for ranking before the top 5 are kept. */
+const DOCUMENT_CANDIDATES = 25;
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -129,13 +133,17 @@ export async function GET(request: Request) {
                     .limit(5)
                 : SKIPPED,
 
-            // Search Documents by title (Join category for name)
+            // Search Documents: full-text on title/description/file_name,
+            // falling back to a title prefix/substring match (Join category for name)
             canViewDocuments
-                ? supabase
-                    .from('documents')
-                    .select('id, title, category:document_categories(name)')
-                    .ilike('title', `%${query}%`)
-                    .limit(5)
+                ? searchDocuments(
+                    () => supabase
+                        .from('documents')
+                        .select('id, title, description, file_name, category:document_categories(name)'),
+                    query,
+                    ['title'],
+                    DOCUMENT_CANDIDATES
+                )
                 : SKIPPED,
         ]);
 
@@ -214,7 +222,8 @@ export async function GET(request: Request) {
         }));
 
         // Handle Documents category flattening and scoring
-        const formattedDocuments = (documentsResult.data || []).map((d) => {
+        const rankedDocuments = rankDocuments(documentsResult.data || [], query).slice(0, 5);
+        const formattedDocuments = rankedDocuments.map((d, index) => {
             const categoryData = d.category as { name: string } | { name: string }[] | null;
             const categoryName = Array.isArray(categoryData)
                 ? categoryData[0]?.name
@@ -224,7 +233,8 @@ export async function GET(request: Request) {
                 id: d.id,
                 title: d.title,
                 category: categoryName || null,
-                _score: calculateScore(d.title, query)
+                // Relevance order from rankDocuments, which weighs description and file name too
+                _score: rankedDocuments.length - index
             };
         });
 
