@@ -293,21 +293,25 @@ export function VisualThemeProvider({
     document.documentElement.style.setProperty('--bill-teal', colors.accent);
 
     // Status colors (modern & legacy mappings)
-    document.documentElement.style.setProperty('--success', colors['chart-3']);
+    // chart-1 is the green (hue ~151); chart-3 is gold and made success read as amber (#767)
+    document.documentElement.style.setProperty('--success', colors['chart-1']);
     document.documentElement.style.setProperty('--success-foreground', colors['primary-foreground']);
     document.documentElement.style.setProperty('--warning', colors['chart-4']);
     document.documentElement.style.setProperty('--warning-foreground', colors['primary-foreground']);
     document.documentElement.style.setProperty('--info', colors['chart-2']);
     document.documentElement.style.setProperty('--info-foreground', colors['primary-foreground']);
 
-    document.documentElement.style.setProperty('--status-success', colors['chart-3']);
-    document.documentElement.style.setProperty('--status-success-subtle', colors['chart-3']);
+    // Subtle variants are a light tint of their base over the background, so base-coloured
+    // text stays readable on them in light and dark mode (#767)
+    const subtle = (base: string) => `color-mix(in oklch, ${base} 15%, ${colors.background})`;
+    document.documentElement.style.setProperty('--status-success', colors['chart-1']);
+    document.documentElement.style.setProperty('--status-success-subtle', subtle(colors['chart-1']));
     document.documentElement.style.setProperty('--status-warning', colors['chart-4']);
-    document.documentElement.style.setProperty('--status-warning-subtle', colors['chart-4']);
+    document.documentElement.style.setProperty('--status-warning-subtle', subtle(colors['chart-4']));
     document.documentElement.style.setProperty('--status-error', colors.destructive);
-    document.documentElement.style.setProperty('--status-error-subtle', colors.destructive);
+    document.documentElement.style.setProperty('--status-error-subtle', subtle(colors.destructive));
     document.documentElement.style.setProperty('--status-info', colors['chart-2']);
-    document.documentElement.style.setProperty('--status-info-subtle', colors['chart-2']);
+    document.documentElement.style.setProperty('--status-info-subtle', subtle(colors['chart-2']));
 
     // Legacy status names
     document.documentElement.style.setProperty('--bill-success', colors['chart-3']);
