@@ -54,6 +54,7 @@ import {
 } from '@/actions/email-imports/process-email-import';
 import {
   EMAIL_AUTO_PROCESS_LIMIT_NGN,
+  emailOverLimitLabel,
   exceedsEmailAutoProcessLimit,
   extractSenderName,
   getUnmatchedCount,
@@ -84,8 +85,6 @@ const STATUS_BADGES = {
   error: { variant: 'destructive' as const, label: 'Error' },
 };
 
-const OVER_LIMIT_LABEL = `Needs approval: over ₦${EMAIL_AUTO_PROCESS_LIMIT_NGN.toLocaleString('en-NG')}`;
-
 export default function EmailImportDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -97,8 +96,6 @@ export default function EmailImportDetailPage() {
   const { profile } = useAuth();
   const canApproveOverLimit =
     useCan(PERMISSIONS.IMPORTS_APPROVE) || profile?.role_name === 'super_admin';
-  const isReleaseBlocked = (tx: EmailTransaction | null) =>
-    !!tx && exceedsEmailAutoProcessLimit(tx) && !canApproveOverLimit;
 
   const [statusFilter, setStatusFilter] = useState<string>('queued_for_review');
   const [page, setPage] = useState(1);
@@ -146,6 +143,15 @@ export default function EmailImportDetailPage() {
       return result;
     },
   })
+
+  // The live limit comes with the queue (#710); null means it could not be read.
+  const autoProcessLimit = transactionsData
+    ? transactionsData.autoProcessLimit
+    : EMAIL_AUTO_PROCESS_LIMIT_NGN;
+  const overLimitLabel = emailOverLimitLabel(autoProcessLimit);
+  const isOverLimit = (tx: EmailTransaction) => exceedsEmailAutoProcessLimit(tx, autoProcessLimit);
+  const isReleaseBlocked = (tx: EmailTransaction | null) =>
+    !!tx && isOverLimit(tx) && !canApproveOverLimit;
 
   // Calculate total pages
   const totalPages = Math.ceil((transactionsData?.count || 0) / pageSize);
@@ -580,9 +586,9 @@ export default function EmailImportDetailPage() {
                         {STATUS_BADGES[tx.status]?.label || tx.status}
                       </Badge>
                       {['queued_for_review', 'pending', 'matched'].includes(tx.status) &&
-                        exceedsEmailAutoProcessLimit(tx) && (
+                        isOverLimit(tx) && (
                           <Badge variant="outline" className="ml-1 rounded-full border-amber-500 text-amber-700 dark:text-amber-400">
-                            {OVER_LIMIT_LABEL}
+                            {overLimitLabel}
                           </Badge>
                         )}
                     </TableCell>
@@ -596,7 +602,7 @@ export default function EmailImportDetailPage() {
                               className="h-8 w-8 text-green-600"
                               onClick={() => handleOpenProcessDialog(tx)}
                               disabled={isReleaseBlocked(tx)}
-                              title={isReleaseBlocked(tx) ? OVER_LIMIT_LABEL : 'Process'}
+                              title={isReleaseBlocked(tx) ? overLimitLabel : 'Process'}
                               aria-label="Process transaction"
                             >
                               <Check className="h-4 w-4" />
@@ -808,7 +814,7 @@ export default function EmailImportDetailPage() {
                 !selectedResidentId ||
                 isReleaseBlocked(selectedTransaction)
               }
-              title={isReleaseBlocked(selectedTransaction) ? OVER_LIMIT_LABEL : undefined}
+              title={isReleaseBlocked(selectedTransaction) ? overLimitLabel : undefined}
             >
               {processMutation.isPending ? 'Processing...' : 'Create Payment'}
             </Button>

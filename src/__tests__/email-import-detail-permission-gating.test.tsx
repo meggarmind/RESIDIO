@@ -109,7 +109,7 @@ function renderPage() {
 beforeEach(() => {
   mocks.permissions = [];
   mocks.getEmailImport.mockResolvedValue({ data: IMPORT_ROW, error: null });
-  mocks.getReviewQueue.mockResolvedValue({ data: [QUEUED_TX], count: 1, error: null });
+  mocks.getReviewQueue.mockResolvedValue({ data: [QUEUED_TX], count: 1, autoProcessLimit: 60000, error: null });
   mocks.getActiveResidents.mockResolvedValue({
     data: [{ id: 'res-1', first_name: 'Ada', last_name: 'Obi', resident_code: 'R-001' }],
     error: null,
@@ -255,7 +255,7 @@ describe('Email import detail error states (issue #564)', () => {
   });
 
   it('shows an error, not "No transactions found", when the transactions query fails', async () => {
-    mocks.getReviewQueue.mockResolvedValue({ data: [], count: 0, error: 'queue exploded' });
+    mocks.getReviewQueue.mockResolvedValue({ data: [], count: 0, autoProcessLimit: 60000, error: 'queue exploded' });
     renderPage();
 
     expect(await screen.findByText(/Failed to load transactions: queue exploded/)).toBeInTheDocument();
@@ -263,7 +263,7 @@ describe('Email import detail error states (issue #564)', () => {
   });
 
   it('does not render a bare 0 when there are no transactions', async () => {
-    mocks.getReviewQueue.mockResolvedValue({ data: [], count: 0, error: null });
+    mocks.getReviewQueue.mockResolvedValue({ data: [], count: 0, autoProcessLimit: 60000, error: null });
     const { container } = renderPage();
 
     expect(await screen.findByText('No transactions found in this status')).toBeInTheDocument();
@@ -274,6 +274,33 @@ describe('Email import detail error states (issue #564)', () => {
       .filter((n) => n.nodeType === Node.TEXT_NODE)
       .map((n) => n.textContent?.trim());
     expect(strayText).not.toContain('0');
+  });
+});
+
+describe('Email import detail over-limit label (issue #710)', () => {
+  it('names the current limit from the queue, not N60,000', async () => {
+    mocks.permissions = [PERMISSIONS.EMAIL_IMPORTS_VIEW, PERMISSIONS.EMAIL_IMPORTS_PROCESS];
+    mocks.getReviewQueue.mockResolvedValue({ data: [QUEUED_TX], count: 1, autoProcessLimit: 3000, error: null });
+    renderPage();
+
+    expect(await screen.findByText('Needs approval: over ₦3,000')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Process transaction' })).toBeDisabled();
+  });
+
+  it('marks every credit when the limit could not be read', async () => {
+    mocks.permissions = [PERMISSIONS.EMAIL_IMPORTS_VIEW];
+    mocks.getReviewQueue.mockResolvedValue({ data: [QUEUED_TX], count: 1, autoProcessLimit: null, error: null });
+    renderPage();
+
+    expect(await screen.findByText('Needs approval: approval limit unavailable')).toBeInTheDocument();
+  });
+
+  it('shows no label for a credit under the current limit', async () => {
+    mocks.getReviewQueue.mockResolvedValue({ data: [QUEUED_TX], count: 1, autoProcessLimit: 60000, error: null });
+    renderPage();
+
+    expect(await screen.findByText('NIP TRANSFER FROM JOHN DOE')).toBeInTheDocument();
+    expect(screen.queryByText(/Needs approval/)).not.toBeInTheDocument();
   });
 });
 
