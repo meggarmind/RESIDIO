@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Issues #759 and #744: below md the residents, houses, payments and invoices lists show stacked
+// Issues #759 and #744: below md the residents, houses, payments, invoices and approvals lists show stacked
 // cards. Both the cards and the table are in the DOM (CSS picks one), so every
 // query here is scoped to one of them.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -81,6 +81,21 @@ vi.mock('@/hooks/use-billing', () => ({
   useOverdueStats: () => ({ data: undefined }),
   useCheckOverdueInvoices: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
+vi.mock('@/hooks/use-approvals', () => ({
+  useApprovalRequests: () => ({
+    isLoading: false,
+    data: {
+      count: 2,
+      data: [
+        { id: 'req-1', request_type: 'late_fee_waiver', entity_name: 'Invoice INV-001', requested_changes: { amount: 0 }, current_values: { amount: 5000 }, requester: { full_name: 'Ada Obi' }, reviewer: null, status: 'pending', created_at: new Date().toISOString() },
+        { id: 'req-2', request_type: 'billing_profile_effective_date', entity_name: 'Profile One', requested_changes: {}, current_values: {}, requester: { full_name: 'Bayo Eze' }, reviewer: { full_name: 'Chi Okafor' }, status: 'approved', reviewed_at: new Date(Date.now() - 30 * 60_000).toISOString(), applied_at: null, created_at: new Date().toISOString() },
+      ],
+    },
+  }),
+  useApproveRequest: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRejectRequest: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useReapplyApprovedRequest: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 vi.mock('@/components/residents/resident-quick-view', () => ({ ResidentQuickView: () => null }));
 vi.mock('@/components/houses/house-quick-view', () => ({ HouseQuickView: () => null }));
 
@@ -88,6 +103,7 @@ import { ResidentsTable, RESIDENT_SORT_OPTIONS } from '@/components/residents/re
 import { HousesTable, HOUSE_SORT_OPTIONS } from '@/components/houses/houses-table';
 import { PaymentTable, PAYMENT_SORT_OPTIONS } from '@/components/payments/payment-table';
 import BillingPage from '@/app/(dashboard)/billing/page';
+import ApprovalsPage from '@/app/(dashboard)/approvals/page';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const PAYMENTS = [
@@ -264,6 +280,48 @@ describe('Invoices phone cards', () => {
   });
 });
 
+describe('Approvals phone cards', () => {
+  it('renders the same requests as the table', () => {
+    render(<ApprovalsPage />);
+    const list = screen.getByTestId('approval-card-list');
+    expect(list.querySelectorAll('[data-slot="record-card"]')).toHaveLength(2);
+    expect(within(screen.getByRole('table')).getAllByRole('row').slice(1)).toHaveLength(2);
+    expect(cards('approval-card-list').getByText('Invoice INV-001')).toBeInTheDocument();
+    expect(cards('approval-card-list').getByText(/^Late Fee Waiver Request · Ada Obi · /)).toBeInTheDocument();
+    expect(cards('approval-card-list').getByText('5000')).toBeInTheDocument();
+    expect(cards('approval-card-list').getByText('Approved, not applied')).toBeInTheDocument();
+    expect(cards('approval-card-list').getByText('by Chi Okafor')).toBeInTheDocument();
+  });
+
+  it('keeps only the status badge in the badge slot so the stuck badge cannot squeeze the title', () => {
+    mocks.permissions = [PERMISSIONS.APPROVALS_VIEW];
+    render(<ApprovalsPage />);
+    const stuck = cards('approval-card-list').getByText('Approved, not applied');
+    expect(stuck.closest('[data-slot="record-card-badge"]')).toBeNull();
+    expect(stuck.closest('[data-slot="record-card-body"]')).not.toBeNull();
+    const slots = screen.getByTestId('approval-card-list').querySelectorAll('[data-slot="record-card-badge"]');
+    slots.forEach((slot) => expect(slot.querySelectorAll('[data-slot="badge"]')).toHaveLength(1));
+  });
+
+  it('gates Approve, Reject and Re-apply on approvals.approve_reject', () => {
+    mocks.permissions = [PERMISSIONS.APPROVALS_VIEW];
+    render(<ApprovalsPage />);
+    expect(cards('approval-card-list').queryByRole('button', { name: /approve|reject|re-apply/i })).not.toBeInTheDocument();
+    cleanup();
+
+    mocks.permissions = [PERMISSIONS.APPROVALS_VIEW, PERMISSIONS.APPROVALS_APPROVE_REJECT];
+    render(<ApprovalsPage />);
+    expect(cards('approval-card-list').getByRole('button', { name: /re-apply/i })).toBeInTheDocument();
+    fireEvent.click(cards('approval-card-list').getByRole('button', { name: /approve/i }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Approve Request');
+  });
+
+  it('cards are not tap targets (the queue has no detail page)', () => {
+    render(<ApprovalsPage />);
+    expect(screen.getByTestId('approval-card-list').querySelectorAll('[data-slot="record-card-hit-area"]')).toHaveLength(0);
+  });
+});
+
 // jsdom applies no CSS, so the responsive switch is asserted on the classes.
 describe('Phone card lists: responsive switch and structure', () => {
   const wrapperOf = () => screen.getByRole('table', { hidden: true }).closest('.hidden') as HTMLElement | null;
@@ -273,6 +331,7 @@ describe('Phone card lists: responsive switch and structure', () => {
     ['houses', 'house-card-list', () => <HousesTable />],
     ['payments', 'payment-card-list', () => <PaymentTable data={PAYMENTS} />],
     ['invoices', 'invoice-card-list', () => <BillingPage />],
+    ['approvals', 'approval-card-list', () => <ApprovalsPage />],
   ])('%s: cards show only below md and the table only from md up', (_name, testId, ui) => {
     render(ui());
     const list = screen.getByTestId(testId as string);
@@ -290,6 +349,7 @@ describe('Phone card lists: responsive switch and structure', () => {
     ['houses', 'house-card-list', () => <HousesTable />],
     ['payments', 'payment-card-list', () => <PaymentTable data={PAYMENTS} clickableRows />],
     ['invoices', 'invoice-card-list', () => <BillingPage />],
+    ['approvals', 'approval-card-list', () => <ApprovalsPage />],
   ])('%s: no interactive element is nested inside a button or link, and cards are not buttons', (_name, testId, ui) => {
     mocks.permissions = Object.values(PERMISSIONS);
     render(ui());
