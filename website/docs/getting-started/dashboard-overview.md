@@ -16,9 +16,9 @@ residio_app_version: '0.4.0'
 
 The dashboard is your operating picture for the estate. Start here before opening a module: it shows the most urgent item, three lanes for money, people and security, an estate map, recent activity, and shortcuts into the workflows you use most.
 
-![Residio admin dashboard with collection, financial health, and action cards](../assets/admin/dashboard-overview.png)
+![Residio admin dashboard with a top strip, three lanes for money, people and security, and an estate map](../assets/admin/dashboard-overview.png)
 
-<p className="screenshot-caption">The dashboard is a triage surface: use the cards to decide what needs attention, then follow the link into the source record.</p>
+<p className="screenshot-caption">The dashboard is a triage surface: use the strip, the three lanes and the estate map to decide what needs attention, then follow the link into the source record.</p>
 
 ![Residio dashboard on a mobile viewport](../assets/admin/dashboard-mobile.png)
 
@@ -27,10 +27,10 @@ The dashboard is your operating picture for the estate. Start here before openin
 ## Read the page in this order
 
 1. **Top strip:** the band at the top greets you and shows the single most urgent item, as "Most urgent: ...". It picks the first of overdue Invoices, Payments to verify, Residents awaiting review, and expiring security contacts that has a non-zero count, and links to where you resolve it.
-2. **Money lane:** the headline is the amount collected against the amount invoiced, with the collection rate. Three queue rows sit under it: Payments to verify, Overdue invoice balance, and Resident wallet credits. The main button is **Verify payments**, with shortcuts to record a Payment, generate Invoices, and import a statement.
-3. **People and Houses lane:** the headline is Residents awaiting review. The queue rows show Active residents, Occupied houses, and Vacant houses. The main button is **Review residents**, with shortcuts to add a Resident and add a House.
-4. **Security and Access lane:** the headline is how many security contacts are active out of the total. The queue rows show Expired access codes, Suspended contacts, and Recent flagged entries. The main button is **Open security contacts**, with a shortcut to add a security contact.
-5. **Estate map:** one cell for each House, grouped by street and coloured by paid-up status. Use the status filter to show only the Houses in one state. It is gated on the same billing view permission as the Money lane.
+2. **Money lane:** the headline is "Collected on invoices, all time". Under it, a line shows how much was collected of the total invoiced, all time, with the collection rate, and a second line shows "Verified payments this month". Collected is everything paid against invoices, all time. Verified is this month's payments that a person confirmed or that came in through a bank or email statement import. Three queue rows sit under it: Payments to verify, Overdue invoice balance, and Resident wallet credits. The main button is **Verify payments**, with shortcuts to record a Payment, generate Invoices, and import a statement.
+3. **People and Houses lane:** the headline is Residents awaiting review. The status lines add "N houses are overdue" when any House is overdue, and "N of M houses paid up", both taken from the estate map. The queue rows show Active residents, Occupied houses, and Overdue houses. When the map is not available, the last row shows Vacant houses instead. The main button is **Review residents**, with shortcuts to add a Resident and add a House.
+4. **Security and Access lane:** the headline is Contacts expiring soon. The status line reads "N of M contacts active", followed by a summary of anything that needs attention. The queue rows show Expired access codes, Suspended contacts, and Recent flagged entries. The main button is **Open security contacts**, with a shortcut to add a security contact.
+5. **Estate map:** one cell for each House, grouped by street and marked by payment status: Overdue, Outstanding, Paid up, or No invoice. Each status has its own icon as well as a colour. The filter buttons (All, Overdue, Outstanding, Paid up, No invoice) show the count for each status, and choosing one shows only the Houses in that state. Select a cell to open the House. It is gated on the same billing view permission as the Money lane.
 6. **Recent activity:** confirm recent changes are expected and traceable. It is limited to Payments, Residents, and security contacts. If your role cannot
    view audit logs, this card says so rather than showing an empty list. Ask an administrator
    for the "view audit logs" permission if you need it.
