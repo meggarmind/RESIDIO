@@ -18,7 +18,7 @@ Settings are grouped by the decision they control.
 
 ![Residio settings hub](../assets/admin/settings-overview.png)
 
-- **Estate:** estate identity, branding, appearance, streets, house types, and document categories.
+- **Estate:** estate identity, branding, appearance, streets, house types, document categories, and document tags and custom fields.
 - **Financial:** billing rules, late fees, invoice generation, levies, billing profiles, bank accounts, and transaction tags.
 - **Communications:** the notifications dashboard, reminders and their schedule, notification templates and schedules, email notifications, message templates, and announcement categories.
 - **Access & Security:** role and permission definitions, security settings, and security contact categories.
