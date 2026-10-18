@@ -401,8 +401,8 @@ export function SecurityContactsTable({
       <div className="space-y-4 p-4">
         {/* Filters */}
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <form onSubmit={handleSearch} className="flex gap-2 flex-1">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+            <form onSubmit={handleSearch} className="flex gap-2 flex-1 min-w-[12rem]">
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -497,7 +497,7 @@ export function SecurityContactsTable({
           </div>
 
           {/* Second row - Status, Category, Add Contact */}
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
             <Select
               value={status}
               onValueChange={(v) => setStatus(v as SecurityContactStatus | typeof ALL_VALUE)}
