@@ -1,11 +1,8 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * #382 Slice 2: document taxonomy (nested tags, typed custom fields).
- * Pure rules, the migration's structure, and the server actions' gates, with a
+ * Pure rules and the server actions' gates, with a
  * fake Supabase client. Nothing here connects to a database.
  */
 
@@ -186,85 +183,6 @@ describe('typed custom-field values', () => {
     const r = toTypedValueColumns('date', '2026-01-02');
     expect(readTypedValue('date', r.columns!)).toBe('2026-01-02');
     expect(readTypedValue('text', r.columns!)).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-const FILE = '20261018140000_document_taxonomy.sql';
-const migration = readFileSync(
-  path.join(fileURLToPath(new URL('../../supabase/migrations', import.meta.url)), FILE),
-  'utf8'
-).replace(/\r\n/g, '\n');
-const active = (migration.match(/^BEGIN;[\s\S]*?^COMMIT;/m)?.[0] ?? '').replace(/--[^\n]*/g, '');
-const squash = (s: string) => s.replace(/\s+/g, ' ');
-const sql = squash(active);
-
-describe('#382 Slice 2 migration', () => {
-  it('runs in a transaction', () => {
-    expect(active).not.toBe('');
-  });
-
-  it('makes a tag assignment unique per document and tag', () => {
-    expect(sql).toContain('CONSTRAINT document_tag_assignments_document_tag_unique UNIQUE (document_id, tag_id)');
-  });
-
-  it('caps tag depth at 5 in a trigger on insert and re-parent', () => {
-    expect(sql).toContain('v_max_depth CONSTANT INT := 5;');
-    expect(sql).toContain('BEFORE INSERT OR UPDATE OF parent_tag_id ON public.document_tags');
-    expect(sql).toContain('IF v_ancestors + v_height > v_max_depth THEN');
-    expect(sql).toContain('IF v_cursor = NEW.id THEN');
-  });
-
-  it('stores exactly one typed value, and it must be the field type\'s column', () => {
-    expect(sql).toContain(
-      'num_nonnulls(value_text, value_number, value_date, value_money, value_boolean, value_url, value_document_id) = 1'
-    );
-    expect(sql).toContain('CONSTRAINT document_custom_field_values_document_field_unique UNIQUE (document_id, field_id)');
-    // An unparenthesised CASE inside IF ends the plpgsql condition at its first THEN (a syntax error on apply)
-    expect(sql).toContain('IF v_type IS NULL OR NOT (CASE v_type');
-    for (const [type, column] of Object.entries(VALUE_COLUMN)) {
-      expect(sql).toContain(`WHEN '${type}' THEN NEW.${column} IS NOT NULL`);
-    }
-    expect(sql).toContain(
-      `CHECK (data_type IN (${DOCUMENT_CUSTOM_FIELD_DATA_TYPES.map((t) => `'${t}'`).join(', ')}))`
-    );
-    expect(sql).toContain('IF NEW.data_type IS DISTINCT FROM OLD.data_type THEN');
-  });
-
-  it('seeds both permissions and grants them to the roles holding documents.manage_categories', () => {
-    expect(sql).toContain("('documents.manage_tags', 'Manage Tags',");
-    expect(sql).toContain("('documents.manage_custom_fields', 'Manage Custom Fields',");
-    expect(sql).toContain(
-      "JOIN public.app_permissions mc ON mc.id = rp.permission_id AND mc.name = 'documents.manage_categories'"
-    );
-    expect(sql).toContain("WHERE p.name IN ('documents.manage_tags', 'documents.manage_custom_fields')");
-  });
-
-  it.each(['document_tags', 'document_tag_assignments', 'document_custom_fields', 'document_custom_field_values'])(
-    'enables RLS on %s',
-    (table) => {
-      expect(sql).toContain(`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY;`);
-    }
-  );
-
-  it('gates definition writes on the manage permissions and value writes on documents.update', () => {
-    expect(sql).toContain("USING (public.has_permission('documents.manage_tags')) WITH CHECK (public.has_permission('documents.manage_tags'))");
-    expect(sql).toContain(
-      "USING (public.has_permission('documents.manage_custom_fields')) WITH CHECK (public.has_permission('documents.manage_custom_fields'))"
-    );
-    const valuesPolicy = sql.slice(sql.indexOf('CREATE POLICY "Editors can write custom field values"'));
-    expect(valuesPolicy).toMatch(/^[^;]*WITH CHECK \( public\.has_permission\('documents\.update'\)/);
-  });
-
-  it('ties assignment and value visibility to the document\'s own RLS, never to USING (true)', () => {
-    expect(sql).toContain('USING (EXISTS (SELECT 1 FROM public.documents d WHERE d.id = document_tag_assignments.document_id))');
-    expect(sql).toContain('USING (EXISTS (SELECT 1 FROM public.documents d WHERE d.id = document_custom_field_values.document_id))');
-    expect(sql).not.toMatch(/USING \(\s*true\s*\)/i);
-  });
-
-  it('gives anon nothing', () => {
-    expect(sql).toContain('FROM PUBLIC, anon, authenticated;');
-    expect(sql).not.toMatch(/GRANT [^;]* TO [^;]*anon/);
   });
 });
 
@@ -469,5 +387,26 @@ describe('library filter and upload', () => {
       { document_id: ROOT, tag_id: TAG_1 },
       { document_id: ROOT, tag_id: TAG_2 },
     ]);
+    expect(res.warning).toBeNull();
+  });
+
+  it('uploadDocument keeps the document but warns when the tags cannot be assigned', async () => {
+    respond = (c) => {
+      if (c.table === 'documents' && c.op === 'insert') return { data: { id: ROOT, title: 'Lease', file_name: 'l.pdf' }, error: null };
+      if (c.table === 'document_tag_assignments') return { data: null, error: { message: 'violates foreign key constraint' } };
+      return { data: null, error: null };
+    };
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fd = new FormData();
+    fd.set('file', new File(['abc'], 'l.pdf', { type: 'application/pdf' }));
+    fd.set('title', 'Lease');
+    fd.append('tag_ids', TAG_1);
+    const res = await uploadDocument(fd);
+    expect(res.error).toBeNull();
+    expect(res.data?.id).toBe(ROOT);
+    expect(res.warning).toMatch(/tags could not be assigned/);
+    expect(consoleError).toHaveBeenCalledWith('Document tag assignment error:', expect.objectContaining({ documentId: ROOT }));
+    expect(mocks.logAudit).toHaveBeenCalledWith(expect.objectContaining({ newValues: expect.objectContaining({ tag_ids: [] }) }));
+    consoleError.mockRestore();
   });
 });

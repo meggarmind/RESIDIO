@@ -15,6 +15,7 @@ import { idOrParentFilterStrict } from '@/lib/postgrest-filter';
 type UploadDocumentResponse = {
   data: DocumentWithRelations | null;
   error: string | null;
+  warning?: string | null;
 };
 
 /**
@@ -149,12 +150,14 @@ export async function uploadDocument(formData: FormData): Promise<UploadDocument
 
   // Tags (#382): the document exists either way, so a failed assignment is reported, not rolled back
   let assignedTagIds: string[] = [];
+  let warning: string | null = null;
   if (tagIds.length > 0) {
     const { error: tagError } = await supabase
       .from('document_tag_assignments')
       .insert(tagIds.map((tag_id) => ({ document_id: document.id, tag_id })));
     if (tagError) {
       console.error('Document tag assignment error:', { documentId: document.id, tagIds, tagError });
+      warning = 'Document uploaded, but its tags could not be assigned. Add them from the document page.';
     } else {
       assignedTagIds = tagIds;
     }
@@ -178,7 +181,7 @@ export async function uploadDocument(formData: FormData): Promise<UploadDocument
     description: `Uploaded document: ${document.title}`,
   });
 
-  return { data: document as DocumentWithRelations, error: null };
+  return { data: document as DocumentWithRelations, error: null, warning };
 }
 
 /**

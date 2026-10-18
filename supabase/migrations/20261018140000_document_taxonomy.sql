@@ -23,7 +23,7 @@
 --
 -- Tags and custom-field values are keyed on the ROOT document (parent_document_id IS NULL). A
 -- version upload is a new documents row pointing at the root, so the values survive it. The app
--- resolves the root before every read and write (src/actions/documents/taxonomy.ts).
+-- resolves the root before every read and write (src/actions/documents/document-taxonomy.ts).
 --
 -- Correspondents are not modelled: documents.resident_id and documents.house_id already exist,
 -- and vendors live in the expenditure module.

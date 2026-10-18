@@ -131,10 +131,11 @@ export function DocumentUploadForm({
     }, 200);
 
     try {
-      await uploadMutation.mutateAsync(formData);
+      const { warning } = await uploadMutation.mutateAsync(formData);
       clearInterval(progressInterval);
       setUploadProgress(100);
-      toast.success('Document uploaded successfully');
+      if (warning) toast.warning(warning);
+      else toast.success('Document uploaded successfully');
       handleClose();
       onSuccess?.();
     } catch (error) {

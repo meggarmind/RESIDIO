@@ -116,7 +116,7 @@ export function useUploadDocument() {
     mutationFn: async (formData: FormData) => {
       const result = await uploadDocument(formData);
       if (result.error) throw new Error(result.error);
-      return result.data;
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
