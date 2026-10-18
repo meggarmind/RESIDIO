@@ -312,6 +312,12 @@ export function VisualThemeProvider({
     document.documentElement.style.setProperty('--status-error-subtle', subtle(colors.destructive));
     document.documentElement.style.setProperty('--status-info', colors['chart-2']);
     document.documentElement.style.setProperty('--status-info-subtle', subtle(colors['chart-2']));
+    // Text shade of each status: base pushed away from the background so it clears 4.5:1 on its subtle tint
+    const text = (base: string) => `color-mix(in oklch, ${base}, ${isDark ? 'white 30%' : 'black 40%'})`;
+    document.documentElement.style.setProperty('--status-success-text', text(colors['chart-1']));
+    document.documentElement.style.setProperty('--status-warning-text', text(colors['chart-4']));
+    document.documentElement.style.setProperty('--status-error-text', text(colors.destructive));
+    document.documentElement.style.setProperty('--status-info-text', text(colors['chart-2']));
 
     // Legacy status names
     document.documentElement.style.setProperty('--bill-success', colors['chart-3']);
