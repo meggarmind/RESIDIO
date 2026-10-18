@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Issue #759: below md the residents, houses and payments lists show stacked
+// Issues #759 and #744: below md the residents, houses, payments and invoices lists show stacked
 // cards. Both the cards and the table are in the DOM (CSS picks one), so every
 // query here is scoped to one of them.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -62,12 +62,32 @@ vi.mock('@/hooks/use-payments', () => ({
   useDeletePayment: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useBulkUpdatePayments: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
+vi.mock('@/actions/billing/get-invoices', () => ({
+  getBillingResidentFilterOptions: async () => ({ data: [], error: null }),
+}));
+vi.mock('@/hooks/use-billing', () => ({
+  useAdminInvoices: () => ({
+    isLoading: false,
+    refetch: vi.fn(),
+    data: {
+      total: 2,
+      data: [
+        { id: 'inv-1', invoice_number: 'INV-001', amount_due: 25000, status: 'unpaid', invoice_type: 'SERVICE_CHARGE', period_start: '2026-01-01', due_date: '2026-01-31', resident: { first_name: 'Ada', last_name: 'Obi' }, house: { house_number: '12', street: { name: 'Ibrahim Babatunde' } } },
+        { id: 'inv-2', invoice_number: 'INV-002', amount_due: 40000, status: 'paid', invoice_type: 'LEVY', period_start: '2026-02-01', due_date: '2026-02-28', resident: { first_name: 'Bayo', last_name: 'Eze' }, house: { house_number: '14', street: { name: 'Ibrahim Babatunde' } } },
+      ],
+    },
+  }),
+  useInvoiceSummary: () => ({ data: undefined, isLoading: false }),
+  useOverdueStats: () => ({ data: undefined }),
+  useCheckOverdueInvoices: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
 vi.mock('@/components/residents/resident-quick-view', () => ({ ResidentQuickView: () => null }));
 vi.mock('@/components/houses/house-quick-view', () => ({ HouseQuickView: () => null }));
 
 import { ResidentsTable, RESIDENT_SORT_OPTIONS } from '@/components/residents/residents-table';
 import { HousesTable, HOUSE_SORT_OPTIONS } from '@/components/houses/houses-table';
 import { PaymentTable, PAYMENT_SORT_OPTIONS } from '@/components/payments/payment-table';
+import BillingPage from '@/app/(dashboard)/billing/page';
 import { PERMISSIONS } from '@/lib/auth/action-roles';
 
 const PAYMENTS = [
@@ -224,6 +244,26 @@ describe('Payments phone cards', () => {
   });
 });
 
+describe('Invoices phone cards', () => {
+  it('renders the same invoices as the table', () => {
+    render(<BillingPage />);
+    const list = screen.getByTestId('invoice-card-list');
+    expect(list.querySelectorAll('[data-slot="record-card"]')).toHaveLength(2);
+    expect(within(screen.getByRole('table')).getAllByRole('row').slice(1)).toHaveLength(2);
+    expect(cards('invoice-card-list').getByText('Ada Obi · 12, Ibrahim Babatunde')).toBeInTheDocument();
+    expect(cards('invoice-card-list').getByText('INV-002')).toBeInTheDocument();
+    expect(cards('invoice-card-list').getByText('Levy')).toBeInTheDocument();
+    expect(cards('invoice-card-list').getByText('unpaid')).toBeInTheDocument();
+    expect(cards('invoice-card-list').getByText((_, el) => el?.tagName === 'P' && el.textContent === 'Jan 2026 · Due 31/01/2026')).toBeInTheDocument();
+  });
+
+  it('navigates to the invoice when a card is tapped', () => {
+    render(<BillingPage />);
+    fireEvent.click(cards('invoice-card-list').getByRole('button', { name: 'Open invoice INV-002' }));
+    expect(mocks.push).toHaveBeenCalledExactlyOnceWith('/billing/inv-2');
+  });
+});
+
 // jsdom applies no CSS, so the responsive switch is asserted on the classes.
 describe('Phone card lists: responsive switch and structure', () => {
   const wrapperOf = () => screen.getByRole('table', { hidden: true }).closest('.hidden') as HTMLElement | null;
@@ -232,6 +272,7 @@ describe('Phone card lists: responsive switch and structure', () => {
     ['residents', 'resident-card-list', () => <ResidentsTable />],
     ['houses', 'house-card-list', () => <HousesTable />],
     ['payments', 'payment-card-list', () => <PaymentTable data={PAYMENTS} />],
+    ['invoices', 'invoice-card-list', () => <BillingPage />],
   ])('%s: cards show only below md and the table only from md up', (_name, testId, ui) => {
     render(ui());
     const list = screen.getByTestId(testId as string);
@@ -248,6 +289,7 @@ describe('Phone card lists: responsive switch and structure', () => {
     ['residents', 'resident-card-list', () => <ResidentsTable />],
     ['houses', 'house-card-list', () => <HousesTable />],
     ['payments', 'payment-card-list', () => <PaymentTable data={PAYMENTS} clickableRows />],
+    ['invoices', 'invoice-card-list', () => <BillingPage />],
   ])('%s: no interactive element is nested inside a button or link, and cards are not buttons', (_name, testId, ui) => {
     mocks.permissions = Object.values(PERMISSIONS);
     render(ui());

@@ -19,6 +19,7 @@ vi.mock('@/contexts/visual-theme-context', () => ({
 }));
 
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
 
