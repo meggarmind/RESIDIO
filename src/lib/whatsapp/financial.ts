@@ -363,7 +363,14 @@ function createSupabaseRepository(): WhatsAppFinancialRepository {
 
     async logDisclosure(input) {
       const supabase = createAdminClient();
-      const { error } = await supabase.from('whatsapp_disclosure_logs').insert(input);
+      const { error } = await supabase.from('whatsapp_disclosure_logs').insert({
+        resident_id: input.residentId,
+        phone_number: input.phoneNumber,
+        house_id: input.houseId,
+        menu_item: input.menuItem,
+        pin_authenticated: input.pinAuthenticated,
+        metadata: input.metadata ?? null,
+      });
       if (error) throw error;
     },
   };
@@ -526,7 +533,7 @@ export async function handleFinancialMessage(
       return;
     }
     const answer = await options.repository.getStatement(identity.id, statementHouseId, statementPeriod, allowedHouseIds);
-    await sendFinancialReply(message, `${answer.body}${!pinHash ? '\nTip: reply PIN 1234 to lock financial answers.' : ''}`, options.send);
+    // Log before sending (#795): a failed log then discloses nothing, and a provider retry cannot repeat an answer.
     await options.repository.logDisclosure({
       residentId: identity.id,
       phoneNumber,
@@ -535,6 +542,7 @@ export async function handleFinancialMessage(
       pinAuthenticated: session.pinAuthenticated,
       metadata: answer.metadata,
     });
+    await sendFinancialReply(message, `${answer.body}${!pinHash ? '\nTip: reply PIN 1234 to lock financial answers.' : ''}`, options.send);
     session.currentNode = 'menu';
     session.expiresAt = expiry();
     await options.repository.saveSession(session);
@@ -602,7 +610,7 @@ export async function handleFinancialMessage(
         ? await options.repository.getNextDue(identity.id, houseId)
         : await options.repository.getWallet(identity.id);
   const body = `${answer.body}${!pinHash ? '\nTip: reply PIN 1234 to lock financial answers.' : ''}`;
-  await sendFinancialReply(message, body, options.send);
+  // Log before sending (#795): see the statement branch above.
   await options.repository.logDisclosure({
     residentId: identity.id,
     phoneNumber,
@@ -611,6 +619,7 @@ export async function handleFinancialMessage(
     pinAuthenticated: session.pinAuthenticated,
     metadata: answer.metadata,
   });
+  await sendFinancialReply(message, body, options.send);
   session.currentNode = 'menu';
   session.expiresAt = expiry();
   await options.repository.saveSession(session);
