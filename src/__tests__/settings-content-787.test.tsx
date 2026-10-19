@@ -19,6 +19,19 @@ const m = vi.hoisted(() => ({
 const query = (data: unknown) => ({ data, isLoading: false });
 const mutation = () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
 
+vi.mock('@/actions/notifications/reminder-config', () => ({
+  getReminderSettings: async () => ({
+    enabled: true,
+    lastRun: null,
+    schedule: {
+      steps: [
+        { id: 's1', daysFromDue: -7, escalationLevel: 'friendly', channels: ['email'], isActive: true, priority: 1 },
+        { id: 's2', daysFromDue: 3, escalationLevel: 'overdue', channels: ['email'], isActive: true, priority: 5 },
+      ],
+    },
+  }),
+  setRemindersEnabled: vi.fn(),
+}));
 vi.mock('@/hooks/use-security', () => ({
   useSecurityContactCategories: () => query(m.categories),
   useUpdateSecurityContactCategory: () => mutation(),
@@ -45,6 +58,7 @@ vi.mock('@/components/ui/select', () => {
   };
 });
 
+import RemindersOverviewPage from '@/app/(dashboard)/settings/notifications/reminders/page';
 import CategoriesPage from '@/app/(dashboard)/settings/security/categories/page';
 import NotificationsSettingsPage from '@/app/(dashboard)/settings/notifications/page';
 import { TemplateForm } from '@/components/notifications/template-form';
@@ -81,12 +95,11 @@ describe('formatDaysFromDue', () => {
     expect(formatDaysFromDue(days)).toBe(expected);
   });
 
-  it('is the one shared formatter: neither reminder page defines its own', () => {
-    for (const page of ['notifications/reminders/page.tsx', 'notifications/reminders/schedule/page.tsx']) {
-      const source = readFileSync(path.join(SETTINGS_DIR, page), 'utf8');
-      expect(source).not.toMatch(/function formatDaysFromDue/);
-      expect(source).toMatch(/formatDaysFromDue\b.*from '@\/lib\/notifications\/types'/);
-    }
+  it('the reminders overview renders post-due steps as "after"', async () => {
+    render(<RemindersOverviewPage />);
+    expect(await screen.findByText('7 days before')).toBeInTheDocument();
+    expect(screen.getByText('3 days after')).toBeInTheDocument();
+    expect(screen.queryByText(/-\d/)).not.toBeInTheDocument();
   });
 });
 
