@@ -105,7 +105,7 @@ The persisted conversational state for an inbound WhatsApp number — current me
 _Avoid_: Chat state, dialog
 
 **Disclosure Log**:
-The audit trail recording each financial-standing answer the WhatsApp Assistant sends: number, resident, property, menu item, timestamp, and whether a PIN authenticated the request.
+The audit trail recording each financial-standing answer the WhatsApp Assistant releases, written before the reply is sent: number, resident, property, menu item, timestamp, and whether a PIN authenticated the request.
 _Avoid_: Transcript, chat log
 
 **Pending Contact**:
