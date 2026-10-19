@@ -250,6 +250,16 @@ export function extractChatmaidOutgoingRecipient(payload: unknown): string | nul
 }
 
 /**
+ * Whether a `message.outgoing` event is a human typing on the handset. Only
+ * `source: 'manual'` (or no source, as older payloads omit it) is a takeover;
+ * an API-sent message is the bot's own reply and must not pause it (#797).
+ */
+export function isChatmaidManualOutgoing(payload: unknown): boolean {
+  const source = asRecord(asRecord(payload)?.data)?.source;
+  return source === undefined || source === null || source === 'manual';
+}
+
+/**
  * Stable dedupe key for events that carry no message id (phone health,
  * outgoing). Chatmaid documents no event or delivery id header, so the key is
  * the event name plus a SHA-256 of the raw body: a retry of the same event
