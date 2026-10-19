@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { subDays } from 'date-fns';
 import { makeRecordingSupabase, uid } from '@/__tests__/helpers/recording-supabase';
-import { pruneSystemData } from '@/actions/system/prune-data';
+import { previewPruneSystemData, pruneSystemData } from '@/actions/system/prune-data';
 
 const { authorizePermission, createServerSupabaseClient, createAdminClient, logAudit, table } = vi.hoisted(() => ({
   authorizePermission: vi.fn(),
@@ -97,5 +97,54 @@ describe('pruneSystemData: system action log (#538)', () => {
 
     await expect(pruneSystemData()).rejects.toThrow('Unauthorized');
     expect(table.rows).toHaveLength(1);
+  });
+});
+
+
+// A server client whose in_app_notifications rejects any filter column the table lacks, as
+// PostgREST does, and records the filters it was given (#807).
+function notificationsClient(filters: string[]) {
+  const columns = new Set(['id', 'created_at', 'is_read', 'read_at', 'recipient_id']);
+  return {
+    from(name: string) {
+      let badColumn: string | null = null;
+      const chain: Record<string, unknown> = {};
+      chain.select = () => chain;
+      chain.delete = () => chain;
+      chain.eq = (column: string, value: unknown) => {
+        if (name === 'in_app_notifications') filters.push(`${column}=${String(value)}`);
+        if (!columns.has(column)) badColumn = column;
+        return chain;
+      };
+      chain.lt = () => chain;
+      chain.then = (resolve: (v: unknown) => unknown) =>
+        resolve(badColumn
+          ? { count: null, error: { message: `column ${name}.${badColumn} does not exist` } }
+          : { count: 0, error: null });
+      return chain;
+    },
+  };
+}
+
+describe('prune data: in_app_notifications read filter (#807)', () => {
+  it('pruneSystemData filters notifications on is_read', async () => {
+    const filters: string[] = [];
+    createServerSupabaseClient.mockImplementation(async () => notificationsClient(filters));
+
+    const result = await pruneSystemData();
+
+    expect(result.error).toBeNull();
+    expect(filters).toEqual(['is_read=true', 'is_read=false']);
+  });
+
+  it('previewPruneSystemData filters notifications on is_read', async () => {
+    const filters: string[] = [];
+    createServerSupabaseClient.mockImplementation(async () => notificationsClient(filters));
+    createAdminClient.mockImplementation(() => notificationsClient([]));
+
+    const result = await previewPruneSystemData();
+
+    expect(result.error).toBeNull();
+    expect(filters).toEqual(['is_read=true', 'is_read=false']);
   });
 });
