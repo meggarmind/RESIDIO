@@ -16,6 +16,7 @@ import { updateMaintenanceMode, previewMaintenanceLockout } from '@/actions/sett
 import { ConfirmAction } from '@/components/ui/confirm-action';
 import { NumericSettingInput } from '@/components/settings/numeric-setting-input';
 import { StickySaveBar } from '@/components/settings/sticky-save-bar';
+import { isMaintenanceModeOn } from '@/lib/settings/maintenance-mode';
 
 const DEFAULT_MESSAGE = 'The system is currently under maintenance. Please try again later.';
 
@@ -45,7 +46,7 @@ export default function MaintenancePage() {
     duplicate_matching_threshold: Number(settingsObj.duplicate_matching_threshold) || 90,
   }), [settingsObj]);
   // The stored value may be a boolean or the string 'true' (updateSetting stores strings).
-  const maintenanceMode = String(settingsObj.maintenance_mode) === 'true';
+  const maintenanceMode = isMaintenanceModeOn(settingsObj.maintenance_mode);
 
   // One save model: every field below is a draft until Save. Maintenance mode itself is an
   // action with its own confirmation, not part of the draft.
