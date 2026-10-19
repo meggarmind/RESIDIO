@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -221,10 +222,19 @@ export default function ReminderSchedulePage() {
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleResetToDefault}>
-                <RefreshCw className="h-4 w-4 mr-1" />
-                Reset to Default
-              </Button>
+              <ConfirmAction
+                trigger={
+                  <Button variant="outline" size="sm">
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Reset to Default
+                  </Button>
+                }
+                title="Reset the reminder schedule?"
+                description="Every step below is replaced by the default schedule, including any steps you added or edited. This cannot be undone."
+                confirmLabel="Reset schedule"
+                destructive
+                onConfirm={handleResetToDefault}
+              />
               <Button size="sm" onClick={() => setShowAddDialog(true)}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add Step

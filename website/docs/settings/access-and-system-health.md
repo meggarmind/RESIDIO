@@ -12,8 +12,8 @@ residio_sources:
   - src/app/(dashboard)/system/page.tsx
   - src/components/system/**
   - src/actions/system/**
-residio_verified_commit: 632166cb
-residio_verified_at: '2026-10-18'
+residio_verified_commit: 0d86eebb
+residio_verified_at: '2026-10-19'
 residio_app_version: '0.4.0'
 ---
 
@@ -61,6 +61,10 @@ Open **System → Action Log** to see what automated processes, such as schedule
 ## System health
 
 Maintenance mode and data retention are configuration, so they stay under **Settings**. The things you only watch have moved to **System**: **System → Cron Status** for scheduled jobs, and **System → Notification Queue** for messages waiting to go out. A health warning is a prompt to investigate, not a reason to delete data.
+
+Turning maintenance mode on asks first and lists how many active accounts, by role, would be sent to the maintenance page: everyone without the super admin role. It shows the saved maintenance message; unsaved edits to the message are not used until you save them. Turning it off takes effect at once. The other fields on the page (message, session timeout, duplicate threshold) are saved together from the save bar that appears when something has changed, and the page warns before you leave with unsaved changes.
+
+**Prune Data** under **Settings → Data Retention** shows how many audit log entries, notifications, search entries and system action log entries it would delete, and runs only after you type PRUNE. It deletes by fixed ages (audit logs over 6 months); the **Audit Log Retention** setting on the same page is not used yet.
 
 ## Safe maintenance sequence
 

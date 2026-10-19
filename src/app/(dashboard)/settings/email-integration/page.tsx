@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ConfirmAction } from '@/components/ui/confirm-action';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -124,9 +125,18 @@ function EmailIntegrationContent() {
                     <p className="text-sm text-muted-foreground">{connectionStatus.email}</p>
                   </div>
                 </div>
-                <Button variant="outline" onClick={() => disconnectMutation.mutate()} disabled={disconnectMutation.isPending}>
-                  <Unlink className="h-4 w-4 mr-2" /> Disconnect
-                </Button>
+                <ConfirmAction
+                  trigger={
+                    <Button variant="outline" disabled={disconnectMutation.isPending}>
+                      <Unlink className="h-4 w-4 mr-2" /> Disconnect
+                    </Button>
+                  }
+                  title="Disconnect Gmail?"
+                  description={`Bank alert emails stop being fetched from ${connectionStatus.email} until someone connects Gmail again, which needs a fresh Google sign-in.`}
+                  confirmLabel="Disconnect"
+                  destructive
+                  onConfirm={() => disconnectMutation.mutate()}
+                />
               </div>
               <Separator />
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

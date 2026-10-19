@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { SettingEffect } from '@/components/settings/setting-effect';
 import { CalendarClock, Info, CheckCircle, AlertTriangle } from 'lucide-react';
 
 export default function InvoiceGenerationPage() {
@@ -35,6 +36,7 @@ export default function InvoiceGenerationPage() {
                                 <p className="text-sm text-muted-foreground">
                                     Automatically generate monthly invoices on the configured day
                                 </p>
+                                <SettingEffect>future monthly runs only. Invoices already issued are not changed.</SettingEffect>
                             </div>
                             <Switch
                                 id="auto_generate_invoices"
@@ -52,6 +54,7 @@ export default function InvoiceGenerationPage() {
                                 <p className="text-sm text-muted-foreground">
                                     Day of the month when invoices are generated
                                 </p>
+                                <SettingEffect>future monthly runs only. Invoices already issued are not changed.</SettingEffect>
                             </div>
                             <Select
                                 value={String(generationDay || 2)}
