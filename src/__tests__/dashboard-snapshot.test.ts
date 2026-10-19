@@ -54,6 +54,9 @@ describe('admin dashboard snapshot contract', () => {
           error: null,
         });
       }
+      if (name === 'get_dashboard_financial_totals') {
+        return Promise.resolve({ data: { invoice_total_due: 0, invoice_total_paid: 0 }, error: null });
+      }
       if (name === 'get_dashboard_monthly_invoice_counts') {
         // Every trend month reports 5 invoices generated.
         return Promise.resolve({
@@ -129,8 +132,8 @@ describe('admin dashboard snapshot contract', () => {
       paymentsReceived: 1200 + cur,
       invoicesGenerated: 5,
     });
-    // 8 payment-metric windows + 1 invoice status counts + 1 monthly invoice counts
-    expect(rpc).toHaveBeenCalledTimes(10);
+    // 8 payment-metric windows + 1 invoice status counts + 1 monthly invoice counts + 1 financial totals
+    expect(rpc).toHaveBeenCalledTimes(11);
   });
 
   it('reports financial health as null and trends as empty when the payment RPC errors', async () => {

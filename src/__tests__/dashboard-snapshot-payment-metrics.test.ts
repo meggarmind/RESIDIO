@@ -26,7 +26,9 @@ function makeClient(
   other: (name: string, args: Record<string, unknown>) => RpcResult = (name) =>
     name === 'get_dashboard_invoice_status_counts'
       ? { data: zeroStatusCounts, error: null }
-      : { data: [], error: null }, // get_dashboard_monthly_invoice_counts: nothing generated
+      : name === 'get_dashboard_financial_totals'
+        ? { data: {}, error: null }
+        : { data: [], error: null }, // get_dashboard_monthly_invoice_counts: nothing generated
 ) {
   const selects: Array<{ table: string; columns: string }> = [];
   const rpcCalls: Array<{ name: string; args: Record<string, string> }> = [];
@@ -103,7 +105,9 @@ describe('admin dashboard snapshot payment figures come from the RPC (#215, #459
     // plus ONE invoice-status call and ONE monthly-invoice call (not 6 + 6 head counts)
     expect(rpcCalls.filter((c) => c.name === 'get_dashboard_invoice_status_counts')).toHaveLength(1);
     expect(rpcCalls.filter((c) => c.name === 'get_dashboard_monthly_invoice_counts')).toHaveLength(1);
-    expect(rpcCalls).toHaveLength(10);
+    // plus ONE financial totals call shared by the financial and levy cards (#775)
+    expect(rpcCalls.filter((c) => c.name === 'get_dashboard_financial_totals')).toHaveLength(1);
+    expect(rpcCalls).toHaveLength(11);
     expect(selects.filter((s) => s.table === 'invoices' && s.columns === '*')).toEqual([]);
     for (const c of paymentCalls) {
       expect(c.args.p_month_start).toMatch(/^\d{4}-\d{2}-01$/);

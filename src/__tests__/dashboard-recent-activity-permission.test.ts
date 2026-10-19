@@ -85,6 +85,15 @@ function mockSupabase(auditRows: unknown[] = []) {
 const WITHOUT_AUDIT = ['billing.view', 'residents.view', 'settings.manage_general'];
 const WITH_AUDIT = [...WITHOUT_AUDIT, PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS];
 
+/**
+ * Gives the viewer `permissions` through both resolution paths: the snapshot passes on the set
+ * authorizePermission already resolved, the other entry points read getCurrentUserPermissions (#775).
+ */
+function grant(permissions: string[]) {
+  authorizePermission.mockResolvedValue({ authorized: true, userId: 'user-1', permissions, error: null });
+  getCurrentUserPermissions.mockResolvedValue({ userId: 'user-1', permissions });
+}
+
 describe('recent activity permission state (#197)', () => {
   beforeEach(() => {
     authorizePermission.mockReset();
@@ -95,7 +104,7 @@ describe('recent activity permission state (#197)', () => {
 
   describe('getAdminDashboardSnapshot', () => {
     it('flags the card unavailable for a role without settings.view_audit_logs', async () => {
-      getCurrentUserPermissions.mockResolvedValue({ userId: 'user-1', permissions: WITHOUT_AUDIT });
+      grant(WITHOUT_AUDIT);
       mockSupabase([AUDIT_ROW]);
 
       const result = await getAdminDashboardSnapshot();
@@ -106,7 +115,7 @@ describe('recent activity permission state (#197)', () => {
     });
 
     it('never issues the audit_logs query it knows RLS will deny', async () => {
-      getCurrentUserPermissions.mockResolvedValue({ userId: 'user-1', permissions: WITHOUT_AUDIT });
+      grant(WITHOUT_AUDIT);
       mockSupabase([AUDIT_ROW]);
 
       await getAdminDashboardSnapshot();
@@ -115,7 +124,7 @@ describe('recent activity permission state (#197)', () => {
     });
 
     it('returns the activity list unchanged, and unflagged, for a permitted role', async () => {
-      getCurrentUserPermissions.mockResolvedValue({ userId: 'user-1', permissions: WITH_AUDIT });
+      grant(WITH_AUDIT);
       mockSupabase([AUDIT_ROW]);
 
       const result = await getAdminDashboardSnapshot();
@@ -126,8 +135,18 @@ describe('recent activity permission state (#197)', () => {
       expect(tablesQueried).toContain('audit_logs');
     });
 
+    it('uses the permissions authorizePermission resolved instead of a second access lookup (#775)', async () => {
+      grant(WITH_AUDIT);
+      mockSupabase([AUDIT_ROW]);
+
+      await getAdminDashboardSnapshot();
+
+      expect(authorizePermission).toHaveBeenCalledTimes(1);
+      expect(getCurrentUserPermissions).not.toHaveBeenCalled();
+    });
+
     it('does not blame the viewer when a permitted role simply has no activity', async () => {
-      getCurrentUserPermissions.mockResolvedValue({ userId: 'user-1', permissions: WITH_AUDIT });
+      grant(WITH_AUDIT);
       mockSupabase([]);
 
       const result = await getAdminDashboardSnapshot();
@@ -139,7 +158,7 @@ describe('recent activity permission state (#197)', () => {
 
   describe('getEnhancedDashboardStats', () => {
     it('carries the same flag as the snapshot entry point', async () => {
-      getCurrentUserPermissions.mockResolvedValue({ userId: 'user-1', permissions: WITHOUT_AUDIT });
+      grant(WITHOUT_AUDIT);
       mockSupabase([AUDIT_ROW]);
 
       const result = await getEnhancedDashboardStats();
@@ -148,11 +167,31 @@ describe('recent activity permission state (#197)', () => {
       expect(result.data?.recentActivity).toEqual([]);
       expect(tablesQueried).not.toContain('audit_logs');
     });
+
+    it('resolves access once per load (#775)', async () => {
+      grant(WITH_AUDIT);
+      mockSupabase([AUDIT_ROW]);
+
+      const result = await getEnhancedDashboardStats();
+
+      expect(result.data?.recentActivity).toHaveLength(1);
+      expect(getCurrentUserPermissions).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects a caller with no session', async () => {
+      getCurrentUserPermissions.mockResolvedValue({ userId: null, permissions: [] });
+      mockSupabase([AUDIT_ROW]);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = await getEnhancedDashboardStats();
+
+      expect(result).toEqual({ data: null, error: 'Unauthorized' });
+    });
   });
 
   describe('getDashboardRecentActivity', () => {
     it('reports the denial explicitly rather than as an empty list', async () => {
-      getCurrentUserPermissions.mockResolvedValue({ userId: 'user-1', permissions: WITHOUT_AUDIT });
+      grant(WITHOUT_AUDIT);
       mockSupabase([AUDIT_ROW]);
 
       const result = await getDashboardRecentActivity();
@@ -162,7 +201,7 @@ describe('recent activity permission state (#197)', () => {
     });
 
     it('reports items with permissionDenied false for a permitted role', async () => {
-      getCurrentUserPermissions.mockResolvedValue({ userId: 'user-1', permissions: WITH_AUDIT });
+      grant(WITH_AUDIT);
       mockSupabase([AUDIT_ROW]);
 
       const result = await getDashboardRecentActivity();
@@ -177,7 +216,7 @@ describe('recent activity permission state (#197)', () => {
     const everythingElse = Object.values(PERMISSIONS).filter(
       (p) => p !== PERMISSIONS.SETTINGS_VIEW_AUDIT_LOGS
     );
-    getCurrentUserPermissions.mockResolvedValue({ userId: 'user-1', permissions: everythingElse });
+    grant(everythingElse);
     mockSupabase([AUDIT_ROW]);
 
     const result = await getDashboardRecentActivity();
